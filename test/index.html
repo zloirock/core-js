@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<title>playground</title>
+<link rel='stylesheet' href='bootstrap.css'>
+<div class='row'>
+  <textarea cols='60' wrap='hard' class="wall col col-lg-5" id='script' autofocus style='min-height:504px;font-size:13px;font-family:Monaco,Menlo,Consolas,"Courier New",monospace'></textarea>
+  <div class="col col-lg-2">
+    <button class="btn btn-primary btn-small btn-block" id='compile'>compile</button>
+    <button class="btn btn-primary btn-small btn-block" id='link'>link</button>
+    <button class="btn btn-danger btn-large btn-block" id='run'>run</button>
+  </div>
+  <pre class="col col-lg-5" id='result' style='min-height:504px'></pre>
+</div>
+<script type="text/ls">
+@<<<require \prelude-ls
+$=document~getElementById
+compile=->
+  try LiveScript.compile it,bare:on
+  catch=>String e
+stringify=->(if JSON?stringify && iz it,\Object,\Array => JSON.stringify it else String it)escapeHTML!
+S=$ \script
+R=$ \result
+@log=!->R.innerHTML+=Array.map(&,stringify)join(' ')+'\n'
+S.onkeyup=$(\compile)onclick=compileTextarea=->
+  S.rows=27 >? 1+S.value.split('\n')reduce ((c,s)->c+(s.length/60.|.0)+1),0
+  R.innerHTML=compile(S.value)escapeHTML!
+if location.hash.slice 1
+  S.innerHTML=that.unescapeURL!escapeHTML!
+  compileTextarea!
+$(\run)onclick=->
+  R.innerHTML=''
+  log try Function(compile 'return do->\n'+S.value.split('\n')map((' '+))join '\n')!
+    catch=>e
+$(\link)onclick=->
+  location.hash='#'+S.value.escapeURL!
+  compileTextarea!
+</script>
+<script src="core.js"></script>
+<script src="prelude.js"></script>
+<script src="livescript.js"></script>
