@@ -20,4 +20,4 @@ option '-p','--path [PATH]','output file'
 option '-m','--min','minify output file'
 task 'build','build lib',(opt)->
   require 'LiveScript'
-  require('./make') opt,(script)->require('fs').writeFile opt.path||'core.js',script
+  require('./make') opt,(script)->require('fs').writeFile opt.path||'index.js',script

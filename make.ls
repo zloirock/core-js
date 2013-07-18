@@ -36,9 +36,7 @@ module.exports=(opt,next)->let @=opt
   scripts[*]<~read \ls,@ls
   scripts[*]="}(typeof window!='undefined'?window:global,Function,Object,Array,String,Number,RegExp,Date,Error,TypeError,Math);"
   script=scripts * '\n'
-  if @min
-    {uglify,parser}=require \uglify-js
-    script=uglify.gen_code uglify.ast_squeeze uglify.ast_mangle parser.parse script
+  if @min => script = require \uglify-js .minify script,{+fromString,compress:{+unsafe}} .code
   next """// Core.js #version
           // http://core.zloirock.ru
           // © 2013 Denis Pushkarev
