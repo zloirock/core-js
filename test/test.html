@@ -706,6 +706,27 @@ test 'ES6 Number props',->
   ok iz.Fn(Number.isFinite),'Number.isFinite 1'
   ok iz.Fn(Number.isInteger),'Number.isInteger 1'
   ok iz.Fn(Number.toInteger),'Number.toInteger 1'
+test 'ES6 Map',->
+  ok \Map of global,'\\Map of global'
+  ok iz.Function(global.Map),'iz.Function global.Map'
+  ok new Map instanceof Map,'new Map instanceof Map'
+  ok Map! instanceof Map,'Map! instanceof Map'
+  ok \clear of Map::,'\\clear of Map::'
+  ok \delete of Map::,'\\delete of Map::'
+  ok \forEach of Map::,'\\forEach of Map::'
+  ok \get of Map::,'\\get of Map::'
+  ok \has of Map::,'\\has of Map::'
+  ok \set of Map::,'\\set of Map::'
+test 'ES6 Set',->
+  ok \Set of global,'\\Set of global'
+  ok iz.Function(global.Set),'iz.Function global.Set'
+  ok new Set instanceof Set,'new Set instanceof Set'
+  ok Set! instanceof Set,'Set! instanceof Set'
+  ok \add of Set::,'\\add of Set::'
+  ok \clear of Set::,'\\clear of Set::'
+  ok \delete of Set::,'\\delete of Set::'
+  ok \forEach of Set::,'\\forEach of Set::'
+  ok \has of Set::,'\\has of Set::'
 test \Function,->
   equal {}toString.unbind!(\qwe),'[object String]','Function.prototype.unbind 1'
   equal []reduce.unbind!(\qwe,((a,b)->b+a),''),'ewq','Function.prototype.unbind 2'
@@ -1035,26 +1056,22 @@ test \Array,->
   equal Array.lastIndexOf((->&)(1,2,3),3,1),-1,'Array.lastIndexOf 5'
   equal Array.lastIndexOf((->&)(1,2,3),2,1),1,'Array.lastIndexOf 6'
 test \Number,->
-  equal (-7)div(3),-2,'Number.prototype.div 1'
-  equal 7.div(3),2,'Number.prototype.div 2'
-  rez=0
-  equal 5..times(->rez+=it),5,'Number.prototype.times 1'
-  equal rez,10,'Number.prototype.times 2'
-  rez=0
-  5.times ->rez+=it+&1
-  equal rez,35,'Number.prototype.times 3'
-  rez=0
-  5.times (->rez+=it+@),1
-  equal rez,15,'Number.prototype.times 4'
+  equal (-7)div(3),-2,'equal (-7)div(3),-2'
+  equal 7.div(3),2,'equal 7.div(3),2'
+  deepEqual 5.times(->it),[0,1,2,3,4],'deepEqual 5.times(->it),[0,1,2,3,4]'
+  deepEqual 5.times(->it+&1),[0,2,4,6,8],'deepEqual 5.times(->it+&1),[0,2,4,6,8]'
+  deepEqual 5.times(->it+&1+&2),[5,7,9,11,13],'deepEqual 5.times(->it+&1+&2),[5,7,9,11,13]'
+  deepEqual 5.times(->(@.|.0)+it+&1+&2),[5,7,9,11,13],'deepEqual 5.times(->(@.|.0)+it+&1+&2),[5,7,9,11,13]'
+  deepEqual 5.times((->(@.|.0)+it+&1+&2),1),[6,8,10,12,14],'deepEqual 5.times((->(@.|.0)+it+&1+&2),1),[6,8,10,12,14]'
 test \RegExp,->
-  equal /./gmi.getFlag!length,3,'RegExp.prototype.getFlag 1'
-  equal /tvbrtbtrf/i.getFlag!,\i,'RegExp.prototype.getFlag 2'
-  equal /./gmi.setFlag(\i)toString!,'/./i','RegExp.prototype.setFlag 1'
-  equal /./i.setFlag(\gmi)getFlag!length,3,'RegExp.prototype.setFlag 2'
-  equal /./.addFlag(\i)toString!,'/./i','RegExp.prototype.addFlag 1'
-  equal /./i.addFlag(\g)getFlag!length,2,'RegExp.prototype.addFlag 2'
-  equal /./gmi.removeFlag(\g)removeFlag(\i)toString!,'/./m','RegExp.prototype.removeFlag 1'
-  equal /./i.removeFlag(\g)toString!,'/./i','RegExp.prototype.removeFlag 2'
+  equal /./gmi.getFlag!length,3,'equal /./gmi.getFlag!length,3'
+  equal /tvbrtbtrf/i.getFlag!,\i,'equal /tvbrtbtrf/i.getFlag!,\\i'
+  equal /./gmi.setFlag(\i)toString!,'/./i',"equal /./gmi.setFlag(\\i)toString!,'/./i'"
+  equal /./i.setFlag(\gmi)getFlag!length,3,'equal /./i.setFlag(\\gmi)getFlag!length,3'
+  equal /./.addFlag(\i)toString!,'/./i',"equal /./.addFlag(\\i)toString!,'/./i'"
+  equal /./i.addFlag(\g)getFlag!length,2,'equal /./i.addFlag(\\g)getFlag!length,2'
+  equal /./gmi.removeFlag(\g)removeFlag(\i)toString!,'/./m',"equal /./gmi.removeFlag(\\g)removeFlag(\\i)toString!,'/./m'"
+  equal /./i.removeFlag(\g)toString!,'/./i',"equal /./i.removeFlag(\\g)toString!,'/./i'"
 test 'console',->
   ok iz.Fn(global.console),'console is function'
   ok (try console m='call console';on),m

@@ -1,8 +1,11 @@
 if(!isNative(global.Map)||!['set','get','delete','clear','forEach'].every(own.bind(undefined,Map[prototype]))){
   tryDeleteGlobal('Map');
-  global.Map=function(){
-    if(!(this instanceof Map))return new Map;
-    this.clear()
+  global.Map=function(iterable){
+    var key,value,that=this;
+    if(!(that instanceof Map))return new Map(iterable);
+    that.clear();
+    if(isMap(iterable)||isSet(iterable))iterable.forEach(function(value){that.set(value[0],value[1])});
+    else if(isObject(iterable))for(key in iterable)that.set((value=iterable[key])[0],value[1]);
   }
   extendBuiltInObject(Map[prototype],{
     // 15.14.4.2 Map.prototype.clear ()
@@ -58,28 +61,22 @@ if(!isNative(global.Map)||!['set','get','delete','clear','forEach'].every(own.bi
       return this
     }
   });
-  izMap=function(it){return it instanceof Map}
+  isMap=function(it){return it instanceof Map}
 }
-extendBuiltInObject(Map,{
-  create:function(keys,values){
-    var i=0,length=keys.length,
-        m=new Map();
-    while(length > i)m.set(keys[i],values[i++]);
-    return m
-  }
-});
 if(!isNative(global.Set)||!['add','delete','clear','has','forEach'].every(own.bind(undefined,Set[prototype]))){
   tryDeleteGlobal('Set');
-  global.Set=function(){
-    if(!(this instanceof Set))return new Set;
-    this.clear()
+  global.Set=function(iterable){
+    if(!(this instanceof Set))return new Set(iterable);
+    this.clear();
+    if(isMap(iterable)||isSet(iterable))iterable.forEach(this.add,this);
+    else if(isObject(iterable))for(var key in iterable)this.add(iterable[key]);
   };
   extendBuiltInObject(Set[prototype],{
     // 15.16.4.2 Set.prototype.add (value )
     // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.16.4.2
     add:function(value){
       var values=this.SetData;
-      if(!~indexComp(values,value)){
+      if(!~indexSame(values,value)){
         values.push(value);
         this.size=values.length
       }
@@ -106,8 +103,7 @@ if(!isNative(global.Set)||!['add','delete','clear','has','forEach'].every(own.bi
     // 15.16.4.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
     // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.16.4.6
     forEach:function(callbackfn/*?*/,thisArg){
-      var i=0,length=values.length,val,
-          values=this.SetData;
+      var values=this.SetData,i=0,length=values.length,val;
       while(length > i)callbackfn.call(thisArg,val=values[i++],val,this)
     },
     // 15.16.4.7 Set.prototype.has ( value )
@@ -116,13 +112,5 @@ if(!isNative(global.Set)||!['add','delete','clear','has','forEach'].every(own.bi
       return !!~indexSame(this.SetData,value)
     }
   });
-  izSet=function(it){return it instanceof Set}
+  isSet=function(it){return it instanceof Set}
 }
-extendBuiltInObject(Set,{
-  from:function(arrayLike){
-    var i=0,length=arrayLike.length,
-        s=new Set();
-    while(length > i)s.add(arrayLike[i++]);
-    return s
-  }
-});

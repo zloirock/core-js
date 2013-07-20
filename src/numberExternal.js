@@ -11,7 +11,7 @@ extendBuiltInObject($Number,{
   },
   times:function(fn/*?*/,that){
     var i=0,num=this|0,result=Array(num);
-    if(isFunction(fn))while(i<num)result[i]=fn.call(that,i++,this);
+    if(isFunction(fn))while(num > i)result[i]=fn.call(that,i,i++,this);
     return result
   },
   random:function(/*?*/number){

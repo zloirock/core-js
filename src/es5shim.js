@@ -1,7 +1,8 @@
 !function(){
   // not enum keys
-  var hidenNames='length,toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor'.split(','),
-      hidenNamesLength=hidenNames.length;
+  var hidenNames1='toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor'.split(','),
+      hidenNames2=hidenNames1.concat(['length']),
+      hidenNames1Length=hidenNames1.length;
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   if(!(iz.$DESC=!function(){try{Object.defineProperty({},0,$Object)}catch(e){return 1}}())){
     // 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
@@ -36,7 +37,7 @@
     :function(){
       // Thrash, waste and sodomy
       var iframe=document.createElement('iframe'),iframeDocument,
-          i=hidenNamesLength,
+          i=hidenNames1Length,
           body=document.body||document.documentElement;
       iframe.style.display='none';
       body.appendChild(iframe);
@@ -47,9 +48,18 @@
       iframeDocument.close();
       createNullProtoObject=iframeDocument._tmp_;
       // body.removeChild(iframe);
-      while(i--)delete createNullProtoObject[prototype][hidenNames[i]];
+      while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
       return createNullProtoObject()
+    },
+  createGetKeys=function(names,length,test){
+    return function(O){
+      var i=0,key,result=[];
+      for(key in O)own(O,key)&&result.push(key);
+      // hiden names for .getOwnPropertyNames & don't enum bug fix for .keys
+      while(length > i)test(O,key=names[i++])&&!~result.indexOf(key)&&result.push(key);
+      return result
     }
+  };
   extendBuiltInObject(Object,{
     // 15.2.3.5 Object.create ( O [, Properties] )
     // http://es5.github.io/#x15.2.3.5
@@ -71,18 +81,10 @@
     },
     // 15.2.3.14 Object.keys ( O )
     // http://es5.github.io/#x15.2.3.14
-    keys:function(O){
-      var key,result=[];
-      for(key in O)own(O,key)&&result.push(key);
-      return result
-    },
+    keys:createGetKeys(hidenNames1,hidenNames1Length,isEnum),
     // 15.2.3.4 Object.getOwnPropertyNames ( O )
     // http://es5.github.io/#x15.2.3.4
-    getOwnPropertyNames:function(O){
-      var i=0,key,result=keys(O);
-      while(hidenNamesLength > i)own(O,key=hidenNames[i++])&&!~result.indexOf(key)&&result.push(key);
-      return result
-    }
+    getOwnPropertyNames:createGetKeys(hidenNames2,hidenNames2.length,own)
   });
   // not array-like strings fix
   if(!(0 in Object('q'))){
