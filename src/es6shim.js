@@ -20,7 +20,7 @@ extendBuiltInObject(Object,{
       return O
     }
     :function(){
-      throw Error('Can\'t shim setPrototypeOf')
+      throw Error("Can't shim setPrototypeOf")
     }
 });
 extendBuiltInObject(Array,{
@@ -210,9 +210,7 @@ extendBuiltInObject(Math,{
   },
   // 15.8.2.31 Math.sign(x)
   // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.8.2.31
-  sign:function(x){
-    return x===0||izNaN(x)?x:x<0?-1:1
-  },
+  sign:sign,
   // 15.8.2.32 Math.cbrt(x)
   // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.8.2.32
   cbrt:function(x){

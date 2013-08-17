@@ -728,14 +728,12 @@ test 'ES6 Set',->
   ok \forEach of Set::,'\\forEach of Set::'
   ok \has of Set::,'\\has of Set::'
 test \Function,->
-  equal {}toString.unbind!(\qwe),'[object String]','Function.prototype.unbind 1'
-  equal []reduce.unbind!(\qwe,((a,b)->b+a),''),'ewq','Function.prototype.unbind 2'
-  obj={a:42}
-  obj.fn=(->it.a)methodize!
-  equal obj.fn!,42,'Function.prototype.methodize 1'
+  equal {}toString.unbind!(\qwe),'[object String]',"equal {}toString.unbind!(\\qwe),'[object String]'"
+  equal []reduce.unbind!(\qwe,((a,b)->b+a),''),'ewq',"equal []reduce.unbind!(\\qwe,((a,b)->b+a),''),'ewq'"
+  equal {a:42,fn:(->it.a)methodize!}fn!,42,'equal {a:42,fn:(->it.a)methodize!}fn!,42'
   num=new Number 42
   num.fn=((a,b)->a+b)methodize!
-  equal num.fn(21),63,'Function.prototype.methodize 2'
+  equal num.fn(21),63,'Function.prototype.methodize: equal num.fn(21),63'
   equal iz.Class.part(\qwe)!,\String,'Function.prototype.part 1'
   obj={a:42}
   obj.fn=(->@a+it)part 21

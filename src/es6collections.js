@@ -103,7 +103,8 @@ if(!isNative(global.Set)||!['add','delete','clear','has','forEach'].every(own.bi
     // 15.16.4.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
     // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.16.4.6
     forEach:function(callbackfn/*?*/,thisArg){
-      var values=this.SetData,i=0,length=values.length,val;
+      var values=this.SetData,val,
+          i=0,length=values.length;
       while(length > i)callbackfn.call(thisArg,val=values[i++],val,this)
     },
     // 15.16.4.7 Set.prototype.has ( value )

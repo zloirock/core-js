@@ -28,6 +28,9 @@ extendBuiltInObject($Number,{
   even:function(){
     return !!(+this+1)&&!(this%2)
   },
+  sign:function(){
+    return sign(+this)
+  },
   format:methodize.call(numberFormat),
   toChar:methodize.call(String.fromCharCode)
 });

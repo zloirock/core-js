@@ -6,7 +6,11 @@ function arraySum(/*?*/mapArg){
   return result
 }
 extendBuiltInObject($Array,{
-  each:function(/*callbackfn,thisArg*/){
+  merge: function(arrayLike){
+    push.apply(this,arrayLike);
+    return this;
+  },
+  each:function(/*callbackfn[,thisArg]*/){
     forEach.apply(this,arguments);
     return this
   },//////////////////////////////////////

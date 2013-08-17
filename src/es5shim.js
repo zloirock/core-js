@@ -51,12 +51,12 @@
       while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
       return createNullProtoObject()
     },
-  createGetKeys=function(names,length,test){
+  createGetKeys=function(names,length){
     return function(O){
       var i=0,key,result=[];
       for(key in O)own(O,key)&&result.push(key);
       // hiden names for .getOwnPropertyNames & don't enum bug fix for .keys
-      while(length > i)test(O,key=names[i++])&&!~result.indexOf(key)&&result.push(key);
+      while(length > i)own(O,key=names[i++])&&!~result.indexOf(key)&&result.push(key);
       return result
     }
   };
@@ -81,10 +81,10 @@
     },
     // 15.2.3.14 Object.keys ( O )
     // http://es5.github.io/#x15.2.3.14
-    keys:createGetKeys(hidenNames1,hidenNames1Length,isEnum),
+    keys:createGetKeys(hidenNames1,hidenNames1Length),
     // 15.2.3.4 Object.getOwnPropertyNames ( O )
     // http://es5.github.io/#x15.2.3.4
-    getOwnPropertyNames:createGetKeys(hidenNames2,hidenNames2.length,own)
+    getOwnPropertyNames:createGetKeys(hidenNames2,hidenNames2.length)
   });
   // not array-like strings fix
   if(!(0 in Object('q'))){
@@ -189,9 +189,9 @@ extendBuiltInObject($Array,{
         result=self[i++];
         break
       }
-      if(++i>=length)throw TypeError('Reduce of empty array with no initial value')
+      if(length <= ++i)throw TypeError('Reduce of empty array with no initial value')
     }
-    for(;i<length;i++)if(i in self)result=callbackfn(result,self[i],i,this);
+    for(;length > i;i++)if(i in self)result=callbackfn(result,self[i],i,this);
     return result
   },
   // 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )

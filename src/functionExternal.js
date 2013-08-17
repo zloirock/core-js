@@ -37,6 +37,13 @@ extendBuiltInObject($Function,{
       return fn.apply(isThat?that:this,args)
     }
   },
+  // simple bind context
+  ctx:function(that){
+    var fn=this;
+    return function(){
+      return fn.apply(that,arguments);
+    }
+  },
   invoke:invoke,
   getInstance:function(){
     if(own(this,'getInstance'))return null;

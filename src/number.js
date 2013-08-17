@@ -1,3 +1,6 @@
+function sign(x){
+  return x===0||izNaN(x)?x:x<0?-1:1
+}
 function numberFormat(that/*?*/,afterDot,leadZero,separator,thousandsSeparator){
   var del=Math.pow(10,afterDot|0),
       num=toInt(that*del)/del,
