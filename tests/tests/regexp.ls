@@ -1,0 +1,9 @@
+{isFunction} = Object
+test 'RegExp::getFlag' ->
+  ok isFunction RegExp::getFlag
+  equal /./gmi.getFlag!length, 3
+  equal /qwe/i.getFlag!, \i
+test 'RegExp::fn' ->
+  ok isFunction /qwe/fn!
+  ok /qwe/fn! \qwerty
+  ok !/qwe/fn! \asd

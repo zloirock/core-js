@@ -1,10 +1,16 @@
-var _console=global.console||{},
-    consoleMap='assert,count,debug,dir,dirxml,error,group,groupCollapsed,groupEnd,info,log,markTimeline,profile,profileEnd,table,time,timeEnd,trace,warn'
-      .split(',').reduce(function(result,key){
-        result[key]=function(){
-          _console[key]&&console.enable&&apply.call(_console[key],_console,arguments)
-        };
-        return result
-      },{enable:true});
-tryDeleteGlobal('console');
-global.console=extendBuiltInObject(consoleMap.log,consoleMap);
+var _console = global.console || {}
+  // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  , $console = reduceTo.call(
+      splitComma('assert,count,clear,debug,dir,dirxml,error,exception,' +
+        'group,groupCollapsed,groupEnd,info,log,table,trace,warn,markTimeline,profile,' +
+        'profileEnd,time,timeEnd,timeStamp'),
+      function(key){
+          this[key] = function(){
+            return _console[key] && $console.enable && apply.call(_console[key], _console, arguments)
+          };
+        },
+      {enable: true});
+try {
+  delete global.console
+} catch(e){}
+$console = global.console = extendBuiltInObject($console.log, $console);
