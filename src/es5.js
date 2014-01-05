@@ -72,8 +72,8 @@
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      // IE 9- don't enum bug => getOwnPropertyNames
-      var names = getOwnPropertyNames(Properties)
+      // IE 9- don't enum bug => Object.keys
+      var names = keys(Properties)
         , length = names.length
         , i = 0
         , key;

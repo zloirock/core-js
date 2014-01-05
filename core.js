@@ -179,8 +179,8 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      // IE 9- don't enum bug => getOwnPropertyNames
-      var names = getOwnPropertyNames(Properties)
+      // IE 9- don't enum bug => Object.keys
+      var names = keys(Properties)
         , length = names.length
         , i = 0
         , key;
