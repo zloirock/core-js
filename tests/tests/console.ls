@@ -23,8 +23,8 @@ test \console !->
   ok try time id := 'console.time in another context' ; on
   ok try timeEnd id ; on
   ok isFunction console.assert
-  ok try console.assert no 'console.assert' ; on
-  ok try assert no 'console.assert in another context' ; on
+  ok try console.assert on on 'console.assert' ; on
+  ok try assert on on 'console.assert in another context' ; on
   ok isFunction console.count
   ok try console.count 'console.count' ; on
   ok try count 'console.count in another context' ; on

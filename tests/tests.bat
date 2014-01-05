@@ -1,0 +1,1 @@
+qunit -c ../index.js  -t  tests.js > node-qunit.log

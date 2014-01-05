@@ -205,7 +205,10 @@ var assign = Object.assign || function(target, source){
   , isObject = Object.isObject || function(it){
       return it === Object(it)
     }
-  // http://es5.javascript.ru/x9.html#x9.12
+  /**
+   * http://es5.javascript.ru/x9.html#x9.12
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
+   */ 
   , same = Object.is || function(x,y){
       return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y
     };
@@ -962,7 +965,7 @@ extendBuiltInObject($Function, {
     switch(classof(object)){
       case 'Arguments' :
       case 'Array'     :
-        result = Array(length);
+        result = Array(object.length);
         break;
       case 'Function'  :
         return object;

@@ -45,7 +45,7 @@
     switch(classof(object)){
       case 'Arguments' :
       case 'Array'     :
-        result = Array(length);
+        result = Array(object.length);
         break;
       case 'Function'  :
         return object;

@@ -864,13 +864,13 @@
     ok(isFunction(console.assert));
     ok((function(){
       try {
-        console.assert(false, 'console.assert');
+        console.assert(true, true, 'console.assert');
         return true;
       } catch (e$) {}
     }()));
     ok((function(){
       try {
-        assert(false, 'console.assert in another context');
+        assert(true, true, 'console.assert in another context');
         return true;
       } catch (e$) {}
     }()));
