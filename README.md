@@ -1,5 +1,4 @@
 # Core.js
-=========
 Alternative standart library for javascript. Includes polyfills for ECMAScript 5, ECMAScript 6, setImmediate, static array methods, extended object api and other sugar.
 ### Install
 `npm i core-js`
