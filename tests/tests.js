@@ -8,13 +8,13 @@
     ok([1, 2, 3].at(3) === void 8);
     ok([1, 2, 3].at(-1) === 3);
     ok([1, 2, 3].at(-3) === 1);
-    return ok([1, 2, 3].at(-4) === void 8);
+    ok([1, 2, 3].at(-4) === void 8);
   });
   test('Array::props', function(){
     ok(isFunction(Array.prototype.props));
     deepEqual([1, 2, 321].props('length'), [void 8, void 8, void 8]);
     deepEqual([1, 2, void 8].props('length'), [void 8, void 8, void 8]);
-    return deepEqual(['1', '2', '321'].props('length'), [1, 1, 3]);
+    deepEqual(['1', '2', '321'].props('length'), [1, 1, 3]);
   });
   test('Array::reduceTo', function(){
     var arr, obj;
@@ -28,7 +28,7 @@
     [1].reduceTo(function(){
       return ok(this === obj);
     }, obj = {});
-    return deepEqual([3, 2, 1], [1, 2, 3].reduceTo((function(it){
+    deepEqual([3, 2, 1], [1, 2, 3].reduceTo((function(it){
       return this.unshift(it);
     }), []));
   });
@@ -36,7 +36,7 @@
     ok(isFunction(Array.prototype.indexSame));
     ok([1, 2, 3, 4, 3, 2, 1].indexSame(3) === 2);
     ok([1, NaN, 3].indexSame(NaN) === 1);
-    return ok([0, -0, 42].indexSame(-0) === 1);
+    ok([0, -0, 42].indexSame(-0) === 1);
   });
   test('Array::merge', function(){
     var arr;
@@ -46,41 +46,41 @@
     deepEqual(arr, [1, 2, 3, 4, 5, 6]);
     arr = ['q', 'w', 'e'];
     ok(arr === arr.merge('asd'));
-    return deepEqual(arr, ['q', 'w', 'e', 'a', 's', 'd']);
+    deepEqual(arr, ['q', 'w', 'e', 'a', 's', 'd']);
   });
   test('Array::sum', function(){
     ok(isFunction(Array.prototype.sum));
     ok([1, 2, 3].sum() === 6);
     ok(Object.is(['1', '2', 3].sum('length'), NaN));
-    return ok(['1', '22', '333'].sum('length') === 6);
+    ok(['1', '22', '333'].sum('length') === 6);
   });
   test('Array::avg', function(){
     ok(isFunction(Array.prototype.avg));
     ok([1, 2, 3].avg() === 2);
     ok(Object.is(['1', '22', 3].avg('length'), NaN));
-    return ok(['1', '22', '333'].avg('length') === 2);
+    ok(['1', '22', '333'].avg('length') === 2);
   });
   test('Array::min', function(){
     ok(isFunction(Array.prototype.min));
     ok([].min() === Infinity);
     ok([1, 2, 3, 2, 1].min() === 1);
-    return ok(['1', '22', '333'].min('length') === 1);
+    ok(['1', '22', '333'].min('length') === 1);
   });
   test('Array::max', function(){
     ok(isFunction(Array.prototype.max));
     ok([].max() === -Infinity);
     ok([1, 2, 3, 2, 1].max() === 3);
-    return ok(['1', '22', '333'].max('length') === 3);
+    ok(['1', '22', '333'].max('length') === 3);
   });
   test('Array::unique', function(){
     ok(isFunction(Array.prototype.unique));
-    return deepEqual([1, 2, 3, 2, 1].unique(), [1, 2, 3]);
+    deepEqual([1, 2, 3, 2, 1].unique(), [1, 2, 3]);
   });
   test('Array::cross', function(){
     ok(isFunction(Array.prototype.cross));
     deepEqual([1, 2, 3, 2, 1].cross([2, 5, 7, 1]), [1, 2]);
     deepEqual(['1', '2', '3', '2', '1'].cross('2571'), ['1', '2']);
-    return deepEqual([1, 2, 3, 2, 1].cross(function(){
+    deepEqual([1, 2, 3, 2, 1].cross(function(){
       return arguments;
     }(2, 5, 7, 1)), [1, 2]);
   });
@@ -98,25 +98,25 @@
     deepEqual(result, [1, 2, 3, 4, 5, 6]);
     arr = ['q', 'w', 'e'];
     ok(arr !== (result = Array.concat(arr, ['a', 's', 'd'])));
-    return deepEqual(result, ['q', 'w', 'e', 'a', 's', 'd']);
+    deepEqual(result, ['q', 'w', 'e', 'a', 's', 'd']);
   });
   test('Array.join', function(){
     var join;
     join = Array.join;
     ok(isFunction(join));
-    equal(join('123', '|'), '1|2|3');
-    return equal(join(function(){
+    ok(join('123', '|') === '1|2|3');
+    ok(join(function(){
       return arguments;
-    }(3, 2, 1), '|'), '3|2|1');
+    }(3, 2, 1), '|') === '3|2|1');
   });
   test('Array.pop', function(){
     var pop, args;
     pop = Array.pop;
     ok(isFunction(pop));
-    equal(pop(args = function(){
+    ok(pop(args = function(){
       return arguments;
-    }(1, 2, 3)), 3);
-    return deepEqual(args, function(){
+    }(1, 2, 3)) === 3);
+    deepEqual(args, function(){
       return arguments;
     }(1, 2));
   });
@@ -127,15 +127,18 @@
     push(args = function(){
       return arguments;
     }(1, 2, 3), 4, 5);
-    return deepEqual(args, function(){
-      return arguments;
-    }(1, 2, 3, 4, 5));
+    ok(args.length === 5);
+    ok(args[0] === 1);
+    ok(args[1] === 2);
+    ok(args[2] === 3);
+    ok(args[3] === 4);
+    ok(args[4] === 5);
   });
   test('Array.reverse', function(){
     var reverse;
     reverse = Array.reverse;
     ok(isFunction(reverse));
-    return deepEqual(reverse(function(){
+    deepEqual(reverse(function(){
       return arguments;
     }(1, 2, 3)), function(){
       return arguments;
@@ -145,10 +148,10 @@
     var shift, args;
     shift = Array.shift;
     ok(isFunction(shift));
-    equal(shift(args = function(){
+    ok(shift(args = function(){
       return arguments;
-    }(1, 2, 3)), 1);
-    return deepEqual(args, function(){
+    }(1, 2, 3)) === 1);
+    deepEqual(args, function(){
       return arguments;
     }(2, 3));
   });
@@ -159,9 +162,12 @@
     unshift(args = function(){
       return arguments;
     }(1, 2, 3), 4, 5);
-    return deepEqual(args, function(){
-      return arguments;
-    }(4, 5, 1, 2, 3));
+    ok(args.length === 5);
+    ok(args[0] === 4);
+    ok(args[1] === 5);
+    ok(args[2] === 1);
+    ok(args[3] === 2);
+    ok(args[4] === 3);
   });
   test('Array.slice', function(){
     var slice;
@@ -180,7 +186,7 @@
     deepEqual(slice(function(){
       return arguments;
     }(1, 2, 3), 1, 2), [2]);
-    return deepEqual(slice(function(){
+    deepEqual(slice(function(){
       return arguments;
     }(1, 2, 3), 1, -1), [2]);
   });
@@ -191,21 +197,25 @@
     splice(args = function(){
       return arguments;
     }(1, 2, 3), 1, 0, 4, 5);
-    deepEqual(args, function(){
-      return arguments;
-    }(1, 4, 5, 2, 3));
+    ok(args.length === 5);
+    ok(args[0] === 1);
+    ok(args[1] === 4);
+    ok(args[2] === 5);
+    ok(args[3] === 2);
+    ok(args[4] === 3);
     splice(args = function(){
       return arguments;
     }(1, 2, 3), 1, 1, 4);
-    deepEqual(args, function(){
-      return arguments;
-    }(1, 4, 3));
+    ok(args.length === 3);
+    ok(args[0] === 1);
+    ok(args[1] === 4);
+    ok(args[2] === 3);
     splice(args = function(){
       return arguments;
     }(1, 2, 3), 1, 1);
-    return deepEqual(args, function(){
-      return arguments;
-    }(1, 3));
+    ok(args.length === 2);
+    ok(args[0] === 1);
+    ok(args[1] === 3);
   });
   test('Array.sort', function(){
     var sort;
@@ -221,7 +231,7 @@
     }(11, 2, 3)), function(){
       return arguments;
     }(11, 2, 3));
-    return deepEqual(sort(function(){
+    deepEqual(sort(function(){
       return arguments;
     }(11, 2, 3), function(a, b){
       return a - b;
@@ -233,35 +243,35 @@
     var indexOf;
     indexOf = Array.indexOf;
     ok(isFunction(indexOf));
-    equal(indexOf('111', '1'), 0);
-    equal(indexOf('123', '1', 1), -1);
-    equal(indexOf('123', '2', 1), 1);
-    equal(indexOf(function(){
+    ok(indexOf('111', '1') === 0);
+    ok(indexOf('123', '1', 1) === -1);
+    ok(indexOf('123', '2', 1) === 1);
+    ok(indexOf(function(){
       return arguments;
-    }(1, 1, 1), 1), 0);
-    equal(indexOf(function(){
+    }(1, 1, 1), 1) === 0);
+    ok(indexOf(function(){
       return arguments;
-    }(1, 2, 3), 1, 1), -1);
-    return equal(indexOf(function(){
+    }(1, 2, 3), 1, 1) === -1);
+    ok(indexOf(function(){
       return arguments;
-    }(1, 2, 3), 2, 1), 1);
+    }(1, 2, 3), 2, 1) === 1);
   });
   test('Array.lastIndexOf', function(){
     var lastIndexOf;
     lastIndexOf = Array.lastIndexOf;
     ok(isFunction(lastIndexOf));
-    equal(lastIndexOf('111', '1'), 2);
-    equal(lastIndexOf('123', '3', 1), -1);
-    equal(lastIndexOf('123', '2', 1), 1);
-    equal(lastIndexOf(function(){
+    ok(lastIndexOf('111', '1') === 2);
+    ok(lastIndexOf('123', '3', 1) === -1);
+    ok(lastIndexOf('123', '2', 1) === 1);
+    ok(lastIndexOf(function(){
       return arguments;
-    }(1, 1, 1), 1), 2);
-    equal(lastIndexOf(function(){
+    }(1, 1, 1), 1) === 2);
+    ok(lastIndexOf(function(){
       return arguments;
-    }(1, 2, 3), 3, 1), -1);
-    return equal(lastIndexOf(function(){
+    }(1, 2, 3), 3, 1) === -1);
+    ok(lastIndexOf(function(){
       return arguments;
-    }(1, 2, 3), 2, 1), 1);
+    }(1, 2, 3), 2, 1) === 1);
   });
   test('Array.every', function(){
     var every, al, ctx;
@@ -286,7 +296,7 @@
     ok(every('123', function(){
       return arguments[2] == '123';
     }));
-    return ok(every(function(){
+    ok(every(function(){
       return arguments;
     }(1, 2, 3), Object.isNumber));
   });
@@ -313,7 +323,7 @@
     ok(some('123', function(){
       return arguments[2] == '123';
     }));
-    return ok(some(function(){
+    ok(some(function(){
       return arguments;
     }(1, 2, 3), Object.isNumber));
   });
@@ -327,25 +337,25 @@
       ok(this === ctx);
       ok(val === 1);
       ok(key === 0);
-      return ok(that === al);
+      ok(that === al);
     }, ctx = {});
     val = '';
     forEach('123', function(v, k, t){
-      return val += v + k + t;
+      val += v + k + t;
     });
-    equal(val, '101232112332123');
+    ok(val === '101232112332123');
     val = '';
     forEach(function(){
       return arguments;
     }(1, 2, 3), function(v, k, t){
-      return val += v + k + t['2'];
+      val += v + k + t['2'];
     });
-    equal(val, '468');
+    ok(val === '468');
     val = '';
     forEach('123', function(v, k, t){
-      return val += v + k + t + this;
+      val += v + k + t + this;
     }, 1);
-    return equal(val, '101231211231321231');
+    ok(val === '101231211231321231');
   });
   test('Array.map', function(){
     var map, al, ctx;
@@ -362,7 +372,7 @@
     deepEqual(map('123', (function(it){
       return Math.pow(it, 2);
     })), [1, 4, 9]);
-    return deepEqual(map(function(){
+    deepEqual(map(function(){
       return arguments;
     }(1, 2, 3), (function(it){
       return Math.pow(it, 2);
@@ -388,7 +398,7 @@
     }(1, 2, 3), function(it){
       return it < 3;
     }), [1, 2]);
-    return deepEqual(filter('123', function(){
+    deepEqual(filter('123', function(){
       return arguments[1] !== 1;
     }), ['1', '3']);
   });
@@ -409,21 +419,21 @@
     }(1, 2), function(memo){
       return ok(memo === 1);
     });
-    equal(reduce('123', function(a, b){
+    ok(reduce('123', function(a, b){
       a = +a;
       b = +b;
       return a + b;
-    }), 6);
-    equal(reduce(function(){
+    }) === 6);
+    ok(reduce(function(){
       return arguments;
     }(1, 2, 3), function(a, b){
       return '' + b * b + a;
-    }), '941');
-    return equal(reduce('123', function(a, b){
+    }) === '941');
+    ok(reduce('123', function(a, b){
       a = +a;
       b = +b;
       return a + b;
-    }, 1), 7);
+    }, 1) === 7);
   });
   test('Array.reduceRight', function(){
     var reduceRight, al, ctx;
@@ -442,21 +452,21 @@
     }(1, 2), function(memo){
       return ok(memo === 2);
     });
-    equal(reduceRight('123', function(a, b){
+    ok(reduceRight('123', function(a, b){
       a = +a;
       b = +b;
       return a + b;
-    }), 6);
-    equal(reduceRight(function(){
+    }) === 6);
+    ok(reduceRight(function(){
       return arguments;
     }(1, 2, 3), function(a, b){
       return '' + b * b + a;
-    }), '143');
-    return equal(reduceRight('123', function(a, b){
+    }) === '143');
+    ok(reduceRight('123', function(a, b){
       a = +a;
       b = +b;
       return a + b;
-    }, 1), 7);
+    }, 1) === 7);
   });
   test('Array.find', function(){
     var find, al, ctx;
@@ -478,7 +488,7 @@
     ok(find('123', (function(it){
       return it === '2';
     })) === '2');
-    return ok(find('123', (function(it){
+    ok(find('123', (function(it){
       return it === '4';
     })) === void 8);
   });
@@ -502,7 +512,7 @@
     ok(findIndex('123', (function(it){
       return it === '2';
     })) === 1);
-    return ok(findIndex('123', (function(it){
+    ok(findIndex('123', (function(it){
       return it === '4';
     })) === -1);
   });
@@ -533,7 +543,7 @@
     ok(at('123', 3) === void 8);
     ok(at('123', -1) === '3');
     ok(at('123', -3) === '1');
-    return ok(at('123', -4) === void 8);
+    ok(at('123', -4) === void 8);
   });
   test('Array.props', function(){
     var props;
@@ -542,7 +552,7 @@
     deepEqual(props(function(){
       return arguments;
     }('1', '22', 3), 'length'), [1, 2, void 8]);
-    return deepEqual(props('123', 'length'), [1, 1, 1]);
+    deepEqual(props('123', 'length'), [1, 1, 1]);
   });
   test('Array.reduceTo', function(){
     var reduceTo, al, obj;
@@ -572,7 +582,7 @@
     }(1, 2, 3), (function(it){
       return this.unshift(it);
     }), []));
-    return deepEqual(['3', '2', '1'], reduceTo('123', (function(it){
+    deepEqual(['3', '2', '1'], reduceTo('123', (function(it){
       return this.unshift(it);
     }), []));
   });
@@ -589,41 +599,45 @@
     ok(indexSame(function(){
       return arguments;
     }(0, -0, 42), -0) === 1);
-    return ok(indexSame('1234321', '3') === 2);
+    ok(indexSame('1234321', '3') === 2);
   });
   test('Array.merge', function(){
-    var merge, arr;
+    var merge, args;
     merge = Array.merge;
     ok(isFunction(merge));
-    arr = function(){
+    args = function(){
       return arguments;
     }(1, 2, 3);
-    ok(arr === merge(arr, function(){
+    ok(args === merge(args, function(){
       return arguments;
     }(4, 5, 6)));
-    return deepEqual(arr, function(){
-      return arguments;
-    }(1, 2, 3, 4, 5, 6));
+    ok(args.length === 6);
+    ok(args[0] === 1);
+    ok(args[1] === 2);
+    ok(args[2] === 3);
+    ok(args[3] === 4);
+    ok(args[4] === 5);
+    ok(args[5] === 6);
   });
   test('Array.sum', function(){
     var sum;
     sum = Array.sum;
     ok(isFunction(sum));
-    equal(sum('123'), 6);
-    equal(sum('123', 'length'), 3);
-    return equal(sum(function(){
+    ok(sum('123') === 6);
+    ok(sum('123', 'length') === 3);
+    ok(sum(function(){
       return arguments;
-    }(1, 2, 3)), 6);
+    }(1, 2, 3)) === 6);
   });
   test('Array.avg', function(){
     var avg;
     avg = Array.avg;
     ok(isFunction(avg));
-    equal(avg('123'), 2);
-    equal(avg('123', 'length'), 1);
-    return equal(avg(function(){
+    ok(avg('123') === 2);
+    ok(avg('123', 'length') === 1);
+    ok(avg(function(){
       return arguments;
-    }(1, 2, 3)), 2);
+    }(1, 2, 3)) === 2);
   });
   test('Array.min', function(){
     var min;
@@ -632,7 +646,7 @@
     ok(min(function(){
       return arguments;
     }(3, 2, 1, 2, 3)) === 1);
-    return ok(min('123', 'length') === 1);
+    ok(min('123', 'length') === 1);
   });
   test('Array.max', function(){
     var max;
@@ -641,14 +655,14 @@
     ok(max(function(){
       return arguments;
     }(1, 2, 3, 2, 1)) === 3);
-    return ok(max('123', 'length') === 1);
+    ok(max('123', 'length') === 1);
   });
   test('Array.unique', function(){
     var unique;
     unique = Array.unique;
     ok(isFunction(unique));
     deepEqual(unique('12321'), ['1', '2', '3']);
-    return deepEqual(unique(function(){
+    deepEqual(unique(function(){
       return arguments;
     }(1, 2, 3, 2, 1)), [1, 2, 3]);
   });
@@ -661,7 +675,7 @@
     }(1, 2, 3, 2, 1), function(){
       return arguments;
     }(2, 5, 7, 1)), [1, 2]);
-    return deepEqual(cross(function(){
+    deepEqual(cross(function(){
       return arguments;
     }('1', '2', '3', '2', '1'), function(){
       return arguments;
@@ -679,35 +693,35 @@
     series([
       function(next){
         ok(isFunction(next));
-        return next.immediate(42);
+        next.immediate(42);
       }, function(val, next){
         ok(val === 42);
         ok(isFunction(next));
-        return next.immediate(1, 2);
+        next.immediate(1, 2);
       }, function(a, b){
         ok(a + b === 3);
-        return start();
+        start();
       }
     ]);
     stop();
     series([
       function(next){
         ok(isFunction(next));
-        return next.immediate(null, 42);
+        next.immediate(null, 42);
       }, function(val, next){
         ok(val === 42);
         ok(isFunction(next));
-        return next.immediate(43, 1, 2);
+        next.immediate(43, 1, 2);
       }, function(){
         ok(false);
-        return next.immediate(44);
+        next.immediate(44);
       }
     ], function(err, a, b){
       ok(err === 43);
       ok(a + b === 3);
-      return start();
+      start();
     });
-    return stop();
+    stop();
   });
   test('Function.parallel', function(){
     var parallel;
@@ -715,49 +729,49 @@
     ok(isFunction(parallel));
     parallel([
       function(next){
-        return next.immediate(null, 1);
+        next.immediate(null, 1);
       }, function(next){
-        return next.immediate(null, 2);
+        next.immediate(null, 2);
       }, function(next){
-        return next.immediate(null, 3);
+        next.immediate(null, 3);
       }
     ], function(err, result){
       ok(!err);
       deepEqual(result, [1, 2, 3]);
-      return start();
+      start();
     });
     stop();
     parallel([
       function(next){
-        return next.immediate(42, 1);
+        next.immediate(42, 1);
       }, function(next){
-        return next.immediate(null, 2);
+        next.immediate(null, 2);
       }
     ], function(err, result){
       ok(err === 42);
       deepEqual(result, [1, void 8]);
-      return start();
+      start();
     });
-    return stop();
+    stop();
   });
   test('Array::asyncMap', function(){
     ok(isFunction(Array.prototype.asyncMap));
     [1, 2, 3].asyncMap(function(val, next){
-      return next.immediate(null, Math.pow(val, 2));
+      next.immediate(null, Math.pow(val, 2));
     }, function(err, result){
       ok(!err);
       deepEqual(result, [1, 4, 9]);
-      return start();
+      start();
     });
     stop();
     [1, 2, 3].asyncMap(function(val, next){
-      return next.immediate(val === 2 ? 42 : null, Math.pow(val, 2));
+      next.immediate(val === 2 ? 42 : null, Math.pow(val, 2));
     }, function(err, result){
       ok(err === 42);
       deepEqual(result, [1, 4, void 8]);
-      return start();
+      start();
     });
-    return stop();
+    stop();
   });
 }).call(this);
 
@@ -781,7 +795,7 @@
       } catch (e$) {}
     }()));
     ok(isFunction(console.log));
-    equal(console, console.log);
+    ok(console === console.log);
     ok(isFunction(console.warn));
     ok((function(){
       try {
@@ -1008,7 +1022,7 @@
         return true;
       } catch (e$) {}
     }()));
-    return ok((function(){
+    ok((function(){
       try {
         profileEnd('profile in another context');
         return true;
@@ -1023,33 +1037,33 @@
   test('Date.locale', function(){
     ok(isFunction(Date.locale));
     Date.locale('ru');
-    return equal(Date.locale(), 'ru');
+    ok(Date.locale() === 'ru');
   });
   test('Date.addLocale', function(){
-    return ok(isFunction(Date.addLocale));
+    ok(isFunction(Date.addLocale));
   });
   test('Date.format', function(){
     ok(isFunction(Date.format));
-    return ok(Date.now() - Date.format('ms') > -10);
+    ok(Date.now() - Date.format('ms') > -10);
   });
   test('Date::format', function(){
     var date;
     ok(isFunction(Date.prototype.format));
     date = new Date(1, 2, 3, 4, 5, 6, 7);
-    equal(date.format('dd.nn.yyyy'), '03.03.1901');
+    ok(date.format('dd.nn.yyyy') === '03.03.1901');
     Date.locale('en');
-    equal(date.format('w, d M yyyy'), 'Sunday, 3 March 1901');
-    equal(date.format('w, d M yyyy', 'ru'), 'Воскресенье, 3 Март 1901');
+    ok(date.format('w, d M yyyy') === 'Sunday, 3 March 1901');
+    ok(date.format('w, d M yyyy', 'ru') === 'Воскресенье, 3 Март 1901');
     Date.locale('ru');
-    equal(date.format('w, d M yyyy'), 'Воскресенье, 3 Март 1901');
-    equal(date.format('d MM'), '3 Марта');
-    return equal(date.format('ms s ss m mm h hh H HH d dd w n nn M MM yy yyyy'), '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 1901');
+    ok(date.format('w, d M yyyy') === 'Воскресенье, 3 Март 1901');
+    ok(date.format('d MM') === '3 Марта');
+    ok(date.format('ms s ss m mm h hh H HH d dd w n nn M MM yy yyyy') === '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 1901');
   });
 }).call(this);
 
 (function(){
-  var isFunction;
-  isFunction = Object.isFunction;
+  var isFunction, isNumber, isString;
+  isFunction = Object.isFunction, isNumber = Object.isNumber, isString = Object.isString;
   test('Object.getOwnPropertyDescriptor', function(){
     var getOwnPropertyDescriptor;
     getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -1062,45 +1076,45 @@
       configurable: true,
       value: 42
     });
-    return equal(getOwnPropertyDescriptor({}, 'toString'), void 8);
+    ok(getOwnPropertyDescriptor({}, 'toString') === void 8);
   });
   test('Object.defineProperty', function(){
     var rez, src;
     ok(isFunction(Object.defineProperty));
-    equal(rez = Object.defineProperty(src = {}, 'q', {
+    ok((rez = Object.defineProperty(src = {}, 'q', {
       value: 42
-    }), src);
-    return equal(rez.q, 42);
+    })) === src);
+    ok(rez.q === 42);
   });
   test('Object.defineProperties', function(){
     var rez, src;
     ok(isFunction(Object.defineProperties));
-    equal(rez = Object.defineProperties(src = {}, {
+    ok((rez = Object.defineProperties(src = {}, {
       q: {
         value: 42
       },
       w: {
         value: 33
       }
-    }), src);
-    return ok(rez.q === 42) && rez.w === 33;
+    })) === src);
+    ok(rez.q === 42) && rez.w === 33;
   });
   test('Object.getPrototypeOf', function(){
     var create, getPrototypeOf, fn, obj;
     create = Object.create, getPrototypeOf = Object.getPrototypeOf;
     ok(isFunction(getPrototypeOf));
-    equal(getPrototypeOf({}), Object.prototype);
-    equal(getPrototypeOf(new (fn = (function(){
+    ok(getPrototypeOf({}) === Object.prototype);
+    ok(getPrototypeOf(new (fn = (function(){
       fn.displayName = 'fn';
       var prototype = fn.prototype, constructor = fn;
       function fn(){}
       return fn;
-    }()))), fn.prototype);
-    equal(getPrototypeOf(create(obj = {
+    }()))) === fn.prototype);
+    ok(getPrototypeOf(create(obj = {
       q: 1
-    })), obj);
-    equal(getPrototypeOf(create(null)), null);
-    return equal(getPrototypeOf(getPrototypeOf({})), null);
+    })) === obj);
+    ok(getPrototypeOf(create(null)) === null);
+    ok(getPrototypeOf(getPrototypeOf({})) === null);
   });
   test('Object.getOwnPropertyNames', function(){
     var getOwnPropertyNames, fn1, fn2;
@@ -1117,7 +1131,8 @@
     deepEqual(getOwnPropertyNames(new fn1(1)), ['w']);
     deepEqual(getOwnPropertyNames(new fn2(1)), ['toString']);
     ok(in$('toString', getOwnPropertyNames(Array.prototype)));
-    return ok(in$('toString', getOwnPropertyNames(Object.prototype)));
+    ok(in$('toString', getOwnPropertyNames(Object.prototype)));
+    ok(in$('constructor', getOwnPropertyNames(Object.prototype)));
   });
   test('Object.create', function(){
     var create, getPrototypeOf, getPropertyNames, isObject, isPrototype, obj, fn;
@@ -1126,26 +1141,26 @@
     ok(isPrototype(obj = {
       q: 1
     }, create(obj)));
-    equal(create(obj).q, 1);
+    ok(create(obj).q === 1);
     fn = function(){
       return this.a = 1;
     };
     ok(create(new fn) instanceof fn);
-    equal(getPrototypeOf(getPrototypeOf(create(new fn))), fn.prototype);
-    equal(create(new fn).a, 1);
-    equal(create({}, {
+    ok(fn.prototype === getPrototypeOf(getPrototypeOf(create(new fn))));
+    ok(create(new fn).a === 1);
+    ok(create({}, {
       a: {
         value: 42
       }
-    }).a, 42);
+    }).a === 42);
     ok(isObject(obj = create(null, {
       w: {
         value: 2
       }
     })));
     ok(!('toString' in obj));
-    equal(obj.w, 2);
-    return deepEqual(getPropertyNames(create(null)), []);
+    ok(obj.w === 2);
+    deepEqual(getPropertyNames(create(null)), []);
   });
   test('Object.keys', function(){
     var keys, fn1, fn2;
@@ -1162,46 +1177,45 @@
     deepEqual(keys(new fn1(1)), ['w']);
     deepEqual(keys(new fn2(1)), ['toString']);
     ok(!in$('join', keys(Array.prototype)));
-    return ok(!in$('toString', keys(Object.prototype)));
   });
   test('Function.prototype.bind', function(){
     var obj;
     ok(isFunction(Function.prototype.bind));
-    equal(function(){
+    ok(42 === function(){
       return this.a;
     }.bind(obj = {
       a: 42
-    })(), 42);
-    equal(new (function(){}.bind(obj))().a, void 8);
-    return equal(function(it){
+    })());
+    ok(void 8 === new (function(){}.bind(obj))().a);
+    ok(42 === function(it){
       return it;
-    }.bind(null, 42)(), 42);
+    }.bind(null, 42)());
   });
   test('Array.isArray', function(){
     var isArray;
     isArray = Array.isArray;
-    ok(isFunction(Array.isArray));
+    ok(isFunction(isArray));
     ok(!isArray({}));
     ok(!isArray(function(){
       return arguments;
     }()));
-    return ok(isArray([]));
+    ok(isArray([]));
   });
   test('Array::indexOf', function(){
     ok(isFunction(Array.prototype.indexOf));
-    equal([1, 1, 1].indexOf(1), 0);
-    equal([1, 2, 3].indexOf(1, 1), -1);
-    equal([1, 2, 3].indexOf(2, 1), 1);
-    equal([NaN].indexOf(NaN), -1);
-    return equal(Array(2).concat([1, 2, 3]).indexOf(2), 3);
+    ok(0 === [1, 1, 1].indexOf(1));
+    ok(-1 === [1, 2, 3].indexOf(1, 1));
+    ok(1 === [1, 2, 3].indexOf(2, 1));
+    ok(-1 === [NaN].indexOf(NaN));
+    ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
   });
   test('Array::lastIndexOf', function(){
     ok(isFunction(Array.prototype.lastIndexOf));
-    equal([1, 1, 1].lastIndexOf(1), 2);
-    equal([1, 2, 3].lastIndexOf(3, 1), -1);
-    equal([1, 2, 3].lastIndexOf(2, 1), 1);
-    equal([NaN].lastIndexOf(NaN), -1);
-    return equal([1, 2, 3].concat(Array(2)).lastIndexOf(2), 1);
+    ok(2 === [1, 1, 1].lastIndexOf(1));
+    ok(-1 === [1, 2, 3].lastIndexOf(3, 1));
+    ok(1 === [1, 2, 3].lastIndexOf(2, 1));
+    ok(-1 === [NaN].lastIndexOf(NaN));
+    ok(1 === [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   });
   test('Array::every', function(){
     var a, ctx, rez, arr;
@@ -1212,14 +1226,14 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    ok([1, 2, 3].every(Object.isNumber));
+    ok([1, 2, 3].every(isNumber));
     ok([1, 2, 3].every((function(it){
       return it < 4;
     })));
     ok(![1, 2, 3].every((function(it){
       return it < 3;
     })));
-    ok(![1, 2, 3].every(Object.isString));
+    ok(![1, 2, 3].every(isString));
     ok([1, 2, 3].every(function(){
       return +this === 1;
     }, 1));
@@ -1227,8 +1241,8 @@
     [1, 2, 3].every(function(){
       return rez += arguments[1];
     });
-    equal(rez, '012');
-    return ok((arr = [1, 2, 3]).every(function(){
+    ok(rez === '012');
+    ok((arr = [1, 2, 3]).every(function(){
       return arguments[2] === arr;
     }));
   });
@@ -1241,14 +1255,14 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    ok([1, '2', 3].some(Object.isNumber));
+    ok([1, '2', 3].some(isNumber));
     ok([1, 2, 3].some((function(it){
       return it < 3;
     })));
     ok(![1, 2, 3].some((function(it){
       return it < 0;
     })));
-    ok(![1, 2, 3].some(Object.isString));
+    ok(![1, 2, 3].some(isString));
     ok(![1, 2, 3].some(function(){
       return +this !== 1;
     }, 1));
@@ -1257,8 +1271,8 @@
       rez += arguments[1];
       return false;
     });
-    equal(rez, '012');
-    return ok(!(arr = [1, 2, 3]).some(function(){
+    ok(rez === '012');
+    ok(!(arr = [1, 2, 3]).some(function(){
       return arguments[2] !== arr;
     }));
   });
@@ -1269,35 +1283,35 @@
       ok(val === 1);
       ok(key === 0);
       ok(that === a);
-      return ok(this === ctx);
+      ok(this === ctx);
     }, ctx = {});
     rez = '';
     [1, 2, 3].forEach(function(it){
-      return rez += it;
+      rez += it;
     });
-    equal(rez, '123');
+    ok(rez === '123');
     rez = '';
     [1, 2, 3].forEach(function(){
-      return rez += arguments[1];
+      rez += arguments[1];
     });
-    equal(rez, '012');
+    ok(rez === '012');
     rez = '';
     [1, 2, 3].forEach(function(){
-      return rez += arguments[2];
+      rez += arguments[2];
     });
-    equal(rez, '1,2,31,2,31,2,3');
+    ok(rez === '1,2,31,2,31,2,3');
     rez = '';
     [1, 2, 3].forEach(function(){
-      return rez += this;
+      rez += this;
     }, 1);
-    equal(rez, '111');
+    ok(rez === '111');
     rez = '';
     arr = [];
     arr[5] = '';
     arr.forEach(function(arg$, k){
-      return rez += k;
+      rez += k;
     });
-    return equal(rez, '5');
+    ok(rez === '5');
   });
   test('Array::map', function(){
     var a, ctx;
@@ -1308,18 +1322,15 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    deepEqual([1, 2, 3].map((function(it){
+    deepEqual([2, 3, 4], [1, 2, 3].map((function(it){
       return it + 1;
-    })), [2, 3, 4]);
-    deepEqual([1, 2, 3].map(curry$(function(x$, y$){
+    })));
+    deepEqual([1, 3, 5], [1, 2, 3].map(curry$(function(x$, y$){
       return x$ + y$;
-    })), [1, 3, 5]);
-    deepEqual([1, 2, 3].map(function(){
-      return arguments[2][2];
-    }), [3, 3, 3]);
-    return deepEqual([1, 2, 3].map(function(){
+    })));
+    deepEqual([2, 2, 2], [1, 2, 3].map(function(){
       return +this;
-    }, 2), [2, 2, 2]);
+    }, 2));
   });
   test('Array::filter', function(){
     var a, ctx;
@@ -1330,47 +1341,49 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    return deepEqual([1, 2, 3, 'q', {}, 4, true, 5].filter(Object.isNumber), [1, 2, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(isNumber));
   });
   test('Array::reduce', function(){
     var a;
     ok(isFunction(Array.prototype.reduce));
-    ok([5, 4, 3, 2, 1].reduce(curry$(function(x$, y$){
+    ok(-5 === [5, 4, 3, 2, 1].reduce(curry$(function(x$, y$){
       return x$ - y$;
-    })) === -5);
+    })));
     (a = [1]).reduce(function(memo, val, key, that){
       ok(memo === 42);
       ok(val === 1);
       ok(key === 0);
       return ok(that === a);
     }, 42);
-    return [42, 43].reduce(function(it){
+    [42, 43].reduce(function(it){
       return ok(it === 42);
     });
   });
   test('Array::reduceRight', function(){
     var a;
     ok(isFunction(Array.prototype.reduceRight));
-    ok([1, 2, 3, 4, 5].reduceRight(curry$(function(x$, y$){
+    ok(-5 === [1, 2, 3, 4, 5].reduceRight(curry$(function(x$, y$){
       return x$ - y$;
-    })) === -5);
+    })));
     (a = [1]).reduceRight(function(memo, val, key, that){
       ok(memo === 42);
       ok(val === 1);
       ok(key === 0);
       return ok(that === a);
     }, 42);
-    return [42, 43].reduceRight(function(it){
+    [42, 43].reduceRight(function(it){
       return ok(it === 43);
     });
   });
   test('String.prototype.trim', function(){
     ok('trim' in String.prototype);
-    return equal('   q w e \n  '.trim(), 'q w e');
+    ok('   q w e \n  '.trim() === 'q w e');
   });
   test('Date.now', function(){
-    ok(isFunction(Date.now));
-    return ok(+new Date - Date.now() < 10);
+    var now;
+    now = Date.now;
+    ok(isFunction(now));
+    ok(+new Date - now() < 10);
   });
   function in$(x, xs){
     var i = -1, l = xs.length >>> 0;
@@ -1416,15 +1429,15 @@
         }
       });
       assign(foo, foo2);
-      return ok(foo.w === void 8);
+      ok(foo.w === void 8);
     }
   });
   test('Object.is', function(){
     ok(isFunction(Object.is));
     ok(Object.is(1, 1));
-    ok(!Object.is(0, -0));
     ok(Object.is(NaN, NaN));
-    return ok(!Object.is({}, {}));
+    ok(!Object.is(0, -0));
+    ok(!Object.is({}, {}));
   });
   test('Object.mixin', function(){
     var mixin, defineProperty, foo, foo2;
@@ -1447,30 +1460,29 @@
         }
       });
       mixin(foo, foo2);
-      return ok(foo.w === 2);
+      ok(foo.w === 2);
     }
   });
   /*
   if \__proto__ of Object:: or Function.isNative Object.setPrototypeOf
-    test 'Object.setPrototypeOf' ->
+    test 'Object.setPrototypeOf' !->
       {setPrototypeOf} = Object
       ok isFunction setPrototypeOf
       ok \apply of setPrototypeOf {} Function::
-      ok setPrototypeOf(a:2, {b: -> @a^2})b! == 4
+      ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4
       ok setPrototypeOf(tmp = {}, {a: 1}) is tmp
       ok !(\toString of setPrototypeOf {} null)
   */
   test('Number.EPSILON', function(){
     ok('EPSILON' in Number);
-    equal(Number.EPSILON, 2.220446049250313e-16);
-    ok(!(1 === 1 + Number.EPSILON));
-    return ok(1 === 1 + Number.EPSILON / 2);
+    ok(Number.EPSILON === 2.220446049250313e-16);
+    ok(1 !== 1 + Number.EPSILON);
+    ok(1 === 1 + Number.EPSILON / 2);
   });
   test('Number.isFinite', function(){
     var isFinite;
     isFinite = Number.isFinite;
     ok(isFunction(isFinite));
-    ok(!isFinite(NaN));
     ok(isFinite(1));
     ok(isFinite(0.1));
     ok(isFinite(-1));
@@ -1480,6 +1492,8 @@
     ok(isFinite(Math.pow(2, 31) - 1));
     ok(isFinite(Math.pow(2, 32)));
     ok(isFinite(Math.pow(2, 32) - 1));
+    ok(isFinite(-0));
+    ok(!isFinite(NaN));
     ok(!isFinite(Infinity));
     ok(!isFinite('NaN'));
     ok(!isFinite('5'));
@@ -1492,15 +1506,12 @@
     ok(!isFinite(null));
     ok(!isFinite({}));
     ok(!isFinite(function(){}));
-    return ok(isFinite(-0));
   });
   test('Number.isInteger', function(){
     var isInteger;
     isInteger = Number.isInteger;
     ok(isFunction(isInteger));
-    ok(!isInteger(NaN));
     ok(isInteger(1));
-    ok(!isInteger(0.1));
     ok(isInteger(-1));
     ok(isInteger(Math.pow(2, 16)));
     ok(isInteger(Math.pow(2, 16) - 1));
@@ -1508,6 +1519,8 @@
     ok(isInteger(Math.pow(2, 31) - 1));
     ok(isInteger(Math.pow(2, 32)));
     ok(isInteger(Math.pow(2, 32) - 1));
+    ok(!isInteger(NaN));
+    ok(!isInteger(0.1));
     ok(!isInteger(Infinity));
     ok(!isInteger('NaN'));
     ok(!isInteger('5'));
@@ -1520,7 +1533,7 @@
     ok(!isInteger(null));
     ok(!isInteger({}));
     ok(!isInteger(function(){}));
-    return ok(isInteger(-0));
+    ok(isInteger(-0));
   });
   test('Number.isNaN', function(){
     var isNaN;
@@ -1548,15 +1561,13 @@
     ok(!isNaN(null));
     ok(!isNaN({}));
     ok(!isNaN(function(){}));
-    return ok(!isNaN(-0));
+    ok(!isNaN(-0));
   });
   test('Number.isSafeInteger', function(){
     var isSafeInteger;
     isSafeInteger = Number.isSafeInteger;
     ok(isFunction(isSafeInteger));
-    ok(!isSafeInteger(NaN));
     ok(isSafeInteger(1));
-    ok(!isSafeInteger(0.1));
     ok(isSafeInteger(-1));
     ok(isSafeInteger(Math.pow(2, 16)));
     ok(isSafeInteger(Math.pow(2, 16) - 1));
@@ -1566,6 +1577,9 @@
     ok(isSafeInteger(Math.pow(2, 32) - 1));
     ok(isSafeInteger(9007199254740991));
     ok(isSafeInteger(-9007199254740991));
+    ok(isSafeInteger(-0));
+    ok(!isSafeInteger(NaN));
+    ok(!isSafeInteger(0.1));
     ok(!isSafeInteger(9007199254740992));
     ok(!isSafeInteger(-9007199254740992));
     ok(!isSafeInteger(Infinity));
@@ -1580,19 +1594,18 @@
     ok(!isSafeInteger(null));
     ok(!isSafeInteger({}));
     ok(!isSafeInteger(function(){}));
-    return ok(isSafeInteger(-0));
   });
   test('Number.MAX_SAFE_INTEGER', function(){
-    return equal(Number.MAX_SAFE_INTEGER, 9007199254740991);
+    ok(Number.MAX_SAFE_INTEGER === 9007199254740991);
   });
   test('Number.MIN_SAFE_INTEGER', function(){
-    return equal(Number.MIN_SAFE_INTEGER, -9007199254740991);
+    ok(Number.MIN_SAFE_INTEGER === -9007199254740991);
   });
   test('Number.parseFloat', function(){
-    return ok(isFunction(Number.parseFloat));
+    ok(isFunction(Number.parseFloat));
   });
   test('Number.parseInt', function(){
-    return ok(isFunction(Number.parseInt));
+    ok(isFunction(Number.parseInt));
   });
   test('Number::clz', function(){
     ok(isFunction(Number.prototype.clz));
@@ -1601,40 +1614,40 @@
     ok((-1).clz() === 0);
     ok(0.6.clz() === 32);
     ok((Math.pow(2, 32) - 1).clz() === 0);
-    return ok(Math.pow(2, 32).clz() === 32);
+    ok(Math.pow(2, 32).clz() === 32);
   });
   test('Math.acosh', function(){
-    return ok(isFunction(Math.acosh));
+    ok(isFunction(Math.acosh));
   });
   test('Math.asinh', function(){
-    return ok(isFunction(Math.asinh));
+    ok(isFunction(Math.asinh));
   });
   test('Math.atanh', function(){
-    return ok(isFunction(Math.atanh));
+    ok(isFunction(Math.atanh));
   });
   test('Math.cbrt', function(){
-    return ok(isFunction(Math.cbrt));
+    ok(isFunction(Math.cbrt));
   });
   test('Math.cosh', function(){
-    return ok(isFunction(Math.cosh));
+    ok(isFunction(Math.cosh));
   });
   test('Math.expm1', function(){
-    return ok(isFunction(Math.expm1));
+    ok(isFunction(Math.expm1));
   });
   test('Math.hypot', function(){
-    return ok(isFunction(Math.hypot));
+    ok(isFunction(Math.hypot));
   });
   test('Math.imul', function(){
-    return ok(isFunction(Math.imul));
+    ok(isFunction(Math.imul));
   });
   test('Math.log1p', function(){
-    return ok(isFunction(Math.log1p));
+    ok(isFunction(Math.log1p));
   });
   test('Math.log10', function(){
-    return ok(isFunction(Math.log10));
+    ok(isFunction(Math.log10));
   });
   test('Math.log2', function(){
-    return ok(isFunction(Math.log2));
+    ok(isFunction(Math.log2));
   });
   test('Math.sign', function(){
     var sign;
@@ -1648,13 +1661,13 @@
     ok(sign(13510798882111488) === 1);
     ok(sign(-13510798882111488) === -1);
     ok(sign(42.5) === 1);
-    return ok(sign(-42.5) === -1);
+    ok(sign(-42.5) === -1);
   });
   test('Math.sinh', function(){
-    return ok(isFunction(Math.sinh));
+    ok(isFunction(Math.sinh));
   });
   test('Math.tanh', function(){
-    return ok(isFunction(Math.tanh));
+    ok(isFunction(Math.tanh));
   });
   test('Math.trunc', function(){
     var trunc;
@@ -1669,17 +1682,17 @@
     ok(Object.is(trunc(0.3), 0));
     ok(trunc([]) === 0);
     ok(trunc(-42.42) === -42);
-    return ok(trunc(13510798882111488) === 13510798882111488);
+    ok(trunc(13510798882111488) === 13510798882111488);
   });
   test('String::codePointAt', function(){
-    return ok(isFunction(String.prototype.codePointAt));
+    ok(isFunction(String.prototype.codePointAt));
   });
   test('String::contains', function(){
     ok(isFunction(String.prototype.contains));
     ok(!'abc'.contains());
     ok('aundefinedb'.contains());
     ok('abcd'.contains('b', 1));
-    return ok(!'abcd'.contains('b', 2));
+    ok(!'abcd'.contains('b', 2));
   });
   test('String::endsWith', function(){
     ok(isFunction(String.prototype.endsWith));
@@ -1695,7 +1708,7 @@
     ok('abc'.endsWith('c', Infinity));
     ok('abc'.endsWith('a', true));
     ok(!'abc'.endsWith('c', 'x'));
-    return ok(!'abc'.endsWith('a', 'x'));
+    ok(!'abc'.endsWith('a', 'x'));
   });
   test('String::repeat', function(){
     var e;
@@ -1704,10 +1717,10 @@
     ok('qwe'.repeat(2.5) === 'qweqwe');
     try {
       'qwe'.repeat(-1);
-      return ok(false);
+      ok(false);
     } catch (e$) {
       e = e$;
-      return ok(true);
+      ok(true);
     }
   });
   test('String::startsWith', function(){
@@ -1723,7 +1736,7 @@
     ok(!'abc'.startsWith('a', 1));
     ok(!'abc'.startsWith('a', Infinity));
     ok('abc'.startsWith('b', true));
-    return ok('abc'.startsWith('a', 'x'));
+    ok('abc'.startsWith('a', 'x'));
   });
   test('Array.from', function(){
     var from, al, ctx;
@@ -1741,7 +1754,7 @@
       ok(key === 0);
       return ok(that === al);
     }, ctx = {});
-    return deepEqual(from(function(){
+    deepEqual(from(function(){
       return arguments;
     }(1, 2, 3), (function(it){
       return Math.pow(it, 2);
@@ -1750,7 +1763,7 @@
   test('Array.of', function(){
     ok(isFunction(Array.of));
     deepEqual(Array.of(1), [1]);
-    return deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
+    deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
   });
   test('Array::fill', function(){
     ok(isFunction(Array.prototype.fill));
@@ -1758,7 +1771,7 @@
     deepEqual(Array(5).fill(5, 1), [void 8, 5, 5, 5, 5]);
     deepEqual(Array(5).fill(5, 1, 4), [void 8, 5, 5, 5, void 8]);
     deepEqual(Array(5).fill(5, 6, 1), [void 8, void 8, void 8, void 8, void 8]);
-    return deepEqual(Array(5).fill(5, -3, 4), [void 8, void 8, 5, 5, void 8]);
+    deepEqual(Array(5).fill(5, -3, 4), [void 8, void 8, 5, 5, void 8]);
   });
   test('Array::find', function(){
     var arr, ctx;
@@ -1772,7 +1785,7 @@
     ok([1, 3, NaN, 42, {}].find((function(it){
       return it === 42;
     })) === 42);
-    return ok([1, 3, NaN, 42, {}].find((function(it){
+    ok([1, 3, NaN, 42, {}].find((function(it){
       return it === 43;
     })) === void 8);
   });
@@ -1785,7 +1798,7 @@
       ok(key === 0);
       return ok(that === arr);
     }, ctx = {});
-    return ok([1, 3, NaN, 42, {}].findIndex((function(it){
+    ok([1, 3, NaN, 42, {}].findIndex((function(it){
       return it === 42;
     })) === 3);
   });
@@ -1806,14 +1819,14 @@
     ok(Map() instanceof Map);
     ok(new Map([[1, 2], [2, 3], [1, 4]]).size === 2);
     ok(new Map([[1, 2], [2, 3], [1, 4]]).size === 2);
-    return ok(new Map([[NaN, 2], [NaN, 3], [NaN, 4]]).size === 1);
+    ok(new Map([[NaN, 2], [NaN, 3], [NaN, 4]]).size === 1);
   });
   test('Map::clear', function(){
     var M;
     ok(isFunction(Map.prototype.clear));
     M = new Map([[1, 2], [2, 3], [1, 4]]);
     M.clear();
-    return ok(M.size === 0);
+    ok(M.size === 0);
   });
   test('Map::delete', function(){
     var a, M;
@@ -1828,7 +1841,7 @@
     M['delete']([]);
     ok(M.size === 4);
     M['delete'](a);
-    return ok(M.size === 3);
+    ok(M.size === 3);
   });
   test('Map::forEach', function(){
     var r, T, count, M;
@@ -1839,11 +1852,11 @@
     M.forEach(function(value, key, ctx){
       T = ctx;
       count = count + 1;
-      return r[value] = key;
+      r[value] = key;
     });
     ok(T === M);
     ok(count === 5);
-    return deepEqual(r, {
+    deepEqual(r, {
       1: NaN,
       7: 3,
       5: 2,
@@ -1860,7 +1873,7 @@
     ok(M.get(4) === void 8);
     ok(M.get({}) === void 8);
     ok(M.get(o) === o);
-    return ok(M.get(2) === 5);
+    ok(M.get(2) === 5);
   });
   test('Map::has', function(){
     var o, M;
@@ -1868,10 +1881,10 @@
     o = {};
     M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [o, o]]);
     ok(M.has(NaN));
+    ok(M.has(o));
+    ok(M.has(2));
     ok(!M.has(4));
     ok(!M.has({}));
-    ok(M.has(o));
-    return ok(M.has(2));
   });
   test('Map::set', function(){
     var o, M;
@@ -1891,7 +1904,7 @@
     ok(M.get(o) === o);
     M.set(o, 27);
     ok(M.size === 7);
-    return ok(M.get(o) === 27);
+    ok(M.get(o) === 27);
   });
   test('Set', function(){
     var S, r;
@@ -1915,7 +1928,7 @@
       2: 2,
       3: 3
     });
-    return ok(new Set([NaN, NaN, NaN]).size === 1);
+    ok(new Set([NaN, NaN, NaN]).size === 1);
   });
   test('Set::add', function(){
     var a, S;
@@ -1932,14 +1945,14 @@
     S.add([]);
     ok(S.size === 6);
     S.add(4);
-    return ok(S.size === 7);
+    ok(S.size === 7);
   });
   test('Set::clear', function(){
     var S;
     ok(isFunction(Set.prototype.clear));
     S = new Set([1, 2, 3, 2, 1]);
     S.clear();
-    return ok(S.size === 0);
+    ok(S.size === 0);
   });
   test('Set::delete', function(){
     var a, S;
@@ -1954,7 +1967,7 @@
     S['delete']([]);
     ok(S.size === 4);
     S['delete'](a);
-    return ok(S.size === 3);
+    ok(S.size === 3);
   });
   test('Set::forEach', function(){
     var r, T, count, S;
@@ -1965,11 +1978,11 @@
     S.forEach(function(value, key, ctx){
       T = ctx;
       count = count + 1;
-      return r[key] = value;
+      r[key] = value;
     });
     ok(T === S);
     ok(count === 3);
-    return deepEqual(r, {
+    deepEqual(r, {
       1: 1,
       2: 2,
       3: 3
@@ -1981,10 +1994,10 @@
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.has(NaN));
+    ok(S.has(a));
+    ok(S.has(2));
     ok(!S.has(4));
     ok(!S.has([]));
-    ok(S.has(a));
-    return ok(S.has(2));
   });
 }).call(this);
 
@@ -2002,12 +2015,13 @@
     ok(new B instanceof B);
     ok(new B instanceof A);
     ok(new B().prop === 42);
-    return ok(new B().constructor === B);
+    ok(new B().constructor === B);
   });
   test('Function.isNative', function(){
     var isNative;
     isNative = Function.isNative;
     ok(isFunction(isNative));
+    ok(isNative(Object.prototype.hasOwnProperty));
     ok(!isNative(void 8));
     ok(!isNative(null));
     ok(!isNative(1));
@@ -2020,41 +2034,40 @@
     ok(!isNative([1]));
     ok(!isNative(/./));
     ok(!isNative(function(){}));
-    return ok(isNative(Object.prototype.hasOwnProperty));
   });
   test('Function::unbind', function(){
     ok(isFunction(Function.prototype.unbind));
-    equal({}.toString.unbind()('qwe'), '[object String]');
-    return equal([].reduce.unbind()('qwe', function(a, b){
+    ok({}.toString.unbind()('qwe') === '[object String]');
+    ok([].reduce.unbind()('qwe', function(a, b){
       return b + a;
-    }, ''), 'ewq');
+    }, '') === 'ewq');
   });
   test('Function::methodize', function(){
     var num;
     ok(isFunction(Function.prototype.methodize));
-    equal({
+    ok({
       a: 42,
       fn: function(it){
         return it.a;
       }.methodize()
-    }.fn(), 42);
+    }.fn() === 42);
     num = new Number(42);
     num.fn = function(a, b){
       return a + b;
     }.methodize();
-    return equal(num.fn(21), 63);
+    ok(num.fn(21) === 63);
   });
   test('Function::part', function(){
     var obj;
     ok(isFunction(Function.prototype.part));
-    equal(Object.classof.part('qwe')(), 'String');
+    ok(Object.isString.part('qwe')());
     obj = {
       a: 42
     };
     obj.fn = function(it){
       return this.a + it;
     }.part(21);
-    return equal(obj.fn(), 63);
+    ok(obj.fn() === 63);
   });
   test('Function::partial', function(){
     var fn, fn1;
@@ -2062,11 +2075,11 @@
     fn = function(q, w, e, a, s, d){
       return q + w + e + a + s + d;
     };
-    equal('qweasd', fn.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'])('q', 'w', 'a', 'x'));
+    ok('qweasd' === fn.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'])('q', 'w', 'a', 'x'));
     fn1 = function(q, w, e, a, s, d){
       return this + q + w + e + a + s + d;
     };
-    return equal('zxcqweasd', fn1.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'], 'zxc')('q', 'w', 'a', 'x'));
+    ok('zxcqweasd' === fn1.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'], 'zxc')('q', 'w', 'a', 'x'));
   });
   test('Function::only', function(){
     var fn;
@@ -2079,7 +2092,7 @@
     fn = function(){
       return this + join$.call(arguments, '');
     };
-    return ok(fn.only(2, 'x')('a', 'b', 'c') === 'xab');
+    ok(fn.only(2, 'x')('a', 'b', 'c') === 'xab');
   });
   test('Function::ctx', function(){
     var fn;
@@ -2087,7 +2100,7 @@
     fn = function(){
       return this + join$.call(arguments, '');
     };
-    return ok(fn.ctx('x')('a', 'b', 'c') === 'xabc');
+    ok(fn.ctx('x')('a', 'b', 'c') === 'xabc');
   });
   test('Function::invoke', function(){
     var C;
@@ -2102,7 +2115,7 @@
       return C;
     }());
     ok(C.invoke() instanceof C);
-    return deepEqual(C.invoke([1, 2]), new C(1, 2));
+    deepEqual(C.invoke([1, 2]), new C(1, 2));
   });
   test('Function::getInstance', function(){
     var C;
@@ -2112,7 +2125,7 @@
     };
     ok(C.getInstance(3).a === 3);
     ok(C.getInstance() instanceof C);
-    return ok(C.getInstance() === C.getInstance());
+    ok(C.getInstance() === C.getInstance());
   });
   test('Function::once', function(){
     var F, ref$;
@@ -2121,7 +2134,7 @@
       return Math.random();
     }.once();
     ok(0 < (ref$ = F()) && ref$ < 1);
-    return ok(F() === F());
+    ok(F() === F());
   });
   test('Function::error', function(){
     var f;
@@ -2150,7 +2163,7 @@
     }.error(function(arg$, args){
       return args;
     });
-    return deepEqual(f(1, 2, 3), [1, 2, 3]);
+    deepEqual(f(1, 2, 3), [1, 2, 3]);
   });
   test('Function::before', function(){
     var f;
@@ -2160,7 +2173,7 @@
     }.before(function(it){
       return it[0] += 'b';
     });
-    return ok(f('a') === 'abc');
+    ok(f('a') === 'abc');
   });
   test('Function::after', function(){
     var f;
@@ -2170,7 +2183,7 @@
     }.after(function(result, args){
       return result + args[0];
     });
-    return ok(f('a') === 'aba');
+    ok(f('a') === 'aba');
   });
   asyncTest('Function::timeout', 5, function(){
     var val;
@@ -2183,25 +2196,25 @@
     (function(){
       return ok(false);
     }).timeout(1)();
-    return setTimeout(function(){
+    setTimeout(function(){
       ok(true);
       return start();
     }, 20);
   });
   asyncTest('Function::interval', 8, function(){
-    var i, clr;
+    var i, _clear;
     ok(isFunction(Function.prototype.interval));
-    clr = function(it){
-      ok(i < 4, 'i < 4');
-      ok(it === 42, 'it is 42');
+    _clear = function(it){
+      ok(i < 4);
+      ok(it === 42);
       if (i === 3) {
-        clr();
+        _clear();
         start();
       }
       return i = i + 1;
     }.interval(1, 42);
-    ok(isFunction(clr));
-    return i = 1;
+    ok(isFunction(_clear));
+    i = 1;
   });
   asyncTest('Function::immediate', 5, function(){
     var val;
@@ -2214,7 +2227,7 @@
     (function(){
       return ok(false);
     }).immediate()();
-    return setTimeout(function(){
+    setTimeout(function(){
       ok(true);
       return start();
     }, 20);
@@ -2229,18 +2242,16 @@
     ok(new B instanceof B);
     ok(new B instanceof A);
     ok(new B().prop === 42);
-    return ok(new B().constructor === B);
+    ok(new B().constructor === B);
   });
 }).call(this);
 
 (function(){
   test('global', function(){
-    var ref$;
     ok(typeof global != 'undefined' && global !== null);
-    equal(global.global, global);
+    ok(global.global === global);
     global.__tmp__ = {};
-    equal(__tmp__, global.__tmp__);
-    return ref$ = global.__tmp__, delete global.__tmp__, ref$;
+    ok(__tmp__ === global.__tmp__);
   });
 }).call(this);
 
@@ -2258,12 +2269,12 @@
     ok(Object.is(-0, toInteger(-0)));
     ok(toInteger(-1.9) === -1);
     ok(toInteger(-Infinity) === -Infinity);
-    return ok(toInteger(-0x20000000000001) === -0x20000000000001);
+    ok(toInteger(-0x20000000000001) === -0x20000000000001);
   });
   test('Number::div', function(){
     ok(isFunction(Number.prototype.div));
-    equal((-7).div(3), -2);
-    return equal(7 .div(3), 2);
+    ok((-7).div(3) === -2);
+    ok(7 .div(3) === 2);
   });
   test('Number::times', function(){
     ok(isFunction(Number.prototype.times));
@@ -2279,7 +2290,7 @@
     deepEqual(5 .times(function(it){
       return (this | 0) + it + arguments[1] + arguments[2];
     }), [5, 7, 9, 11, 13]);
-    return deepEqual(5 .times(function(it){
+    deepEqual(5 .times(function(it){
       return (this | 0) + it + arguments[1] + arguments[2];
     }, 1), [6, 8, 10, 12, 14]);
   });
@@ -2295,7 +2306,7 @@
     }).every(function(it){
       return 7 <= it && it <= 10;
     }));
-    return ok(100 .times(function(){
+    ok(100 .times(function(){
       return 7 .rand(10);
     }).every(function(it){
       return 7 <= it && it <= 10;
@@ -2313,7 +2324,7 @@
     }).every((function(it){
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
-    return ok(100 .times(function(){
+    ok(100 .times(function(){
       return 7 .rand(10);
     }).every((function(it){
       return it === 7 || it === 8 || it === 9 || it === 10;
@@ -2321,25 +2332,27 @@
   });
   test('Number::odd', function(){
     ok(isFunction(Number.prototype.odd));
+    ok(1 .odd());
+    ok(111 .odd());
+    ok((-1).odd());
     ok(!NaN.odd());
     ok(!Infinity.odd());
     ok(!(-1.5).odd());
     ok(!1.5.odd());
-    ok(1 .odd());
-    ok(111 .odd());
     ok(!2 .odd());
-    return ok(!222 .odd());
+    ok(!222 .odd());
   });
   test('Number::even', function(){
     ok(isFunction(Number.prototype.even));
+    ok(2 .even());
+    ok(222 .even());
+    ok((-2).even());
     ok(!NaN.even());
     ok(!Infinity.even());
     ok(!(-1.5).even());
     ok(!1.5.even());
     ok(!1 .even());
     ok(!111 .even());
-    ok(2 .even());
-    return ok(222 .even());
   });
   test('Number::format', function(){
     ok(isFunction(Number.prototype.format));
@@ -2358,7 +2371,8 @@
     ok((-1234).format(7, ', ', '. ') === '-1, 234. 000, 000, 0');
     ok(1234.45678.format(7, ', ', '. ') === '1, 234. 456, 780, 0');
     ok((-1234.45678).format(7, ', ', '. ') === '-1, 234. 456, 780, 0');
-    return ok((-1234.45678).format(null, ', ', '. ') === '-1, 234');
+    ok((-1234.45678).format(null, ', ', '. ') === '-1, 234');
+    ok(Math.pow(0.1, 10).format(6, '.', ',') === '0,000.000');
   });
   test('Number:: <<< Math', function(){
     ok(isFunction(Number.prototype.round));
@@ -2392,7 +2406,7 @@
     ok(isFunction(Number.prototype.sign));
     ok(isFunction(Number.prototype.sinh));
     ok(isFunction(Number.prototype.tanh));
-    return ok(isFunction(Number.prototype.trunc));
+    ok(isFunction(Number.prototype.trunc));
   });
 }).call(this);
 
@@ -2414,7 +2428,7 @@
     ok(!has(clone$({
       q: 1
     }), 'q'));
-    return ok(!has({}, 'toString'));
+    ok(!has({}, 'toString'));
   });
   test('Object.isEnumerable', function(){
     var isEnumerable;
@@ -2424,7 +2438,7 @@
       q: 1
     }, 'q'));
     ok(!isEnumerable({}, 'toString'));
-    return ok(!isEnumerable(clone$({
+    ok(!isEnumerable(clone$({
       q: 1
     }), 'q'));
   });
@@ -2438,7 +2452,7 @@
     ok(isPrototype(Array.prototype, []));
     ok(!isPrototype(Function.prototype, []));
     ok(isPrototype(proto = {}, clone$(proto)));
-    return ok(!isPrototype({}, clone$(function(){})));
+    ok(!isPrototype({}, clone$(function(){})));
   });
   test('Object.classof', function(){
     var classof;
@@ -2455,13 +2469,13 @@
     ok(classof([]) === 'Array');
     ok(classof(function(){}) === 'Function');
     ok(classof(/./) === 'RegExp');
-    return ok(classof(TypeError()) === 'Error');
+    ok(classof(TypeError()) === 'Error');
   });
   test('Object.getPropertyDescriptor', function(){
     var getPropertyDescriptor, create;
     getPropertyDescriptor = Object.getPropertyDescriptor, create = Object.create;
     ok(isFunction(getPropertyDescriptor));
-    return deepEqual(getPropertyDescriptor(create({
+    deepEqual(getPropertyDescriptor(create({
       q: 1
     }), 'q'), {
       enumerable: true,
@@ -2480,7 +2494,7 @@
       w: 2
     }), 'q');
     ok(descs.q === void 8);
-    return deepEqual(descs.w, {
+    deepEqual(descs.w, {
       enumerable: true,
       configurable: true,
       writable: true,
@@ -2502,7 +2516,7 @@
       writable: true,
       value: 1
     });
-    return deepEqual(descs.w, {
+    deepEqual(descs.w, {
       enumerable: true,
       configurable: true,
       writable: true,
@@ -2518,7 +2532,7 @@
     });
     ok(in$('q', names));
     ok(in$('toString', names));
-    return ok(!in$('w', names));
+    ok(!in$('w', names));
   });
   test('Object.make', function(){
     var make, getPrototypeOf, object, foo;
@@ -2530,7 +2544,7 @@
       w: 2
     });
     ok(getPrototypeOf(object) === foo);
-    return ok(object.w === 2);
+    ok(object.w === 2);
   });
   test('Object.plane', function(){
     var plane, getPrototypeOf, foo;
@@ -2542,56 +2556,57 @@
     });
     ok(getPrototypeOf(foo) === null);
     ok(foo.q === 1);
-    return ok(foo.w === 2);
+    ok(foo.w === 2);
   });
   (function(){
     var clone, create, getPrototypeOf, defineProperty, getOwnPropertyDescriptor;
     clone = Object.clone, create = Object.create, getPrototypeOf = Object.getPrototypeOf, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
     test('Object.clone(primitive)', function(){
-      equal(clone(null), null);
-      equal(clone(void 8), void 8);
-      equal(clone('qwe'), 'qwe');
-      equal(clone(123), 123);
-      return ok(!clone(false));
+      ok(clone(null) === null);
+      ok(clone(void 8) === void 8);
+      ok(clone('qwe') === 'qwe');
+      ok(clone(123), 123);
+      ok(!clone(false));
     });
     test('Object.clone(Object(String|Number|Boolean))', function(){
       var i1, i2;
       i1 = new String('qwe');
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i1.valueOf(), i2.valueOf());
+      ok(i1.valueOf() === i2.valueOf());
       i1 = new Number(123);
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i1.valueOf(), i2.valueOf());
+      ok(i1.valueOf() === i2.valueOf());
       i1 = new Boolean(false);
       i2 = clone(i1);
       ok(i1 !== i2);
-      return equal(i2.valueOf(), false);
+      ok(i2.valueOf() === false);
     });
     test('Object.clone(Date)', function(){
       var i1, i2;
       i1 = new Date(1350861246986);
       i2 = clone(i1);
       ok(i1 !== i2);
-      return equal(i2.getTime(), 1350861246986);
+      ok(i2.getTime() === 1350861246986);
     });
     test('Object.clone(RegExp)', function(){
       var i1, i2;
       i1 = /q/i;
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i2.toString(), '/q/i');
-      return ok(i2.test('Q'));
+      ok(i2.toString() === '/q/i');
+      ok(i2.test('Q'));
     });
     test('simple Object.clone(Array)', function(){
       var i1, i2;
       i1 = [1, 2, 3];
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i2[2], 3);
-      equal(i2.length, 3);
-      return equal(i2.constructor, Array);
+      ok(i2[2] === 3);
+      ok(i2.length === 3);
+      ok(i2.constructor === Array);
+      ok(Array.isArray(i2));
     });
     test('simple Object.clone(Object)', function(){
       var i1, i2;
@@ -2601,13 +2616,13 @@
       };
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i2.q, 123);
-      equal(i2.w, 'qwe');
+      ok(i2.q === 123);
+      ok(i2.w === 'qwe');
       i1 = {
         q: {}
       };
       i2 = clone(i1);
-      return ok(i1.q === i2.q);
+      ok(i1.q === i2.q);
     });
     test('deep Object.clone(Object)', function(){
       var i1, i2;
@@ -2618,15 +2633,15 @@
       };
       i2 = clone(i1, 1);
       ok(i1.q !== i2.q);
-      return ok(i1.q.q === i2.q.q);
+      ok(i1.q.q === i2.q.q);
     });
     test('deep Object.clone(Array)', function(){
       var i1, i2;
       i1 = [/^qwe$/];
       i2 = clone(i1, 1);
-      ok(i1['0'] !== i2['0']);
+      ok(i1[0] !== i2[0]);
       ok(i2[0].test('qwe'));
-      return ok(!i2[0].test('qwer'));
+      ok(!i2[0].test('qwer'));
     });
     test('deep Object.clone(instance)', function(){
       var fn, i1, i2;
@@ -2636,15 +2651,15 @@
       i1 = new fn;
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i2.q, 1);
-      equal(getPrototypeOf(i1), getPrototypeOf(i2));
+      ok(i2.q === 1);
+      ok(getPrototypeOf(i1) === getPrototypeOf(i2));
       i1 = create({
         q: 1
       });
       i2 = clone(i1);
       ok(i1 !== i2);
-      equal(i2.q, 1);
-      return equal(getPrototypeOf(i1), getPrototypeOf(i2));
+      ok(i2.q === 1);
+      ok(getPrototypeOf(i1) === getPrototypeOf(i2));
     });
     if (Function.isNative(Object.getOwnPropertyDescriptor)) {
       test('deep Object.clone without descriptors', function(){
@@ -2660,9 +2675,9 @@
         i2 = clone(i1, 1, 0);
         ok(i1.q !== i2.q);
         ok(i2.q.q === 42);
-        return equal(typeof getOwnPropertyDescriptor(i2.q, 'q').get, 'undefined');
+        ok(getOwnPropertyDescriptor(i2.q, 'q').get === void 8);
       });
-      return test('deep Object.clone with descriptors', function(){
+      test('deep Object.clone with descriptors', function(){
         var i1, i2;
         i1 = {
           q: defineProperty({}, 'q', {
@@ -2673,8 +2688,8 @@
         };
         i2 = clone(i1, 1, 1);
         ok(i1.q !== i2.q);
-        equal(i2.q.q, 52);
-        return equal(typeof getOwnPropertyDescriptor(i2.q, 'q').get, 'function');
+        ok(i2.q.q === 52);
+        ok(typeof getOwnPropertyDescriptor(i2.q, 'q').get === 'function');
       });
     }
   })();
@@ -2702,7 +2717,7 @@
       e: 1
     };
     test('Object.merge', function(){
-      return ok(isFunction(merge));
+      ok(isFunction(merge));
     });
     test('simple Object.merge', function(){
       var i1, i2;
@@ -2712,7 +2727,7 @@
       ok(i1.q === 1);
       ok(i1.r === 1);
       ok(i1.w === obj.w);
-      return ok(i1.e === 1);
+      ok(i1.e === 1);
     });
     test('deep Object.merge', function(){
       var i1;
@@ -2721,7 +2736,7 @@
       ok(i1.r === 1);
       ok(i1.w !== obj.w);
       ok(i1.w.q === 2);
-      return ok(i1.w.w === 2);
+      ok(i1.w.w === 2);
     });
     test('reverse Object.merge', function(){
       var i1;
@@ -2738,7 +2753,7 @@
       ok(i1.e === 2);
       ok(i1.w.q === 1);
       ok(i1.w.w === 2);
-      return ok(i1.w.e !== 5);
+      ok(i1.w.e !== 5);
     });
     return test('reverse deep Object.merge', function(){
       var i1;
@@ -2755,7 +2770,7 @@
       ok(i1.e === 2);
       ok(i1.w.q === 1);
       ok(i1.w.w === 2);
-      return ok(i1.w.e === 5);
+      ok(i1.w.e === 5);
     });
   })();
   test('Object.defaults', function(){
@@ -2774,10 +2789,10 @@
       },
       e: 3
     });
-    equal(obj.q, 1);
-    equal(obj.w.q, 1);
-    equal(obj.w.w, 2);
-    return equal(obj.e, 3);
+    ok(obj.q === 1);
+    ok(obj.w.q === 1);
+    ok(obj.w.w === 2);
+    ok(obj.e === 3);
   });
   test('Object.values', function(){
     var values;
@@ -2788,7 +2803,7 @@
       w: 2,
       e: 3
     }).length === 3);
-    return ok(~values({
+    ok(~values({
       q: 1,
       w: 2,
       e: 3
@@ -2798,7 +2813,7 @@
     var invert;
     invert = Object.invert;
     ok(isFunction(invert));
-    return deepEqual(invert({
+    deepEqual(invert({
       q: 'a',
       w: 's',
       e: 'd'
@@ -2825,7 +2840,7 @@
       w: 2,
       e: 3
     }, isNumber));
-    return ok(!every({
+    ok(!every({
       q: 1,
       w: '2',
       e: 3
@@ -2843,7 +2858,7 @@
       ok(that === obj);
       return ok(this === ctx);
     }, ctx = {});
-    return deepEqual(filter({
+    deepEqual(filter({
       q: 1,
       w: 2,
       e: 3
@@ -2866,7 +2881,7 @@
       ok(that === obj);
       return ok(this === ctx);
     }, ctx = {});
-    return ok(find({
+    ok(find({
       q: 1,
       w: 2,
       e: 3
@@ -2886,7 +2901,7 @@
       ok(that === obj);
       return ok(this === ctx);
     }, ctx = {});
-    return ok(findIndex({
+    ok(findIndex({
       q: 1,
       w: 2,
       e: 3
@@ -2904,14 +2919,14 @@
       ok(val === 1);
       ok(key === 'q');
       ok(that === obj);
-      return ok(this === ctx);
+      ok(this === ctx);
     }, ctx = {});
     rez = {};
     forEach({
       q: 1,
       w: 2
     }, function(){
-      return rez[arguments[1]] = arguments[0] + this;
+      rez[arguments[1]] = arguments[0] + this;
     }, '_');
     deepEqual(rez, {
       q: '1_',
@@ -2923,7 +2938,7 @@
       w: 2
     }, function(){
       var rez;
-      return rez && (rez = obj === arguments[2]);
+      rez && (rez = obj === arguments[2]);
     });
     ok(rez);
     rez = {};
@@ -2933,19 +2948,19 @@
       q: 1,
       w: 2
     }), function(){
-      return rez[arguments[1]] = arguments[0];
+      rez[arguments[1]] = arguments[0];
     });
     ok(!('e' in rez));
     rez = {};
     forEach([1, 2], function(){
-      return rez[arguments[1]] = arguments[0];
+      rez[arguments[1]] = arguments[0];
     });
     ok(!('length' in rez));
     rez = {};
     forEach('123', function(){
-      return rez[arguments[1]] = arguments[0];
+      rez[arguments[1]] = arguments[0];
     });
-    return ok('2' in rez);
+    ok('2' in rez);
   });
   test('Object.indexOf', function(){
     var indexOf;
@@ -2961,7 +2976,7 @@
       w: 2,
       e: 3
     }, 4) === void 8);
-    return ok(indexOf({
+    ok(indexOf({
       q: 1,
       w: 2,
       e: NaN
@@ -2979,7 +2994,7 @@
       ok(that === obj);
       return ok(this === ctx);
     }, ctx = {});
-    return deepEqual(map({
+    deepEqual(map({
       q: 1,
       w: 2,
       e: 3
@@ -3019,7 +3034,7 @@
       that[it] = it;
       return that;
     }, memo = {});
-    return deepEqual(memo, {
+    deepEqual(memo, {
       1: 1,
       2: 2,
       3: 3
@@ -3042,7 +3057,7 @@
       w: 2,
       e: 3
     }, isString));
-    return ok(some({
+    ok(some({
       q: 1,
       w: '2',
       e: 3
@@ -3070,7 +3085,7 @@
       w: void 8,
       e: void 8
     });
-    return deepEqual(props({
+    deepEqual(props({
       q: '1',
       w: '22',
       e: '333'
@@ -3097,7 +3112,7 @@
     }, function(){
       return ok(this === obj);
     }, obj = {});
-    return deepEqual({
+    deepEqual({
       1: 1,
       2: 2,
       3: 3
@@ -3157,7 +3172,7 @@
       y: 1
     };
     b.x = b;
-    return ok(deepEqual(a, b));
+    ok(deepEqual(a, b));
   });
   test('Object.isObject', function(){
     var isObject;
@@ -3166,15 +3181,15 @@
     ok(!isObject(void 8));
     ok(!isObject(null));
     ok(!isObject(1));
-    ok(isObject(new Number(1)));
-    ok(!isObject(''));
-    ok(isObject(new String(1)));
     ok(!isObject(false));
+    ok(!isObject(''));
+    ok(isObject(new Number(1)));
     ok(isObject(new Boolean(false)));
+    ok(isObject(new String(1)));
     ok(isObject({}));
     ok(isObject([]));
     ok(isObject(/./));
-    return ok(isObject(new function(){}));
+    ok(isObject(new function(){}));
   });
   test('Object.isUndefined', function(){
     var isUndefined;
@@ -3185,59 +3200,60 @@
     ok(!isUndefined(1));
     ok(!isUndefined(''));
     ok(!isUndefined(false));
-    return ok(!isUndefined({}));
+    ok(!isUndefined({}));
   });
   test('Object.isNull', function(){
     var isNull;
     isNull = Object.isNull;
     ok(isFunction(isNull));
-    ok(!isNull(void 8));
     ok(isNull(null));
+    ok(!isNull(void 8));
     ok(!isNull(1));
     ok(!isNull(''));
     ok(!isNull(false));
-    return ok(!isNull({}));
+    ok(!isNull({}));
   });
   test('Object.isNumber', function(){
     var isNumber;
     isNumber = Object.isNumber;
     ok(isFunction(isNumber));
-    ok(!isNumber(void 8));
-    ok(!isNumber(null));
     ok(isNumber(1));
     ok(isNumber(new Number(1)));
+    ok(!isNumber(void 8));
+    ok(!isNumber(null));
     ok(!isNumber(''));
     ok(!isNumber(false));
-    return ok(!isNumber({}));
+    ok(!isNumber({}));
   });
   test('Object.isString', function(){
     var isString;
     isString = Object.isString;
     ok(isFunction(isString));
+    ok(isString(''));
+    ok(isString(new String('')));
     ok(!isString(void 8));
     ok(!isString(null));
     ok(!isString(1));
-    ok(isString(''));
-    ok(isString(new String('')));
     ok(!isString(false));
-    return ok(!isString({}));
+    ok(!isString({}));
   });
   test('Object.isBoolean', function(){
     var isBoolean;
     isBoolean = Object.isBoolean;
     ok(isFunction(isBoolean));
+    ok(isBoolean(false));
+    ok(isBoolean(new Boolean(false)));
     ok(!isBoolean(void 8));
     ok(!isBoolean(null));
     ok(!isBoolean(1));
     ok(!isBoolean(''));
-    ok(isBoolean(false));
-    ok(isBoolean(new Boolean(false)));
-    return ok(!isBoolean({}));
+    ok(!isBoolean({}));
   });
   test('Object.isArray', function(){
     var isArray;
     isArray = Object.isArray;
     ok(isFunction(isArray));
+    ok(isArray([1]));
     ok(!isArray(void 8));
     ok(!isArray(null));
     ok(!isArray(1));
@@ -3247,12 +3263,12 @@
     ok(!isArray(function(){
       return arguments;
     }()));
-    return ok(isArray([1]));
   });
   test('Object.isFunction', function(){
     var isFunction;
     isFunction = Object.isFunction;
     ok(typeof isFunction === 'function');
+    ok(isFunction(function(){}));
     ok(!isFunction(void 8));
     ok(!isFunction(null));
     ok(!isFunction(1));
@@ -3264,12 +3280,12 @@
     }()));
     ok(!isFunction([1]));
     ok(!isFunction(/./));
-    return ok(isFunction(function(){}));
   });
   test('Object.isRegExp', function(){
     var isRegExp;
     isRegExp = Object.isRegExp;
     ok(isFunction(isRegExp));
+    ok(isRegExp(/./));
     ok(!isRegExp(void 8));
     ok(!isRegExp(null));
     ok(!isRegExp(1));
@@ -3280,13 +3296,13 @@
       return arguments;
     }()));
     ok(!isRegExp([1]));
-    ok(isRegExp(/./));
-    return ok(!isRegExp(function(){}));
+    ok(!isRegExp(function(){}));
   });
   test('Object.isDate', function(){
     var isDate;
     isDate = Object.isDate;
     ok(isFunction(isDate));
+    ok(isDate(new Date));
     ok(!isDate(void 8));
     ok(!isDate(null));
     ok(!isDate(1));
@@ -3299,12 +3315,13 @@
     ok(!isDate([1]));
     ok(!isDate(/./));
     ok(!isDate(function(){}));
-    return ok(isDate(new Date));
   });
   test('Object.isError', function(){
     var isError;
     isError = Object.isError;
     ok(isFunction(isError));
+    ok(isError(Error()));
+    ok(isError(TypeError()));
     ok(!isError(void 8));
     ok(!isError(null));
     ok(!isError(1));
@@ -3317,25 +3334,23 @@
     ok(!isError([1]));
     ok(!isError(/./));
     ok(!isError(function(){}));
-    ok(isError(Error()));
-    return ok(isError(TypeError()));
   });
   test('Object.isArguments', function(){
     var isArguments;
     isArguments = Object.isArguments;
     ok(isFunction(isArguments));
+    ok(isArguments(function(){
+      return arguments;
+    }()));
     ok(!isArguments(void 8));
     ok(!isArguments(null));
     ok(!isArguments(1));
     ok(!isArguments(''));
     ok(!isArguments(false));
     ok(!isArguments({}));
-    ok(isArguments(function(){
-      return arguments;
-    }()));
     ok(!isArguments([1]));
     ok(!isArguments(/./));
-    return ok(!isArguments(function(){}));
+    ok(!isArguments(function(){}));
   });
   function clone$(it){
     function fun(){} fun.prototype = it;
@@ -3353,13 +3368,13 @@
   isFunction = Object.isFunction;
   test('RegExp::getFlag', function(){
     ok(isFunction(RegExp.prototype.getFlag));
-    equal(/./gmi.getFlag().length, 3);
-    return equal(/qwe/i.getFlag(), 'i');
+    ok(/./gmi.getFlag().length === 3);
+    ok(/qwe/i.getFlag() === 'i');
   });
   test('RegExp::fn', function(){
     ok(isFunction(/qwe/.fn()));
     ok(/qwe/.fn()('qwerty'));
-    return ok(!/qwe/.fn()('asd'));
+    ok(!/qwe/.fn()('asd'));
   });
 }).call(this);
 
@@ -3369,39 +3384,39 @@
   test('String::trimLeft', function(){
     ok(isFunction(String.prototype.trimLeft));
     ok('   123   '.trimLeft() === '123   ');
-    return ok('   \nasd\n   '.trimLeft() === 'asd\n   ');
+    ok('   \nasd\n   '.trimLeft() === 'asd\n   ');
   });
   test('String::trimRight', function(){
     ok(isFunction(String.prototype.trimRight));
     ok('   123   '.trimRight() === '   123');
-    return ok('   \nasd\n   '.trimRight() === '   \nasd');
+    ok('   \nasd\n   '.trimRight() === '   \nasd');
   });
   test('String::escapeHTML', function(){
     ok(isFunction(String.prototype.escapeHTML));
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');
     ok('<div>qwe</div>'.escapeHTML() === '&lt;div&gt;qwe&lt;&#x2f;div&gt;');
-    return ok("&<>\"'/".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;&#x2f;');
+    ok("&<>\"'/".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;&#x2f;');
   });
   test('String::unescapeHTML', function(){
     ok(isFunction(String.prototype.unescapeHTML));
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;&#x2f;div&gt;'.unescapeHTML() === '<div>qwe</div>');
-    return ok('&amp;&lt;&gt;&quot;&apos;&#x2f;'.unescapeHTML() === "&<>\"'/");
+    ok('&amp;&lt;&gt;&quot;&apos;&#x2f;'.unescapeHTML() === "&<>\"'/");
   });
   test('String::escapeURL', function(){
-    return ok(isFunction(String.prototype.escapeURL));
+    ok(isFunction(String.prototype.escapeURL));
   });
   test('String::unescapeURL', function(){
-    return ok(isFunction(String.prototype.unescapeURL));
+    ok(isFunction(String.prototype.unescapeURL));
   });
   test('String::escapeRegExp', function(){
     ok(isFunction(String.prototype.escapeRegExp));
     ok('qwe asd'.escapeRegExp() === 'qwe asd');
-    return ok('\\/\'*+?|()[]{}.^$'.escapeRegExp() === "\\\\\\/\\'\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}\\.\\^\\$");
+    ok('\\/\'*+?|()[]{}.^$'.escapeRegExp() === "\\\\\\/\\'\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}\\.\\^\\$");
   });
   test('String::reverse', function(){
     ok(isFunction(String.prototype.reverse));
-    return ok(' qwerty '.reverse() === ' ytrewq ');
+    ok(' qwerty '.reverse() === ' ytrewq ');
   });
   test('String::at', function(){
     ok(isFunction(String.prototype.at));
@@ -3412,7 +3427,7 @@
     ok('qwerty'.at(-1) === 'y');
     ok('qwerty'.at(-6) === 'q');
     ok('qwerty'.at(6) === '');
-    return ok('qwerty'.at(-7) === '');
+    ok('qwerty'.at(-7) === '');
   });
 }).call(this);
 
@@ -3421,45 +3436,45 @@
   isFunction = Object.isFunction;
   asyncTest('setTimeout / clearTimeout', 2, function(){
     global.setTimeout(function(b, c){
-      return ok(b + c === 'bc');
+      ok(b + c === 'bc');
     }, 1, 'b', 'c');
     clearTimeout(partialize$.apply(global, [
       global.setTimeout, [
         void 8, 1, function(){
-          return ok(false);
+          ok(false);
         }
       ], [0]
     ]));
-    return global.setTimeout(function(){
+    global.setTimeout(function(){
       ok(true);
-      return start();
+      start();
     }, 20);
   });
   asyncTest('setInterval / clearInterval', 6, function(){
     var i, mark;
     i = 1;
-    return mark = global.setInterval(function(it){
+    mark = global.setInterval(function(it){
       ok(i < 4);
       ok(it === 42);
       if (i === 3) {
         clearInterval(mark);
         start();
       }
-      return i = i + 1;
+      i = i + 1;
     }, 1, 42);
   });
   asyncTest('setImmediate / clearImmediate', 4, function(){
     ok(isFunction(global.setImmediate));
     ok(isFunction(global.clearImmediate));
     setImmediate(function(b, c){
-      return ok(b + c === 'bc');
+      ok(b + c === 'bc');
     }, 'b', 'c');
     clearImmediate(setImmediate(function(){
-      return ok(false);
+      ok(false);
     }));
-    return global.setTimeout(function(){
+    global.setTimeout(function(){
       ok(true);
-      return start();
+      start();
     }, 20);
   });
   function partialize$(f, args, where){

@@ -1,15 +1,16 @@
 var parallel;
 extendBuiltInObject(Function, {
   series: function(queue, then /* ? */){
-    var isThen  = isFunction(then)
-      , current = 0
+    var isThen    = isFunction(then)
+      , sliceArgs = isThen ? 2 : 1
+      , current   = 0
       , args, inArgs;
     function next(i, error){
       if(i == current){ // <= protect from reexecution
         inArgs = current++ in queue;
         if(isThen && (error || !inArgs))then.apply(undefined, slice1(arguments));
         else if(inArgs){
-          args = slice.call(arguments, isThen ? 2 : 1);
+          args = slice.call(arguments, sliceArgs);
           args.push(part.call(next, current));
           queue[current].apply(undefined, args)
         }

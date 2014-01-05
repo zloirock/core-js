@@ -1,6 +1,5 @@
-test \global ->
+test \global !->
   ok global?
-  equal global.global, global
+  ok global.global is global
   global.__tmp__ = {}
-  equal __tmp__, global.__tmp__
-  delete global.__tmp__
+  ok __tmp__ is global.__tmp__

@@ -30,6 +30,9 @@ var prototype      = 'prototype'
   // How to get the context for calling the methods of the Array.prototype
   // Dummy, polyfill for not array-like strings for old ie in es5shim.js
   , arrayLikeSelf  = Object
+  , isArray        = Array.isArray || function(it){
+      return $toString(it) == '[object Array]'
+    }
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }

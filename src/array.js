@@ -31,7 +31,7 @@
   }
   extendBuiltInObject($Array, {
     at: function(index){
-      return arrayLikeSelf(this)[0 > index ? toLength(this.length) + index : index]
+      return arrayLikeSelf(this)[0 > index ? this.length + index : index]
     },
     props   : props,
     reduceTo: reduceTo,

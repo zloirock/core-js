@@ -41,6 +41,9 @@ var prototype      = 'prototype'
   // How to get the context for calling the methods of the Array.prototype
   // Dummy, polyfill for not array-like strings for old ie in es5shim.js
   , arrayLikeSelf  = Object
+  , isArray        = Array.isArray || function(it){
+      return $toString(it) == '[object Array]'
+    }
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }
@@ -107,6 +110,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
   var Empty             = Function()
     , LTrimRegExp       = RegExp(LTrim)
     , RTrimRegExp       = RegExp(RTrim)
+    // for fix IE 9- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     , hidenNames1       = splitComma(toString + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length
@@ -135,12 +139,12 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
           while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
           return createNullProtoObject()
         }
-    , createGetKeys = function(names,length){
+    , createGetKeys = function(names, length){
         return function(O){
           var i      = 0
             , result = []
             , key;
-          for(key in O)has(O,key) && result.push(key);
+          for(key in O)has(O, key) && result.push(key);
           // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~result[indexOf](key) && result.push(key);
           return result
@@ -175,7 +179,12 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      for(var key in Properties)if(has(Properties, key))O[key] = Properties[key].value;
+      // IE 9- don't enum bug => getOwnPropertyNames
+      var names = getOwnPropertyNames(Properties)
+        , length = names.length
+        , i = 0
+        , key;
+      while(length > i)O[key = names[i++]] = Properties[key].value;
       return O
     }
   }
@@ -380,7 +389,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
    * http://es5.github.io/#x15.5.4.20
    */
   extendBuiltInObject($String, {trim: function(){
-    return String(this).replace(LTrim, '').replace(RTrim, '')
+    return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '')
   }});
   /**
    * 15.9.4.4 Date.now ( )
@@ -479,7 +488,7 @@ function isFunction(it){
 function isDate(it){
   return $toString(it) == '[object Date]'
 }
-// IE fix in es5s
+// IE fix in es5.js
 function isArguments(it){
   return $toString(it) == '[object Arguments]'
 }
@@ -496,9 +505,6 @@ var assign = Object.assign || function(target, source){
     }
   , isObject = Object.isObject || function(it){
       return it === Object(it)
-    }
-  , isArray = Array.isArray || function(it){
-      return $toString(it) == '[object Array]'
     }
   // http://es5.javascript.ru/x9.html#x9.12
   , same = Object.is || function(x,y){
@@ -1105,10 +1111,10 @@ extendBuiltInObject($Array, {
    */
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
     global.setTimeout = function(fn, time /*, args...*/){
-      return setTimeout(timersBind(fn, slice.call(arguments, 2)), time)
+      return setTimeout(timersBind(fn, slice.call(arguments, 2)), time || 1)
     };
     global.setInterval = function(fn, time /*, args...*/){
-      return setInterval(timersBind(fn, slice.call(arguments, 2)), time)
+      return setInterval(timersBind(fn, slice.call(arguments, 2)), time || 1)
     }
   }
   /**
@@ -1130,7 +1136,7 @@ extendBuiltInObject($Array, {
       global[setImmediate] = function(fn /*, args...*/){
         var id = ++counter + msg;
         queue[id] = timersBind(fn, slice1(arguments));
-        postMessage(id, '*');
+        postMessage(id, global.location);
         return counter
       }
       global[clearImmediate] = function(id){
@@ -1139,18 +1145,18 @@ extendBuiltInObject($Array, {
       if(addEventListener)addEventListener('message', listner, false);
       else attachEvent('onmessage', listner)
     }
-    else{
+    else {
       global[setImmediate] = function(fn /*, args...*/){
         return setTimeout(timersBind(fn, slice1(arguments)), 0)
       }
-      global[clearImmediate] = clearTimeout
+      global[clearImmediate] = Function('i','clearTimeout(i)')
     }
   }
 }(global.navigator, setTimeout, setInterval, global.postMessage, 'setImmediate', 'clearImmediate', global.addEventListener);
 // Module : function
 function invoke(args){
   var instance = create(this.prototype)
-    , result   = this.apply(instance, args);
+    , result   = this.apply(instance, arrayLikeSelf(args || []));
   return isObject(result) ? result : instance
 }
 function inherits(parent){
@@ -1675,7 +1681,7 @@ extendBuiltInObject($Wrap, {
   }
   extendBuiltInObject($Array, {
     at: function(index){
-      return arrayLikeSelf(this)[0 > index ? toLength(this.length) + index : index]
+      return arrayLikeSelf(this)[0 > index ? this.length + index : index]
     },
     props   : props,
     reduceTo: reduceTo,
@@ -1930,15 +1936,16 @@ extendBuiltInObject(RegExp[prototype], {
 var parallel;
 extendBuiltInObject(Function, {
   series: function(queue, then /* ? */){
-    var isThen  = isFunction(then)
-      , current = 0
+    var isThen    = isFunction(then)
+      , sliceArgs = isThen ? 2 : 1
+      , current   = 0
       , args, inArgs;
     function next(i, error){
       if(i == current){ // <= protect from reexecution
         inArgs = current++ in queue;
         if(isThen && (error || !inArgs))then.apply(undefined, slice1(arguments));
         else if(inArgs){
-          args = slice.call(arguments, isThen ? 2 : 1);
+          args = slice.call(arguments, sliceArgs);
           args.push(part.call(next, current));
           queue[current].apply(undefined, args)
         }

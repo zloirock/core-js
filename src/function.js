@@ -1,6 +1,6 @@
 function invoke(args){
   var instance = create(this.prototype)
-    , result   = this.apply(instance, args);
+    , result   = this.apply(instance, arrayLikeSelf(args || []));
   return isObject(result) ? result : instance
 }
 function inherits(parent){

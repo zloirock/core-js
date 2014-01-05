@@ -39,6 +39,9 @@ var prototype      = 'prototype'
   // How to get the context for calling the methods of the Array.prototype
   // Dummy, polyfill for not array-like strings for old ie in es5shim.js
   , arrayLikeSelf  = Object
+  , isArray        = Array.isArray || function(it){
+      return $toString(it) == '[object Array]'
+    }
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }
@@ -184,7 +187,7 @@ function isFunction(it){
 function isDate(it){
   return $toString(it) == '[object Date]'
 }
-// IE fix in es5s
+// IE fix in es5.js
 function isArguments(it){
   return $toString(it) == '[object Arguments]'
 }
@@ -201,9 +204,6 @@ var assign = Object.assign || function(target, source){
     }
   , isObject = Object.isObject || function(it){
       return it === Object(it)
-    }
-  , isArray = Array.isArray || function(it){
-      return $toString(it) == '[object Array]'
     }
   // http://es5.javascript.ru/x9.html#x9.12
   , same = Object.is || function(x,y){
@@ -800,7 +800,7 @@ extendBuiltInObject($Array, {
 // Module : function
 function invoke(args){
   var instance = create(this.prototype)
-    , result   = this.apply(instance, args);
+    , result   = this.apply(instance, arrayLikeSelf(args || []));
   return isObject(result) ? result : instance
 }
 function inherits(parent){
@@ -1325,7 +1325,7 @@ extendBuiltInObject($Wrap, {
   }
   extendBuiltInObject($Array, {
     at: function(index){
-      return arrayLikeSelf(this)[0 > index ? toLength(this.length) + index : index]
+      return arrayLikeSelf(this)[0 > index ? this.length + index : index]
     },
     props   : props,
     reduceTo: reduceTo,
@@ -1580,15 +1580,16 @@ extendBuiltInObject(RegExp[prototype], {
 var parallel;
 extendBuiltInObject(Function, {
   series: function(queue, then /* ? */){
-    var isThen  = isFunction(then)
-      , current = 0
+    var isThen    = isFunction(then)
+      , sliceArgs = isThen ? 2 : 1
+      , current   = 0
       , args, inArgs;
     function next(i, error){
       if(i == current){ // <= protect from reexecution
         inArgs = current++ in queue;
         if(isThen && (error || !inArgs))then.apply(undefined, slice1(arguments));
         else if(inArgs){
-          args = slice.call(arguments, isThen ? 2 : 1);
+          args = slice.call(arguments, sliceArgs);
           args.push(part.call(next, current));
           queue[current].apply(undefined, args)
         }

@@ -1,5 +1,5 @@
 {isFunction} = Object
-test 'Map' ->
+test 'Map' !->
   ok isFunction global.Map
   ok \clear   of Map::
   ok \delete  of Map::
@@ -14,12 +14,12 @@ test 'Map' ->
   ok new Map([[NaN, 2] [NaN, 3] [NaN, 4]])size is 1
   #ok new Map(new Set([[1 2] [2 3] [1 4]]))size is 2
   #ok new Map(new Map([[1 2] [2 3] [1 4]]))size is 2
-test 'Map::clear' ->
+test 'Map::clear' !->
   ok isFunction Map::clear
   M = new Map([[1 2] [2 3] [1 4]])
   M.clear!
   ok M.size is 0
-test 'Map::delete' ->
+test 'Map::delete' !->
   ok isFunction Map::delete
   a = []
   M = new Map [[NaN, 1] [2 1] [3 1] [2 5] [1 4] [a, {}]]
@@ -32,38 +32,38 @@ test 'Map::delete' ->
   ok M.size is 4
   M.delete a
   ok M.size is 3
-test 'Map::forEach' ->
+test 'Map::forEach' !->
   ok isFunction Map::forEach
   r = {}
   var T
   count = 0
   M = new Map [[NaN, 1] [2 1] [3 7] [2 5] [1 4] [{}, 9]]
-  M.forEach (value, key, ctx)->
+  M.forEach (value, key, ctx)!->
     T := ctx
     count := count + 1
     r[value] = key
   ok T is M
   ok count is 5
   deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: {}}
-test 'Map::get' ->
+test 'Map::get' !->
   ok isFunction Map::get
   o = {}
   M = new Map [[NaN, 1] [2 1] [3 1] [2 5] [1 4] [o, o]]
   ok M.get(NaN) is 1
-  ok M.get(4) is void
-  ok M.get({}) is void
-  ok M.get(o) is o
-  ok M.get(2) is 5
-test 'Map::has' ->
+  ok M.get(4)   is void
+  ok M.get({})  is void
+  ok M.get(o)   is o
+  ok M.get(2)   is 5
+test 'Map::has' !->
   ok isFunction Map::has
   o = {}
   M = new Map [[NaN, 1] [2 1] [3 1] [2 5] [1 4] [o, o]]
   ok M.has NaN
-  ok !M.has 4
-  ok !M.has {}
   ok M.has o
   ok M.has 2
-test 'Map::set' ->
+  ok not M.has 4
+  ok not M.has {}
+test 'Map::set' !->
   ok isFunction Map::set
   o = {}
   M = new Map [[NaN, 1] [2 1] [3 1] [2 5] [1 4] [o, o]]
@@ -81,7 +81,7 @@ test 'Map::set' ->
   M.set o, 27
   ok M.size is 7
   ok M.get(o) is 27
-test 'Set' ->
+test 'Set' !->
   ok isFunction global.Set
   ok \add     of Set::
   ok \clear   of Set::
@@ -107,7 +107,7 @@ test 'Set' ->
   #r = {}
   #S.forEach (v, k)-> r[k] = v
   #deepEqual r, {'2,3': [2, 3], '1,4': [1, 4]}
-test 'Set::add' ->
+test 'Set::add' !->
   ok isFunction Set::add
   a = []
   S = new Set [NaN, 2 3 2 1 a]
@@ -122,12 +122,12 @@ test 'Set::add' ->
   ok S.size is 6
   S.add 4
   ok S.size is 7
-test 'Set::clear' ->
+test 'Set::clear' !->
   ok isFunction Set::clear
   S = new Set [1 2 3 2 1]
   S.clear!
   ok S.size is 0
-test 'Set::delete' ->
+test 'Set::delete' !->
   ok isFunction Set::delete
   a = []
   S = new Set [NaN, 2 3 2 1 a]
@@ -140,25 +140,25 @@ test 'Set::delete' ->
   ok S.size is 4
   S.delete a
   ok S.size is 3
-test 'Set::forEach' ->
+test 'Set::forEach' !->
   ok isFunction Set::forEach
   r = {}
   var T
   count = 0
   S = new Set [1 2 3 2 1]
-  S.forEach (value, key, ctx)->
+  S.forEach (value, key, ctx)!->
     T := ctx
     count := count + 1
     r[key] = value
   ok T is S
   ok count is 3
   deepEqual r, {1: 1, 2: 2, 3: 3}
-test 'Set::has' ->
+test 'Set::has' !->
   ok isFunction Set::has
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   ok S.has NaN
-  ok !S.has 4
-  ok !S.has []
   ok S.has a
   ok S.has 2
+  ok not S.has 4
+  ok not S.has []

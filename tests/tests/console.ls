@@ -1,12 +1,12 @@
 {isFunction} = Object
-test \console ->
+test \console !->
   {assert, count, clear, debug, dir, dirxml, error, exception, group, groupCollapsed, groupEnd, info, log, table, trace, warn, markTimeline, profile, profileEnd, time, timeEnd, timeStamp} = console
   var id
   ok isFunction global.console
   ok try console 'console' ; on
   ok try console.call {} 'console in another context' ; on
   ok isFunction console.log
-  equal console, console.log
+  ok console is console.log
   ok isFunction console.warn
   ok try console.warn 'console.warn' ; on
   ok try warn 'console.warn in another context' ; on

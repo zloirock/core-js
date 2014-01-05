@@ -1,5 +1,5 @@
 {isFunction} = Object
-test 'Number.toInteger' ->
+test 'Number.toInteger' !->
   {toInteger} = Number
   ok isFunction toInteger
   ok toInteger(null) is 0
@@ -10,48 +10,50 @@ test 'Number.toInteger' ->
   ok toInteger(-1.9) is -1
   ok toInteger(-Infinity) is -Infinity
   ok toInteger(-0x20000000000001) is -0x20000000000001
-test 'Number::div' ->
+test 'Number::div' !->
   ok isFunction Number::div
-  equal (-7)div(3), -2
-  equal 7.div(3), 2
-test 'Number::times' ->
+  ok (-7)div(3) is -2
+  ok 7.div(3) is 2
+test 'Number::times' !->
   ok isFunction Number::times
   deepEqual 5.times(-> it), [0 1 2 3 4]
   deepEqual 5.times(-> it + &1), [0 2 4 6 8]
   deepEqual 5.times(-> it + &1 + &2), [5 7 9 11 13]
   deepEqual 5.times(-> (@ .|. 0) + it + &1 + &2), [5 7 9 11 13]
   deepEqual 5.times((->(@ .|. 0) + it + &1 + &2), 1), [6 8 10 12 14]
-test 'Number::random' ->
+test 'Number::random' !->
   ok isFunction Number::random
   ok 100.times(-> 10.rand!)every -> 0 <= it <= 10
   ok 100.times(-> 10.rand 7)every -> 7 <= it <= 10
   ok 100.times(-> 7.rand 10)every -> 7 <= it <= 10
-test 'Number::rand' ->
+test 'Number::rand' !->
   ok isFunction Number::rand
   ok 100.times(-> 10.rand!)every (in [to 10])
   ok 100.times(-> 10.rand 7)every (in [7 to 10])
   ok 100.times(-> 7.rand 10)every (in [7 to 10])
-test 'Number::odd' ->
+test 'Number::odd' !->
   ok isFunction Number::odd
-  ok !NaN.odd!
-  ok !Infinity.odd!
-  ok !(-1.5)odd!
-  ok !(1.5)odd!
   ok 1.odd!
   ok 111.odd!
-  ok !2.odd!
-  ok !222.odd!
-test 'Number::even' ->
+  ok (-1)odd!
+  ok not NaN.odd!
+  ok not Infinity.odd!
+  ok not (-1.5)odd!
+  ok not (1.5)odd!
+  ok not 2.odd!
+  ok not 222.odd!
+test 'Number::even' !->
   ok isFunction Number::even
-  ok !NaN.even!
-  ok !Infinity.even!
-  ok !(-1.5)even!
-  ok !(1.5)even!
-  ok !1.even!
-  ok !111.even!
   ok 2.even!
   ok 222.even!
-test 'Number::format' ->
+  ok (-2)even!
+  ok not NaN.even!
+  ok not Infinity.even!
+  ok not (-1.5)even!
+  ok not (1.5)even!
+  ok not 1.even!
+  ok not 111.even!
+test 'Number::format' !->
   ok isFunction Number::format
   ok NaN.format! is \0
   ok 123.format! is \123
@@ -69,7 +71,8 @@ test 'Number::format' ->
   ok 1234.45678.format(7 ', ' '. ') is '1, 234. 456, 780, 0'
   ok (-1234.45678)format(7 ', ' '. ') is '-1, 234. 456, 780, 0'
   ok (-1234.45678)format(null ', ' '. ') is '-1, 234'
-test 'Number:: <<< Math' ->
+  ok (0.1 ^ 10)format(6 \. \,) is '0,000.000'
+test 'Number:: <<< Math' !->
   # TODO
   ok isFunction Number::round
   ok isFunction Number::floor

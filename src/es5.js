@@ -3,6 +3,7 @@
   var Empty             = Function()
     , LTrimRegExp       = RegExp(LTrim)
     , RTrimRegExp       = RegExp(RTrim)
+    // for fix IE 9- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     , hidenNames1       = splitComma(toString + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length
@@ -31,12 +32,12 @@
           while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
           return createNullProtoObject()
         }
-    , createGetKeys = function(names,length){
+    , createGetKeys = function(names, length){
         return function(O){
           var i      = 0
             , result = []
             , key;
-          for(key in O)has(O,key) && result.push(key);
+          for(key in O)has(O, key) && result.push(key);
           // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~result[indexOf](key) && result.push(key);
           return result
@@ -71,7 +72,12 @@
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      for(var key in Properties)if(has(Properties, key))O[key] = Properties[key].value;
+      // IE 9- don't enum bug => getOwnPropertyNames
+      var names = getOwnPropertyNames(Properties)
+        , length = names.length
+        , i = 0
+        , key;
+      while(length > i)O[key = names[i++]] = Properties[key].value;
       return O
     }
   }
@@ -276,7 +282,7 @@
    * http://es5.github.io/#x15.5.4.20
    */
   extendBuiltInObject($String, {trim: function(){
-    return String(this).replace(LTrim, '').replace(RTrim, '')
+    return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '')
   }});
   /**
    * 15.9.4.4 Date.now ( )

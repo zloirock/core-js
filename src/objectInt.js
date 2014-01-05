@@ -29,7 +29,7 @@ function isFunction(it){
 function isDate(it){
   return $toString(it) == '[object Date]'
 }
-// IE fix in es5s
+// IE fix in es5.js
 function isArguments(it){
   return $toString(it) == '[object Arguments]'
 }
@@ -46,9 +46,6 @@ var assign = Object.assign || function(target, source){
     }
   , isObject = Object.isObject || function(it){
       return it === Object(it)
-    }
-  , isArray = Array.isArray || function(it){
-      return $toString(it) == '[object Array]'
     }
   // http://es5.javascript.ru/x9.html#x9.12
   , same = Object.is || function(x,y){

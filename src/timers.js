@@ -10,10 +10,10 @@
    */
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
     global.setTimeout = function(fn, time /*, args...*/){
-      return setTimeout(timersBind(fn, slice.call(arguments, 2)), time)
+      return setTimeout(timersBind(fn, slice.call(arguments, 2)), time || 1)
     };
     global.setInterval = function(fn, time /*, args...*/){
-      return setInterval(timersBind(fn, slice.call(arguments, 2)), time)
+      return setInterval(timersBind(fn, slice.call(arguments, 2)), time || 1)
     }
   }
   /**
@@ -35,7 +35,7 @@
       global[setImmediate] = function(fn /*, args...*/){
         var id = ++counter + msg;
         queue[id] = timersBind(fn, slice1(arguments));
-        postMessage(id, '*');
+        postMessage(id, global.location);
         return counter
       }
       global[clearImmediate] = function(id){
@@ -44,11 +44,11 @@
       if(addEventListener)addEventListener('message', listner, false);
       else attachEvent('onmessage', listner)
     }
-    else{
+    else {
       global[setImmediate] = function(fn /*, args...*/){
         return setTimeout(timersBind(fn, slice1(arguments)), 0)
       }
-      global[clearImmediate] = clearTimeout
+      global[clearImmediate] = Function('i','clearTimeout(i)')
     }
   }
 }(global.navigator, setTimeout, setInterval, global.postMessage, 'setImmediate', 'clearImmediate', global.addEventListener);
