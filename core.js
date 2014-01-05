@@ -47,19 +47,19 @@ var prototype      = 'prototype'
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }
-  , toString        = 'toString'
+  , toString       = 'toString'
   // Unbind Object.prototype methods
   , _hasOwnProperty = $Object.hasOwnProperty
-  , _toString = $Object[toString]
-  , _isPrototypeOf = $Object.isPrototypeOf
+  , _toString       = $Object[toString]
+  , _isPrototypeOf  = $Object.isPrototypeOf
   , _propertyIsEnumerable = $Object.propertyIsEnumerable
   , has = function(it, key){
       return _hasOwnProperty.call(it, key)
     }
-  , $toString = function(it){
+  , $toString    = function(it){
       return _toString.call(it)
     }
-  , isPrototype = function(it, object){
+  , isPrototype  = function(it, object){
       return _isPrototypeOf.call(it, object)
     }
   , isEnumerable = function(it, key){
@@ -110,7 +110,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
   var Empty             = Function()
     , LTrimRegExp       = RegExp(LTrim)
     , RTrimRegExp       = RegExp(RTrim)
-    // for fix IE 9- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
+    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     , hidenNames1       = splitComma(toString + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length
@@ -479,6 +479,9 @@ function invert(object){
   for(key in object)has(object, key) && (result[object[key]] = key);
   return result;
 }
+function isObject(it){
+  return it === Object(it)
+}
 function isString(it){
   return $toString(it) == '[object String]'
 }
@@ -502,9 +505,6 @@ var assign = Object.assign || function(target, source){
     }
   , mixin = Object.mixin || function(target, source){
       return defineProperties(target, getOwnPropertyDescriptors(source))
-    }
-  , isObject = Object.isObject || function(it){
-      return it === Object(it)
     }
   /**
    * http://es5.javascript.ru/x9.html#x9.12
@@ -541,16 +541,19 @@ function leadZero(num, length){
   while(num.length < length)num = '0' + num;
   return num;
 }
-// http://es5.github.io/#x9.4
+    // http://es5.github.io/#x9.4
 var toInt = Number.toInteger || function(it){
       return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it
     }
+    // https://people.mozilla.org/~jorendorff/es6-draft.html#sec-20.1.2.4
   , izNaN = Number.isNaN || function(it){
       return typeof it == 'number' && it !== it
     }
+    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.2
   , izFinite = Number.isFinite || function(it){
       return typeof it == 'number' && isFinite(it)
     }
+    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
   , isInt = Number.isInteger || function(it){
       return izFinite(it) && floor(it) == it;
     };
@@ -1289,7 +1292,7 @@ extendBuiltInObject($Function, {
         }
         else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
-          if(targetDescriptor.configurable !== false && /*!targetDescriptor.get && !targetDescriptor.set && */delete target[key]){
+          if(targetDescriptor.configurable !== false && delete target[key]){
             sourceDescriptor = getOwnPropertyDescriptor(source, key);
             if(deep && !sourceDescriptor.get && !sourceDescriptor.set){
               sourceDescriptor.value =

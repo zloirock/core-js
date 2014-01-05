@@ -13,7 +13,7 @@
         }
         else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
-          if(targetDescriptor.configurable !== false && /*!targetDescriptor.get && !targetDescriptor.set && */delete target[key]){
+          if(targetDescriptor.configurable !== false && delete target[key]){
             sourceDescriptor = getOwnPropertyDescriptor(source, key);
             if(deep && !sourceDescriptor.get && !sourceDescriptor.set){
               sourceDescriptor.value =

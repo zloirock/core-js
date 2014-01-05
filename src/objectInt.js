@@ -20,6 +20,9 @@ function invert(object){
   for(key in object)has(object, key) && (result[object[key]] = key);
   return result;
 }
+function isObject(it){
+  return it === Object(it)
+}
 function isString(it){
   return $toString(it) == '[object String]'
 }
@@ -43,9 +46,6 @@ var assign = Object.assign || function(target, source){
     }
   , mixin = Object.mixin || function(target, source){
       return defineProperties(target, getOwnPropertyDescriptors(source))
-    }
-  , isObject = Object.isObject || function(it){
-      return it === Object(it)
     }
   /**
    * http://es5.javascript.ru/x9.html#x9.12

@@ -3,7 +3,7 @@
   var Empty             = Function()
     , LTrimRegExp       = RegExp(LTrim)
     , RTrimRegExp       = RegExp(RTrim)
-    // for fix IE 9- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
+    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     , hidenNames1       = splitComma(toString + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length

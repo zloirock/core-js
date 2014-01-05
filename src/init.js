@@ -36,19 +36,19 @@ var prototype      = 'prototype'
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }
-  , toString        = 'toString'
+  , toString       = 'toString'
   // Unbind Object.prototype methods
   , _hasOwnProperty = $Object.hasOwnProperty
-  , _toString = $Object[toString]
-  , _isPrototypeOf = $Object.isPrototypeOf
+  , _toString       = $Object[toString]
+  , _isPrototypeOf  = $Object.isPrototypeOf
   , _propertyIsEnumerable = $Object.propertyIsEnumerable
   , has = function(it, key){
       return _hasOwnProperty.call(it, key)
     }
-  , $toString = function(it){
+  , $toString    = function(it){
       return _toString.call(it)
     }
-  , isPrototype = function(it, object){
+  , isPrototype  = function(it, object){
       return _isPrototypeOf.call(it, object)
     }
   , isEnumerable = function(it, key){
