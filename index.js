@@ -789,12 +789,13 @@ function getRegExpFlags(){
 !function(Promise){
   isFunction(Promise)
   // Some of these methods are missing from Firefox/Chrome experimental implementations
-  &&  ['cast','resolve','reject','all','race'].every($part(has, Promise))
+  &&  splitComma('cast,resolve,reject,all,race').every($part(has, Promise))
   // Older version of the spec had a resolver object as the arg rather than a function
   &&  (function(resolve){
         new Promise(function(r){ resolve = r });
         return isFunction(resolve)
       })()
+  && 0
   || !function(){
     var PENDING
       , SEALED    = 0

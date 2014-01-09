@@ -35,7 +35,7 @@
       global[setImmediate] = function(fn /*, args...*/){
         var id = ++counter + msg;
         queue[id] = timersBind(fn, slice1(arguments));
-        postMessage(id, global.location);
+        postMessage(id, '*');
         return counter
       }
       global[clearImmediate] = function(id){
