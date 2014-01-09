@@ -1,7 +1,5 @@
-!function(){
-  var Map = global.Map
-    , Set = global.Set
-    , sizeDesc = {
+!function(Map, Set){
+  var sizeDesc = {
         'get': function(){
           return this._values.length;
         }
@@ -29,7 +27,7 @@
        */
       clear: function(){
         defineProperties(this, {_keys: descriptor(4, []), _values: descriptor(4, [])});
-        $DESC || setSize(this);
+        DESCRIPTORS || setSize(this);
       },
       /**
        * 23.1.3.3 Map.prototype.delete ( key )
@@ -42,7 +40,7 @@
         if(~index){
           keys.splice(index, 1);
           values.splice(index, 1);
-          $DESC || setSize(this);
+          DESCRIPTORS || setSize(this);
           return true
         }
         return false
@@ -83,13 +81,13 @@
         if(!~index){
           keys.push(key);
           values.push(value);
-          $DESC || setSize(this);
+          DESCRIPTORS || setSize(this);
         }
         else values[index] = value;
         return this
       }
     });
-    $DESC && defineProperty(Map[prototype], 'size', sizeDesc);
+    DESCRIPTORS && defineProperty(Map[prototype], 'size', sizeDesc);
   }
   // IE 11 fix
   else if(!function(){try{return Map([[1,2]]).size==1}catch(e){}}()){
@@ -121,7 +119,7 @@
         var values = this._values;
         if(!~indexSame(values, value)){
           values.push(value);
-          $DESC || setSize(this);
+          DESCRIPTORS || setSize(this);
         }
         return this
       },
@@ -131,7 +129,7 @@
        */
       clear: function(){
         defineProperty(this, '_values', descriptor(4, []));
-        $DESC || setSize(this);
+        DESCRIPTORS || setSize(this);
       },
       /**
        * 23.2.3.4 Set.prototype.delete ( value )
@@ -142,7 +140,7 @@
           , index = indexSame(values, value);
         if(~index){
           values.splice(index, 1);
-          $DESC || setSize(this);
+          DESCRIPTORS || setSize(this);
           return true
         }
         return false
@@ -166,7 +164,7 @@
         return !!~indexSame(this._values, value)
       }
     });
-    $DESC && defineProperty(Set[prototype], 'size', sizeDesc);
+    DESCRIPTORS && defineProperty(Set[prototype], 'size', sizeDesc);
   }
   // IE 11 fix
   else if(!function(){try{return Set([1]).size==1}catch(e){}}()){
@@ -177,4 +175,4 @@
     }
     global.Set[prototype] = Set[prototype];
   }
-}();
+}(global.Map, global.Set);

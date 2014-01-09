@@ -1,15 +1,10 @@
-function invoke(args){
-  var instance = create(this.prototype)
-    , result   = this.apply(instance, arrayLikeSelf(args || []));
-  return isObject(result) ? result : instance
-}
 function inherits(parent){
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this
 }
 extendBuiltInObject(Function, {
   isNative: isNative,
-  inherits: unbind.call(inherits)
+  inherits: $unbind(inherits)
 });
 extendBuiltInObject($Function, {
   // method -> function
@@ -45,15 +40,10 @@ extendBuiltInObject($Function, {
   },
   // simple bind context
   ctx: ctx,
-  invoke: invoke,
-  getInstance: function(){
-    var getInstance = 'getInstance', instance;
-    if(!has(this, getInstance)){ // <= protect from Function.prototype.getInstance()
-      this[getInstance] = function(){
-        return instance
-      };
-      return instance = this.invoke(arguments)
-    }
+  invoke: function(args){
+    var instance = create(this[prototype])
+      , result   = this.apply(instance, arrayLikeSelf(args || []));
+    return isObject(result) ? result : instance
   },
   once: function(){
     var fn   = this
@@ -95,22 +85,13 @@ extendBuiltInObject($Function, {
   },
   // deferred call
   timeout: function(del /*, args...*/){
-    return part.call(
-      clearTimeout,
-      setTimeout(part.apply(this, slice1(arguments)), del)
-    )
+    return $part(clearTimeout, setTimeout(part.apply(this, slice1(arguments)), del))
   },
   interval: function(del /*, args...*/){
-    return part.call(
-      clearInterval,
-      setInterval(part.apply(this, slice1(arguments)), del)
-    )
+    return $part(clearInterval, setInterval(part.apply(this, slice1(arguments)), del))
   },
   immediate: function(/* args...*/){
-    return part.call(
-      clearImmediate,
-      setImmediate(part.apply(this, arguments))
-    )
+    return $part(clearImmediate, setImmediate(part.apply(this, arguments)))
   },
   inherits: inherits
 });

@@ -1,16 +1,17 @@
 !function(){
   // not enum keys
   var Empty             = Function()
+    , protoInObject     = new Empty().__proto__ == Empty[prototype]
     , LTrimRegExp       = RegExp(LTrim)
     , RTrimRegExp       = RegExp(RTrim)
     // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
-    , hidenNames1       = splitComma(toString + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
+    , hidenNames1       = splitComma(toStringKey + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length
     , nativeSlice       = slice
     , nativeJoin        = $Array.join
     // Create object with null as it's prototype
-    , createNullProtoObject = protoInObject()
+    , createNullProtoObject = protoInObject
       ? function(){
           return {__proto__: null}
         }
@@ -44,14 +45,13 @@
         }
       }
     // The engine has a guaranteed way to get a prototype?
-    , $PROTO = !!Object.getPrototypeOf || protoInObject();
+    , $PROTO = !!Object.getPrototypeOf || protoInObject;
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
     defineProperty({}, 0, $Object);
-    $DESC = true;
   }
   catch(e){
-    $DESC = false;
+    DESCRIPTORS = 0;
     /**
      * 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
      * http://es5.github.io/#x15.2.3.3
@@ -89,7 +89,7 @@
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
-      return O != proto && toString in O ? proto : null
+      return O != proto && toStringKey in O ? proto : null
     },
     /**
      * 15.2.3.4 Object.getOwnPropertyNames ( O )
@@ -291,8 +291,4 @@
   extendBuiltInObject(Date, {now: function(){
     return +new Date
   }});
-  // IE isArguments fix
-  isArguments(Function('return arguments')()) || (isArguments = function(it){
-    return !!(it && isFunction(it.callee))
-  });
 }();

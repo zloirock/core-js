@@ -1,7 +1,7 @@
 !function(){
   function format(template, lang /* = current */){
-    var that = isDate(this) ? this : new Date
-      , locale = locales[has(locales, lang) ? lang : current];
+    var that   = this
+      , locale = locales[lang && has(locales, lang) ? lang : current];
     return String(template).replace(formatRegExp, function(part, key){
       switch(key){
         case 'ms'   : return that.getMilliseconds();                  // mSec    : 1-999
@@ -53,8 +53,7 @@
       if(has(locales, locale))current = locale;
       return current
     },
-    addLocale: addLocale,
-    format: format
+    addLocale: addLocale
   });
   extendBuiltInObject(Date[prototype], {format: format});
   addLocale('en', {

@@ -4,7 +4,6 @@ var create                   = Object.create
   , keys                     = Object.keys
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
-  , some                     = $Array.some
   , forEach                  = $Array.forEach
   , map                      = $Array.map
   , indexOf                  = 'indexOf';

@@ -63,12 +63,6 @@ test 'Function::invoke' !->
     (@a, @b)->
   ok C.invoke! instanceof C
   deepEqual C.invoke([1 2]), new C 1 2
-test 'Function::getInstance' !->
-  ok isFunction Function::getInstance
-  C = (@a)->
-  ok C.getInstance(3)a is 3
-  ok C.getInstance! instanceof C
-  ok C.getInstance! is C.getInstance!
 test 'Function::once' !->
   ok isFunction Function::once
   F = (-> Math.random!)once!

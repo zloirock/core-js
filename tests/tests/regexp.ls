@@ -1,8 +1,8 @@
 {isFunction} = Object
-test 'RegExp::getFlag' !->
-  ok isFunction RegExp::getFlag
-  ok /./gmi.getFlag!length is 3
-  ok /qwe/i.getFlag! is \i
+test 'RegExp::getFlags' !->
+  ok isFunction RegExp::getFlags
+  ok /./gmi.getFlags!length is 3
+  ok /qwe/i.getFlags! is \i
 test 'RegExp::fn' !->
   ok isFunction /qwe/fn!
   ok /qwe/fn! \qwerty

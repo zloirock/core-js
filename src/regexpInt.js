@@ -1,3 +1,3 @@
-function getRegExpFlags(reg){
+function getRegExpFlags(){
   return String(this).match(/[^\/]*$/)[0]
 }

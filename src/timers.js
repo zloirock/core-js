@@ -25,8 +25,8 @@
       var msg     = setImmediate + random()
         , counter = 0
         , queue   = {}
-        , listner = function(e){
-            var id = e.data;
+        , listner = function(event){
+            var id = event.data;
             if(id in queue){
               queue[id]();
               delete queue[id]
@@ -46,7 +46,7 @@
     }
     else {
       global[setImmediate] = function(fn /*, args...*/){
-        return setTimeout(timersBind(fn, slice1(arguments)), 0)
+        return setTimeout(timersBind(fn, slice1(arguments)), 1)
       }
       global[clearImmediate] = Function('i','clearTimeout(i)')
     }

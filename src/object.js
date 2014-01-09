@@ -122,11 +122,6 @@
     }
     return true
   }
-  function objectReduceTo(object, fn, target){
-    target = Object(target);
-    forOwnKeys(object, fn, target);
-    return target;
-  }
   function forOwnKeys(object, fn, that /* = undefined */){
     var O      = arrayLikeSelf(object)
       , props  = keys(O)
@@ -149,8 +144,13 @@
   extendBuiltInObject(Object, {
     has: has,
     isEnumerable: isEnumerable,
-    isPrototype: isPrototype,
+    isPrototype: $unbind($Object.isPrototypeOf),
     classof: classof,
+    bind: function(object, key){
+      var args = toArray(arguments);
+      args.splice(1, 1);
+      return $Function.bind.apply(object[key], args)
+    },
     // Extended object api from harmony and strawman :
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: getPropertyDescriptor,
@@ -186,17 +186,17 @@
     },
     // Shugar for Object.create
     make: make,
-    // Shugar for Object.make(null[, params, simple])
+    // Shugar for Object.make(null[, props, simple])
     plane: function(props, simple /* = false */){
       return make(null, props, simple)
     },
     clone: clone,
     merge: merge,
-    // Shugar for Object.merge(targ, src, 1, 1)
+    // Shugar for Object.merge(target, props, 1, 1)
     defaults: function(target, props){
       return merge(target, props, 1, 1)
     },
-    // {a:b} -> [b]
+    // {a: b} -> [b]
     values: function(object){
       var props  = keys(object)
         , length = props.length
@@ -297,9 +297,13 @@
       }
       return result
     },
-    reduceTo: objectReduceTo,
+    reduceTo: function(object, fn, target){
+      target = Object(target);
+      forOwnKeys(object, fn, target);
+      return target;
+    },
     deepEqual: deepEqual,
-    isObject   : isObject,
+    isObject: isObject,
     isUndefined: function(it){
       return it === undefined
     },
@@ -307,21 +311,22 @@
       return it === null
     },
     isNumber   : function(it){
-      return $toString(it) == '[object Number]'
+      return toString(it) == '[object Number]'
     },
     isString   : isString,
     isBoolean  : function(it){
-      return it === !!it || $toString(it) == '[object Boolean]'
+      return it === !!it || toString(it) == '[object Boolean]'
     },
     isArray    : isArray,
     isFunction : isFunction,
     isRegExp   : function(it){
-      return $toString(it) == '[object RegExp]'
+      return toString(it) == '[object RegExp]'
     },
-    isDate     : isDate,
+    isDate     : function(it){
+      return toString(it) == '[object Date]'
+    },
     isError    : function(it){
-      return $toString(it) == '[object Error]'
-    },
-    isArguments: isArguments
+      return toString(it) == '[object Error]'
+    }
   });
 }();

@@ -31,28 +31,28 @@ test 'Number::rand' !->
   ok 100.times(-> 10.rand!)every (in [to 10])
   ok 100.times(-> 10.rand 7)every (in [7 to 10])
   ok 100.times(-> 7.rand 10)every (in [7 to 10])
-test 'Number::odd' !->
-  ok isFunction Number::odd
-  ok 1.odd!
-  ok 111.odd!
-  ok (-1)odd!
-  ok not NaN.odd!
-  ok not Infinity.odd!
-  ok not (-1.5)odd!
-  ok not (1.5)odd!
-  ok not 2.odd!
-  ok not 222.odd!
-test 'Number::even' !->
-  ok isFunction Number::even
-  ok 2.even!
-  ok 222.even!
-  ok (-2)even!
-  ok not NaN.even!
-  ok not Infinity.even!
-  ok not (-1.5)even!
-  ok not (1.5)even!
-  ok not 1.even!
-  ok not 111.even!
+test 'Number::isOdd' !->
+  ok isFunction Number::isOdd
+  ok 1.isOdd!
+  ok 111.isOdd!
+  ok (-1)isOdd!
+  ok not NaN.isOdd!
+  ok not Infinity.isOdd!
+  ok not (-1.5)isOdd!
+  ok not (1.5)isOdd!
+  ok not 2.isOdd!
+  ok not 222.isOdd!
+test 'Number::isEven' !->
+  ok isFunction Number::isEven
+  ok 2.isEven!
+  ok 222.isEven!
+  ok (-2)isEven!
+  ok not NaN.isEven!
+  ok not Infinity.isEven!
+  ok not (-1.5)isEven!
+  ok not (1.5)isEven!
+  ok not 1.isEven!
+  ok not 111.isEven!
 test 'Number::format' !->
   ok isFunction Number::format
   ok NaN.format! is \0

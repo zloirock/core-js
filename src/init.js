@@ -7,64 +7,73 @@ var prototype      = 'prototype'
   , $Object        = Object[prototype]
   , $String        = String[prototype]
   , defineProperty = Object.defineProperty
-  , pop            = $Array.pop
   , push           = $Array.push
   , slice          = $Array.slice
-  , unshift        = $Array.unshift
   , apply          = $Function.apply
   , call           = $Function.call
   , abs            = Math.abs
   , ceil           = Math.ceil
-  , exp            = Math.exp
   , floor          = Math.floor
-  , ln             = Math.log
   , max            = Math.max
   , min            = Math.min
   , pow            = Math.pow
   , random         = Math.random
-  , sqrt           = Math.sqrt
-  , protoInObject  = function(F){
-      F = Function();
-      return new F().__proto__ == F[prototype]
-    }
+  , DESCRIPTORS    = 1
+  , REDUCE_ERROR   = 'Reduce of empty object with no initial value'
   // How to get the context for calling the methods of the Array.prototype
   // Dummy, polyfill for not array-like strings for old ie in es5shim.js
   , arrayLikeSelf  = Object
   , isArray        = Array.isArray || function(it){
-      return $toString(it) == '[object Array]'
+      return toString(it) == '[object Array]'
     }
   , toArray        = Array.from || function(arrayLike){
       return slice.call(arrayLike)
     }
-  , toString       = 'toString'
+  , toStringKey    = 'toString'
+  , $unbind        = unbind.call(unbind)
+  , $part          = $unbind(part)
   // Unbind Object.prototype methods
-  , _hasOwnProperty = $Object.hasOwnProperty
-  , _toString       = $Object[toString]
-  , _isPrototypeOf  = $Object.isPrototypeOf
-  , _propertyIsEnumerable = $Object.propertyIsEnumerable
-  , has = function(it, key){
-      return _hasOwnProperty.call(it, key)
-    }
-  , $toString    = function(it){
-      return _toString.call(it)
-    }
-  , isPrototype  = function(it, object){
-      return _isPrototypeOf.call(it, object)
-    }
-  , isEnumerable = function(it, key){
-      return _propertyIsEnumerable.call(it, key)
-    }
-  , $DESC        = true
-  , REDUCE_ERROR = 'Reduce of empty object with no initial value'
-  , nativeFunctionRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
+  , has            = $unbind($Object.hasOwnProperty)
+  , toString       = $unbind($Object[toStringKey])
+  , isEnumerable   = $unbind($Object.propertyIsEnumerable)
+  // Native function?
+  , isNative       = RegExpToFunction.call(/^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/);
 // Object internal [[Class]]
-function classof(it /*, args...*/){
-  return it === null ? 'Null' : it == undefined
-      ? 'Undefined' : $toString(it).slice(8, -1);
+function classof(it){
+  return it === undefined ? 'Undefined' : it == undefined ? 'Null'
+    : toString(it).slice(8, -1)
 }
-// Native function?
-function isNative(it){
-  return nativeFunctionRegExp.test(it)
+// Simple bind context
+function ctx(that){
+  var fn = this;
+  return function(){
+    return fn.apply(that, arguments);
+  }
+}
+// Unbind method from context
+function unbind(){
+  return ctx.call(call, this);
+}
+// Partiall apply
+function part(/*args...*/){
+  var fn = this
+    , i = 0
+    , length1 = arguments.length
+    , args1 = Array(length1);
+  while(length1 > i)args1[i] = arguments[i++];
+  return function(/*args...*/){
+    var args2 = args1.slice()
+      , length2 = arguments.length
+      , i = 0;
+    while(length2 > i)args2[length1 + i] = arguments[i++];
+    return apply.call(fn, this, args2)
+  }
+}
+function RegExpToFunction(){
+  var that = this;
+  return function(it){
+    return that.test(it)
+  }
 }
 function extendBuiltInObject(target, source, forced /* = false */){
   for(var key in source){
@@ -77,10 +86,6 @@ function extendBuiltInObject(target, source, forced /* = false */){
   }
   return target
 }
-// splitComma('str1,str2,str3') => ['str1', 'str2', 'str3']
-function splitComma(it){
-  return String(it).split(',');
-}
 function descriptor(bitmap, value){
   return {
     enumerable  : !!(bitmap & 1),
@@ -88,4 +93,8 @@ function descriptor(bitmap, value){
     writable    : !!(bitmap & 4),
     value       : value
   }
+}
+// splitComma('str1,str2,str3') => ['str1', 'str2', 'str3']
+function splitComma(it){
+  return String(it).split(',');
 }

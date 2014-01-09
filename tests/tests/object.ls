@@ -39,6 +39,14 @@ test 'Object.classof' !->
   ok classof(->) is \Function
   ok classof(/./) is \RegExp
   ok classof(TypeError!) is \Error
+test 'Object.bind' ->
+  {bind} = Object
+  ok isFunction bind
+  array = [1 2 3]
+  push = bind array, \push 4
+  ok isFunction push
+  ok push(5) is 5
+  deepEqual array, [1 2 3 4 5]
 test 'Object.getPropertyDescriptor' !->
   {getPropertyDescriptor, create} = Object
   ok isFunction getPropertyDescriptor
@@ -247,7 +255,7 @@ test 'Object.filter' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  deepEqual filter({q:1 w:2 e:3} -> it.odd!), q:1 e:3
+  deepEqual filter({q:1 w:2 e:3} -> it.isOdd!), q:1 e:3
 test 'Object.find' !->
   {find} = Object
   ok isFunction find
@@ -257,7 +265,7 @@ test 'Object.find' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  ok find({q:1 w:2 e:3} -> it.even!) is 2
+  ok find({q:1 w:2 e:3} -> it.isEven!) is 2
 test 'Object.findIndex' !->
   {findIndex} = Object
   ok isFunction findIndex
@@ -501,16 +509,3 @@ test 'Object.isError' !->
   ok not isError [1]
   ok not isError /./
   ok not isError ->
-test 'Object.isArguments' !->
-  {isArguments} = Object
-  ok isFunction isArguments
-  ok isArguments do -> &
-  ok not isArguments void 
-  ok not isArguments null
-  ok not isArguments 1
-  ok not isArguments ''
-  ok not isArguments no
-  ok not isArguments {}
-  ok not isArguments [1]
-  ok not isArguments /./
-  ok not isArguments ->

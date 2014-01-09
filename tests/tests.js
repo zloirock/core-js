@@ -1042,10 +1042,6 @@
   test('Date.addLocale', function(){
     ok(isFunction(Date.addLocale));
   });
-  test('Date.format', function(){
-    ok(isFunction(Date.format));
-    ok(Date.now() - Date.format('ms') > -10);
-  });
   test('Date::format', function(){
     var date;
     ok(isFunction(Date.prototype.format));
@@ -2117,16 +2113,6 @@
     ok(C.invoke() instanceof C);
     deepEqual(C.invoke([1, 2]), new C(1, 2));
   });
-  test('Function::getInstance', function(){
-    var C;
-    ok(isFunction(Function.prototype.getInstance));
-    C = function(a){
-      this.a = a;
-    };
-    ok(C.getInstance(3).a === 3);
-    ok(C.getInstance() instanceof C);
-    ok(C.getInstance() === C.getInstance());
-  });
   test('Function::once', function(){
     var F, ref$;
     ok(isFunction(Function.prototype.once));
@@ -2330,29 +2316,29 @@
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
   });
-  test('Number::odd', function(){
-    ok(isFunction(Number.prototype.odd));
-    ok(1 .odd());
-    ok(111 .odd());
-    ok((-1).odd());
-    ok(!NaN.odd());
-    ok(!Infinity.odd());
-    ok(!(-1.5).odd());
-    ok(!1.5.odd());
-    ok(!2 .odd());
-    ok(!222 .odd());
+  test('Number::isOdd', function(){
+    ok(isFunction(Number.prototype.isOdd));
+    ok(1 .isOdd());
+    ok(111 .isOdd());
+    ok((-1).isOdd());
+    ok(!NaN.isOdd());
+    ok(!Infinity.isOdd());
+    ok(!(-1.5).isOdd());
+    ok(!1.5.isOdd());
+    ok(!2 .isOdd());
+    ok(!222 .isOdd());
   });
-  test('Number::even', function(){
-    ok(isFunction(Number.prototype.even));
-    ok(2 .even());
-    ok(222 .even());
-    ok((-2).even());
-    ok(!NaN.even());
-    ok(!Infinity.even());
-    ok(!(-1.5).even());
-    ok(!1.5.even());
-    ok(!1 .even());
-    ok(!111 .even());
+  test('Number::isEven', function(){
+    ok(isFunction(Number.prototype.isEven));
+    ok(2 .isEven());
+    ok(222 .isEven());
+    ok((-2).isEven());
+    ok(!NaN.isEven());
+    ok(!Infinity.isEven());
+    ok(!(-1.5).isEven());
+    ok(!1.5.isEven());
+    ok(!1 .isEven());
+    ok(!111 .isEven());
   });
   test('Number::format', function(){
     ok(isFunction(Number.prototype.format));
@@ -2470,6 +2456,16 @@
     ok(classof(function(){}) === 'Function');
     ok(classof(/./) === 'RegExp');
     ok(classof(TypeError()) === 'Error');
+  });
+  test('Object.bind', function(){
+    var bind, array, push;
+    bind = Object.bind;
+    ok(isFunction(bind));
+    array = [1, 2, 3];
+    push = bind(array, 'push', 4);
+    ok(isFunction(push));
+    ok(push(5) === 5);
+    return deepEqual(array, [1, 2, 3, 4, 5]);
   });
   test('Object.getPropertyDescriptor', function(){
     var getPropertyDescriptor, create;
@@ -2863,7 +2859,7 @@
       w: 2,
       e: 3
     }, function(it){
-      return it.odd();
+      return it.isOdd();
     }), {
       q: 1,
       e: 3
@@ -2886,7 +2882,7 @@
       w: 2,
       e: 3
     }, function(it){
-      return it.even();
+      return it.isEven();
     }) === 2);
   });
   test('Object.findIndex', function(){
@@ -3335,23 +3331,6 @@
     ok(!isError(/./));
     ok(!isError(function(){}));
   });
-  test('Object.isArguments', function(){
-    var isArguments;
-    isArguments = Object.isArguments;
-    ok(isFunction(isArguments));
-    ok(isArguments(function(){
-      return arguments;
-    }()));
-    ok(!isArguments(void 8));
-    ok(!isArguments(null));
-    ok(!isArguments(1));
-    ok(!isArguments(''));
-    ok(!isArguments(false));
-    ok(!isArguments({}));
-    ok(!isArguments([1]));
-    ok(!isArguments(/./));
-    ok(!isArguments(function(){}));
-  });
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;
@@ -3366,10 +3345,10 @@
 (function(){
   var isFunction;
   isFunction = Object.isFunction;
-  test('RegExp::getFlag', function(){
-    ok(isFunction(RegExp.prototype.getFlag));
-    ok(/./gmi.getFlag().length === 3);
-    ok(/qwe/i.getFlag() === 'i');
+  test('RegExp::getFlags', function(){
+    ok(isFunction(RegExp.prototype.getFlags));
+    ok(/./gmi.getFlags().length === 3);
+    ok(/qwe/i.getFlags() === 'i');
   });
   test('RegExp::fn', function(){
     ok(isFunction(/qwe/.fn()));

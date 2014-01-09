@@ -5,9 +5,6 @@ test 'Date.locale' !->
   ok Date.locale! is \ru
 test 'Date.addLocale' !->
   ok isFunction Date.addLocale
-test 'Date.format' !->
-  ok isFunction Date.format
-  ok Date.now! - Date.format(\ms) > -10
 test 'Date::format' !->
   ok isFunction Date::format
   date = new Date 1 2 3 4 5 6 7

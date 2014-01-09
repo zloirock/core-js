@@ -4,7 +4,9 @@
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
  */
 extendBuiltInObject(Array, reduceTo.call(
-   splitComma(
+  // IE...
+  // getOwnPropertyNames($Array),
+  splitComma(
     // ES3:
     'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
     // ES5:
@@ -15,6 +17,6 @@ extendBuiltInObject(Array, reduceTo.call(
     'at,props,reduceTo,indexSame,merge,sum,avg,min,max,unique,cross'
   ),
   function(key){
-    if(key in $Array)this[key] = unbind.call($Array[key])
+    if(key in $Array)this[key] = $unbind($Array[key])
   }
 ));

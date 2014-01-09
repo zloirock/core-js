@@ -23,10 +23,10 @@ extendBuiltInObject($Number, {
       , m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m)
   },
-  odd: function(){
+  isOdd: function(){
     return !!(this % 2) && !(this % 1)
   },
-  even: function(){
+  isEven: function(){
     return 0 === this % 2
   },
   format: function(afterDot /* = 0 */, thousandsSeparator /* = '' */, decimalMark /* = '.' */){
@@ -41,8 +41,8 @@ extendBuiltInObject($Number, {
   }
 });
 extendBuiltInObject($Number, reduceTo.call(
-  //IE...
-  //getOwnPropertyNames(Math),
+  // IE...
+  // getOwnPropertyNames(Math),
   splitComma(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +

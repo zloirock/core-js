@@ -24,17 +24,10 @@ function isObject(it){
   return it === Object(it)
 }
 function isString(it){
-  return $toString(it) == '[object String]'
+  return toString(it) == '[object String]'
 }
 function isFunction(it){
-  return $toString(it) == '[object Function]'
-}
-function isDate(it){
-  return $toString(it) == '[object Date]'
-}
-// IE fix in es5.js
-function isArguments(it){
-  return $toString(it) == '[object Arguments]'
+  return toString(it) == '[object Function]'
 }
 var assign = Object.assign || function(target, source){
       var props  = keys(source)
