@@ -1147,7 +1147,13 @@ function getRegExpFlags(){
         new Promise(function(r){ resolve = r });
         return isFunction(resolve)
       })()
-  && 0
+  // Experimental implementation in chrome contains a number of inconsistencies with the spec,
+  // such as this: onFulfilled must be a function or undefined
+  &&  (function(){
+        try {
+          return new Promise(Function()).then(null)
+        } catch(e){}
+      })()
   || !function(){
     var PENDING
       , SEALED    = 0
@@ -1204,23 +1210,23 @@ function getRegExpFlags(){
     }
     assign(Promise[prototype], {
       // https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
-      'catch': function(onRejection){
-        return this.then(null, onRejection);
+      'catch': function(onRejected){
+        return this.then(null, onRejected);
       },
       // https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
-      then: function(onFulfillment, onRejection){
+      then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function())
           , subscribers, length;
         if(promise[_state])setImmediate(function(){
           invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail])
-        }, onFulfillment, onRejection);
+        }, onFulfilled, onRejected);
         else {
           subscribers = promise[_subscribers];
           length      = subscribers.length;
           subscribers[length] = thenPromise;
-          subscribers[length + FULFILLED] = onFulfillment;
-          subscribers[length + REJECTED]  = onRejection;
+          subscribers[length + FULFILLED] = onFulfilled;
+          subscribers[length + REJECTED]  = onRejected;
         }
         return thenPromise;
       }
