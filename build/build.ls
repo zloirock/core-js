@@ -1,24 +1,27 @@
-modules  = <[global init stringInt es5 resume functionInt objectInt arrayInt numberInt regexpInt es6 es6c timers promise function object wrap array arrayStatics number string regexp date async console]>
-optional = <[global es5 es6 es6c timers promise function object wrap array arrayStatics number string regexp date async console]>
-closure  = 'global, Function, Object, Array, String, Number, RegExp, Date, TypeError, Math, isFinite'
-require! <[fs ./config]>
+{banner}   = require './config'
+{readFile} = require \fs
+modules    = <[global init es5 resume immediateInternal es6 es6c promise extendedObjectAPI timers immediate function binding object array arrayStatics number string date extendCollections console]>
+required   = <[init resume]>
 module.exports = (opt, next)-> let @ = opt
   import {+global, +es5, +timers, +node} if @all
-  import {+\function, +object, +wrap, +array, +arrayStatics, +number, +string, +regexp, +date, +es6, +es6c, +promise, +events, +async, +console} if @node
-  include = modules.filter ~> it not in optional or @[it]
-  error, scripts = [] <~ include
-    .map -> "src/#it.js"
-    .asyncMap fs.readFile, _
-  scripts .= map (script, key)->
-    """
-    // Module : #{include[key]}
+  import {+\function, +binding, +object, +array, +arrayStatics, +number, +string, +date, +es6, +es6c, +promise, +extendedObjectAPI, +extendCollections, +immediate, +console} if @node
+  @immediateInternal = on if @immediate or @promise
+  include = modules.filter ~> it in required or @[it]
+  scripts = [] <- Promise.all include.map (module)->
+    resolve, reject <- new Promise _
+    error, file <- readFile "src/#module.js"
+    if error => reject error else resolve file
+  .then _, console.error
+  scripts .= map (script, key)-> """
+    /**
+     * Module : #{include[key]}
+     */
     #script
     """
-  next \
-    """
-    #{config.banner}
-    !function(#closure, undefined){
+  next """
+    #banner
+    !function(global, undefined){
     'use strict';
     #{scripts * '\n'}
-    }(typeof window != 'undefined' ? window : #closure);
+    }(typeof window != 'undefined' ? window : global);
     """

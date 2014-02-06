@@ -1,13 +1,5 @@
 !function(){
-  function arraySum(/*?*/mapArg){
-    var result = 0
-      , that   = createMap(this, mapArg)
-      , i      = 0
-      , length = toLength(that.length);
-    for(; length > i; i++)if(i in that)result += +that[i];
-    return result
-  }
-  function props(key){
+  function pluck(key){
     var that   = arrayLikeSelf(this)
       , length = toLength(that.length)
       , result = Array(length)
@@ -19,56 +11,53 @@
     }
     return result
   }
-  function createMap(that, it){
-    switch(classof(it)){
-      case 'Function':
-        return map.call(that, it);
-      case 'String':
-      case 'Number':
-        return props.call(that, it)
-    }
-    return arrayLikeSelf(that)
+  // indexOf with SameValue
+  function indexSame(arrayLike, val){
+    var length = toLength(arrayLike.length)
+      , i      = 0;
+    for(; i < length; i++)if(same(arrayLike[i], val))return i;
+    return -1
   }
   extendBuiltInObject($Array, {
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/Array/at
+     * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
+     */
     at: function(index){
-      return arrayLikeSelf(this)[0 > index ? this.length + index : index]
+      return this[0 > (index |= 0) ? this.length + index : index]
     },
-    props   : props,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#pluck
+     * http://sugarjs.com/api/Array/map
+     * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
+     */
+    pluck: pluck,
     reduceTo: reduceTo,
-    indexSame: function(val){
-      return indexSame(arrayLikeSelf(this), val)
-    },
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Types/Array#Array:append
+     * http://api.jquery.com/jQuery.merge/
+     */
     merge: function(arrayLike){
       push.apply(this, arrayLikeSelf(arrayLike));
-      return this;
+      return this
     },
-    sum: arraySum,
-    avg: function(/*?*/mapArg){
-      return this.length ? arraySum.call(this, mapArg) / this.length : 0
-    },
-    min: function(/*?*/mapArg){
-      return min.apply(undefined, createMap(this, mapArg));
-    },
-    max: function(/*?*/mapArg){
-      return max.apply(undefined, createMap(this, mapArg));
-    },
-    unique: function(/*?*/mapArg){
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#uniq
+     * http://sugarjs.com/api/Array/unique
+     * http://api.prototypejs.org/language/Array/prototype/uniq/
+     * http://mootools.net/docs/more/Types/Array.Extras#Array:unique
+     */
+    unique: function(){
       var result = []
-        , that   = createMap(this, mapArg)
+        , that   = arrayLikeSelf(this)
         , length = toLength(that.length)
         , i      = 0
         , value;
       while(length > i)~indexSame(result, value = that[i++]) || result.push(value);
-      return result
-    },
-    cross: function(arrayLike){
-      var result = []
-        , that   = arrayLikeSelf(this)
-        , length = toLength(that.length)
-        , array  = arrayLikeSelf(arrayLike)
-        , i = 0
-        , value;
-      while(length > i)!~indexSame(result, value = that[i++]) && ~indexSame(array, value) && result.push(value);
       return result
     }
   });

@@ -5,5 +5,5 @@ var create                   = Object.create
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , forEach                  = $Array.forEach
-  , map                      = $Array.map
-  , indexOf                  = 'indexOf';
+  , isArray                  = Array.isArray
+  , map                      = $Array.map;

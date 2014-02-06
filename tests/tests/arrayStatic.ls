@@ -1,13 +1,4 @@
-{isFunction} = Object
-test 'Array.concat' !->
-  {concat} = Array
-  ok isFunction concat
-  arr = [1 2 3]
-  ok arr isnt result = Array.concat arr, [4 5 6]
-  deepEqual result, [1 2 3 4 5 6]
-  arr = <[q w e]>
-  ok arr isnt result = Array.concat arr, <[a s d]>
-  deepEqual result, <[q w e a s d]>
+{isFunction} = Function
 test 'Array.join' !->
   {join} = Array
   ok isFunction join
@@ -115,12 +106,12 @@ test 'Array.every' !->
     ok key is 0
     ok that is al
   , ctx = {}
-  ok every  \123 Object.isString
+  ok every  \123 -> typeof! it is \String
   ok every  \123 -> &1 < 3
-  ok not every \123 Object.isNumber
+  ok not every \123 -> typeof! it is \Number
   ok not every \123 -> &1 < 2
   ok every  \123 -> &2 ~= \123
-  ok every  (->&)(1,2,3), Object.isNumber
+  ok every  (->&)(1,2,3), -> typeof! it is \Number
 test 'Array.some' !->
   {some} = Array
   ok isFunction some
@@ -130,12 +121,12 @@ test 'Array.some' !->
     ok key is 0
     ok that is al
   , ctx = {}
-  ok some  \123 Object.isString
+  ok some  \123 -> typeof! it is \String
   ok some  \123 -> &1 > 1
-  ok not some \123 Object.isNumber
+  ok not some \123 -> typeof! it is \Number
   ok not some \123 -> &1 > 3
   ok some  \123 -> &2 ~= \123
-  ok some  (-> &)(1 2 3), Object.isNumber
+  ok some  (-> &)(1 2 3), -> typeof! it is \Number
 test 'Array.forEach' !->
   {forEach} = Array
   ok isFunction forEach
@@ -205,6 +196,10 @@ test 'Array.reduceRight' !->
   ok reduceRight(\123 ((+a, +b)-> a + b)) is 6
   ok reduceRight((-> &)(1 2 3), (a, b)-> '' + b * b + a) is \143
   ok reduceRight(\123 ((+a, +b)-> a + b), 1) is 7
+test 'Array.fill' !->
+  {fill} = Array
+  ok isFunction fill
+  deepEqual fill((-> &)(null null null), 5), (-> &)(5 5 5)
 test 'Array.find' !->
   {find} = Array
   ok isFunction find
@@ -238,17 +233,11 @@ test 'Array.at' !->
   ok at((->&)(1 2 3), -1) is 3
   ok at((->&)(1 2 3), -3) is 1
   ok at((->&)(1 2 3), -4) is void
-  ok at(\123 0)  is \1
-  ok at(\123 2)  is \3
-  ok at(\123 3)  is void
-  ok at(\123 -1) is \3
-  ok at(\123 -3) is \1
-  ok at(\123 -4) is void
-test 'Array.props' !->
-  {props} = Array
-  ok isFunction props
-  deepEqual props((->&)(\1 \22  3), \length), [1 2 void]
-  deepEqual props(\123 \length), [1 1 1]
+test 'Array.pluck' !->
+  {pluck} = Array
+  ok isFunction pluck
+  deepEqual pluck((->&)(\1 \22  3), \length), [1 2 void]
+  deepEqual pluck(\123 \length), [1 1 1]
 test 'Array.reduceTo' !->
   {reduceTo} = Array
   ok isFunction reduceTo
@@ -262,18 +251,10 @@ test 'Array.reduceTo' !->
     ok val is \1
     ok key is 0
     ok that ~= al
-  reduceTo (->&)(1), ->
+  reduceTo (->&)(1), obj = {} ->
     ok @ is obj
-  , obj = {}
-  deepEqual [3 2 1], reduceTo (->&)(1 2 3), (@unshift <|), []
-  deepEqual [\3 \2 \1], reduceTo \123 (@unshift <|), []
-test 'Array.indexSame' !->
-  {indexSame} = Array
-  ok isFunction indexSame
-  ok indexSame((->&)(1 2 3 4 3 2 1), 3) is 2
-  ok indexSame((->&)(1, NaN, 3), NaN) is 1
-  ok indexSame((->&)(0, -0, 42), -0) is 1
-  ok indexSame(\1234321, \3) is 2
+  deepEqual [3 2 1], reduceTo (->&)(1 2 3), [] (@unshift <|)
+  deepEqual [\3 \2 \1], reduceTo \123 [] (@unshift <|)
 test 'Array.merge' !->
   {merge} = Array
   ok isFunction merge
@@ -287,35 +268,8 @@ test 'Array.merge' !->
   ok args.3 is 4
   ok args.4 is 5
   ok args.5 is 6
-test 'Array.sum' !->
-  {sum} = Array
-  ok isFunction sum
-  ok sum(\123) is 6
-  ok sum(\123 \length) is 3
-  ok sum((-> &)(1 2 3)) is 6
-test 'Array.avg' !->
-  {avg} = Array
-  ok isFunction avg
-  ok avg(\123) is 2
-  ok avg(\123 \length) is 1
-  ok avg((-> &)(1 2 3)) is 2
-test 'Array.min' !->
-  {min} = Array
-  ok isFunction min
-  ok min((->&)(3 2 1 2 3)) is 1
-  ok min(\123 \length) is 1
-test 'Array.max' !->
-  {max} = Array
-  ok isFunction max
-  ok max((->&)(1 2 3 2 1)) is 3
-  ok max(\123 \length) is 1
 test 'Array.unique' !->
   {unique} = Array
   ok isFunction unique
   deepEqual unique(\12321), <[1 2 3]>
   deepEqual unique((-> &)(1 2 3 2 1)), [1 2 3]
-test 'Array.cross' !->
-  {cross} = Array
-  ok isFunction cross
-  deepEqual cross((->&)(1 2 3 2 1), (->&)(2 5 7 1)), [1 2]
-  deepEqual cross((->&)(\1 \2 \3 \2 \1), (->&)(\2 \5 \7 \1)), <[1 2]>

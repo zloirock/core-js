@@ -1,36 +1,48 @@
+/**
+ * Alternatives:
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
+ * https://github.com/andyearnshaw/Intl.js
+ * http://momentjs.com/
+ * http://habrahabr.ru/post/204162/
+ * http://sugarjs.com/api/Date/format
+ * http://mootools.net/docs/more/Types/Date#Date:format
+ */
 !function(){
   function format(template, lang /* = current */){
     var that   = this
       , locale = locales[lang && has(locales, lang) ? lang : current];
     return String(template).replace(formatRegExp, function(part, key){
       switch(key){
-        case 'ms'   : return that.getMilliseconds();                  // mSec    : 1-999
-        case 's'    : return that[getSeconds]();                      // Seconds : 1-59
-        case 'ss'   : return leadZero(that[getSeconds](), 2);         // Seconds : 01-59
-        case 'm'    : return that[getMinutes]();                      // Minutes : 1-59
-        case 'mm'   : return leadZero(that[getMinutes](), 2);         // Minutes : 01-59
-        case 'h'    : return that[getHours]() % 12 || 12              // Hours   : 1-23
-        case 'hh'   : return leadZero(that[getHours]() % 12 || 12, 2);// Hours   : 01-23
-        case 'H'    : return that[getHours]();                        // Hours   : 1-11
-        case 'HH'   : return leadZero(that[getHours](), 2);           // Hours   : 01-11
-        case 'd'    : return that.getDate();                          // Date    : 1-31
-        case 'dd'   : return leadZero(that.getDate(), 2);             // Date    : 01-31
-        case 'w'    : return locale.w[that.getDay()];                 // Day     : Понедельник
-        case 'n'    : return that[getMonth]() + 1;                    // Month   : 1-12
-        case 'nn'   : return leadZero(that[getMonth]() + 1, 2);       // Month   : 01-12
-        case 'M'    : return locale.M[that[getMonth]()];              // Month   : Январь
-        case 'MM'   : return locale.MM[that[getMonth]()];             // Month   : Января
-        case 'yy'   : return leadZero(that[getFullYear]() % 100, 2);  // Year    : 13
-        case 'yyyy' : return that[getFullYear]()                      // Year    : 2013
+        case 'ms'   : return that.getMilliseconds();          // mSec    : 1-999
+        case 's'    : return that.getSeconds();               // Seconds : 1-59
+        case 'ss'   : return lz2(that.getSeconds());          // Seconds : 01-59
+        case 'm'    : return that.getMinutes();               // Minutes : 1-59
+        case 'mm'   : return lz2(that.getMinutes());          // Minutes : 01-59
+        case 'h'    : return that.getHours()                  // Hours   : 0-23
+        case 'hh'   : return lz2(that.getHours());            // Hours   : 00-23
+        case 'H'    : return that.getHours() % 12 || 12;      // Hours   : 1-12
+        case 'HH'   : return lz2(that.getHours() % 12 || 12); // Hours   : 01-12
+        case 'd'    : return that.getDate();                  // Date    : 1-31
+        case 'dd'   : return lz2(that.getDate());             // Date    : 01-31
+        case 'w'    : return locale.w[that.getDay()];         // Day     : Понедельник
+        case 'n'    : return that.getMonth() + 1;             // Month   : 1-12
+        case 'nn'   : return lz2(that.getMonth() + 1);        // Month   : 01-12
+        case 'M'    : return locale.M[that.getMonth()];       // Month   : Январь
+        case 'MM'   : return locale.MM[that.getMonth()];      // Month   : Января
+        case 'yy'   : return lz2(that.getFullYear() % 100);   // Year    : 13
+        case 'yyyy' : return that.getFullYear()               // Year    : 2013
       }
       return part
     })
   }
+  function lz2(num){
+    return num > 9 ? num : '0' + num
+  }
   function addLocale(lang, locale){
     locales[lang] = {
-      w : splitComma(locale.w),
-      M : splitComma(locale.M).map(flexio(0)),
-      MM: splitComma(locale.M).map(flexio(1))
+      w : array(locale.w),
+      M : array(locale.M).map(flexio(0)),
+      MM: array(locale.M).map(flexio(1))
     }
   }
   function flexio(index){
@@ -42,12 +54,7 @@
   }
   var formatRegExp = /\b(\w\w*)\b/g
     , current = 'en'
-    , locales = {}
-    , getSeconds = 'getSeconds'
-    , getMinutes = 'getMinutes'
-    , getHours = 'getHours'
-    , getMonth = 'getMonth'
-    , getFullYear = 'getFullYear';
+    , locales = {};
   extendBuiltInObject(Date, {
     locale: function(locale){
       if(has(locales, locale))current = locale;

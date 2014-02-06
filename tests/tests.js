@@ -1,20 +1,20 @@
 (function(){
   var isFunction;
-  isFunction = Object.isFunction;
+  isFunction = Function.isFunction;
   test('Array::at', function(){
-    ok(isFunction(Array.prototype.at));
-    ok([1, 2, 3].at(0) === 1);
-    ok([1, 2, 3].at(2) === 3);
-    ok([1, 2, 3].at(3) === void 8);
-    ok([1, 2, 3].at(-1) === 3);
-    ok([1, 2, 3].at(-3) === 1);
-    ok([1, 2, 3].at(-4) === void 8);
+    ok(isFunction(Array.prototype.at, 'Array::at is function'));
+    ok([1, 2, 3].at(0) === 1, '[1, 2, 3].at(0) is 1');
+    ok([1, 2, 3].at(2) === 3, '[1, 2, 3].at(2) is 3');
+    ok([1, 2, 3].at(3) === void 8, '[1, 2, 3].at(3) is undefined');
+    ok([1, 2, 3].at(-1) === 3, '[1, 2, 3].at(-1) is 3');
+    ok([1, 2, 3].at(-3) === 1, '[1, 2, 3].at(-3) is 1');
+    ok([1, 2, 3].at(-4) === void 8, '[1, 2, 3].at(-4) is undefined');
   });
-  test('Array::props', function(){
-    ok(isFunction(Array.prototype.props));
-    deepEqual([1, 2, 321].props('length'), [void 8, void 8, void 8]);
-    deepEqual([1, 2, void 8].props('length'), [void 8, void 8, void 8]);
-    deepEqual(['1', '2', '321'].props('length'), [1, 1, 3]);
+  test('Array::pluck', function(){
+    ok(isFunction(Array.prototype.pluck));
+    deepEqual([1, 2, 321].pluck('length'), [void 8, void 8, void 8]);
+    deepEqual([1, 2, void 8].pluck('length'), [void 8, void 8, void 8]);
+    deepEqual(['1', '2', '321'].pluck('length'), [1, 1, 3]);
   });
   test('Array::reduceTo', function(){
     var arr, obj;
@@ -25,18 +25,12 @@
       ok(key === 0);
       return ok(that === arr);
     });
-    [1].reduceTo(function(){
+    [1].reduceTo(obj = {}, function(){
       return ok(this === obj);
-    }, obj = {});
-    deepEqual([3, 2, 1], [1, 2, 3].reduceTo((function(it){
+    });
+    deepEqual([3, 2, 1], [1, 2, 3].reduceTo([], (function(it){
       return this.unshift(it);
-    }), []));
-  });
-  test('Array::indexSame', function(){
-    ok(isFunction(Array.prototype.indexSame));
-    ok([1, 2, 3, 4, 3, 2, 1].indexSame(3) === 2);
-    ok([1, NaN, 3].indexSame(NaN) === 1);
-    ok([0, -0, 42].indexSame(-0) === 1);
+    })));
   });
   test('Array::merge', function(){
     var arr;
@@ -48,58 +42,15 @@
     ok(arr === arr.merge('asd'));
     deepEqual(arr, ['q', 'w', 'e', 'a', 's', 'd']);
   });
-  test('Array::sum', function(){
-    ok(isFunction(Array.prototype.sum));
-    ok([1, 2, 3].sum() === 6);
-    ok(Object.is(['1', '2', 3].sum('length'), NaN));
-    ok(['1', '22', '333'].sum('length') === 6);
-  });
-  test('Array::avg', function(){
-    ok(isFunction(Array.prototype.avg));
-    ok([1, 2, 3].avg() === 2);
-    ok(Object.is(['1', '22', 3].avg('length'), NaN));
-    ok(['1', '22', '333'].avg('length') === 2);
-  });
-  test('Array::min', function(){
-    ok(isFunction(Array.prototype.min));
-    ok([].min() === Infinity);
-    ok([1, 2, 3, 2, 1].min() === 1);
-    ok(['1', '22', '333'].min('length') === 1);
-  });
-  test('Array::max', function(){
-    ok(isFunction(Array.prototype.max));
-    ok([].max() === -Infinity);
-    ok([1, 2, 3, 2, 1].max() === 3);
-    ok(['1', '22', '333'].max('length') === 3);
-  });
   test('Array::unique', function(){
     ok(isFunction(Array.prototype.unique));
     deepEqual([1, 2, 3, 2, 1].unique(), [1, 2, 3]);
   });
-  test('Array::cross', function(){
-    ok(isFunction(Array.prototype.cross));
-    deepEqual([1, 2, 3, 2, 1].cross([2, 5, 7, 1]), [1, 2]);
-    deepEqual(['1', '2', '3', '2', '1'].cross('2571'), ['1', '2']);
-    deepEqual([1, 2, 3, 2, 1].cross(function(){
-      return arguments;
-    }(2, 5, 7, 1)), [1, 2]);
-  });
 }).call(this);
 
 (function(){
-  var isFunction;
-  isFunction = Object.isFunction;
-  test('Array.concat', function(){
-    var concat, arr, result;
-    concat = Array.concat;
-    ok(isFunction(concat));
-    arr = [1, 2, 3];
-    ok(arr !== (result = Array.concat(arr, [4, 5, 6])));
-    deepEqual(result, [1, 2, 3, 4, 5, 6]);
-    arr = ['q', 'w', 'e'];
-    ok(arr !== (result = Array.concat(arr, ['a', 's', 'd'])));
-    deepEqual(result, ['q', 'w', 'e', 'a', 's', 'd']);
-  });
+  var isFunction, toString$ = {}.toString;
+  isFunction = Function.isFunction;
   test('Array.join', function(){
     var join;
     join = Array.join;
@@ -285,11 +236,15 @@
       ok(key === 0);
       return ok(that === al);
     }, ctx = {});
-    ok(every('123', Object.isString));
+    ok(every('123', function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
     ok(every('123', function(){
       return arguments[1] < 3;
     }));
-    ok(!every('123', Object.isNumber));
+    ok(!every('123', function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
     ok(!every('123', function(){
       return arguments[1] < 2;
     }));
@@ -298,7 +253,9 @@
     }));
     ok(every(function(){
       return arguments;
-    }(1, 2, 3), Object.isNumber));
+    }(1, 2, 3), function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
   });
   test('Array.some', function(){
     var some, al, ctx;
@@ -312,11 +269,15 @@
       ok(key === 0);
       return ok(that === al);
     }, ctx = {});
-    ok(some('123', Object.isString));
+    ok(some('123', function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
     ok(some('123', function(){
       return arguments[1] > 1;
     }));
-    ok(!some('123', Object.isNumber));
+    ok(!some('123', function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
     ok(!some('123', function(){
       return arguments[1] > 3;
     }));
@@ -325,7 +286,9 @@
     }));
     ok(some(function(){
       return arguments;
-    }(1, 2, 3), Object.isNumber));
+    }(1, 2, 3), function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
   });
   test('Array.forEach', function(){
     var forEach, al, ctx, val;
@@ -468,6 +431,16 @@
       return a + b;
     }, 1) === 7);
   });
+  test('Array.fill', function(){
+    var fill;
+    fill = Array.fill;
+    ok(isFunction(fill));
+    deepEqual(fill(function(){
+      return arguments;
+    }(null, null, null), 5), function(){
+      return arguments;
+    }(5, 5, 5));
+  });
   test('Array.find', function(){
     var find, al, ctx;
     find = Array.find;
@@ -538,21 +511,15 @@
     ok(at(function(){
       return arguments;
     }(1, 2, 3), -4) === void 8);
-    ok(at('123', 0) === '1');
-    ok(at('123', 2) === '3');
-    ok(at('123', 3) === void 8);
-    ok(at('123', -1) === '3');
-    ok(at('123', -3) === '1');
-    ok(at('123', -4) === void 8);
   });
-  test('Array.props', function(){
-    var props;
-    props = Array.props;
-    ok(isFunction(props));
-    deepEqual(props(function(){
+  test('Array.pluck', function(){
+    var pluck;
+    pluck = Array.pluck;
+    ok(isFunction(pluck));
+    deepEqual(pluck(function(){
       return arguments;
     }('1', '22', 3), 'length'), [1, 2, void 8]);
-    deepEqual(props('123', 'length'), [1, 1, 1]);
+    deepEqual(pluck('123', 'length'), [1, 1, 1]);
   });
   test('Array.reduceTo', function(){
     var reduceTo, al, obj;
@@ -574,32 +541,17 @@
     });
     reduceTo(function(){
       return arguments;
-    }(1), function(){
+    }(1), obj = {}, function(){
       return ok(this === obj);
-    }, obj = {});
+    });
     deepEqual([3, 2, 1], reduceTo(function(){
       return arguments;
-    }(1, 2, 3), (function(it){
+    }(1, 2, 3), [], (function(it){
       return this.unshift(it);
-    }), []));
-    deepEqual(['3', '2', '1'], reduceTo('123', (function(it){
+    })));
+    deepEqual(['3', '2', '1'], reduceTo('123', [], (function(it){
       return this.unshift(it);
-    }), []));
-  });
-  test('Array.indexSame', function(){
-    var indexSame;
-    indexSame = Array.indexSame;
-    ok(isFunction(indexSame));
-    ok(indexSame(function(){
-      return arguments;
-    }(1, 2, 3, 4, 3, 2, 1), 3) === 2);
-    ok(indexSame(function(){
-      return arguments;
-    }(1, NaN, 3), NaN) === 1);
-    ok(indexSame(function(){
-      return arguments;
-    }(0, -0, 42), -0) === 1);
-    ok(indexSame('1234321', '3') === 2);
+    })));
   });
   test('Array.merge', function(){
     var merge, args;
@@ -619,44 +571,6 @@
     ok(args[4] === 5);
     ok(args[5] === 6);
   });
-  test('Array.sum', function(){
-    var sum;
-    sum = Array.sum;
-    ok(isFunction(sum));
-    ok(sum('123') === 6);
-    ok(sum('123', 'length') === 3);
-    ok(sum(function(){
-      return arguments;
-    }(1, 2, 3)) === 6);
-  });
-  test('Array.avg', function(){
-    var avg;
-    avg = Array.avg;
-    ok(isFunction(avg));
-    ok(avg('123') === 2);
-    ok(avg('123', 'length') === 1);
-    ok(avg(function(){
-      return arguments;
-    }(1, 2, 3)) === 2);
-  });
-  test('Array.min', function(){
-    var min;
-    min = Array.min;
-    ok(isFunction(min));
-    ok(min(function(){
-      return arguments;
-    }(3, 2, 1, 2, 3)) === 1);
-    ok(min('123', 'length') === 1);
-  });
-  test('Array.max', function(){
-    var max;
-    max = Array.max;
-    ok(isFunction(max));
-    ok(max(function(){
-      return arguments;
-    }(1, 2, 3, 2, 1)) === 3);
-    ok(max('123', 'length') === 1);
-  });
   test('Array.unique', function(){
     var unique;
     unique = Array.unique;
@@ -666,241 +580,94 @@
       return arguments;
     }(1, 2, 3, 2, 1)), [1, 2, 3]);
   });
-  test('Array.cross', function(){
-    var cross;
-    cross = Array.cross;
-    ok(isFunction(cross));
-    deepEqual(cross(function(){
-      return arguments;
-    }(1, 2, 3, 2, 1), function(){
-      return arguments;
-    }(2, 5, 7, 1)), [1, 2]);
-    deepEqual(cross(function(){
-      return arguments;
-    }('1', '2', '3', '2', '1'), function(){
-      return arguments;
-    }('2', '5', '7', '1')), ['1', '2']);
-  });
 }).call(this);
 
 (function(){
-  var isFunction;
-  isFunction = Object.isFunction;
-  test('Function.series', function(){
-    var series;
-    series = Function.series;
-    ok(isFunction(series));
-    series([
-      function(next){
-        ok(isFunction(next));
-        next.immediate(42);
-      }, function(val, next){
-        ok(val === 42);
-        ok(isFunction(next));
-        next.immediate(1, 2);
-      }, function(a, b){
-        ok(a + b === 3);
-        start();
-      }
-    ]);
-    stop();
-    series([
-      function(next){
-        ok(isFunction(next));
-        next.immediate(null, 42);
-      }, function(val, next){
-        ok(val === 42);
-        ok(isFunction(next));
-        next.immediate(43, 1, 2);
-      }, function(){
-        ok(false);
-        next.immediate(44);
-      }
-    ], function(err, a, b){
-      ok(err === 43);
-      ok(a + b === 3);
-      start();
-    });
-    stop();
-  });
-  test('Function.parallel', function(){
-    var parallel;
-    parallel = Function.parallel;
-    ok(isFunction(parallel));
-    parallel([
-      function(next){
-        next.immediate(null, 1);
-      }, function(next){
-        next.immediate(null, 2);
-      }, function(next){
-        next.immediate(null, 3);
-      }
-    ], function(err, result){
-      ok(!err);
-      deepEqual(result, [1, 2, 3]);
-      start();
-    });
-    stop();
-    parallel([
-      function(next){
-        next.immediate(42, 1);
-      }, function(next){
-        next.immediate(null, 2);
-      }
-    ], function(err, result){
-      ok(err === 42);
-      deepEqual(result, [1, void 8]);
-      start();
-    });
-    stop();
-  });
-  test('Array::asyncMap', function(){
-    ok(isFunction(Array.prototype.asyncMap));
-    [1, 2, 3].asyncMap(function(val, next){
-      next.immediate(null, Math.pow(val, 2));
-    }, function(err, result){
-      ok(!err);
-      deepEqual(result, [1, 4, 9]);
-      start();
-    });
-    stop();
-    [1, 2, 3].asyncMap(function(val, next){
-      next.immediate(val === 2 ? 42 : null, Math.pow(val, 2));
-    }, function(err, result){
-      ok(err === 42);
-      deepEqual(result, [1, 4, void 8]);
-      start();
-    });
-    stop();
-  });
-}).call(this);
-
-(function(){
-  var isFunction;
-  isFunction = Object.isFunction;
+  var isFunction, isObject, id, toString$ = {}.toString;
+  isFunction = Function.isFunction;
+  isObject = Object.isObject;
   test('console', function(){
-    var assert, count, clear, debug, dir, dirxml, error, exception, group, groupCollapsed, groupEnd, info, log, table, trace, warn, markTimeline, profile, profileEnd, time, timeEnd, timeStamp, id;
+    ok(isObject(global.console), 'global.console is object');
+  });
+  test('console.{...} are functions', function(){
+    var assert, count, clear, debug, dir, dirxml, error, exception, group, groupCollapsed, groupEnd, info, log, table, trace, warn, markTimeline, profile, profileEnd, time, timeEnd, timeStamp;
     assert = console.assert, count = console.count, clear = console.clear, debug = console.debug, dir = console.dir, dirxml = console.dirxml, error = console.error, exception = console.exception, group = console.group, groupCollapsed = console.groupCollapsed, groupEnd = console.groupEnd, info = console.info, log = console.log, table = console.table, trace = console.trace, warn = console.warn, markTimeline = console.markTimeline, profile = console.profile, profileEnd = console.profileEnd, time = console.time, timeEnd = console.timeEnd, timeStamp = console.timeStamp;
-    ok(isFunction(global.console));
+    ok(isFunction(log), 'console.log is function');
+    ok(isFunction(warn), 'console.warn is function');
+    ok(isFunction(error), 'console.error is function');
+    ok(isFunction(info), 'console.info is function');
+    ok(isFunction(time), 'console.time is function');
+    ok(isFunction(timeEnd), 'console.timeEnd is function');
+    ok(isFunction(assert), 'console.assert is function');
+    ok(isFunction(count), 'console.count is function');
+    ok(isFunction(debug), 'console.debug is function');
+    ok(isFunction(dir), 'console.dir is function');
+    ok(isFunction(dirxml), 'console.dirxml is function');
+    ok(isFunction(table), 'console.table is function');
+    ok(isFunction(trace), 'console.trace is function');
+    ok(isFunction(group), 'console.group is function');
+    ok(isFunction(groupEnd), 'console.groupEnd is function');
+    ok(isFunction(groupCollapsed), 'console.groupCollapsed is function');
+    ok(isFunction(markTimeline), 'console.markTimeline is function');
+    ok(isFunction(profile), 'console.profile is function');
+    ok(isFunction(profileEnd), 'console.profileEnd is function');
+    ok(isFunction(clear), 'console.clear is function');
+  });
+  test('console.{...} call', function(){
     ok((function(){
       try {
-        console('console');
+        console.log('console.log');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        console.call({}, 'console in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.log));
-    ok(console === console.log);
-    ok(isFunction(console.warn));
+    }()), 'call console.log');
     ok((function(){
       try {
         console.warn('console.warn');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        warn('console.warn in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.error));
+    }()), 'call console.warn');
     ok((function(){
       try {
         console.error('console.error');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        error('console.error in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.info));
+    }()), 'call console.error');
     ok((function(){
       try {
         console.info('console.info');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        info('console.info in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.time));
-    ok(isFunction(console.timeEnd));
+    }()), 'call console.info');
     ok((function(){
       try {
         console.time(id = 'console.time');
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call console.time');
     ok((function(){
       try {
         console.timeEnd(id);
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        time(id = 'console.time in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        timeEnd(id);
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.assert));
+    }()), 'call console.timeEnd');
     ok((function(){
       try {
         console.assert(true, true, 'console.assert');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        assert(true, true, 'console.assert in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.count));
+    }()), 'call console.assert');
     ok((function(){
       try {
         console.count('console.count');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        count('console.count in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.debug));
+    }()), 'call console.count');
     ok((function(){
       try {
         console.debug('console.debug');
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        debug('console.debug in another context');
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.dir));
+    }()), 'call console.debug');
     ok((function(){
       try {
         console.dir({
@@ -910,7 +677,120 @@
         });
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call console.dir');
+    ok((function(){
+      try {
+        console.dirxml(typeof document != 'undefined' && document !== null ? document.getElementById('qunit-header') : void 8);
+        return true;
+      } catch (e$) {}
+    }()), 'call console.dirxml');
+    ok((function(){
+      try {
+        console.table([['q', 'w'], ['call', 'console.table']]);
+        return true;
+      } catch (e$) {}
+    }()), 'call console.table');
+    ok((function(){
+      try {
+        console.trace();
+        return true;
+      } catch (e$) {}
+    }()), 'call console.trace');
+    ok((function(){
+      try {
+        console.group(id = 'console.group');
+        return true;
+      } catch (e$) {}
+    }()), 'call console.group');
+    ok((function(){
+      try {
+        console.groupEnd(id);
+        return true;
+      } catch (e$) {}
+    }()), 'call console.groupEnd');
+    ok((function(){
+      try {
+        console.groupCollapsed(id = 'console.groupCollapsed');
+        console.groupEnd(id);
+        return true;
+      } catch (e$) {}
+    }()), 'call console.groupCollapsed');
+    ok((function(){
+      try {
+        console.profile('profile');
+        return true;
+      } catch (e$) {}
+    }()), 'call console.profile');
+    ok((function(){
+      try {
+        console.profileEnd('profile');
+        return true;
+      } catch (e$) {}
+    }()), 'call console.profileEnd');
+    ok((function(){
+      try {
+        console.clear();
+        return true;
+      } catch (e$) {}
+    }()), 'call console.clear');
+  });
+  test('console.{...} are unbound', function(){
+    var assert, count, clear, debug, dir, dirxml, error, exception, group, groupCollapsed, groupEnd, info, log, table, trace, warn, markTimeline, profile, profileEnd, time, timeEnd, timeStamp;
+    assert = console.assert, count = console.count, clear = console.clear, debug = console.debug, dir = console.dir, dirxml = console.dirxml, error = console.error, exception = console.exception, group = console.group, groupCollapsed = console.groupCollapsed, groupEnd = console.groupEnd, info = console.info, log = console.log, table = console.table, trace = console.trace, warn = console.warn, markTimeline = console.markTimeline, profile = console.profile, profileEnd = console.profileEnd, time = console.time, timeEnd = console.timeEnd, timeStamp = console.timeStamp;
+    ok((function(){
+      try {
+        log('log');
+        return true;
+      } catch (e$) {}
+    }()), 'call log');
+    ok((function(){
+      try {
+        warn('warn');
+        return true;
+      } catch (e$) {}
+    }()), 'call warn');
+    ok((function(){
+      try {
+        error('error');
+        return true;
+      } catch (e$) {}
+    }()), 'call error');
+    ok((function(){
+      try {
+        info('info');
+        return true;
+      } catch (e$) {}
+    }()), 'call info');
+    ok((function(){
+      try {
+        time(id = 'time');
+        return true;
+      } catch (e$) {}
+    }()), 'call time');
+    ok((function(){
+      try {
+        timeEnd(id);
+        return true;
+      } catch (e$) {}
+    }()), 'call timeEnd');
+    ok((function(){
+      try {
+        assert(true, true, 'assert');
+        return true;
+      } catch (e$) {}
+    }()), 'call assert');
+    ok((function(){
+      try {
+        count('count');
+        return true;
+      } catch (e$) {}
+    }()), 'call count');
+    ok((function(){
+      try {
+        debug('debug');
+        return true;
+      } catch (e$) {}
+    }()), 'call debug');
     ok((function(){
       try {
         dir({
@@ -920,120 +800,89 @@
         });
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.dirxml));
-    ok((function(){
-      try {
-        console.dirxml(typeof document != 'undefined' && document !== null ? document.getElementById('qunit-header') : void 8);
-        return true;
-      } catch (e$) {}
-    }()));
+    }()), 'call dir');
     ok((function(){
       try {
         dirxml(typeof document != 'undefined' && document !== null ? document.getElementById('qunit-header') : void 8);
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.table));
+    }()), 'call dirxml');
     ok((function(){
       try {
-        console.table([['q', 'w'], ['call', 'console.table']]);
+        table([['q', 'w'], ['call', 'table']]);
         return true;
       } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        table([['q', 'w'], ['call', 'console.table']]);
-        return true;
-      } catch (e$) {}
-    }()));
-    ok(isFunction(console.trace));
-    ok((function(){
-      try {
-        console.trace();
-        return true;
-      } catch (e$) {}
-    }()));
+    }()), 'call table');
     ok((function(){
       try {
         trace();
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.group));
+    }()), 'call trace');
     ok((function(){
       try {
-        console.group(id = 'console.group');
+        group(id = 'group');
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.groupEnd));
-    ok((function(){
-      try {
-        console.groupEnd(id);
-        return true;
-      } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        group(id = 'console.group in another context');
-        return true;
-      } catch (e$) {}
-    }()));
+    }()), 'call group');
     ok((function(){
       try {
         groupEnd(id);
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.groupCollapsed));
+    }()), 'call groupEnd');
     ok((function(){
       try {
-        console.groupCollapsed(id = 'console.groupCollapsed');
-        console.groupEnd(id);
-        return true;
-      } catch (e$) {}
-    }()));
-    ok((function(){
-      try {
-        groupCollapsed(id = 'console.groupCollapsed in another context');
+        groupCollapsed(id = 'groupCollapsed');
         groupEnd(id);
         return true;
       } catch (e$) {}
-    }()));
-    ok(isFunction(console.markTimeline));
-    ok(isFunction(console.profile));
-    ok(isFunction(console.profileEnd));
+    }()), 'call groupCollapsed');
     ok((function(){
       try {
-        console.profile('profile');
+        profile('profile');
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call profile');
     ok((function(){
       try {
-        console.profileEnd('profile');
+        profileEnd('profile');
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call profileEnd');
     ok((function(){
       try {
-        profile('profile in another context');
+        clear();
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call clear');
+  });
+  test('console as console.log shortcut', function(){
+    ok(isFunction(console), 'console is function');
+    ok(console === console.log, 'console is console.log shortcut');
     ok((function(){
       try {
-        profileEnd('profile in another context');
+        console('console');
         return true;
       } catch (e$) {}
-    }()));
+    }()), 'call console');
+  });
+  test('console.enabled', function(){
+    ok(toString$.call(console.enabled).slice(8, -1) === 'Boolean', 'console.enabled is boolean');
+    ok(console.enabled === true, 'console.enabled is true');
+    console.enabled = false;
+    ok((function(){
+      try {
+        return console('call disabled console') === void 8;
+      } catch (e$) {}
+    }()), 'call disabled console');
+    console.enabled = true;
   });
 }).call(this);
 
 (function(){
   var isFunction;
-  isFunction = Object.isFunction;
+  isFunction = Function.isFunction;
   test('Date.locale', function(){
     ok(isFunction(Date.locale));
     Date.locale('ru');
@@ -1048,18 +897,18 @@
     date = new Date(1, 2, 3, 4, 5, 6, 7);
     ok(date.format('dd.nn.yyyy') === '03.03.1901');
     Date.locale('en');
-    ok(date.format('w, d M yyyy') === 'Sunday, 3 March 1901');
-    ok(date.format('w, d M yyyy', 'ru') === 'Воскресенье, 3 Март 1901');
+    ok(date.format('w, d MM yyyy') === 'Sunday, 3 March 1901');
+    ok(date.format('w, d MM yyyy', 'ru') === 'Воскресенье, 3 Марта 1901');
     Date.locale('ru');
-    ok(date.format('w, d M yyyy') === 'Воскресенье, 3 Март 1901');
+    ok(date.format('w, d MM yyyy') === 'Воскресенье, 3 Марта 1901');
     ok(date.format('d MM') === '3 Марта');
     ok(date.format('ms s ss m mm h hh H HH d dd w n nn M MM yy yyyy') === '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 1901');
   });
 }).call(this);
 
 (function(){
-  var isFunction, isNumber, isString;
-  isFunction = Object.isFunction, isNumber = Object.isNumber, isString = Object.isString;
+  var isFunction, toString$ = {}.toString;
+  isFunction = Function.isFunction;
   test('Object.getOwnPropertyDescriptor', function(){
     var getOwnPropertyDescriptor;
     getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -1075,17 +924,19 @@
     ok(getOwnPropertyDescriptor({}, 'toString') === void 8);
   });
   test('Object.defineProperty', function(){
-    var rez, src;
-    ok(isFunction(Object.defineProperty));
-    ok((rez = Object.defineProperty(src = {}, 'q', {
+    var defineProperty, rez, src;
+    defineProperty = Object.defineProperty;
+    ok(isFunction(defineProperty));
+    ok((rez = defineProperty(src = {}, 'q', {
       value: 42
     })) === src);
     ok(rez.q === 42);
   });
   test('Object.defineProperties', function(){
-    var rez, src;
-    ok(isFunction(Object.defineProperties));
-    ok((rez = Object.defineProperties(src = {}, {
+    var defineProperties, rez, src;
+    defineProperties = Object.defineProperties;
+    ok(isFunction(defineProperties));
+    ok((rez = defineProperties(src = {}, {
       q: {
         value: 42
       },
@@ -1100,6 +951,7 @@
     create = Object.create, getPrototypeOf = Object.getPrototypeOf;
     ok(isFunction(getPrototypeOf));
     ok(getPrototypeOf({}) === Object.prototype);
+    ok(getPrototypeOf([]) === Array.prototype);
     ok(getPrototypeOf(new (fn = (function(){
       fn.displayName = 'fn';
       var prototype = fn.prototype, constructor = fn;
@@ -1222,14 +1074,18 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    ok([1, 2, 3].every(isNumber));
+    ok([1, 2, 3].every(function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
     ok([1, 2, 3].every((function(it){
       return it < 4;
     })));
     ok(![1, 2, 3].every((function(it){
       return it < 3;
     })));
-    ok(![1, 2, 3].every(isString));
+    ok(![1, 2, 3].every(function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
     ok([1, 2, 3].every(function(){
       return +this === 1;
     }, 1));
@@ -1251,14 +1107,18 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    ok([1, '2', 3].some(isNumber));
+    ok([1, '2', 3].some(function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
     ok([1, 2, 3].some((function(it){
       return it < 3;
     })));
     ok(![1, 2, 3].some((function(it){
       return it < 0;
     })));
-    ok(![1, 2, 3].some(isString));
+    ok(![1, 2, 3].some(function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
     ok(![1, 2, 3].some(function(){
       return +this !== 1;
     }, 1));
@@ -1337,7 +1197,9 @@
       ok(that === a);
       return ok(this === ctx);
     }, ctx = {});
-    deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(isNumber));
+    deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
   });
   test('Array::reduce', function(){
     var a;
@@ -1402,11 +1264,16 @@
 }).call(this);
 
 (function(){
-  var isFunction;
-  isFunction = Object.isFunction;
+  var isFunction, isNative, getOwnPropertyDescriptor, defineProperty, same, epsilon;
+  isFunction = Function.isFunction, isNative = Function.isNative;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
+  same = Object.is;
+  epsilon = function(a, b){
+    return Math.abs(a - b) <= Number.EPSILON;
+  };
   test('Object.assign', function(){
-    var assign, defineProperty, foo, foo2;
-    assign = Object.assign, defineProperty = Object.defineProperty;
+    var assign, foo, foo2;
+    assign = Object.assign;
     ok(isFunction(assign));
     foo = {
       q: 1
@@ -1415,7 +1282,7 @@
       w: 2
     }));
     ok(foo.w === 2);
-    if (Function.isNative(Object.getOwnPropertyDescriptor)) {
+    if (isNative(getOwnPropertyDescriptor)) {
       foo = {
         q: 1
       };
@@ -1429,15 +1296,15 @@
     }
   });
   test('Object.is', function(){
-    ok(isFunction(Object.is));
-    ok(Object.is(1, 1));
-    ok(Object.is(NaN, NaN));
-    ok(!Object.is(0, -0));
-    ok(!Object.is({}, {}));
+    ok(isFunction(same));
+    ok(same(1, 1));
+    ok(same(NaN, NaN));
+    ok(!same(0, -0));
+    ok(!same({}, {}));
   });
   test('Object.mixin', function(){
-    var mixin, defineProperty, foo, foo2;
-    mixin = Object.mixin, defineProperty = Object.defineProperty;
+    var mixin, foo, foo2;
+    mixin = Object.mixin;
     ok(isFunction(mixin));
     foo = {
       q: 1
@@ -1446,7 +1313,7 @@
       w: 2
     }));
     ok(foo.w === 2);
-    if (Function.isNative(Object.getOwnPropertyDescriptor)) {
+    if (isNative(getOwnPropertyDescriptor)) {
       foo = {
         q: 1
       };
@@ -1459,16 +1326,25 @@
       ok(foo.w === 2);
     }
   });
-  /*
-  if \__proto__ of Object:: or Function.isNative Object.setPrototypeOf
-    test 'Object.setPrototypeOf' !->
-      {setPrototypeOf} = Object
-      ok isFunction setPrototypeOf
-      ok \apply of setPrototypeOf {} Function::
-      ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4
-      ok setPrototypeOf(tmp = {}, {a: 1}) is tmp
-      ok !(\toString of setPrototypeOf {} null)
-  */
+  if (Object.setPrototypeOf) {
+    test('Object.setPrototypeOf', function(){
+      var setPrototypeOf, tmp;
+      setPrototypeOf = Object.setPrototypeOf;
+      ok(isFunction(setPrototypeOf));
+      ok('apply' in setPrototypeOf({}, Function.prototype));
+      ok(setPrototypeOf({
+        a: 2
+      }, {
+        b: function(){
+          return Math.pow(this.a, 2);
+        }
+      }).b() === 4);
+      ok(setPrototypeOf(tmp = {}, {
+        a: 1
+      }) === tmp);
+      ok(!('toString' in setPrototypeOf({}, null)));
+    });
+  }
   test('Number.EPSILON', function(){
     ok('EPSILON' in Number);
     ok(Number.EPSILON === 2.220446049250313e-16);
@@ -1613,75 +1489,198 @@
     ok(Math.pow(2, 32).clz() === 32);
   });
   test('Math.acosh', function(){
-    ok(isFunction(Math.acosh));
+    var acosh;
+    acosh = Math.acosh;
+    ok(isFunction(acosh));
+    ok(same(acosh(NaN), NaN));
+    ok(same(acosh(0.5), NaN));
+    ok(same(acosh(-1), NaN));
+    ok(same(acosh(1), 0));
+    ok(same(acosh(Infinity), Infinity));
   });
   test('Math.asinh', function(){
-    ok(isFunction(Math.asinh));
+    var asinh;
+    asinh = Math.asinh;
+    ok(isFunction(asinh));
+    ok(same(asinh(NaN), NaN));
+    ok(same(asinh(0), 0));
+    ok(same(asinh(-0), -0));
+    ok(same(asinh(Infinity), Infinity));
+    ok(same(asinh(-Infinity), -Infinity));
   });
   test('Math.atanh', function(){
-    ok(isFunction(Math.atanh));
+    var atanh;
+    atanh = Math.atanh;
+    ok(isFunction(atanh));
+    ok(same(atanh(NaN), NaN));
+    ok(same(atanh(-2), NaN));
+    ok(same(atanh(-1.5), NaN));
+    ok(same(atanh(2), NaN));
+    ok(same(atanh(1.5), NaN));
+    ok(same(atanh(-1), -Infinity));
+    ok(same(atanh(1), Infinity));
+    ok(same(atanh(0), 0));
+    ok(same(atanh(-0), -0));
   });
   test('Math.cbrt', function(){
-    ok(isFunction(Math.cbrt));
+    var cbrt;
+    cbrt = Math.cbrt;
+    ok(isFunction(cbrt));
+    ok(same(cbrt(NaN), NaN));
+    ok(same(cbrt(0), 0));
+    ok(same(cbrt(-0), -0));
+    ok(same(cbrt(Infinity), Infinity));
+    ok(same(cbrt(-Infinity), -Infinity));
   });
   test('Math.cosh', function(){
-    ok(isFunction(Math.cosh));
+    var cosh;
+    cosh = Math.cosh;
+    ok(isFunction(cosh));
+    ok(same(cosh(NaN), NaN));
+    ok(same(cosh(0), 1));
+    ok(same(cosh(-0), 1));
+    ok(same(cosh(Infinity), Infinity));
+    ok(same(cosh(-Infinity), Infinity));
   });
   test('Math.expm1', function(){
-    ok(isFunction(Math.expm1));
+    var expm1;
+    expm1 = Math.expm1;
+    ok(isFunction(expm1));
+    ok(same(expm1(NaN), NaN));
+    ok(same(expm1(0), 0));
+    ok(same(expm1(-0), -0));
+    ok(same(expm1(Infinity), Infinity));
+    ok(same(expm1(-Infinity), -1));
   });
   test('Math.hypot', function(){
-    ok(isFunction(Math.hypot));
+    var hypot, sqrt;
+    hypot = Math.hypot, sqrt = Math.sqrt;
+    ok(isFunction(hypot));
+    ok(same(hypot('', 0), 0));
+    ok(same(hypot(0, ''), 0));
+    ok(same(hypot(Infinity, 0), Infinity));
+    ok(same(hypot(-Infinity, 0), Infinity));
+    ok(same(hypot(0, Infinity), Infinity));
+    ok(same(hypot(0, -Infinity), Infinity));
+    ok(same(hypot(Infinity, NaN), Infinity));
+    ok(same(hypot(NaN, -Infinity), Infinity));
+    ok(same(hypot(NaN, 0), NaN));
+    ok(same(hypot(0, NaN), NaN));
+    ok(same(hypot(0, -0), 0));
+    ok(same(hypot(0, 0), 0));
+    ok(same(hypot(-0, -0), 0));
+    ok(same(hypot(-0, 0), 0));
+    ok(same(hypot(0, 1), 1));
+    ok(same(hypot(0, -1), 1));
+    ok(same(hypot(-0, 1), 1));
+    ok(same(hypot(-0, -1), 1));
+    ok(same(hypot(0), 0));
+    ok(same(hypot(1), 1));
+    ok(same(hypot(2), 2));
+    ok(same(hypot(0, 0, 1), 1));
+    ok(same(hypot(0, 1, 0), 1));
+    ok(same(hypot(1, 0, 0), 1));
+    ok(same(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)));
+    ok(same(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)));
   });
   test('Math.imul', function(){
-    ok(isFunction(Math.imul));
+    var imul;
+    imul = Math.imul;
+    ok(isFunction(imul));
+    ok(same(imul(0, 0), 0));
+    ok(imul(123, 456) === 56088);
+    ok(imul(-123, 456) === -56088);
+    ok(imul(123, -456) === -56088);
+    ok(imul(19088743, 4275878552) === 602016552);
   });
   test('Math.log1p', function(){
-    ok(isFunction(Math.log1p));
+    var log1p;
+    log1p = Math.log1p;
+    ok(isFunction(log1p));
+    ok(same(log1p(''), log1p(0)));
+    ok(same(log1p(NaN), NaN));
+    ok(same(log1p(-2), NaN));
+    ok(same(log1p(-1), -Infinity));
+    ok(same(log1p(0), 0));
+    ok(same(log1p(-0), -0));
+    ok(same(log1p(Infinity), Infinity));
   });
   test('Math.log10', function(){
-    ok(isFunction(Math.log10));
+    var log10;
+    log10 = Math.log10;
+    ok(isFunction(log10));
+    ok(same(log10(''), log10(0)));
+    ok(same(log10(NaN), NaN));
+    ok(same(log10(-1), NaN));
+    ok(same(log10(0), -Infinity));
+    ok(same(log10(-0), -Infinity));
+    ok(same(log10(1), 0));
+    ok(same(log10(Infinity), Infinity));
+    ok(epsilon(log10(0.1), -1));
+    ok(epsilon(log10(0.5), -0.3010299956639812));
+    ok(epsilon(log10(1.5), 0.17609125905568124));
   });
   test('Math.log2', function(){
-    ok(isFunction(Math.log2));
+    var log2;
+    log2 = Math.log2;
+    ok(isFunction(log2));
+    ok(same(log2(''), log2(0)));
+    ok(same(log2(NaN), NaN));
+    ok(same(log2(-1), NaN));
+    ok(same(log2(0), -Infinity));
+    ok(same(log2(-0), -Infinity));
+    ok(same(log2(1), 0));
+    ok(same(log2(Infinity), Infinity));
+    ok(same(log2(0.5), -1));
   });
   test('Math.sign', function(){
     var sign;
     sign = Math.sign;
     ok(isFunction(sign));
-    ok(Object.is(sign(NaN), NaN));
-    ok(Object.is(sign(-0), -0));
-    ok(Object.is(sign(0), 0));
-    ok(sign(Infinity) === 1);
-    ok(sign(-Infinity) === -1);
+    ok(same(sign(NaN), NaN));
+    ok(same(sign(-0), -0));
+    ok(same(sign(0), 0));
+    ok(same(sign(Infinity), 1));
+    ok(same(sign(-Infinity), -1));
     ok(sign(13510798882111488) === 1);
     ok(sign(-13510798882111488) === -1);
     ok(sign(42.5) === 1);
     ok(sign(-42.5) === -1);
   });
   test('Math.sinh', function(){
-    ok(isFunction(Math.sinh));
+    var sinh;
+    sinh = Math.sinh;
+    ok(isFunction(sinh));
+    ok(same(sinh(NaN), NaN));
+    ok(same(sinh(0), 0));
+    ok(same(sinh(-0), -0));
+    ok(same(sinh(Infinity), Infinity));
+    ok(same(sinh(-Infinity), -Infinity));
   });
   test('Math.tanh', function(){
-    ok(isFunction(Math.tanh));
+    var tanh;
+    tanh = Math.tanh;
+    ok(isFunction(tanh));
+    ok(same(tanh(NaN), NaN));
+    ok(same(tanh(0), 0));
+    ok(same(tanh(-0), -0));
+    ok(same(tanh(Infinity), 1));
+    ok(same(tanh(-Infinity), -1));
   });
   test('Math.trunc', function(){
     var trunc;
     trunc = Math.trunc;
     ok(isFunction(trunc));
-    ok(Object.is(trunc(NaN), NaN));
-    ok(Object.is(trunc(-0), -0));
-    ok(Object.is(trunc(0), 0));
-    ok(trunc(Infinity) === Infinity);
-    ok(trunc(-Infinity) === -Infinity);
-    ok(Object.is(trunc(-0.3), -0));
-    ok(Object.is(trunc(0.3), 0));
+    ok(same(trunc(NaN), NaN));
+    ok(same(trunc(-0), -0));
+    ok(same(trunc(0), 0));
+    ok(same(trunc(Infinity), Infinity));
+    ok(same(trunc(-Infinity), -Infinity));
+    ok(same(trunc(-0.3), -0));
+    ok(same(trunc(0.3), 0));
     ok(trunc([]) === 0);
     ok(trunc(-42.42) === -42);
     ok(trunc(13510798882111488) === 13510798882111488);
-  });
-  test('String::codePointAt', function(){
-    ok(isFunction(String.prototype.codePointAt));
   });
   test('String::contains', function(){
     ok(isFunction(String.prototype.contains));
@@ -1801,26 +1800,23 @@
 }).call(this);
 
 (function(){
-  var isFunction;
-  isFunction = Object.isFunction;
+  var isFunction, isNative, getOwnPropertyDescriptor;
+  isFunction = Function.isFunction, isNative = Function.isNative;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Map', function(){
-    ok(isFunction(global.Map));
-    ok('clear' in Map.prototype);
-    ok('delete' in Map.prototype);
-    ok('forEach' in Map.prototype);
-    ok('get' in Map.prototype);
-    ok('has' in Map.prototype);
-    ok('set' in Map.prototype);
-    ok(new Map instanceof Map);
-    ok(Map() instanceof Map);
-    ok(new Map([[1, 2], [2, 3], [1, 4]]).size === 2);
-    ok(new Map([[1, 2], [2, 3], [1, 4]]).size === 2);
-    ok(new Map([[NaN, 2], [NaN, 3], [NaN, 4]]).size === 1);
+    ok(isFunction(global.Map), 'Map is function');
+    ok('clear' in Map.prototype, 'Map::clear is function');
+    ok('delete' in Map.prototype, 'Map::delete is function');
+    ok('forEach' in Map.prototype, 'Map::forEach is function');
+    ok('get' in Map.prototype, 'Map::get is function');
+    ok('has' in Map.prototype, 'Map::has is function');
+    ok('set' in Map.prototype, 'Map::set is function');
+    ok(new Map instanceof Map, 'new Map instanceof Map');
   });
   test('Map::clear', function(){
     var M;
     ok(isFunction(Map.prototype.clear));
-    M = new Map([[1, 2], [2, 3], [1, 4]]);
+    M = new Map().set(1, 2).set(2, 3).set(1, 4);
     M.clear();
     ok(M.size === 0);
   });
@@ -1828,11 +1824,11 @@
     var a, M;
     ok(isFunction(Map.prototype['delete']));
     a = [];
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [a, {}]]);
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
     ok(M.size === 5);
-    M['delete'](NaN);
+    ok(M['delete'](NaN) === true);
     ok(M.size === 4);
-    M['delete'](4);
+    ok(M['delete'](4) === false);
     ok(M.size === 4);
     M['delete']([]);
     ok(M.size === 4);
@@ -1840,11 +1836,11 @@
     ok(M.size === 3);
   });
   test('Map::forEach', function(){
-    var r, T, count, M;
+    var r, T, count, M, a;
     ok(isFunction(Map.prototype.forEach));
     r = {};
     count = 0;
-    M = new Map([[NaN, 1], [2, 1], [3, 7], [2, 5], [1, 4], [{}, 9]]);
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
     M.forEach(function(value, key, ctx){
       T = ctx;
       count = count + 1;
@@ -1857,14 +1853,14 @@
       7: 3,
       5: 2,
       4: 1,
-      9: {}
+      9: a
     });
   });
   test('Map::get', function(){
     var o, M;
     ok(isFunction(Map.prototype.get));
     o = {};
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [o, o]]);
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.get(NaN) === 1);
     ok(M.get(4) === void 8);
     ok(M.get({}) === void 8);
@@ -1875,7 +1871,7 @@
     var o, M;
     ok(isFunction(Map.prototype.has));
     o = {};
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [o, o]]);
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.has(NaN));
     ok(M.has(o));
     ok(M.has(2));
@@ -1883,11 +1879,13 @@
     ok(!M.has({}));
   });
   test('Map::set', function(){
-    var o, M;
+    var o, M, chain;
     ok(isFunction(Map.prototype.set));
     o = {};
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [o, o]]);
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.size === 5);
+    chain = M.set(7, 2);
+    ok(chain === M);
     M.set(7, 2);
     ok(M.size === 6);
     ok(M.get(7) === 2);
@@ -1901,18 +1899,29 @@
     M.set(o, 27);
     ok(M.size === 7);
     ok(M.get(o) === 27);
+    ok(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size === 1);
+  });
+  test('Map::size', function(){
+    var size, sizeDesc;
+    size = new Map().set(2, 1).size;
+    ok(typeof size === 'number', 'size is number');
+    ok(size === 1, 'size is correct');
+    if (isNative(getOwnPropertyDescriptor)) {
+      sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
+      ok(sizeDesc && sizeDesc.get, 'size is getter');
+      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+    }
   });
   test('Set', function(){
     var S, r;
-    ok(isFunction(global.Set));
-    ok('add' in Set.prototype);
-    ok('clear' in Set.prototype);
-    ok('delete' in Set.prototype);
-    ok('forEach' in Set.prototype);
-    ok('has' in Set.prototype);
-    ok(new Set instanceof Set);
-    ok(Set() instanceof Set);
-    ok(new Set([1, 2, 3, 2, 1]).size === 3);
+    ok(isFunction(global.Set), 'Set is function');
+    ok('add' in Set.prototype, 'Set::add is function');
+    ok('clear' in Set.prototype, 'Set::clear is function');
+    ok('delete' in Set.prototype, 'Set::delete is function');
+    ok('forEach' in Set.prototype, 'Set::forEach is function');
+    ok('has' in Set.prototype, 'Set::has is function');
+    ok(new Set instanceof Set, 'new Set instanceof Set');
+    ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from array');
     S = new Set([1, 2, 3, 2, 1]);
     ok(S.size === 3);
     r = {};
@@ -1927,12 +1936,13 @@
     ok(new Set([NaN, NaN, NaN]).size === 1);
   });
   test('Set::add', function(){
-    var a, S;
+    var a, S, chain;
     ok(isFunction(Set.prototype.add));
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.size === 5);
-    S.add(NaN);
+    chain = S.add(NaN);
+    ok(chain === S);
     ok(S.size === 5);
     S.add(2);
     ok(S.size === 5);
@@ -1956,9 +1966,9 @@
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.size === 5);
-    S['delete'](NaN);
+    ok(S['delete'](NaN) === true);
     ok(S.size === 4);
-    S['delete'](4);
+    ok(S['delete'](4) === false);
     ok(S.size === 4);
     S['delete']([]);
     ok(S.size === 4);
@@ -1995,478 +2005,22 @@
     ok(!S.has(4));
     ok(!S.has([]));
   });
-}).call(this);
-
-(function(){
-  var isFunction, join$ = [].join;
-  isFunction = Object.isFunction;
-  test('Function.inherits', function(){
-    var inherits, A, B;
-    inherits = Function.inherits;
-    ok(isFunction(inherits));
-    A = function(){};
-    B = function(){};
-    B.prototype.prop = 42;
-    inherits(B, A);
-    ok(new B instanceof B);
-    ok(new B instanceof A);
-    ok(new B().prop === 42);
-    ok(new B().constructor === B);
-  });
-  test('Function.isNative', function(){
-    var isNative;
-    isNative = Function.isNative;
-    ok(isFunction(isNative));
-    ok(isNative(Object.prototype.hasOwnProperty));
-    ok(!isNative(void 8));
-    ok(!isNative(null));
-    ok(!isNative(1));
-    ok(!isNative(''));
-    ok(!isNative(false));
-    ok(!isNative({}));
-    ok(!isNative(function(){
-      return arguments;
-    }()));
-    ok(!isNative([1]));
-    ok(!isNative(/./));
-    ok(!isNative(function(){}));
-  });
-  test('Function::unbind', function(){
-    ok(isFunction(Function.prototype.unbind));
-    ok({}.toString.unbind()('qwe') === '[object String]');
-    ok([].reduce.unbind()('qwe', function(a, b){
-      return b + a;
-    }, '') === 'ewq');
-  });
-  test('Function::methodize', function(){
-    var num;
-    ok(isFunction(Function.prototype.methodize));
-    ok({
-      a: 42,
-      fn: function(it){
-        return it.a;
-      }.methodize()
-    }.fn() === 42);
-    num = new Number(42);
-    num.fn = function(a, b){
-      return a + b;
-    }.methodize();
-    ok(num.fn(21) === 63);
-  });
-  test('Function::part', function(){
-    var obj;
-    ok(isFunction(Function.prototype.part));
-    ok(Object.isString.part('qwe')());
-    obj = {
-      a: 42
-    };
-    obj.fn = function(it){
-      return this.a + it;
-    }.part(21);
-    ok(obj.fn() === 63);
-  });
-  test('Function::partial', function(){
-    var fn, fn1;
-    ok(isFunction(Function.prototype.partial));
-    fn = function(q, w, e, a, s, d){
-      return q + w + e + a + s + d;
-    };
-    ok('qweasd' === fn.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'])('q', 'w', 'a', 'x'));
-    fn1 = function(q, w, e, a, s, d){
-      return this + q + w + e + a + s + d;
-    };
-    ok('zxcqweasd' === fn1.partial([void 8, void 8, 'e', void 8, 's', 'd', 'z'], 'zxc')('q', 'w', 'a', 'x'));
-  });
-  test('Function::only', function(){
-    var fn;
-    ok(isFunction(Function.prototype.only));
-    fn = function(){
-      return join$.call(arguments, '');
-    };
-    ok(fn.only(2)('a', 'b', 'c') === 'ab');
-    ok(fn.only(2)() === '');
-    fn = function(){
-      return this + join$.call(arguments, '');
-    };
-    ok(fn.only(2, 'x')('a', 'b', 'c') === 'xab');
-  });
-  test('Function::ctx', function(){
-    var fn;
-    ok(isFunction(Function.prototype.ctx));
-    fn = function(){
-      return this + join$.call(arguments, '');
-    };
-    ok(fn.ctx('x')('a', 'b', 'c') === 'xabc');
-  });
-  test('Function::invoke', function(){
-    var C;
-    ok(isFunction(Function.prototype.invoke));
-    C = (function(){
-      C.displayName = 'C';
-      var prototype = C.prototype, constructor = C;
-      function C(a, b){
-        this.a = a;
-        this.b = b;
-      }
-      return C;
-    }());
-    ok(C.invoke() instanceof C);
-    deepEqual(C.invoke([1, 2]), new C(1, 2));
-  });
-  test('Function::once', function(){
-    var F, ref$;
-    ok(isFunction(Function.prototype.once));
-    F = function(){
-      return Math.random();
-    }.once();
-    ok(0 < (ref$ = F()) && ref$ < 1);
-    ok(F() === F());
-  });
-  test('Function::error', function(){
-    var f;
-    ok(isFunction(Function.prototype.error));
-    f = function(){
-      return 41;
-    }.error(function(){
-      return 42;
-    });
-    ok(f() === 41);
-    f = function(){
-      throw Error('unimplemented');
-      return 41;
-    }.error(function(){
-      return 42;
-    });
-    ok(f() === 42);
-    f = function(){
-      throw 42;
-    }.error(function(it){
-      return it;
-    });
-    ok(f() === 42);
-    f = function(){
-      throw Error('unimplemented');
-    }.error(function(arg$, args){
-      return args;
-    });
-    deepEqual(f(1, 2, 3), [1, 2, 3]);
-  });
-  test('Function::before', function(){
-    var f;
-    ok(isFunction(Function.prototype.before));
-    f = function(it){
-      return it + 'c';
-    }.before(function(it){
-      return it[0] += 'b';
-    });
-    ok(f('a') === 'abc');
-  });
-  test('Function::after', function(){
-    var f;
-    ok(isFunction(Function.prototype.after));
-    f = function(it){
-      return it + 'b';
-    }.after(function(result, args){
-      return result + args[0];
-    });
-    ok(f('a') === 'aba');
-  });
-  asyncTest('Function::timeout', 5, function(){
-    var val;
-    ok(isFunction(Function.prototype.timeout));
-    ok(isFunction(function(it){
-      ok(val === 1);
-      return ok(it === 42);
-    }.timeout(1, 42)));
-    val = 1;
-    (function(){
-      return ok(false);
-    }).timeout(1)();
-    setTimeout(function(){
-      ok(true);
-      return start();
-    }, 20);
-  });
-  asyncTest('Function::interval', 8, function(){
-    var i, _clear;
-    ok(isFunction(Function.prototype.interval));
-    _clear = function(it){
-      ok(i < 4);
-      ok(it === 42);
-      if (i === 3) {
-        _clear();
-        start();
-      }
-      return i = i + 1;
-    }.interval(1, 42);
-    ok(isFunction(_clear));
-    i = 1;
-  });
-  asyncTest('Function::immediate', 5, function(){
-    var val;
-    ok(isFunction(Function.prototype.immediate));
-    ok(isFunction(function(it){
-      ok(val === 1);
-      return ok(it === 42);
-    }.immediate(42)));
-    val = 1;
-    (function(){
-      return ok(false);
-    }).immediate()();
-    setTimeout(function(){
-      ok(true);
-      return start();
-    }, 20);
-  });
-  test('Function::inherits', function(){
-    var A, B;
-    ok(isFunction(Function.prototype.inherits));
-    A = function(){};
-    B = function(){};
-    B.prototype.prop = 42;
-    B.inherits(A);
-    ok(new B instanceof B);
-    ok(new B instanceof A);
-    ok(new B().prop === 42);
-    ok(new B().constructor === B);
-  });
-}).call(this);
-
-(function(){
-  test('global', function(){
-    ok(typeof global != 'undefined' && global !== null);
-    ok(global.global === global);
-    global.__tmp__ = {};
-    ok(__tmp__ === global.__tmp__);
+  test('Set::size', function(){
+    var size, sizeDesc;
+    size = new Set([1]).size;
+    ok(typeof size === 'number', 'size is number');
+    ok(size === 1, 'size is correct');
+    if (isNative(getOwnPropertyDescriptor)) {
+      sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
+      ok(sizeDesc && sizeDesc.get, 'size is getter');
+      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+    }
   });
 }).call(this);
 
 (function(){
   var isFunction;
-  isFunction = Object.isFunction;
-  test('Number.toInteger', function(){
-    var toInteger;
-    toInteger = Number.toInteger;
-    ok(isFunction(toInteger));
-    ok(toInteger(null) === 0);
-    ok(toInteger({}) === 0);
-    ok(toInteger(NaN) === 0);
-    ok(toInteger(-1) === -1);
-    ok(Object.is(-0, toInteger(-0)));
-    ok(toInteger(-1.9) === -1);
-    ok(toInteger(-Infinity) === -Infinity);
-    ok(toInteger(-0x20000000000001) === -0x20000000000001);
-  });
-  test('Number::div', function(){
-    ok(isFunction(Number.prototype.div));
-    ok((-7).div(3) === -2);
-    ok(7 .div(3) === 2);
-  });
-  test('Number::times', function(){
-    ok(isFunction(Number.prototype.times));
-    deepEqual(5 .times(function(it){
-      return it;
-    }), [0, 1, 2, 3, 4]);
-    deepEqual(5 .times(function(it){
-      return it + arguments[1];
-    }), [0, 2, 4, 6, 8]);
-    deepEqual(5 .times(function(it){
-      return it + arguments[1] + arguments[2];
-    }), [5, 7, 9, 11, 13]);
-    deepEqual(5 .times(function(it){
-      return (this | 0) + it + arguments[1] + arguments[2];
-    }), [5, 7, 9, 11, 13]);
-    deepEqual(5 .times(function(it){
-      return (this | 0) + it + arguments[1] + arguments[2];
-    }, 1), [6, 8, 10, 12, 14]);
-  });
-  test('Number::random', function(){
-    ok(isFunction(Number.prototype.random));
-    ok(100 .times(function(){
-      return 10 .rand();
-    }).every(function(it){
-      return 0 <= it && it <= 10;
-    }));
-    ok(100 .times(function(){
-      return 10 .rand(7);
-    }).every(function(it){
-      return 7 <= it && it <= 10;
-    }));
-    ok(100 .times(function(){
-      return 7 .rand(10);
-    }).every(function(it){
-      return 7 <= it && it <= 10;
-    }));
-  });
-  test('Number::rand', function(){
-    ok(isFunction(Number.prototype.rand));
-    ok(100 .times(function(){
-      return 10 .rand();
-    }).every((function(it){
-      return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return 10 .rand(7);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return 7 .rand(10);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-  });
-  test('Number::isOdd', function(){
-    ok(isFunction(Number.prototype.isOdd));
-    ok(1 .isOdd());
-    ok(111 .isOdd());
-    ok((-1).isOdd());
-    ok(!NaN.isOdd());
-    ok(!Infinity.isOdd());
-    ok(!(-1.5).isOdd());
-    ok(!1.5.isOdd());
-    ok(!2 .isOdd());
-    ok(!222 .isOdd());
-  });
-  test('Number::isEven', function(){
-    ok(isFunction(Number.prototype.isEven));
-    ok(2 .isEven());
-    ok(222 .isEven());
-    ok((-2).isEven());
-    ok(!NaN.isEven());
-    ok(!Infinity.isEven());
-    ok(!(-1.5).isEven());
-    ok(!1.5.isEven());
-    ok(!1 .isEven());
-    ok(!111 .isEven());
-  });
-  test('Number::format', function(){
-    ok(isFunction(Number.prototype.format));
-    ok(NaN.format() === '0');
-    ok(123 .format() === '123');
-    ok((-123).format() === '-123');
-    ok(123.45.format() === '123');
-    ok((-123.45).format() === '-123');
-    ok(NaN.format(3) === '0.000');
-    ok(123 .format(3) === '123.000');
-    ok((-123).format(3) === '-123.000');
-    ok(123.45678.format(3) === '123.457');
-    ok((-123.45678).format(3) === '-123.457');
-    ok(NaN.format(7, ', ', '. ') === '0. 000, 000, 0');
-    ok(1234 .format(7, ', ', '. ') === '1, 234. 000, 000, 0');
-    ok((-1234).format(7, ', ', '. ') === '-1, 234. 000, 000, 0');
-    ok(1234.45678.format(7, ', ', '. ') === '1, 234. 456, 780, 0');
-    ok((-1234.45678).format(7, ', ', '. ') === '-1, 234. 456, 780, 0');
-    ok((-1234.45678).format(null, ', ', '. ') === '-1, 234');
-    ok(Math.pow(0.1, 10).format(6, '.', ',') === '0,000.000');
-  });
-  test('Number:: <<< Math', function(){
-    ok(isFunction(Number.prototype.round));
-    ok(isFunction(Number.prototype.floor));
-    ok(isFunction(Number.prototype.ceil));
-    ok(isFunction(Number.prototype.abs));
-    ok(isFunction(Number.prototype.sin));
-    ok(isFunction(Number.prototype.asin));
-    ok(isFunction(Number.prototype.cos));
-    ok(isFunction(Number.prototype.acos));
-    ok(isFunction(Number.prototype.tan));
-    ok(isFunction(Number.prototype.atan));
-    ok(isFunction(Number.prototype.exp));
-    ok(isFunction(Number.prototype.pow));
-    ok(isFunction(Number.prototype.sqrt));
-    ok(isFunction(Number.prototype.max));
-    ok(isFunction(Number.prototype.min));
-    ok(isFunction(Number.prototype.pow));
-    ok(isFunction(Number.prototype.atan2));
-    ok(isFunction(Number.prototype.acosh));
-    ok(isFunction(Number.prototype.asinh));
-    ok(isFunction(Number.prototype.atanh));
-    ok(isFunction(Number.prototype.cbrt));
-    ok(isFunction(Number.prototype.cosh));
-    ok(isFunction(Number.prototype.expm1));
-    ok(isFunction(Number.prototype.hypot));
-    ok(isFunction(Number.prototype.imul));
-    ok(isFunction(Number.prototype.log1p));
-    ok(isFunction(Number.prototype.log10));
-    ok(isFunction(Number.prototype.log2));
-    ok(isFunction(Number.prototype.sign));
-    ok(isFunction(Number.prototype.sinh));
-    ok(isFunction(Number.prototype.tanh));
-    ok(isFunction(Number.prototype.trunc));
-  });
-}).call(this);
-
-(function(){
-  var isFunction;
-  isFunction = Object.isFunction;
-  test('Object.has', function(){
-    var has;
-    has = Object.has;
-    ok(isFunction(has));
-    ok(has({
-      q: 1
-    }, 'q'));
-    ok(!has({
-      q: 1
-    }, 'w'));
-    ok(has([1], 0));
-    ok(!has([], 0));
-    ok(!has(clone$({
-      q: 1
-    }), 'q'));
-    ok(!has({}, 'toString'));
-  });
-  test('Object.isEnumerable', function(){
-    var isEnumerable;
-    isEnumerable = Object.isEnumerable;
-    ok(isFunction(isEnumerable));
-    ok(isEnumerable({
-      q: 1
-    }, 'q'));
-    ok(!isEnumerable({}, 'toString'));
-    ok(!isEnumerable(clone$({
-      q: 1
-    }), 'q'));
-  });
-  test('Object.isPrototype', function(){
-    var isPrototype, proto;
-    isPrototype = Object.isPrototype;
-    ok(isFunction(isPrototype));
-    ok(isPrototype(Object.prototype, {}));
-    ok(isPrototype(Object.prototype, []));
-    ok(!isPrototype(Array.prototype, {}));
-    ok(isPrototype(Array.prototype, []));
-    ok(!isPrototype(Function.prototype, []));
-    ok(isPrototype(proto = {}, clone$(proto)));
-    ok(!isPrototype({}, clone$(function(){})));
-  });
-  test('Object.classof', function(){
-    var classof;
-    classof = Object.classof;
-    ok(isFunction(classof));
-    ok(classof(void 8) === 'Undefined');
-    ok(classof(null) === 'Null');
-    ok(classof(false) === 'Boolean');
-    ok(classof(new Boolean(false)) === 'Boolean');
-    ok(classof('') === 'String');
-    ok(classof(new String('')) === 'String');
-    ok(classof(7) === 'Number');
-    ok(classof(new Number(7)) === 'Number');
-    ok(classof([]) === 'Array');
-    ok(classof(function(){}) === 'Function');
-    ok(classof(/./) === 'RegExp');
-    ok(classof(TypeError()) === 'Error');
-  });
-  test('Object.bind', function(){
-    var bind, array, push;
-    bind = Object.bind;
-    ok(isFunction(bind));
-    array = [1, 2, 3];
-    push = bind(array, 'push', 4);
-    ok(isFunction(push));
-    ok(push(5) === 5);
-    return deepEqual(array, [1, 2, 3, 4, 5]);
-  });
+  isFunction = Function.isFunction;
   test('Object.getPropertyDescriptor', function(){
     var getPropertyDescriptor, create;
     getPropertyDescriptor = Object.getPropertyDescriptor, create = Object.create;
@@ -2529,6 +2083,433 @@
     ok(in$('q', names));
     ok(in$('toString', names));
     ok(!in$('w', names));
+  });
+  function in$(x, xs){
+    var i = -1, l = xs.length >>> 0;
+    while (++i < l) if (x === xs[i]) return true;
+    return false;
+  }
+}).call(this);
+
+(function(){
+  var isObject, isFunction, toString$ = {}.toString, join$ = [].join;
+  isObject = Object.isObject;
+  isFunction = Function.isFunction;
+  test('Function.inherits', function(){
+    var inherits, A, B;
+    inherits = Function.inherits;
+    ok(isFunction(inherits));
+    A = function(){};
+    B = function(){};
+    B.prototype.prop = 42;
+    inherits(B, A);
+    ok(new B instanceof B);
+    ok(new B instanceof A);
+    ok(new B().prop === 42);
+    ok(new B().constructor === B);
+  });
+  test('Function.isFunction', function(){
+    var isFunction;
+    isFunction = Function.isFunction;
+    ok(typeof isFunction === 'function');
+    ok(isFunction(function(){}));
+    ok(!isFunction(void 8));
+    ok(!isFunction(null));
+    ok(!isFunction(1));
+    ok(!isFunction(''));
+    ok(!isFunction(false));
+    ok(!isFunction({}));
+    ok(!isFunction(function(){
+      return arguments;
+    }()));
+    ok(!isFunction([1]));
+    ok(!isFunction(/./));
+  });
+  test('Function.isNative', function(){
+    var isNative;
+    isNative = Function.isNative;
+    ok(isFunction(isNative));
+    ok(isNative(Object.prototype.hasOwnProperty));
+    ok(!isNative(void 8));
+    ok(!isNative(null));
+    ok(!isNative(1));
+    ok(!isNative(''));
+    ok(!isNative(false));
+    ok(!isNative({}));
+    ok(!isNative(function(){
+      return arguments;
+    }()));
+    ok(!isNative([1]));
+    ok(!isNative(/./));
+    ok(!isNative(function(){}));
+  });
+  test('Function::methodize', function(){
+    var num;
+    ok(isFunction(Function.prototype.methodize));
+    ok({
+      a: 42,
+      fn: function(it){
+        return it.a;
+      }.methodize()
+    }.fn() === 42);
+    num = new Number(42);
+    num.fn = function(a, b){
+      return a + b;
+    }.methodize();
+    ok(num.fn(21) === 63);
+  });
+  test('Function::part', function(){
+    var obj, $, fn, part;
+    ok(isFunction(Function.prototype.part));
+    ok(function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }.part('qwe')());
+    obj = {
+      a: 42
+    };
+    obj.fn = function(it){
+      return this.a + it;
+    }.part(21);
+    ok(obj.fn() === 63);
+    $ = Function._;
+    fn = function(){
+      return Array.map(arguments, String).join(' ');
+    };
+    part = fn.part($, 'Саша', $, 'шоссе', $, 'сосала');
+    ok(isFunction(part), '.part with placeholders return function');
+    ok(part('Шла', 'по') === 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders');
+    ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
+    ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
+  });
+  test('Function::only', function(){
+    var fn;
+    ok(isFunction(Function.prototype.only));
+    fn = function(){
+      return join$.call(arguments, '');
+    };
+    ok(fn.only(2)('a', 'b', 'c') === 'ab');
+    ok(fn.only(2)() === '');
+    fn = function(){
+      return this + join$.call(arguments, '');
+    };
+    ok(fn.only(2, 'x')('a', 'b', 'c') === 'xab');
+  });
+  test('Function::invoke', function(){
+    var C;
+    ok(isFunction(Function.prototype.invoke));
+    C = (function(){
+      C.displayName = 'C';
+      var prototype = C.prototype, constructor = C;
+      function C(a, b){
+        this.a = a;
+        this.b = b;
+      }
+      return C;
+    }());
+    ok(C.invoke() instanceof C);
+    deepEqual(C.invoke([1, 2]), new C(1, 2));
+  });
+  asyncTest('Function::timeout', 7, function(){
+    var timeout, val;
+    ok(isFunction(Function.prototype.timeout));
+    timeout = function(it){
+      ok(val === 1);
+      return ok(it === 42);
+    }.timeout(1, 42).run();
+    ok(isObject(timeout));
+    ok(isFunction(timeout.run));
+    ok(isFunction(timeout.stop));
+    val = 1;
+    (function(){
+      return ok(false);
+    }).timeout(1).run().stop();
+    setTimeout(function(){
+      ok(true);
+      return start();
+    }, 20);
+  });
+  asyncTest('Function::interval', 10, function(){
+    var i, interval;
+    ok(isFunction(Function.prototype.interval));
+    interval = function(it){
+      ok(i < 4);
+      ok(it === 42);
+      if (i === 3) {
+        interval.stop();
+        start();
+      }
+      return i = i + 1;
+    }.interval(1, 42).run();
+    ok(isObject(interval));
+    ok(isFunction(interval.run));
+    ok(isFunction(interval.stop));
+    i = 1;
+  });
+  asyncTest('Function::immediate', 7, function(){
+    var immediate, val;
+    ok(isFunction(Function.prototype.immediate));
+    immediate = function(it){
+      ok(val === 1);
+      return ok(it === 42);
+    }.immediate(42).run();
+    ok(isObject(immediate));
+    ok(isFunction(immediate.run));
+    ok(isFunction(immediate.stop));
+    val = 1;
+    (function(){
+      return ok(false);
+    }).immediate().run().stop();
+    setTimeout(function(){
+      ok(true);
+      return start();
+    }, 20);
+  });
+  test('Function::inherits', function(){
+    var A, B;
+    ok(isFunction(Function.prototype.inherits));
+    A = function(){};
+    B = function(){};
+    B.prototype.prop = 42;
+    B.inherits(A);
+    ok(new B instanceof B);
+    ok(new B instanceof A);
+    ok(new B().prop === 42);
+    ok(new B().constructor === B);
+  });
+}).call(this);
+
+(function(){
+  test('global', function(){
+    ok(typeof global != 'undefined' && global !== null);
+    ok(global.global === global);
+    global.__tmp__ = {};
+    ok(__tmp__ === global.__tmp__);
+  });
+}).call(this);
+
+(function(){
+  var isFunction;
+  isFunction = Function.isFunction;
+  test('Number.toInteger', function(){
+    var toInteger;
+    toInteger = Number.toInteger;
+    ok(isFunction(toInteger));
+    ok(toInteger(null) === 0);
+    ok(toInteger({}) === 0);
+    ok(toInteger(NaN) === 0);
+    ok(toInteger(-1) === -1);
+    ok(Object.is(-0, toInteger(-0)));
+    ok(toInteger(-1.9) === -1);
+    ok(toInteger(-Infinity) === -Infinity);
+    ok(toInteger(-0x20000000000001) === -0x20000000000001);
+  });
+  test('Number::times', function(){
+    ok(isFunction(Number.prototype.times));
+    deepEqual(5 .times(function(it){
+      return it;
+    }), [0, 1, 2, 3, 4]);
+    deepEqual(5 .times(function(it){
+      return it + arguments[1];
+    }), [0, 2, 4, 6, 8]);
+    deepEqual(5 .times(function(it){
+      return it + arguments[1] + arguments[2];
+    }), [5, 7, 9, 11, 13]);
+    deepEqual(5 .times(function(it){
+      return (this | 0) + it + arguments[1] + arguments[2];
+    }), [5, 7, 9, 11, 13]);
+    deepEqual(5 .times(function(it){
+      return (this | 0) + it + arguments[1] + arguments[2];
+    }, 1), [6, 8, 10, 12, 14]);
+  });
+  test('Number::random', function(){
+    ok(isFunction(Number.prototype.random));
+    ok(100 .times(function(){
+      return 10 .rand();
+    }).every(function(it){
+      return 0 <= it && it <= 10;
+    }));
+    ok(100 .times(function(){
+      return 10 .rand(7);
+    }).every(function(it){
+      return 7 <= it && it <= 10;
+    }));
+    ok(100 .times(function(){
+      return 7 .rand(10);
+    }).every(function(it){
+      return 7 <= it && it <= 10;
+    }));
+  });
+  test('Number::rand', function(){
+    ok(isFunction(Number.prototype.rand));
+    ok(100 .times(function(){
+      return 10 .rand();
+    }).every((function(it){
+      return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
+    })));
+    ok(100 .times(function(){
+      return 10 .rand(7);
+    }).every((function(it){
+      return it === 7 || it === 8 || it === 9 || it === 10;
+    })));
+    ok(100 .times(function(){
+      return 7 .rand(10);
+    }).every((function(it){
+      return it === 7 || it === 8 || it === 9 || it === 10;
+    })));
+  });
+  /*
+  test 'Number::isOdd' !->
+    ok isFunction Number::isOdd
+    ok 1.isOdd!
+    ok 111.isOdd!
+    ok (-1)isOdd!
+    ok not NaN.isOdd!
+    ok not Infinity.isOdd!
+    ok not (-1.5)isOdd!
+    ok not (1.5)isOdd!
+    ok not 2.isOdd!
+    ok not 222.isOdd!
+  test 'Number::isEven' !->
+    ok isFunction Number::isEven
+    ok 2.isEven!
+    ok 222.isEven!
+    ok (-2)isEven!
+    ok not NaN.isEven!
+    ok not Infinity.isEven!
+    ok not (-1.5)isEven!
+    ok not (1.5)isEven!
+    ok not 1.isEven!
+    ok not 111.isEven!
+  test 'Number::format' !->
+    ok isFunction Number::format
+    ok NaN.format! is \NaN
+    ok (-Infinity)format! is \-Infinity
+    ok 123.format! is \123
+    ok (-123)format! is \-123
+    ok 123.45.format! is \123
+    ok (-123.45)format! is \-123
+    ok NaN.format(3) is \NaN
+    ok (-Infinity)format(3) is \-Infinity
+    ok NaN.format(7 ', ' '. ') is \NaN
+    ok (-Infinity)format(7 ', ' '. ') is \-Infinity
+    ok 123.format(3) is '123.000'
+    ok (-123)format(3) is '-123.000'
+    ok 123.45678.format(3) is '123.457'
+    ok (-123.45678)format(3) is '-123.457'
+    ok 1234.format(7 ', ' '. ') is '1, 234. 000, 000, 0'
+    ok (-1234)format(7 ', ' '. ') is '-1, 234. 000, 000, 0'
+    ok 1234.45678.format(7 ', ' '. ') is '1, 234. 456, 780, 0'
+    ok (-1234.45678)format(7 ', ' '. ') is '-1, 234. 456, 780, 0'
+    ok (-1234.45678)format(null ', ' '. ') is '-1, 234'
+    ok (0.1 ^ 10)format(6 \. \,) is '0,000.000'
+  */
+  test('Number:: <<< Math', function(){
+    ok(isFunction(Number.prototype.round));
+    ok(isFunction(Number.prototype.floor));
+    ok(isFunction(Number.prototype.ceil));
+    ok(isFunction(Number.prototype.abs));
+    ok(isFunction(Number.prototype.sin));
+    ok(isFunction(Number.prototype.asin));
+    ok(isFunction(Number.prototype.cos));
+    ok(isFunction(Number.prototype.acos));
+    ok(isFunction(Number.prototype.tan));
+    ok(isFunction(Number.prototype.atan));
+    ok(isFunction(Number.prototype.exp));
+    ok(isFunction(Number.prototype.pow));
+    ok(isFunction(Number.prototype.sqrt));
+    ok(isFunction(Number.prototype.max));
+    ok(isFunction(Number.prototype.min));
+    ok(isFunction(Number.prototype.pow));
+    ok(isFunction(Number.prototype.atan2));
+    ok(isFunction(Number.prototype.acosh));
+    ok(isFunction(Number.prototype.asinh));
+    ok(isFunction(Number.prototype.atanh));
+    ok(isFunction(Number.prototype.cbrt));
+    ok(isFunction(Number.prototype.cosh));
+    ok(isFunction(Number.prototype.expm1));
+    ok(isFunction(Number.prototype.hypot));
+    ok(isFunction(Number.prototype.imul));
+    ok(isFunction(Number.prototype.log1p));
+    ok(isFunction(Number.prototype.log10));
+    ok(isFunction(Number.prototype.log2));
+    ok(isFunction(Number.prototype.sign));
+    ok(isFunction(Number.prototype.sinh));
+    ok(isFunction(Number.prototype.tanh));
+    ok(isFunction(Number.prototype.trunc));
+  });
+}).call(this);
+
+(function(){
+  var isFunction, toString$ = {}.toString;
+  isFunction = Function.isFunction;
+  test('Object.has', function(){
+    var has;
+    has = Object.has;
+    ok(isFunction(has));
+    ok(has({
+      q: 1
+    }, 'q'));
+    ok(!has({
+      q: 1
+    }, 'w'));
+    ok(has([1], 0));
+    ok(!has([], 0));
+    ok(!has(clone$({
+      q: 1
+    }), 'q'));
+    ok(!has({}, 'toString'));
+  });
+  test('Object.isEnumerable', function(){
+    var isEnumerable;
+    isEnumerable = Object.isEnumerable;
+    ok(isFunction(isEnumerable));
+    ok(isEnumerable({
+      q: 1
+    }, 'q'));
+    ok(!isEnumerable({}, 'toString'));
+    ok(!isEnumerable(clone$({
+      q: 1
+    }), 'q'));
+  });
+  test('Object.isPrototype', function(){
+    var isPrototype, proto;
+    isPrototype = Object.isPrototype;
+    ok(isFunction(isPrototype));
+    ok(isPrototype(Object.prototype, {}));
+    ok(isPrototype(Object.prototype, []));
+    ok(!isPrototype(Array.prototype, {}));
+    ok(isPrototype(Array.prototype, []));
+    ok(!isPrototype(Function.prototype, []));
+    ok(isPrototype(proto = {}, clone$(proto)));
+    ok(!isPrototype({}, clone$(function(){})));
+  });
+  test('Object.classof', function(){
+    var classof;
+    classof = Object.classof;
+    ok(isFunction(classof));
+    ok(classof({}) === 'Object');
+    ok(classof(void 8) === 'Undefined');
+    ok(classof(null) === 'Null');
+    ok(classof(false) === 'Boolean');
+    ok(classof(new Boolean(false)) === 'Boolean');
+    ok(classof('') === 'String');
+    ok(classof(new String('')) === 'String');
+    ok(classof(7) === 'Number');
+    ok(classof(new Number(7)) === 'Number');
+    ok(classof([]) === 'Array');
+    ok(classof(function(){}) === 'Function');
+    ok(classof(/./) === 'RegExp');
+    ok(classof(TypeError()) === 'Error');
+  });
+  test('Object.tie', function(){
+    var tie, array, push;
+    tie = Object.tie;
+    ok(isFunction(tie));
+    array = [1, 2, 3];
+    push = tie(array, 'push');
+    ok(isFunction(push));
+    ok(push(4) === 4);
+    return deepEqual(array, [1, 2, 3, 4]);
   });
   test('Object.make', function(){
     var make, getPrototypeOf, object, foo;
@@ -2820,8 +2801,8 @@
     });
   });
   test('Object.every', function(){
-    var every, isNumber, obj, ctx;
-    every = Object.every, isNumber = Object.isNumber;
+    var every, obj, ctx;
+    every = Object.every;
     ok(isFunction(every));
     every(obj = {
       q: 1
@@ -2835,12 +2816,16 @@
       q: 1,
       w: 2,
       e: 3
-    }, isNumber));
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
     ok(!every({
       q: 1,
       w: '2',
       e: 3
-    }, isNumber));
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
   });
   test('Object.filter', function(){
     var filter, obj, ctx;
@@ -2859,7 +2844,7 @@
       w: 2,
       e: 3
     }, function(it){
-      return it.isOdd();
+      return it % 2;
     }), {
       q: 1,
       e: 3
@@ -2882,7 +2867,7 @@
       w: 2,
       e: 3
     }, function(it){
-      return it.isEven();
+      return !(it % 2);
     }) === 2);
   });
   test('Object.findIndex', function(){
@@ -3052,18 +3037,22 @@
       q: 1,
       w: 2,
       e: 3
-    }, isString));
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
     ok(some({
       q: 1,
       w: '2',
       e: 3
-    }, isString));
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
   });
-  test('Object.props', function(){
-    var props;
-    props = Object.props;
-    ok(isFunction(props));
-    deepEqual(props({
+  test('Object.pluck', function(){
+    var pluck;
+    pluck = Object.pluck;
+    ok(isFunction(pluck));
+    deepEqual(pluck({
       q: 1,
       w: 22,
       e: 333
@@ -3072,7 +3061,7 @@
       w: void 8,
       e: void 8
     });
-    deepEqual(props({
+    deepEqual(pluck({
       q: 1,
       w: 22,
       e: void 8
@@ -3081,7 +3070,7 @@
       w: void 8,
       e: void 8
     });
-    deepEqual(props({
+    deepEqual(pluck({
       q: '1',
       w: '22',
       e: '333'
@@ -3105,9 +3094,9 @@
     });
     reduceTo({
       q: 1
-    }, function(){
+    }, obj = {}, function(){
       return ok(this === obj);
-    }, obj = {});
+    });
     deepEqual({
       1: 1,
       2: 2,
@@ -3120,24 +3109,41 @@
       return this[it] = it;
     }));
   });
-  test('Object.deepEqual', function(){
-    var deepEqual, a, b;
-    deepEqual = Object.deepEqual;
-    ok(isFunction(deepEqual));
-    ok(deepEqual(1, 1));
-    ok(!deepEqual(1, 2));
-    ok(!deepEqual(0, -0));
-    ok(deepEqual({}, {}));
-    ok(deepEqual({
+  test('Object.isObject', function(){
+    var isObject;
+    isObject = Object.isObject;
+    ok(isFunction(isObject));
+    ok(!isObject(void 8));
+    ok(!isObject(null));
+    ok(!isObject(1));
+    ok(!isObject(false));
+    ok(!isObject(''));
+    ok(isObject(new Number(1)));
+    ok(isObject(new Boolean(false)));
+    ok(isObject(new String(1)));
+    ok(isObject({}));
+    ok(isObject([]));
+    ok(isObject(/./));
+    ok(isObject(new function(){}));
+  });
+  test('Object.isEqual', function(){
+    var isEqual, a, b;
+    isEqual = Object.isEqual;
+    ok(isFunction(isEqual));
+    ok(isEqual(1, 1));
+    ok(!isEqual(1, 2));
+    ok(!isEqual(0, -0));
+    ok(isEqual({}, {}));
+    ok(isEqual({
       q: 1
     }, {
       q: 1
     }));
-    ok(!deepEqual({
+    ok(!isEqual({
       q: 1
     }, {}));
-    ok(!deepEqual({}, []));
-    ok(deepEqual({
+    ok(!isEqual({}, []));
+    ok(isEqual({
       q: 1,
       w: {
         q: 1
@@ -3148,7 +3154,7 @@
         q: 1
       }
     }));
-    ok(!deepEqual({
+    ok(!isEqual({
       q: 1,
       w: {
         q: 1
@@ -3168,207 +3174,57 @@
       y: 1
     };
     b.x = b;
-    ok(deepEqual(a, b));
-  });
-  test('Object.isObject', function(){
-    var isObject;
-    isObject = Object.isObject;
-    ok(isFunction(isObject));
-    ok(!isObject(void 8));
-    ok(!isObject(null));
-    ok(!isObject(1));
-    ok(!isObject(false));
-    ok(!isObject(''));
-    ok(isObject(new Number(1)));
-    ok(isObject(new Boolean(false)));
-    ok(isObject(new String(1)));
-    ok(isObject({}));
-    ok(isObject([]));
-    ok(isObject(/./));
-    ok(isObject(new function(){}));
-  });
-  test('Object.isUndefined', function(){
-    var isUndefined;
-    isUndefined = Object.isUndefined;
-    ok(isFunction(isUndefined));
-    ok(isUndefined(void 8));
-    ok(!isUndefined(null));
-    ok(!isUndefined(1));
-    ok(!isUndefined(''));
-    ok(!isUndefined(false));
-    ok(!isUndefined({}));
-  });
-  test('Object.isNull', function(){
-    var isNull;
-    isNull = Object.isNull;
-    ok(isFunction(isNull));
-    ok(isNull(null));
-    ok(!isNull(void 8));
-    ok(!isNull(1));
-    ok(!isNull(''));
-    ok(!isNull(false));
-    ok(!isNull({}));
-  });
-  test('Object.isNumber', function(){
-    var isNumber;
-    isNumber = Object.isNumber;
-    ok(isFunction(isNumber));
-    ok(isNumber(1));
-    ok(isNumber(new Number(1)));
-    ok(!isNumber(void 8));
-    ok(!isNumber(null));
-    ok(!isNumber(''));
-    ok(!isNumber(false));
-    ok(!isNumber({}));
-  });
-  test('Object.isString', function(){
-    var isString;
-    isString = Object.isString;
-    ok(isFunction(isString));
-    ok(isString(''));
-    ok(isString(new String('')));
-    ok(!isString(void 8));
-    ok(!isString(null));
-    ok(!isString(1));
-    ok(!isString(false));
-    ok(!isString({}));
-  });
-  test('Object.isBoolean', function(){
-    var isBoolean;
-    isBoolean = Object.isBoolean;
-    ok(isFunction(isBoolean));
-    ok(isBoolean(false));
-    ok(isBoolean(new Boolean(false)));
-    ok(!isBoolean(void 8));
-    ok(!isBoolean(null));
-    ok(!isBoolean(1));
-    ok(!isBoolean(''));
-    ok(!isBoolean({}));
-  });
-  test('Object.isArray', function(){
-    var isArray;
-    isArray = Object.isArray;
-    ok(isFunction(isArray));
-    ok(isArray([1]));
-    ok(!isArray(void 8));
-    ok(!isArray(null));
-    ok(!isArray(1));
-    ok(!isArray(''));
-    ok(!isArray(false));
-    ok(!isArray({}));
-    ok(!isArray(function(){
-      return arguments;
-    }()));
-  });
-  test('Object.isFunction', function(){
-    var isFunction;
-    isFunction = Object.isFunction;
-    ok(typeof isFunction === 'function');
-    ok(isFunction(function(){}));
-    ok(!isFunction(void 8));
-    ok(!isFunction(null));
-    ok(!isFunction(1));
-    ok(!isFunction(''));
-    ok(!isFunction(false));
-    ok(!isFunction({}));
-    ok(!isFunction(function(){
-      return arguments;
-    }()));
-    ok(!isFunction([1]));
-    ok(!isFunction(/./));
-  });
-  test('Object.isRegExp', function(){
-    var isRegExp;
-    isRegExp = Object.isRegExp;
-    ok(isFunction(isRegExp));
-    ok(isRegExp(/./));
-    ok(!isRegExp(void 8));
-    ok(!isRegExp(null));
-    ok(!isRegExp(1));
-    ok(!isRegExp(''));
-    ok(!isRegExp(false));
-    ok(!isRegExp({}));
-    ok(!isRegExp(function(){
-      return arguments;
-    }()));
-    ok(!isRegExp([1]));
-    ok(!isRegExp(function(){}));
-  });
-  test('Object.isDate', function(){
-    var isDate;
-    isDate = Object.isDate;
-    ok(isFunction(isDate));
-    ok(isDate(new Date));
-    ok(!isDate(void 8));
-    ok(!isDate(null));
-    ok(!isDate(1));
-    ok(!isDate(''));
-    ok(!isDate(false));
-    ok(!isDate({}));
-    ok(!isDate(function(){
-      return arguments;
-    }()));
-    ok(!isDate([1]));
-    ok(!isDate(/./));
-    ok(!isDate(function(){}));
-  });
-  test('Object.isError', function(){
-    var isError;
-    isError = Object.isError;
-    ok(isFunction(isError));
-    ok(isError(Error()));
-    ok(isError(TypeError()));
-    ok(!isError(void 8));
-    ok(!isError(null));
-    ok(!isError(1));
-    ok(!isError(''));
-    ok(!isError(false));
-    ok(!isError({}));
-    ok(!isError(function(){
-      return arguments;
-    }()));
-    ok(!isError([1]));
-    ok(!isError(/./));
-    ok(!isError(function(){}));
+    ok(isEqual(a, b));
   });
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;
   }
-  function in$(x, xs){
-    var i = -1, l = xs.length >>> 0;
-    while (++i < l) if (x === xs[i]) return true;
-    return false;
-  }
 }).call(this);
 
 (function(){
   var isFunction;
-  isFunction = Object.isFunction;
-  test('RegExp::getFlags', function(){
-    ok(isFunction(RegExp.prototype.getFlags));
-    ok(/./gmi.getFlags().length === 3);
-    ok(/qwe/i.getFlags() === 'i');
+  isFunction = Function.isFunction;
+  test('Promise constructor', function(){
+    ok(isFunction(global.Promise), 'Promise is function');
+    ok(Promise.length === 1, 'Promise.length is 1');
   });
-  test('RegExp::fn', function(){
-    ok(isFunction(/qwe/.fn()));
-    ok(/qwe/.fn()('qwerty'));
-    ok(!/qwe/.fn()('asd'));
+  test('Promise.all', function(){
+    ok(isFunction(Promise.all), 'Promise.all is function');
+  });
+  test('Promise.race', function(){
+    ok(isFunction(Promise.race), 'Promise.race is function');
+  });
+  test('Promise.resolve', function(){
+    ok(isFunction(Promise.resolve), 'Promise.resolve is function');
+  });
+  test('Promise.reject', function(){
+    ok(isFunction(Promise.reject), 'Promise.reject is function');
+  });
+  test('Promise.cast', function(){
+    ok(isFunction(Promise.cast), 'Promise.cast is function');
+  });
+  test('Promise::then', function(){
+    ok(isFunction(Promise.prototype.then), 'Promise::then is function');
+  });
+  test('Promise::catch', function(){
+    ok(isFunction(Promise.prototype['catch']), 'Promise::catch is function');
   });
 }).call(this);
 
 (function(){
   var isFunction;
-  isFunction = Object.isFunction;
-  test('String::trimLeft', function(){
-    ok(isFunction(String.prototype.trimLeft));
-    ok('   123   '.trimLeft() === '123   ');
-    ok('   \nasd\n   '.trimLeft() === 'asd\n   ');
-  });
-  test('String::trimRight', function(){
-    ok(isFunction(String.prototype.trimRight));
-    ok('   123   '.trimRight() === '   123');
-    ok('   \nasd\n   '.trimRight() === '   \nasd');
+  isFunction = Function.isFunction;
+  test('String::at', function(){
+    ok(isFunction(String.prototype.at));
+    ok(''.at(-1) === '');
+    ok(''.at(void 8) === '');
+    ok('qwerty'.at(0) === 'q');
+    ok('qwerty'.at(5) === 'y');
+    ok('qwerty'.at(-1) === 'y');
+    ok('qwerty'.at(-6) === 'q');
+    ok('qwerty'.at(6) === '');
+    ok('qwerty'.at(-7) === '');
   });
   test('String::escapeHTML', function(){
     ok(isFunction(String.prototype.escapeHTML));
@@ -3393,26 +3249,11 @@
     ok('qwe asd'.escapeRegExp() === 'qwe asd');
     ok('\\/\'*+?|()[]{}.^$'.escapeRegExp() === "\\\\\\/\\'\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}\\.\\^\\$");
   });
-  test('String::reverse', function(){
-    ok(isFunction(String.prototype.reverse));
-    ok(' qwerty '.reverse() === ' ytrewq ');
-  });
-  test('String::at', function(){
-    ok(isFunction(String.prototype.at));
-    ok(''.at(-1) === '');
-    ok(''.at(void 8) === '');
-    ok('qwerty'.at(0) === 'q');
-    ok('qwerty'.at(5) === 'y');
-    ok('qwerty'.at(-1) === 'y');
-    ok('qwerty'.at(-6) === 'q');
-    ok('qwerty'.at(6) === '');
-    ok('qwerty'.at(-7) === '');
-  });
 }).call(this);
 
 (function(){
-  var isFunction, slice$ = [].slice;
-  isFunction = Object.isFunction;
+  var isFunction, bzzzzz, slice$ = [].slice;
+  isFunction = Function.isFunction;
   asyncTest('setTimeout / clearTimeout', 2, function(){
     global.setTimeout(function(b, c){
       ok(b + c === 'bc');
@@ -3430,32 +3271,67 @@
     }, 20);
   });
   asyncTest('setInterval / clearInterval', 6, function(){
-    var i, mark;
+    var i, interval;
     i = 1;
-    mark = global.setInterval(function(it){
+    interval = global.setInterval(function(it){
       ok(i < 4);
       ok(it === 42);
       if (i === 3) {
-        clearInterval(mark);
+        clearInterval(interval);
         start();
       }
       i = i + 1;
     }, 1, 42);
   });
-  asyncTest('setImmediate / clearImmediate', 4, function(){
-    ok(isFunction(global.setImmediate));
-    ok(isFunction(global.clearImmediate));
-    setImmediate(function(b, c){
-      ok(b + c === 'bc');
-    }, 'b', 'c');
-    clearImmediate(setImmediate(function(){
-      ok(false);
-    }));
-    global.setTimeout(function(){
-      ok(true);
-      start();
+  asyncTest('setImmediate / clearImmediate', 7, function(){
+    var tmp1, id, tmp2, tmp3, tmp4;
+    ok(isFunction(global.setImmediate), 'setImmediate is function');
+    ok(isFunction(global.clearImmediate), 'clearImmediate is function');
+    id = setImmediate(function(){
+      tmp1 = 42;
+    });
+    ok(tmp1 === void 8, 'setImmediate is async');
+    ok(Number.isInteger(id) && id > 0, 'setImmediate return id');
+    setImmediate(function(){
+      tmp2 = true;
+    });
+    setTimeout(function(){
+      ok(tmp2, 'setImmediate works');
     }, 20);
+    setImmediate(function(b, c){
+      tmp3 = b + c;
+    }, 'b', 'c');
+    setTimeout(function(){
+      ok(tmp3 === 'bc', 'setImmediate works with additional params');
+    }, 20);
+    clearImmediate(setImmediate(function(){
+      tmp4 = 42;
+    }));
+    setTimeout(function(){
+      ok(tmp4 === void 8, 'clearImmediate works');
+    }, 20);
+    setTimeout(start, 50);
   });
+  bzzzzz = function(){
+    var x, now, inc;
+    x = 0;
+    now = Date.now();
+    return (inc = function(){
+      return setImmediate(function(){
+        x = x + 1;
+        if (Date.now() - now < 1000) {
+          return inc();
+        } else {
+          return console("setImmediate: " + x + " per second");
+        }
+      });
+    })();
+  };
+  if (typeof window != 'undefined' && window !== null) {
+    window.onload = bzzzzz;
+  } else {
+    bzzzzz();
+  }
   function partialize$(f, args, where){
     var context = this;
     return function(){

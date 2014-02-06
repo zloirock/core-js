@@ -1,21 +1,24 @@
-{isFunction, isNumber, isString} = Object
+{isFunction} = Function
 test 'Object.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Object
   ok isFunction getOwnPropertyDescriptor
   deepEqual getOwnPropertyDescriptor(q:42, \q), {+writable, +enumerable, +configurable, value: 42}
   ok getOwnPropertyDescriptor({}, \toString) is void
 test 'Object.defineProperty' !->
-  ok isFunction Object.defineProperty
-  ok (rez = Object.defineProperty src = {}, \q, value: 42) is src
+  {defineProperty} = Object
+  ok isFunction defineProperty
+  ok (rez = defineProperty src = {}, \q, value: 42) is src
   ok rez.q is 42
 test 'Object.defineProperties' !->
-  ok isFunction Object.defineProperties
-  ok (rez = Object.defineProperties src = {}, q: {value: 42}, w: value: 33) is src
+  {defineProperties} = Object
+  ok isFunction defineProperties
+  ok (rez = defineProperties src = {}, q: {value: 42}, w: value: 33) is src
   ok rez.q is 42 and rez.w is 33
 test 'Object.getPrototypeOf' !->
   {create, getPrototypeOf} = Object
   ok isFunction getPrototypeOf
   ok getPrototypeOf({}) is Object::
+  ok getPrototypeOf([]) is Array::
   ok getPrototypeOf(new class fn) is fn::
   ok getPrototypeOf(create obj = q:1) is obj
   ok getPrototypeOf(create null) is null
@@ -89,10 +92,10 @@ test 'Array::every' !->
     ok that is a
     ok @    is ctx
   , ctx = {}
-  ok [1 2 3]every isNumber
+  ok [1 2 3]every -> typeof! it is \Number
   ok [1 2 3]every (<4)
   ok not [1 2 3]every (<3)
-  ok not [1 2 3]every isString
+  ok not [1 2 3]every -> typeof! it is \String
   ok [1 2 3]every (-> +@ is 1 ), 1
   rez = ''
   [1 2 3]every -> rez += &1
@@ -106,10 +109,10 @@ test 'Array::some' !->
     ok that is a
     ok @    is ctx
   , ctx = {}
-  ok [1 \2 3]some isNumber
+  ok [1 \2 3]some -> typeof! it is \Number
   ok [1 2 3]some (<3)
   ok not [1 2 3]some (<0)
-  ok not [1 2 3]some isString
+  ok not [1 2 3]some -> typeof! it is \String
   ok not [1 2 3]some (-> +@ isnt 1), 1
   rez = ''
   [1 2 3]some -> rez += &1; no
@@ -159,7 +162,7 @@ test 'Array::filter' !->
     ok that is a
     ok @ is ctx
   , ctx = {}
-  deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter isNumber
+  deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
 test 'Array::reduce' !->
   ok isFunction Array::reduce
   ok -5 is [5 4 3 2 1]reduce (-)

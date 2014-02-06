@@ -1,35 +1,31 @@
-function inherits(parent){
-  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
-  return this
-}
 extendBuiltInObject(Function, {
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#isFunction
+   * http://sugarjs.com/api/Object/isType
+   * http://api.prototypejs.org/language/Object/isFunction/
+   * http://api.jquery.com/jQuery.isFunction/
+   * http://docs.angularjs.org/api/angular.isFunction
+   */
+  isFunction: isFunction,
   isNative: isNative,
-  inherits: $unbind(inherits)
+  inherits: unbind(inherits),
+  _: _
 });
 extendBuiltInObject($Function, {
-  // method -> function
-  unbind: unbind,
-  // function -> method
-  methodize: methodize,
-  // partial apply
+  /**
+   * Partial apply.
+   * Alternatives:
+   * http://sugarjs.com/api/Function/fill
+   * http://underscorejs.org/#partial
+   * http://mootools.net/docs/core/Types/Function#Function:pass
+   * http://fitzgen.github.io/wu.js/#wu-partial
+   */
   part: part,
-  partial: function(args/*?*/, that){
-    var fn       = this
-      , argsPart = toArray(args)
-      , isThat   = arguments.length > 1;
-    return function(/*args...*/){
-      var args   = toArray(argsPart)
-        , length = arguments.length
-        , i, current = i = 0;
-      while(length > i){
-        while(args[current] !== undefined)current++;
-        args[current++] = arguments[i++]
-      }
-      return fn.apply(isThat ? that : this, args)
-    }
-  },
-  // http://www.wirfs-brock.com/allen/posts/166
-  // http://habrahabr.ru/post/114737/
+  /**
+   * http://www.wirfs-brock.com/allen/posts/166
+   * http://habrahabr.ru/post/114737/
+   */
   only: function(numberArguments/*?*/, that){
     numberArguments |= 0;
     var fn     = this
@@ -38,60 +34,61 @@ extendBuiltInObject($Function, {
       return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)))
     }
   },
-  // simple bind context
-  ctx: ctx,
+  /**
+   * function -> method
+   * Alternatives:
+   * http://api.prototypejs.org/language/Function/prototype/methodize/
+   */
+  methodize: methodize,
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));
     return isObject(result) ? result : instance
   },
-  once: function(){
-    var fn   = this
-      , wait = 1
-      , result;
-    return function(/*args...*/){
-      if(wait){
-        wait   = 0;
-        result = fn.apply(this, arguments)
-      }
-      return result
-    }
-  },
-  // AOP
-  error: function(cb /*cb(error, arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args = toArray(arguments);
-      try{return fn.apply(this, args)}
-      catch(e){return cb.call(this, e, args)}
-    }
-  },
-  before: function(cb /*cb(arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args = toArray(arguments);
-      cb.call(this, args);
-      return fn.apply(this, args)
-    }
-  },
-  after: function(cb /*cb(result, arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args        = toArray(arguments)
-        , result      = fn.apply(this, args)
-        , resultAfter = cb.call(this, result, args);
-      return resultAfter === undefined ? result : resultAfter
-    }
-  },
   // deferred call
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#delay
+   * http://sugarjs.com/api/Function/delay
+   * http://api.prototypejs.org/language/Function/prototype/delay/
+   * http://mootools.net/docs/core/Types/Function#Function:delay
+   */
   timeout: function(del /*, args...*/){
-    return $part(clearTimeout, setTimeout(part.apply(this, slice1(arguments)), del))
+    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del])
   },
+  /**
+   * Alternatives:
+   * http://sugarjs.com/api/Function/every
+   * http://mootools.net/docs/core/Types/Function#Function:periodical
+   */
   interval: function(del /*, args...*/){
-    return $part(clearInterval, setInterval(part.apply(this, slice1(arguments)), del))
+    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del])
   },
-  immediate: function(/* args...*/){
-    return $part(clearImmediate, setImmediate(part.apply(this, arguments)))
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#defer
+   * http://api.prototypejs.org/language/Function/prototype/defer/
+   */
+  immediate: function(/*, args...*/){
+    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)])
   },
+  /**
+   * Alternatives:
+   * http://nodejs.org/api/util.html#util_util_inherits_constructor_superconstructor
+   */
   inherits: inherits
 });
+function createDeferred(set, clear, args){
+  var deferred = {
+    stop: function(){
+      id && clear(id);
+      return deferred
+    },
+    run: function(){
+      id && clear(id);
+      id = apply.call(set, global, args);
+      return deferred
+    }
+  }, id;
+  return deferred;
+}

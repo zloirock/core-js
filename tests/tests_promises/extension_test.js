@@ -649,7 +649,7 @@ describe("RSVP extensions", function() {
         thenable = { };
 
         // we likely don't need to test this, if the browser doesn't support it
-        if (typeof Object.defineProperty !== "function") { done(); return; }
+        if (!Function.isNative(Object.defineProperty)) { done(); return; }
 
         Object.defineProperty(thenable, 'then', {
           get: function(){
@@ -674,7 +674,7 @@ describe("RSVP extensions", function() {
         thenable = { };
 
         // we likely don't need to test this, if the browser doesn't support it
-        if (typeof Object.defineProperty !== "function") { done(); return; }
+        if (!Function.isNative(Object.defineProperty)) { done(); return; }
 
         Object.defineProperty(thenable, 'then', {
           get: function(){

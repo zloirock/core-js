@@ -1,12 +1,14 @@
-{isFunction} = Object
-test 'String::trimLeft' !->
-  ok isFunction String::trimLeft
-  ok '   123   'trimLeft! is '123   '
-  ok '   \nasd\n   'trimLeft! is 'asd\n   '
-test 'String::trimRight' !->
-  ok isFunction String::trimRight
-  ok '   123   'trimRight! is '   123'
-  ok '   \nasd\n   'trimRight! is '   \nasd'
+{isFunction} = Function
+test 'String::at' !->
+  ok isFunction String::at
+  ok ''at(-1) is ''
+  ok ''at(void) is ''
+  ok 'qwerty'at(0) is \q
+  ok 'qwerty'at(5) is \y
+  ok 'qwerty'at(-1) is \y
+  ok 'qwerty'at(-6) is \q
+  ok 'qwerty'at(6) is ''
+  ok 'qwerty'at(-7) is ''
 test 'String::escapeHTML' !->
   ok isFunction String::escapeHTML
   ok 'qwe, asd'escapeHTML! is 'qwe, asd'
@@ -27,16 +29,3 @@ test 'String::escapeRegExp' !->
   ok isFunction String::escapeRegExp
   ok 'qwe asd'escapeRegExp! is 'qwe asd'
   ok '\\/\'*+?|()[]{}.^$'escapeRegExp! is "\\\\\\/\\'\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}\\.\\^\\$"
-test 'String::reverse' !->
-  ok isFunction String::reverse
-  ok ' qwerty 'reverse! is ' ytrewq '
-test 'String::at' !->
-  ok isFunction String::at
-  ok ''at(-1) is ''
-  ok ''at(void) is ''
-  ok 'qwerty'at(0) is \q
-  ok 'qwerty'at(5) is \y
-  ok 'qwerty'at(-1) is \y
-  ok 'qwerty'at(-6) is \q
-  ok 'qwerty'at(6) is ''
-  ok 'qwerty'at(-7) is ''

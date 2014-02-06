@@ -1,49 +1,52 @@
 extendBuiltInObject(Number, {
-  toInteger: toInt
+  /**
+   * Alternatives:
+   * http://mootools.net/docs/core/Types/Number#Number:toInt
+   */
+  toInteger: toInteger
 });
 extendBuiltInObject($Number, {
-  div: function(divisor){
-    var result = this / divisor;
-    return (result > 0 ? floor : ceil)(result)
-  },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#times
+   * http://sugarjs.com/api/Number/times
+   * http://api.prototypejs.org/language/Number/prototype/times/
+   * http://mootools.net/docs/core/Types/Number#Number:times
+   */
   times: function(fn, that /* = undefined */){
-    var i = 0, num = this | 0, result = Array(num);
-    if(isFunction(fn))while(num > i)result[i] = fn.call(that, i, i++, this);
+    var number = toLength(this)
+      , result = Array(number)
+      , i      = 0;
+    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
     return result
   },
   random: function(number /* = 0 */){
-    var a = this || 0
-      , b = number || 0
+    var a = +this   || 0
+      , b = +number || 0
       , m = min(a, b);
     return random() * (max(a, b) - m) + m
   },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#random
+   * http://mootools.net/docs/core/Types/Number#Number:Number-random
+   */
   rand: function(number /* = 0 */){
-    var a = toInt(this)
-      , b = toInt(number)
+    var a = toInteger(this)
+      , b = toInteger(number)
       , m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m)
-  },
-  isOdd: function(){
-    return !!(this % 2) && !(this % 1)
-  },
-  isEven: function(){
-    return 0 === this % 2
-  },
-  format: function(afterDot /* = 0 */, thousandsSeparator /* = '' */, decimalMark /* = '.' */){
-    var afterDot    = toLength(afterDot)
-      , integer     = String(toInt(this))
-      , fractional  = leadZero(toInt(abs(Math.round((this - integer) * pow(10, afterDot)))), afterDot);
-    if(thousandsSeparator){
-      integer    = integer   .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1' + thousandsSeparator);
-      fractional = fractional.replace(/(\d{3})(?=\d)/g,          '$1' + thousandsSeparator);
-    }
-    return afterDot ? integer + (decimalMark == undefined ? '.' : decimalMark) + fractional : integer;
   }
 });
+/**
+ * Alternatives:
+ * http://sugarjs.com/api/Number/math
+ * http://mootools.net/docs/core/Types/Number#Number-Math
+ */
 extendBuiltInObject($Number, reduceTo.call(
   // IE...
-  // getOwnPropertyNames(Math),
-  splitComma(
+  // getOwnPropertyNames(Math)
+  array(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +
     // ES6

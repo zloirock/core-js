@@ -1,4 +1,4 @@
-{isFunction} = Object
+{isFunction} = Function
 test 'Object.has' !->
   {has} = Object
   ok isFunction has
@@ -27,6 +27,7 @@ test 'Object.isPrototype' !->
 test 'Object.classof' !->
   {classof} = Object
   ok isFunction classof
+  ok classof({}) is \Object
   ok classof(void) is \Undefined
   ok classof(null) is \Null
   ok classof(no) is \Boolean
@@ -39,37 +40,14 @@ test 'Object.classof' !->
   ok classof(->) is \Function
   ok classof(/./) is \RegExp
   ok classof(TypeError!) is \Error
-test 'Object.bind' ->
-  {bind} = Object
-  ok isFunction bind
+test 'Object.tie' ->
+  {tie} = Object
+  ok isFunction tie
   array = [1 2 3]
-  push = bind array, \push 4
+  push = tie array, \push
   ok isFunction push
-  ok push(5) is 5
-  deepEqual array, [1 2 3 4 5]
-test 'Object.getPropertyDescriptor' !->
-  {getPropertyDescriptor, create} = Object
-  ok isFunction getPropertyDescriptor
-  deepEqual getPropertyDescriptor(create(q: 1), \q), {+enumerable, +configurable, +writable, value: 1}
-test 'Object.getOwnPropertyDescriptors' !->
-  {getOwnPropertyDescriptors, make} = Object
-  ok isFunction getOwnPropertyDescriptors
-  descs = getOwnPropertyDescriptors(make({q: 1}, w:2), \q)
-  ok descs.q is void
-  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-test 'Object.getPropertyDescriptors' !->
-  {getPropertyDescriptors, make} = Object
-  ok isFunction getPropertyDescriptors
-  descs = getPropertyDescriptors(make({q: 1}, w:2), \q)
-  deepEqual descs.q, {+enumerable, +configurable, +writable, value: 1}
-  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-test 'Object.getPropertyNames' !->
-  {getPropertyNames} = Object
-  ok isFunction getPropertyNames
-  names = getPropertyNames {q:1}
-  ok \q in names
-  ok \toString in names
-  ok \w not in names
+  ok push(4) is 4
+  deepEqual array, [1 2 3 4]
 test 'Object.make' !->
   {make, getPrototypeOf} = Object
   ok isFunction make
@@ -236,7 +214,7 @@ test 'Object.invert' !->
   ok isFunction invert
   deepEqual invert(q:\a w:\s e:\d), a:\q s:\w d:\e  
 test 'Object.every' !->
-  {every, isNumber} = Object
+  {every} = Object
   ok isFunction every
   every obj = {q: 1} (val, key, that)->
     ok val  is 1
@@ -244,8 +222,8 @@ test 'Object.every' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  ok every {q:1 w:2 e:3} isNumber
-  ok not every {q:1 w:\2 e:3} isNumber
+  ok every {q:1 w:2 e:3} -> typeof! it is \Number
+  ok not every {q:1 w:\2 e:3} -> typeof! it is \Number
 test 'Object.filter' !->
   {filter} = Object
   ok isFunction filter
@@ -255,7 +233,7 @@ test 'Object.filter' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  deepEqual filter({q:1 w:2 e:3} -> it.isOdd!), q:1 e:3
+  deepEqual filter({q:1 w:2 e:3} -> it % 2), q:1 e:3
 test 'Object.find' !->
   {find} = Object
   ok isFunction find
@@ -265,7 +243,7 @@ test 'Object.find' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  ok find({q:1 w:2 e:3} -> it.isEven!) is 2
+  ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
 test 'Object.findIndex' !->
   {findIndex} = Object
   ok isFunction findIndex
@@ -343,14 +321,14 @@ test 'Object.some' !->
     ok that is obj
     ok @ is ctx
   , ctx = {}
-  ok not some {q:1 w:2 e:3} isString
-  ok some {q:1 w:\2 e:3} isString
-test 'Object.props' !->
-  {props} = Object
-  ok isFunction props
-  deepEqual props({q:1 w:22 e:333} \length), q:void w:void e:void
-  deepEqual props({q:1 w:22 e:void} \length), q:void w:void e:void
-  deepEqual props({q:\1 w:\22 e:\333} \length), q:1 w:2 e:3
+  ok not some {q:1 w:2 e:3} -> typeof! it is \String
+  ok some {q:1 w:\2 e:3} -> typeof! it is \String
+test 'Object.pluck' !->
+  {pluck} = Object
+  ok isFunction pluck
+  deepEqual pluck({q:1 w:22 e:333} \length), q:void w:void e:void
+  deepEqual pluck({q:1 w:22 e:void} \length), q:void w:void e:void
+  deepEqual pluck({q:\1 w:\22 e:\333} \length), q:1 w:2 e:3
 test 'Object.reduceTo' !->
   {reduceTo} = Object
   ok isFunction reduceTo
@@ -359,27 +337,9 @@ test 'Object.reduceTo' !->
     ok val  is 1
     ok key  is \q
     ok that is obj
-  reduceTo {q:1} ->
+  reduceTo {q:1} obj = {} ->
     ok @    is obj
-  , obj = {}
   deepEqual {1:1 2:2 3:3} reduceTo {q:1 w:2 e:3} -> @[it] = it
-test 'Object.deepEqual' !->
-  {deepEqual} = Object
-  ok isFunction deepEqual
-  ok deepEqual  1 1
-  ok not deepEqual 1 2
-  ok not deepEqual 0 -0
-  ok deepEqual  {} {}
-  ok deepEqual  {q: 1} {q: 1}
-  ok not deepEqual {q: 1} {}
-  ok not deepEqual {} []
-  ok deepEqual  {q: 1 w: q: 1} q: 1 w: q: 1
-  ok not deepEqual {q: 1 w: q: 1} q: 1 w: q: 1, w: 2
-  a = {y:1}
-  a.x = a
-  b = {y:1}
-  b.x = b
-  ok deepEqual a, b
 test 'Object.isObject' !->
   {isObject} = Object
   ok isFunction isObject
@@ -395,117 +355,20 @@ test 'Object.isObject' !->
   ok isObject []
   ok isObject /./
   ok isObject new ->
-test 'Object.isUndefined' !->
-  {isUndefined} = Object
-  ok isFunction isUndefined
-  ok isUndefined void
-  ok not isUndefined null
-  ok not isUndefined 1
-  ok not isUndefined ''
-  ok not isUndefined no
-  ok not isUndefined {}
-test 'Object.isNull' !->
-  {isNull} = Object
-  ok isFunction isNull
-  ok isNull null
-  ok not isNull void
-  ok not isNull 1
-  ok not isNull ''
-  ok not isNull no
-  ok not isNull {}
-test 'Object.isNumber' !->
-  {isNumber} = Object
-  ok isFunction isNumber
-  ok isNumber 1
-  ok isNumber new Number 1
-  ok not isNumber void
-  ok not isNumber null
-  ok not isNumber ''
-  ok not isNumber no
-  ok not isNumber {}
-test 'Object.isString' !->
-  {isString} = Object
-  ok isFunction isString
-  ok isString ''
-  ok isString new String ''
-  ok not isString void
-  ok not isString null
-  ok not isString 1
-  ok not isString no
-  ok not isString {}
-test 'Object.isBoolean' !->
-  {isBoolean} = Object
-  ok isFunction isBoolean
-  ok isBoolean no
-  ok isBoolean new Boolean no
-  ok not isBoolean void
-  ok not isBoolean null
-  ok not isBoolean 1
-  ok not isBoolean ''
-  ok not isBoolean {}
-test 'Object.isArray' !->
-  {isArray} = Object
-  ok isFunction isArray
-  ok isArray [1]
-  ok not isArray void
-  ok not isArray null
-  ok not isArray 1
-  ok not isArray ''
-  ok not isArray no
-  ok not isArray {}
-  ok not isArray do -> &
-test 'Object.isFunction' !->
-  {isFunction} = Object
-  ok typeof isFunction is \function
-  ok isFunction ->
-  ok not isFunction void
-  ok not isFunction null
-  ok not isFunction 1
-  ok not isFunction ''
-  ok not isFunction no
-  ok not isFunction {}
-  ok not isFunction do -> &
-  ok not isFunction [1]
-  ok not isFunction /./
-test 'Object.isRegExp' !->
-  {isRegExp} = Object
-  ok isFunction isRegExp
-  ok isRegExp /./
-  ok not isRegExp void
-  ok not isRegExp null
-  ok not isRegExp 1
-  ok not isRegExp ''
-  ok not isRegExp no
-  ok not isRegExp {}
-  ok not isRegExp do -> &
-  ok not isRegExp [1]
-  ok not isRegExp ->
-test 'Object.isDate' !->
-  {isDate} = Object
-  ok isFunction isDate
-  ok isDate new Date
-  ok not isDate void
-  ok not isDate null
-  ok not isDate 1
-  ok not isDate ''
-  ok not isDate no
-  ok not isDate {}
-  ok not isDate do -> &
-  ok not isDate [1]
-  ok not isDate /./
-  ok not isDate ->
-test 'Object.isError' !->
-  {isError} = Object
-  ok isFunction isError
-  ok isError Error!
-  ok isError TypeError!
-  ok not isError void
-  ok not isError null
-  ok not isError 1
-  ok not isError ''
-  ok not isError no
-  ok not isError {}
-  ok not isError do -> &
-  ok not isError [1]
-  ok not isError /./
-  ok not isError ->
+test 'Object.isEqual' !->
+  {isEqual} = Object
+  ok isFunction isEqual
+  ok isEqual  1 1
+  ok not isEqual 1 2
+  ok not isEqual 0 -0
+  ok isEqual  {} {}
+  ok isEqual  {q: 1} {q: 1}
+  ok not isEqual {q: 1} {}
+  ok not isEqual {} []
+  ok isEqual  {q: 1 w: q: 1} q: 1 w: q: 1
+  ok not isEqual {q: 1 w: q: 1} q: 1 w: q: 1, w: 2
+  a = {y:1}
+  a.x = a
+  b = {y:1}
+  b.x = b
+  ok isEqual a, b

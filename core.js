@@ -1,91 +1,214 @@
 /**
- * Core.js v0.0.5
+ * Core.js v0.0.6
  * http://core.zloirock.ru
  * © 2013 Denis Pushkarev
  * Available under MIT license
  */
-!function(global, Function, Object, Array, String, Number, RegExp, Date, TypeError, Math, isFinite, undefined){
+!function(global, undefined){
 'use strict';
-// Module : global
+/**
+ * Module : global
+ */
 global.global = global;
-// Module : init
+/**
+ * Module : init
+ */
 var prototype      = 'prototype'
-  // Aliases global objects prototypes and properties
+  // Aliases global objects and prototypes
+  , Function       = global.Function
+  , Object         = global.Object
+  , Array          = global.Array
+  , String         = global.String
+  , Number         = global.Number
+  , RegExp         = global.RegExp
+  , Date           = global.Date
+  , Math           = global.Math
+  , setTimeout     = global.setTimeout
+  , clearTimeout   = global.clearTimeout
+  , setInterval    = global.setInterval
+  , setImmediate   = global.setImmediate
+  , clearImmediate = global.clearImmediate
+  , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
-  , $Function      = Function[prototype]
   , $Number        = Number[prototype]
   , $Object        = Object[prototype]
   , $String        = String[prototype]
-  , defineProperty = Object.defineProperty
-  , push           = $Array.push
-  , slice          = $Array.slice
-  , apply          = $Function.apply
-  , call           = $Function.call
-  , abs            = Math.abs
-  , ceil           = Math.ceil
-  , floor          = Math.floor
-  , max            = Math.max
-  , min            = Math.min
-  , pow            = Math.pow
-  , random         = Math.random
-  , DESCRIPTORS    = 1
-  , REDUCE_ERROR   = 'Reduce of empty object with no initial value'
-  // How to get the context for calling the methods of the Array.prototype
-  // Dummy, polyfill for not array-like strings for old ie in es5shim.js
-  , arrayLikeSelf  = Object
-  , isArray        = Array.isArray || function(it){
-      return toString(it) == '[object Array]'
-    }
-  , toArray        = Array.from || function(arrayLike){
-      return slice.call(arrayLike)
-    }
-  , toStringKey    = 'toString'
-  , $unbind        = unbind.call(unbind)
-  , $part          = $unbind(part)
-  // Unbind Object.prototype methods
-  , has            = $unbind($Object.hasOwnProperty)
-  , toString       = $unbind($Object[toStringKey])
-  , isEnumerable   = $unbind($Object.propertyIsEnumerable)
-  // Native function?
-  , isNative       = RegExpToFunction.call(/^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/);
-// Object internal [[Class]]
+  , $Function      = Function[prototype];
+
+// http://es5.github.io/#x9.12
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
+var same = Object.is || function(x, y){
+  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y
+}
+// http://jsperf.com/core-js-isobject
+function isObject(it){
+  return it !== null && (typeof it == 'object' || typeof it == 'function')
+}
+// fallback for regexps in older browsers in es5 shim
+function isFunction(it){
+  return typeof it == 'function'
+}
+// native function?
+var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
+function isNative(it){
+  return nativeRegExp.test(it);
+}
+// object internal [[Class]]
+// http://jsperf.com/core-js-classof
+var toString = $Object.toString;
 function classof(it){
-  return it === undefined ? 'Undefined' : it == undefined ? 'Null'
-    : toString(it).slice(8, -1)
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1)
 }
-// Simple bind context
-function ctx(that){
-  var fn = this;
+
+// Function:
+var apply = $Function.apply
+  , call  = $Function.call;
+// unbind method from context
+// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
+function unbind(that){
+  return tie.call(that, 'call')
+}
+// simple bind context
+function tie(key){
+  var that       = this
+    , fn         = that[key];
   return function(){
-    return fn.apply(that, arguments);
+    return fn.apply(that, arguments)
   }
 }
-// Unbind method from context
-function unbind(){
-  return ctx.call(call, this);
-}
-// Partiall apply
+// placeholder for partial apply
+var _ = {};
+// partial apply
 function part(/*args...*/){
-  var fn = this
-    , i = 0
-    , length1 = arguments.length
-    , args1 = Array(length1);
-  while(length1 > i)args1[i] = arguments[i++];
+  var fn          = this
+    , lengthPart  = arguments.length
+    , argsPart    = Array(lengthPart)
+    , i           = 0
+    , placeholder = false;
+  while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
-    var args2 = args1.slice()
-      , length2 = arguments.length
-      , i = 0;
-    while(length2 > i)args2[length1 + i] = arguments[i++];
-    return apply.call(fn, this, args2)
+    var length = arguments.length
+      , i, j, args;
+    if(!placeholder && length === 0)return fn.apply(this, argsPart);
+    args = argsPart.slice();
+    i = j = 0;
+    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
+    while(length > j)args.push(arguments[j++]);
+    return fn.apply(this, args)
   }
 }
-function RegExpToFunction(){
-  var that = this;
-  return function(it){
-    return that.test(it)
+// add `this` as first argument
+// fn(foo, arg1, arg2, ...) => foo.fn(arg1, arg2, ...)
+function methodize(){
+  var fn = this;
+  return function(/*args...*/){
+    var length = arguments.length
+      , args   = Array(length + 1)
+      , i      = 0;
+    args[0] = this;
+    while(length > i)args[i + 1] = arguments[i++];
+    return apply.call(fn, undefined, args)
   }
 }
+function inherits(parent){
+  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
+  return this
+}
+
+// Object:
+var _hasOwn = $Object.hasOwnProperty;
+function has(object, key){
+  return _hasOwn.call(object, key)
+}
+var isEnumerable   = $Object.propertyIsEnumerable
+  , defineProperty = Object.defineProperty
+  , DESCRIPTORS    = 1;
+function descriptor(bitmap, value){
+  return {
+    enumerable  : !!(bitmap & 1),
+    configurable: !!(bitmap & 2),
+    writable    : !!(bitmap & 4),
+    value       : value
+  }
+}
+// http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+function getOwnPropertyDescriptors(object){
+  var result = {}
+    , names  = getOwnPropertyNames(object)
+    , length = names.length
+    , i      = 0
+    , key;
+  while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
+  return result
+}
+// https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
+var assign = Object.assign || function(target, source){
+  var props  = keys(source)
+    , length = props.length
+    , i      = 0
+    , key;
+  while(length > i)target[key = props[i++]] = source[key];
+  return target
+}
+function invert(object){
+  var result = {}
+    , names  = keys(object)
+    , length = names.length
+    , i      = 0
+    , key;
+  while(length > i)result[object[key = names[i++]]] = key;
+  return result
+}
+
+// Array:
+// array('str1,str2,str3') => ['str1', 'str2', 'str3']
+function array(it){
+  return String(it).split(',');
+}
+var push   = $Array.push
+  , slice  = $Array.slice
+  , $slice = Array.slice || function(arrayLike, from){
+      return slice.call(arrayLike, from)
+    };
+// How to get the context for calling Array.prototype methods
+// Dummy, polyfill for not array-like strings for old ie in es5 shim
+var arrayLikeSelf = Object;
+// simple reduce to object
+function reduceTo(target, callbackfn){
+  if(arguments.length < 2){
+    callbackfn = target;
+    target = {}
+  } else target = Object(target);
+  forEach.call(this, callbackfn, target);
+  return target
+}
+
+// Math:
+var ceil   = Math.ceil
+  , floor  = Math.floor
+  , max    = Math.max
+  , min    = Math.min
+  , pow    = Math.pow
+  , random = Math.random;
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
+var toInteger = Number.toInteger || function(it){
+  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it
+}
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
+function toLength(it){
+  return it > 0 ? min(toInteger(it), 0x3FFFFFFFFFFFFF) : 0;
+}
+
+// Assertion & errors:
+var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
+function assert(condition, message){
+  if(!condition)throw TypeError(message)
+}
+function assertInstance(that, constructor, name){
+  assert(that instanceof constructor, name + ": Please use the 'new' operator")
+}
+
 function extendBuiltInObject(target, source, forced /* = false */){
   for(var key in source){
     try {
@@ -97,31 +220,27 @@ function extendBuiltInObject(target, source, forced /* = false */){
   }
   return target
 }
-function descriptor(bitmap, value){
-  return {
-    enumerable  : !!(bitmap & 1),
-    configurable: !!(bitmap & 2),
-    writable    : !!(bitmap & 4),
-    value       : value
-  }
-}
-// splitComma('str1,str2,str3') => ['str1', 'str2', 'str3']
-function splitComma(it){
-  return String(it).split(',');
-}
-// Module : stringInt
-var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-  , LTrim  = '^' + trimWS + trimWS + '*'
-  , RTrim  = trimWS + trimWS + '*$';
-// Module : es5
+/**
+ * Module : es5
+ */
+/**
+ * ECMAScript 5 shim
+ * Alternatives:
+ * https://github.com/es-shims/es5-shim
+ * https://github.com/ddrcode/ddr-ecma5
+ * http://augmentjs.com/
+ * https://github.com/inexorabletash/polyfill/blob/master/es5.js
+ */
 !function(){
   // not enum keys
   var Empty             = Function()
     , protoInObject     = new Empty().__proto__ == Empty[prototype]
-    , LTrimRegExp       = RegExp(LTrim)
-    , RTrimRegExp       = RegExp(RTrim)
+    , whitespace        = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    , LTrimRegExp       = RegExp('^' + whitespace + whitespace + '*')
+    , RTrimRegExp       = RegExp(whitespace + whitespace + '*$')
     // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
-    , hidenNames1       = splitComma(toStringKey + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
+    // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
+    , hidenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hidenNames2       = hidenNames1.concat(['length'])
     , hidenNames1Length = hidenNames1.length
     , nativeSlice       = slice
@@ -133,9 +252,9 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
         }
       : function(){
           // Thrash, waste and sodomy
-          var iframe = document.createElement('iframe')
-            , i      = hidenNames1Length
-            , body   = document.body || document.documentElement
+          var iframe   = document.createElement('iframe')
+            , i        = hidenNames1Length
+            , body     = document.body || document.documentElement
             , iframeDocument;
           iframe.style.display = 'none';
           body.appendChild(iframe);
@@ -145,7 +264,6 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
           iframeDocument.write('<script>document._=Object</script>');
           iframeDocument.close();
           createNullProtoObject = iframeDocument._;
-          // body.removeChild(iframe);
           while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
           return createNullProtoObject()
         }
@@ -156,7 +274,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
             , key;
           for(key in O)has(O, key) && result.push(key);
           // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~result[indexOf](key) && result.push(key);
+          while(length > i)has(O, key = names[i++]) && !~result.indexOf(key) && result.push(key);
           return result
         }
       }
@@ -173,7 +291,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      * http://es5.github.io/#x15.2.3.3
      */
     Object.getOwnPropertyDescriptor = function(O, P){
-      if(has(O, P))return descriptor(6 + isEnumerable(O, P), O[P])
+      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P])
     };
     /**
      * 15.2.3.6 Object.defineProperty ( O, P, Attributes )
@@ -189,7 +307,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      */
     Object.defineProperties = function(O, Properties){
       // IE 9- don't enum bug => Object.keys
-      var names = keys(Properties)
+      var names  = keys(Properties)
         , length = names.length
         , i = 0
         , key;
@@ -205,7 +323,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
-      return O != proto && toStringKey in O ? proto : null
+      return O != proto && 'toString' in O ? proto : null
     },
     /**
      * 15.2.3.4 Object.getOwnPropertyNames ( O )
@@ -218,7 +336,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      */
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
-      if(!isObject(O))throw TypeError('Object prototype may only be an Object or null');
+      assert(isObject(O), 'Object prototype may only be an object or null');
       Empty[prototype] = O;
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
@@ -233,9 +351,9 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
     keys: createGetKeys(hidenNames1, hidenNames1Length)
   });
   // not array-like strings fix
-  if(!(0 in Object('q'))){
+  if(!(0 in Object('q') && 'q'[0] == 'q')){
     arrayLikeSelf = function(it){
-      return isString(it) ? it.split('') : Object(it)
+      return classof(it) == 'String' ? it.split('') : Object(it)
     };
     // Array.prototype methods for strings in ES3
     $Array.slice = slice = function(){
@@ -250,21 +368,37 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
    * http://es5.github.io/#x15.3.4.5
    */
   extendBuiltInObject($Function, {
-    bind:function(scope /*, args...*/){
+    bind: function(scope /*, args...*/){
       var fn   = this
-        , args = slice1(arguments);
+        , args = $slice(arguments, 1);
+      assert(isFunction(fn), fn + ' is not a function');
       function bound(){
-        return apply.call(fn, fn[prototype] && this instanceof fn ? this : scope, args.concat(toArray(arguments)))
+        return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)))
       }
-      bound[prototype] = fn[prototype];
+      bound[prototype] = create(fn[prototype]);
       return bound
     }
   });
   /**
    * 15.4.3.2 Array.isArray ( arg )
    * http://es5.github.io/#x15.4.3.2
+   * Alternatives:
+   * http://underscorejs.org/#isArray
+   * http://sugarjs.com/api/Object/isType
+   * http://api.prototypejs.org/language/Object/isArray/
+   * http://nodejs.org/api/util.html#util_util_isarray_object
+   * http://api.jquery.com/jQuery.isArray/
+   * http://docs.angularjs.org/api/angular.isArray
    */
-  extendBuiltInObject(Array, {isArray: isArray});
+  extendBuiltInObject(Array, {isArray: function(it){
+    return classof(it) == 'Array'
+  }});
+  function forEach(callbackfn, thisArg /* = undefined */){
+    var self   = arrayLikeSelf(this)
+      , length = toLength(self.length)
+      , i      = 0;
+    for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this)
+  }
   extendBuiltInObject($Array, {
     /**
      * 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
@@ -288,7 +422,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
         , i      = length - 1;
       if(arguments.length > 1)i = min(i, fromIndex | 0);
       if(0 > i)i = toLength(length + i);
-      for(; i >= 0; i--)if(i in self && self[i] === searchElement)return i;
+      for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
       return -1
     },
     /**
@@ -321,24 +455,16 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      * 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
      * http://es5.github.io/#x15.4.4.18
      */
-    forEach: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this)
-    },
+    forEach: forEach,
     /**
      * 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
      * http://es5.github.io/#x15.4.4.19
      */
     map: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
-        , length = toLength(self.length)
-        , rez    = Array(length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self)rez[i] = callbackfn.call(thisArg, self[i], i, this);
-      }
+      var rez = Array(toLength(this.length));
+      forEach.call(this, function(val, key, that){
+        rez[key] = callbackfn.call(thisArg, val, key, that);
+      });
       return rez
     },
     /**
@@ -346,15 +472,10 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
      * http://es5.github.io/#x15.4.4.20
      */
     filter: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
-        , length = toLength(self.length)
-        , i      = 0
-        , rez    = [];
-      for(;length > i; i++){
-        i in self
-        && callbackfn.call(thisArg, self[i], i, this)
-        && rez.push(self[i]);
-      }
+      var rez = [];
+      forEach.call(this, function(val){
+        if(callbackfn.apply(thisArg, arguments))rez.push(val);
+      });
       return rez
     },
     /**
@@ -365,12 +486,12 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
       var self   = arrayLikeSelf(this)
         , length = toLength(self.length)
         , i      = 0;
-      if(2 > arguments.length)while(true){
+      if(2 > arguments.length)for(;;){
         if(i in self){
           memo = self[i++];
           break
         }
-        if(length <= ++i)throw TypeError(REDUCE_ERROR)
+        assert(length > ++i, REDUCE_ERROR)
       }
       for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
       return memo
@@ -382,12 +503,12 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       var self = arrayLikeSelf(this)
         , i    = toLength(self.length) - 1;
-      if(2 > arguments.length)while(true){
+      if(2 > arguments.length)for(;;){
         if(i in self){
           memo = self[i--];
           break
         }
-        if(0 > --i)throw TypeError(REDUCE_ERROR)
+        assert(0 <= --i, REDUCE_ERROR)
       }
       for(;i >= 0; i--)if(i in self)memo = callbackfn(memo, self[i], i, this);
       return memo
@@ -396,6 +517,7 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
   /**
    * 15.5.4.20 String.prototype.trim ( )
    * http://es5.github.io/#x15.5.4.20
+   * http://blog.stevenlevithan.com/archives/faster-trim-javascript
    */
   extendBuiltInObject($String, {trim: function(){
     return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '')
@@ -407,8 +529,16 @@ var trimWS = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\
   extendBuiltInObject(Date, {now: function(){
     return +new Date
   }});
+  /**
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
+   */
+  if(isFunction(LTrimRegExp))isFunction = function(it){
+    return classof(it) == 'Function'
+  }
 }();
-// Module : resume
+/**
+ * Module : resume
+ */
 var create                   = Object.create
   , defineProperties         = Object.defineProperties
   , getPrototypeOf           = Object.getPrototypeOf
@@ -416,158 +546,153 @@ var create                   = Object.create
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , forEach                  = $Array.forEach
-  , map                      = $Array.map
-  , indexOf                  = 'indexOf';
-// Module : functionInt
+  , isArray                  = Array.isArray
+  , map                      = $Array.map;
 /**
- * add `this` as first argument
- * Number.prototype.pow = Math.pow.methodize()
- * 2 .pow(8) => 256
+ * Module : immediateInternal
  */
-function methodize(){
-  var fn = this;
-  return function(/*args...*/){
-    var i = 0
+/**
+ * setImmediate
+ * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+ * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
+ * Alternatives:
+ * https://github.com/NobleJS/setImmediate
+ * https://github.com/calvinmetcalf/immediate
+ */
+var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
+// Node.js 0.9+ and IE10+ has native setImmediate, else:
+isSetImmediate || !function(process, postMessage, addEventListener, MessageChannel, onreadystatechange){
+  var prefix  = 'i' + random()
+    , counter = 0
+    , queue   = {}
+    , run, channel;
+  setImmediate = function(fn){
+    var id     = prefix + ++counter
       , length = arguments.length
-      , args = Array(length + 1);
-    args[0] = this;
-    while(length > i)args[i + 1] = arguments[i++];
-    return apply.call(fn, undefined, args)
+      , args   = Array(length - 1)
+      , i      = 1;
+    while(length > i)args[i - 1] = arguments[i++];
+    queue[id] = function(){
+      (isFunction(fn) ? fn : Function(fn)).apply(global, args)
+    }
+    run(id);
+    return counter
   }
-}
-// Module : objectInt
-// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-function getPropertyDescriptor(object, key){
-  if(key in object)do{
-    if(has(object, key))return getOwnPropertyDescriptor(object, key)
-  }while(object = getPrototypeOf(object))
-}
-// http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-function getOwnPropertyDescriptors(object){
-  var result = {}
-    , names  = getOwnPropertyNames(object)
-    , length = names.length
-    , i      = 0
-    , key;
-  while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
-  return result
-}
-function invert(object){
-  var result = {}
-    , key;
-  for(key in object)has(object, key) && (result[object[key]] = key);
-  return result;
-}
-function isObject(it){
-  return it === Object(it)
-}
-function isString(it){
-  return toString(it) == '[object String]'
-}
-function isFunction(it){
-  return toString(it) == '[object Function]'
-}
-var assign = Object.assign || function(target, source){
-      var props  = keys(source)
-        , length = props.length
-        , i      = 0
-        , key;
-      while(length > i)target[key = props[i++]] = source[key];
-      return target
+  clearImmediate = function(id){
+    delete queue[prefix + id]
+  }
+  function task(id){
+    if(has(queue, id)){
+      var fn = queue[id];
+      delete queue[id];
+      fn()
     }
-  , mixin = Object.mixin || function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source))
+  }
+  function listner(event){
+    if(event.source === global)task(event.data)
+  }
+  // Node.js 0.8-
+  if(classof(process) == 'process'){
+    run = function(id){
+      process.nextTick(part.call(task, id))
     }
-  /**
-   * http://es5.javascript.ru/x9.html#x9.12
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
-   */ 
-  , same = Object.is || function(x,y){
-      return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y
-    };
-// Module : arrayInt
-function slice1(arrayLike){
-  return slice.call(arrayLike, 1)
-}
-function indexSame(arrayLike, val){
-  var i = 0
-    , length = toLength(arrayLike.length)
-  for(;i < length; i++)if(same(arrayLike[i], val))return i;
-  return -1
-}
-function reduceTo(callbackfn, target){
-  target = Object(target);
-  forEach.call(arrayLikeSelf(this), callbackfn, target);
-  return target
-}
-// Module : numberInt
-function toLength(it){
-  var num = toInt(it);
-  return num > 0 && izFinite(num) ? num : 0;
-}
-function sign(it){
-  return (it = +it) == 0 || izNaN(it) ? it : it < 0 ? -1 : 1
-}
-function leadZero(num, length){
-  num += '';
-  while(num.length < length)num = '0' + num;
-  return num;
-}
-    // http://es5.github.io/#x9.4
-var toInt = Number.toInteger || function(it){
-      return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it
+  // Modern browsers
+  // IE8 has postMessage, but it's sync & typeof postMessage is object
+  } else if(isFunction(postMessage)){
+    run = function(id){
+      postMessage(id, '*')
     }
-    // https://people.mozilla.org/~jorendorff/es6-draft.html#sec-20.1.2.4
-  , izNaN = Number.isNaN || function(it){
-      return typeof it == 'number' && it !== it
+    if(addEventListener)addEventListener('message', listner, false);
+    else attachEvent('onmessage', listner)
+  // WebWorkers
+  //} else if(isFunction(MessageChannel)){
+  //  channel = new MessageChannel();
+  //  channel.port1.onmessage = function(event){
+  //    task(event.data)
+  //  };
+  //  run = tie.call(channel.port2, 'postMessage')
+  // IE8-
+  // use DOM => use after onload
+  // always run before timers, like nextTick => some problems with recursive call
+  } else if(document && onreadystatechange in document.createElement('script')){
+    run = function(id){
+      var el = document.createElement('script');
+      el[onreadystatechange] = function(){
+        el.parentNode.removeChild(el);
+        task(id)
+      }
+      document.documentElement.appendChild(el)
     }
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.2
-  , izFinite = Number.isFinite || function(it){
-      return typeof it == 'number' && isFinite(it)
+  // Rest old browsers
+  } else run = function(id){
+      setTimeout(part.call(task, id), 0)
     }
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
-  , isInt = Number.isInteger || function(it){
-      return izFinite(it) && floor(it) == it;
-    };
-// Module : regexpInt
-function getRegExpFlags(){
-  return String(this).match(/[^\/]*$/)[0]
-}
-// Module : es6
+}(global.process, global.postMessage, global.addEventListener, global.MessageChannel, 'onreadystatechange');
+/**
+ * Module : es6
+ */
+/**
+ * ECMAScript 6 shim
+ * http://people.mozilla.org/~jorendorff/es6-draft.html
+ * http://wiki.ecmascript.org/doku.php?id=harmony:proposals
+ * Alternatives:
+ * https://github.com/paulmillr/es6-shim
+ * https://github.com/monolithed/ECMAScript-6
+ * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
+ */
 !function(){
-  var MAX_SAFE_INTEGER = 0x1fffffffffffff
+  function sign(it){
+    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1
+  }
+  function izFinite(it){
+    return typeof it == 'number' && isFinite(it)
+  }
+  // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
+  var isInteger = Number.isInteger || function(it){
+      return izFinite(it) && floor(it) == it;
+    }
+    , isFinite         = global.isFinite
+    , MAX_SAFE_INTEGER = 0x1fffffffffffff
+    , abs              = Math.abs
     , exp              = Math.exp
     , ln               = Math.log
     , sqrt             = Math.sqrt;
   extendBuiltInObject(Object, {
     /**
      * 19.1.3.1 Object.assign ( target, source )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
+     * http://kangax.github.io/es5-compat-table/es6/#Object.assign
+     * http://www.2ality.com/2014/01/object-assign.html
      */
     assign: assign,
     /**
      * 19.1.3.10 Object.is ( value1, value2 )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.10
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
      * http://wiki.ecmascript.org/doku.php?id=harmony:egal
+     * http://kangax.github.io/es5-compat-table/es6/#Object.is
      */
     is: same,
     /**
      * 19.1.3.15 Object.mixin ( target, source )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.15
+     * Removed in Draft Rev 22, January 20, 2014
      */
-    mixin: mixin//,
-    /**
-     * 19.1.3.19 Object.setPrototypeOf ( O, proto )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.19
-     * work only if browser support __proto__
+    mixin: function(target, source){
+      return defineProperties(target, getOwnPropertyDescriptors(source))
+    }
+  });
+  /**
+   * 19.1.3.19 Object.setPrototypeOf ( O, proto )
+   * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.19
+   * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
+   * work only if browser support __proto__, don't work with null proto objects
+   */
+  if(getPrototypeOf({__proto__: null}) === null)extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
-      if(!isObject(O) || !(isObject(proto) || proto === null)){
-        throw TypeError("Can't set " + proto + ' as prototype of ' + O)
-      }
+      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set " + proto + ' as prototype of ' + O);
       O.__proto__ = proto;
       return O
     }
-     */
   });
   extendBuiltInObject(Number, {
     /**
@@ -580,26 +705,31 @@ function getRegExpFlags(){
      * 20.1.2.2 Number.isFinite (number)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.2
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isfinite
+     * http://kangax.github.io/es5-compat-table/es6/#Number.isFinite
      */
     isFinite: izFinite,
     /**
      * 20.1.2.3 Number.isInteger (number)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isinteger
+     * http://kangax.github.io/es5-compat-table/es6/#Number.isInteger
      */
-    isInteger: isInt,
+    isInteger: isInteger,
     /**
      * 20.1.2.4 Number.isNaN (number)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.4
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isnan
+     * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
      */
-    isNaN: izNaN,
+    isNaN: function(number){
+      return typeof number == 'number' && number !== number
+    },
     /**
      * 20.1.2.5 Number.isSafeInteger (number)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.5
      */
     isSafeInteger: function(number){
-      return isInt(number) && abs(number) <= MAX_SAFE_INTEGER;
+      return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
     /**
      * 20.1.2.6 Number.MAX_SAFE_INTEGER
@@ -626,16 +756,18 @@ function getRegExpFlags(){
     /**
      * 20.1.3.1 Number.prototype.clz ()
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
+     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
      */
     clz: function(){
       var number = this >>> 0;
-      return number ? 32 - number[toStringKey](2).length : 32
+      return number ? 32 - number.toString(2).length : 32
     }
   });
   extendBuiltInObject(Math, {
     /**
      * 20.2.2.3 Math.acosh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.3
+     * http://kangax.github.io/es5-compat-table/es6/#Math.acosh
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
     acosh: function(x){
@@ -644,14 +776,16 @@ function getRegExpFlags(){
     /***
      * 20.2.2.5 Math.asinh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.5
+     * http://kangax.github.io/es5-compat-table/es6/#Math.asinh
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
     asinh: function(x){
-      return !izFinite(x) || x === 0 ? x : ln(x + sqrt(x * x + 1))
+      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1))
     },
     /**
      * 20.2.2.7 Math.atanh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.7
+     * http://kangax.github.io/es5-compat-table/es6/#Math.atanh
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
     atanh: function(x){
@@ -668,31 +802,48 @@ function getRegExpFlags(){
     /**
      * 20.2.2.12 Math.cosh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.12
+     * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
      * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
     cosh: function(x){
-      return ((x = +x) == -Infinity) || x === 0 ? x : x(exp(x) + exp(-x)) / 2
+      return (exp(x) + exp(-x)) / 2
     },
     /**
      * 20.2.2.14 Math.expm1 (x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.14
+     * http://kangax.github.io/es5-compat-table/es6/#Math.expm1
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
     expm1: function(x){
       return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1
     },
     /**
-     * 20.2.2.16 Math.hypot( value1 , value2, value3 = 0 )
+     * 20.2.2.16 Math.fround (x)
+     */
+    /*fround: function(x){
+      
+    },*/
+    /**
+     * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.16
+     * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
      * Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
      */
-    hypot: function(x, y, /*?*/z){
-      if(z === undefined)z = 0;
-      return isFinite(x) ? isFinite(y) ? isFinite(z) ? sqrt(x * x + y * y + z * z) : z : y : x
+    hypot: function(value1, value2){
+      var sum    = 0
+        , length = arguments.length
+        , val;
+      while(length--){
+        val = +arguments[length];
+        if(val == Infinity || val == - Infinity)return Infinity;
+        sum += val * val;
+      }
+      return sqrt(sum)
     },
     /**
-     * 20.2.2.17 Math.imul(x, y)
+     * 20.2.2.18 Math.imul(x, y)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.17
+     * http://kangax.github.io/es5-compat-table/es6/#Math.imul
      */
     imul: function(x, y){
       var xh = (x >>> 0x10) & 0xffff
@@ -702,8 +853,9 @@ function getRegExpFlags(){
       return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0
     },
     /**
-     * 20.2.2.19 Math.log1p (x)
+     * 20.2.2.20 Math.log1p (x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.19
+     * http://kangax.github.io/es5-compat-table/es6/#Math.log1p
      * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
      * The result is computed in a way that is accurate even when the value of x is close to zero.
      */
@@ -711,16 +863,18 @@ function getRegExpFlags(){
       return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x)
     },
     /**
-     * 20.2.2.20 Math.log10 (x)
+     * 20.2.2.21 Math.log10 (x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.20
+     * http://kangax.github.io/es5-compat-table/es6/#Math.log10
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
     log10: function(x){
       return ln(x) / Math.LN10
     },
     /**
-     * 20.2.2.21 Math.log2 (x)
+     * 20.2.2.22 Math.log2 (x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.21
+     * http://kangax.github.io/es5-compat-table/es6/#Math.log2
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
     log2: function(x){
@@ -729,12 +883,14 @@ function getRegExpFlags(){
     /**
      * 20.2.2.28 Math.sign(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.28
+     * http://kangax.github.io/es5-compat-table/es6/#Math.sign
      * Returns the sign of the x, indicating whether x is positive, negative or zero.
      */
     sign: sign,
     /**
      * 20.2.2.30 Math.sinh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.30
+     * http://kangax.github.io/es5-compat-table/es6/#Math.sinh
      * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
     sinh: function(x){
@@ -743,14 +899,16 @@ function getRegExpFlags(){
     /**
      * 20.2.2.33 Math.tanh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.33
+     * http://kangax.github.io/es5-compat-table/es6/#Math.tanh
      * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
     tanh: function(x){
-      return izFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x)
+      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x)
     },
     /**
      * 20.2.2.34 Math.trunc(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.34
+     * http://kangax.github.io/es5-compat-table/es6/#Math.trunc
      * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
     trunc: function(x){
@@ -761,6 +919,7 @@ function getRegExpFlags(){
   extendBuiltInObject(String, {
     // 21.1.2.2 String.fromCodePoint ( ...codePoints)
     // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.2
+    // http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
     fromCodePoint: function(){ TODO },
     // 21.1.2.4 String.raw ( callSite, ...substitutions)
     // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.4
@@ -771,30 +930,27 @@ function getRegExpFlags(){
     /**
      * 21.1.3.3 String.prototype.codePointAt (pos)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.3
+     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.codePointAt
      */
-    codePointAt: function(pos /* = 0 */){
-      var value = String(this)
-        , size = value.length;
-      if((pos |= 0) < 0 || pos >= size)return NaN;
-      var first = value.charCodeAt(pos);
-      if(first < 0xD800 || first > 0xDBFF || pos + 1 == size)return first;
-      var second = value.charCodeAt(pos + 1);
-      return(second < 0xDC00 || first > 0xDFFF) ? first : ((first - 0xD800) << 1024) + (second - 0xDC00) + 0x10000
-    },
+    //codePointAt: function(pos /* = 0 */){
+
+    //},
     /**
      * 21.1.3.6 String.prototype.contains (searchString, position = 0 )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.6
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/contains
+     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
      */
     contains: function(searchString, position /* = 0 */){
-      return !!~String(this)[indexOf](searchString, position)
+      return !!~String(this).indexOf(searchString, position)
     },
     /**
      * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.7
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/endsWith
+     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.endsWith
      */
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length;
@@ -806,15 +962,17 @@ function getRegExpFlags(){
      * 21.1.3.13 String.prototype.repeat (count)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.13
      * http://wiki.ecmascript.org/doku.php?id=harmony:string.prototype.repeat
+     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      return fill.call(Array(toInt(count)), this).join('')
+      return fill.call(Array(toInteger(count)), this).join('')
     },
     /**
      * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.18
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/startsWith
+     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.startsWith
      */
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
@@ -827,6 +985,7 @@ function getRegExpFlags(){
      * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.1
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
+     * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       var O = arrayLikeSelf(arrayLike)
@@ -841,6 +1000,7 @@ function getRegExpFlags(){
      * 22.1.2.3 Array.of ( ...items )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.3
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
+     * http://kangax.github.io/es5-compat-table/es6/#Array.of
      */
     of: function(/*args...*/){
       var i = 0
@@ -869,11 +1029,13 @@ function getRegExpFlags(){
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-22.1.3.6
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
+     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
      */
     fill: fill,
     /**
      * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.8
+     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
      */
     find: function(predicate, thisArg /* = undefind */){
       var O = Object(this)
@@ -885,6 +1047,7 @@ function getRegExpFlags(){
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.9
+     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
     findIndex: function(predicate, thisArg /* = undefind */){
       var O = Object(this)
@@ -896,262 +1059,331 @@ function getRegExpFlags(){
     }
   });
 }();
-// Module : es6c
-!function(Map, Set){
-  var sizeDesc = {
-        'get': function(){
-          return this._values.length;
+/**
+ * Module : es6c
+ */
+/**
+ * ECMAScript 6 collection polyfill
+ * http://people.mozilla.org/~jorendorff/es6-draft.html
+ * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
+ * Alternatives:
+ * https://github.com/paulmillr/es6-shim
+ * https://github.com/monolithed/ECMAScript-6
+ * https://github.com/Benvie/harmony-collections
+ * https://github.com/eriwen/es6-map-shim
+ * https://github.com/EliSnow/Blitz-Collections
+ * https://github.com/montagejs/collections
+ * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
+ */
+!function(Map, Set, WeakMap, WeakSet){
+  var tmp      = {}
+    , storeid  = '_storeid' + random()
+    , weakdata = '_weakdata' + random()
+    , uid      = 0
+    , wid      = 0
+    , realsize = DESCRIPTORS ? '_s' : 'size'
+    , sizeGetter = {
+        size: {
+          get: function(){
+            return this._s
+          }
         }
       };
-  function setSize(foo){
-    foo.size = foo._values.length;
+  function createCollectionConstructor(key, isSet){
+    function F(iterable){
+      assertInstance(this, F, key);
+      this.clear();
+      isSet && isArray(iterable) && iterable.forEach(this.add, this)
+    }
+    return F
+  }
+  // fix Set & WeakSet constructors for init array
+  function fixCollectionConstructor(Base, key){
+    function F(iterable){
+      assertInstance(this, F, key);
+      var that = new Base;
+      isArray(iterable) && iterable.forEach(that.add, that)
+      return that
+    }
+    F[prototype] = Base[prototype]
+    return F
+  }
+  // fix .add & .set for chaining
+  function fixAdd(Collection, key){
+    var collection = new Collection;
+    if(collection[key](tmp, 1) !== collection){
+      var fn = collection[key];
+      defineProperty(Collection[prototype], key, descriptor(6, function(){
+        fn.apply(this, arguments);
+        return this
+      }))
+    }
+  }
+  function fastKey(it, create){
+    return isObject(it)
+      ? '_' + (has(it, storeid)
+        ? it[storeid]
+        : create ? defineProperty(it, storeid, {value: uid++})[storeid] : '')
+      : typeof it == 'string' ? '$' + it : it
+  }
+  function createForEach(key){
+    return function(callbackfn, thisArg /* = undefined */){
+      var values = this._v
+        , keyz   = this[key]
+        , names  = keys(keyz)
+        , length = names.length
+        , i = 0
+        , index;
+      while(length > i){
+        index = names[i++];
+        callbackfn.call(thisArg, values[index], keyz[index], this)
+      }
+    }
+  }
+  function collectionHas(key){
+    return fastKey(key) in this._v
+  }
+  function clearSet(){
+    defineProperty(this, '_v', descriptor(6, create(null)));
+    defineProperty(this, realsize, descriptor(4, 0))
   }
   /**
    * 23.1 Map Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
    */
   if(!isNative(Map) || !has(Map[prototype], 'forEach')){
-    global.Map = Map = function(iterable){
-      var that = this;
-      if(!(that instanceof Map))return new Map(iterable);
-      that.clear();
-      isArray(iterable) && iterable.forEach(function(val){
-        that.set(val[0], val[1]);
-      });
-    }
+    global.Map = Map = createCollectionConstructor('Map');
     extendBuiltInObject(Map[prototype], {
       /**
        * 23.1.3.1 Map.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.1
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperties(this, {_keys: descriptor(4, []), _values: descriptor(4, [])});
-        DESCRIPTORS || setSize(this);
+        defineProperty(this, '_k', descriptor(6, create(null)));
+        clearSet.call(this);
       },
       /**
        * 23.1.3.3 Map.prototype.delete ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.3
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.delete
        */
       'delete': function(key){
-        var keys = this._keys
-          , values = this._values
-          , index = indexSame(keys, key);
-        if(~index){
-          keys.splice(index, 1);
-          values.splice(index, 1);
-          DESCRIPTORS || setSize(this);
-          return true
+        var index    = fastKey(key)
+          , values   = this._v
+          , contains = index in values;
+        if(contains){
+          delete this._k[index];
+          delete values[index];
+          this[realsize]--
         }
-        return false
+        return contains
       },
       /**
        * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.5
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
        */
-      forEach: function(callbackfn, thisArg /* = undefined */){
-        var keys = this._keys
-          , values = this._values
-          , length = values.length
-          , i = 0;
-        while(length > i)callbackfn.call(thisArg, values[i], keys[i++], this)
-      },
+      forEach: createForEach('_k'),
       /**
        * 23.1.3.6 Map.prototype.get ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.6
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
        */
       get: function(key){
-        return this._values[indexSame(this._keys, key)]
+        return this._v[fastKey(key)]
       },
       /**
        * 23.1.3.7 Map.prototype.has ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.7
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.has
        */
-      has: function(key){
-        return !!~indexSame(this._keys, key)
-      },
+      has: collectionHas,
       /**
        * 23.1.3.9 Map.prototype.set ( key , value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.1.3.9
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.set
        */
       set: function(key, value){
-        var keys = this._keys,
-            values = this._values,
-            index = indexSame(keys, key);
-        if(!~index){
-          keys.push(key);
-          values.push(value);
-          DESCRIPTORS || setSize(this);
+        var index  = fastKey(key, 1)
+          , values = this._v;
+        if(!(index in values)){
+          this._k[index] = key;
+          this[realsize]++
         }
-        else values[index] = value;
+        values[index] = value;
         return this
       }
     });
-    DESCRIPTORS && defineProperty(Map[prototype], 'size', sizeDesc);
-  }
-  // IE 11 fix
-  else if(!function(){try{return Map([[1,2]]).size==1}catch(e){}}()){
-    global.Map = function(iterable){
-      var that = new Map;
-      isArray(iterable) && iterable.forEach(function(val){
-        that.set(val[0], val[1]);
-      });
-      return that;
-    }
-    global.Map[prototype] = Map[prototype];
-  }
+    /**
+     * 23.1.3.10 get Map.prototype.size
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
+     */
+    defineProperties(Map[prototype], sizeGetter)
+  } else fixAdd(Map, 'set');
   /**
    * 23.2 Set Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
    */
   if(!isNative(Set) || !has(Set[prototype], 'forEach')){
-    global.Set = Set = function(iterable){
-      if(!(this instanceof Set))return new Set(iterable);
-      this.clear();
-      isArray(iterable) && iterable.forEach(this.add, this);
-    };
+    global.Set = Set = createCollectionConstructor('Set', 1);
     extendBuiltInObject(Set[prototype], {
       /**
-       * 23.2.3.1 Set.prototype.add (value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.2.3.1
+       * 23.2.3.1 Set.prototype.add ( value )
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.add
        */
       add: function(value){
-        var values = this._values;
-        if(!~indexSame(values, value)){
-          values.push(value);
-          DESCRIPTORS || setSize(this);
+        var index  = fastKey(value, 1)
+          , values = this._v;
+        if(!(index in values)){
+          values[index] = value;
+          this[realsize]++
         }
         return this
       },
       /**
        * 23.2.3.2 Set.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.2.3.2
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.clear
        */
-      clear: function(){
-        defineProperty(this, '_values', descriptor(4, []));
-        DESCRIPTORS || setSize(this);
-      },
+      clear: clearSet,
       /**
        * 23.2.3.4 Set.prototype.delete ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.2.3.4
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.delete
        */
       'delete': function(value){
-        var values = this._values
-          , index = indexSame(values, value);
-        if(~index){
-          values.splice(index, 1);
-          DESCRIPTORS || setSize(this);
-          return true
+        var index    = fastKey(value)
+          , values   = this._v
+          , contains = index in values;
+        if(contains){
+          delete values[index]
+          this[realsize]--
         }
-        return false
+        return contains
       },
       /**
        * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.2.3.6
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
        */
-      forEach: function(callbackfn, thisArg /* = undefined */){
-        var values = this._values
-          , length = values.length
-          , i = 0
-          , val;
-        while(length > i)callbackfn.call(thisArg, val = values[i++], val, this)
-      },
+      forEach: createForEach('_v'),
       /**
        * 23.2.3.7 Set.prototype.has ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-23.2.3.7
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
        */
-      has: function(value){
-        return !!~indexSame(this._values, value)
-      }
+      has: collectionHas
     });
-    DESCRIPTORS && defineProperty(Set[prototype], 'size', sizeDesc);
+    /**
+     * 23.2.3.9 get Set.prototype.size
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-set.prototype.size
+     */
+    defineProperties(Set[prototype], sizeGetter)
+  } else {
+    // IE 11 fix
+    if(new Set([1]).size != 1)global.Set = fixCollectionConstructor(Set, 'Set')
+    fixAdd(Set, 'add');
   }
-  // IE 11 fix
-  else if(!function(){try{return Set([1]).size==1}catch(e){}}()){
-    global.Set = function(iterable){
-      var that = new Set;
-      isArray(iterable) && iterable.forEach(that.add, that);
-      return that;
+  function getWeakData(it){
+    return (has(it, weakdata) ? it : defineProperty(it, weakdata, {value: {}}))[weakdata];
+  }
+  function assertObject(foo){
+    isObject(foo) || assert(0, foo + ' is not an object') // {__proto__: null} + '' => Error
+  }
+  var commonWeakCollection = {
+    /**
+     * 23.3.3.1 WeakMap.prototype.clear ()
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.clear
+     * 23.4.3.2 WeakSet.prototype.clear ()
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
+     */
+    clear: function(){
+      defineProperty(this, '_id', descriptor(6, wid++))
+    },
+    /**
+     * 23.3.3.3 WeakMap.prototype.delete ( key )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.delete
+     * 23.4.3.4 WeakSet.prototype.delete ( value )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
+     */
+    'delete': function(value){
+      return this.has(value) && has(key, weakdata) ? delete value[weakdata][this._id] : false
+    },
+    /**
+     * 23.3.3.5 WeakMap.prototype.has ( key )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.has
+     * 23.4.3.5 WeakSet.prototype.has ( value )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
+     */
+    has: function(value){
+      return isObject(value) && has(key, weakdata) && has(value[weakdata], this._id)
     }
-    global.Set[prototype] = Set[prototype];
-  }
-}(global.Map, global.Set);
-// Module : timers
-!function(navigator, setTimeout, setInterval, postMessage, setImmediate, clearImmediate, addEventListener){
-  function timersBind(fn, args){
-    return part.apply(isFunction(fn) ? fn : Function(fn), args);
-  }
+  };
   /**
-   * ie9- setTimeout & setInterval additional parameters fix
-   * on ie8- work only as (global|window).setTimeout, instead of setTimeout
-   * http://www.w3.org/TR/html5/webappapis.html#timers
-   * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
+   * 23.3 WeakMap Objects
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
    */
-  if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    global.setTimeout = function(fn, time /*, args...*/){
-      return setTimeout(timersBind(fn, slice.call(arguments, 2)), time || 1)
-    };
-    global.setInterval = function(fn, time /*, args...*/){
-      return setInterval(timersBind(fn, slice.call(arguments, 2)), time || 1)
-    }
-  }
+  if(!isNative(WeakMap) || !has(WeakMap[prototype], 'clear')){
+    global.WeakMap = WeakMap = createCollectionConstructor('WeakMap');
+    extendBuiltInObject(WeakMap[prototype], assign({
+      /**
+       * 23.3.3.4 WeakMap.prototype.get ( key )
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
+       */
+      get: function(key){
+        return isObject(key) && has(key, weakdata) ? key[weakdata][this._id] : undefined
+      },
+      /**
+       * 23.3.3.6 WeakMap.prototype.set ( key , value )
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.set
+       */
+      set: function(key, value){
+        assertObject(key);
+        getWeakData(key)[this._id] = value;
+        return this
+      }
+    }, commonWeakCollection));
+  } else fixAdd(WeakMap, 'set');
   /**
-   * setImmediate
-   * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+   * 23.4 WeakSet Objects
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
    */
-  if(!isFunction(global[setImmediate]) || !isFunction(global[clearImmediate])){
-    if(isFunction(postMessage)){
-      var msg     = setImmediate + random()
-        , counter = 0
-        , queue   = {}
-        , listner = function(event){
-            var id = event.data;
-            if(id in queue){
-              queue[id]();
-              delete queue[id]
-            }
-          }
-      global[setImmediate] = function(fn /*, args...*/){
-        var id = ++counter + msg;
-        queue[id] = timersBind(fn, slice1(arguments));
-        postMessage(id, '*');
-        return counter
+  if(!isNative(WeakSet)){
+    global.WeakSet = WeakSet = createCollectionConstructor('WeakSet', 1);
+    extendBuiltInObject(WeakSet[prototype], assign({
+      /**
+       * 23.4.3.1 WeakSet.prototype.add (value )
+       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.add
+       */
+      add: function(value){
+        assertObject(value);
+        getWeakData(value)[this._id] = true;
+        return this
       }
-      global[clearImmediate] = function(id){
-        delete queue[id + msg]
-      }
-      if(addEventListener)addEventListener('message', listner, false);
-      else attachEvent('onmessage', listner)
-    }
-    else {
-      global[setImmediate] = function(fn /*, args...*/){
-        return setTimeout(timersBind(fn, slice1(arguments)), 1)
-      }
-      global[clearImmediate] = Function('i','clearTimeout(i)')
-    }
+    }, commonWeakCollection))
+  } else {
+    // v8 fix
+    if(!new WeakSet([tmp]).has(tmp))global.WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
+    fixAdd(WeakSet, 'add');
   }
-}(global.navigator, setTimeout, setInterval, global.postMessage, 'setImmediate', 'clearImmediate', global.addEventListener);
-// Module : promise
+}(global.Map, global.Set, global.WeakMap, global.WeakSet);
+/**
+ * Module : promise
+ */
 /**
  * ES6 Promises
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
  * https://github.com/domenic/promises-unwrapping
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+ * http://kangax.github.io/es5-compat-table/es6/#Promise
+ * http://caniuse.com/promises
  * Based on:
  * https://github.com/jakearchibald/ES6-Promises
- * https://github.com/tildeio/rsvp.js
+ * Alternatives:
+ * https://github.com/jakearchibald/ES6-Promises
+ * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
  */
 !function(Promise){
-  isFunction(Promise)
-  // Some of these methods are missing from Firefox/Chrome experimental implementations
-  &&  splitComma('cast,resolve,reject,all,race').every($part(has, Promise))
+  isNative(Promise)
+  &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
   // Older version of the spec had a resolver object as the arg rather than a function
-  &&  (function(resolve){
-        new Promise(function(r){ resolve = r });
-        return isFunction(resolve)
-      })()
-  // Experimental implementation in chrome contains a number of inconsistencies with the spec,
+  // Experimental implementations contains a number of inconsistencies with the spec,
   // such as this: onFulfilled must be a function or undefined
-  &&  (function(){
+  &&  (function(resolve){
         try {
-          return new Promise(Function()).then(null)
+          new Promise(function(r){ resolve = r }).then(null);
+          return isFunction(resolve)
         } catch(e){}
       })()
   || !function(){
@@ -1162,20 +1394,21 @@ function getRegExpFlags(){
       , _subscribers = '_subscribers'
       , _state = '_state'
       , _detail = '_detail'
-      , setImmediate = global.setImmediate
-      // https://github.com/domenic/promises-unwrapping#the-promise-constructor
-      , Promise = global.Promise = function(resolver){
-          var promise       = this
-            , rejectPromise = $part(reject, promise);
-          if(!isFunction(resolver))throw TypeError('First argument of Promise constructor must be an function');
-          if(!(promise instanceof Promise))throw TypeError('Promise constructor cannot be called as a function.');
-          promise[_subscribers] = [];
-          try {
-            resolver($part(resolve, promise), rejectPromise)
-          } catch(e){
-            rejectPromise(e)
-          }
-        }
+      , ITERABLE_ERROR = 'You must pass an array to race or all';
+    // https://github.com/domenic/promises-unwrapping#the-promise-constructor
+    function Promise(resolver){
+      var promise       = this
+        , rejectPromise = part.call(handle, promise, REJECTED);
+      assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
+      assertInstance(promise, Promise, 'Promise');
+      promise[_subscribers] = [];
+      try {
+        resolver(part.call(resolve, promise), rejectPromise)
+      } catch(e){
+        rejectPromise(e)
+      }
+    }
+    global.Promise = Promise;
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -1193,178 +1426,244 @@ function getRegExpFlags(){
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
-      else if(failed)reject(promise, error);
-      else if(settled === FULFILLED)resolve(promise, value);
-      else if(settled === REJECTED)reject(promise, value);
-    }
-    function publish(promise, settled){
-      var subscribers = promise[_subscribers]
-        , detail = promise[_detail]
-        , child, callback, i = 0;
-      for(; i < subscribers.length; i += 3){
-        child = subscribers[i];
-        callback = subscribers[i + settled];
-        invokeCallback(settled, child, callback, detail);
-      }
-      promise[_subscribers] = null;
+      else if(failed)handle(promise, REJECTED, error);
+      else if(settled == FULFILLED)resolve(promise, value);
+      else if(settled == REJECTED)handle(promise, REJECTED, value)
     }
     assign(Promise[prototype], {
-      // https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
+      /**
+       * 25.4.5.1 Promise.prototype.catch ( onRejected )
+       * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
+       */
       'catch': function(onRejected){
-        return this.then(null, onRejected);
+        return this.then(undefined, onRejected)
       },
-      // https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
+      /**
+       * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
+       * https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
+       */
       then: function(onFulfilled, onRejected){
         var promise     = this
-          , thenPromise = new Promise(Function())
-          , subscribers, length;
+          , thenPromise = new Promise(Function());
         if(promise[_state])setImmediate(function(){
           invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail])
         }, onFulfilled, onRejected);
-        else {
-          subscribers = promise[_subscribers];
-          length      = subscribers.length;
-          subscribers[length] = thenPromise;
-          subscribers[length + FULFILLED] = onFulfilled;
-          subscribers[length + REJECTED]  = onRejected;
-        }
-        return thenPromise;
+        else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
+        return thenPromise
       }
     });
     assign(Promise, {
-      // https://github.com/domenic/promises-unwrapping#promiseall--iterable-
-      all: function(promises){
-        if(!isArray(promises))throw TypeError('You must pass an array to all.');
+      /**
+       * 25.4.4.1 Promise.all ( iterable )
+       * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
+       */
+      all: function(iterable){
+        assert(isArray(iterable), ITERABLE_ERROR);
         return new this(function(resolve, reject){
           var results   = []
-            , remaining = promises.length
-            , promise, i;
-          if(remaining === 0)resolve([]);
+            , remaining = iterable.length;
           function resolveAll(index, value){
             results[index] = value;
-            if(--remaining === 0)resolve(results)
+            --remaining || resolve(results)
           }
-          for(i = 0; i < promises.length; i++){
-            (promise = promises[i]) && isFunction(promise.then)
-              ? promise.then($part(resolveAll, i), reject)
+          if(remaining)iterable.forEach(function(promise, i){
+            promise && isFunction(promise.then)
+              ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise)
-          }
+          })
+          else resolve(results);
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promisecast--x-
-      cast: function(object){
-        if(object && object instanceof this)return object;
-        return new this(function(resolve){
-          resolve(object)
-        })
+      /**
+       * 25.4.4.2 Promise.cast ( x )
+       * https://github.com/domenic/promises-unwrapping#promisecast--x-
+       */
+      cast: function(x){
+        return x instanceof this ? x : $resolve.call(this, x)
       },
-      // https://github.com/domenic/promises-unwrapping#promiserace--iterable-
-      race: function(promises){
-        if(!isArray(promises))throw TypeError('You must pass an array to race.');
+      /**
+       * 25.4.4.4 Promise.race ( iterable )
+       * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
+       */
+      race: function(iterable){
+        assert(isArray(iterable), ITERABLE_ERROR);
         return new this(function(resolve, reject){
-          var results = []
-            , i = 0, promise;
-          while(promises.length > i){
-            (promise = promises[i++]) && isFunction(promise.then)
+          iterable.forEach(function(promise){
+            promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
               : resolve(promise)
-          }
+          })
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promisereject--r-
-      reject: function(reason){
+      /**
+       * 25.4.4.5 Promise.reject ( r )
+       * https://github.com/domenic/promises-unwrapping#promisereject--r-
+       */
+      reject: function(r){
         return new this(function(resolve, reject){
-          reject(reason)
+          reject(r)
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promiseresolve--x-
-      resolve: function(value){
-        return new this(function(resolve, reject){
-          resolve(value)
-        })
-      }
+      /**
+       * 25.4.4.6 Promise.resolve ( x )
+       * https://github.com/domenic/promises-unwrapping#promiseresolve--x-
+       */
+      resolve: $resolve
     });
+    function $resolve(x){
+      return new this(function(resolve, reject){
+        resolve(x)
+      })
+    }
     function handleThenable(promise, value){
       var resolved;
       try {
-        if(promise === value)throw TypeError('A promises callback cannot return that same promise.');
-        if(isObject(value)){
-          if(isFunction(value.then)){
-            value.then(function(val){
-              if(resolved)return true;
-              resolved = true;
-              if(value !== val)resolve(promise, val);
-              else fulfill(promise, val)
-            }, function(val){
-              if(resolved)return true;
-              resolved = true;
-              reject(promise, val)
-            });
-            return true
-          }
+        assert(promise !== value, 'A promises callback cannot return that same promise.');
+        if(value && isFunction(value.then)){
+          value.then(function(val){
+            if(resolved)return true;
+            resolved = true;
+            if(value !== val)resolve(promise, val);
+            else handle(promise, FULFILLED, val)
+          }, function(val){
+            if(resolved)return true;
+            resolved = true;
+            handle(promise, REJECTED, val)
+          });
+          return 1
         }
       } catch(error){
-        if(!resolved)reject(promise, error);
-        return true
+        if(!resolved)handle(promise, REJECTED, error);
+        return 1
       }
-      return false
     }
     function resolve(promise, value){
-      if(promise === value || !handleThenable(promise, value))fulfill(promise, value)
+      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value)
     }
-    function fulfill(promise, value){
-      if(promise[_state] === PENDING){
-        promise[_state]  = SEALED;
-        promise[_detail] = value;
-        setImmediate(function(){
-          publish(promise, promise[_state] = FULFILLED)
-        })
-      }
-    }
-    function reject(promise, reason){
+    function handle(promise, state, reason){
       if(promise[_state] === PENDING){
         promise[_state]  = SEALED;
         promise[_detail] = reason;
         setImmediate(function(){
-          publish(promise, promise[_state] = REJECTED)
+          promise[_state] = state;
+          for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
+            invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
+          }
+          promise[_subscribers] = undefined
         })
       }
     }
   }();
 }(global.Promise);
-// Module : function
-function inherits(parent){
-  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
-  return this
+/**
+ * Module : extendedObjectAPI
+ */
+/**
+ * Extended object api from harmony and strawman :
+ * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+ * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+ */
+extendBuiltInObject(Object, {
+  getPropertyDescriptor: function(object, key){
+    if(key in object)do {
+      if(has(object, key))return getOwnPropertyDescriptor(object, key)
+    } while(object = getPrototypeOf(object))
+  },
+  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
+  getPropertyDescriptors: function(object){
+    var result = getOwnPropertyDescriptors(object)
+      , i, length, names, key;
+    while(object = getPrototypeOf(object)){
+      names  = getOwnPropertyNames(object);
+      i      = 0;
+      length = names.length;
+      while(length > i)if(!has(result, key = names[i++])){
+        result[key] = getOwnPropertyDescriptor(object, key);
+      }
+    }
+    return result
+  },
+  getPropertyNames: function(object){
+    var result = getOwnPropertyNames(object)
+      , i, length, names, key;
+    while(object = getPrototypeOf(object)){
+      i      = 0;
+      names  = getOwnPropertyNames(object);
+      length = names.length;
+      while(length > i)~result.indexOf(key = names[i++]) || result.push(key)
+    }
+    return result
+  }
+})
+/**
+ * Module : timers
+ */
+/**
+ * ie9- setTimeout & setInterval additional parameters fix
+ * on ie8- work only as (global|window).setTimeout, instead of setTimeout
+ * http://www.w3.org/TR/html5/webappapis.html#timers
+ * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
+ * Alternatives:
+ * https://developer.mozilla.org/ru/docs/Web/API/Window.setTimeout#IE_Only_Fix
+ */
+!function(navigator){
+  function wrap(set){
+    return function(fn, time /*, args...*/){
+      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1)
+    }
+  }
+  // ie9- dirty check
+  if(navigator && /MSIE .\./.test(navigator.userAgent)){
+    global.setTimeout  = wrap(setTimeout);
+    global.setInterval = wrap(setInterval);
+  }
+}(global.navigator);
+/**
+ * Module : immediate
+ */
+/**
+ * setImmediate
+ * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+ * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
+ * Alternatives:
+ * https://github.com/NobleJS/setImmediate
+ * https://github.com/calvinmetcalf/immediate
+ */
+if(!isSetImmediate){
+  global.setImmediate = setImmediate;
+  global.clearImmediate = clearImmediate;
 }
+/**
+ * Module : function
+ */
 extendBuiltInObject(Function, {
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#isFunction
+   * http://sugarjs.com/api/Object/isType
+   * http://api.prototypejs.org/language/Object/isFunction/
+   * http://api.jquery.com/jQuery.isFunction/
+   * http://docs.angularjs.org/api/angular.isFunction
+   */
+  isFunction: isFunction,
   isNative: isNative,
-  inherits: $unbind(inherits)
+  inherits: unbind(inherits),
+  _: _
 });
 extendBuiltInObject($Function, {
-  // method -> function
-  unbind: unbind,
-  // function -> method
-  methodize: methodize,
-  // partial apply
+  /**
+   * Partial apply.
+   * Alternatives:
+   * http://sugarjs.com/api/Function/fill
+   * http://underscorejs.org/#partial
+   * http://mootools.net/docs/core/Types/Function#Function:pass
+   * http://fitzgen.github.io/wu.js/#wu-partial
+   */
   part: part,
-  partial: function(args/*?*/, that){
-    var fn       = this
-      , argsPart = toArray(args)
-      , isThat   = arguments.length > 1;
-    return function(/*args...*/){
-      var args   = toArray(argsPart)
-        , length = arguments.length
-        , i, current = i = 0;
-      while(length > i){
-        while(args[current] !== undefined)current++;
-        args[current++] = arguments[i++]
-      }
-      return fn.apply(isThat ? that : this, args)
-    }
-  },
-  // http://www.wirfs-brock.com/allen/posts/166
-  // http://habrahabr.ru/post/114737/
+  /**
+   * http://www.wirfs-brock.com/allen/posts/166
+   * http://habrahabr.ru/post/114737/
+   */
   only: function(numberArguments/*?*/, that){
     numberArguments |= 0;
     var fn     = this
@@ -1373,65 +1672,90 @@ extendBuiltInObject($Function, {
       return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)))
     }
   },
-  // simple bind context
-  ctx: ctx,
+  /**
+   * function -> method
+   * Alternatives:
+   * http://api.prototypejs.org/language/Function/prototype/methodize/
+   */
+  methodize: methodize,
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));
     return isObject(result) ? result : instance
   },
-  once: function(){
-    var fn   = this
-      , wait = 1
-      , result;
-    return function(/*args...*/){
-      if(wait){
-        wait   = 0;
-        result = fn.apply(this, arguments)
-      }
-      return result
-    }
-  },
-  // AOP
-  error: function(cb /*cb(error, arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args = toArray(arguments);
-      try{return fn.apply(this, args)}
-      catch(e){return cb.call(this, e, args)}
-    }
-  },
-  before: function(cb /*cb(arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args = toArray(arguments);
-      cb.call(this, args);
-      return fn.apply(this, args)
-    }
-  },
-  after: function(cb /*cb(result, arguments)*/){
-    var fn = this;
-    return function(/*args...*/){
-      var args        = toArray(arguments)
-        , result      = fn.apply(this, args)
-        , resultAfter = cb.call(this, result, args);
-      return resultAfter === undefined ? result : resultAfter
-    }
-  },
   // deferred call
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#delay
+   * http://sugarjs.com/api/Function/delay
+   * http://api.prototypejs.org/language/Function/prototype/delay/
+   * http://mootools.net/docs/core/Types/Function#Function:delay
+   */
   timeout: function(del /*, args...*/){
-    return $part(clearTimeout, setTimeout(part.apply(this, slice1(arguments)), del))
+    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del])
   },
+  /**
+   * Alternatives:
+   * http://sugarjs.com/api/Function/every
+   * http://mootools.net/docs/core/Types/Function#Function:periodical
+   */
   interval: function(del /*, args...*/){
-    return $part(clearInterval, setInterval(part.apply(this, slice1(arguments)), del))
+    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del])
   },
-  immediate: function(/* args...*/){
-    return $part(clearImmediate, setImmediate(part.apply(this, arguments)))
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#defer
+   * http://api.prototypejs.org/language/Function/prototype/defer/
+   */
+  immediate: function(/*, args...*/){
+    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)])
   },
+  /**
+   * Alternatives:
+   * http://nodejs.org/api/util.html#util_util_inherits_constructor_superconstructor
+   */
   inherits: inherits
 });
-// Module : object
+function createDeferred(set, clear, args){
+  var deferred = {
+    stop: function(){
+      id && clear(id);
+      return deferred
+    },
+    run: function(){
+      id && clear(id);
+      id = apply.call(set, global, args);
+      return deferred
+    }
+  }, id;
+  return deferred;
+}
+/**
+ * Module : binding
+ */
+var tieExt = {tie: tie};
+extendBuiltInObject($Array, tieExt);
+extendBuiltInObject(RegExp[prototype], tieExt);
+extendBuiltInObject($Function, tieExt);
+extendBuiltInObject(Object, {
+  /**
+   * Alternatives:
+   * http://lodash.com/docs#bindKey
+   */
+  tie: unbind(tie),
+  /**
+   * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
+   */
+  useTie: part.call(extendBuiltInObject, $Object, tieExt)
+});
+/**
+ * Module : object
+ */
 !function(){
+  function make(proto, props){
+    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined)
+  }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
       var isComp = isFunction(reverse)
@@ -1443,8 +1767,7 @@ extendBuiltInObject($Function, {
         key = names[i++];
         if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
           deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB)    // if not deep - skip
-        }
-        else if(desc){
+        } else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
           if(targetDescriptor.configurable !== false && delete target[key]){
             sourceDescriptor = getOwnPropertyDescriptor(source, key);
@@ -1455,8 +1778,7 @@ extendBuiltInObject($Function, {
             }
             defineProperty(target, key, sourceDescriptor)
           }
-        }
-        else target[key] = deep
+        } else target[key] = deep
           ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
           : source[key]
       }
@@ -1464,14 +1786,13 @@ extendBuiltInObject($Function, {
     return target
   }
   /**
+   * NB:
    * http://wiki.ecmascript.org/doku.php?id=strawman:structured_clone
    * https://github.com/dslomov-chromium/ecmascript-structured-clone
    */
   function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
     if(!isObject(object))return object;
-    stackA || (stackA = []);
-    stackB || (stackB = []);
-    var already = stackA[indexOf](object)
+    var already = stackA.indexOf(object)
       , F       = object.constructor
       , result;
     if(~already)return stackB[already];
@@ -1483,7 +1804,7 @@ extendBuiltInObject($Function, {
       case 'Function'  :
         return object;
       case 'RegExp'    :
-        result = RegExp(object.source, getRegExpFlags.call(object));
+        result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
         break;
       case 'String'    :
         return new F(object);
@@ -1511,26 +1832,24 @@ extendBuiltInObject($Function, {
     stackB.push(result);
     return merge(result, object, deep, 0, desc, stackA, stackB)
   }
-  function make(proto, props, simple /* = false */){
-    return props ? (simple ? assign : mixin)(create(proto), props) : create(proto)
-  }
   // Objects deep compare
-  function deepEqual(a, b, StackA, StackB){
+  function isEqual(a, b, StackA, StackB){
     if(same(a, b))return true;
     var type = classof(a)
       , length, keys, val;
     if(
-      !isObject(a) || !isObject(b)
-      || type != classof(b)
-      || getPrototypeOf(a) != getPrototypeOf(b)
+      !isObject(a) ||
+      !isObject(b) ||
+      type != classof(b) ||
+      getPrototypeOf(a) != getPrototypeOf(b)
     )return false;
-    StackA = isArray(StackA) ? StackA.concat([a]) : [a];
-    StackB = isArray(StackB) ? StackB.concat([b]) : [b];
+    StackA = StackA.concat([a]);
+    StackB = StackB.concat([b]);
     switch(type){
       case'Boolean'   :
       case'String'    :
       case'Number'    : return a.valueOf() == b.valueOf();
-      case'RegExp'    : return String(a) == String(b);
+      case'RegExp'    : return '' + a == '' + b;
       case'Error'     : return a.message == b.message;/*
       case'Array'     :
       case'Arguments' :
@@ -1538,8 +1857,8 @@ extendBuiltInObject($Function, {
         if(length != b.length)return false;
         while(length--){
           if(
-            !(~StackA[indexOf](a[length]) && ~StackB[indexOf](b[length]))
-            && !deepEqual(a[length], b[length], StackA, StackB)
+            !(~StackA.indexOf(a[length]) && ~StackB.indexOf(b[length]))
+            && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
         return true*/
@@ -1549,8 +1868,8 @@ extendBuiltInObject($Function, {
     if(length != getOwnPropertyNames(b).length)return false;
     while(length--){
       if(
-        !(~StackA[indexOf](a[val = keys[length]]) && ~StackB[indexOf](b[val]))
-        && !deepEqual(a[val], b[val], StackA, StackB)
+        !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
+        && !isEqual(a[val], b[val], StackA, StackB)
       )return false
     }
     return true
@@ -1575,61 +1894,66 @@ extendBuiltInObject($Function, {
     }
   }
   extendBuiltInObject(Object, {
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#has
+     * http://sugarjs.com/api/Object/has
+     */
     has: has,
-    isEnumerable: isEnumerable,
-    isPrototype: $unbind($Object.isPrototypeOf),
+    isEnumerable: unbind(isEnumerable),
+    isPrototype: unbind($Object.isPrototypeOf),
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Core/Core#Core:typeOf
+     * http://api.jquery.com/jQuery.type/
+     */
     classof: classof,
-    bind: function(object, key){
-      var args = toArray(arguments);
-      args.splice(1, 1);
-      return $Function.bind.apply(object[key], args)
-    },
-    // Extended object api from harmony and strawman :
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getPropertyDescriptor: getPropertyDescriptor,
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    getPropertyDescriptors: function(object){
-      var result = getOwnPropertyDescriptors(object)
-        , i, length, names, key;
-      while(object = getPrototypeOf(object)){
-        names  = getOwnPropertyNames(object);
-        i      = 0;
-        length = names.length;
-        while(length > i){
-          if(!has(result, key = names[i++])){
-            result[key] = getOwnPropertyDescriptor(object, key);
-          }
-        }
-      }
-      return result
-    },
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    getPropertyNames: function(object){
-      var result = getOwnPropertyNames(object)
-        , i, length, names, key;
-      while(object = getPrototypeOf(object)){
-        i      = 0;
-        names  = getOwnPropertyNames(object);
-        length = names.length;
-        while(length > i)~result[indexOf](key = names[i++]) || result.push(key)
-      }
-      return result
-    },
-    // Shugar for Object.create
+    /**
+     * Shugar for Object.create
+     * Alternatives:
+     * http://lodash.com/docs#create
+     */
     make: make,
-    // Shugar for Object.make(null[, props, simple])
-    plane: function(props, simple /* = false */){
-      return make(null, props, simple)
+    // Shugar for Object.make(null[, props])
+    plane: part.call(make, null),
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#clone
+     * http://lodash.com/docs#cloneDeep
+     * http://sugarjs.com/api/Object/clone
+     * http://api.prototypejs.org/language/Object/clone/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-clone
+     * http://docs.angularjs.org/api/angular.copy
+     */
+    clone: function(object, deep /* = false */, desc /* = false */){
+      return clone(object, deep, desc, [], [])
     },
-    clone: clone,
-    merge: merge,
-    // Shugar for Object.merge(target, props, 1, 1)
+    /**
+     * Alternatives:
+     * http://lodash.com/docs#merge
+     * http://sugarjs.com/api/Object/merge
+     * http://mootools.net/docs/core/Types/Object#Object:Object-merge
+     * http://api.jquery.com/jQuery.extend/
+     */
+    merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
+      return merge(target, source, deep, reverse, desc, [], [])
+    },
+    /**
+     * Shugar for Object.merge(target, props, 1, 1)
+     * Alternatives:
+     * http://underscorejs.org/#defaults
+     */
     defaults: function(target, props){
-      return merge(target, props, 1, 1)
+      return merge(target, props, 1, 1, 0, [], [])
     },
-    // {a: b} -> [b]
+    /**
+     * {a: b} -> [b]
+     * Alternatives:
+     * http://underscorejs.org/#values
+     * http://sugarjs.com/api/Object/values
+     * http://api.prototypejs.org/language/Object/values/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-values
+     */
     values: function(object){
       var props  = keys(object)
         , length = props.length
@@ -1638,9 +1962,19 @@ extendBuiltInObject($Function, {
       while(length > i)result[i] = object[props[i++]];
       return result
     },
-    // {a: b} -> {b: a}
+    /**
+     * {a: b} -> {b: a}
+     * Alternatives:
+     * http://underscorejs.org/#invert
+     */
     invert: invert,
     // Enumerable
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#every
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-every
+     */
     every: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -1648,10 +1982,16 @@ extendBuiltInObject($Function, {
         , i      = 0
         , key;
       while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false;
+        if(!fn.call(that, O[key = props[i++]], key, object))return false
       }
       return true
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#filter
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-filter
+     */
     filter: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , result = {}
@@ -1664,12 +2004,29 @@ extendBuiltInObject($Function, {
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#find
+     * http://sugarjs.com/api/Object/enumerable
+     */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index];
+      return index === undefined ? undefined : object[index]
     },
     findIndex: findIndex,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#each
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-each
+     * http://api.jquery.com/jQuery.each/
+     * http://docs.angularjs.org/api/angular.forEach
+     */
     forEach: forOwnKeys,
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
+     */
     indexOf: function(object, searchElement){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -1678,6 +2035,13 @@ extendBuiltInObject($Function, {
         , key;
       while(length > i)if(same(O[key = props[i++]],searchElement))return key
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#map
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-map
+     * http://api.jquery.com/jQuery.map/
+     */
     map: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , result = {}
@@ -1690,6 +2054,11 @@ extendBuiltInObject($Function, {
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#reduce
+     * http://sugarjs.com/api/Object/enumerable
+     */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -1697,7 +2066,7 @@ extendBuiltInObject($Function, {
         , length = props.length
         , key;
       if(arguments.length < 3){
-        if(!length--)throw TypeError(REDUCE_ERROR);
+        assert(length--, REDUCE_ERROR);
         result = O[props.shift()];
       }
       while(length > i){
@@ -1705,6 +2074,12 @@ extendBuiltInObject($Function, {
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#some
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-some
+     */
     some: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -1716,7 +2091,12 @@ extendBuiltInObject($Function, {
       }
       return false
     },
-    props: function(object, prop){
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#pluck
+     * http://sugarjs.com/api/Array/map
+     */
+    pluck: function(object, prop){
       object = arrayLikeSelf(object);
       var names  = keys(object)
         , result = {}
@@ -1730,99 +2110,37 @@ extendBuiltInObject($Function, {
       }
       return result
     },
-    reduceTo: function(object, fn, target){
-      target = Object(target);
-      forOwnKeys(object, fn, target);
-      return target;
+    reduceTo: function(object, target, callbackfn){
+      if(arguments.length < 3){
+        callbackfn = target;
+        target = {}
+      }
+      else target = Object(target);
+      forOwnKeys(object, callbackfn, target);
+      return target
     },
-    deepEqual: deepEqual,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#isObject
+     * http://sugarjs.com/api/Object/isType
+     * http://docs.angularjs.org/api/angular.isObject
+     */
     isObject: isObject,
-    isUndefined: function(it){
-      return it === undefined
-    },
-    isNull     : function(it){
-      return it === null
-    },
-    isNumber   : function(it){
-      return toString(it) == '[object Number]'
-    },
-    isString   : isString,
-    isBoolean  : function(it){
-      return it === !!it || toString(it) == '[object Boolean]'
-    },
-    isArray    : isArray,
-    isFunction : isFunction,
-    isRegExp   : function(it){
-      return toString(it) == '[object RegExp]'
-    },
-    isDate     : function(it){
-      return toString(it) == '[object Date]'
-    },
-    isError    : function(it){
-      return toString(it) == '[object Error]'
-    }
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#isEqual
+     * http://sugarjs.com/api/Object/equal
+     * http://docs.angularjs.org/api/angular.equals
+     * http://fitzgen.github.io/wu.js/#wu-eq
+     */
+    isEqual: part.call(isEqual, _, _, [], [])
   });
 }();
-// Module : wrap
-function Wrap(object){
-  if(!(this instanceof Wrap))return new Wrap(object);
-  this.value = object
-}
-var $Wrap = Wrap[prototype];
-extendBuiltInObject(Object, {Wrap: Wrap});
-splitComma(
-  // ES5:
-  'defineProperty,defineProperties,getPrototypeOf,create,' +
-  // ES6:
-  'assign,mixin,' +
-  // Core.js:
-  'getOwnPropertyDescriptors,getPropertyDescriptors,make,plane,' +
-  'clone,merge,defaults,invert,filter,forEach,map,props,reduceTo'
-).forEach(function(key){
-  var fn = Object[key];
-    isFunction(fn) && defineProperty($Wrap, key, descriptor(6, function(){
-      var value = this.value
-        , args  = [value]
-        , result;
-      push.apply(args, arguments);
-      result = fn.apply(this, args)
-      return value === result ? this : new Wrap(result)
-    }));
-});
-getOwnPropertyNames(Object).forEach(function(key){
-  var fn = Object[key];
-  isFunction(fn) && !has($Wrap, key)
-    && defineProperty($Wrap, key, descriptor(6, function(){
-      var args = [this.value];
-      push.apply(args, arguments);
-      return fn.apply(this, args)
-    }));
-});
-extendBuiltInObject($Wrap, {
-  get: function(key){
-    var object = this.value;
-    return has(object, key) ? object[key] : undefined
-  },
-  set: function(key, value){
-    this.value[key] = value;
-    return this
-  },
-  'delete': function(key){
-    delete this.value[key];
-    return this
-  }
-});
-// Module : array
+/**
+ * Module : array
+ */
 !function(){
-  function arraySum(/*?*/mapArg){
-    var result = 0
-      , that   = createMap(this, mapArg)
-      , i      = 0
-      , length = toLength(that.length);
-    for(; length > i; i++)if(i in that)result += +that[i];
-    return result
-  }
-  function props(key){
+  function pluck(key){
     var that   = arrayLikeSelf(this)
       , length = toLength(that.length)
       , result = Array(length)
@@ -1834,130 +2152,140 @@ extendBuiltInObject($Wrap, {
     }
     return result
   }
-  function createMap(that, it){
-    switch(classof(it)){
-      case 'Function':
-        return map.call(that, it);
-      case 'String':
-      case 'Number':
-        return props.call(that, it)
-    }
-    return arrayLikeSelf(that)
+  // indexOf with SameValue
+  function indexSame(arrayLike, val){
+    var length = toLength(arrayLike.length)
+      , i      = 0;
+    for(; i < length; i++)if(same(arrayLike[i], val))return i;
+    return -1
   }
   extendBuiltInObject($Array, {
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/Array/at
+     * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
+     */
     at: function(index){
-      return arrayLikeSelf(this)[0 > index ? this.length + index : index]
+      return this[0 > (index |= 0) ? this.length + index : index]
     },
-    props   : props,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#pluck
+     * http://sugarjs.com/api/Array/map
+     * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
+     */
+    pluck: pluck,
     reduceTo: reduceTo,
-    indexSame: function(val){
-      return indexSame(arrayLikeSelf(this), val)
-    },
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Types/Array#Array:append
+     * http://api.jquery.com/jQuery.merge/
+     */
     merge: function(arrayLike){
       push.apply(this, arrayLikeSelf(arrayLike));
-      return this;
+      return this
     },
-    sum: arraySum,
-    avg: function(/*?*/mapArg){
-      return this.length ? arraySum.call(this, mapArg) / this.length : 0
-    },
-    min: function(/*?*/mapArg){
-      return min.apply(undefined, createMap(this, mapArg));
-    },
-    max: function(/*?*/mapArg){
-      return max.apply(undefined, createMap(this, mapArg));
-    },
-    unique: function(/*?*/mapArg){
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#uniq
+     * http://sugarjs.com/api/Array/unique
+     * http://api.prototypejs.org/language/Array/prototype/uniq/
+     * http://mootools.net/docs/more/Types/Array.Extras#Array:unique
+     */
+    unique: function(){
       var result = []
-        , that   = createMap(this, mapArg)
+        , that   = arrayLikeSelf(this)
         , length = toLength(that.length)
         , i      = 0
         , value;
       while(length > i)~indexSame(result, value = that[i++]) || result.push(value);
       return result
-    },
-    cross: function(arrayLike){
-      var result = []
-        , that   = arrayLikeSelf(this)
-        , length = toLength(that.length)
-        , array  = arrayLikeSelf(arrayLike)
-        , i = 0
-        , value;
-      while(length > i)!~indexSame(result, value = that[i++]) && ~indexSame(array, value) && result.push(value);
-      return result
     }
   });
 }();
-// Module : arrayStatics
+/**
+ * Module : arrayStatics
+ */
 /**
  * Array static methods
  * http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
+ * JavaScript 1.6
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
+ * Alternatives:
+ * https://github.com/plusdude/array-generics
+ * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 extendBuiltInObject(Array, reduceTo.call(
   // IE...
   // getOwnPropertyNames($Array),
-  splitComma(
+  array(
     // ES3:
-    'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
+    // http://www.2ality.com/2012/02/concat-not-generic.html
+    'join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
     // ES5:
-    indexOf + ',lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
+    'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
-    'find,findIndex,' +
+    'fill,find,findIndex,' +
     // Core.js:
-    'at,props,reduceTo,indexSame,merge,sum,avg,min,max,unique,cross'
+    'at,pluck,reduceTo,merge,unique'
   ),
   function(key){
-    if(key in $Array)this[key] = $unbind($Array[key])
+    if(key in $Array)this[key] = unbind($Array[key])
   }
 ));
-// Module : number
+/**
+ * Module : number
+ */
 extendBuiltInObject(Number, {
-  toInteger: toInt
+  /**
+   * Alternatives:
+   * http://mootools.net/docs/core/Types/Number#Number:toInt
+   */
+  toInteger: toInteger
 });
 extendBuiltInObject($Number, {
-  div: function(divisor){
-    var result = this / divisor;
-    return (result > 0 ? floor : ceil)(result)
-  },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#times
+   * http://sugarjs.com/api/Number/times
+   * http://api.prototypejs.org/language/Number/prototype/times/
+   * http://mootools.net/docs/core/Types/Number#Number:times
+   */
   times: function(fn, that /* = undefined */){
-    var i = 0, num = this | 0, result = Array(num);
-    if(isFunction(fn))while(num > i)result[i] = fn.call(that, i, i++, this);
+    var number = toLength(this)
+      , result = Array(number)
+      , i      = 0;
+    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
     return result
   },
   random: function(number /* = 0 */){
-    var a = this || 0
-      , b = number || 0
+    var a = +this   || 0
+      , b = +number || 0
       , m = min(a, b);
     return random() * (max(a, b) - m) + m
   },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#random
+   * http://mootools.net/docs/core/Types/Number#Number:Number-random
+   */
   rand: function(number /* = 0 */){
-    var a = toInt(this)
-      , b = toInt(number)
+    var a = toInteger(this)
+      , b = toInteger(number)
       , m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m)
-  },
-  isOdd: function(){
-    return !!(this % 2) && !(this % 1)
-  },
-  isEven: function(){
-    return 0 === this % 2
-  },
-  format: function(afterDot /* = 0 */, thousandsSeparator /* = '' */, decimalMark /* = '.' */){
-    var afterDot    = toLength(afterDot)
-      , integer     = String(toInt(this))
-      , fractional  = leadZero(toInt(abs(Math.round((this - integer) * pow(10, afterDot)))), afterDot);
-    if(thousandsSeparator){
-      integer    = integer   .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1' + thousandsSeparator);
-      fractional = fractional.replace(/(\d{3})(?=\d)/g,          '$1' + thousandsSeparator);
-    }
-    return afterDot ? integer + (decimalMark == undefined ? '.' : decimalMark) + fractional : integer;
   }
 });
+/**
+ * Alternatives:
+ * http://sugarjs.com/api/Number/math
+ * http://mootools.net/docs/core/Types/Number#Number-Math
+ */
 extendBuiltInObject($Number, reduceTo.call(
   // IE...
-  // getOwnPropertyNames(Math),
-  splitComma(
+  // getOwnPropertyNames(Math)
+  array(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +
     // ES6
@@ -1967,11 +2295,11 @@ extendBuiltInObject($Number, reduceTo.call(
     if(key in Math)this[key] = methodize.call(Math[key]);
   }
 ));
-// Module : string
+/**
+ * Module : string
+ */
 !function(){
-  var LTrimRegExp = RegExp(LTrim)
-    , RTrimRegExp = RegExp(RTrim)
-    , dictionaryEscapeHTML = {
+  var dictionaryEscapeHTML = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -1984,81 +2312,108 @@ extendBuiltInObject($Number, reduceTo.call(
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
   extendBuiltInObject($String, {
-    // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/String/trimLeft
-    trimLeft: function(){
-      return String(this).replace(LTrimRegExp, '')
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/String/at
+     */
+    at: function(index){
+      return String(this).charAt(0 > (index |= 0) ? this.length + index : index)
     },
-    // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/String/trimRight
-    trimRight: function(){
-      return String(this).replace(RTrimRegExp, '')
-    },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#escape
+     * http://sugarjs.com/api/String/escapeHTML
+     * http://api.prototypejs.org/language/String/prototype/escapeHTML/
+     */
     escapeHTML: function(){
       return String(this).replace(RegExpEscapeHTML, function(part){
         return dictionaryEscapeHTML[part];
       })
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#unescape
+     * http://sugarjs.com/api/String/unescapeHTML
+     * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
+     */
     unescapeHTML: function(){
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
         return dictionaryUnescapeHTML[key];
       })
     },
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/String/escapeURL
+     */
     escapeURL: function(component /* = false */){
       return (component ? encodeURIComponent : encodeURI)(this)
     },
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/String/unescapeURL
+     */
     unescapeURL: function(component /* = false */){
       return (component ? decodeURIComponent : decodeURI)(this)
     },
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/String/escapeRegExp
+     * http://api.prototypejs.org/language/RegExp/escape/
+     * http://mootools.net/docs/core/Types/String#String:escapeRegExp
+     */
     escapeRegExp: function(){
       return String(this).replace(RegExpEscapeRegExp, '\\$1')
-    },
-    reverse: function(){
-      return String(this).split('').reverse().join('')
-    },
-    at: function(index){
-      var that = String(this);
-      return that.charAt(index < 0 ? that.length + index : index)
     }
   });
 }();
-// Module : regexp
-extendBuiltInObject(RegExp[prototype], {
-  fn: RegExpToFunction,
-  getFlags: getRegExpFlags
-});
-// Module : date
+/**
+ * Module : date
+ */
+/**
+ * Alternatives:
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
+ * https://github.com/andyearnshaw/Intl.js
+ * http://momentjs.com/
+ * http://habrahabr.ru/post/204162/
+ * http://sugarjs.com/api/Date/format
+ * http://mootools.net/docs/more/Types/Date#Date:format
+ */
 !function(){
   function format(template, lang /* = current */){
     var that   = this
       , locale = locales[lang && has(locales, lang) ? lang : current];
     return String(template).replace(formatRegExp, function(part, key){
       switch(key){
-        case 'ms'   : return that.getMilliseconds();                  // mSec    : 1-999
-        case 's'    : return that[getSeconds]();                      // Seconds : 1-59
-        case 'ss'   : return leadZero(that[getSeconds](), 2);         // Seconds : 01-59
-        case 'm'    : return that[getMinutes]();                      // Minutes : 1-59
-        case 'mm'   : return leadZero(that[getMinutes](), 2);         // Minutes : 01-59
-        case 'h'    : return that[getHours]() % 12 || 12              // Hours   : 1-23
-        case 'hh'   : return leadZero(that[getHours]() % 12 || 12, 2);// Hours   : 01-23
-        case 'H'    : return that[getHours]();                        // Hours   : 1-11
-        case 'HH'   : return leadZero(that[getHours](), 2);           // Hours   : 01-11
-        case 'd'    : return that.getDate();                          // Date    : 1-31
-        case 'dd'   : return leadZero(that.getDate(), 2);             // Date    : 01-31
-        case 'w'    : return locale.w[that.getDay()];                 // Day     : Понедельник
-        case 'n'    : return that[getMonth]() + 1;                    // Month   : 1-12
-        case 'nn'   : return leadZero(that[getMonth]() + 1, 2);       // Month   : 01-12
-        case 'M'    : return locale.M[that[getMonth]()];              // Month   : Январь
-        case 'MM'   : return locale.MM[that[getMonth]()];             // Month   : Января
-        case 'yy'   : return leadZero(that[getFullYear]() % 100, 2);  // Year    : 13
-        case 'yyyy' : return that[getFullYear]()                      // Year    : 2013
+        case 'ms'   : return that.getMilliseconds();          // mSec    : 1-999
+        case 's'    : return that.getSeconds();               // Seconds : 1-59
+        case 'ss'   : return lz2(that.getSeconds());          // Seconds : 01-59
+        case 'm'    : return that.getMinutes();               // Minutes : 1-59
+        case 'mm'   : return lz2(that.getMinutes());          // Minutes : 01-59
+        case 'h'    : return that.getHours()                  // Hours   : 0-23
+        case 'hh'   : return lz2(that.getHours());            // Hours   : 00-23
+        case 'H'    : return that.getHours() % 12 || 12;      // Hours   : 1-12
+        case 'HH'   : return lz2(that.getHours() % 12 || 12); // Hours   : 01-12
+        case 'd'    : return that.getDate();                  // Date    : 1-31
+        case 'dd'   : return lz2(that.getDate());             // Date    : 01-31
+        case 'w'    : return locale.w[that.getDay()];         // Day     : Понедельник
+        case 'n'    : return that.getMonth() + 1;             // Month   : 1-12
+        case 'nn'   : return lz2(that.getMonth() + 1);        // Month   : 01-12
+        case 'M'    : return locale.M[that.getMonth()];       // Month   : Январь
+        case 'MM'   : return locale.MM[that.getMonth()];      // Month   : Января
+        case 'yy'   : return lz2(that.getFullYear() % 100);   // Year    : 13
+        case 'yyyy' : return that.getFullYear()               // Year    : 2013
       }
       return part
     })
   }
+  function lz2(num){
+    return num > 9 ? num : '0' + num
+  }
   function addLocale(lang, locale){
     locales[lang] = {
-      w : splitComma(locale.w),
-      M : splitComma(locale.M).map(flexio(0)),
-      MM: splitComma(locale.M).map(flexio(1))
+      w : array(locale.w),
+      M : array(locale.M).map(flexio(0)),
+      MM: array(locale.M).map(flexio(1))
     }
   }
   function flexio(index){
@@ -2070,12 +2425,7 @@ extendBuiltInObject(RegExp[prototype], {
   }
   var formatRegExp = /\b(\w\w*)\b/g
     , current = 'en'
-    , locales = {}
-    , getSeconds = 'getSeconds'
-    , getMinutes = 'getMinutes'
-    , getHours = 'getHours'
-    , getMonth = 'getMonth'
-    , getFullYear = 'getFullYear';
+    , locales = {};
   extendBuiltInObject(Date, {
     locale: function(locale){
       if(has(locales, locale))current = locale;
@@ -2093,65 +2443,153 @@ extendBuiltInObject(RegExp[prototype], {
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
 }();
-// Module : async
-function parallel(fns, then){
-  var run     = toLength(fns.length)
-    , results = Array(run);
-  if(run)forEach.call(fns, function(fn, key){
-    fn(function(error, result){
-      if(run && !(key in results)){ // <= protect from reexecution
-        if(error)run = 1;
-        results[key] = result;
-        --run || then(error, results);
-      }
+/**
+ * Module : extendCollections
+ */
+/**
+ * http://esdiscuss.org/topic/additional-set-prototype-methods
+ * Alternatives:
+ * https://github.com/calvinmetcalf/set.up (Firefox only)
+ */
+var nativeCollections = isNative(Set) && isNative(Map);
+var extendCollections = {
+  reduce: function(fn, memo){
+    this.forEach(function(val, key, foo){
+      memo = fn(memo, val, key, foo)
     });
-  });
-  else then(undefined, results);
-}
-extendBuiltInObject(Function, {
-  series: function(queue, then /* ? */){
-    var isThen    = isFunction(then)
-      , sliceArgs = isThen ? 2 : 1
-      , current   = 0
-      , args, inArgs;
-    function next(i, error){
-      if(i == current){ // <= protect from reexecution
-        inArgs = current++ in queue;
-        if(isThen && (error || !inArgs))then.apply(undefined, slice1(arguments));
-        else if(inArgs){
-          args = slice.call(arguments, sliceArgs);
-          args.push($part(next, current));
-          queue[current].apply(undefined, args)
-        }
-      }
-    }
-    queue.length ? queue[0]($part(next, 0)) : isThen && then()
+    return memo
   },
-  parallel: parallel
-});
-extendBuiltInObject($Array, {
-  asyncMap: function(fn, then){
-    parallel(map.call(this, function(val){
-      return $part(fn, val)
-    }), then);
+  some: function(fn, that){
+    var DONE = {};
+    try {
+      this.forEach(function(val, key, foo){
+        if(fn.call(that, val, key, foo))throw DONE
+      })
+    } catch(error){
+      if(error === DONE)return true
+      else throw error
+    }
+    return false
+  },
+  every: function(fn, that){
+    var DONE = {};
+    try {
+      this.forEach(function(val, key, foo){
+        if(!fn.call(that, val, key, foo))throw DONE
+      })
+    } catch(error){
+      if(error === DONE)return false
+      else throw error
+    }
+    return true
+  },
+  find: function(fn, that){
+    var DONE = {};
+    try {
+      this.forEach(function(val, key, foo){
+        if(fn.call(that, val, key, foo)){
+          DONE.value = val;
+          throw DONE
+        }
+      })
+    } catch(error){
+      if(error === DONE)return DONE.value
+      else throw error
+    }
+  },
+  toArray: function(){
+    var index  = 0
+      , result = Array(this.size);
+    this.forEach(function(val){
+      result[index++] = val
+    });
+    return result
+  },
+  reduceTo: function(target, fn){
+    if(arguments.length < 2){
+      fn = target;
+      target = {}
+    } else target = Object(target);
+    this.forEach(fn, target);
+    return target
   }
-});
-// Module : console
+};
+extendBuiltInObject(Map[prototype], assign({
+  map: function(fn, that){
+    var result = new Map;
+    this.forEach(function(val, key){
+      result.set(key, fn.apply(that, arguments))
+    });
+    return result
+  },
+  filter: function(fn, that){
+    var result = new Map;
+    this.forEach(function(val, key){
+      if(fn.apply(that, arguments))result.set(key, val);
+    });
+    return result
+  },
+  toObject: function(){
+    var result = {};
+    this.forEach(function(val, key){
+      result[key] = val
+    });
+    return result
+  },
+  getKeys: function(){
+    var index  = 0
+      , result = Array(this.size);
+    this.forEach(function(val, key){
+      result[index++] = key
+    });
+    return result
+  },
+  invert: function(){
+    var result = new Map;
+    this.forEach(result.set, result);
+    return result
+  }
+}, extendCollections));
+extendBuiltInObject(Set[prototype], assign({
+  map: function(fn, that){
+    var result = new Set;
+    this.forEach(function(){
+      result.add(fn.apply(that, arguments))
+    });
+    return result
+  },
+  filter: function(fn, that){
+    var result = new Set;
+    this.forEach(function(val){
+      if(fn.apply(that, arguments))result.add(val)
+    });
+    return result
+  }
+}, extendCollections));
+/**
+ * Module : console
+ */
+/**
+ * https://developer.mozilla.org/en-US/docs/Web/API/console
+ * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+ * Alternatives:
+ * https://github.com/paulmillr/console-polyfill
+ * https://github.com/theshock/console-cap
+ */
 var _console = global.console || {}
-  // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
   , $console = reduceTo.call(
-      splitComma('assert,count,clear,debug,dir,dirxml,error,exception,' +
+      array('assert,count,clear,debug,dir,dirxml,error,exception,' +
         'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
         'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+      {enabled: true},
       function(key){
         this[key] = function(){
-          return _console[key] && $console.enable && apply.call(_console[key], _console, arguments)
+          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined
         };
-      },
-      {enable: true}
+      }
     );
 try {
   delete global.console
 } catch(e){}
-$console = global.console = extendBuiltInObject($console.log, $console);
-}(typeof window != 'undefined' ? window : global, Function, Object, Array, String, Number, RegExp, Date, TypeError, Math, isFinite);
+$console = global.console = assign($console.log, $console);
+}(typeof window != 'undefined' ? window : global);

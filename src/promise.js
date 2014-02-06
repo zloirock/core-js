@@ -1,24 +1,26 @@
 /**
  * ES6 Promises
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
  * https://github.com/domenic/promises-unwrapping
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+ * http://kangax.github.io/es5-compat-table/es6/#Promise
+ * http://caniuse.com/promises
  * Based on:
  * https://github.com/jakearchibald/ES6-Promises
- * https://github.com/tildeio/rsvp.js
+ * Alternatives:
+ * https://github.com/jakearchibald/ES6-Promises
+ * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
  */
 !function(Promise){
-  isFunction(Promise)
-  // Some of these methods are missing from Firefox/Chrome experimental implementations
-  &&  splitComma('cast,resolve,reject,all,race').every($part(has, Promise))
+  isNative(Promise)
+  &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
   // Older version of the spec had a resolver object as the arg rather than a function
-  &&  (function(resolve){
-        new Promise(function(r){ resolve = r });
-        return isFunction(resolve)
-      })()
-  // Experimental implementation in chrome contains a number of inconsistencies with the spec,
+  // Experimental implementations contains a number of inconsistencies with the spec,
   // such as this: onFulfilled must be a function or undefined
-  &&  (function(){
+  &&  (function(resolve){
         try {
-          return new Promise(Function()).then(null)
+          new Promise(function(r){ resolve = r }).then(null);
+          return isFunction(resolve)
         } catch(e){}
       })()
   || !function(){
@@ -29,20 +31,21 @@
       , _subscribers = '_subscribers'
       , _state = '_state'
       , _detail = '_detail'
-      , setImmediate = global.setImmediate
-      // https://github.com/domenic/promises-unwrapping#the-promise-constructor
-      , Promise = global.Promise = function(resolver){
-          var promise       = this
-            , rejectPromise = $part(reject, promise);
-          if(!isFunction(resolver))throw TypeError('First argument of Promise constructor must be an function');
-          if(!(promise instanceof Promise))throw TypeError('Promise constructor cannot be called as a function.');
-          promise[_subscribers] = [];
-          try {
-            resolver($part(resolve, promise), rejectPromise)
-          } catch(e){
-            rejectPromise(e)
-          }
-        }
+      , ITERABLE_ERROR = 'You must pass an array to race or all';
+    // https://github.com/domenic/promises-unwrapping#the-promise-constructor
+    function Promise(resolver){
+      var promise       = this
+        , rejectPromise = part.call(handle, promise, REJECTED);
+      assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
+      assertInstance(promise, Promise, 'Promise');
+      promise[_subscribers] = [];
+      try {
+        resolver(part.call(resolve, promise), rejectPromise)
+      } catch(e){
+        rejectPromise(e)
+      }
+    }
+    global.Promise = Promise;
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -60,140 +63,130 @@
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
-      else if(failed)reject(promise, error);
-      else if(settled === FULFILLED)resolve(promise, value);
-      else if(settled === REJECTED)reject(promise, value);
-    }
-    function publish(promise, settled){
-      var subscribers = promise[_subscribers]
-        , detail = promise[_detail]
-        , child, callback, i = 0;
-      for(; i < subscribers.length; i += 3){
-        child = subscribers[i];
-        callback = subscribers[i + settled];
-        invokeCallback(settled, child, callback, detail);
-      }
-      promise[_subscribers] = null;
+      else if(failed)handle(promise, REJECTED, error);
+      else if(settled == FULFILLED)resolve(promise, value);
+      else if(settled == REJECTED)handle(promise, REJECTED, value)
     }
     assign(Promise[prototype], {
-      // https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
+      /**
+       * 25.4.5.1 Promise.prototype.catch ( onRejected )
+       * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
+       */
       'catch': function(onRejected){
-        return this.then(null, onRejected);
+        return this.then(undefined, onRejected)
       },
-      // https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
+      /**
+       * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
+       * https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
+       */
       then: function(onFulfilled, onRejected){
         var promise     = this
-          , thenPromise = new Promise(Function())
-          , subscribers, length;
+          , thenPromise = new Promise(Function());
         if(promise[_state])setImmediate(function(){
           invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail])
         }, onFulfilled, onRejected);
-        else {
-          subscribers = promise[_subscribers];
-          length      = subscribers.length;
-          subscribers[length] = thenPromise;
-          subscribers[length + FULFILLED] = onFulfilled;
-          subscribers[length + REJECTED]  = onRejected;
-        }
-        return thenPromise;
+        else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
+        return thenPromise
       }
     });
     assign(Promise, {
-      // https://github.com/domenic/promises-unwrapping#promiseall--iterable-
-      all: function(promises){
-        if(!isArray(promises))throw TypeError('You must pass an array to all.');
+      /**
+       * 25.4.4.1 Promise.all ( iterable )
+       * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
+       */
+      all: function(iterable){
+        assert(isArray(iterable), ITERABLE_ERROR);
         return new this(function(resolve, reject){
           var results   = []
-            , remaining = promises.length
-            , promise, i;
-          if(remaining === 0)resolve([]);
+            , remaining = iterable.length;
           function resolveAll(index, value){
             results[index] = value;
-            if(--remaining === 0)resolve(results)
+            --remaining || resolve(results)
           }
-          for(i = 0; i < promises.length; i++){
-            (promise = promises[i]) && isFunction(promise.then)
-              ? promise.then($part(resolveAll, i), reject)
+          if(remaining)iterable.forEach(function(promise, i){
+            promise && isFunction(promise.then)
+              ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise)
-          }
+          })
+          else resolve(results);
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promisecast--x-
-      cast: function(object){
-        if(object && object instanceof this)return object;
-        return new this(function(resolve){
-          resolve(object)
-        })
+      /**
+       * 25.4.4.2 Promise.cast ( x )
+       * https://github.com/domenic/promises-unwrapping#promisecast--x-
+       */
+      cast: function(x){
+        return x instanceof this ? x : $resolve.call(this, x)
       },
-      // https://github.com/domenic/promises-unwrapping#promiserace--iterable-
-      race: function(promises){
-        if(!isArray(promises))throw TypeError('You must pass an array to race.');
+      /**
+       * 25.4.4.4 Promise.race ( iterable )
+       * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
+       */
+      race: function(iterable){
+        assert(isArray(iterable), ITERABLE_ERROR);
         return new this(function(resolve, reject){
-          var results = []
-            , i = 0, promise;
-          while(promises.length > i){
-            (promise = promises[i++]) && isFunction(promise.then)
+          iterable.forEach(function(promise){
+            promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
               : resolve(promise)
-          }
+          })
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promisereject--r-
-      reject: function(reason){
+      /**
+       * 25.4.4.5 Promise.reject ( r )
+       * https://github.com/domenic/promises-unwrapping#promisereject--r-
+       */
+      reject: function(r){
         return new this(function(resolve, reject){
-          reject(reason)
+          reject(r)
         })
       },
-      // https://github.com/domenic/promises-unwrapping#promiseresolve--x-
-      resolve: function(value){
-        return new this(function(resolve, reject){
-          resolve(value)
-        })
-      }
+      /**
+       * 25.4.4.6 Promise.resolve ( x )
+       * https://github.com/domenic/promises-unwrapping#promiseresolve--x-
+       */
+      resolve: $resolve
     });
+    function $resolve(x){
+      return new this(function(resolve, reject){
+        resolve(x)
+      })
+    }
     function handleThenable(promise, value){
       var resolved;
       try {
-        if(promise === value)throw TypeError('A promises callback cannot return that same promise.');
-        if(isObject(value)){
-          if(isFunction(value.then)){
-            value.then(function(val){
-              if(resolved)return true;
-              resolved = true;
-              if(value !== val)resolve(promise, val);
-              else fulfill(promise, val)
-            }, function(val){
-              if(resolved)return true;
-              resolved = true;
-              reject(promise, val)
-            });
-            return true
-          }
+        assert(promise !== value, 'A promises callback cannot return that same promise.');
+        if(value && isFunction(value.then)){
+          value.then(function(val){
+            if(resolved)return true;
+            resolved = true;
+            if(value !== val)resolve(promise, val);
+            else handle(promise, FULFILLED, val)
+          }, function(val){
+            if(resolved)return true;
+            resolved = true;
+            handle(promise, REJECTED, val)
+          });
+          return 1
         }
       } catch(error){
-        if(!resolved)reject(promise, error);
-        return true
+        if(!resolved)handle(promise, REJECTED, error);
+        return 1
       }
-      return false
     }
     function resolve(promise, value){
-      if(promise === value || !handleThenable(promise, value))fulfill(promise, value)
+      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value)
     }
-    function fulfill(promise, value){
-      if(promise[_state] === PENDING){
-        promise[_state]  = SEALED;
-        promise[_detail] = value;
-        setImmediate(function(){
-          publish(promise, promise[_state] = FULFILLED)
-        })
-      }
-    }
-    function reject(promise, reason){
+    function handle(promise, state, reason){
       if(promise[_state] === PENDING){
         promise[_state]  = SEALED;
         promise[_detail] = reason;
         setImmediate(function(){
-          publish(promise, promise[_state] = REJECTED)
+          promise[_state] = state;
+          for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
+            invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
+          }
+          promise[_subscribers] = undefined
         })
       }
     }

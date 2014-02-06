@@ -1,4 +1,4 @@
-{isFunction} = Object
+{isFunction} = Function
 test 'Number.toInteger' !->
   {toInteger} = Number
   ok isFunction toInteger
@@ -10,10 +10,6 @@ test 'Number.toInteger' !->
   ok toInteger(-1.9) is -1
   ok toInteger(-Infinity) is -Infinity
   ok toInteger(-0x20000000000001) is -0x20000000000001
-test 'Number::div' !->
-  ok isFunction Number::div
-  ok (-7)div(3) is -2
-  ok 7.div(3) is 2
 test 'Number::times' !->
   ok isFunction Number::times
   deepEqual 5.times(-> it), [0 1 2 3 4]
@@ -31,6 +27,7 @@ test 'Number::rand' !->
   ok 100.times(-> 10.rand!)every (in [to 10])
   ok 100.times(-> 10.rand 7)every (in [7 to 10])
   ok 100.times(-> 7.rand 10)every (in [7 to 10])
+/*
 test 'Number::isOdd' !->
   ok isFunction Number::isOdd
   ok 1.isOdd!
@@ -55,23 +52,27 @@ test 'Number::isEven' !->
   ok not 111.isEven!
 test 'Number::format' !->
   ok isFunction Number::format
-  ok NaN.format! is \0
+  ok NaN.format! is \NaN
+  ok (-Infinity)format! is \-Infinity
   ok 123.format! is \123
   ok (-123)format! is \-123
   ok 123.45.format! is \123
   ok (-123.45)format! is \-123
-  ok NaN.format(3) is '0.000'
+  ok NaN.format(3) is \NaN
+  ok (-Infinity)format(3) is \-Infinity
+  ok NaN.format(7 ', ' '. ') is \NaN
+  ok (-Infinity)format(7 ', ' '. ') is \-Infinity
   ok 123.format(3) is '123.000'
   ok (-123)format(3) is '-123.000'
   ok 123.45678.format(3) is '123.457'
   ok (-123.45678)format(3) is '-123.457'
-  ok NaN.format(7 ', ' '. ') is '0. 000, 000, 0'
   ok 1234.format(7 ', ' '. ') is '1, 234. 000, 000, 0'
   ok (-1234)format(7 ', ' '. ') is '-1, 234. 000, 000, 0'
   ok 1234.45678.format(7 ', ' '. ') is '1, 234. 456, 780, 0'
   ok (-1234.45678)format(7 ', ' '. ') is '-1, 234. 456, 780, 0'
   ok (-1234.45678)format(null ', ' '. ') is '-1, 234'
   ok (0.1 ^ 10)format(6 \. \,) is '0,000.000'
+*/
 test 'Number:: <<< Math' !->
   # TODO
   ok isFunction Number::round

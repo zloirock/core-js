@@ -1,4 +1,7 @@
 !function(){
+  function make(proto, props){
+    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined)
+  }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
       var isComp = isFunction(reverse)
@@ -10,8 +13,7 @@
         key = names[i++];
         if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
           deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB)    // if not deep - skip
-        }
-        else if(desc){
+        } else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
           if(targetDescriptor.configurable !== false && delete target[key]){
             sourceDescriptor = getOwnPropertyDescriptor(source, key);
@@ -22,8 +24,7 @@
             }
             defineProperty(target, key, sourceDescriptor)
           }
-        }
-        else target[key] = deep
+        } else target[key] = deep
           ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
           : source[key]
       }
@@ -31,14 +32,13 @@
     return target
   }
   /**
+   * NB:
    * http://wiki.ecmascript.org/doku.php?id=strawman:structured_clone
    * https://github.com/dslomov-chromium/ecmascript-structured-clone
    */
   function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
     if(!isObject(object))return object;
-    stackA || (stackA = []);
-    stackB || (stackB = []);
-    var already = stackA[indexOf](object)
+    var already = stackA.indexOf(object)
       , F       = object.constructor
       , result;
     if(~already)return stackB[already];
@@ -50,7 +50,7 @@
       case 'Function'  :
         return object;
       case 'RegExp'    :
-        result = RegExp(object.source, getRegExpFlags.call(object));
+        result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
         break;
       case 'String'    :
         return new F(object);
@@ -78,26 +78,24 @@
     stackB.push(result);
     return merge(result, object, deep, 0, desc, stackA, stackB)
   }
-  function make(proto, props, simple /* = false */){
-    return props ? (simple ? assign : mixin)(create(proto), props) : create(proto)
-  }
   // Objects deep compare
-  function deepEqual(a, b, StackA, StackB){
+  function isEqual(a, b, StackA, StackB){
     if(same(a, b))return true;
     var type = classof(a)
       , length, keys, val;
     if(
-      !isObject(a) || !isObject(b)
-      || type != classof(b)
-      || getPrototypeOf(a) != getPrototypeOf(b)
+      !isObject(a) ||
+      !isObject(b) ||
+      type != classof(b) ||
+      getPrototypeOf(a) != getPrototypeOf(b)
     )return false;
-    StackA = isArray(StackA) ? StackA.concat([a]) : [a];
-    StackB = isArray(StackB) ? StackB.concat([b]) : [b];
+    StackA = StackA.concat([a]);
+    StackB = StackB.concat([b]);
     switch(type){
       case'Boolean'   :
       case'String'    :
       case'Number'    : return a.valueOf() == b.valueOf();
-      case'RegExp'    : return String(a) == String(b);
+      case'RegExp'    : return '' + a == '' + b;
       case'Error'     : return a.message == b.message;/*
       case'Array'     :
       case'Arguments' :
@@ -105,8 +103,8 @@
         if(length != b.length)return false;
         while(length--){
           if(
-            !(~StackA[indexOf](a[length]) && ~StackB[indexOf](b[length]))
-            && !deepEqual(a[length], b[length], StackA, StackB)
+            !(~StackA.indexOf(a[length]) && ~StackB.indexOf(b[length]))
+            && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
         return true*/
@@ -116,8 +114,8 @@
     if(length != getOwnPropertyNames(b).length)return false;
     while(length--){
       if(
-        !(~StackA[indexOf](a[val = keys[length]]) && ~StackB[indexOf](b[val]))
-        && !deepEqual(a[val], b[val], StackA, StackB)
+        !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
+        && !isEqual(a[val], b[val], StackA, StackB)
       )return false
     }
     return true
@@ -142,61 +140,66 @@
     }
   }
   extendBuiltInObject(Object, {
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#has
+     * http://sugarjs.com/api/Object/has
+     */
     has: has,
-    isEnumerable: isEnumerable,
-    isPrototype: $unbind($Object.isPrototypeOf),
+    isEnumerable: unbind(isEnumerable),
+    isPrototype: unbind($Object.isPrototypeOf),
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Core/Core#Core:typeOf
+     * http://api.jquery.com/jQuery.type/
+     */
     classof: classof,
-    bind: function(object, key){
-      var args = toArray(arguments);
-      args.splice(1, 1);
-      return $Function.bind.apply(object[key], args)
-    },
-    // Extended object api from harmony and strawman :
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getPropertyDescriptor: getPropertyDescriptor,
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    getPropertyDescriptors: function(object){
-      var result = getOwnPropertyDescriptors(object)
-        , i, length, names, key;
-      while(object = getPrototypeOf(object)){
-        names  = getOwnPropertyNames(object);
-        i      = 0;
-        length = names.length;
-        while(length > i){
-          if(!has(result, key = names[i++])){
-            result[key] = getOwnPropertyDescriptor(object, key);
-          }
-        }
-      }
-      return result
-    },
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    getPropertyNames: function(object){
-      var result = getOwnPropertyNames(object)
-        , i, length, names, key;
-      while(object = getPrototypeOf(object)){
-        i      = 0;
-        names  = getOwnPropertyNames(object);
-        length = names.length;
-        while(length > i)~result[indexOf](key = names[i++]) || result.push(key)
-      }
-      return result
-    },
-    // Shugar for Object.create
+    /**
+     * Shugar for Object.create
+     * Alternatives:
+     * http://lodash.com/docs#create
+     */
     make: make,
-    // Shugar for Object.make(null[, props, simple])
-    plane: function(props, simple /* = false */){
-      return make(null, props, simple)
+    // Shugar for Object.make(null[, props])
+    plane: part.call(make, null),
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#clone
+     * http://lodash.com/docs#cloneDeep
+     * http://sugarjs.com/api/Object/clone
+     * http://api.prototypejs.org/language/Object/clone/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-clone
+     * http://docs.angularjs.org/api/angular.copy
+     */
+    clone: function(object, deep /* = false */, desc /* = false */){
+      return clone(object, deep, desc, [], [])
     },
-    clone: clone,
-    merge: merge,
-    // Shugar for Object.merge(target, props, 1, 1)
+    /**
+     * Alternatives:
+     * http://lodash.com/docs#merge
+     * http://sugarjs.com/api/Object/merge
+     * http://mootools.net/docs/core/Types/Object#Object:Object-merge
+     * http://api.jquery.com/jQuery.extend/
+     */
+    merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
+      return merge(target, source, deep, reverse, desc, [], [])
+    },
+    /**
+     * Shugar for Object.merge(target, props, 1, 1)
+     * Alternatives:
+     * http://underscorejs.org/#defaults
+     */
     defaults: function(target, props){
-      return merge(target, props, 1, 1)
+      return merge(target, props, 1, 1, 0, [], [])
     },
-    // {a: b} -> [b]
+    /**
+     * {a: b} -> [b]
+     * Alternatives:
+     * http://underscorejs.org/#values
+     * http://sugarjs.com/api/Object/values
+     * http://api.prototypejs.org/language/Object/values/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-values
+     */
     values: function(object){
       var props  = keys(object)
         , length = props.length
@@ -205,9 +208,19 @@
       while(length > i)result[i] = object[props[i++]];
       return result
     },
-    // {a: b} -> {b: a}
+    /**
+     * {a: b} -> {b: a}
+     * Alternatives:
+     * http://underscorejs.org/#invert
+     */
     invert: invert,
     // Enumerable
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#every
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-every
+     */
     every: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -215,10 +228,16 @@
         , i      = 0
         , key;
       while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false;
+        if(!fn.call(that, O[key = props[i++]], key, object))return false
       }
       return true
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#filter
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-filter
+     */
     filter: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , result = {}
@@ -231,12 +250,29 @@
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#find
+     * http://sugarjs.com/api/Object/enumerable
+     */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index];
+      return index === undefined ? undefined : object[index]
     },
     findIndex: findIndex,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#each
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-each
+     * http://api.jquery.com/jQuery.each/
+     * http://docs.angularjs.org/api/angular.forEach
+     */
     forEach: forOwnKeys,
+    /**
+     * Alternatives:
+     * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
+     */
     indexOf: function(object, searchElement){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -245,6 +281,13 @@
         , key;
       while(length > i)if(same(O[key = props[i++]],searchElement))return key
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#map
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-map
+     * http://api.jquery.com/jQuery.map/
+     */
     map: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , result = {}
@@ -257,6 +300,11 @@
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#reduce
+     * http://sugarjs.com/api/Object/enumerable
+     */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -264,7 +312,7 @@
         , length = props.length
         , key;
       if(arguments.length < 3){
-        if(!length--)throw TypeError(REDUCE_ERROR);
+        assert(length--, REDUCE_ERROR);
         result = O[props.shift()];
       }
       while(length > i){
@@ -272,6 +320,12 @@
       }
       return result
     },
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#some
+     * http://sugarjs.com/api/Object/enumerable
+     * http://mootools.net/docs/core/Types/Object#Object:Object-some
+     */
     some: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
         , props  = keys(O)
@@ -283,7 +337,12 @@
       }
       return false
     },
-    props: function(object, prop){
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#pluck
+     * http://sugarjs.com/api/Array/map
+     */
+    pluck: function(object, prop){
       object = arrayLikeSelf(object);
       var names  = keys(object)
         , result = {}
@@ -297,36 +356,29 @@
       }
       return result
     },
-    reduceTo: function(object, fn, target){
-      target = Object(target);
-      forOwnKeys(object, fn, target);
-      return target;
+    reduceTo: function(object, target, callbackfn){
+      if(arguments.length < 3){
+        callbackfn = target;
+        target = {}
+      }
+      else target = Object(target);
+      forOwnKeys(object, callbackfn, target);
+      return target
     },
-    deepEqual: deepEqual,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#isObject
+     * http://sugarjs.com/api/Object/isType
+     * http://docs.angularjs.org/api/angular.isObject
+     */
     isObject: isObject,
-    isUndefined: function(it){
-      return it === undefined
-    },
-    isNull     : function(it){
-      return it === null
-    },
-    isNumber   : function(it){
-      return toString(it) == '[object Number]'
-    },
-    isString   : isString,
-    isBoolean  : function(it){
-      return it === !!it || toString(it) == '[object Boolean]'
-    },
-    isArray    : isArray,
-    isFunction : isFunction,
-    isRegExp   : function(it){
-      return toString(it) == '[object RegExp]'
-    },
-    isDate     : function(it){
-      return toString(it) == '[object Date]'
-    },
-    isError    : function(it){
-      return toString(it) == '[object Error]'
-    }
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#isEqual
+     * http://sugarjs.com/api/Object/equal
+     * http://docs.angularjs.org/api/angular.equals
+     * http://fitzgen.github.io/wu.js/#wu-eq
+     */
+    isEqual: part.call(isEqual, _, _, [], [])
   });
 }();

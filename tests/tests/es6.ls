@@ -1,34 +1,36 @@
-{isFunction} = Object
+{isFunction, isNative} = Function
+{getOwnPropertyDescriptor, defineProperty} = Object
+same = Object.is
+epsilon = (a, b)-> Math.abs(a - b) <= Number.EPSILON
 test 'Object.assign' !->
-  {assign, defineProperty} = Object
+  {assign} = Object
   ok isFunction assign
   foo = q:1
   ok foo is assign foo, w:2
   ok foo.w is 2
-  if Function.isNative Object.getOwnPropertyDescriptor
+  if isNative getOwnPropertyDescriptor
     foo = q:1
     foo2 = defineProperty {}, \w, get: -> @q + 1
     assign foo, foo2
     ok foo.w is void
 test 'Object.is' !->
-  ok isFunction Object.is
-  ok Object.is  1 1
-  ok Object.is  NaN, NaN
-  ok not Object.is 0 -0
-  ok not Object.is {} {}
+  ok isFunction same
+  ok same 1 1
+  ok same NaN, NaN
+  ok not same 0 -0
+  ok not same {} {}
 test 'Object.mixin' !->
-  {mixin, defineProperty} = Object
+  {mixin} = Object
   ok isFunction mixin
   foo = q:1
   ok foo is mixin foo, w:2
   ok foo.w is 2
-  if Function.isNative Object.getOwnPropertyDescriptor
+  if isNative getOwnPropertyDescriptor
     foo = q:1
     foo2 = defineProperty {}, \w, get: -> @q + 1
     mixin foo, foo2
     ok foo.w is 2
-/*
-if \__proto__ of Object:: or Function.isNative Object.setPrototypeOf
+if Object.setPrototypeOf
   test 'Object.setPrototypeOf' !->
     {setPrototypeOf} = Object
     ok isFunction setPrototypeOf
@@ -36,7 +38,6 @@ if \__proto__ of Object:: or Function.isNative Object.setPrototypeOf
     ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4
     ok setPrototypeOf(tmp = {}, {a: 1}) is tmp
     ok !(\toString of setPrototypeOf {} null)
-*/
 test 'Number.EPSILON' !->
   ok \EPSILON of Number
   ok Number.EPSILON is 2.220446049250313e-16
@@ -168,72 +169,183 @@ test 'Number::clz' !->
   ok (2^32)clz! is 32
 test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
-  ok isFunction Math.acosh
+  {acosh} = Math
+  ok isFunction acosh
+  ok same acosh(NaN), NaN
+  ok same acosh(0.5), NaN
+  ok same acosh(-1), NaN
+  ok same acosh(1), 0
+  ok same acosh(Infinity), Infinity
 test 'Math.asinh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
-  ok isFunction Math.asinh
+  {asinh} = Math
+  ok isFunction asinh
+  ok same asinh(NaN), NaN
+  ok same asinh(0), 0
+  ok same asinh(-0), -0
+  ok same asinh(Infinity), Infinity
+  ok same asinh(-Infinity), -Infinity
 test 'Math.atanh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
-  ok isFunction Math.atanh
+  {atanh} = Math
+  ok isFunction atanh
+  ok same atanh(NaN), NaN
+  ok same atanh(-2), NaN
+  ok same atanh(-1.5), NaN
+  ok same atanh(2), NaN
+  ok same atanh(1.5), NaN
+  ok same atanh(-1), -Infinity
+  ok same atanh(1), Infinity
+  ok same atanh(0), 0
+  ok same atanh(-0), -0
 test 'Math.cbrt' !->
   # Returns an implementation-dependent approximation to the cube root of x.
-  ok isFunction Math.cbrt
+  {cbrt} = Math
+  ok isFunction cbrt
+  ok same cbrt(NaN), NaN
+  ok same cbrt(0), 0
+  ok same cbrt(-0), -0
+  ok same cbrt(Infinity), Infinity
+  ok same cbrt(-Infinity), -Infinity
 test 'Math.cosh' !->
   # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
-  ok isFunction Math.cosh
+  {cosh} = Math
+  ok isFunction cosh
+  ok same cosh(NaN), NaN
+  ok same cosh(0), 1
+  ok same cosh(-0), 1
+  ok same cosh(Infinity), Infinity
+  ok same cosh(-Infinity), Infinity
 test 'Math.expm1' !->
   # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
-  ok isFunction Math.expm1
+  {expm1} = Math
+  ok isFunction expm1
+  ok same expm1(NaN), NaN
+  ok same expm1(0), 0
+  ok same expm1(-0), -0
+  ok same expm1(Infinity), Infinity
+  ok same expm1(-Infinity), -1
 test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
-  ok isFunction Math.hypot
+  {hypot, sqrt} = Math
+  ok isFunction hypot
+  ok same hypot('', 0), 0
+  ok same hypot(0, ''), 0
+  ok same hypot(Infinity, 0), Infinity
+  ok same hypot(-Infinity, 0), Infinity
+  ok same hypot(0, Infinity), Infinity
+  ok same hypot(0, -Infinity), Infinity
+  ok same hypot(Infinity, NaN), Infinity
+  ok same hypot(NaN, -Infinity), Infinity
+  ok same hypot(NaN, 0), NaN
+  ok same hypot(0, NaN), NaN
+  ok same hypot(0, -0), 0
+  ok same hypot(0, 0), 0
+  ok same hypot(-0, -0), 0
+  ok same hypot(-0, 0), 0
+  ok same hypot(0, 1), 1
+  ok same hypot(0, -1), 1
+  ok same hypot(-0, 1), 1
+  ok same hypot(-0, -1), 1
+  ok same hypot(0), 0
+  ok same hypot(1), 1
+  ok same hypot(2), 2
+  ok same hypot(0 0 1), 1
+  ok same hypot(0 1 0), 1
+  ok same hypot(1 0 0), 1
+  ok same hypot(2 3 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)
+  ok same hypot(2 3 4 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)
 test 'Math.imul' !->
-  ok isFunction Math.imul
+  {imul} = Math
+  ok isFunction imul
+  ok same imul(0, 0), 0
+  ok imul(123, 456) is 56088
+  ok imul(-123, 456) is -56088
+  ok imul(123, -456) is -56088
+  ok imul(16~01234567, 16~fedcba98) is 602016552
 test 'Math.log1p' !->
   # Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
   # The result is computed in a way that is accurate even when the value of x is close to zero.
-  ok isFunction Math.log1p
+  {log1p} = Math
+  ok isFunction log1p
+  ok same log1p(''), log1p 0
+  ok same log1p(NaN), NaN
+  ok same log1p(-2), NaN
+  ok same log1p(-1), -Infinity
+  ok same log1p(0), 0
+  ok same log1p(-0), -0
+  ok same log1p(Infinity), Infinity
 test 'Math.log10' !->
   # Returns an implementation-dependent approximation to the base 10 logarithm of x.
-  ok isFunction Math.log10
+  {log10} = Math
+  ok isFunction log10
+  ok same log10(''), log10 0
+  ok same log10(NaN), NaN
+  ok same log10(-1), NaN
+  ok same log10(0), -Infinity
+  ok same log10(-0), -Infinity
+  ok same log10(1), 0
+  ok same log10(Infinity), Infinity
+  ok epsilon log10(0.1), -1 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ok epsilon log10(0.5), -0.3010299956639812
+  ok epsilon log10(1.5), 0.17609125905568124
 test 'Math.log2' !->
   # Returns an implementation-dependent approximation to the base 2 logarithm of x.
-  ok isFunction Math.log2
+  {log2} = Math
+  ok isFunction log2
+  ok same log2(''), log2 0
+  ok same log2(NaN), NaN
+  ok same log2(-1), NaN
+  ok same log2(0), -Infinity
+  ok same log2(-0), -Infinity
+  ok same log2(1), 0
+  ok same log2(Infinity), Infinity
+  ok same log2(0.5), -1
 test 'Math.sign' !->
   # Returns the sign of the x, indicating whether x is positive, negative or zero.
   {sign} = Math
   ok isFunction sign
-  ok Object.is sign(NaN), NaN
-  ok Object.is sign(-0), -0
-  ok Object.is sign(0), 0
-  ok sign(Infinity) is 1
-  ok sign(-Infinity) is -1
+  ok same sign(NaN), NaN
+  ok same sign(-0), -0
+  ok same sign(0), 0
+  ok same sign(Infinity), 1
+  ok same sign(-Infinity), -1
   ok sign(16~2fffffffffffff) is 1
   ok sign(-16~2fffffffffffff) is -1
   ok sign(42.5) is 1
   ok sign(-42.5) is -1
 test 'Math.sinh' !->
   # Returns an implementation-dependent approximation to the hyperbolic sine of x.
-  ok isFunction Math.sinh
+  {sinh} = Math
+  ok isFunction sinh
+  ok same sinh(NaN), NaN
+  ok same sinh(0), 0
+  ok same sinh(-0), -0 
+  ok same sinh(Infinity), Infinity
+  ok same sinh(-Infinity), -Infinity
 test 'Math.tanh' !->
   # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
-  ok isFunction Math.tanh
+  {tanh} = Math
+  ok isFunction tanh
+  ok same tanh(NaN), NaN
+  ok same tanh(0), 0
+  ok same tanh(-0), -0
+  ok same tanh(Infinity), 1
+  ok same tanh(-Infinity), -1
 test 'Math.trunc' !->
   # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
   {trunc} = Math
   ok isFunction trunc
-  ok Object.is trunc(NaN), NaN
-  ok Object.is trunc(-0), -0
-  ok Object.is trunc(0), 0
-  ok trunc(Infinity) is Infinity
-  ok trunc(-Infinity) is -Infinity
-  ok Object.is trunc(-0.3), -0
-  ok Object.is trunc(0.3), 0
+  ok same trunc(NaN), NaN
+  ok same trunc(-0), -0
+  ok same trunc(0), 0
+  ok same trunc(Infinity), Infinity
+  ok same trunc(-Infinity), -Infinity
+  ok same trunc(-0.3), -0
+  ok same trunc(0.3), 0
   ok trunc([]) is 0
   ok trunc(-42.42) is -42
   ok trunc(16~2fffffffffffff) is 16~2fffffffffffff
-test 'String::codePointAt' !->
-  ok isFunction String::codePointAt
 test 'String::contains' !->
   ok isFunction String::contains
   ok not 'abc'contains!
