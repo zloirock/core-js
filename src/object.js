@@ -1,6 +1,6 @@
 !function(){
   function make(proto, props){
-    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined)
+    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined);
   }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
@@ -12,7 +12,7 @@
       while(length > i){
         key = names[i++];
         if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
-          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB)    // if not deep - skip
+          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB);   // if not deep - skip
         } else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
           if(targetDescriptor.configurable !== false && delete target[key]){
@@ -22,14 +22,14 @@
                 merge(clone(sourceDescriptor.value, 1, 1, stackA, stackB),
                   targetDescriptor.value, 1, 1, 1, stackA, stackB);
             }
-            defineProperty(target, key, sourceDescriptor)
+            defineProperty(target, key, sourceDescriptor);
           }
         } else target[key] = deep
           ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
-          : source[key]
+          : source[key];
       }
     }
-    return target
+    return target;
   }
   /**
    * NB:
@@ -72,11 +72,11 @@
         break;
       */
       default:
-        result = create(getPrototypeOf(object))
+        result = create(getPrototypeOf(object));
     }
     stackA.push(object);
     stackB.push(result);
-    return merge(result, object, deep, 0, desc, stackA, stackB)
+    return merge(result, object, deep, 0, desc, stackA, stackB);
   }
   // Objects deep compare
   function isEqual(a, b, StackA, StackB){
@@ -107,7 +107,7 @@
             && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
-        return true*/
+        return true;*/
     }
     keys = getOwnPropertyNames(a);
     length = keys.length;
@@ -116,9 +116,9 @@
       if(
         !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
         && !isEqual(a[val], b[val], StackA, StackB)
-      )return false
+      )return false;
     }
-    return true
+    return true;
   }
   function forOwnKeys(object, fn, that /* = undefined */){
     var O      = arrayLikeSelf(object)
@@ -127,7 +127,7 @@
       , i      = 0
       , key;
     while(length > i)fn.call(that, O[key = props[i++]], key, object);
-    return object
+    return object;
   }
   function findIndex(object, fn, that /* = undefined */){
     var O      = arrayLikeSelf(object)
@@ -136,7 +136,7 @@
       , i      = 0
       , key;
     while(length > i){
-      if(fn.call(that, O[key = props[i++]], key, object))return key
+      if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
   extendBuiltInObject(Object, {
@@ -150,6 +150,7 @@
     isPrototype: unbind($Object.isPrototypeOf),
     /**
      * Alternatives:
+     * http://livescript.net/#operators -> typeof!
      * http://mootools.net/docs/core/Core/Core#Core:typeOf
      * http://api.jquery.com/jQuery.type/
      */
@@ -163,6 +164,13 @@
     // Shugar for Object.make(null[, props])
     plane: part.call(make, null),
     /**
+     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     * TODO: rename
+     */
+    mixin: function(target, source){
+      return defineProperties(target, getOwnPropertyDescriptors(source));
+    },
+    /**
      * Alternatives:
      * http://underscorejs.org/#clone
      * http://lodash.com/docs#cloneDeep
@@ -172,7 +180,7 @@
      * http://docs.angularjs.org/api/angular.copy
      */
     clone: function(object, deep /* = false */, desc /* = false */){
-      return clone(object, deep, desc, [], [])
+      return clone(object, deep, desc, [], []);
     },
     /**
      * Alternatives:
@@ -182,7 +190,7 @@
      * http://api.jquery.com/jQuery.extend/
      */
     merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
-      return merge(target, source, deep, reverse, desc, [], [])
+      return merge(target, source, deep, reverse, desc, [], []);
     },
     /**
      * Shugar for Object.merge(target, props, 1, 1)
@@ -190,7 +198,7 @@
      * http://underscorejs.org/#defaults
      */
     defaults: function(target, props){
-      return merge(target, props, 1, 1, 0, [], [])
+      return merge(target, props, 1, 1, 0, [], []);
     },
     /**
      * {a: b} -> [b]
@@ -206,7 +214,7 @@
         , result = Array(length)
         , i      = 0;
       while(length > i)result[i] = object[props[i++]];
-      return result
+      return result;
     },
     /**
      * {a: b} -> {b: a}
@@ -227,10 +235,8 @@
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false
-      }
-      return true
+      while(length > i)if(!fn.call(that, O[key = props[i++]], key, object))return false;
+      return true;
     },
     /**
      * Alternatives:
@@ -240,7 +246,7 @@
      */
     filter: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
-        , result = {}
+        , result = create(null)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -248,7 +254,7 @@
       while(length > i){
         if(fn.call(that, O[key = props[i++]], key, object))result[key] = O[key];
       }
-      return result
+      return result;
     },
     /**
      * Alternatives:
@@ -257,7 +263,7 @@
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index]
+      return index === undefined ? undefined : object[index];
     },
     findIndex: findIndex,
     /**
@@ -279,7 +285,7 @@
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)if(same(O[key = props[i++]],searchElement))return key
+      while(length > i)if(same(O[key = props[i++]], searchElement))return key;
     },
     /**
      * Alternatives:
@@ -290,15 +296,13 @@
      */
     map: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
-        , result = {}
+        , result = create(null)
         , props  = keys(O)
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        result[key = props[i++]] = fn.call(that, O[key], key, object);
-      }
-      return result
+      while(length > i)result[key = props[i++]] = fn.call(that, O[key], key, object);
+      return result;
     },
     /**
      * Alternatives:
@@ -315,10 +319,8 @@
         assert(length--, REDUCE_ERROR);
         result = O[props.shift()];
       }
-      while(length > i){
-        result = fn.call(that, result, O[key = props[i++]], key, object);
-      }
-      return result
+      while(length > i)result = fn.call(that, result, O[key = props[i++]], key, object);
+      return result;
     },
     /**
      * Alternatives:
@@ -332,10 +334,8 @@
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))return true;
-      }
-      return false
+      while(length > i)if(fn.call(that, O[key = props[i++]], key, object))return true;
+      return false;
     },
     /**
      * Alternatives:
@@ -345,25 +345,25 @@
     pluck: function(object, prop){
       object = arrayLikeSelf(object);
       var names  = keys(object)
-        , result = {}
+        , result = create(null)
         , length = names.length
         , i      = 0
         , key, val;
       while(length > i){
         key = names[i++];
         val = object[key];
-        result[key] = val == undefined ? undefined : val[prop]
+        result[key] = val == undefined ? undefined : val[prop];
       }
-      return result
+      return result;
     },
     reduceTo: function(object, target, callbackfn){
       if(arguments.length < 3){
         callbackfn = target;
-        target = {}
+        target = create(null);
       }
       else target = Object(target);
       forOwnKeys(object, callbackfn, target);
-      return target
+      return target;
     },
     /**
      * Alternatives:

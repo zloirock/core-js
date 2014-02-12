@@ -42,10 +42,6 @@
     ok(arr === arr.merge('asd'));
     deepEqual(arr, ['q', 'w', 'e', 'a', 's', 'd']);
   });
-  test('Array::unique', function(){
-    ok(isFunction(Array.prototype.unique));
-    deepEqual([1, 2, 3, 2, 1].unique(), [1, 2, 3]);
-  });
 }).call(this);
 
 (function(){
@@ -570,15 +566,6 @@
     ok(args[3] === 4);
     ok(args[4] === 5);
     ok(args[5] === 6);
-  });
-  test('Array.unique', function(){
-    var unique;
-    unique = Array.unique;
-    ok(isFunction(unique));
-    deepEqual(unique('12321'), ['1', '2', '3']);
-    deepEqual(unique(function(){
-      return arguments;
-    }(1, 2, 3, 2, 1)), [1, 2, 3]);
   });
 }).call(this);
 
@@ -1302,30 +1289,6 @@
     ok(!same(0, -0));
     ok(!same({}, {}));
   });
-  test('Object.mixin', function(){
-    var mixin, foo, foo2;
-    mixin = Object.mixin;
-    ok(isFunction(mixin));
-    foo = {
-      q: 1
-    };
-    ok(foo === mixin(foo, {
-      w: 2
-    }));
-    ok(foo.w === 2);
-    if (isNative(getOwnPropertyDescriptor)) {
-      foo = {
-        q: 1
-      };
-      foo2 = defineProperty({}, 'w', {
-        get: function(){
-          return this.q + 1;
-        }
-      });
-      mixin(foo, foo2);
-      ok(foo.w === 2);
-    }
-  });
   if (Object.setPrototypeOf) {
     test('Object.setPrototypeOf', function(){
       var setPrototypeOf, tmp;
@@ -1479,15 +1442,6 @@
   test('Number.parseInt', function(){
     ok(isFunction(Number.parseInt));
   });
-  test('Number::clz', function(){
-    ok(isFunction(Number.prototype.clz));
-    ok(0 .clz() === 32);
-    ok(1 .clz() === 31);
-    ok((-1).clz() === 0);
-    ok(0.6.clz() === 32);
-    ok((Math.pow(2, 32) - 1).clz() === 0);
-    ok(Math.pow(2, 32).clz() === 32);
-  });
   test('Math.acosh', function(){
     var acosh;
     acosh = Math.acosh;
@@ -1531,6 +1485,17 @@
     ok(same(cbrt(-0), -0));
     ok(same(cbrt(Infinity), Infinity));
     ok(same(cbrt(-Infinity), -Infinity));
+  });
+  test('Math.clz32', function(){
+    var clz32;
+    clz32 = Math.clz32;
+    ok(isFunction(clz32));
+    ok(clz32(0) === 32);
+    ok(clz32(1) === 31);
+    ok(clz32(-1) === 0);
+    ok(clz32(0.6) === 32);
+    ok(clz32(Math.pow(2, 32) - 1) === 0);
+    ok(clz32(Math.pow(2, 32)) === 32);
   });
   test('Math.cosh', function(){
     var cosh;
@@ -1805,24 +1770,24 @@
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Map', function(){
     ok(isFunction(global.Map), 'Map is function');
-    ok('clear' in Map.prototype, 'Map::clear is function');
-    ok('delete' in Map.prototype, 'Map::delete is function');
-    ok('forEach' in Map.prototype, 'Map::forEach is function');
-    ok('get' in Map.prototype, 'Map::get is function');
-    ok('has' in Map.prototype, 'Map::has is function');
-    ok('set' in Map.prototype, 'Map::set is function');
+    ok('clear' in Map.prototype, 'clear in Map.prototype');
+    ok('delete' in Map.prototype, 'delete in Map.prototype');
+    ok('forEach' in Map.prototype, 'forEach in Map.prototype');
+    ok('get' in Map.prototype, 'get in Map.prototype');
+    ok('has' in Map.prototype, 'has in Map.prototype');
+    ok('set' in Map.prototype, 'set in Map.prototype');
     ok(new Map instanceof Map, 'new Map instanceof Map');
   });
   test('Map::clear', function(){
     var M;
-    ok(isFunction(Map.prototype.clear));
+    ok(isFunction(Map.prototype.clear), 'Map::clear is function');
     M = new Map().set(1, 2).set(2, 3).set(1, 4);
     M.clear();
     ok(M.size === 0);
   });
   test('Map::delete', function(){
     var a, M;
-    ok(isFunction(Map.prototype['delete']));
+    ok(isFunction(Map.prototype['delete']), 'Map::delete is function');
     a = [];
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
     ok(M.size === 5);
@@ -1837,7 +1802,7 @@
   });
   test('Map::forEach', function(){
     var r, T, count, M, a;
-    ok(isFunction(Map.prototype.forEach));
+    ok(isFunction(Map.prototype.forEach), 'Map::forEach is function');
     r = {};
     count = 0;
     M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
@@ -1858,7 +1823,7 @@
   });
   test('Map::get', function(){
     var o, M;
-    ok(isFunction(Map.prototype.get));
+    ok(isFunction(Map.prototype.get), 'Map::get is function');
     o = {};
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.get(NaN) === 1);
@@ -1869,7 +1834,7 @@
   });
   test('Map::has', function(){
     var o, M;
-    ok(isFunction(Map.prototype.has));
+    ok(isFunction(Map.prototype.has), 'Map::has is function');
     o = {};
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.has(NaN));
@@ -1880,7 +1845,7 @@
   });
   test('Map::set', function(){
     var o, M, chain;
-    ok(isFunction(Map.prototype.set));
+    ok(isFunction(Map.prototype.set), 'Map::set is function');
     o = {};
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.size === 5);
@@ -1915,11 +1880,11 @@
   test('Set', function(){
     var S, r;
     ok(isFunction(global.Set), 'Set is function');
-    ok('add' in Set.prototype, 'Set::add is function');
-    ok('clear' in Set.prototype, 'Set::clear is function');
-    ok('delete' in Set.prototype, 'Set::delete is function');
-    ok('forEach' in Set.prototype, 'Set::forEach is function');
-    ok('has' in Set.prototype, 'Set::has is function');
+    ok('add' in Set.prototype, 'add in Set.prototype');
+    ok('clear' in Set.prototype, 'clear in Set.prototype');
+    ok('delete' in Set.prototype, 'delete in Set.prototype');
+    ok('forEach' in Set.prototype, 'forEach in Set.prototype');
+    ok('has' in Set.prototype, 'has in Set.prototype');
     ok(new Set instanceof Set, 'new Set instanceof Set');
     ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from array');
     S = new Set([1, 2, 3, 2, 1]);
@@ -1937,7 +1902,7 @@
   });
   test('Set::add', function(){
     var a, S, chain;
-    ok(isFunction(Set.prototype.add));
+    ok(isFunction(Set.prototype.add), 'Set::add is function');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.size === 5);
@@ -1955,14 +1920,14 @@
   });
   test('Set::clear', function(){
     var S;
-    ok(isFunction(Set.prototype.clear));
+    ok(isFunction(Set.prototype.clear), 'Set::clear is function');
     S = new Set([1, 2, 3, 2, 1]);
     S.clear();
     ok(S.size === 0);
   });
   test('Set::delete', function(){
     var a, S;
-    ok(isFunction(Set.prototype['delete']));
+    ok(isFunction(Set.prototype['delete']), 'Set::delete is function');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.size === 5);
@@ -1977,7 +1942,7 @@
   });
   test('Set::forEach', function(){
     var r, T, count, S;
-    ok(isFunction(Set.prototype.forEach));
+    ok(isFunction(Set.prototype.forEach), 'Set::forEach is function');
     r = {};
     count = 0;
     S = new Set([1, 2, 3, 2, 1]);
@@ -1996,7 +1961,7 @@
   });
   test('Set::has', function(){
     var a, S;
-    ok(isFunction(Set.prototype.has));
+    ok(isFunction(Set.prototype.has), 'Set::has is function');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     ok(S.has(NaN));
@@ -2015,6 +1980,115 @@
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
+  });
+  test('WeakMap', function(){
+    ok(isFunction(global.WeakMap), 'WeakMap is function');
+    ok('clear' in WeakMap.prototype, 'clear in WeakMap.prototype');
+    ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
+    ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
+    ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
+    ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
+    ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
+  });
+  test('WeakMap::clear', function(){
+    var M, a, b;
+    ok(isFunction(WeakMap.prototype.clear), 'WeakMap::clear is function');
+    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
+    ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
+    M.clear();
+    ok(!M.has(a) && !M.has(b), 'WeakMap has`nt values after .clear()');
+  });
+  test('WeakMap::delete', function(){
+    var M, a, b;
+    ok(isFunction(WeakMap.prototype['delete'], 'WeakMap::delete is function'));
+    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
+    ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
+    M['delete'](a);
+    ok(!M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()');
+  });
+  test('WeakMap::get', function(){
+    var M, a;
+    ok(isFunction(WeakMap.prototype.get, 'WeakMap::get is function'));
+    M = new WeakMap();
+    ok(M.get({}) === void 8, 'WeakMap .get() before .set() return undefined');
+    M.set(a = {}, 42);
+    ok(M.get(a) === 42, 'WeakMap .get() return value');
+    M['delete'](a);
+    ok(M.get(a) === void 8, 'WeakMap .get() after .delete() return undefined');
+  });
+  test('WeakMap::has', function(){
+    var M, a;
+    ok(isFunction(WeakMap.prototype.has, 'WeakMap::has is function'));
+    M = new WeakMap();
+    ok(M.has({}) === false, 'WeakMap .has() before .set() return false');
+    M.set(a = {}, 42);
+    ok(M.has(a), 'WeakMap .has() return true');
+    M['delete'](a);
+    ok(M.has(a) === false, 'WeakMap .has() after .delete() return false');
+  });
+  test('WeakMap::set', function(){
+    var a, e;
+    ok(isFunction(WeakMap.prototype.set, 'WeakMap.prototype.set is function'));
+    ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
+    ok((function(){
+      try {
+        new WeakMap().set(42, 42);
+        return false;
+      } catch (e$) {
+        e = e$;
+        return true;
+      }
+    }()), 'WeakMap.prototype.set throw with primitive keys');
+  });
+  test('WeakSet', function(){
+    var a;
+    ok(isFunction(global.WeakSet), 'WeakSet is function');
+    ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
+    ok('clear' in WeakSet.prototype, 'clear in WeakSet.prototype');
+    ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
+    ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
+    ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
+    ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from array');
+  });
+  test('WeakSet::add', function(){
+    var a, e;
+    ok(isFunction(WeakSet.prototype.add, 'WeakSet.prototype.add is function'));
+    ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
+    ok((function(){
+      try {
+        new WeakSet().add(42);
+        return false;
+      } catch (e$) {
+        e = e$;
+        return true;
+      }
+    }()), 'WeakSet.prototype.add throw with primitive keys');
+  });
+  test('WeakSet::clear', function(){
+    var M, a, b;
+    ok(isFunction(WeakSet.prototype.clear, 'WeakSet::clear is function'));
+    M = new WeakSet().add(a = {}).add(b = {});
+    ok(M.has(a) && M.has(b), 'WeakSet has values before .clear()');
+    M.clear();
+    ok(!M.has(a) && !M.has(b), 'WeakSet has`nt values after .clear()');
+  });
+  test('WeakSet::delete', function(){
+    var M, a, b;
+    ok(isFunction(WeakSet.prototype['delete'], 'WeakSet::delete is function'));
+    M = new WeakSet().add(a = {}).add(b = {});
+    ok(M.has(a) && M.has(b), 'WeakSet has values before .delete()');
+    M['delete'](a);
+    ok(!M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()');
+  });
+  test('WeakSet::has', function(){
+    var M, a;
+    ok(isFunction(WeakSet.prototype.has, 'WeakSet::has is function'));
+    M = new WeakSet();
+    ok(!M.has({}), 'WeakSet has`nt value');
+    M.add(a = {});
+    ok(M.has(a), 'WeakSet has value after .add()');
+    M['delete'](a);
+    ok(!M.has(a), 'WeakSet has`nt value after .delete()');
   });
 }).call(this);
 
@@ -2440,8 +2514,9 @@
 }).call(this);
 
 (function(){
-  var isFunction, toString$ = {}.toString;
-  isFunction = Function.isFunction;
+  var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
+  isFunction = Function.isFunction, isNative = Function.isNative;
+  getPrototypeOf = Object.getPrototypeOf, create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Object.has', function(){
     var has;
     has = Object.has;
@@ -2512,8 +2587,8 @@
     return deepEqual(array, [1, 2, 3, 4]);
   });
   test('Object.make', function(){
-    var make, getPrototypeOf, object, foo;
-    make = Object.make, getPrototypeOf = Object.getPrototypeOf;
+    var make, object, foo;
+    make = Object.make;
     ok(isFunction(make));
     object = make(foo = {
       q: 1
@@ -2524,8 +2599,8 @@
     ok(object.w === 2);
   });
   test('Object.plane', function(){
-    var plane, getPrototypeOf, foo;
-    plane = Object.plane, getPrototypeOf = Object.getPrototypeOf;
+    var plane, foo;
+    plane = Object.plane;
     ok(isFunction(plane));
     foo = plane({
       q: 1,
@@ -2535,9 +2610,33 @@
     ok(foo.q === 1);
     ok(foo.w === 2);
   });
+  test('Object.mixin', function(){
+    var mixin, foo, foo2;
+    mixin = Object.mixin;
+    ok(isFunction(mixin));
+    foo = {
+      q: 1
+    };
+    ok(foo === mixin(foo, {
+      w: 2
+    }));
+    ok(foo.w === 2);
+    if (isNative(getOwnPropertyDescriptor)) {
+      foo = {
+        q: 1
+      };
+      foo2 = defineProperty({}, 'w', {
+        get: function(){
+          return this.q + 1;
+        }
+      });
+      mixin(foo, foo2);
+      ok(foo.w === 2);
+    }
+  });
   (function(){
-    var clone, create, getPrototypeOf, defineProperty, getOwnPropertyDescriptor;
-    clone = Object.clone, create = Object.create, getPrototypeOf = Object.getPrototypeOf, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+    var clone;
+    clone = Object.clone;
     test('Object.clone(primitive)', function(){
       ok(clone(null) === null);
       ok(clone(void 8) === void 8);
@@ -2828,8 +2927,8 @@
     }));
   });
   test('Object.filter', function(){
-    var filter, obj, ctx;
-    filter = Object.filter;
+    var filter, plane, obj, ctx;
+    filter = Object.filter, plane = Object.plane;
     ok(isFunction(filter));
     filter(obj = {
       q: 1
@@ -2845,10 +2944,10 @@
       e: 3
     }, function(it){
       return it % 2;
-    }), {
+    }), plane({
       q: 1,
       e: 3
-    });
+    }));
   });
   test('Object.find', function(){
     var find, obj, ctx;
@@ -2964,8 +3063,8 @@
     }, NaN) === 'e');
   });
   test('Object.map', function(){
-    var map, obj, ctx;
-    map = Object.map;
+    var map, plane, obj, ctx;
+    map = Object.map, plane = Object.plane;
     ok(isFunction(map));
     map(obj = {
       q: 1
@@ -2981,11 +3080,11 @@
       e: 3
     }, (function(it){
       return Math.pow(it, 2);
-    })), {
+    })), plane({
       q: 1,
       w: 4,
       e: 9
-    });
+    }));
   });
   test('Object.reduce', function(){
     var reduce, obj, foo, memo;
@@ -3022,8 +3121,8 @@
     });
   });
   test('Object.some', function(){
-    var some, isString, obj, ctx;
-    some = Object.some, isString = Object.isString;
+    var some, obj, ctx;
+    some = Object.some;
     ok(isFunction(some));
     some(obj = {
       q: 1
@@ -3049,45 +3148,45 @@
     }));
   });
   test('Object.pluck', function(){
-    var pluck;
-    pluck = Object.pluck;
+    var pluck, plane;
+    pluck = Object.pluck, plane = Object.plane;
     ok(isFunction(pluck));
     deepEqual(pluck({
       q: 1,
       w: 22,
       e: 333
-    }, 'length'), {
+    }, 'length'), plane({
       q: void 8,
       w: void 8,
       e: void 8
-    });
+    }));
     deepEqual(pluck({
       q: 1,
       w: 22,
       e: void 8
-    }, 'length'), {
+    }, 'length'), plane({
       q: void 8,
       w: void 8,
       e: void 8
-    });
+    }));
     deepEqual(pluck({
       q: '1',
       w: '22',
       e: '333'
-    }, 'length'), {
+    }, 'length'), plane({
       q: 1,
       w: 2,
       e: 3
-    });
+    }));
   });
   test('Object.reduceTo', function(){
-    var reduceTo, obj;
-    reduceTo = Object.reduceTo;
+    var reduceTo, plane, obj;
+    reduceTo = Object.reduceTo, plane = Object.plane;
     ok(isFunction(reduceTo));
     reduceTo(obj = {
       q: 1
     }, function(val, key, that){
-      deepEqual({}, this);
+      deepEqual(this, plane());
       ok(val === 1);
       ok(key === 'q');
       return ok(that === obj);
@@ -3097,16 +3196,16 @@
     }, obj = {}, function(){
       return ok(this === obj);
     });
-    deepEqual({
-      1: 1,
-      2: 2,
-      3: 3
-    }, reduceTo({
+    deepEqual(reduceTo({
       q: 1,
       w: 2,
       e: 3
     }, function(it){
       return this[it] = it;
+    }), plane({
+      1: 1,
+      2: 2,
+      3: 3
     }));
   });
   test('Object.isObject', function(){

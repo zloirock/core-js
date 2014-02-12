@@ -30,25 +30,25 @@
         case 'M'    : return locale.M[that.getMonth()];       // Month   : Январь
         case 'MM'   : return locale.MM[that.getMonth()];      // Month   : Января
         case 'yy'   : return lz2(that.getFullYear() % 100);   // Year    : 13
-        case 'yyyy' : return that.getFullYear()               // Year    : 2013
+        case 'yyyy' : return that.getFullYear();              // Year    : 2013
       }
-      return part
+      return part;
     })
   }
   function lz2(num){
-    return num > 9 ? num : '0' + num
+    return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
       M : array(locale.M).map(flexio(0)),
       MM: array(locale.M).map(flexio(1))
-    }
+    };
   }
   function flexio(index){
     return function(it){
       return it.replace(/\+(.+)$/, function(part, str){
-        return str.split('|')[index]
+        return str.split('|')[index];
       })
     }
   }
@@ -58,7 +58,7 @@
   extendBuiltInObject(Date, {
     locale: function(locale){
       if(has(locales, locale))current = locale;
-      return current
+      return current;
     },
     addLocale: addLocale
   });

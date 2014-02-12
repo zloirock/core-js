@@ -20,19 +20,19 @@ var prototype      = 'prototype'
   , $Object        = Object[prototype]
   , $String        = String[prototype]
   , $Function      = Function[prototype];
-
+  
 // http://es5.github.io/#x9.12
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y
+  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y;
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it !== null && (typeof it == 'object' || typeof it == 'function')
+  return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
 // fallback for regexps in older browsers in es5 shim
 function isFunction(it){
-  return typeof it == 'function'
+  return typeof it == 'function';
 }
 // native function?
 var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
@@ -43,7 +43,7 @@ function isNative(it){
 // http://jsperf.com/core-js-classof
 var toString = $Object.toString;
 function classof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1)
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 
 // Function:
@@ -52,14 +52,14 @@ var apply = $Function.apply
 // unbind method from context
 // foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
 function unbind(that){
-  return tie.call(that, 'call')
+  return tie.call(that, 'call');
 }
 // simple bind context
 function tie(key){
-  var that       = this
-    , fn         = that[key];
+  var that = this
+    , fn   = that[key];
   return function(){
-    return fn.apply(that, arguments)
+    return fn.apply(that, arguments);
   }
 }
 // placeholder for partial apply
@@ -80,7 +80,7 @@ function part(/*args...*/){
     i = j = 0;
     if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(this, args)
+    return fn.apply(this, args);
   }
 }
 // add `this` as first argument
@@ -93,21 +93,18 @@ function methodize(){
       , i      = 0;
     args[0] = this;
     while(length > i)args[i + 1] = arguments[i++];
-    return apply.call(fn, undefined, args)
+    return apply.call(fn, undefined, args);
   }
-}
-function inherits(parent){
-  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
-  return this
 }
 
 // Object:
 var _hasOwn = $Object.hasOwnProperty;
 function has(object, key){
-  return _hasOwn.call(object, key)
+  return _hasOwn.call(object, key);
 }
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
+  , PROTO          = '__proto__' in $Object
   , DESCRIPTORS    = 1;
 function descriptor(bitmap, value){
   return {
@@ -125,7 +122,7 @@ function getOwnPropertyDescriptors(object){
     , i      = 0
     , key;
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
-  return result
+  return result;
 }
 // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
 var assign = Object.assign || function(target, source){
@@ -134,16 +131,16 @@ var assign = Object.assign || function(target, source){
     , i      = 0
     , key;
   while(length > i)target[key = props[i++]] = source[key];
-  return target
+  return target;
 }
 function invert(object){
-  var result = {}
+  var result = create(null)
     , names  = keys(object)
     , length = names.length
     , i      = 0
     , key;
   while(length > i)result[object[key = names[i++]]] = key;
-  return result
+  return result;
 }
 
 // Array:
@@ -154,7 +151,7 @@ function array(it){
 var push   = $Array.push
   , slice  = $Array.slice
   , $slice = Array.slice || function(arrayLike, from){
-      return slice.call(arrayLike, from)
+      return slice.call(arrayLike, from);
     };
 // How to get the context for calling Array.prototype methods
 // Dummy, polyfill for not array-like strings for old ie in es5 shim
@@ -163,10 +160,10 @@ var arrayLikeSelf = Object;
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){
     callbackfn = target;
-    target = {}
+    target = {};
   } else target = Object(target);
   forEach.call(this, callbackfn, target);
-  return target
+  return target;
 }
 
 // Math:
@@ -178,7 +175,7 @@ var ceil   = Math.ceil
   , random = Math.random;
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
 var toInteger = Number.toInteger || function(it){
-  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it
+  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
 function toLength(it){
@@ -188,10 +185,10 @@ function toLength(it){
 // Assertion & errors:
 var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
 function assert(condition, message){
-  if(!condition)throw TypeError(message)
+  if(!condition)throw TypeError(message);
 }
 function assertInstance(that, constructor, name){
-  assert(that instanceof constructor, name + ": Please use the 'new' operator")
+  assert(that instanceof constructor, name + ": Please use the 'new' operator");
 }
 
 function extendBuiltInObject(target, source, forced /* = false */){
@@ -204,4 +201,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
     } catch(e){}
   }
   return target
+}
+function hidden(key){
+  return '_' + key + '_' + random().toString(36).slice(2) + '_'
 }

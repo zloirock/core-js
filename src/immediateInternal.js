@@ -6,72 +6,67 @@
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
+// Node.js setImmediate & clearImmediate are not [native code]
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
-// Node.js 0.9+ and IE10+ has native setImmediate, else:
-isSetImmediate || !function(process, postMessage, addEventListener, MessageChannel, onreadystatechange){
-  var prefix  = 'i' + random()
+// Node.js 0.9+ & IE10+ has setImmediate, else:
+isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
+  var prefix  = hidden('immediate')
     , counter = 0
     , queue   = {}
-    , run, channel;
+    , defer, channel;
   setImmediate = function(fn){
-    var id     = prefix + ++counter
-      , length = arguments.length
-      , args   = Array(length - 1)
-      , i      = 1;
-    while(length > i)args[i - 1] = arguments[i++];
+    var id   = prefix + ++counter
+      , args = $slice(arguments, 1);
     queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(global, args)
+      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
     }
-    run(id);
-    return counter
+    defer(id);
+    return counter;
   }
   clearImmediate = function(id){
-    delete queue[prefix + id]
+    delete queue[prefix + id];
   }
-  function task(id){
+  function run(id){
     if(has(queue, id)){
       var fn = queue[id];
       delete queue[id];
-      fn()
+      fn();
     }
   }
   function listner(event){
-    if(event.source === global)task(event.data)
+    run(event.data);
   }
   // Node.js 0.8-
   if(classof(process) == 'process'){
-    run = function(id){
-      process.nextTick(part.call(task, id))
+    defer = function(id){
+      process.nextTick(part.call(run, id));
     }
-  // Modern browsers
-  // IE8 has postMessage, but it's sync & typeof postMessage is object
-  } else if(isFunction(postMessage)){
-    run = function(id){
-      postMessage(id, '*')
+  // Modern browsers, skip implementation for WebWorkers
+  // IE8 has postMessage, but it's sync & typeof it's postMessage is object
+  } else if(isFunction(postMessage) && !global.importScripts){
+    defer = function(id){
+      postMessage(id, '*');
     }
-    if(addEventListener)addEventListener('message', listner, false);
-    else attachEvent('onmessage', listner)
+    addEventListener('message', listner, false);
   // WebWorkers
-  //} else if(isFunction(MessageChannel)){
-  //  channel = new MessageChannel();
-  //  channel.port1.onmessage = function(event){
-  //    task(event.data)
-  //  };
-  //  run = tie.call(channel.port2, 'postMessage')
+  } else if(isFunction(MessageChannel)){
+    channel = new MessageChannel();
+    channel.port1.onmessage = listner;
+    defer = tie.call(channel.port2, 'postMessage');
   // IE8-
   // use DOM => use after onload
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
-    run = function(id){
+    defer = function(id){
       var el = document.createElement('script');
       el[onreadystatechange] = function(){
         el.parentNode.removeChild(el);
-        task(id)
+        run(id);
       }
-      document.documentElement.appendChild(el)
+      document.documentElement.appendChild(el);
     }
   // Rest old browsers
-  } else run = function(id){
-      setTimeout(part.call(task, id), 0)
+  } else defer = function(id){
+      setTimeout(part.call(run, id), 0);
     }
-}(global.process, global.postMessage, global.addEventListener, global.MessageChannel, 'onreadystatechange');
+}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');

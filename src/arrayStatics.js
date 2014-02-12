@@ -20,9 +20,9 @@ extendBuiltInObject(Array, reduceTo.call(
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,pluck,reduceTo,merge,unique'
+    'at,pluck,reduceTo,merge'
   ),
   function(key){
-    if(key in $Array)this[key] = unbind($Array[key])
+    if(key in $Array)this[key] = unbind($Array[key]);
   }
 ));

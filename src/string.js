@@ -17,7 +17,7 @@
      * http://sugarjs.com/api/String/at
      */
     at: function(index){
-      return String(this).charAt(0 > (index |= 0) ? this.length + index : index)
+      return String(this).charAt(0 > (index |= 0) ? this.length + index : index);
     },
     /**
      * Alternatives:
@@ -28,7 +28,7 @@
     escapeHTML: function(){
       return String(this).replace(RegExpEscapeHTML, function(part){
         return dictionaryEscapeHTML[part];
-      })
+      });
     },
     /**
      * Alternatives:
@@ -39,21 +39,21 @@
     unescapeHTML: function(){
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
         return dictionaryUnescapeHTML[key];
-      })
+      });
     },
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/escapeURL
      */
     escapeURL: function(component /* = false */){
-      return (component ? encodeURIComponent : encodeURI)(this)
+      return (component ? encodeURIComponent : encodeURI)(this);
     },
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/unescapeURL
      */
     unescapeURL: function(component /* = false */){
-      return (component ? decodeURIComponent : decodeURI)(this)
+      return (component ? decodeURIComponent : decodeURI)(this);
     },
     /**
      * Alternatives:
@@ -62,7 +62,7 @@
      * http://mootools.net/docs/core/Types/String#String:escapeRegExp
      */
     escapeRegExp: function(){
-      return String(this).replace(RegExpEscapeRegExp, '\\$1')
+      return String(this).replace(RegExpEscapeRegExp, '\\$1');
     }
   });
 }();

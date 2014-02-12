@@ -18,13 +18,13 @@ extendBuiltInObject($Number, {
       , result = Array(number)
       , i      = 0;
     if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
-    return result
+    return result;
   },
   random: function(number /* = 0 */){
     var a = +this   || 0
       , b = +number || 0
       , m = min(a, b);
-    return random() * (max(a, b) - m) + m
+    return random() * (max(a, b) - m) + m;
   },
   /**
    * Alternatives:
@@ -35,7 +35,7 @@ extendBuiltInObject($Number, {
     var a = toInteger(this)
       , b = toInteger(number)
       , m = min(a, b);
-    return floor((random() * (max(a, b) + 1 - m)) + m)
+    return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });
 /**

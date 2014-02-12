@@ -6,32 +6,24 @@
 extendBuiltInObject(Object, {
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
-      if(has(object, key))return getOwnPropertyDescriptor(object, key)
-    } while(object = getPrototypeOf(object))
+      if(has(object, key))return getOwnPropertyDescriptor(object, key);
+    } while(object = getPrototypeOf(object));
   },
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
-    var result = getOwnPropertyDescriptors(object)
-      , i, length, names, key;
+    var result = getOwnPropertyDescriptors(object);
     while(object = getPrototypeOf(object)){
-      names  = getOwnPropertyNames(object);
-      i      = 0;
-      length = names.length;
-      while(length > i)if(!has(result, key = names[i++])){
-        result[key] = getOwnPropertyDescriptor(object, key);
-      }
+      result = assign(getOwnPropertyDescriptors(object), result);
     }
-    return result
+    return result;
   },
   getPropertyNames: function(object){
-    var result = getOwnPropertyNames(object)
-      , i, length, names, key;
+    var result = getOwnPropertyNames(object);
     while(object = getPrototypeOf(object)){
-      i      = 0;
-      names  = getOwnPropertyNames(object);
-      length = names.length;
-      while(length > i)~result.indexOf(key = names[i++]) || result.push(key)
+      getOwnPropertyNames(object).forEach(function(key){
+        ~result.indexOf(key) || result.push(key);
+      });
     }
-    return result
+    return result;
   }
-})
+});

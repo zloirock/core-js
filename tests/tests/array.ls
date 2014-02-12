@@ -30,6 +30,3 @@ test 'Array::merge' !->
   arr = <[q w e]>
   ok arr is arr.merge \asd
   deepEqual arr, <[q w e a s d]>
-test 'Array::unique' !->
-  ok isFunction Array::unique
-  deepEqual [1 2 3 2 1]unique!, [1 2 3]

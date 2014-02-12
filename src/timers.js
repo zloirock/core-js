@@ -9,7 +9,7 @@
 !function(navigator){
   function wrap(set){
     return function(fn, time /*, args...*/){
-      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1)
+      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1);
     }
   }
   // ie9- dirty check

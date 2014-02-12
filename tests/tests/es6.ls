@@ -19,17 +19,6 @@ test 'Object.is' !->
   ok same NaN, NaN
   ok not same 0 -0
   ok not same {} {}
-test 'Object.mixin' !->
-  {mixin} = Object
-  ok isFunction mixin
-  foo = q:1
-  ok foo is mixin foo, w:2
-  ok foo.w is 2
-  if isNative getOwnPropertyDescriptor
-    foo = q:1
-    foo2 = defineProperty {}, \w, get: -> @q + 1
-    mixin foo, foo2
-    ok foo.w is 2
 if Object.setPrototypeOf
   test 'Object.setPrototypeOf' !->
     {setPrototypeOf} = Object
@@ -159,14 +148,6 @@ test 'Number.parseFloat' !->
   ok isFunction Number.parseFloat
 test 'Number.parseInt' !->
   ok isFunction Number.parseInt
-test 'Number::clz' !->
-  ok isFunction Number::clz
-  ok 0.clz! is 32
-  ok 1.clz! is 31
-  ok (-1)clz! is 0
-  ok 0.6.clz! is 32
-  ok (2^32-1)clz! is 0
-  ok (2^32)clz! is 32
 test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
   {acosh} = Math
@@ -207,6 +188,15 @@ test 'Math.cbrt' !->
   ok same cbrt(-0), -0
   ok same cbrt(Infinity), Infinity
   ok same cbrt(-Infinity), -Infinity
+test 'Math.clz32' !->
+  {clz32} = Math
+  ok isFunction clz32
+  ok clz32(0) is 32
+  ok clz32(1) is 31
+  ok clz32(-1) is 0
+  ok clz32(0.6) is 32
+  ok clz32(2^32-1) is 0
+  ok clz32(2^32) is 32
 test 'Math.cosh' !->
   # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
   {cosh} = Math

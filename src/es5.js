@@ -9,7 +9,6 @@
 !function(){
   // not enum keys
   var Empty             = Function()
-    , protoInObject     = new Empty().__proto__ == Empty[prototype]
     , whitespace        = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
     , LTrimRegExp       = RegExp('^' + whitespace + whitespace + '*')
     , RTrimRegExp       = RegExp(whitespace + whitespace + '*$')
@@ -21,9 +20,9 @@
     , nativeSlice       = slice
     , nativeJoin        = $Array.join
     // Create object with null as it's prototype
-    , createNullProtoObject = protoInObject
+    , createNullProtoObject = PROTO
       ? function(){
-          return {__proto__: null}
+          return {__proto__: null};
         }
       : function(){
           // Thrash, waste and sodomy
@@ -40,7 +39,7 @@
           iframeDocument.close();
           createNullProtoObject = iframeDocument._;
           while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
-          return createNullProtoObject()
+          return createNullProtoObject();
         }
     , createGetKeys = function(names, length){
         return function(O){
@@ -50,11 +49,9 @@
           for(key in O)has(O, key) && result.push(key);
           // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~result.indexOf(key) && result.push(key);
-          return result
+          return result;
         }
-      }
-    // The engine has a guaranteed way to get a prototype?
-    , $PROTO = !!Object.getPrototypeOf || protoInObject;
+      };
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
     defineProperty({}, 0, $Object);
@@ -66,7 +63,7 @@
      * http://es5.github.io/#x15.2.3.3
      */
     Object.getOwnPropertyDescriptor = function(O, P){
-      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P])
+      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     /**
      * 15.2.3.6 Object.defineProperty ( O, P, Attributes )
@@ -74,7 +71,7 @@
      */
     Object.defineProperty = defineProperty = function(O, P, Attributes){
       O[P] = Attributes.value;
-      return O
+      return O;
     };
     /**
      * 15.2.3.7 Object.defineProperties ( O, Properties ) 
@@ -87,7 +84,7 @@
         , i = 0
         , key;
       while(length > i)O[key = names[i++]] = Properties[key].value;
-      return O
+      return O;
     }
   }
   extendBuiltInObject(Object, {
@@ -98,7 +95,7 @@
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
-      return O != proto && 'toString' in O ? proto : null
+      return O !== proto && 'toString' in O ? proto : null;
     },
     /**
      * 15.2.3.4 Object.getOwnPropertyNames ( O )
@@ -116,8 +113,8 @@
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
-      $PROTO || result.constructor[prototype] == O || (result.__proto__ = O);
-      return result
+      PROTO || result.constructor[prototype] === O || (result.__proto__ = O);
+      return result;
     },
     /**
      * 15.2.3.14 Object.keys ( O )
@@ -128,14 +125,14 @@
   // not array-like strings fix
   if(!(0 in Object('q') && 'q'[0] == 'q')){
     arrayLikeSelf = function(it){
-      return classof(it) == 'String' ? it.split('') : Object(it)
-    };
+      return classof(it) == 'String' ? it.split('') : Object(it);
+    }
     // Array.prototype methods for strings in ES3
     $Array.slice = slice = function(){
-      return nativeSlice.apply(arrayLikeSelf(this), arguments)
-    };
+      return nativeSlice.apply(arrayLikeSelf(this), arguments);
+    }
     $Array.join = function(){
-      return nativeJoin.apply(arrayLikeSelf(this), arguments)
+      return nativeJoin.apply(arrayLikeSelf(this), arguments);
     }
   }
   /**
@@ -148,10 +145,10 @@
         , args = $slice(arguments, 1);
       assert(isFunction(fn), fn + ' is not a function');
       function bound(){
-        return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)))
+        return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)));
       }
       bound[prototype] = create(fn[prototype]);
-      return bound
+      return bound;
     }
   });
   /**
@@ -172,7 +169,7 @@
     var self   = arrayLikeSelf(this)
       , length = toLength(self.length)
       , i      = 0;
-    for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this)
+    for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
   }
   extendBuiltInObject($Array, {
     /**
@@ -185,7 +182,7 @@
         , i      = fromIndex | 0;
       if(0 > i)i = toLength(length + i);
       for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
-      return -1
+      return -1;
     },
     /**
      * 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
@@ -198,7 +195,7 @@
       if(arguments.length > 1)i = min(i, fromIndex | 0);
       if(0 > i)i = toLength(length + i);
       for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
-      return -1
+      return -1;
     },
     /**
      * 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
@@ -211,7 +208,7 @@
       for(;length > i; i++){
         if(i in self && !callbackfn.call(thisArg, self[i], i, this))return false;
       }
-      return true
+      return true;
     },
     /**
      * 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
@@ -224,7 +221,7 @@
       for(;length > i; i++){
         if(i in self && callbackfn.call(thisArg, self[i], i, this))return true;
       }
-      return false
+      return false;
     },
     /**
      * 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
@@ -240,7 +237,7 @@
       forEach.call(this, function(val, key, that){
         rez[key] = callbackfn.call(thisArg, val, key, that);
       });
-      return rez
+      return rez;
     },
     /**
      * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
@@ -249,9 +246,9 @@
     filter: function(callbackfn, thisArg /* = undefined */){
       var rez = [];
       forEach.call(this, function(val){
-        if(callbackfn.apply(thisArg, arguments))rez.push(val);
+        callbackfn.apply(thisArg, arguments) && rez.push(val);
       });
-      return rez
+      return rez;
     },
     /**
      * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
@@ -264,12 +261,12 @@
       if(2 > arguments.length)for(;;){
         if(i in self){
           memo = self[i++];
-          break
+          break;
         }
-        assert(length > ++i, REDUCE_ERROR)
+        assert(length > ++i, REDUCE_ERROR);
       }
       for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
-      return memo
+      return memo;
     },
     /**
      * 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
@@ -281,12 +278,12 @@
       if(2 > arguments.length)for(;;){
         if(i in self){
           memo = self[i--];
-          break
+          break;
         }
-        assert(0 <= --i, REDUCE_ERROR)
+        assert(0 <= --i, REDUCE_ERROR);
       }
       for(;i >= 0; i--)if(i in self)memo = callbackfn(memo, self[i], i, this);
-      return memo
+      return memo;
     }
   });
   /**
@@ -295,19 +292,19 @@
    * http://blog.stevenlevithan.com/archives/faster-trim-javascript
    */
   extendBuiltInObject($String, {trim: function(){
-    return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '')
+    return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '');
   }});
   /**
    * 15.9.4.4 Date.now ( )
    * http://es5.github.io/#x15.9.4.4
    */
   extendBuiltInObject(Date, {now: function(){
-    return +new Date
+    return +new Date;
   }});
   /**
    * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
    */
   if(isFunction(LTrimRegExp))isFunction = function(it){
-    return classof(it) == 'Function'
+    return classof(it) == 'Function';
   }
 }();

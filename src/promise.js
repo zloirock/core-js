@@ -19,8 +19,10 @@
   // such as this: onFulfilled must be a function or undefined
   &&  (function(resolve){
         try {
-          new Promise(function(r){ resolve = r }).then(null);
-          return isFunction(resolve)
+          new Promise(function(r){
+            resolve = r;
+          }).then(null);
+          return isFunction(resolve);
         } catch(e){}
       })()
   || !function(){
@@ -28,9 +30,9 @@
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , _subscribers = '_subscribers'
-      , _state = '_state'
-      , _detail = '_detail'
+      , _subscribers = hidden('subscribers')
+      , _state       = hidden('state')
+      , _detail      = hidden('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){
@@ -40,9 +42,9 @@
       assertInstance(promise, Promise, 'Promise');
       promise[_subscribers] = [];
       try {
-        resolver(part.call(resolve, promise), rejectPromise)
+        resolver(part.call(resolve, promise), rejectPromise);
       } catch(e){
-        rejectPromise(e)
+        rejectPromise(e);
       }
     }
     global.Promise = Promise;
@@ -65,7 +67,7 @@
       else if(hasCallback && succeeded)resolve(promise, value);
       else if(failed)handle(promise, REJECTED, error);
       else if(settled == FULFILLED)resolve(promise, value);
-      else if(settled == REJECTED)handle(promise, REJECTED, value)
+      else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
       /**
@@ -73,7 +75,7 @@
        * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
        */
       'catch': function(onRejected){
-        return this.then(undefined, onRejected)
+        return this.then(undefined, onRejected);
       },
       /**
        * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
@@ -83,10 +85,10 @@
         var promise     = this
           , thenPromise = new Promise(Function());
         if(promise[_state])setImmediate(function(){
-          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail])
+          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail]);
         }, onFulfilled, onRejected);
         else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
-        return thenPromise
+        return thenPromise;
       }
     });
     assign(Promise, {
@@ -101,22 +103,22 @@
             , remaining = iterable.length;
           function resolveAll(index, value){
             results[index] = value;
-            --remaining || resolve(results)
+            --remaining || resolve(results);
           }
           if(remaining)iterable.forEach(function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
-              : resolveAll(i, promise)
+              : resolveAll(i, promise);
           })
           else resolve(results);
-        })
+        });
       },
       /**
        * 25.4.4.2 Promise.cast ( x )
        * https://github.com/domenic/promises-unwrapping#promisecast--x-
        */
       cast: function(x){
-        return x instanceof this ? x : $resolve.call(this, x)
+        return x instanceof this ? x : $resolve.call(this, x);
       },
       /**
        * 25.4.4.4 Promise.race ( iterable )
@@ -130,7 +132,7 @@
               ? promise.then(resolve, reject)
               : resolve(promise)
           })
-        })
+        });
       },
       /**
        * 25.4.4.5 Promise.reject ( r )
@@ -138,8 +140,8 @@
        */
       reject: function(r){
         return new this(function(resolve, reject){
-          reject(r)
-        })
+          reject(r);
+        });
       },
       /**
        * 25.4.4.6 Promise.resolve ( x )
@@ -149,8 +151,8 @@
     });
     function $resolve(x){
       return new this(function(resolve, reject){
-        resolve(x)
-      })
+        resolve(x);
+      });
     }
     function handleThenable(promise, value){
       var resolved;
@@ -161,21 +163,21 @@
             if(resolved)return true;
             resolved = true;
             if(value !== val)resolve(promise, val);
-            else handle(promise, FULFILLED, val)
+            else handle(promise, FULFILLED, val);
           }, function(val){
             if(resolved)return true;
             resolved = true;
-            handle(promise, REJECTED, val)
+            handle(promise, REJECTED, val);
           });
-          return 1
+          return 1;
         }
       } catch(error){
         if(!resolved)handle(promise, REJECTED, error);
-        return 1
+        return 1;
       }
     }
     function resolve(promise, value){
-      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value)
+      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value);
     }
     function handle(promise, state, reason){
       if(promise[_state] === PENDING){
@@ -186,8 +188,8 @@
           for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
             invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
           }
-          promise[_subscribers] = undefined
-        })
+          promise[_subscribers] = undefined;
+        });
       }
     }
   }();

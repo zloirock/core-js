@@ -5,6 +5,7 @@ extendBuiltInObject($Function, tieExt);
 extendBuiltInObject(Object, {
   /**
    * Alternatives:
+   * http://livescript.net/#property-access -> foo~bar
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),

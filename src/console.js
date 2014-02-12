@@ -13,11 +13,11 @@ var _console = global.console || {}
       {enabled: true},
       function(key){
         this[key] = function(){
-          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined
+          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined;
         };
       }
     );
 try {
-  delete global.console
+  delete global.console;
 } catch(e){}
 $console = global.console = assign($console.log, $console);

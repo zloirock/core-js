@@ -1,3 +1,9 @@
+function inherits(parent){
+  //if(Object.setPrototypeOf)Object.setPrototypeOf(this[prototype], parent[prototype]);
+  //else if(protoInObject)this[prototype].__proto__ = parent[prototype];
+  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
+  return this;
+}
 extendBuiltInObject(Function, {
   /**
    * Alternatives:
@@ -31,7 +37,7 @@ extendBuiltInObject($Function, {
     var fn     = this
       , isThat = arguments.length > 1;
     return function(/*args...*/){
-      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)))
+      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
     }
   },
   /**
@@ -43,7 +49,7 @@ extendBuiltInObject($Function, {
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));
-    return isObject(result) ? result : instance
+    return isObject(result) ? result : instance;
   },
   // deferred call
   /**
@@ -54,7 +60,7 @@ extendBuiltInObject($Function, {
    * http://mootools.net/docs/core/Types/Function#Function:delay
    */
   timeout: function(del /*, args...*/){
-    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del])
+    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del]);
   },
   /**
    * Alternatives:
@@ -62,7 +68,7 @@ extendBuiltInObject($Function, {
    * http://mootools.net/docs/core/Types/Function#Function:periodical
    */
   interval: function(del /*, args...*/){
-    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del])
+    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del]);
   },
   /**
    * Alternatives:
@@ -70,7 +76,7 @@ extendBuiltInObject($Function, {
    * http://api.prototypejs.org/language/Function/prototype/defer/
    */
   immediate: function(/*, args...*/){
-    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)])
+    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)]);
   },
   /**
    * Alternatives:
@@ -82,12 +88,12 @@ function createDeferred(set, clear, args){
   var deferred = {
     stop: function(){
       id && clear(id);
-      return deferred
+      return deferred;
     },
     run: function(){
       id && clear(id);
       id = apply.call(set, global, args);
-      return deferred
+      return deferred;
     }
   }, id;
   return deferred;

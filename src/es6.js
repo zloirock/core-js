@@ -9,14 +9,14 @@
  */
 !function(){
   function sign(it){
-    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1
+    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   function izFinite(it){
-    return typeof it == 'number' && isFinite(it)
+    return typeof it == 'number' && isFinite(it);
   }
   // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
   var isInteger = Number.isInteger || function(it){
-      return izFinite(it) && floor(it) == it;
+      return izFinite(it) && floor(it) === it;
     }
     , isFinite         = global.isFinite
     , MAX_SAFE_INTEGER = 0x1fffffffffffff
@@ -38,15 +38,7 @@
      * http://wiki.ecmascript.org/doku.php?id=harmony:egal
      * http://kangax.github.io/es5-compat-table/es6/#Object.is
      */
-    is: same,
-    /**
-     * 19.1.3.15 Object.mixin ( target, source )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.15
-     * Removed in Draft Rev 22, January 20, 2014
-     */
-    mixin: function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source))
-    }
+    is: same
   });
   /**
    * 19.1.3.19 Object.setPrototypeOf ( O, proto )
@@ -54,11 +46,11 @@
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
-  if(getPrototypeOf({__proto__: null}) === null)extendBuiltInObject(Object, {
+  PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
       assert(isObject(O) && (isObject(proto) || proto === null), "Can't set " + proto + ' as prototype of ' + O);
       O.__proto__ = proto;
-      return O
+      return O;
     }
   });
   extendBuiltInObject(Number, {
@@ -89,7 +81,7 @@
      * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
      */
     isNaN: function(number){
-      return typeof number == 'number' && number !== number
+      return typeof number == 'number' && number != number;
     },
     /**
      * 20.1.2.5 Number.isSafeInteger (number)
@@ -119,17 +111,6 @@
      */
     parseInt: parseInt
   });
-  extendBuiltInObject($Number, {
-    /**
-     * 20.1.3.1 Number.prototype.clz ()
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
-     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
-     */
-    clz: function(){
-      var number = this >>> 0;
-      return number ? 32 - number.toString(2).length : 32
-    }
-  });
   extendBuiltInObject(Math, {
     /**
      * 20.2.2.3 Math.acosh(x)
@@ -138,7 +119,7 @@
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
     acosh: function(x){
-      return ln(x + sqrt(x * x - 1))
+      return ln(x + sqrt(x * x - 1));
     },
     /***
      * 20.2.2.5 Math.asinh(x)
@@ -147,7 +128,7 @@
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
     asinh: function(x){
-      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1))
+      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1));
     },
     /**
      * 20.2.2.7 Math.atanh(x)
@@ -156,7 +137,7 @@
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
     atanh: function(x){
-      return x === 0 ? x : 0.5 * ln((1 + x) / (1 - x))
+      return x === 0 ? x : 0.5 * ln((1 + x) / (1 - x));
     },
     /**
      * 20.2.2.9 Math.cbrt(x)
@@ -167,13 +148,23 @@
       return sign(x) * pow(abs(x), 1/3);
     },
     /**
+     * 20.1.3.1 Number.prototype.clz ()
+     * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
+     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
+     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
+     */
+    clz32: function(number){
+      number = number >>> 0;
+      return number ? 32 - number.toString(2).length : 32;
+    },
+    /**
      * 20.2.2.12 Math.cosh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.12
      * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
      * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
     cosh: function(x){
-      return (exp(x) + exp(-x)) / 2
+      return (exp(x) + exp(-x)) / 2;
     },
     /**
      * 20.2.2.14 Math.expm1 (x)
@@ -182,7 +173,7 @@
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
     expm1: function(x){
-      return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1
+      return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1;
     },
     /**
      * 20.2.2.16 Math.fround (x)
@@ -205,7 +196,7 @@
         if(val == Infinity || val == - Infinity)return Infinity;
         sum += val * val;
       }
-      return sqrt(sum)
+      return sqrt(sum);
     },
     /**
      * 20.2.2.18 Math.imul(x, y)
@@ -217,7 +208,7 @@
         , xl = x & 0xffff
         , yh = (y >>> 0x10) & 0xffff
         , yl = y & 0xffff;
-      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0
+      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
     /**
      * 20.2.2.20 Math.log1p (x)
@@ -227,7 +218,7 @@
      * The result is computed in a way that is accurate even when the value of x is close to zero.
      */
     log1p: function(x){
-      return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x)
+      return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x);
     },
     /**
      * 20.2.2.21 Math.log10 (x)
@@ -236,7 +227,7 @@
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
     log10: function(x){
-      return ln(x) / Math.LN10
+      return ln(x) / Math.LN10;
     },
     /**
      * 20.2.2.22 Math.log2 (x)
@@ -245,7 +236,7 @@
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
     log2: function(x){
-      return ln(x) / Math.LN2
+      return ln(x) / Math.LN2;
     },
     /**
      * 20.2.2.28 Math.sign(x)
@@ -261,7 +252,7 @@
      * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
     sinh: function(x){
-      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2
+      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
     },
     /**
      * 20.2.2.33 Math.tanh(x)
@@ -270,7 +261,7 @@
      * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x)
+      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
     /**
      * 20.2.2.34 Math.trunc(x)
@@ -279,7 +270,7 @@
      * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
     trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x)
+      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
   /*
@@ -310,7 +301,7 @@
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
      */
     contains: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position)
+      return !!~String(this).indexOf(searchString, position);
     },
     /**
      * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
@@ -323,7 +314,7 @@
       var length = this.length;
       searchString += '';
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - searchString.length, endPosition) === searchString
+      return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
     },
     /**
      * 21.1.3.13 String.prototype.repeat (count)
@@ -332,7 +323,12 @@
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      return fill.call(Array(toInteger(count)), this).join('')
+      count = toInteger(count);
+      assert(0 <= count);
+      var result = ''
+        , string = '' + this;
+      while(count--)result += string;
+      return result;
     },
     /**
      * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
@@ -344,7 +340,7 @@
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
       position = toLength(min(position, this.length));
-      return String(this).slice(position, position + searchString.length) === searchString
+      return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
   extendBuiltInObject(Array, {
@@ -359,9 +355,8 @@
         , i = 0
         , length = toLength(O.length)
         , result = new (isFunction(this) ? this : Array)(length);
-      if(mapfn)for(; i < length; i++)i in O && (result[i] = mapfn.call(thisArg, O[i], i, O));
-      else for(; i < length; i++)i in O && (result[i] = O[i]);
-      return result
+      for(; i < length; i++)result[i] = mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i];
+      return result;
     },
     /**
      * 22.1.2.3 Array.of ( ...items )
@@ -374,16 +369,9 @@
         , length = arguments.length
         , result = new (isFunction(this) ? this : Array)(length);
       while(i < length)result[i] = arguments[i++];
-      return result
+      return result;
     }
   });
-  function fill(value, start /* = 0 */, end /* = @length */){
-    var length = toLength(this.length);
-    if((start |= 0) < 0 && (start = length + start) < 0)return this;
-    end = end == undefined ? length : end | 0;
-    while(end > start)this[start++] = value;
-    return this
-  }
   extendBuiltInObject($Array, {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
@@ -398,7 +386,13 @@
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
      */
-    fill: fill,
+    fill: function(value, start /* = 0 */, end /* = @length */){
+      var length = toLength(this.length);
+      if((start |= 0) < 0 && (start = length + start) < 0)return this;
+      end = end == undefined ? length : end | 0;
+      while(end > start)this[start++] = value;
+      return this;
+    },
     /**
      * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.8
@@ -409,7 +403,9 @@
         , self = arrayLikeSelf(O)
         , length = toLength(self.length)
         , val, i = 0;
-      for(; i < length; i++)if(i in self && predicate.call(thisArg, val = self[i], i, O))return val
+      for(; i < length; i++){
+        if(i in self && predicate.call(thisArg, val = self[i], i, O))return val;
+      }
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
@@ -421,8 +417,10 @@
         , self = arrayLikeSelf(O)
         , length = toLength(self.length)
         , i = 0;
-      for(; i < length; i++)if(i in self && predicate.call(thisArg, self[i], i, O))return i;
-      return -1
+      for(; i < length; i++){
+        if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+      }
+      return -1;
     }
   });
 }();

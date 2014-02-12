@@ -31,19 +31,19 @@ var prototype      = 'prototype'
   , $Object        = Object[prototype]
   , $String        = String[prototype]
   , $Function      = Function[prototype];
-
+  
 // http://es5.github.io/#x9.12
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y
+  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y;
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it !== null && (typeof it == 'object' || typeof it == 'function')
+  return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
 // fallback for regexps in older browsers in es5 shim
 function isFunction(it){
-  return typeof it == 'function'
+  return typeof it == 'function';
 }
 // native function?
 var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
@@ -54,7 +54,7 @@ function isNative(it){
 // http://jsperf.com/core-js-classof
 var toString = $Object.toString;
 function classof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1)
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 
 // Function:
@@ -63,14 +63,14 @@ var apply = $Function.apply
 // unbind method from context
 // foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
 function unbind(that){
-  return tie.call(that, 'call')
+  return tie.call(that, 'call');
 }
 // simple bind context
 function tie(key){
-  var that       = this
-    , fn         = that[key];
+  var that = this
+    , fn   = that[key];
   return function(){
-    return fn.apply(that, arguments)
+    return fn.apply(that, arguments);
   }
 }
 // placeholder for partial apply
@@ -91,7 +91,7 @@ function part(/*args...*/){
     i = j = 0;
     if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(this, args)
+    return fn.apply(this, args);
   }
 }
 // add `this` as first argument
@@ -104,21 +104,18 @@ function methodize(){
       , i      = 0;
     args[0] = this;
     while(length > i)args[i + 1] = arguments[i++];
-    return apply.call(fn, undefined, args)
+    return apply.call(fn, undefined, args);
   }
-}
-function inherits(parent){
-  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
-  return this
 }
 
 // Object:
 var _hasOwn = $Object.hasOwnProperty;
 function has(object, key){
-  return _hasOwn.call(object, key)
+  return _hasOwn.call(object, key);
 }
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
+  , PROTO          = '__proto__' in $Object
   , DESCRIPTORS    = 1;
 function descriptor(bitmap, value){
   return {
@@ -136,7 +133,7 @@ function getOwnPropertyDescriptors(object){
     , i      = 0
     , key;
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
-  return result
+  return result;
 }
 // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
 var assign = Object.assign || function(target, source){
@@ -145,16 +142,16 @@ var assign = Object.assign || function(target, source){
     , i      = 0
     , key;
   while(length > i)target[key = props[i++]] = source[key];
-  return target
+  return target;
 }
 function invert(object){
-  var result = {}
+  var result = create(null)
     , names  = keys(object)
     , length = names.length
     , i      = 0
     , key;
   while(length > i)result[object[key = names[i++]]] = key;
-  return result
+  return result;
 }
 
 // Array:
@@ -165,7 +162,7 @@ function array(it){
 var push   = $Array.push
   , slice  = $Array.slice
   , $slice = Array.slice || function(arrayLike, from){
-      return slice.call(arrayLike, from)
+      return slice.call(arrayLike, from);
     };
 // How to get the context for calling Array.prototype methods
 // Dummy, polyfill for not array-like strings for old ie in es5 shim
@@ -174,10 +171,10 @@ var arrayLikeSelf = Object;
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){
     callbackfn = target;
-    target = {}
+    target = {};
   } else target = Object(target);
   forEach.call(this, callbackfn, target);
-  return target
+  return target;
 }
 
 // Math:
@@ -189,7 +186,7 @@ var ceil   = Math.ceil
   , random = Math.random;
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
 var toInteger = Number.toInteger || function(it){
-  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it
+  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
 function toLength(it){
@@ -199,10 +196,10 @@ function toLength(it){
 // Assertion & errors:
 var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
 function assert(condition, message){
-  if(!condition)throw TypeError(message)
+  if(!condition)throw TypeError(message);
 }
 function assertInstance(that, constructor, name){
-  assert(that instanceof constructor, name + ": Please use the 'new' operator")
+  assert(that instanceof constructor, name + ": Please use the 'new' operator");
 }
 
 function extendBuiltInObject(target, source, forced /* = false */){
@@ -215,6 +212,9 @@ function extendBuiltInObject(target, source, forced /* = false */){
     } catch(e){}
   }
   return target
+}
+function hidden(key){
+  return '_' + key + '_' + random().toString(36).slice(2) + '_'
 }
 /**
  * Module : resume
@@ -239,75 +239,70 @@ var create                   = Object.create
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
+// Node.js setImmediate & clearImmediate are not [native code]
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
-// Node.js 0.9+ and IE10+ has native setImmediate, else:
-isSetImmediate || !function(process, postMessage, addEventListener, MessageChannel, onreadystatechange){
-  var prefix  = 'i' + random()
+// Node.js 0.9+ & IE10+ has setImmediate, else:
+isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
+  var prefix  = hidden('immediate')
     , counter = 0
     , queue   = {}
-    , run, channel;
+    , defer, channel;
   setImmediate = function(fn){
-    var id     = prefix + ++counter
-      , length = arguments.length
-      , args   = Array(length - 1)
-      , i      = 1;
-    while(length > i)args[i - 1] = arguments[i++];
+    var id   = prefix + ++counter
+      , args = $slice(arguments, 1);
     queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(global, args)
+      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
     }
-    run(id);
-    return counter
+    defer(id);
+    return counter;
   }
   clearImmediate = function(id){
-    delete queue[prefix + id]
+    delete queue[prefix + id];
   }
-  function task(id){
+  function run(id){
     if(has(queue, id)){
       var fn = queue[id];
       delete queue[id];
-      fn()
+      fn();
     }
   }
   function listner(event){
-    if(event.source === global)task(event.data)
+    run(event.data);
   }
   // Node.js 0.8-
   if(classof(process) == 'process'){
-    run = function(id){
-      process.nextTick(part.call(task, id))
+    defer = function(id){
+      process.nextTick(part.call(run, id));
     }
-  // Modern browsers
-  // IE8 has postMessage, but it's sync & typeof postMessage is object
-  } else if(isFunction(postMessage)){
-    run = function(id){
-      postMessage(id, '*')
+  // Modern browsers, skip implementation for WebWorkers
+  // IE8 has postMessage, but it's sync & typeof it's postMessage is object
+  } else if(isFunction(postMessage) && !global.importScripts){
+    defer = function(id){
+      postMessage(id, '*');
     }
-    if(addEventListener)addEventListener('message', listner, false);
-    else attachEvent('onmessage', listner)
+    addEventListener('message', listner, false);
   // WebWorkers
-  //} else if(isFunction(MessageChannel)){
-  //  channel = new MessageChannel();
-  //  channel.port1.onmessage = function(event){
-  //    task(event.data)
-  //  };
-  //  run = tie.call(channel.port2, 'postMessage')
+  } else if(isFunction(MessageChannel)){
+    channel = new MessageChannel();
+    channel.port1.onmessage = listner;
+    defer = tie.call(channel.port2, 'postMessage');
   // IE8-
   // use DOM => use after onload
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
-    run = function(id){
+    defer = function(id){
       var el = document.createElement('script');
       el[onreadystatechange] = function(){
         el.parentNode.removeChild(el);
-        task(id)
+        run(id);
       }
-      document.documentElement.appendChild(el)
+      document.documentElement.appendChild(el);
     }
   // Rest old browsers
-  } else run = function(id){
-      setTimeout(part.call(task, id), 0)
+  } else defer = function(id){
+      setTimeout(part.call(run, id), 0);
     }
-}(global.process, global.postMessage, global.addEventListener, global.MessageChannel, 'onreadystatechange');
+}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
 /**
  * Module : es6
  */
@@ -322,14 +317,14 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
  */
 !function(){
   function sign(it){
-    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1
+    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   function izFinite(it){
-    return typeof it == 'number' && isFinite(it)
+    return typeof it == 'number' && isFinite(it);
   }
   // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
   var isInteger = Number.isInteger || function(it){
-      return izFinite(it) && floor(it) == it;
+      return izFinite(it) && floor(it) === it;
     }
     , isFinite         = global.isFinite
     , MAX_SAFE_INTEGER = 0x1fffffffffffff
@@ -351,15 +346,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://wiki.ecmascript.org/doku.php?id=harmony:egal
      * http://kangax.github.io/es5-compat-table/es6/#Object.is
      */
-    is: same,
-    /**
-     * 19.1.3.15 Object.mixin ( target, source )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.15
-     * Removed in Draft Rev 22, January 20, 2014
-     */
-    mixin: function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source))
-    }
+    is: same
   });
   /**
    * 19.1.3.19 Object.setPrototypeOf ( O, proto )
@@ -367,11 +354,11 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
-  if(getPrototypeOf({__proto__: null}) === null)extendBuiltInObject(Object, {
+  PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
       assert(isObject(O) && (isObject(proto) || proto === null), "Can't set " + proto + ' as prototype of ' + O);
       O.__proto__ = proto;
-      return O
+      return O;
     }
   });
   extendBuiltInObject(Number, {
@@ -402,7 +389,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
      */
     isNaN: function(number){
-      return typeof number == 'number' && number !== number
+      return typeof number == 'number' && number != number;
     },
     /**
      * 20.1.2.5 Number.isSafeInteger (number)
@@ -432,17 +419,6 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      */
     parseInt: parseInt
   });
-  extendBuiltInObject($Number, {
-    /**
-     * 20.1.3.1 Number.prototype.clz ()
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
-     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
-     */
-    clz: function(){
-      var number = this >>> 0;
-      return number ? 32 - number.toString(2).length : 32
-    }
-  });
   extendBuiltInObject(Math, {
     /**
      * 20.2.2.3 Math.acosh(x)
@@ -451,7 +427,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
     acosh: function(x){
-      return ln(x + sqrt(x * x - 1))
+      return ln(x + sqrt(x * x - 1));
     },
     /***
      * 20.2.2.5 Math.asinh(x)
@@ -460,7 +436,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
     asinh: function(x){
-      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1))
+      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1));
     },
     /**
      * 20.2.2.7 Math.atanh(x)
@@ -469,7 +445,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
     atanh: function(x){
-      return x === 0 ? x : 0.5 * ln((1 + x) / (1 - x))
+      return x === 0 ? x : 0.5 * ln((1 + x) / (1 - x));
     },
     /**
      * 20.2.2.9 Math.cbrt(x)
@@ -480,13 +456,23 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       return sign(x) * pow(abs(x), 1/3);
     },
     /**
+     * 20.1.3.1 Number.prototype.clz ()
+     * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
+     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
+     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
+     */
+    clz32: function(number){
+      number = number >>> 0;
+      return number ? 32 - number.toString(2).length : 32;
+    },
+    /**
      * 20.2.2.12 Math.cosh(x)
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.12
      * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
      * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
     cosh: function(x){
-      return (exp(x) + exp(-x)) / 2
+      return (exp(x) + exp(-x)) / 2;
     },
     /**
      * 20.2.2.14 Math.expm1 (x)
@@ -495,7 +481,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
     expm1: function(x){
-      return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1
+      return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1;
     },
     /**
      * 20.2.2.16 Math.fround (x)
@@ -518,7 +504,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         if(val == Infinity || val == - Infinity)return Infinity;
         sum += val * val;
       }
-      return sqrt(sum)
+      return sqrt(sum);
     },
     /**
      * 20.2.2.18 Math.imul(x, y)
@@ -530,7 +516,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , xl = x & 0xffff
         , yh = (y >>> 0x10) & 0xffff
         , yl = y & 0xffff;
-      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0
+      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
     /**
      * 20.2.2.20 Math.log1p (x)
@@ -540,7 +526,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * The result is computed in a way that is accurate even when the value of x is close to zero.
      */
     log1p: function(x){
-      return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x)
+      return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x);
     },
     /**
      * 20.2.2.21 Math.log10 (x)
@@ -549,7 +535,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
     log10: function(x){
-      return ln(x) / Math.LN10
+      return ln(x) / Math.LN10;
     },
     /**
      * 20.2.2.22 Math.log2 (x)
@@ -558,7 +544,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
     log2: function(x){
-      return ln(x) / Math.LN2
+      return ln(x) / Math.LN2;
     },
     /**
      * 20.2.2.28 Math.sign(x)
@@ -574,7 +560,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
     sinh: function(x){
-      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2
+      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
     },
     /**
      * 20.2.2.33 Math.tanh(x)
@@ -583,7 +569,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x)
+      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
     /**
      * 20.2.2.34 Math.trunc(x)
@@ -592,7 +578,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
     trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x)
+      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
   /*
@@ -623,7 +609,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
      */
     contains: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position)
+      return !!~String(this).indexOf(searchString, position);
     },
     /**
      * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
@@ -636,7 +622,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       var length = this.length;
       searchString += '';
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - searchString.length, endPosition) === searchString
+      return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
     },
     /**
      * 21.1.3.13 String.prototype.repeat (count)
@@ -645,7 +631,12 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      return fill.call(Array(toInteger(count)), this).join('')
+      count = toInteger(count);
+      assert(0 <= count);
+      var result = ''
+        , string = '' + this;
+      while(count--)result += string;
+      return result;
     },
     /**
      * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
@@ -657,7 +648,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
       position = toLength(min(position, this.length));
-      return String(this).slice(position, position + searchString.length) === searchString
+      return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
   extendBuiltInObject(Array, {
@@ -672,9 +663,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , i = 0
         , length = toLength(O.length)
         , result = new (isFunction(this) ? this : Array)(length);
-      if(mapfn)for(; i < length; i++)i in O && (result[i] = mapfn.call(thisArg, O[i], i, O));
-      else for(; i < length; i++)i in O && (result[i] = O[i]);
-      return result
+      for(; i < length; i++)result[i] = mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i];
+      return result;
     },
     /**
      * 22.1.2.3 Array.of ( ...items )
@@ -687,16 +677,9 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , length = arguments.length
         , result = new (isFunction(this) ? this : Array)(length);
       while(i < length)result[i] = arguments[i++];
-      return result
+      return result;
     }
   });
-  function fill(value, start /* = 0 */, end /* = @length */){
-    var length = toLength(this.length);
-    if((start |= 0) < 0 && (start = length + start) < 0)return this;
-    end = end == undefined ? length : end | 0;
-    while(end > start)this[start++] = value;
-    return this
-  }
   extendBuiltInObject($Array, {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
@@ -711,7 +694,13 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
      */
-    fill: fill,
+    fill: function(value, start /* = 0 */, end /* = @length */){
+      var length = toLength(this.length);
+      if((start |= 0) < 0 && (start = length + start) < 0)return this;
+      end = end == undefined ? length : end | 0;
+      while(end > start)this[start++] = value;
+      return this;
+    },
     /**
      * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
      * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.8
@@ -722,7 +711,9 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , self = arrayLikeSelf(O)
         , length = toLength(self.length)
         , val, i = 0;
-      for(; i < length; i++)if(i in self && predicate.call(thisArg, val = self[i], i, O))return val
+      for(; i < length; i++){
+        if(i in self && predicate.call(thisArg, val = self[i], i, O))return val;
+      }
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
@@ -734,8 +725,10 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , self = arrayLikeSelf(O)
         , length = toLength(self.length)
         , i = 0;
-      for(; i < length; i++)if(i in self && predicate.call(thisArg, self[i], i, O))return i;
-      return -1
+      for(; i < length; i++){
+        if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+      }
+      return -1;
     }
   });
 }();
@@ -756,16 +749,19 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(Map, Set, WeakMap, WeakSet){
-  var tmp      = {}
-    , storeid  = '_storeid' + random()
-    , weakdata = '_weakdata' + random()
-    , uid      = 0
-    , wid      = 0
-    , realsize = DESCRIPTORS ? '_s' : 'size'
-    , sizeGetter = {
+  var tmp         = {}
+    , storeid     = hidden('storeid')
+    , keysStore   = hidden('keys')
+    , valuesStore = hidden('values')
+    , weakdata    = hidden('weakdata')
+    , weakid      = hidden('weakid')
+    , uid         = 0
+    , wid         = 0
+    , size        = DESCRIPTORS ? hidden('size') : 'size'
+    , sizeGetter  = {
         size: {
           get: function(){
-            return this._s
+            return this[size];
           }
         }
       };
@@ -773,20 +769,20 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
     function F(iterable){
       assertInstance(this, F, key);
       this.clear();
-      isSet && isArray(iterable) && iterable.forEach(this.add, this)
+      isSet && isArray(iterable) && iterable.forEach(this.add, this);
     }
-    return F
+    return F;
   }
   // fix Set & WeakSet constructors for init array
   function fixCollectionConstructor(Base, key){
     function F(iterable){
       assertInstance(this, F, key);
       var that = new Base;
-      isArray(iterable) && iterable.forEach(that.add, that)
-      return that
+      isArray(iterable) && iterable.forEach(that.add, that);
+      return that;
     }
-    F[prototype] = Base[prototype]
-    return F
+    F[prototype] = Base[prototype];
+    return F;
   }
   // fix .add & .set for chaining
   function fixAdd(Collection, key){
@@ -795,8 +791,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       var fn = collection[key];
       defineProperty(Collection[prototype], key, descriptor(6, function(){
         fn.apply(this, arguments);
-        return this
-      }))
+        return this;
+      }));
     }
   }
   function fastKey(it, create){
@@ -804,11 +800,11 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       ? '_' + (has(it, storeid)
         ? it[storeid]
         : create ? defineProperty(it, storeid, {value: uid++})[storeid] : '')
-      : typeof it == 'string' ? '$' + it : it
+      : typeof it == 'string' ? '$' + it : it;
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
-      var values = this._v
+      var values = this[valuesStore]
         , keyz   = this[key]
         , names  = keys(keyz)
         , length = names.length
@@ -816,16 +812,16 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         , index;
       while(length > i){
         index = names[i++];
-        callbackfn.call(thisArg, values[index], keyz[index], this)
+        callbackfn.call(thisArg, values[index], keyz[index], this);
       }
     }
   }
   function collectionHas(key){
-    return fastKey(key) in this._v
+    return fastKey(key) in this[valuesStore];
   }
   function clearSet(){
-    defineProperty(this, '_v', descriptor(6, create(null)));
-    defineProperty(this, realsize, descriptor(4, 0))
+    defineProperty(this, valuesStore, descriptor(6, create(null)));
+    defineProperty(this, size, descriptor(4, 0));
   }
   /**
    * 23.1 Map Objects
@@ -839,7 +835,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperty(this, '_k', descriptor(6, create(null)));
+        defineProperty(this, keysStore, descriptor(6, create(null)));
         clearSet.call(this);
       },
       /**
@@ -848,26 +844,26 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       'delete': function(key){
         var index    = fastKey(key)
-          , values   = this._v
+          , values   = this[valuesStore]
           , contains = index in values;
         if(contains){
-          delete this._k[index];
+          delete this[keysStore][index];
           delete values[index];
-          this[realsize]--
+          this[size]--;
         }
-        return contains
+        return contains;
       },
       /**
        * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
        */
-      forEach: createForEach('_k'),
+      forEach: createForEach(keysStore),
       /**
        * 23.1.3.6 Map.prototype.get ( key )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
        */
       get: function(key){
-        return this._v[fastKey(key)]
+        return this[valuesStore][fastKey(key)];
       },
       /**
        * 23.1.3.7 Map.prototype.has ( key )
@@ -880,20 +876,20 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       set: function(key, value){
         var index  = fastKey(key, 1)
-          , values = this._v;
+          , values = this[valuesStore];
         if(!(index in values)){
-          this._k[index] = key;
-          this[realsize]++
+          this[keysStore][index] = key;
+          this[size]++;
         }
         values[index] = value;
-        return this
+        return this;
       }
     });
     /**
      * 23.1.3.10 get Map.prototype.size
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
      */
-    defineProperties(Map[prototype], sizeGetter)
+    defineProperties(Map[prototype], sizeGetter);
   } else fixAdd(Map, 'set');
   /**
    * 23.2 Set Objects
@@ -908,12 +904,12 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this._v;
+          , values = this[valuesStore];
         if(!(index in values)){
           values[index] = value;
-          this[realsize]++
+          this[size]++;
         }
-        return this
+        return this;
       },
       /**
        * 23.2.3.2 Set.prototype.clear ()
@@ -926,19 +922,19 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       'delete': function(value){
         var index    = fastKey(value)
-          , values   = this._v
+          , values   = this[valuesStore]
           , contains = index in values;
         if(contains){
-          delete values[index]
-          this[realsize]--
+          delete values[index];
+          this[size]--;
         }
-        return contains
+        return contains;
       },
       /**
        * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
        */
-      forEach: createForEach('_v'),
+      forEach: createForEach(valuesStore),
       /**
        * 23.2.3.7 Set.prototype.has ( value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
@@ -949,17 +945,17 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * 23.2.3.9 get Set.prototype.size
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-set.prototype.size
      */
-    defineProperties(Set[prototype], sizeGetter)
+    defineProperties(Set[prototype], sizeGetter);
   } else {
     // IE 11 fix
-    if(new Set([1]).size != 1)global.Set = fixCollectionConstructor(Set, 'Set')
+    if(new Set([1]).size != 1)global.Set = fixCollectionConstructor(Set, 'Set');
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
     return (has(it, weakdata) ? it : defineProperty(it, weakdata, {value: {}}))[weakdata];
   }
   function assertObject(foo){
-    isObject(foo) || assert(0, foo + ' is not an object') // {__proto__: null} + '' => Error
+    isObject(foo) || assert(0, foo + ' is not an object'); // {__proto__: null} + '' => Error
   }
   var commonWeakCollection = {
     /**
@@ -969,7 +965,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
      */
     clear: function(){
-      defineProperty(this, '_id', descriptor(6, wid++))
+      defineProperty(this, weakid, descriptor(6, wid++));
     },
     /**
      * 23.3.3.3 WeakMap.prototype.delete ( key )
@@ -977,8 +973,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * 23.4.3.4 WeakSet.prototype.delete ( value )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
-    'delete': function(value){
-      return this.has(value) && has(key, weakdata) ? delete value[weakdata][this._id] : false
+    'delete': function(key){
+      return this.has(key) && has(key, weakdata) ? delete key[weakdata][this[weakid]] : false;
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
@@ -986,8 +982,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
      * 23.4.3.5 WeakSet.prototype.has ( value )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
      */
-    has: function(value){
-      return isObject(value) && has(key, weakdata) && has(value[weakdata], this._id)
+    has: function(key){
+      return isObject(key) && has(key, weakdata) && has(key[weakdata], this[weakid]);
     }
   };
   /**
@@ -1002,7 +998,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
        */
       get: function(key){
-        return isObject(key) && has(key, weakdata) ? key[weakdata][this._id] : undefined
+        return isObject(key) && has(key, weakdata) ? key[weakdata][this[weakid]] : undefined;
       },
       /**
        * 23.3.3.6 WeakMap.prototype.set ( key , value )
@@ -1010,8 +1006,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       set: function(key, value){
         assertObject(key);
-        getWeakData(key)[this._id] = value;
-        return this
+        getWeakData(key)[this[weakid]] = value;
+        return this;
       }
     }, commonWeakCollection));
   } else fixAdd(WeakMap, 'set');
@@ -1028,10 +1024,10 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       add: function(value){
         assertObject(value);
-        getWeakData(value)[this._id] = true;
-        return this
+        getWeakData(value)[this[weakid]] = true;
+        return this;
       }
-    }, commonWeakCollection))
+    }, commonWeakCollection));
   } else {
     // v8 fix
     if(!new WeakSet([tmp]).has(tmp))global.WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
@@ -1062,8 +1058,10 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
   // such as this: onFulfilled must be a function or undefined
   &&  (function(resolve){
         try {
-          new Promise(function(r){ resolve = r }).then(null);
-          return isFunction(resolve)
+          new Promise(function(r){
+            resolve = r;
+          }).then(null);
+          return isFunction(resolve);
         } catch(e){}
       })()
   || !function(){
@@ -1071,9 +1069,9 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , _subscribers = '_subscribers'
-      , _state = '_state'
-      , _detail = '_detail'
+      , _subscribers = hidden('subscribers')
+      , _state       = hidden('state')
+      , _detail      = hidden('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){
@@ -1083,9 +1081,9 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       assertInstance(promise, Promise, 'Promise');
       promise[_subscribers] = [];
       try {
-        resolver(part.call(resolve, promise), rejectPromise)
+        resolver(part.call(resolve, promise), rejectPromise);
       } catch(e){
-        rejectPromise(e)
+        rejectPromise(e);
       }
     }
     global.Promise = Promise;
@@ -1108,7 +1106,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
       else if(hasCallback && succeeded)resolve(promise, value);
       else if(failed)handle(promise, REJECTED, error);
       else if(settled == FULFILLED)resolve(promise, value);
-      else if(settled == REJECTED)handle(promise, REJECTED, value)
+      else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
       /**
@@ -1116,7 +1114,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
        */
       'catch': function(onRejected){
-        return this.then(undefined, onRejected)
+        return this.then(undefined, onRejected);
       },
       /**
        * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
@@ -1126,10 +1124,10 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
         var promise     = this
           , thenPromise = new Promise(Function());
         if(promise[_state])setImmediate(function(){
-          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail])
+          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail]);
         }, onFulfilled, onRejected);
         else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
-        return thenPromise
+        return thenPromise;
       }
     });
     assign(Promise, {
@@ -1144,22 +1142,22 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
             , remaining = iterable.length;
           function resolveAll(index, value){
             results[index] = value;
-            --remaining || resolve(results)
+            --remaining || resolve(results);
           }
           if(remaining)iterable.forEach(function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
-              : resolveAll(i, promise)
+              : resolveAll(i, promise);
           })
           else resolve(results);
-        })
+        });
       },
       /**
        * 25.4.4.2 Promise.cast ( x )
        * https://github.com/domenic/promises-unwrapping#promisecast--x-
        */
       cast: function(x){
-        return x instanceof this ? x : $resolve.call(this, x)
+        return x instanceof this ? x : $resolve.call(this, x);
       },
       /**
        * 25.4.4.4 Promise.race ( iterable )
@@ -1173,7 +1171,7 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
               ? promise.then(resolve, reject)
               : resolve(promise)
           })
-        })
+        });
       },
       /**
        * 25.4.4.5 Promise.reject ( r )
@@ -1181,8 +1179,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
        */
       reject: function(r){
         return new this(function(resolve, reject){
-          reject(r)
-        })
+          reject(r);
+        });
       },
       /**
        * 25.4.4.6 Promise.resolve ( x )
@@ -1192,8 +1190,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
     });
     function $resolve(x){
       return new this(function(resolve, reject){
-        resolve(x)
-      })
+        resolve(x);
+      });
     }
     function handleThenable(promise, value){
       var resolved;
@@ -1204,21 +1202,21 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
             if(resolved)return true;
             resolved = true;
             if(value !== val)resolve(promise, val);
-            else handle(promise, FULFILLED, val)
+            else handle(promise, FULFILLED, val);
           }, function(val){
             if(resolved)return true;
             resolved = true;
-            handle(promise, REJECTED, val)
+            handle(promise, REJECTED, val);
           });
-          return 1
+          return 1;
         }
       } catch(error){
         if(!resolved)handle(promise, REJECTED, error);
-        return 1
+        return 1;
       }
     }
     function resolve(promise, value){
-      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value)
+      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value);
     }
     function handle(promise, state, reason){
       if(promise[_state] === PENDING){
@@ -1229,8 +1227,8 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
           for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
             invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
           }
-          promise[_subscribers] = undefined
-        })
+          promise[_subscribers] = undefined;
+        });
       }
     }
   }();
@@ -1246,35 +1244,27 @@ isSetImmediate || !function(process, postMessage, addEventListener, MessageChann
 extendBuiltInObject(Object, {
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
-      if(has(object, key))return getOwnPropertyDescriptor(object, key)
-    } while(object = getPrototypeOf(object))
+      if(has(object, key))return getOwnPropertyDescriptor(object, key);
+    } while(object = getPrototypeOf(object));
   },
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
-    var result = getOwnPropertyDescriptors(object)
-      , i, length, names, key;
+    var result = getOwnPropertyDescriptors(object);
     while(object = getPrototypeOf(object)){
-      names  = getOwnPropertyNames(object);
-      i      = 0;
-      length = names.length;
-      while(length > i)if(!has(result, key = names[i++])){
-        result[key] = getOwnPropertyDescriptor(object, key);
-      }
+      result = assign(getOwnPropertyDescriptors(object), result);
     }
-    return result
+    return result;
   },
   getPropertyNames: function(object){
-    var result = getOwnPropertyNames(object)
-      , i, length, names, key;
+    var result = getOwnPropertyNames(object);
     while(object = getPrototypeOf(object)){
-      i      = 0;
-      names  = getOwnPropertyNames(object);
-      length = names.length;
-      while(length > i)~result.indexOf(key = names[i++]) || result.push(key)
+      getOwnPropertyNames(object).forEach(function(key){
+        ~result.indexOf(key) || result.push(key);
+      });
     }
-    return result
+    return result;
   }
-})
+});
 /**
  * Module : immediate
  */
@@ -1293,6 +1283,12 @@ if(!isSetImmediate){
 /**
  * Module : function
  */
+function inherits(parent){
+  //if(Object.setPrototypeOf)Object.setPrototypeOf(this[prototype], parent[prototype]);
+  //else if(protoInObject)this[prototype].__proto__ = parent[prototype];
+  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
+  return this;
+}
 extendBuiltInObject(Function, {
   /**
    * Alternatives:
@@ -1326,7 +1322,7 @@ extendBuiltInObject($Function, {
     var fn     = this
       , isThat = arguments.length > 1;
     return function(/*args...*/){
-      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)))
+      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
     }
   },
   /**
@@ -1338,7 +1334,7 @@ extendBuiltInObject($Function, {
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));
-    return isObject(result) ? result : instance
+    return isObject(result) ? result : instance;
   },
   // deferred call
   /**
@@ -1349,7 +1345,7 @@ extendBuiltInObject($Function, {
    * http://mootools.net/docs/core/Types/Function#Function:delay
    */
   timeout: function(del /*, args...*/){
-    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del])
+    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del]);
   },
   /**
    * Alternatives:
@@ -1357,7 +1353,7 @@ extendBuiltInObject($Function, {
    * http://mootools.net/docs/core/Types/Function#Function:periodical
    */
   interval: function(del /*, args...*/){
-    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del])
+    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del]);
   },
   /**
    * Alternatives:
@@ -1365,7 +1361,7 @@ extendBuiltInObject($Function, {
    * http://api.prototypejs.org/language/Function/prototype/defer/
    */
   immediate: function(/*, args...*/){
-    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)])
+    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)]);
   },
   /**
    * Alternatives:
@@ -1377,12 +1373,12 @@ function createDeferred(set, clear, args){
   var deferred = {
     stop: function(){
       id && clear(id);
-      return deferred
+      return deferred;
     },
     run: function(){
       id && clear(id);
       id = apply.call(set, global, args);
-      return deferred
+      return deferred;
     }
   }, id;
   return deferred;
@@ -1397,6 +1393,7 @@ extendBuiltInObject($Function, tieExt);
 extendBuiltInObject(Object, {
   /**
    * Alternatives:
+   * http://livescript.net/#property-access -> foo~bar
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),
@@ -1411,7 +1408,7 @@ extendBuiltInObject(Object, {
  */
 !function(){
   function make(proto, props){
-    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined)
+    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined);
   }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
@@ -1423,7 +1420,7 @@ extendBuiltInObject(Object, {
       while(length > i){
         key = names[i++];
         if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
-          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB)    // if not deep - skip
+          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB);   // if not deep - skip
         } else if(desc){
           targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
           if(targetDescriptor.configurable !== false && delete target[key]){
@@ -1433,14 +1430,14 @@ extendBuiltInObject(Object, {
                 merge(clone(sourceDescriptor.value, 1, 1, stackA, stackB),
                   targetDescriptor.value, 1, 1, 1, stackA, stackB);
             }
-            defineProperty(target, key, sourceDescriptor)
+            defineProperty(target, key, sourceDescriptor);
           }
         } else target[key] = deep
           ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
-          : source[key]
+          : source[key];
       }
     }
-    return target
+    return target;
   }
   /**
    * NB:
@@ -1483,11 +1480,11 @@ extendBuiltInObject(Object, {
         break;
       */
       default:
-        result = create(getPrototypeOf(object))
+        result = create(getPrototypeOf(object));
     }
     stackA.push(object);
     stackB.push(result);
-    return merge(result, object, deep, 0, desc, stackA, stackB)
+    return merge(result, object, deep, 0, desc, stackA, stackB);
   }
   // Objects deep compare
   function isEqual(a, b, StackA, StackB){
@@ -1518,7 +1515,7 @@ extendBuiltInObject(Object, {
             && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
-        return true*/
+        return true;*/
     }
     keys = getOwnPropertyNames(a);
     length = keys.length;
@@ -1527,9 +1524,9 @@ extendBuiltInObject(Object, {
       if(
         !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
         && !isEqual(a[val], b[val], StackA, StackB)
-      )return false
+      )return false;
     }
-    return true
+    return true;
   }
   function forOwnKeys(object, fn, that /* = undefined */){
     var O      = arrayLikeSelf(object)
@@ -1538,7 +1535,7 @@ extendBuiltInObject(Object, {
       , i      = 0
       , key;
     while(length > i)fn.call(that, O[key = props[i++]], key, object);
-    return object
+    return object;
   }
   function findIndex(object, fn, that /* = undefined */){
     var O      = arrayLikeSelf(object)
@@ -1547,7 +1544,7 @@ extendBuiltInObject(Object, {
       , i      = 0
       , key;
     while(length > i){
-      if(fn.call(that, O[key = props[i++]], key, object))return key
+      if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
   extendBuiltInObject(Object, {
@@ -1561,6 +1558,7 @@ extendBuiltInObject(Object, {
     isPrototype: unbind($Object.isPrototypeOf),
     /**
      * Alternatives:
+     * http://livescript.net/#operators -> typeof!
      * http://mootools.net/docs/core/Core/Core#Core:typeOf
      * http://api.jquery.com/jQuery.type/
      */
@@ -1574,6 +1572,13 @@ extendBuiltInObject(Object, {
     // Shugar for Object.make(null[, props])
     plane: part.call(make, null),
     /**
+     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     * TODO: rename
+     */
+    mixin: function(target, source){
+      return defineProperties(target, getOwnPropertyDescriptors(source));
+    },
+    /**
      * Alternatives:
      * http://underscorejs.org/#clone
      * http://lodash.com/docs#cloneDeep
@@ -1583,7 +1588,7 @@ extendBuiltInObject(Object, {
      * http://docs.angularjs.org/api/angular.copy
      */
     clone: function(object, deep /* = false */, desc /* = false */){
-      return clone(object, deep, desc, [], [])
+      return clone(object, deep, desc, [], []);
     },
     /**
      * Alternatives:
@@ -1593,7 +1598,7 @@ extendBuiltInObject(Object, {
      * http://api.jquery.com/jQuery.extend/
      */
     merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
-      return merge(target, source, deep, reverse, desc, [], [])
+      return merge(target, source, deep, reverse, desc, [], []);
     },
     /**
      * Shugar for Object.merge(target, props, 1, 1)
@@ -1601,7 +1606,7 @@ extendBuiltInObject(Object, {
      * http://underscorejs.org/#defaults
      */
     defaults: function(target, props){
-      return merge(target, props, 1, 1, 0, [], [])
+      return merge(target, props, 1, 1, 0, [], []);
     },
     /**
      * {a: b} -> [b]
@@ -1617,7 +1622,7 @@ extendBuiltInObject(Object, {
         , result = Array(length)
         , i      = 0;
       while(length > i)result[i] = object[props[i++]];
-      return result
+      return result;
     },
     /**
      * {a: b} -> {b: a}
@@ -1638,10 +1643,8 @@ extendBuiltInObject(Object, {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false
-      }
-      return true
+      while(length > i)if(!fn.call(that, O[key = props[i++]], key, object))return false;
+      return true;
     },
     /**
      * Alternatives:
@@ -1651,7 +1654,7 @@ extendBuiltInObject(Object, {
      */
     filter: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
-        , result = {}
+        , result = create(null)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -1659,7 +1662,7 @@ extendBuiltInObject(Object, {
       while(length > i){
         if(fn.call(that, O[key = props[i++]], key, object))result[key] = O[key];
       }
-      return result
+      return result;
     },
     /**
      * Alternatives:
@@ -1668,7 +1671,7 @@ extendBuiltInObject(Object, {
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index]
+      return index === undefined ? undefined : object[index];
     },
     findIndex: findIndex,
     /**
@@ -1690,7 +1693,7 @@ extendBuiltInObject(Object, {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)if(same(O[key = props[i++]],searchElement))return key
+      while(length > i)if(same(O[key = props[i++]], searchElement))return key;
     },
     /**
      * Alternatives:
@@ -1701,15 +1704,13 @@ extendBuiltInObject(Object, {
      */
     map: function(object, fn, that /* = undefined */){
       var O      = arrayLikeSelf(object)
-        , result = {}
+        , result = create(null)
         , props  = keys(O)
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        result[key = props[i++]] = fn.call(that, O[key], key, object);
-      }
-      return result
+      while(length > i)result[key = props[i++]] = fn.call(that, O[key], key, object);
+      return result;
     },
     /**
      * Alternatives:
@@ -1726,10 +1727,8 @@ extendBuiltInObject(Object, {
         assert(length--, REDUCE_ERROR);
         result = O[props.shift()];
       }
-      while(length > i){
-        result = fn.call(that, result, O[key = props[i++]], key, object);
-      }
-      return result
+      while(length > i)result = fn.call(that, result, O[key = props[i++]], key, object);
+      return result;
     },
     /**
      * Alternatives:
@@ -1743,10 +1742,8 @@ extendBuiltInObject(Object, {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))return true;
-      }
-      return false
+      while(length > i)if(fn.call(that, O[key = props[i++]], key, object))return true;
+      return false;
     },
     /**
      * Alternatives:
@@ -1756,25 +1753,25 @@ extendBuiltInObject(Object, {
     pluck: function(object, prop){
       object = arrayLikeSelf(object);
       var names  = keys(object)
-        , result = {}
+        , result = create(null)
         , length = names.length
         , i      = 0
         , key, val;
       while(length > i){
         key = names[i++];
         val = object[key];
-        result[key] = val == undefined ? undefined : val[prop]
+        result[key] = val == undefined ? undefined : val[prop];
       }
-      return result
+      return result;
     },
     reduceTo: function(object, target, callbackfn){
       if(arguments.length < 3){
         callbackfn = target;
-        target = {}
+        target = create(null);
       }
       else target = Object(target);
       forOwnKeys(object, callbackfn, target);
-      return target
+      return target;
     },
     /**
      * Alternatives:
@@ -1805,16 +1802,9 @@ extendBuiltInObject(Object, {
       , val;
     for(; length > i; i++)if(i in that){
       val = that[i];
-      result[i] = val == undefined ? undefined : val[key]
+      result[i] = val == undefined ? undefined : val[key];
     }
-    return result
-  }
-  // indexOf with SameValue
-  function indexSame(arrayLike, val){
-    var length = toLength(arrayLike.length)
-      , i      = 0;
-    for(; i < length; i++)if(same(arrayLike[i], val))return i;
-    return -1
+    return result;
   }
   extendBuiltInObject($Array, {
     /**
@@ -1823,7 +1813,7 @@ extendBuiltInObject(Object, {
      * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
      */
     at: function(index){
-      return this[0 > (index |= 0) ? this.length + index : index]
+      return this[0 > (index |= 0) ? this.length + index : index];
     },
     /**
      * Alternatives:
@@ -1840,23 +1830,7 @@ extendBuiltInObject(Object, {
      */
     merge: function(arrayLike){
       push.apply(this, arrayLikeSelf(arrayLike));
-      return this
-    },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#uniq
-     * http://sugarjs.com/api/Array/unique
-     * http://api.prototypejs.org/language/Array/prototype/uniq/
-     * http://mootools.net/docs/more/Types/Array.Extras#Array:unique
-     */
-    unique: function(){
-      var result = []
-        , that   = arrayLikeSelf(this)
-        , length = toLength(that.length)
-        , i      = 0
-        , value;
-      while(length > i)~indexSame(result, value = that[i++]) || result.push(value);
-      return result
+      return this;
     }
   });
 }();
@@ -1885,10 +1859,10 @@ extendBuiltInObject(Array, reduceTo.call(
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,pluck,reduceTo,merge,unique'
+    'at,pluck,reduceTo,merge'
   ),
   function(key){
-    if(key in $Array)this[key] = unbind($Array[key])
+    if(key in $Array)this[key] = unbind($Array[key]);
   }
 ));
 /**
@@ -1914,13 +1888,13 @@ extendBuiltInObject($Number, {
       , result = Array(number)
       , i      = 0;
     if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
-    return result
+    return result;
   },
   random: function(number /* = 0 */){
     var a = +this   || 0
       , b = +number || 0
       , m = min(a, b);
-    return random() * (max(a, b) - m) + m
+    return random() * (max(a, b) - m) + m;
   },
   /**
    * Alternatives:
@@ -1931,7 +1905,7 @@ extendBuiltInObject($Number, {
     var a = toInteger(this)
       , b = toInteger(number)
       , m = min(a, b);
-    return floor((random() * (max(a, b) + 1 - m)) + m)
+    return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });
 /**
@@ -1974,7 +1948,7 @@ extendBuiltInObject($Number, reduceTo.call(
      * http://sugarjs.com/api/String/at
      */
     at: function(index){
-      return String(this).charAt(0 > (index |= 0) ? this.length + index : index)
+      return String(this).charAt(0 > (index |= 0) ? this.length + index : index);
     },
     /**
      * Alternatives:
@@ -1985,7 +1959,7 @@ extendBuiltInObject($Number, reduceTo.call(
     escapeHTML: function(){
       return String(this).replace(RegExpEscapeHTML, function(part){
         return dictionaryEscapeHTML[part];
-      })
+      });
     },
     /**
      * Alternatives:
@@ -1996,21 +1970,21 @@ extendBuiltInObject($Number, reduceTo.call(
     unescapeHTML: function(){
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
         return dictionaryUnescapeHTML[key];
-      })
+      });
     },
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/escapeURL
      */
     escapeURL: function(component /* = false */){
-      return (component ? encodeURIComponent : encodeURI)(this)
+      return (component ? encodeURIComponent : encodeURI)(this);
     },
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/unescapeURL
      */
     unescapeURL: function(component /* = false */){
-      return (component ? decodeURIComponent : decodeURI)(this)
+      return (component ? decodeURIComponent : decodeURI)(this);
     },
     /**
      * Alternatives:
@@ -2019,7 +1993,7 @@ extendBuiltInObject($Number, reduceTo.call(
      * http://mootools.net/docs/core/Types/String#String:escapeRegExp
      */
     escapeRegExp: function(){
-      return String(this).replace(RegExpEscapeRegExp, '\\$1')
+      return String(this).replace(RegExpEscapeRegExp, '\\$1');
     }
   });
 }();
@@ -2058,25 +2032,25 @@ extendBuiltInObject($Number, reduceTo.call(
         case 'M'    : return locale.M[that.getMonth()];       // Month   : Январь
         case 'MM'   : return locale.MM[that.getMonth()];      // Month   : Января
         case 'yy'   : return lz2(that.getFullYear() % 100);   // Year    : 13
-        case 'yyyy' : return that.getFullYear()               // Year    : 2013
+        case 'yyyy' : return that.getFullYear();              // Year    : 2013
       }
-      return part
+      return part;
     })
   }
   function lz2(num){
-    return num > 9 ? num : '0' + num
+    return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
       M : array(locale.M).map(flexio(0)),
       MM: array(locale.M).map(flexio(1))
-    }
+    };
   }
   function flexio(index){
     return function(it){
       return it.replace(/\+(.+)$/, function(part, str){
-        return str.split('|')[index]
+        return str.split('|')[index];
       })
     }
   }
@@ -2086,7 +2060,7 @@ extendBuiltInObject($Number, reduceTo.call(
   extendBuiltInObject(Date, {
     locale: function(locale){
       if(has(locales, locale))current = locale;
-      return current
+      return current;
     },
     addLocale: addLocale
   });
@@ -2108,37 +2082,36 @@ extendBuiltInObject($Number, reduceTo.call(
  * Alternatives:
  * https://github.com/calvinmetcalf/set.up (Firefox only)
  */
-var nativeCollections = isNative(Set) && isNative(Map);
 var extendCollections = {
   reduce: function(fn, memo){
     this.forEach(function(val, key, foo){
-      memo = fn(memo, val, key, foo)
+      memo = fn(memo, val, key, foo);
     });
-    return memo
+    return memo;
   },
   some: function(fn, that){
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
-        if(fn.call(that, val, key, foo))throw DONE
-      })
+        if(fn.call(that, val, key, foo))throw DONE;
+      });
     } catch(error){
-      if(error === DONE)return true
-      else throw error
+      if(error === DONE)return true;
+      else throw error;
     }
-    return false
+    return false;
   },
   every: function(fn, that){
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
-        if(!fn.call(that, val, key, foo))throw DONE
-      })
+        if(!fn.call(that, val, key, foo))throw DONE;
+      });
     } catch(error){
-      if(error === DONE)return false
-      else throw error
+      if(error === DONE)return false;
+      else throw error;
     }
-    return true
+    return true;
   },
   find: function(fn, that){
     var DONE = {};
@@ -2146,81 +2119,81 @@ var extendCollections = {
       this.forEach(function(val, key, foo){
         if(fn.call(that, val, key, foo)){
           DONE.value = val;
-          throw DONE
+          throw DONE;
         }
-      })
+      });
     } catch(error){
-      if(error === DONE)return DONE.value
-      else throw error
+      if(error === DONE)return DONE.value;
+      else throw error;
     }
   },
   toArray: function(){
     var index  = 0
       , result = Array(this.size);
     this.forEach(function(val){
-      result[index++] = val
+      result[index++] = val;
     });
-    return result
+    return result;
   },
   reduceTo: function(target, fn){
     if(arguments.length < 2){
       fn = target;
-      target = {}
+      target = create(null);
     } else target = Object(target);
     this.forEach(fn, target);
-    return target
+    return target;
   }
 };
 extendBuiltInObject(Map[prototype], assign({
   map: function(fn, that){
     var result = new Map;
     this.forEach(function(val, key){
-      result.set(key, fn.apply(that, arguments))
+      result.set(key, fn.apply(that, arguments));
     });
-    return result
+    return result;
   },
   filter: function(fn, that){
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
     });
-    return result
+    return result;
   },
   toObject: function(){
-    var result = {};
+    var result = create(null);
     this.forEach(function(val, key){
-      result[key] = val
+      result[key] = val;
     });
-    return result
+    return result;
   },
   getKeys: function(){
     var index  = 0
       , result = Array(this.size);
     this.forEach(function(val, key){
-      result[index++] = key
+      result[index++] = key;
     });
-    return result
+    return result;
   },
   invert: function(){
     var result = new Map;
     this.forEach(result.set, result);
-    return result
+    return result;
   }
 }, extendCollections));
 extendBuiltInObject(Set[prototype], assign({
   map: function(fn, that){
     var result = new Set;
     this.forEach(function(){
-      result.add(fn.apply(that, arguments))
+      result.add(fn.apply(that, arguments));
     });
-    return result
+    return result;
   },
   filter: function(fn, that){
     var result = new Set;
     this.forEach(function(val){
-      if(fn.apply(that, arguments))result.add(val)
+      if(fn.apply(that, arguments))result.add(val);
     });
-    return result
+    return result;
   }
 }, extendCollections));
 /**
@@ -2241,12 +2214,12 @@ var _console = global.console || {}
       {enabled: true},
       function(key){
         this[key] = function(){
-          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined
+          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined;
         };
       }
     );
 try {
-  delete global.console
+  delete global.console;
 } catch(e){}
 $console = global.console = assign($console.log, $console);
 }(typeof window != 'undefined' ? window : global);

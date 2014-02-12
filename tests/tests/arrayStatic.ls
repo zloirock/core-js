@@ -268,8 +268,3 @@ test 'Array.merge' !->
   ok args.3 is 4
   ok args.4 is 5
   ok args.5 is 6
-test 'Array.unique' !->
-  {unique} = Array
-  ok isFunction unique
-  deepEqual unique(\12321), <[1 2 3]>
-  deepEqual unique((-> &)(1 2 3 2 1)), [1 2 3]
