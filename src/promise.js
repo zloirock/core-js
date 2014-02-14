@@ -30,9 +30,9 @@
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , _subscribers = hidden('subscribers')
-      , _state       = hidden('state')
-      , _detail      = hidden('detail')
+      , SUBSCRIBERS = hidden('subscribers')
+      , STATE       = hidden('state')
+      , DETAIL      = hidden('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){
@@ -40,7 +40,7 @@
         , rejectPromise = part.call(handle, promise, REJECTED);
       assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
       assertInstance(promise, Promise, 'Promise');
-      promise[_subscribers] = [];
+      promise[SUBSCRIBERS] = [];
       try {
         resolver(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -84,10 +84,10 @@
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
-        if(promise[_state])setImmediate(function(){
-          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail]);
+        if(promise[STATE])setImmediate(function(){
+          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
         }, onFulfilled, onRejected);
-        else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
+        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
         return thenPromise;
       }
     });
@@ -109,7 +109,7 @@
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);
-          })
+          });
           else resolve(results);
         });
       },
@@ -130,8 +130,8 @@
           iterable.forEach(function(promise){
             promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
-              : resolve(promise)
-          })
+              : resolve(promise);
+          });
         });
       },
       /**
@@ -180,15 +180,15 @@
       if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value);
     }
     function handle(promise, state, reason){
-      if(promise[_state] === PENDING){
-        promise[_state]  = SEALED;
-        promise[_detail] = reason;
+      if(promise[STATE] === PENDING){
+        promise[STATE]  = SEALED;
+        promise[DETAIL] = reason;
         setImmediate(function(){
-          promise[_state] = state;
-          for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
-            invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
+          promise[STATE] = state;
+          for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
+            invokeCallback(state, subscribers[i], subscribers[i + state], promise[DETAIL]);
           }
-          promise[_subscribers] = undefined;
+          promise[SUBSCRIBERS] = undefined;
         });
       }
     }

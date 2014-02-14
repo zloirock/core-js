@@ -10,12 +10,12 @@
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var prefix  = hidden('immediate')
+  var IMMEDIATE_PREFIX = hidden('immediate')
     , counter = 0
     , queue   = {}
     , defer, channel;
   setImmediate = function(fn){
-    var id   = prefix + ++counter
+    var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
     queue[id] = function(){
       (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
@@ -24,7 +24,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return counter;
   }
   clearImmediate = function(id){
-    delete queue[prefix + id];
+    delete queue[IMMEDIATE_PREFIX + id];
   }
   function run(id){
     if(has(queue, id)){

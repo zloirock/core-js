@@ -7,11 +7,9 @@
  * https://github.com/inexorabletash/polyfill/blob/master/es5.js
  */
 !function(){
-  // not enum keys
   var Empty             = Function()
     , whitespace        = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , LTrimRegExp       = RegExp('^' + whitespace + whitespace + '*')
-    , RTrimRegExp       = RegExp(whitespace + whitespace + '*$')
+    , trimRegExp        = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
     // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
     , hidenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
@@ -289,10 +287,9 @@
   /**
    * 15.5.4.20 String.prototype.trim ( )
    * http://es5.github.io/#x15.5.4.20
-   * http://blog.stevenlevithan.com/archives/faster-trim-javascript
    */
   extendBuiltInObject($String, {trim: function(){
-    return String(this).replace(LTrimRegExp, '').replace(RTrimRegExp, '');
+    return String(this).replace(trimRegExp, '');
   }});
   /**
    * 15.9.4.4 Date.now ( )
@@ -301,10 +298,8 @@
   extendBuiltInObject(Date, {now: function(){
     return +new Date;
   }});
-  /**
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
-   */
-  if(isFunction(LTrimRegExp))isFunction = function(it){
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
+  if(isFunction(trimRegExp))isFunction = function(it){
     return classof(it) == 'Function';
   }
 }();

@@ -12,19 +12,19 @@
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(Map, Set, WeakMap, WeakSet){
-  var tmp         = {}
-    , storeid     = hidden('storeid')
-    , keysStore   = hidden('keys')
-    , valuesStore = hidden('values')
-    , weakdata    = hidden('weakdata')
-    , weakid      = hidden('weakid')
-    , uid         = 0
-    , wid         = 0
-    , size        = DESCRIPTORS ? hidden('size') : 'size'
-    , sizeGetter  = {
+  var STOREID      = hidden('storeid')
+    , KEYS_STORE   = hidden('keys')
+    , VALUES_STORE = hidden('values')
+    , WEAKDATA     = hidden('weakdata')
+    , WEAKID       = hidden('weakid')
+    , SIZE         = DESCRIPTORS ? hidden('size') : 'size'
+    , uid          = 0
+    , wid          = 0
+    , tmp          = {}
+    , sizeGetter   = {
         size: {
           get: function(){
-            return this[size];
+            return this[SIZE];
           }
         }
       };
@@ -60,14 +60,14 @@
   }
   function fastKey(it, create){
     return isObject(it)
-      ? '_' + (has(it, storeid)
-        ? it[storeid]
-        : create ? defineProperty(it, storeid, {value: uid++})[storeid] : '')
+      ? '_' + (has(it, STOREID)
+        ? it[STOREID]
+        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
       : typeof it == 'string' ? '$' + it : it;
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
-      var values = this[valuesStore]
+      var values = this[VALUES_STORE]
         , keyz   = this[key]
         , names  = keys(keyz)
         , length = names.length
@@ -80,11 +80,11 @@
     }
   }
   function collectionHas(key){
-    return fastKey(key) in this[valuesStore];
+    return fastKey(key) in this[VALUES_STORE];
   }
   function clearSet(){
-    defineProperty(this, valuesStore, descriptor(6, create(null)));
-    defineProperty(this, size, descriptor(4, 0));
+    defineProperty(this, VALUES_STORE, descriptor(6, create(null)));
+    defineProperty(this, SIZE, descriptor(4, 0));
   }
   /**
    * 23.1 Map Objects
@@ -98,7 +98,7 @@
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperty(this, keysStore, descriptor(6, create(null)));
+        defineProperty(this, KEYS_STORE, descriptor(6, create(null)));
         clearSet.call(this);
       },
       /**
@@ -107,12 +107,12 @@
        */
       'delete': function(key){
         var index    = fastKey(key)
-          , values   = this[valuesStore]
+          , values   = this[VALUES_STORE]
           , contains = index in values;
         if(contains){
-          delete this[keysStore][index];
+          delete this[KEYS_STORE][index];
           delete values[index];
-          this[size]--;
+          this[SIZE]--;
         }
         return contains;
       },
@@ -120,13 +120,13 @@
        * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
        */
-      forEach: createForEach(keysStore),
+      forEach: createForEach(KEYS_STORE),
       /**
        * 23.1.3.6 Map.prototype.get ( key )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
        */
       get: function(key){
-        return this[valuesStore][fastKey(key)];
+        return this[VALUES_STORE][fastKey(key)];
       },
       /**
        * 23.1.3.7 Map.prototype.has ( key )
@@ -139,10 +139,10 @@
        */
       set: function(key, value){
         var index  = fastKey(key, 1)
-          , values = this[valuesStore];
+          , values = this[VALUES_STORE];
         if(!(index in values)){
-          this[keysStore][index] = key;
-          this[size]++;
+          this[KEYS_STORE][index] = key;
+          this[SIZE]++;
         }
         values[index] = value;
         return this;
@@ -167,10 +167,10 @@
        */
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this[valuesStore];
+          , values = this[VALUES_STORE];
         if(!(index in values)){
           values[index] = value;
-          this[size]++;
+          this[SIZE]++;
         }
         return this;
       },
@@ -185,11 +185,11 @@
        */
       'delete': function(value){
         var index    = fastKey(value)
-          , values   = this[valuesStore]
+          , values   = this[VALUES_STORE]
           , contains = index in values;
         if(contains){
           delete values[index];
-          this[size]--;
+          this[SIZE]--;
         }
         return contains;
       },
@@ -197,7 +197,7 @@
        * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
        */
-      forEach: createForEach(valuesStore),
+      forEach: createForEach(VALUES_STORE),
       /**
        * 23.2.3.7 Set.prototype.has ( value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
@@ -215,7 +215,7 @@
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
-    return (has(it, weakdata) ? it : defineProperty(it, weakdata, {value: {}}))[weakdata];
+    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
   function assertObject(foo){
     isObject(foo) || assert(0, foo + ' is not an object'); // {__proto__: null} + '' => Error
@@ -228,7 +228,7 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
      */
     clear: function(){
-      defineProperty(this, weakid, descriptor(6, wid++));
+      defineProperty(this, WEAKID, descriptor(6, wid++));
     },
     /**
      * 23.3.3.3 WeakMap.prototype.delete ( key )
@@ -237,7 +237,7 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
     'delete': function(key){
-      return this.has(key) && has(key, weakdata) ? delete key[weakdata][this[weakid]] : false;
+      return this.has(key) && has(key, WEAKDATA) ? delete key[WEAKDATA][this[WEAKID]] : false;
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
@@ -246,7 +246,7 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
      */
     has: function(key){
-      return isObject(key) && has(key, weakdata) && has(key[weakdata], this[weakid]);
+      return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
   };
   /**
@@ -261,7 +261,7 @@
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
        */
       get: function(key){
-        return isObject(key) && has(key, weakdata) ? key[weakdata][this[weakid]] : undefined;
+        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
       },
       /**
        * 23.3.3.6 WeakMap.prototype.set ( key , value )
@@ -269,7 +269,7 @@
        */
       set: function(key, value){
         assertObject(key);
-        getWeakData(key)[this[weakid]] = value;
+        getWeakData(key)[this[WEAKID]] = value;
         return this;
       }
     }, commonWeakCollection));
@@ -287,7 +287,7 @@
        */
       add: function(value){
         assertObject(value);
-        getWeakData(value)[this[weakid]] = true;
+        getWeakData(value)[this[WEAKID]] = true;
         return this;
       }
     }, commonWeakCollection));

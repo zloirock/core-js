@@ -1,6 +1,4 @@
 function inherits(parent){
-  //if(Object.setPrototypeOf)Object.setPrototypeOf(this[prototype], parent[prototype]);
-  //else if(protoInObject)this[prototype].__proto__ = parent[prototype];
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -19,33 +17,6 @@ extendBuiltInObject(Function, {
   _: _
 });
 extendBuiltInObject($Function, {
-  /**
-   * Partial apply.
-   * Alternatives:
-   * http://sugarjs.com/api/Function/fill
-   * http://underscorejs.org/#partial
-   * http://mootools.net/docs/core/Types/Function#Function:pass
-   * http://fitzgen.github.io/wu.js/#wu-partial
-   */
-  part: part,
-  /**
-   * http://www.wirfs-brock.com/allen/posts/166
-   * http://habrahabr.ru/post/114737/
-   */
-  only: function(numberArguments/*?*/, that){
-    numberArguments |= 0;
-    var fn     = this
-      , isThat = arguments.length > 1;
-    return function(/*args...*/){
-      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
-    }
-  },
-  /**
-   * function -> method
-   * Alternatives:
-   * http://api.prototypejs.org/language/Function/prototype/methodize/
-   */
-  methodize: methodize,
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));

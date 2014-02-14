@@ -135,7 +135,7 @@ function getOwnPropertyDescriptors(object){
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
   return result;
 }
-// https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
   var props  = keys(source)
     , length = props.length
@@ -145,7 +145,7 @@ var assign = Object.assign || function(target, source){
   return target;
 }
 function invert(object){
-  var result = create(null)
+  var result = {}
     , names  = keys(object)
     , length = names.length
     , i      = 0
@@ -183,14 +183,15 @@ var ceil   = Math.ceil
   , max    = Math.max
   , min    = Math.min
   , pow    = Math.pow
-  , random = Math.random;
+  , random = Math.random
+  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
 var toInteger = Number.toInteger || function(it){
   return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
 function toLength(it){
-  return it > 0 ? min(toInteger(it), 0x3FFFFFFFFFFFFF) : 0;
+  return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
 
 // Assertion & errors:
@@ -203,7 +204,7 @@ function assertInstance(that, constructor, name){
 }
 
 function extendBuiltInObject(target, source, forced /* = false */){
-  for(var key in source){
+  if(target)for(var key in source){
     try {
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))
@@ -214,7 +215,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
   return target
 }
 function hidden(key){
-  return '_' + key + '_' + random().toString(36).slice(2) + '_'
+  return key + '_' + random().toString(36).slice(2);
 }
 /**
  * Module : resume
@@ -243,12 +244,12 @@ var create                   = Object.create
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var prefix  = hidden('immediate')
+  var IMMEDIATE_PREFIX = hidden('immediate')
     , counter = 0
     , queue   = {}
     , defer, channel;
   setImmediate = function(fn){
-    var id   = prefix + ++counter
+    var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
     queue[id] = function(){
       (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
@@ -257,7 +258,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return counter;
   }
   clearImmediate = function(id){
-    delete queue[prefix + id];
+    delete queue[IMMEDIATE_PREFIX + id];
   }
   function run(id){
     if(has(queue, id)){
@@ -322,16 +323,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   function izFinite(it){
     return typeof it == 'number' && isFinite(it);
   }
-  // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
-  var isInteger = Number.isInteger || function(it){
-      return izFinite(it) && floor(it) === it;
-    }
-    , isFinite         = global.isFinite
-    , MAX_SAFE_INTEGER = 0x1fffffffffffff
-    , abs              = Math.abs
-    , exp              = Math.exp
-    , ln               = Math.log
-    , sqrt             = Math.sqrt;
   extendBuiltInObject(Object, {
     /**
      * 19.1.3.1 Object.assign ( target, source )
@@ -350,7 +341,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   });
   /**
    * 19.1.3.19 Object.setPrototypeOf ( O, proto )
-   * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.19
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.setprototypeof
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
@@ -364,27 +355,29 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   extendBuiltInObject(Number, {
     /**
      * 20.1.2.1 Number.EPSILON
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
      * http://wiki.ecmascript.org/doku.php?id=harmony:number_epsilon
      */
     EPSILON: 2.220446049250313e-16,
     /**
      * 20.1.2.2 Number.isFinite (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.2
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isfinite
      * http://kangax.github.io/es5-compat-table/es6/#Number.isFinite
      */
     isFinite: izFinite,
     /**
      * 20.1.2.3 Number.isInteger (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isinteger
      * http://kangax.github.io/es5-compat-table/es6/#Number.isInteger
      */
-    isInteger: isInteger,
+    isInteger: function(it){
+      return izFinite(it) && floor(it) === it;
+    },
     /**
      * 20.1.2.4 Number.isNaN (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.4
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isnan
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isnan
      * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
      */
@@ -393,36 +386,43 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.1.2.5 Number.isSafeInteger (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.5
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.issafeinteger
      */
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
     /**
      * 20.1.2.6 Number.MAX_SAFE_INTEGER
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer
      */
     MAX_SAFE_INTEGER: MAX_SAFE_INTEGER,
     /**
      * 20.1.2.10 Number.MIN_SAFE_INTEGER
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.10
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.min_safe_integer
      */
     MIN_SAFE_INTEGER: -MAX_SAFE_INTEGER,
     /**
      * 20.1.2.12 Number.parseFloat (string)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.12
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parsefloat
      */
     parseFloat: parseFloat,
     /***
      * 20.1.2.13 Number.parseInt (string, radix)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.13
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parseint
      */
     parseInt: parseInt
   });
+  // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
+  var isInteger = Number.isInteger
+    , isFinite  = global.isFinite
+    , abs       = Math.abs
+    , exp       = Math.exp
+    , ln        = Math.log
+    , sqrt      = Math.sqrt;
   extendBuiltInObject(Math, {
     /**
      * 20.2.2.3 Math.acosh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.acosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.acosh
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
@@ -431,7 +431,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /***
      * 20.2.2.5 Math.asinh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.5
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.asinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.asinh
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
@@ -440,7 +440,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.7 Math.atanh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.7
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.atanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.atanh
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
@@ -449,7 +449,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.9 Math.cbrt(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.9
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cbrt
      * Returns an implementation-dependent approximation to the cube root of x.
      */
     cbrt: function(x){
@@ -458,7 +458,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     /**
      * 20.1.3.1 Number.prototype.clz ()
      * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.prototype.clz
      * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
      */
     clz32: function(number){
@@ -467,7 +467,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.12 Math.cosh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.12
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
      * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
@@ -476,7 +476,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.14 Math.expm1 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.14
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.expm1
      * http://kangax.github.io/es5-compat-table/es6/#Math.expm1
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
@@ -491,7 +491,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },*/
     /**
      * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.16
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
      * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
      * Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
      */
@@ -508,7 +508,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.18 Math.imul(x, y)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.17
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.imul
      * http://kangax.github.io/es5-compat-table/es6/#Math.imul
      */
     imul: function(x, y){
@@ -520,7 +520,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.20 Math.log1p (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.19
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log1p
      * http://kangax.github.io/es5-compat-table/es6/#Math.log1p
      * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
      * The result is computed in a way that is accurate even when the value of x is close to zero.
@@ -530,7 +530,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.21 Math.log10 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.20
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log10
      * http://kangax.github.io/es5-compat-table/es6/#Math.log10
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
@@ -539,7 +539,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.22 Math.log2 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.21
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log2
      * http://kangax.github.io/es5-compat-table/es6/#Math.log2
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
@@ -548,14 +548,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.28 Math.sign(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.28
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sign
      * http://kangax.github.io/es5-compat-table/es6/#Math.sign
      * Returns the sign of the x, indicating whether x is positive, negative or zero.
      */
     sign: sign,
     /**
      * 20.2.2.30 Math.sinh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.30
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.sinh
      * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
@@ -564,7 +564,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.33 Math.tanh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.33
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.tanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.tanh
      * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
@@ -573,7 +573,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.2.2.34 Math.trunc(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.34
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.trunc
      * http://kangax.github.io/es5-compat-table/es6/#Math.trunc
      * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
@@ -584,18 +584,18 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   /*
   extendBuiltInObject(String, {
     // 21.1.2.2 String.fromCodePoint ( ...codePoints)
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.2
+    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
     // http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
     fromCodePoint: function(){ TODO },
     // 21.1.2.4 String.raw ( callSite, ...substitutions)
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.4
+    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.raw
     raw: function(){ TODO }
   });
   */
   extendBuiltInObject($String, {
     /**
      * 21.1.3.3 String.prototype.codePointAt (pos)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.codePointAt
      */
     //codePointAt: function(pos /* = 0 */){
@@ -603,7 +603,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     //},
     /**
      * 21.1.3.6 String.prototype.contains (searchString, position = 0 )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.contains
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/contains
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
@@ -613,7 +613,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.7
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.endswith
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/endsWith
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.endsWith
@@ -626,21 +626,17 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 21.1.3.13 String.prototype.repeat (count)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.13
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.repeat
      * http://wiki.ecmascript.org/doku.php?id=harmony:string.prototype.repeat
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      count = toInteger(count);
-      assert(0 <= count);
-      var result = ''
-        , string = '' + this;
-      while(count--)result += string;
-      return result;
+      assert(0 <= (count |= 0)); // TODO: add message
+      return Array(count + 1).join(this);
     },
     /**
      * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.18
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.startswith
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/startsWith
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.startsWith
@@ -654,7 +650,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   extendBuiltInObject(Array, {
     /**
      * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.from
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
      * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
@@ -668,7 +664,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 22.1.2.3 Array.of ( ...items )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.of
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
      * http://kangax.github.io/es5-compat-table/es6/#Array.of
      */
@@ -690,7 +686,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      */
     /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-22.1.3.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
      */
@@ -703,7 +699,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.8
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.find
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
      */
     find: function(predicate, thisArg /* = undefind */){
@@ -717,7 +713,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.9
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
     findIndex: function(predicate, thisArg /* = undefind */){
@@ -749,19 +745,19 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(Map, Set, WeakMap, WeakSet){
-  var tmp         = {}
-    , storeid     = hidden('storeid')
-    , keysStore   = hidden('keys')
-    , valuesStore = hidden('values')
-    , weakdata    = hidden('weakdata')
-    , weakid      = hidden('weakid')
-    , uid         = 0
-    , wid         = 0
-    , size        = DESCRIPTORS ? hidden('size') : 'size'
-    , sizeGetter  = {
+  var STOREID      = hidden('storeid')
+    , KEYS_STORE   = hidden('keys')
+    , VALUES_STORE = hidden('values')
+    , WEAKDATA     = hidden('weakdata')
+    , WEAKID       = hidden('weakid')
+    , SIZE         = DESCRIPTORS ? hidden('size') : 'size'
+    , uid          = 0
+    , wid          = 0
+    , tmp          = {}
+    , sizeGetter   = {
         size: {
           get: function(){
-            return this[size];
+            return this[SIZE];
           }
         }
       };
@@ -797,14 +793,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }
   function fastKey(it, create){
     return isObject(it)
-      ? '_' + (has(it, storeid)
-        ? it[storeid]
-        : create ? defineProperty(it, storeid, {value: uid++})[storeid] : '')
+      ? '_' + (has(it, STOREID)
+        ? it[STOREID]
+        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
       : typeof it == 'string' ? '$' + it : it;
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
-      var values = this[valuesStore]
+      var values = this[VALUES_STORE]
         , keyz   = this[key]
         , names  = keys(keyz)
         , length = names.length
@@ -817,11 +813,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   }
   function collectionHas(key){
-    return fastKey(key) in this[valuesStore];
+    return fastKey(key) in this[VALUES_STORE];
   }
   function clearSet(){
-    defineProperty(this, valuesStore, descriptor(6, create(null)));
-    defineProperty(this, size, descriptor(4, 0));
+    defineProperty(this, VALUES_STORE, descriptor(6, create(null)));
+    defineProperty(this, SIZE, descriptor(4, 0));
   }
   /**
    * 23.1 Map Objects
@@ -835,7 +831,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperty(this, keysStore, descriptor(6, create(null)));
+        defineProperty(this, KEYS_STORE, descriptor(6, create(null)));
         clearSet.call(this);
       },
       /**
@@ -844,12 +840,12 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       'delete': function(key){
         var index    = fastKey(key)
-          , values   = this[valuesStore]
+          , values   = this[VALUES_STORE]
           , contains = index in values;
         if(contains){
-          delete this[keysStore][index];
+          delete this[KEYS_STORE][index];
           delete values[index];
-          this[size]--;
+          this[SIZE]--;
         }
         return contains;
       },
@@ -857,13 +853,13 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
        */
-      forEach: createForEach(keysStore),
+      forEach: createForEach(KEYS_STORE),
       /**
        * 23.1.3.6 Map.prototype.get ( key )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
        */
       get: function(key){
-        return this[valuesStore][fastKey(key)];
+        return this[VALUES_STORE][fastKey(key)];
       },
       /**
        * 23.1.3.7 Map.prototype.has ( key )
@@ -876,10 +872,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       set: function(key, value){
         var index  = fastKey(key, 1)
-          , values = this[valuesStore];
+          , values = this[VALUES_STORE];
         if(!(index in values)){
-          this[keysStore][index] = key;
-          this[size]++;
+          this[KEYS_STORE][index] = key;
+          this[SIZE]++;
         }
         values[index] = value;
         return this;
@@ -904,10 +900,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this[valuesStore];
+          , values = this[VALUES_STORE];
         if(!(index in values)){
           values[index] = value;
-          this[size]++;
+          this[SIZE]++;
         }
         return this;
       },
@@ -922,11 +918,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       'delete': function(value){
         var index    = fastKey(value)
-          , values   = this[valuesStore]
+          , values   = this[VALUES_STORE]
           , contains = index in values;
         if(contains){
           delete values[index];
-          this[size]--;
+          this[SIZE]--;
         }
         return contains;
       },
@@ -934,7 +930,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
        */
-      forEach: createForEach(valuesStore),
+      forEach: createForEach(VALUES_STORE),
       /**
        * 23.2.3.7 Set.prototype.has ( value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
@@ -952,7 +948,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
-    return (has(it, weakdata) ? it : defineProperty(it, weakdata, {value: {}}))[weakdata];
+    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
   function assertObject(foo){
     isObject(foo) || assert(0, foo + ' is not an object'); // {__proto__: null} + '' => Error
@@ -965,7 +961,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
      */
     clear: function(){
-      defineProperty(this, weakid, descriptor(6, wid++));
+      defineProperty(this, WEAKID, descriptor(6, wid++));
     },
     /**
      * 23.3.3.3 WeakMap.prototype.delete ( key )
@@ -974,7 +970,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
     'delete': function(key){
-      return this.has(key) && has(key, weakdata) ? delete key[weakdata][this[weakid]] : false;
+      return this.has(key) && has(key, WEAKDATA) ? delete key[WEAKDATA][this[WEAKID]] : false;
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
@@ -983,7 +979,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
      */
     has: function(key){
-      return isObject(key) && has(key, weakdata) && has(key[weakdata], this[weakid]);
+      return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
   };
   /**
@@ -998,7 +994,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
        */
       get: function(key){
-        return isObject(key) && has(key, weakdata) ? key[weakdata][this[weakid]] : undefined;
+        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
       },
       /**
        * 23.3.3.6 WeakMap.prototype.set ( key , value )
@@ -1006,7 +1002,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       set: function(key, value){
         assertObject(key);
-        getWeakData(key)[this[weakid]] = value;
+        getWeakData(key)[this[WEAKID]] = value;
         return this;
       }
     }, commonWeakCollection));
@@ -1024,7 +1020,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        */
       add: function(value){
         assertObject(value);
-        getWeakData(value)[this[weakid]] = true;
+        getWeakData(value)[this[WEAKID]] = true;
         return this;
       }
     }, commonWeakCollection));
@@ -1069,9 +1065,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , _subscribers = hidden('subscribers')
-      , _state       = hidden('state')
-      , _detail      = hidden('detail')
+      , SUBSCRIBERS = hidden('subscribers')
+      , STATE       = hidden('state')
+      , DETAIL      = hidden('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){
@@ -1079,7 +1075,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         , rejectPromise = part.call(handle, promise, REJECTED);
       assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
       assertInstance(promise, Promise, 'Promise');
-      promise[_subscribers] = [];
+      promise[SUBSCRIBERS] = [];
       try {
         resolver(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -1123,10 +1119,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
-        if(promise[_state])setImmediate(function(){
-          invokeCallback(promise[_state], thenPromise, arguments[promise[_state] - 1], promise[_detail]);
+        if(promise[STATE])setImmediate(function(){
+          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
         }, onFulfilled, onRejected);
-        else promise[_subscribers].push(thenPromise, onFulfilled, onRejected);
+        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
         return thenPromise;
       }
     });
@@ -1148,7 +1144,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);
-          })
+          });
           else resolve(results);
         });
       },
@@ -1169,8 +1165,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           iterable.forEach(function(promise){
             promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
-              : resolve(promise)
-          })
+              : resolve(promise);
+          });
         });
       },
       /**
@@ -1219,15 +1215,15 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value);
     }
     function handle(promise, state, reason){
-      if(promise[_state] === PENDING){
-        promise[_state]  = SEALED;
-        promise[_detail] = reason;
+      if(promise[STATE] === PENDING){
+        promise[STATE]  = SEALED;
+        promise[DETAIL] = reason;
         setImmediate(function(){
-          promise[_state] = state;
-          for(var subscribers = promise[_subscribers], i = 0; i < subscribers.length; i += 3){
-            invokeCallback(state, subscribers[i], subscribers[i + state], promise[_detail]);
+          promise[STATE] = state;
+          for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
+            invokeCallback(state, subscribers[i], subscribers[i + state], promise[DETAIL]);
           }
-          promise[_subscribers] = undefined;
+          promise[SUBSCRIBERS] = undefined;
         });
       }
     }
@@ -1284,8 +1280,6 @@ if(!isSetImmediate){
  * Module : function
  */
 function inherits(parent){
-  //if(Object.setPrototypeOf)Object.setPrototypeOf(this[prototype], parent[prototype]);
-  //else if(protoInObject)this[prototype].__proto__ = parent[prototype];
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -1304,33 +1298,6 @@ extendBuiltInObject(Function, {
   _: _
 });
 extendBuiltInObject($Function, {
-  /**
-   * Partial apply.
-   * Alternatives:
-   * http://sugarjs.com/api/Function/fill
-   * http://underscorejs.org/#partial
-   * http://mootools.net/docs/core/Types/Function#Function:pass
-   * http://fitzgen.github.io/wu.js/#wu-partial
-   */
-  part: part,
-  /**
-   * http://www.wirfs-brock.com/allen/posts/166
-   * http://habrahabr.ru/post/114737/
-   */
-  only: function(numberArguments/*?*/, that){
-    numberArguments |= 0;
-    var fn     = this
-      , isThat = arguments.length > 1;
-    return function(/*args...*/){
-      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
-    }
-  },
-  /**
-   * function -> method
-   * Alternatives:
-   * http://api.prototypejs.org/language/Function/prototype/methodize/
-   */
-  methodize: methodize,
   invoke: function(args){
     var instance = create(this[prototype])
       , result   = this.apply(instance, arrayLikeSelf(args || []));
@@ -1386,10 +1353,38 @@ function createDeferred(set, clear, args){
 /**
  * Module : binding
  */
-var tieExt = {tie: tie};
-extendBuiltInObject($Array, tieExt);
-extendBuiltInObject(RegExp[prototype], tieExt);
-extendBuiltInObject($Function, tieExt);
+extendBuiltInObject($Function, {
+  tie: tie,
+  /**
+   * Partial apply.
+   * Alternatives:
+   * http://sugarjs.com/api/Function/fill
+   * http://underscorejs.org/#partial
+   * http://mootools.net/docs/core/Types/Function#Function:pass
+   * http://fitzgen.github.io/wu.js/#wu-partial
+   */
+  part: part,
+  /**
+   * function -> method
+   * Alternatives:
+   * http://api.prototypejs.org/language/Function/prototype/methodize/
+   */
+  methodize: methodize,
+  /**
+   * http://www.wirfs-brock.com/allen/posts/166
+   * http://habrahabr.ru/post/114737/
+   */
+  only: function(numberArguments/*?*/, that){
+    numberArguments |= 0;
+    var fn     = this
+      , isThat = arguments.length > 1;
+    return function(/*args...*/){
+      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
+    }
+  }
+});
+extendBuiltInObject($Array, {tie: tie});
+extendBuiltInObject(RegExp[prototype], {tie: tie});
 extendBuiltInObject(Object, {
   /**
    * Alternatives:
@@ -1401,7 +1396,7 @@ extendBuiltInObject(Object, {
    * Alternatives:
    * http://www.2ality.com/2013/06/auto-binding.html
    */
-  useTie: part.call(extendBuiltInObject, $Object, tieExt)
+  useTie: part.call(extendBuiltInObject, $Object, {tie: tie})
 });
 /**
  * Module : object
@@ -1553,9 +1548,12 @@ extendBuiltInObject(Object, {
      * http://underscorejs.org/#has
      * http://sugarjs.com/api/Object/has
      */
-    has: has,
     isEnumerable: unbind(isEnumerable),
     isPrototype: unbind($Object.isPrototypeOf),
+    has: has,
+    get: function(object, key){
+      return has(object, key) ? object[key] : undefined;
+    },
     /**
      * Alternatives:
      * http://livescript.net/#operators -> typeof!
@@ -1793,8 +1791,22 @@ extendBuiltInObject(Object, {
 /**
  * Module : array
  */
-!function(){
-  function pluck(key){
+extendBuiltInObject($Array, {
+  /**
+   * Alternatives:
+   * http://sugarjs.com/api/Array/at
+   * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
+   */
+  at: function(index){
+    return this[0 > (index |= 0) ? this.length + index : index];
+  },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#pluck
+   * http://sugarjs.com/api/Array/map
+   * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
+   */
+  pluck: function(key){
     var that   = arrayLikeSelf(this)
       , length = toLength(that.length)
       , result = Array(length)
@@ -1805,35 +1817,18 @@ extendBuiltInObject(Object, {
       result[i] = val == undefined ? undefined : val[key];
     }
     return result;
+  },
+  reduceTo: reduceTo,
+  /**
+   * Alternatives:
+   * http://mootools.net/docs/core/Types/Array#Array:append
+   * http://api.jquery.com/jQuery.merge/
+   */
+  merge: function(arrayLike){
+    push.apply(this, arrayLikeSelf(arrayLike));
+    return this;
   }
-  extendBuiltInObject($Array, {
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/Array/at
-     * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
-     */
-    at: function(index){
-      return this[0 > (index |= 0) ? this.length + index : index];
-    },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#pluck
-     * http://sugarjs.com/api/Array/map
-     * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
-     */
-    pluck: pluck,
-    reduceTo: reduceTo,
-    /**
-     * Alternatives:
-     * http://mootools.net/docs/core/Types/Array#Array:append
-     * http://api.jquery.com/jQuery.merge/
-     */
-    merge: function(arrayLike){
-      push.apply(this, arrayLikeSelf(arrayLike));
-      return this;
-    }
-  });
-}();
+});
 /**
  * Module : arrayStatics
  */
@@ -2035,7 +2030,7 @@ extendBuiltInObject($Number, reduceTo.call(
         case 'yyyy' : return that.getFullYear();              // Year    : 2013
       }
       return part;
-    })
+    });
   }
   function lz2(num){
     return num > 9 ? num : '0' + num;
@@ -2051,7 +2046,7 @@ extendBuiltInObject($Number, reduceTo.call(
     return function(it){
       return it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
-      })
+      });
     }
   }
   var formatRegExp = /\b(\w\w*)\b/g

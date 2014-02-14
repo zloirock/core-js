@@ -3382,7 +3382,7 @@
       i = i + 1;
     }, 1, 42);
   });
-  asyncTest('setImmediate / clearImmediate', 7, function(){
+  asyncTest('setImmediate / clearImmediate', 6, function(){
     var tmp1, id, tmp2, tmp3, tmp4;
     ok(isFunction(global.setImmediate), 'setImmediate is function');
     ok(isFunction(global.clearImmediate), 'clearImmediate is function');
@@ -3390,7 +3390,6 @@
       tmp1 = 42;
     });
     ok(tmp1 === void 8, 'setImmediate is async');
-    ok(Number.isInteger(id) && id > 0, 'setImmediate return id');
     setImmediate(function(){
       tmp2 = true;
     });

@@ -124,7 +124,7 @@ function getOwnPropertyDescriptors(object){
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
   return result;
 }
-// https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.1
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
   var props  = keys(source)
     , length = props.length
@@ -134,7 +134,7 @@ var assign = Object.assign || function(target, source){
   return target;
 }
 function invert(object){
-  var result = create(null)
+  var result = {}
     , names  = keys(object)
     , length = names.length
     , i      = 0
@@ -172,14 +172,15 @@ var ceil   = Math.ceil
   , max    = Math.max
   , min    = Math.min
   , pow    = Math.pow
-  , random = Math.random;
+  , random = Math.random
+  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
 var toInteger = Number.toInteger || function(it){
   return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
 function toLength(it){
-  return it > 0 ? min(toInteger(it), 0x3FFFFFFFFFFFFF) : 0;
+  return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
 
 // Assertion & errors:
@@ -192,7 +193,7 @@ function assertInstance(that, constructor, name){
 }
 
 function extendBuiltInObject(target, source, forced /* = false */){
-  for(var key in source){
+  if(target)for(var key in source){
     try {
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))
@@ -203,5 +204,5 @@ function extendBuiltInObject(target, source, forced /* = false */){
   return target
 }
 function hidden(key){
-  return '_' + key + '_' + random().toString(36).slice(2) + '_'
+  return key + '_' + random().toString(36).slice(2);
 }

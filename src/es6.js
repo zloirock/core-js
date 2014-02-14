@@ -14,16 +14,6 @@
   function izFinite(it){
     return typeof it == 'number' && isFinite(it);
   }
-  // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
-  var isInteger = Number.isInteger || function(it){
-      return izFinite(it) && floor(it) === it;
-    }
-    , isFinite         = global.isFinite
-    , MAX_SAFE_INTEGER = 0x1fffffffffffff
-    , abs              = Math.abs
-    , exp              = Math.exp
-    , ln               = Math.log
-    , sqrt             = Math.sqrt;
   extendBuiltInObject(Object, {
     /**
      * 19.1.3.1 Object.assign ( target, source )
@@ -42,7 +32,7 @@
   });
   /**
    * 19.1.3.19 Object.setPrototypeOf ( O, proto )
-   * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-19.1.3.19
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.setprototypeof
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
@@ -56,27 +46,29 @@
   extendBuiltInObject(Number, {
     /**
      * 20.1.2.1 Number.EPSILON
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
      * http://wiki.ecmascript.org/doku.php?id=harmony:number_epsilon
      */
     EPSILON: 2.220446049250313e-16,
     /**
      * 20.1.2.2 Number.isFinite (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.2
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isfinite
      * http://kangax.github.io/es5-compat-table/es6/#Number.isFinite
      */
     isFinite: izFinite,
     /**
      * 20.1.2.3 Number.isInteger (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isinteger
      * http://kangax.github.io/es5-compat-table/es6/#Number.isInteger
      */
-    isInteger: isInteger,
+    isInteger: function(it){
+      return izFinite(it) && floor(it) === it;
+    },
     /**
      * 20.1.2.4 Number.isNaN (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.4
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isnan
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isnan
      * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
      */
@@ -85,36 +77,43 @@
     },
     /**
      * 20.1.2.5 Number.isSafeInteger (number)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.5
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.issafeinteger
      */
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
     /**
      * 20.1.2.6 Number.MAX_SAFE_INTEGER
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer
      */
     MAX_SAFE_INTEGER: MAX_SAFE_INTEGER,
     /**
      * 20.1.2.10 Number.MIN_SAFE_INTEGER
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.10
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.min_safe_integer
      */
     MIN_SAFE_INTEGER: -MAX_SAFE_INTEGER,
     /**
      * 20.1.2.12 Number.parseFloat (string)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.12
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parsefloat
      */
     parseFloat: parseFloat,
     /***
      * 20.1.2.13 Number.parseInt (string, radix)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.2.13
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parseint
      */
     parseInt: parseInt
   });
+  // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
+  var isInteger = Number.isInteger
+    , isFinite  = global.isFinite
+    , abs       = Math.abs
+    , exp       = Math.exp
+    , ln        = Math.log
+    , sqrt      = Math.sqrt;
   extendBuiltInObject(Math, {
     /**
      * 20.2.2.3 Math.acosh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.acosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.acosh
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
@@ -123,7 +122,7 @@
     },
     /***
      * 20.2.2.5 Math.asinh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.5
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.asinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.asinh
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
@@ -132,7 +131,7 @@
     },
     /**
      * 20.2.2.7 Math.atanh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.7
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.atanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.atanh
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
@@ -141,7 +140,7 @@
     },
     /**
      * 20.2.2.9 Math.cbrt(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.9
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cbrt
      * Returns an implementation-dependent approximation to the cube root of x.
      */
     cbrt: function(x){
@@ -150,7 +149,7 @@
     /**
      * 20.1.3.1 Number.prototype.clz ()
      * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.1.3.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.prototype.clz
      * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
      */
     clz32: function(number){
@@ -159,7 +158,7 @@
     },
     /**
      * 20.2.2.12 Math.cosh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.12
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
      * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
@@ -168,7 +167,7 @@
     },
     /**
      * 20.2.2.14 Math.expm1 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.14
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.expm1
      * http://kangax.github.io/es5-compat-table/es6/#Math.expm1
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
@@ -183,7 +182,7 @@
     },*/
     /**
      * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.16
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
      * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
      * Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
      */
@@ -200,7 +199,7 @@
     },
     /**
      * 20.2.2.18 Math.imul(x, y)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.17
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.imul
      * http://kangax.github.io/es5-compat-table/es6/#Math.imul
      */
     imul: function(x, y){
@@ -212,7 +211,7 @@
     },
     /**
      * 20.2.2.20 Math.log1p (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.19
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log1p
      * http://kangax.github.io/es5-compat-table/es6/#Math.log1p
      * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
      * The result is computed in a way that is accurate even when the value of x is close to zero.
@@ -222,7 +221,7 @@
     },
     /**
      * 20.2.2.21 Math.log10 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.20
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log10
      * http://kangax.github.io/es5-compat-table/es6/#Math.log10
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
@@ -231,7 +230,7 @@
     },
     /**
      * 20.2.2.22 Math.log2 (x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.21
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log2
      * http://kangax.github.io/es5-compat-table/es6/#Math.log2
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
@@ -240,14 +239,14 @@
     },
     /**
      * 20.2.2.28 Math.sign(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.28
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sign
      * http://kangax.github.io/es5-compat-table/es6/#Math.sign
      * Returns the sign of the x, indicating whether x is positive, negative or zero.
      */
     sign: sign,
     /**
      * 20.2.2.30 Math.sinh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.30
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.sinh
      * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
@@ -256,7 +255,7 @@
     },
     /**
      * 20.2.2.33 Math.tanh(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.33
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.tanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.tanh
      * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
@@ -265,7 +264,7 @@
     },
     /**
      * 20.2.2.34 Math.trunc(x)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-20.2.2.34
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.trunc
      * http://kangax.github.io/es5-compat-table/es6/#Math.trunc
      * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
@@ -276,18 +275,18 @@
   /*
   extendBuiltInObject(String, {
     // 21.1.2.2 String.fromCodePoint ( ...codePoints)
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.2
+    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
     // http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
     fromCodePoint: function(){ TODO },
     // 21.1.2.4 String.raw ( callSite, ...substitutions)
-    // https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.2.4
+    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.raw
     raw: function(){ TODO }
   });
   */
   extendBuiltInObject($String, {
     /**
      * 21.1.3.3 String.prototype.codePointAt (pos)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.codePointAt
      */
     //codePointAt: function(pos /* = 0 */){
@@ -295,7 +294,7 @@
     //},
     /**
      * 21.1.3.6 String.prototype.contains (searchString, position = 0 )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.contains
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/contains
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
@@ -305,7 +304,7 @@
     },
     /**
      * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.7
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.endswith
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/endsWith
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.endsWith
@@ -318,21 +317,17 @@
     },
     /**
      * 21.1.3.13 String.prototype.repeat (count)
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.13
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.repeat
      * http://wiki.ecmascript.org/doku.php?id=harmony:string.prototype.repeat
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      count = toInteger(count);
-      assert(0 <= count);
-      var result = ''
-        , string = '' + this;
-      while(count--)result += string;
-      return result;
+      assert(0 <= (count |= 0)); // TODO: add message
+      return Array(count + 1).join(this);
     },
     /**
      * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-21.1.3.18
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.startswith
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
      * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/startsWith
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.startsWith
@@ -346,7 +341,7 @@
   extendBuiltInObject(Array, {
     /**
      * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.1
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.from
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
      * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
@@ -360,7 +355,7 @@
     },
     /**
      * 22.1.2.3 Array.of ( ...items )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.2.3
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.of
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
      * http://kangax.github.io/es5-compat-table/es6/#Array.of
      */
@@ -382,7 +377,7 @@
      */
     /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-22.1.3.6
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
      */
@@ -395,7 +390,7 @@
     },
     /**
      * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.8
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.find
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
      */
     find: function(predicate, thisArg /* = undefind */){
@@ -409,7 +404,7 @@
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
-     * https://people.mozilla.com/~jorendorff/es6-draft.html#sec-22.1.3.9
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
     findIndex: function(predicate, thisArg /* = undefind */){

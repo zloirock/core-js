@@ -145,9 +145,12 @@
      * http://underscorejs.org/#has
      * http://sugarjs.com/api/Object/has
      */
-    has: has,
     isEnumerable: unbind(isEnumerable),
     isPrototype: unbind($Object.isPrototypeOf),
+    has: has,
+    get: function(object, key){
+      return has(object, key) ? object[key] : undefined;
+    },
     /**
      * Alternatives:
      * http://livescript.net/#operators -> typeof!

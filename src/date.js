@@ -33,7 +33,7 @@
         case 'yyyy' : return that.getFullYear();              // Year    : 2013
       }
       return part;
-    })
+    });
   }
   function lz2(num){
     return num > 9 ? num : '0' + num;
@@ -49,7 +49,7 @@
     return function(it){
       return it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
-      })
+      });
     }
   }
   var formatRegExp = /\b(\w\w*)\b/g
