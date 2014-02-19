@@ -12,12 +12,12 @@
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(Map, Set, WeakMap, WeakSet){
-  var STOREID      = hidden('storeid')
-    , KEYS_STORE   = hidden('keys')
-    , VALUES_STORE = hidden('values')
-    , WEAKDATA     = hidden('weakdata')
-    , WEAKID       = hidden('weakid')
-    , SIZE         = DESCRIPTORS ? hidden('size') : 'size'
+  var STOREID      = symbol('storeid')
+    , KEYS_STORE   = symbol('keys')
+    , VALUES_STORE = symbol('values')
+    , WEAKDATA     = symbol('weakdata')
+    , WEAKID       = symbol('weakid')
+    , SIZE         = DESCRIPTORS ? symbol('size') : 'size'
     , uid          = 0
     , wid          = 0
     , tmp          = {}
@@ -52,10 +52,10 @@
     var collection = new Collection;
     if(collection[key](tmp, 1) !== collection){
       var fn = collection[key];
-      defineProperty(Collection[prototype], key, descriptor(6, function(){
+      hidden(Collection[prototype], key, function(){
         fn.apply(this, arguments);
         return this;
-      }));
+      });
     }
   }
   function fastKey(it, create){
@@ -83,8 +83,8 @@
     return fastKey(key) in this[VALUES_STORE];
   }
   function clearSet(){
-    defineProperty(this, VALUES_STORE, descriptor(6, create(null)));
-    defineProperty(this, SIZE, descriptor(4, 0));
+    hidden(this, VALUES_STORE, create(null));
+    hidden(this, SIZE, 0);
   }
   /**
    * 23.1 Map Objects
@@ -98,7 +98,7 @@
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperty(this, KEYS_STORE, descriptor(6, create(null)));
+        hidden(this, KEYS_STORE, create(null));
         clearSet.call(this);
       },
       /**
@@ -225,7 +225,7 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
      */
     clear: function(){
-      defineProperty(this, WEAKID, descriptor(6, wid++));
+      hidden(this, WEAKID, wid++);
     },
     /**
      * 23.3.3.3 WeakMap.prototype.delete ( key )

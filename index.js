@@ -24,14 +24,14 @@ var prototype      = 'prototype'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
-  , console        = global.console || {}
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
   , $Number        = Number[prototype]
   , $Object        = Object[prototype]
   , $String        = String[prototype]
-  , $Function      = Function[prototype];
+  , $Function      = Function[prototype]
+  , console        = global.console || {log: $Function};
   
 // http://es5.github.io/#x9.12
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
@@ -117,14 +117,6 @@ var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
   , PROTO          = '__proto__' in $Object
   , DESCRIPTORS    = 1;
-function descriptor(bitmap, value){
-  return {
-    enumerable  : !!(bitmap & 1),
-    configurable: !!(bitmap & 2),
-    writable    : !!(bitmap & 4),
-    value       : value
-  }
-}
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -195,7 +187,7 @@ function toLength(it){
 }
 
 // Assertion & errors:
-var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
+var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition){
   if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
@@ -203,14 +195,25 @@ function assertFunction(it){
   assert(isFunction(it), it, 'is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object');
+  assert(isObject(it), it, 'is not an object!');
 }
 function assertInstance(it, constructor, name){
-  assert(it instanceof constructor, name, ": please use the 'new' operator");
+  assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-function hidden(key){
-  return key + '_' + random().toString(36).slice(2);
+function symbol(key){
+  return '@@' + key + '_' + random().toString(36).slice(2);
+}
+function descriptor(bitmap, value){
+  return {
+    enumerable  : !!(bitmap & 1),
+    configurable: !!(bitmap & 2),
+    writable    : !!(bitmap & 4),
+    value       : value
+  }
+}
+function hidden(object, key, value){
+  return defineProperty(object, key, descriptor(6, value));
 }
 /**
  * Module : framework
@@ -221,7 +224,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))
       && delete target[key]
-      && defineProperty(target, key, descriptor(6, source[key]));
+      && hidden(target, key, source[key]);
     } catch(e){}
   }
 }
@@ -252,7 +255,7 @@ var create                   = Object.create
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var IMMEDIATE_PREFIX = hidden('immediate')
+  var IMMEDIATE_PREFIX = symbol('immediate')
     , counter = 0
     , queue   = {}
     , defer, channel;
@@ -733,12 +736,12 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(Map, Set, WeakMap, WeakSet){
-  var STOREID      = hidden('storeid')
-    , KEYS_STORE   = hidden('keys')
-    , VALUES_STORE = hidden('values')
-    , WEAKDATA     = hidden('weakdata')
-    , WEAKID       = hidden('weakid')
-    , SIZE         = DESCRIPTORS ? hidden('size') : 'size'
+  var STOREID      = symbol('storeid')
+    , KEYS_STORE   = symbol('keys')
+    , VALUES_STORE = symbol('values')
+    , WEAKDATA     = symbol('weakdata')
+    , WEAKID       = symbol('weakid')
+    , SIZE         = DESCRIPTORS ? symbol('size') : 'size'
     , uid          = 0
     , wid          = 0
     , tmp          = {}
@@ -773,10 +776,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     var collection = new Collection;
     if(collection[key](tmp, 1) !== collection){
       var fn = collection[key];
-      defineProperty(Collection[prototype], key, descriptor(6, function(){
+      hidden(Collection[prototype], key, function(){
         fn.apply(this, arguments);
         return this;
-      }));
+      });
     }
   }
   function fastKey(it, create){
@@ -804,8 +807,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return fastKey(key) in this[VALUES_STORE];
   }
   function clearSet(){
-    defineProperty(this, VALUES_STORE, descriptor(6, create(null)));
-    defineProperty(this, SIZE, descriptor(4, 0));
+    hidden(this, VALUES_STORE, create(null));
+    hidden(this, SIZE, 0);
   }
   /**
    * 23.1 Map Objects
@@ -819,7 +822,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
        */
       clear: function(){
-        defineProperty(this, KEYS_STORE, descriptor(6, create(null)));
+        hidden(this, KEYS_STORE, create(null));
         clearSet.call(this);
       },
       /**
@@ -946,7 +949,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
      */
     clear: function(){
-      defineProperty(this, WEAKID, descriptor(6, wid++));
+      hidden(this, WEAKID, wid++);
     },
     /**
      * 23.3.3.3 WeakMap.prototype.delete ( key )
@@ -1050,9 +1053,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , SUBSCRIBERS = hidden('subscribers')
-      , STATE       = hidden('state')
-      , DETAIL      = hidden('detail')
+      , SUBSCRIBERS = symbol('subscribers')
+      , STATE       = symbol('state')
+      , DETAIL      = symbol('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){
@@ -1214,6 +1217,29 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   }();
 }(global.Promise);
+/**
+ * Module : symbol
+ */
+/**
+ * ECMAScript 6 Symbol
+ * http://people.mozilla.org/~jorendorff/es6-draft.html
+ * Alternatives:
+ * https://github.com/seanmonstar/symbol
+ * https://github.com/component/symbol
+ * https://github.com/anthonyshort/symbol
+ */
+if(!isNative(global.Symbol)){
+  global.Symbol = function(description){
+    var tag  = symbol(description);
+    defineProperty($Object, tag, {set: function(value){
+      hidden(this, tag, value);
+      return value;
+    }});
+    return {toString: function(){
+      return tag;
+    }};
+  };
+};
 /**
  * Module : extendedObjectAPI
  */
@@ -1770,7 +1796,9 @@ extendBuiltInObject(Object, {
      * http://docs.angularjs.org/api/angular.equals
      * http://fitzgen.github.io/wu.js/#wu-eq
      */
-    isEqual: part.call(isEqual, _, _, [], [])
+    isEqual: part.call(isEqual, _, _, [], []),
+    symbol: symbol,
+    hidden: hidden
   });
 }();
 /**

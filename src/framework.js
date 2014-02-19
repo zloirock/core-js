@@ -4,7 +4,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))
       && delete target[key]
-      && defineProperty(target, key, descriptor(6, source[key]));
+      && hidden(target, key, source[key]);
     } catch(e){}
   }
 }

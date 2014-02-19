@@ -68,7 +68,7 @@
      * http://es5.github.io/#x15.2.3.6
      */
     Object.defineProperty = defineProperty = function(O, P, Attributes){
-      O[P] = Attributes.value;
+      if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
     /**

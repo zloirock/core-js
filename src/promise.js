@@ -30,9 +30,9 @@
       , SEALED    = 0
       , FULFILLED = 1
       , REJECTED  = 2
-      , SUBSCRIBERS = hidden('subscribers')
-      , STATE       = hidden('state')
-      , DETAIL      = hidden('detail')
+      , SUBSCRIBERS = symbol('subscribers')
+      , STATE       = symbol('state')
+      , DETAIL      = symbol('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     function Promise(resolver){

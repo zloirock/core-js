@@ -13,14 +13,14 @@ var prototype      = 'prototype'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
-  , console        = global.console || {}
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
   , $Number        = Number[prototype]
   , $Object        = Object[prototype]
   , $String        = String[prototype]
-  , $Function      = Function[prototype];
+  , $Function      = Function[prototype]
+  , console        = global.console || {log: $Function};
   
 // http://es5.github.io/#x9.12
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
@@ -106,14 +106,6 @@ var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
   , PROTO          = '__proto__' in $Object
   , DESCRIPTORS    = 1;
-function descriptor(bitmap, value){
-  return {
-    enumerable  : !!(bitmap & 1),
-    configurable: !!(bitmap & 2),
-    writable    : !!(bitmap & 4),
-    value       : value
-  }
-}
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -184,7 +176,7 @@ function toLength(it){
 }
 
 // Assertion & errors:
-var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
+var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition){
   if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
@@ -192,12 +184,23 @@ function assertFunction(it){
   assert(isFunction(it), it, 'is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object');
+  assert(isObject(it), it, 'is not an object!');
 }
 function assertInstance(it, constructor, name){
-  assert(it instanceof constructor, name, ": please use the 'new' operator");
+  assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-function hidden(key){
-  return key + '_' + random().toString(36).slice(2);
+function symbol(key){
+  return '@@' + key + '_' + random().toString(36).slice(2);
+}
+function descriptor(bitmap, value){
+  return {
+    enumerable  : !!(bitmap & 1),
+    configurable: !!(bitmap & 2),
+    writable    : !!(bitmap & 4),
+    value       : value
+  }
+}
+function hidden(object, key, value){
+  return defineProperty(object, key, descriptor(6, value));
 }

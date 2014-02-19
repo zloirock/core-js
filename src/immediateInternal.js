@@ -10,7 +10,7 @@
 var isSetImmediate = isFunction(setImmediate) && isFunction(clearImmediate);
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var IMMEDIATE_PREFIX = hidden('immediate')
+  var IMMEDIATE_PREFIX = symbol('immediate')
     , counter = 0
     , queue   = {}
     , defer, channel;

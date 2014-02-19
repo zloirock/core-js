@@ -382,6 +382,8 @@
      * http://docs.angularjs.org/api/angular.equals
      * http://fitzgen.github.io/wu.js/#wu-eq
      */
-    isEqual: part.call(isEqual, _, _, [], [])
+    isEqual: part.call(isEqual, _, _, [], []),
+    symbol: symbol,
+    hidden: hidden
   });
 }();

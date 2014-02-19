@@ -1,10 +1,10 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[global init framework library es5 resume immediateInternal es6 es6c promise extendedObjectAPI timers immediate function binding object array arrayStatics number string date extendCollections console]>
+modules    = <[global init framework library es5 resume immediateInternal es6 es6c promise symbol extendedObjectAPI timers immediate function binding object array arrayStatics number string date extendCollections console]>
 required   = <[init resume]>
 module.exports = (opt, next)-> let @ = opt
   import {+global, +es5, +timers, +node} if @all
-  import {+\function, +binding, +object, +array, +arrayStatics, +number, +string, +date, +es6, +es6c, +promise, +extendedObjectAPI, +extendCollections, +immediate, +console} if @node
+  import {+\function, +binding, +object, +array, +arrayStatics, +number, +string, +date, +es6, +es6c, +promise, +symbol, +extendedObjectAPI, +extendCollections, +immediate, +console} if @node
   import if @library => {-framework} else {-library, +framework}
   @immediateInternal = on if @immediate or @promise
   include = modules.filter ~> it in required or @[it]
