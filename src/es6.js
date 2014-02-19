@@ -173,9 +173,7 @@
     },
     /**
      * 20.2.2.16 Math.fround (x)
-    fround: function(x){
-      
-    },
+    fround: function(x){ TODO },
      * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
      * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
@@ -358,6 +356,16 @@
       return result;
     }
   });
+  function findIndex(predicate, thisArg /* = undefind */){
+    var O = Object(this)
+      , self = arrayLikeSelf(O)
+      , length = toLength(self.length)
+      , i = 0;
+    for(; i < length; i++){
+      if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+    }
+    return -1;
+  }
   extendBuiltInObject($Array, {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
@@ -381,29 +389,14 @@
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
      */
     find: function(predicate, thisArg /* = undefind */){
-      var O = Object(this)
-        , self = arrayLikeSelf(O)
-        , length = toLength(self.length)
-        , i = 0
-        , val;
-      for(; i < length; i++){
-        if(i in self && predicate.call(thisArg, val = self[i], i, O))return val;
-      }
+      var index = findIndex.call(this, predicate, thisArg);
+      return index === -1 ? undefined : arrayLikeSelf(this)[index];
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: function(predicate, thisArg /* = undefind */){
-      var O = Object(this)
-        , self = arrayLikeSelf(O)
-        , length = toLength(self.length)
-        , i = 0;
-      for(; i < length; i++){
-        if(i in self && predicate.call(thisArg, self[i], i, O))return i;
-      }
-      return -1;
-    }
+    findIndex: findIndex
   });
 }(isFinite);

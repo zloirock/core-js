@@ -198,17 +198,6 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator");
 }
 
-function extendBuiltInObject(target, source, forced /* = false */){
-  if(target)for(var key in source){
-    try {
-      has(source, key)
-      && (forced || !has(target, key) || !isNative(target[key]))
-      && delete target[key]
-      && defineProperty(target, key, descriptor(6, source[key]));
-    } catch(e){}
-  }
-  return target
-}
 function hidden(key){
   return key + '_' + random().toString(36).slice(2);
 }

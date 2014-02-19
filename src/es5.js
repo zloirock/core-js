@@ -231,22 +231,22 @@
      * http://es5.github.io/#x15.4.4.19
      */
     map: function(callbackfn, thisArg /* = undefined */){
-      var rez = Array(toLength(this.length));
+      var result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
-        rez[key] = callbackfn.call(thisArg, val, key, that);
+        result[key] = callbackfn.call(thisArg, val, key, that);
       });
-      return rez;
+      return result;
     },
     /**
      * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
      * http://es5.github.io/#x15.4.4.20
      */
     filter: function(callbackfn, thisArg /* = undefined */){
-      var rez = [];
+      var result = [];
       forEach.call(this, function(val){
-        callbackfn.apply(thisArg, arguments) && rez.push(val);
+        callbackfn.apply(thisArg, arguments) && result.push(val);
       });
-      return rez;
+      return result;
     },
     /**
      * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )

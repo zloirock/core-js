@@ -266,7 +266,7 @@
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index];
+      return index === undefined ? undefined : arrayLikeSelf(object)[index];
     },
     findIndex: findIndex,
     /**

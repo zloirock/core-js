@@ -28,6 +28,7 @@ var prototype      = 'prototype'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
+  , console        = global.console || {}
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
@@ -45,7 +46,6 @@ var same = Object.is || function(x, y){
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
-// fallback for regexps in older browsers in es5 shim
 function isFunction(it){
   return typeof it == 'function';
 }
@@ -200,13 +200,25 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
-function assert(condition, message){
-  if(!condition)throw TypeError(message);
+function assert(condition){
+  if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
-function assertInstance(that, constructor, name){
-  assert(that instanceof constructor, name + ": Please use the 'new' operator");
+function assertFunction(it){
+  assert(isFunction(it), it, 'is not a function!');
+}
+function assertObject(it){
+  assert(isObject(it), it, 'is not an object');
+}
+function assertInstance(it, constructor, name){
+  assert(it instanceof constructor, name, ": please use the 'new' operator");
 }
 
+function hidden(key){
+  return key + '_' + random().toString(36).slice(2);
+}
+/**
+ * Module : framework
+ */
 function extendBuiltInObject(target, source, forced /* = false */){
   if(target)for(var key in source){
     try {
@@ -216,10 +228,6 @@ function extendBuiltInObject(target, source, forced /* = false */){
       && defineProperty(target, key, descriptor(6, source[key]));
     } catch(e){}
   }
-  return target
-}
-function hidden(key){
-  return key + '_' + random().toString(36).slice(2);
 }
 /**
  * Module : es5
@@ -332,7 +340,7 @@ function hidden(key){
      */
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
-      assert(isObject(O), 'Object prototype may only be an object or null');
+      assertObject(O);
       Empty[prototype] = O;
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
@@ -367,7 +375,7 @@ function hidden(key){
     bind: function(scope /*, args...*/){
       var fn   = this
         , args = $slice(arguments, 1);
-      assert(isFunction(fn), fn + ' is not a function');
+      assertFunction(fn);
       function bound(){
         return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)));
       }
@@ -457,22 +465,22 @@ function hidden(key){
      * http://es5.github.io/#x15.4.4.19
      */
     map: function(callbackfn, thisArg /* = undefined */){
-      var rez = Array(toLength(this.length));
+      var result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
-        rez[key] = callbackfn.call(thisArg, val, key, that);
+        result[key] = callbackfn.call(thisArg, val, key, that);
       });
-      return rez;
+      return result;
     },
     /**
      * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
      * http://es5.github.io/#x15.4.4.20
      */
     filter: function(callbackfn, thisArg /* = undefined */){
-      var rez = [];
+      var result = [];
       forEach.call(this, function(val){
-        callbackfn.apply(thisArg, arguments) && rez.push(val);
+        callbackfn.apply(thisArg, arguments) && result.push(val);
       });
-      return rez;
+      return result;
     },
     /**
      * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
@@ -524,10 +532,6 @@ function hidden(key){
   extendBuiltInObject(Date, {now: function(){
     return +new Date;
   }});
-  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
-  if(isFunction(trimRegExp))isFunction = function(it){
-    return classof(it) == 'Function';
-  }
 }();
 /**
  * Module : resume
@@ -600,7 +604,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     channel.port1.onmessage = listner;
     defer = tie.call(channel.port2, 'postMessage');
   // IE8-
-  // use DOM => use after onload
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
     defer = function(id){
@@ -628,12 +631,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/monolithed/ECMAScript-6
  * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
  */
-!function(){
+!function(isFinite){
   function sign(it){
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
-  }
-  function izFinite(it){
-    return typeof it == 'number' && isFinite(it);
   }
   extendBuiltInObject(Object, {
     /**
@@ -659,7 +659,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    */
   PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
-      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set " + proto + ' as prototype of ' + O);
+      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set", proto, 'as prototype of', O);
       O.__proto__ = proto;
       return O;
     }
@@ -670,14 +670,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
      * http://wiki.ecmascript.org/doku.php?id=harmony:number_epsilon
      */
-    EPSILON: 2.220446049250313e-16,
+    EPSILON: pow(2, -52),
     /**
      * 20.1.2.2 Number.isFinite (number)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
      * http://wiki.ecmascript.org/doku.php?id=harmony:number.isfinite
      * http://kangax.github.io/es5-compat-table/es6/#Number.isFinite
      */
-    isFinite: izFinite,
+    isFinite: function(it){
+      return typeof it == 'number' && isFinite(it);
+    },
     /**
      * 20.1.2.3 Number.isInteger (number)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
@@ -685,7 +687,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://kangax.github.io/es5-compat-table/es6/#Number.isInteger
      */
     isInteger: function(it){
-      return izFinite(it) && floor(it) === it;
+      return isFinite(it) && floor(it) === it;
     },
     /**
      * 20.1.2.4 Number.isNaN (number)
@@ -718,18 +720,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parsefloat
      */
     parseFloat: parseFloat,
-    /***
+    /**
      * 20.1.2.13 Number.parseInt (string, radix)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parseint
      */
     parseInt: parseInt
   });
-  // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
   var isInteger = Number.isInteger
-    , isFinite  = global.isFinite
     , abs       = Math.abs
     , exp       = Math.exp
-    , ln        = Math.log
+    , log       = Math.log
     , sqrt      = Math.sqrt;
   extendBuiltInObject(Math, {
     /**
@@ -739,7 +739,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
     acosh: function(x){
-      return ln(x + sqrt(x * x - 1));
+      return log(x + sqrt(x * x - 1));
     },
     /***
      * 20.2.2.5 Math.asinh(x)
@@ -748,7 +748,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
     asinh: function(x){
-      return !isFinite(x = +x) || x === 0 ? x : ln(x + sqrt(x * x + 1));
+      return !isFinite(x = +x) || x === 0 ? x : log(x + sqrt(x * x + 1));
     },
     /**
      * 20.2.2.7 Math.atanh(x)
@@ -757,7 +757,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
     atanh: function(x){
-      return x === 0 ? x : 0.5 * ln((1 + x) / (1 - x));
+      return x === 0 ? x : 0.5 * log((1 + x) / (1 - x));
     },
     /**
      * 20.2.2.9 Math.cbrt(x)
@@ -793,15 +793,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
     expm1: function(x){
-      return same(x, -0) ? -0 : x > -1.0e-6 && x < 1.0e-6 ? x + x * x / 2 : exp(x) - 1;
+      return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
     },
     /**
      * 20.2.2.16 Math.fround (x)
-     */
-    /*fround: function(x){
-      
-    },*/
-    /**
+    fround: function(x){ TODO },
      * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
      * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
@@ -838,7 +834,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * The result is computed in a way that is accurate even when the value of x is close to zero.
      */
     log1p: function(x){
-      return (x > -1.0e-8 && x < 1.0e-8) ? (x - x * x / 2) : ln(1 + x);
+      return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
     },
     /**
      * 20.2.2.21 Math.log10 (x)
@@ -847,7 +843,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
     log10: function(x){
-      return ln(x) / Math.LN10;
+      return log(x) / Math.LN10;
     },
     /**
      * 20.2.2.22 Math.log2 (x)
@@ -856,7 +852,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
     log2: function(x){
-      return ln(x) / Math.LN2;
+      return log(x) / Math.LN2;
     },
     /**
      * 20.2.2.28 Math.sign(x)
@@ -893,14 +889,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
-  /*
+  /**
   extendBuiltInObject(String, {
-    // 21.1.2.2 String.fromCodePoint ( ...codePoints)
-    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
-    // http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
+     * 21.1.2.2 String.fromCodePoint ( ...codePoints)
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
+     * http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
     fromCodePoint: function(){ TODO },
-    // 21.1.2.4 String.raw ( callSite, ...substitutions)
-    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.raw
+     * 21.1.2.4 String.raw ( callSite, ...substitutions)
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.raw
     raw: function(){ TODO }
   });
   */
@@ -909,11 +905,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * 21.1.3.3 String.prototype.codePointAt (pos)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.codePointAt
-     */
-    //codePointAt: function(pos /* = 0 */){
-
-    //},
-    /**
+    codePointAt: function(pos /* = 0 * /){ TODO },
      * 21.1.3.6 String.prototype.contains (searchString, position = 0 )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.contains
      * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
@@ -943,7 +935,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
      */
     repeat: function(count){
-      assert(0 <= (count |= 0)); // TODO: add message
+      assert(0 <= (count |= 0), "Count can't be negative");
       return Array(count + 1).join(this);
     },
     /**
@@ -988,15 +980,21 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return result;
     }
   });
+  function findIndex(predicate, thisArg /* = undefind */){
+    var O = Object(this)
+      , self = arrayLikeSelf(O)
+      , length = toLength(self.length)
+      , i = 0;
+    for(; i < length; i++){
+      if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+    }
+    return -1;
+  }
   extendBuiltInObject($Array, {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
-    copyWithin: function(target, start, end){
-
-    },
-     */
-    /**
+    copyWithin: function(target, start, end){ TODO },
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
@@ -1015,31 +1013,17 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
      */
     find: function(predicate, thisArg /* = undefind */){
-      var O = Object(this)
-        , self = arrayLikeSelf(O)
-        , length = toLength(self.length)
-        , val, i = 0;
-      for(; i < length; i++){
-        if(i in self && predicate.call(thisArg, val = self[i], i, O))return val;
-      }
+      var index = findIndex.call(this, predicate, thisArg);
+      return index === -1 ? undefined : arrayLikeSelf(this)[index];
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: function(predicate, thisArg /* = undefind */){
-      var O = Object(this)
-        , self = arrayLikeSelf(O)
-        , length = toLength(self.length)
-        , i = 0;
-      for(; i < length; i++){
-        if(i in self && predicate.call(thisArg, self[i], i, O))return i;
-      }
-      return -1;
-    }
+    findIndex: findIndex
   });
-}();
+}(isFinite);
 /**
  * Module : es6c
  */
@@ -1262,9 +1246,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
-  function assertObject(foo){
-    isObject(foo) || assert(0, foo + ' is not an object'); // {__proto__: null} + '' => Error
-  }
   var commonWeakCollection = {
     /**
      * 23.3.3.1 WeakMap.prototype.clear ()
@@ -1385,8 +1366,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     function Promise(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
-      assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
       assertInstance(promise, Promise, 'Promise');
+      assertFunction(resolver);
       promise[SUBSCRIBERS] = [];
       try {
         resolver(part.call(resolve, promise), rejectPromise);
@@ -2004,7 +1985,7 @@ extendBuiltInObject(Object, {
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : object[index];
+      return index === undefined ? undefined : arrayLikeSelf(object)[index];
     },
     findIndex: findIndex,
     /**
@@ -2214,10 +2195,11 @@ extendBuiltInObject($Number, {
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
   times: function(fn, that /* = undefined */){
+    assertFunction(fn);
     var number = toLength(this)
       , result = Array(number)
       , i      = 0;
-    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
+    while(number > i)result[i] = fn.call(that, i, i++, this);
     return result;
   },
   random: function(number /* = 0 */){
@@ -2339,30 +2321,31 @@ extendBuiltInObject($Number, reduceTo.call(
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
-!function(){
+!function(formatRegExp, locales, current, getHours, getMonth){
   function format(template, lang /* = current */){
     var that   = this
       , locale = locales[lang && has(locales, lang) ? lang : current];
-    return String(template).replace(formatRegExp, function(part, key){
-      switch(key){
-        case 'ms'   : return that.getMilliseconds();          // mSec    : 1-999
-        case 's'    : return that.getSeconds();               // Seconds : 1-59
-        case 'ss'   : return lz2(that.getSeconds());          // Seconds : 01-59
-        case 'm'    : return that.getMinutes();               // Minutes : 1-59
-        case 'mm'   : return lz2(that.getMinutes());          // Minutes : 01-59
-        case 'h'    : return that.getHours()                  // Hours   : 0-23
-        case 'hh'   : return lz2(that.getHours());            // Hours   : 00-23
-        case 'H'    : return that.getHours() % 12 || 12;      // Hours   : 1-12
-        case 'HH'   : return lz2(that.getHours() % 12 || 12); // Hours   : 01-12
-        case 'd'    : return that.getDate();                  // Date    : 1-31
-        case 'dd'   : return lz2(that.getDate());             // Date    : 01-31
-        case 'w'    : return locale.w[that.getDay()];         // Day     : Понедельник
-        case 'n'    : return that.getMonth() + 1;             // Month   : 1-12
-        case 'nn'   : return lz2(that.getMonth() + 1);        // Month   : 01-12
-        case 'M'    : return locale.M[that.getMonth()];       // Month   : Январь
-        case 'MM'   : return locale.MM[that.getMonth()];      // Month   : Января
-        case 'yy'   : return lz2(that.getFullYear() % 100);   // Year    : 13
-        case 'yyyy' : return that.getFullYear();              // Year    : 2013
+    return String(template).replace(formatRegExp, function(part){
+      switch(part){
+        case 'ms'   : return that.getMilliseconds();                            // mSec    : 1-999
+        case 's'    : return that.getSeconds();                                 // Seconds : 1-59
+        case 'ss'   : return lz2(that.getSeconds());                            // Seconds : 01-59
+        case 'm'    : return that.getMinutes();                                 // Minutes : 1-59
+        case 'mm'   : return lz2(that.getMinutes());                            // Minutes : 01-59
+        case 'h'    : return that[getHours]()                                   // Hours   : 0-23
+        case 'hh'   : return lz2(that[getHours]());                             // Hours   : 00-23
+        case 'H'    : return that[getHours]() % 12 || 12;                       // Hours   : 1-12
+        case 'HH'   : return lz2(that[getHours]() % 12 || 12);                  // Hours   : 01-12
+        case 'a'    : return that[getHours]() < 12 ? 'AM' : 'PM';               // AM/PM
+        case 'd'    : return that.getDate();                                    // Date    : 1-31
+        case 'dd'   : return lz2(that.getDate());                               // Date    : 01-31
+        case 'w'    : return locale.w[that.getDay()];                           // Day     : Понедельник
+        case 'n'    : return that[getMonth]() + 1;                              // Month   : 1-12
+        case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month   : 01-12
+        case 'M'    : return locale.M[that[getMonth]()];                        // Month   : Январь
+        case 'MM'   : return locale.MM[that[getMonth]()];                       // Month   : Января
+        case 'yy'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
+        case 'yyyy' : return that.getFullYear();                                // Year    : 2013
       }
       return part;
     });
@@ -2376,6 +2359,7 @@ extendBuiltInObject($Number, reduceTo.call(
       M : array(locale.M).map(flexio(0)),
       MM: array(locale.M).map(flexio(1))
     };
+    return Date;
   }
   function flexio(index){
     return function(it){
@@ -2384,9 +2368,6 @@ extendBuiltInObject($Number, reduceTo.call(
       });
     }
   }
-  var formatRegExp = /\b(\w\w*)\b/g
-    , current = 'en'
-    , locales = {};
   extendBuiltInObject(Date, {
     locale: function(locale){
       if(has(locales, locale))current = locale;
@@ -2403,7 +2384,7 @@ extendBuiltInObject($Number, reduceTo.call(
     w: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
-}();
+}(/\b(\w\w*)\b/g, {}, 'en', 'getHours', 'getMonth');
 /**
  * Module : extendCollections
  */
@@ -2536,18 +2517,17 @@ extendBuiltInObject(Set[prototype], assign({
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap
  */
-var _console = global.console || {}
-  , $console = reduceTo.call(
-      array('assert,count,clear,debug,dir,dirxml,error,exception,' +
-        'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
-        'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
-      {enabled: true},
-      function(key){
-        this[key] = function(){
-          return _console[key] && $console.enabled ? apply.call(_console[key], _console, arguments) : undefined;
-        };
-      }
-    );
+var $console = reduceTo.call(
+  array('assert,count,clear,debug,dir,dirxml,error,exception,' +
+    'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
+    'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+  {enabled: true},
+  function(key){
+    this[key] = function(){
+      return console[key] && $console.enabled ? apply.call(console[key], console, arguments) : undefined;
+    };
+  }
+);
 try {
   delete global.console;
 } catch(e){}
