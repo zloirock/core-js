@@ -14,10 +14,11 @@ extendBuiltInObject($Number, {
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
   times: function(fn, that /* = undefined */){
+    assertFunction(fn);
     var number = toLength(this)
       , result = Array(number)
       , i      = 0;
-    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
+    while(number > i)result[i] = fn.call(that, i, i++, this);
     return result;
   },
   random: function(number /* = 0 */){

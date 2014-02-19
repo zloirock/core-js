@@ -38,8 +38,8 @@
     function Promise(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
-      assert(isFunction(resolver), 'First argument of Promise constructor must be an function');
       assertInstance(promise, Promise, 'Promise');
+      assertFunction(resolver);
       promise[SUBSCRIBERS] = [];
       try {
         resolver(part.call(resolve, promise), rejectPromise);

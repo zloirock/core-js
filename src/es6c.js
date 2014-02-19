@@ -217,9 +217,6 @@
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
-  function assertObject(foo){
-    isObject(foo) || assert(0, foo + ' is not an object'); // {__proto__: null} + '' => Error
-  }
   var commonWeakCollection = {
     /**
      * 23.3.3.1 WeakMap.prototype.clear ()

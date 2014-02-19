@@ -54,7 +54,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     channel.port1.onmessage = listner;
     defer = tie.call(channel.port2, 'postMessage');
   // IE8-
-  // use DOM => use after onload
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
     defer = function(id){

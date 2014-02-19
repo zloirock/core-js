@@ -106,7 +106,7 @@
      */
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
-      assert(isObject(O), 'Object prototype may only be an object or null');
+      assertObject(O);
       Empty[prototype] = O;
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
@@ -141,7 +141,7 @@
     bind: function(scope /*, args...*/){
       var fn   = this
         , args = $slice(arguments, 1);
-      assert(isFunction(fn), fn + ' is not a function');
+      assertFunction(fn);
       function bound(){
         return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)));
       }
@@ -298,8 +298,4 @@
   extendBuiltInObject(Date, {now: function(){
     return +new Date;
   }});
-  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof#Regular_expressions
-  if(isFunction(trimRegExp))isFunction = function(it){
-    return classof(it) == 'Function';
-  }
 }();

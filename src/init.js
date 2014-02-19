@@ -13,6 +13,7 @@ var prototype      = 'prototype'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
+  , console        = global.console || {}
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
@@ -30,7 +31,6 @@ var same = Object.is || function(x, y){
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
-// fallback for regexps in older browsers in es5 shim
 function isFunction(it){
   return typeof it == 'function';
 }
@@ -185,11 +185,17 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR   = 'Reduce of empty object with no initial value';
-function assert(condition, message){
-  if(!condition)throw TypeError(message);
+function assert(condition){
+  if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
-function assertInstance(that, constructor, name){
-  assert(that instanceof constructor, name + ": Please use the 'new' operator");
+function assertFunction(it){
+  assert(isFunction(it), it, 'is not a function!');
+}
+function assertObject(it){
+  assert(isObject(it), it, 'is not an object');
+}
+function assertInstance(it, constructor, name){
+  assert(it instanceof constructor, name, ": please use the 'new' operator");
 }
 
 function extendBuiltInObject(target, source, forced /* = false */){
