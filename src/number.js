@@ -7,6 +7,7 @@ extendBuiltInObject(Number, {
 });
 extendBuiltInObject($Number, {
   /**
+   * Invoke function @ times and return array of results
    * Alternatives:
    * http://underscorejs.org/#times
    * http://sugarjs.com/api/Number/times
@@ -40,6 +41,7 @@ extendBuiltInObject($Number, {
   }
 });
 /**
+ * Math functions in Number.prototype
  * Alternatives:
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math

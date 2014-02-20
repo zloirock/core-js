@@ -2,13 +2,22 @@
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
 test 'Object.has' !->
   {has} = Object
-  ok isFunction has
+  ok isFunction(has), 'Object.has is function'
   ok has q:1, \q
   ok not has q:1, \w
   ok has [1] 0
   ok not has [] 0
   ok not has ^^{q:1} \q
   ok not has {} \toString
+test 'Object.get' !->
+  {get} = Object
+  ok isFunction(get), 'Object.get is function'
+  ok get(q:1, \q) is 1
+  ok get(q:1, \w) is void
+  ok get([1] 0) is 1
+  ok get([] 0) is void
+  ok get(^^{q:1} \q) is void
+  ok get({} \toString) is void
 test 'Object.isEnumerable' !->
   {isEnumerable} = Object
   ok isFunction isEnumerable

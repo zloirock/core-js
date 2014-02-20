@@ -57,13 +57,6 @@ test 'Function::part' !->
   ok part(\Шла \по) is 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders'
   ok part(\Шла \по \и) is 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders'
   ok part(\Шла \по \и \сушку) is 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders'
-test 'Function::only' !->
-  ok isFunction Function::only
-  fn = -> & * ''
-  ok fn.only(2)(\a \b \c) is \ab
-  ok fn.only(2)! is ''
-  fn = -> @ + & * ''
-  ok fn.only(2 \x)(\a \b \c) is \xab
 test 'Function::invoke' !->
   ok isFunction Function::invoke
   class C

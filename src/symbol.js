@@ -8,7 +8,7 @@
  */
 if(!isNative(global.Symbol)){
   global.Symbol = function(description){
-    var tag  = symbol(description);
+    var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
       return value;

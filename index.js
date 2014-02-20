@@ -332,6 +332,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }
   extendBuiltInObject(Object, {
     /**
+     * The assign function is used to copy the values of all of the enumerable
+     * own properties from a source object to a target object.
      * 19.1.3.1 Object.assign ( target, source )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
      * http://kangax.github.io/es5-compat-table/es6/#Object.assign
@@ -428,36 +430,36 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     , sqrt      = Math.sqrt;
   extendBuiltInObject(Math, {
     /**
+     * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      * 20.2.2.3 Math.acosh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.acosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.acosh
-     * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      */
     acosh: function(x){
       return log(x + sqrt(x * x - 1));
     },
-    /***
+    /**
+     * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      * 20.2.2.5 Math.asinh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.asinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.asinh
-     * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
      */
     asinh: function(x){
       return !isFinite(x = +x) || x === 0 ? x : log(x + sqrt(x * x + 1));
     },
     /**
+     * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      * 20.2.2.7 Math.atanh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.atanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.atanh
-     * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
      */
     atanh: function(x){
       return x === 0 ? x : 0.5 * log((1 + x) / (1 - x));
     },
     /**
+     * Returns an implementation-dependent approximation to the cube root of x.
      * 20.2.2.9 Math.cbrt(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cbrt
-     * Returns an implementation-dependent approximation to the cube root of x.
      */
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
@@ -473,19 +475,20 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return number ? 32 - number.toString(2).length : 32;
     },
     /**
+     * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      * 20.2.2.12 Math.cosh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cosh
      * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
-     * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
      */
     cosh: function(x){
       return (exp(x) + exp(-x)) / 2;
     },
     /**
+     * Returns an implementation-dependent approximation to subtracting 1
+     * from the exponential function of x 
      * 20.2.2.14 Math.expm1 (x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.expm1
      * http://kangax.github.io/es5-compat-table/es6/#Math.expm1
-     * Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
      */
     expm1: function(x){
       return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
@@ -493,10 +496,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     /**
      * 20.2.2.16 Math.fround (x)
     fround: function(x){ TODO },
+     * Returns an implementation-dependent approximation of the square root
+     * of the sum of squares of its arguments.
      * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
      * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
-     * Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
      */
     hypot: function(value1, value2){
       var sum    = 0
@@ -522,63 +526,64 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
     /**
+     * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
+     * The result is computed in a way that is accurate even when the value of x is close to zero.
      * 20.2.2.20 Math.log1p (x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log1p
      * http://kangax.github.io/es5-compat-table/es6/#Math.log1p
-     * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
-     * The result is computed in a way that is accurate even when the value of x is close to zero.
      */
     log1p: function(x){
       return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
     },
     /**
+     * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      * 20.2.2.21 Math.log10 (x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log10
      * http://kangax.github.io/es5-compat-table/es6/#Math.log10
-     * Returns an implementation-dependent approximation to the base 10 logarithm of x.
      */
     log10: function(x){
       return log(x) / Math.LN10;
     },
     /**
+     * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      * 20.2.2.22 Math.log2 (x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log2
      * http://kangax.github.io/es5-compat-table/es6/#Math.log2
-     * Returns an implementation-dependent approximation to the base 2 logarithm of x.
      */
     log2: function(x){
       return log(x) / Math.LN2;
     },
     /**
+     * Returns the sign of the x, indicating whether x is positive, negative or zero.
      * 20.2.2.28 Math.sign(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sign
      * http://kangax.github.io/es5-compat-table/es6/#Math.sign
-     * Returns the sign of the x, indicating whether x is positive, negative or zero.
      */
     sign: sign,
     /**
+     * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      * 20.2.2.30 Math.sinh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sinh
      * http://kangax.github.io/es5-compat-table/es6/#Math.sinh
-     * Returns an implementation-dependent approximation to the hyperbolic sine of x.
      */
     sinh: function(x){
       return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
     },
     /**
+     * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      * 20.2.2.33 Math.tanh(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.tanh
      * http://kangax.github.io/es5-compat-table/es6/#Math.tanh
-     * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
      */
     tanh: function(x){
       return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
     /**
+     * Returns the integral part of the number x, removing any fractional digits.
+     * If x is already an integer, the result is x.
      * 20.2.2.34 Math.trunc(x)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.trunc
      * http://kangax.github.io/es5-compat-table/es6/#Math.trunc
-     * Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
      */
     trunc: function(x){
       return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
@@ -1230,7 +1235,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  */
 if(!isNative(global.Symbol)){
   global.Symbol = function(description){
-    var tag  = symbol(description);
+    var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
       return value;
@@ -1380,33 +1385,18 @@ extendBuiltInObject($Function, {
    * Alternatives:
    * http://api.prototypejs.org/language/Function/prototype/methodize/
    */
-  methodize: methodize,
-  /**
-   * http://www.wirfs-brock.com/allen/posts/166
-   * http://habrahabr.ru/post/114737/
-   */
-  only: function(numberArguments/*?*/, that){
-    numberArguments |= 0;
-    var fn     = this
-      , isThat = arguments.length > 1;
-    return function(/*args...*/){
-      return fn.apply(isThat ? that : this, slice.call(arguments, 0, min(numberArguments, arguments.length)));
-    }
-  }
+  methodize: methodize
 });
 extendBuiltInObject($Array, {tie: tie});
 extendBuiltInObject(RegExp[prototype], {tie: tie});
 extendBuiltInObject(Object, {
   /**
    * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
    * http://livescript.net/#property-access -> foo~bar
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   */
   useTie: part.call(extendBuiltInObject, $Object, {tie: tie})
 });
 /**
@@ -1885,6 +1875,7 @@ extendBuiltInObject(Number, {
 });
 extendBuiltInObject($Number, {
   /**
+   * Invoke function @ times and return array of results
    * Alternatives:
    * http://underscorejs.org/#times
    * http://sugarjs.com/api/Number/times
@@ -1918,6 +1909,7 @@ extendBuiltInObject($Number, {
   }
 });
 /**
+ * Math functions in Number.prototype
  * Alternatives:
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math

@@ -298,4 +298,7 @@
   extendBuiltInObject(Date, {now: function(){
     return +new Date;
   }});
+  if(isFunction(trimRegExp))isFunction = function(it){
+    return classof(it) == 'Function';
+  }
 }();
