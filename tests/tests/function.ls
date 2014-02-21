@@ -2,42 +2,27 @@
 {isFunction} = Function
 test 'Function.inherits' !->
   {inherits} = Function
-  ok isFunction inherits
+  ok isFunction(inherits), 'Function.inherits is function'
   A = ->
   B = ->
-  B::prop = 42
+  B::foo = 42
   inherits B, A
-  ok new B instanceof B
-  ok new B instanceof A
-  ok new B!prop is 42
-  ok new B!@@ is B
+  ok new B instanceof B, 'new B instanceof B'
+  ok new B instanceof A, 'new B instanceof A'
+  ok new B!foo is 42, 'B has own proto props after inherit'
+  ok new B!@@ is B, 'new B!@@ is B'
 test 'Function.isFunction' !->
   {isFunction} = Function
-  ok typeof isFunction is \function
-  ok isFunction ->
-  ok not isFunction void
-  ok not isFunction null
-  ok not isFunction 1
-  ok not isFunction ''
-  ok not isFunction no
-  ok not isFunction {}
-  ok not isFunction do -> &
-  ok not isFunction [1]
-  ok not isFunction /./
+  ok typeof isFunction is \function, 'Function.isFunction is function'
+  ok isFunction(->), 'isFunction function'
+  for [void, null, 1, '', no, {}, do -> &, [], /./]
+    ok not isFunction(..), "not isFunction #{typeof! ..}"
 test 'Function.isNative' !->
   {isNative} = Function
-  ok isFunction isNative
-  ok isNative Object::hasOwnProperty
-  ok not isNative void
-  ok not isNative null
-  ok not isNative 1
-  ok not isNative ''
-  ok not isNative no
-  ok not isNative {}
-  ok not isNative do -> &
-  ok not isNative [1]
-  ok not isNative /./
-  ok not isNative ->
+  ok isFunction(isNative), 'Function.isNative is function'
+  ok isNative(Object::hasOwnProperty), 'isNative native function'
+  for [->, void, null, 1, '', no, {}, do -> &, [], /./]
+    ok not isNative(..), "not isNative #{typeof! ..}"
 test 'Function::methodize' !->
   ok isFunction Function::methodize
   ok {a: 42, fn: (-> it.a)methodize!}fn! is 42

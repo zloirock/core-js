@@ -73,6 +73,7 @@ function unbind(that){
 function tie(key){
   var that = this
     , fn   = that[key];
+  assertFunction(fn);
   return function(){
     return fn.apply(that, arguments);
   }
@@ -86,6 +87,7 @@ function part(/*args...*/){
     , argsPart    = Array(lengthPart)
     , i           = 0
     , placeholder = false;
+  assertFunction(fn);
   while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
     var length = arguments.length
@@ -133,6 +135,8 @@ function getOwnPropertyDescriptors(object){
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
+  target = Object(target);
+  source = ES5Object(source);
   var props  = keys(source)
     , length = props.length
     , i      = 0
@@ -141,6 +145,7 @@ var assign = Object.assign || function(target, source){
   return target;
 }
 function invert(object){
+  object = ES5Object(object);
   var result = {}
     , names  = keys(object)
     , length = names.length
@@ -160,9 +165,8 @@ var push   = $Array.push
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     };
-// How to get the context for calling Array.prototype methods
-// Dummy, polyfill for not array-like strings for old ie in es5 shim
-var arrayLikeSelf = Object;
+// Dummy, fix for not array-like ES3 string in es5.js
+var ES5Object = Object;
 // simple reduce to object
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){
@@ -244,16 +248,16 @@ function extendBuiltInObject(target, source, forced /* = false */){
  * https://github.com/inexorabletash/polyfill/blob/master/es5.js
  */
 !function(){
-  var Empty             = Function()
-    , whitespace        = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , trimRegExp        = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
+  var Empty              = Function()
+    , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
     // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hidenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
-    , hidenNames2       = hidenNames1.concat(['length'])
-    , hidenNames1Length = hidenNames1.length
-    , nativeSlice       = slice
-    , nativeJoin        = $Array.join
+    , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
+    , hiddenNames2       = hiddenNames1.concat(['length'])
+    , hiddenNames1Length = hiddenNames1.length
+    , nativeSlice        = slice
+    , nativeJoin         = $Array.join
     // Create object with null as it's prototype
     , createNullProtoObject = PROTO
       ? function(){
@@ -262,7 +266,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
       : function(){
           // Thrash, waste and sodomy
           var iframe   = document.createElement('iframe')
-            , i        = hidenNames1Length
+            , i        = hiddenNames1Length
             , body     = document.body || document.documentElement
             , iframeDocument;
           iframe.style.display = 'none';
@@ -273,16 +277,17 @@ function extendBuiltInObject(target, source, forced /* = false */){
           iframeDocument.write('<script>document._=Object</script>');
           iframeDocument.close();
           createNullProtoObject = iframeDocument._;
-          while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
+          while(i--)delete createNullProtoObject[prototype][hiddenNames1[i]];
           return createNullProtoObject();
         }
     , createGetKeys = function(names, length){
         return function(O){
+          O = ES5Object(O);
           var i      = 0
             , result = []
             , key;
           for(key in O)has(O, key) && result.push(key);
-          // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+          // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~result.indexOf(key) && result.push(key);
           return result;
         }
@@ -305,6 +310,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.2.3.6
      */
     Object.defineProperty = defineProperty = function(O, P, Attributes){
+      assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
@@ -313,12 +319,16 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      // IE 9- don't enum bug => Object.keys
+      assertObject(O);
       var names  = keys(Properties)
         , length = names.length
         , i = 0
-        , key;
-      while(length > i)O[key = names[i++]] = Properties[key].value;
+        , P, Attributes;
+      while(length > i){
+        P          = names[i++];
+        Attributes = Properties[P];
+        if('value' in Attributes)O[P] = Attributes.value;
+      }
       return O;
     }
   }
@@ -336,7 +346,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * 15.2.3.4 Object.getOwnPropertyNames ( O )
      * http://es5.github.io/#x15.2.3.4
      */
-    getOwnPropertyNames: createGetKeys(hidenNames2, hidenNames2.length),
+    getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
     /**
      * 15.2.3.5 Object.create ( O [, Properties] )
      * http://es5.github.io/#x15.2.3.5
@@ -355,19 +365,19 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * 15.2.3.14 Object.keys ( O )
      * http://es5.github.io/#x15.2.3.14
      */
-    keys: createGetKeys(hidenNames1, hidenNames1Length)
+    keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   // not array-like strings fix
   if(!(0 in Object('q') && 'q'[0] == 'q')){
-    arrayLikeSelf = function(it){
+    ES5Object = function(it){
       return classof(it) == 'String' ? it.split('') : Object(it);
     }
     // Array.prototype methods for strings in ES3
     $Array.slice = slice = function(){
-      return nativeSlice.apply(arrayLikeSelf(this), arguments);
+      return nativeSlice.apply(ES5Object(this), arguments);
     }
     $Array.join = function(){
-      return nativeJoin.apply(arrayLikeSelf(this), arguments);
+      return nativeJoin.apply(ES5Object(this), arguments);
     }
   }
   /**
@@ -401,7 +411,8 @@ function extendBuiltInObject(target, source, forced /* = false */){
     return classof(it) == 'Array'
   }});
   function forEach(callbackfn, thisArg /* = undefined */){
-    var self   = arrayLikeSelf(this)
+    assertFunction(callbackfn);
+    var self   = ES5Object(this)
       , length = toLength(self.length)
       , i      = 0;
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
@@ -412,7 +423,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.14
      */
     indexOf: function(searchElement, fromIndex /* = 0 */){
-      var self   = arrayLikeSelf(this)
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = fromIndex | 0;
       if(0 > i)i = toLength(length + i);
@@ -424,7 +435,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.15
      */
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
-      var self   = arrayLikeSelf(this)
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = length - 1;
       if(arguments.length > 1)i = min(i, fromIndex | 0);
@@ -437,7 +448,8 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.16
      */
     every: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       for(;length > i; i++){
@@ -450,7 +462,8 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.17
      */
     some: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       for(;length > i; i++){
@@ -468,6 +481,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.19
      */
     map: function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
         result[key] = callbackfn.call(thisArg, val, key, that);
@@ -479,6 +493,7 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.20
      */
     filter: function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var result = [];
       forEach.call(this, function(val){
         callbackfn.apply(thisArg, arguments) && result.push(val);
@@ -490,7 +505,8 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.21
      */
     reduce: function(callbackfn, memo /* = @.1 */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       if(2 > arguments.length)for(;;){
@@ -508,7 +524,8 @@ function extendBuiltInObject(target, source, forced /* = false */){
      * http://es5.github.io/#x15.4.4.22
      */
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
-      var self = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self = ES5Object(this)
         , i    = toLength(self.length) - 1;
       if(2 > arguments.length)for(;;){
         if(i in self){
@@ -667,7 +684,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    */
   PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
-      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set", proto, 'as prototype of', O);
+      assertObject(O);
+      assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
       O.__proto__ = proto;
       return O;
     }
@@ -816,11 +834,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
-        , val;
+        , value;
       while(length--){
-        val = +arguments[length];
-        if(val == Infinity || val == - Infinity)return Infinity;
-        sum += val * val;
+        value = +arguments[length];
+        if(value == Infinity || value == -Infinity)return Infinity;
+        sum += value * value;
       }
       return sqrt(sum);
     },
@@ -970,7 +988,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      var O = arrayLikeSelf(arrayLike)
+      (mapfn === undefined) || assertFunction(mapfn);
+      var O = ES5Object(arrayLike)
         , i = 0
         , length = toLength(O.length)
         , result = new (isFunction(this) ? this : Array)(length);
@@ -992,8 +1011,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   function findIndex(predicate, thisArg /* = undefind */){
-    var O = Object(this)
-      , self = arrayLikeSelf(O)
+    assertFunction(predicate);
+    var O      = Object(this)
+      , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
     for(; i < length; i++){
@@ -1025,7 +1045,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      */
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
-      return index === -1 ? undefined : arrayLikeSelf(this)[index];
+      return index === -1 ? undefined : ES5Object(this)[index];
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
@@ -1107,6 +1127,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var values = this[VALUES_STORE]
         , keyz   = this[key]
         , names  = keys(keyz)
@@ -1630,6 +1651,8 @@ if(!isSetImmediate){
  * Module : function
  */
 function inherits(parent){
+  assertFunction(this);
+  assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -1649,8 +1672,9 @@ extendBuiltInObject(Function, {
 });
 extendBuiltInObject($Function, {
   invoke: function(args){
+    assertFunction(this);
     var instance = create(this[prototype])
-      , result   = this.apply(instance, arrayLikeSelf(args || []));
+      , result   = this.apply(instance, ES5Object(args || []));
     return isObject(result) ? result : instance;
   },
   // deferred call
@@ -1859,7 +1883,8 @@ extendBuiltInObject(Object, {
     return true;
   }
   function forOwnKeys(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -1868,7 +1893,8 @@ extendBuiltInObject(Object, {
     return object;
   }
   function findIndex(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -1971,7 +1997,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-every
      */
     every: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -1986,7 +2013,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-filter
      */
     filter: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -2004,7 +2032,7 @@ extendBuiltInObject(Object, {
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : arrayLikeSelf(object)[index];
+      return index === undefined ? undefined : ES5Object(object)[index];
     },
     findIndex: findIndex,
     /**
@@ -2021,7 +2049,7 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
      */
     indexOf: function(object, searchElement){
-      var O      = arrayLikeSelf(object)
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -2036,7 +2064,8 @@ extendBuiltInObject(Object, {
      * http://api.jquery.com/jQuery.map/
      */
     map: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -2051,7 +2080,8 @@ extendBuiltInObject(Object, {
      * http://sugarjs.com/api/Object/enumerable
      */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , i      = 0
         , length = props.length
@@ -2070,7 +2100,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-some
      */
     some: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -2084,7 +2115,7 @@ extendBuiltInObject(Object, {
      * http://sugarjs.com/api/Array/map
      */
     pluck: function(object, prop){
-      object = arrayLikeSelf(object);
+      object = ES5Object(object);
       var names  = keys(object)
         , result = create(null)
         , length = names.length
@@ -2144,7 +2175,7 @@ extendBuiltInObject($Array, {
    * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
    */
   pluck: function(key){
-    var that   = arrayLikeSelf(this)
+    var that   = ES5Object(this)
       , length = toLength(that.length)
       , result = Array(length)
       , i      = 0
@@ -2162,7 +2193,7 @@ extendBuiltInObject($Array, {
    * http://api.jquery.com/jQuery.merge/
    */
   merge: function(arrayLike){
-    push.apply(this, arrayLikeSelf(arrayLike));
+    push.apply(this, ES5Object(arrayLike));
     return this;
   }
 });
@@ -2180,8 +2211,7 @@ extendBuiltInObject($Array, {
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 extendBuiltInObject(Array, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames($Array),
+  // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
     // http://www.2ality.com/2012/02/concat-not-generic.html
@@ -2249,11 +2279,10 @@ extendBuiltInObject($Number, {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 extendBuiltInObject($Number, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames(Math)
+  // IE... getOwnPropertyNames(Math)
   array(
     // ES3
-    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +
+    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
     'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
@@ -2418,12 +2447,14 @@ extendBuiltInObject($Number, reduceTo.call(
  */
 var extendCollections = {
   reduce: function(fn, memo){
+    assertFunction(fn);
     this.forEach(function(val, key, foo){
       memo = fn(memo, val, key, foo);
     });
     return memo;
   },
   some: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2436,6 +2467,7 @@ var extendCollections = {
     return false;
   },
   every: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2448,6 +2480,7 @@ var extendCollections = {
     return true;
   },
   find: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2480,6 +2513,7 @@ var extendCollections = {
 };
 extendBuiltInObject(Map[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       result.set(key, fn.apply(that, arguments));
@@ -2487,6 +2521,7 @@ extendBuiltInObject(Map[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
@@ -2516,6 +2551,7 @@ extendBuiltInObject(Map[prototype], assign({
 }, extendCollections));
 extendBuiltInObject(Set[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(){
       result.add(fn.apply(that, arguments));
@@ -2523,6 +2559,7 @@ extendBuiltInObject(Set[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(val){
       if(fn.apply(that, arguments))result.add(val);

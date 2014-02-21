@@ -14,7 +14,7 @@ extendBuiltInObject($Array, {
    * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
    */
   pluck: function(key){
-    var that   = arrayLikeSelf(this)
+    var that   = ES5Object(this)
       , length = toLength(that.length)
       , result = Array(length)
       , i      = 0
@@ -32,7 +32,7 @@ extendBuiltInObject($Array, {
    * http://api.jquery.com/jQuery.merge/
    */
   merge: function(arrayLike){
-    push.apply(this, arrayLikeSelf(arrayLike));
+    push.apply(this, ES5Object(arrayLike));
     return this;
   }
 });

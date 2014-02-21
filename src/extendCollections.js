@@ -5,12 +5,14 @@
  */
 var extendCollections = {
   reduce: function(fn, memo){
+    assertFunction(fn);
     this.forEach(function(val, key, foo){
       memo = fn(memo, val, key, foo);
     });
     return memo;
   },
   some: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -23,6 +25,7 @@ var extendCollections = {
     return false;
   },
   every: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -35,6 +38,7 @@ var extendCollections = {
     return true;
   },
   find: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -67,6 +71,7 @@ var extendCollections = {
 };
 extendBuiltInObject(Map[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       result.set(key, fn.apply(that, arguments));
@@ -74,6 +79,7 @@ extendBuiltInObject(Map[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
@@ -103,6 +109,7 @@ extendBuiltInObject(Map[prototype], assign({
 }, extendCollections));
 extendBuiltInObject(Set[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(){
       result.add(fn.apply(that, arguments));
@@ -110,6 +117,7 @@ extendBuiltInObject(Set[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(val){
       if(fn.apply(that, arguments))result.add(val);

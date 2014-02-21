@@ -37,7 +37,8 @@
    */
   PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
-      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set", proto, 'as prototype of', O);
+      assertObject(O);
+      assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
       O.__proto__ = proto;
       return O;
     }
@@ -186,11 +187,11 @@
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
-        , val;
+        , value;
       while(length--){
-        val = +arguments[length];
-        if(val == Infinity || val == - Infinity)return Infinity;
-        sum += val * val;
+        value = +arguments[length];
+        if(value == Infinity || value == -Infinity)return Infinity;
+        sum += value * value;
       }
       return sqrt(sum);
     },
@@ -340,7 +341,8 @@
      * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      var O = arrayLikeSelf(arrayLike)
+      (mapfn === undefined) || assertFunction(mapfn);
+      var O = ES5Object(arrayLike)
         , i = 0
         , length = toLength(O.length)
         , result = new (isFunction(this) ? this : Array)(length);
@@ -362,8 +364,9 @@
     }
   });
   function findIndex(predicate, thisArg /* = undefind */){
-    var O = Object(this)
-      , self = arrayLikeSelf(O)
+    assertFunction(predicate);
+    var O      = Object(this)
+      , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
     for(; i < length; i++){
@@ -395,7 +398,7 @@
      */
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
-      return index === -1 ? undefined : arrayLikeSelf(this)[index];
+      return index === -1 ? undefined : ES5Object(this)[index];
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )

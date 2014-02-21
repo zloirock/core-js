@@ -393,3 +393,21 @@ test 'Object.isEqual' !->
   b = {y:1}
   b.x = b
   ok isEqual a, b
+test 'Object.symbol' !->
+  {symbol} = Object
+  ok isFunction(symbol), 'Object.symbol is function'
+  ok typeof symbol('foo') is 'string', "symbol('foo') return string"
+  ok symbol('foo') isnt symbol('foo'), "symbol('foo') !== symbol('foo')"
+  ok symbol('foo')slice(0 6) is '@@foo_', "symbol('foo') begin from @@foo_"
+  ok symbol('foo')length > 15, "symbol('foo')length > 15"
+test 'Object.hidden' !->
+  {hidden} = Object
+  ok isFunction(hidden), 'Object.hidden is function'
+  o = {}
+  ok hidden(o, \key 42) is o, 'hidden return target'
+  ok o.key is 42, 'hidden define property'
+  if isNative getOwnPropertyDescriptor
+    desc = getOwnPropertyDescriptor o, \key
+    ok not desc.enumerable, 'hidden define not enumerable property'
+    ok desc.writable, 'hidden define writable property'
+    ok desc.configurable, 'hidden define configurable property'

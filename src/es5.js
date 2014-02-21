@@ -7,16 +7,16 @@
  * https://github.com/inexorabletash/polyfill/blob/master/es5.js
  */
 !function(){
-  var Empty             = Function()
-    , whitespace        = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , trimRegExp        = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
+  var Empty              = Function()
+    , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
     // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
     // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hidenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
-    , hidenNames2       = hidenNames1.concat(['length'])
-    , hidenNames1Length = hidenNames1.length
-    , nativeSlice       = slice
-    , nativeJoin        = $Array.join
+    , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
+    , hiddenNames2       = hiddenNames1.concat(['length'])
+    , hiddenNames1Length = hiddenNames1.length
+    , nativeSlice        = slice
+    , nativeJoin         = $Array.join
     // Create object with null as it's prototype
     , createNullProtoObject = PROTO
       ? function(){
@@ -25,7 +25,7 @@
       : function(){
           // Thrash, waste and sodomy
           var iframe   = document.createElement('iframe')
-            , i        = hidenNames1Length
+            , i        = hiddenNames1Length
             , body     = document.body || document.documentElement
             , iframeDocument;
           iframe.style.display = 'none';
@@ -36,16 +36,17 @@
           iframeDocument.write('<script>document._=Object</script>');
           iframeDocument.close();
           createNullProtoObject = iframeDocument._;
-          while(i--)delete createNullProtoObject[prototype][hidenNames1[i]];
+          while(i--)delete createNullProtoObject[prototype][hiddenNames1[i]];
           return createNullProtoObject();
         }
     , createGetKeys = function(names, length){
         return function(O){
+          O = ES5Object(O);
           var i      = 0
             , result = []
             , key;
           for(key in O)has(O, key) && result.push(key);
-          // hiden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+          // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~result.indexOf(key) && result.push(key);
           return result;
         }
@@ -68,6 +69,7 @@
      * http://es5.github.io/#x15.2.3.6
      */
     Object.defineProperty = defineProperty = function(O, P, Attributes){
+      assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
@@ -76,12 +78,16 @@
      * http://es5.github.io/#x15.2.3.7
      */
     Object.defineProperties = function(O, Properties){
-      // IE 9- don't enum bug => Object.keys
+      assertObject(O);
       var names  = keys(Properties)
         , length = names.length
         , i = 0
-        , key;
-      while(length > i)O[key = names[i++]] = Properties[key].value;
+        , P, Attributes;
+      while(length > i){
+        P          = names[i++];
+        Attributes = Properties[P];
+        if('value' in Attributes)O[P] = Attributes.value;
+      }
       return O;
     }
   }
@@ -99,7 +105,7 @@
      * 15.2.3.4 Object.getOwnPropertyNames ( O )
      * http://es5.github.io/#x15.2.3.4
      */
-    getOwnPropertyNames: createGetKeys(hidenNames2, hidenNames2.length),
+    getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
     /**
      * 15.2.3.5 Object.create ( O [, Properties] )
      * http://es5.github.io/#x15.2.3.5
@@ -118,19 +124,19 @@
      * 15.2.3.14 Object.keys ( O )
      * http://es5.github.io/#x15.2.3.14
      */
-    keys: createGetKeys(hidenNames1, hidenNames1Length)
+    keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   // not array-like strings fix
   if(!(0 in Object('q') && 'q'[0] == 'q')){
-    arrayLikeSelf = function(it){
+    ES5Object = function(it){
       return classof(it) == 'String' ? it.split('') : Object(it);
     }
     // Array.prototype methods for strings in ES3
     $Array.slice = slice = function(){
-      return nativeSlice.apply(arrayLikeSelf(this), arguments);
+      return nativeSlice.apply(ES5Object(this), arguments);
     }
     $Array.join = function(){
-      return nativeJoin.apply(arrayLikeSelf(this), arguments);
+      return nativeJoin.apply(ES5Object(this), arguments);
     }
   }
   /**
@@ -164,7 +170,8 @@
     return classof(it) == 'Array'
   }});
   function forEach(callbackfn, thisArg /* = undefined */){
-    var self   = arrayLikeSelf(this)
+    assertFunction(callbackfn);
+    var self   = ES5Object(this)
       , length = toLength(self.length)
       , i      = 0;
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
@@ -175,7 +182,7 @@
      * http://es5.github.io/#x15.4.4.14
      */
     indexOf: function(searchElement, fromIndex /* = 0 */){
-      var self   = arrayLikeSelf(this)
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = fromIndex | 0;
       if(0 > i)i = toLength(length + i);
@@ -187,7 +194,7 @@
      * http://es5.github.io/#x15.4.4.15
      */
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
-      var self   = arrayLikeSelf(this)
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = length - 1;
       if(arguments.length > 1)i = min(i, fromIndex | 0);
@@ -200,7 +207,8 @@
      * http://es5.github.io/#x15.4.4.16
      */
     every: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       for(;length > i; i++){
@@ -213,7 +221,8 @@
      * http://es5.github.io/#x15.4.4.17
      */
     some: function(callbackfn, thisArg /* = undefined */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       for(;length > i; i++){
@@ -231,6 +240,7 @@
      * http://es5.github.io/#x15.4.4.19
      */
     map: function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
         result[key] = callbackfn.call(thisArg, val, key, that);
@@ -242,6 +252,7 @@
      * http://es5.github.io/#x15.4.4.20
      */
     filter: function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var result = [];
       forEach.call(this, function(val){
         callbackfn.apply(thisArg, arguments) && result.push(val);
@@ -253,7 +264,8 @@
      * http://es5.github.io/#x15.4.4.21
      */
     reduce: function(callbackfn, memo /* = @.1 */){
-      var self   = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = 0;
       if(2 > arguments.length)for(;;){
@@ -271,7 +283,8 @@
      * http://es5.github.io/#x15.4.4.22
      */
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
-      var self = arrayLikeSelf(this)
+      assertFunction(callbackfn);
+      var self = ES5Object(this)
         , i    = toLength(self.length) - 1;
       if(2 > arguments.length)for(;;){
         if(i in self){

@@ -69,6 +69,7 @@ function unbind(that){
 function tie(key){
   var that = this
     , fn   = that[key];
+  assertFunction(fn);
   return function(){
     return fn.apply(that, arguments);
   }
@@ -82,6 +83,7 @@ function part(/*args...*/){
     , argsPart    = Array(lengthPart)
     , i           = 0
     , placeholder = false;
+  assertFunction(fn);
   while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
     var length = arguments.length
@@ -129,6 +131,8 @@ function getOwnPropertyDescriptors(object){
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
+  target = Object(target);
+  source = ES5Object(source);
   var props  = keys(source)
     , length = props.length
     , i      = 0
@@ -137,6 +141,7 @@ var assign = Object.assign || function(target, source){
   return target;
 }
 function invert(object){
+  object = ES5Object(object);
   var result = {}
     , names  = keys(object)
     , length = names.length
@@ -156,9 +161,8 @@ var push   = $Array.push
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     };
-// How to get the context for calling Array.prototype methods
-// Dummy, polyfill for not array-like strings for old ie in es5 shim
-var arrayLikeSelf = Object;
+// Dummy, fix for not array-like ES3 string in es5.js
+var ES5Object = Object;
 // simple reduce to object
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){
@@ -356,7 +360,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    */
   PROTO && extendBuiltInObject(Object, {
     setPrototypeOf: function(O, proto){
-      assert(isObject(O) && (isObject(proto) || proto === null), "Can't set", proto, 'as prototype of', O);
+      assertObject(O);
+      assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
       O.__proto__ = proto;
       return O;
     }
@@ -505,11 +510,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
-        , val;
+        , value;
       while(length--){
-        val = +arguments[length];
-        if(val == Infinity || val == - Infinity)return Infinity;
-        sum += val * val;
+        value = +arguments[length];
+        if(value == Infinity || value == -Infinity)return Infinity;
+        sum += value * value;
       }
       return sqrt(sum);
     },
@@ -659,7 +664,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://kangax.github.io/es5-compat-table/es6/#Array.from
      */
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      var O = arrayLikeSelf(arrayLike)
+      (mapfn === undefined) || assertFunction(mapfn);
+      var O = ES5Object(arrayLike)
         , i = 0
         , length = toLength(O.length)
         , result = new (isFunction(this) ? this : Array)(length);
@@ -681,8 +687,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   function findIndex(predicate, thisArg /* = undefind */){
-    var O = Object(this)
-      , self = arrayLikeSelf(O)
+    assertFunction(predicate);
+    var O      = Object(this)
+      , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
     for(; i < length; i++){
@@ -714,7 +721,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      */
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
-      return index === -1 ? undefined : arrayLikeSelf(this)[index];
+      return index === -1 ? undefined : ES5Object(this)[index];
     },
     /**
      * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
@@ -796,6 +803,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var values = this[VALUES_STORE]
         , keyz   = this[key]
         , names  = keys(keyz)
@@ -1296,6 +1304,8 @@ if(!isSetImmediate){
  * Module : function
  */
 function inherits(parent){
+  assertFunction(this);
+  assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -1315,8 +1325,9 @@ extendBuiltInObject(Function, {
 });
 extendBuiltInObject($Function, {
   invoke: function(args){
+    assertFunction(this);
     var instance = create(this[prototype])
-      , result   = this.apply(instance, arrayLikeSelf(args || []));
+      , result   = this.apply(instance, ES5Object(args || []));
     return isObject(result) ? result : instance;
   },
   // deferred call
@@ -1525,7 +1536,8 @@ extendBuiltInObject(Object, {
     return true;
   }
   function forOwnKeys(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -1534,7 +1546,8 @@ extendBuiltInObject(Object, {
     return object;
   }
   function findIndex(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -1637,7 +1650,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-every
      */
     every: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -1652,7 +1666,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-filter
      */
     filter: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -1670,7 +1685,7 @@ extendBuiltInObject(Object, {
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : arrayLikeSelf(object)[index];
+      return index === undefined ? undefined : ES5Object(object)[index];
     },
     findIndex: findIndex,
     /**
@@ -1687,7 +1702,7 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
      */
     indexOf: function(object, searchElement){
-      var O      = arrayLikeSelf(object)
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -1702,7 +1717,8 @@ extendBuiltInObject(Object, {
      * http://api.jquery.com/jQuery.map/
      */
     map: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -1717,7 +1733,8 @@ extendBuiltInObject(Object, {
      * http://sugarjs.com/api/Object/enumerable
      */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , i      = 0
         , length = props.length
@@ -1736,7 +1753,8 @@ extendBuiltInObject(Object, {
      * http://mootools.net/docs/core/Types/Object#Object:Object-some
      */
     some: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -1750,7 +1768,7 @@ extendBuiltInObject(Object, {
      * http://sugarjs.com/api/Array/map
      */
     pluck: function(object, prop){
-      object = arrayLikeSelf(object);
+      object = ES5Object(object);
       var names  = keys(object)
         , result = create(null)
         , length = names.length
@@ -1810,7 +1828,7 @@ extendBuiltInObject($Array, {
    * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
    */
   pluck: function(key){
-    var that   = arrayLikeSelf(this)
+    var that   = ES5Object(this)
       , length = toLength(that.length)
       , result = Array(length)
       , i      = 0
@@ -1828,7 +1846,7 @@ extendBuiltInObject($Array, {
    * http://api.jquery.com/jQuery.merge/
    */
   merge: function(arrayLike){
-    push.apply(this, arrayLikeSelf(arrayLike));
+    push.apply(this, ES5Object(arrayLike));
     return this;
   }
 });
@@ -1846,8 +1864,7 @@ extendBuiltInObject($Array, {
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 extendBuiltInObject(Array, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames($Array),
+  // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
     // http://www.2ality.com/2012/02/concat-not-generic.html
@@ -1915,11 +1932,10 @@ extendBuiltInObject($Number, {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 extendBuiltInObject($Number, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames(Math)
+  // IE... getOwnPropertyNames(Math)
   array(
     // ES3
-    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +
+    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
     'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
@@ -2084,12 +2100,14 @@ extendBuiltInObject($Number, reduceTo.call(
  */
 var extendCollections = {
   reduce: function(fn, memo){
+    assertFunction(fn);
     this.forEach(function(val, key, foo){
       memo = fn(memo, val, key, foo);
     });
     return memo;
   },
   some: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2102,6 +2120,7 @@ var extendCollections = {
     return false;
   },
   every: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2114,6 +2133,7 @@ var extendCollections = {
     return true;
   },
   find: function(fn, that){
+    assertFunction(fn);
     var DONE = {};
     try {
       this.forEach(function(val, key, foo){
@@ -2146,6 +2166,7 @@ var extendCollections = {
 };
 extendBuiltInObject(Map[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       result.set(key, fn.apply(that, arguments));
@@ -2153,6 +2174,7 @@ extendBuiltInObject(Map[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
@@ -2182,6 +2204,7 @@ extendBuiltInObject(Map[prototype], assign({
 }, extendCollections));
 extendBuiltInObject(Set[prototype], assign({
   map: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(){
       result.add(fn.apply(that, arguments));
@@ -2189,6 +2212,7 @@ extendBuiltInObject(Set[prototype], assign({
     return result;
   },
   filter: function(fn, that){
+    assertFunction(fn);
     var result = new Set;
     this.forEach(function(val){
       if(fn.apply(that, arguments))result.add(val);

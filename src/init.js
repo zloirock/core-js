@@ -58,6 +58,7 @@ function unbind(that){
 function tie(key){
   var that = this
     , fn   = that[key];
+  assertFunction(fn);
   return function(){
     return fn.apply(that, arguments);
   }
@@ -71,6 +72,7 @@ function part(/*args...*/){
     , argsPart    = Array(lengthPart)
     , i           = 0
     , placeholder = false;
+  assertFunction(fn);
   while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
     var length = arguments.length
@@ -118,6 +120,8 @@ function getOwnPropertyDescriptors(object){
 }
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
+  target = Object(target);
+  source = ES5Object(source);
   var props  = keys(source)
     , length = props.length
     , i      = 0
@@ -126,6 +130,7 @@ var assign = Object.assign || function(target, source){
   return target;
 }
 function invert(object){
+  object = ES5Object(object);
   var result = {}
     , names  = keys(object)
     , length = names.length
@@ -145,9 +150,8 @@ var push   = $Array.push
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     };
-// How to get the context for calling Array.prototype methods
-// Dummy, polyfill for not array-like strings for old ie in es5 shim
-var arrayLikeSelf = Object;
+// Dummy, fix for not array-like ES3 string in es5.js
+var ES5Object = Object;
 // simple reduce to object
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){

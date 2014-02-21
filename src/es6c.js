@@ -67,6 +67,7 @@
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
       var values = this[VALUES_STORE]
         , keyz   = this[key]
         , names  = keys(keyz)

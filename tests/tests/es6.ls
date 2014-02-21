@@ -4,150 +4,69 @@ same = Object.is
 epsilon = (a, b)-> Math.abs(a - b) <= Number.EPSILON
 test 'Object.assign' !->
   {assign} = Object
-  ok isFunction assign
+  ok isFunction(assign), 'Object.assign is function'
   foo = q:1
-  ok foo is assign foo, w:2
-  ok foo.w is 2
+  ok foo is assign(foo, bar: 2), 'assign return target'
+  ok foo.bar is 2, 'assign define properties'
   if isNative getOwnPropertyDescriptor
-    foo = q:1
-    foo2 = defineProperty {}, \w, get: -> @q + 1
-    assign foo, foo2
-    ok foo.w is void
+    foo = baz: 1
+    assign foo, defineProperty {}, \bar, get: -> @baz + 1
+    ok foo.bar is void, "assign don't copy descriptors"
 test 'Object.is' !->
-  ok isFunction same
-  ok same 1 1
-  ok same NaN, NaN
-  ok not same 0 -0
-  ok not same {} {}
+  ok isFunction(same), 'Object.is is function'
+  ok same(1 1), '1 is 1'
+  ok same(NaN, NaN), '1 is 1'
+  ok not same(0 -0), '0 isnt -0'
+  ok not same({} {}), '{} isnt {}'
 if Object.setPrototypeOf
   test 'Object.setPrototypeOf' !->
     {setPrototypeOf} = Object
-    ok isFunction setPrototypeOf
-    ok \apply of setPrototypeOf {} Function::
-    ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4
-    ok setPrototypeOf(tmp = {}, {a: 1}) is tmp
-    ok !(\toString of setPrototypeOf {} null)
+    ok isFunction(setPrototypeOf), 'Object.setPrototypeOf is function'
+    ok \apply of setPrototypeOf({} Function::), 'Parent properties in target'
+    ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4, 'Child and parent properties in target'
+    ok setPrototypeOf(tmp = {}, {a: 1}) is tmp, 'setPrototypeOf return target'
+    ok !(\toString of setPrototypeOf {} null), 'Can set null as prototype'
 test 'Number.EPSILON' !->
-  ok \EPSILON of Number
-  ok Number.EPSILON is 2.220446049250313e-16
-  ok 1 isnt 1 + Number.EPSILON
-  ok 1 is 1 + Number.EPSILON / 2
+  {EPSILON} = Number
+  ok \EPSILON of Number, 'EPSILON in Number'
+  ok EPSILON is 2^-52, 'Number.EPSILON is 2^-52'
+  ok 1 isnt 1 + EPSILON, '1 isnt 1 + EPSILON'
+  ok 1 is 1 + EPSILON / 2, '1 is 1 + EPSILON / 2'
 test 'Number.isFinite' !->
   {isFinite} = Number
-  ok isFunction isFinite
-  ok isFinite 1
-  ok isFinite 0.1
-  ok isFinite -1
-  ok isFinite 2^16
-  ok isFinite 2^16 - 1
-  ok isFinite 2^31
-  ok isFinite 2^31 - 1
-  ok isFinite 2^32
-  ok isFinite 2^32 - 1
-  ok isFinite -0
-  ok not isFinite NaN
-  ok not isFinite Infinity
-  ok not isFinite 'NaN'
-  ok not isFinite '5'
-  ok not isFinite no
-  ok not isFinite new Number NaN
-  ok not isFinite new Number Infinity
-  ok not isFinite new Number 5
-  ok not isFinite new Number 0.1
-  ok not isFinite void
-  ok not isFinite null
-  ok not isFinite {}
-  ok not isFinite ->
+  ok isFunction(isFinite), 'Number.isFinite is function'
+  for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
+    ok isFinite(..), "isFinite #{typeof ..} #{..}"
+  for [NaN, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
+    ok not isFinite(..), "not isFinite #{typeof ..} #{..}"
 test 'Number.isInteger' !->
   {isInteger} = Number
-  ok isFunction isInteger
-  ok isInteger 1
-  ok isInteger -1
-  ok isInteger 2^16
-  ok isInteger 2^16 - 1
-  ok isInteger 2^31
-  ok isInteger 2^31 - 1
-  ok isInteger 2^32
-  ok isInteger 2^32 - 1
-  ok not isInteger NaN
-  ok not isInteger 0.1
-  ok not isInteger Infinity
-  ok not isInteger \NaN
-  ok not isInteger \5
-  ok not isInteger no
-  ok not isInteger new Number NaN
-  ok not isInteger new Number Infinity
-  ok not isInteger new Number 5
-  ok not isInteger new Number 0.1
-  ok not isInteger void
-  ok not isInteger null
-  ok not isInteger {}
-  ok not isInteger ->
-  ok isInteger  -0
+  ok isFunction(isInteger), 'Number.isInteger is function'
+  for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
+    ok isInteger(..), "isInteger #{typeof ..} #{..}"
+  for [NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
+    ok not isInteger(..), "not isInteger #{typeof ..} #{..}"
 test 'Number.isNaN' !->
   {isNaN} = Number
-  ok isFunction isNaN
-  ok isNaN NaN
-  ok not isNaN 1
-  ok not isNaN 0.1
-  ok not isNaN -1
-  ok not isNaN 2^16
-  ok not isNaN 2^16 - 1
-  ok not isNaN 2^31
-  ok not isNaN 2^31 - 1
-  ok not isNaN 2^32
-  ok not isNaN 2^32 - 1
-  ok not isNaN Infinity
-  ok not isNaN 'NaN'
-  ok not isNaN '5'
-  ok not isNaN no
-  ok not isNaN new Number NaN
-  ok not isNaN new Number Infinity
-  ok not isNaN new Number 5
-  ok not isNaN new Number 0.1
-  ok not isNaN void
-  ok not isNaN null
-  ok not isNaN {}
-  ok not isNaN ->
-  ok not isNaN -0
+  ok isFunction(isNaN), 'Number.isNaN is function'
+  ok isNaN(NaN), 'Number.isNaN NaN'
+  for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
+    ok not isNaN(..), "not Number.isNaN #{typeof ..} #{..}"
 test 'Number.isSafeInteger' !->
   {isSafeInteger} = Number
-  ok isFunction isSafeInteger
-  ok isSafeInteger 1
-  ok isSafeInteger -1
-  ok isSafeInteger 2^16
-  ok isSafeInteger 2^16 - 1
-  ok isSafeInteger 2^31
-  ok isSafeInteger 2^31 - 1
-  ok isSafeInteger 2^32
-  ok isSafeInteger 2^32 - 1
-  ok isSafeInteger 16~1fffffffffffff
-  ok isSafeInteger -16~1fffffffffffff
-  ok isSafeInteger -0
-  ok not isSafeInteger NaN
-  ok not isSafeInteger 0.1
-  ok not isSafeInteger 16~20000000000000
-  ok not isSafeInteger -16~20000000000000
-  ok not isSafeInteger Infinity
-  ok not isSafeInteger 'NaN'
-  ok not isSafeInteger '5'
-  ok not isSafeInteger no
-  ok not isSafeInteger new Number NaN
-  ok not isSafeInteger new Number Infinity
-  ok not isSafeInteger new Number 5
-  ok not isSafeInteger new Number 0.1
-  ok not isSafeInteger void
-  ok not isSafeInteger null
-  ok not isSafeInteger {}
-  ok not isSafeInteger ->
+  ok isFunction(isSafeInteger), 'Number.isSafeInteger is function'
+  for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 16~1fffffffffffff -16~1fffffffffffff]
+    ok isSafeInteger(..), "isSafeInteger #{typeof ..} #{..}"
+  for [16~20000000000000 -16~20000000000000 NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
+    ok not isSafeInteger(..), "not isSafeInteger #{typeof ..} #{..}"
 test 'Number.MAX_SAFE_INTEGER' !->
-  ok Number.MAX_SAFE_INTEGER is 16~1fffffffffffff
+  ok Number.MAX_SAFE_INTEGER is 2^53 - 1, 'Number.MAX_SAFE_INTEGER is 2^53 - 1'
 test 'Number.MIN_SAFE_INTEGER' !->
-  ok Number.MIN_SAFE_INTEGER is -16~1fffffffffffff
+  ok Number.MIN_SAFE_INTEGER is -2^53 + 1, 'Number.MIN_SAFE_INTEGER is -2^53 + 1'
 test 'Number.parseFloat' !->
-  ok isFunction Number.parseFloat
+  ok isFunction(Number.parseFloat), 'Number.parseFloat is function'
 test 'Number.parseInt' !->
-  ok isFunction Number.parseInt
+  ok isFunction(Number.parseInt), 'Number.parseInt is function'
 test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
   {acosh} = Math

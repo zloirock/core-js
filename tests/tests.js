@@ -1281,188 +1281,126 @@
     return Math.abs(a - b) <= Number.EPSILON;
   };
   test('Object.assign', function(){
-    var assign, foo, foo2;
+    var assign, foo;
     assign = Object.assign;
-    ok(isFunction(assign));
+    ok(isFunction(assign), 'Object.assign is function');
     foo = {
       q: 1
     };
     ok(foo === assign(foo, {
-      w: 2
-    }));
-    ok(foo.w === 2);
+      bar: 2
+    }), 'assign return target');
+    ok(foo.bar === 2, 'assign define properties');
     if (isNative(getOwnPropertyDescriptor)) {
       foo = {
-        q: 1
+        baz: 1
       };
-      foo2 = defineProperty({}, 'w', {
+      assign(foo, defineProperty({}, 'bar', {
         get: function(){
-          return this.q + 1;
+          return this.baz + 1;
         }
-      });
-      assign(foo, foo2);
-      ok(foo.w === void 8);
+      }));
+      ok(foo.bar === void 8, "assign don't copy descriptors");
     }
   });
   test('Object.is', function(){
-    ok(isFunction(same));
-    ok(same(1, 1));
-    ok(same(NaN, NaN));
-    ok(!same(0, -0));
-    ok(!same({}, {}));
+    ok(isFunction(same), 'Object.is is function');
+    ok(same(1, 1), '1 is 1');
+    ok(same(NaN, NaN), '1 is 1');
+    ok(!same(0, -0), '0 isnt -0');
+    ok(!same({}, {}), '{} isnt {}');
   });
   if (Object.setPrototypeOf) {
     test('Object.setPrototypeOf', function(){
       var setPrototypeOf, tmp;
       setPrototypeOf = Object.setPrototypeOf;
-      ok(isFunction(setPrototypeOf));
-      ok('apply' in setPrototypeOf({}, Function.prototype));
+      ok(isFunction(setPrototypeOf), 'Object.setPrototypeOf is function');
+      ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
       ok(setPrototypeOf({
         a: 2
       }, {
         b: function(){
           return Math.pow(this.a, 2);
         }
-      }).b() === 4);
+      }).b() === 4, 'Child and parent properties in target');
       ok(setPrototypeOf(tmp = {}, {
         a: 1
-      }) === tmp);
-      ok(!('toString' in setPrototypeOf({}, null)));
+      }) === tmp, 'setPrototypeOf return target');
+      ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
     });
   }
   test('Number.EPSILON', function(){
-    ok('EPSILON' in Number);
-    ok(Number.EPSILON === 2.220446049250313e-16);
-    ok(1 !== 1 + Number.EPSILON);
-    ok(1 === 1 + Number.EPSILON / 2);
+    var EPSILON;
+    EPSILON = Number.EPSILON;
+    ok('EPSILON' in Number, 'EPSILON in Number');
+    ok(EPSILON === Math.pow(2, -52), 'Number.EPSILON is 2^-52');
+    ok(1 !== 1 + EPSILON, '1 isnt 1 + EPSILON');
+    ok(1 === 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
   });
   test('Number.isFinite', function(){
-    var isFinite;
+    var isFinite, i$, x$, ref$, len$, y$;
     isFinite = Number.isFinite;
-    ok(isFunction(isFinite));
-    ok(isFinite(1));
-    ok(isFinite(0.1));
-    ok(isFinite(-1));
-    ok(isFinite(Math.pow(2, 16)));
-    ok(isFinite(Math.pow(2, 16) - 1));
-    ok(isFinite(Math.pow(2, 31)));
-    ok(isFinite(Math.pow(2, 31) - 1));
-    ok(isFinite(Math.pow(2, 32)));
-    ok(isFinite(Math.pow(2, 32) - 1));
-    ok(isFinite(-0));
-    ok(!isFinite(NaN));
-    ok(!isFinite(Infinity));
-    ok(!isFinite('NaN'));
-    ok(!isFinite('5'));
-    ok(!isFinite(false));
-    ok(!isFinite(new Number(NaN)));
-    ok(!isFinite(new Number(Infinity)));
-    ok(!isFinite(new Number(5)));
-    ok(!isFinite(new Number(0.1)));
-    ok(!isFinite(void 8));
-    ok(!isFinite(null));
-    ok(!isFinite({}));
-    ok(!isFinite(function(){}));
+    ok(isFunction(isFinite), 'Number.isFinite is function');
+    for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(isFinite(x$), "isFinite " + typeof x$ + " " + x$);
+    }
+    for (i$ = 0, len$ = (ref$ = [NaN, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+      y$ = ref$[i$];
+      ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + y$);
+    }
+    function fn$(){}
   });
   test('Number.isInteger', function(){
-    var isInteger;
+    var isInteger, i$, x$, ref$, len$, y$;
     isInteger = Number.isInteger;
-    ok(isFunction(isInteger));
-    ok(isInteger(1));
-    ok(isInteger(-1));
-    ok(isInteger(Math.pow(2, 16)));
-    ok(isInteger(Math.pow(2, 16) - 1));
-    ok(isInteger(Math.pow(2, 31)));
-    ok(isInteger(Math.pow(2, 31) - 1));
-    ok(isInteger(Math.pow(2, 32)));
-    ok(isInteger(Math.pow(2, 32) - 1));
-    ok(!isInteger(NaN));
-    ok(!isInteger(0.1));
-    ok(!isInteger(Infinity));
-    ok(!isInteger('NaN'));
-    ok(!isInteger('5'));
-    ok(!isInteger(false));
-    ok(!isInteger(new Number(NaN)));
-    ok(!isInteger(new Number(Infinity)));
-    ok(!isInteger(new Number(5)));
-    ok(!isInteger(new Number(0.1)));
-    ok(!isInteger(void 8));
-    ok(!isInteger(null));
-    ok(!isInteger({}));
-    ok(!isInteger(function(){}));
-    ok(isInteger(-0));
+    ok(isFunction(isInteger), 'Number.isInteger is function');
+    for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(isInteger(x$), "isInteger " + typeof x$ + " " + x$);
+    }
+    for (i$ = 0, len$ = (ref$ = [NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+      y$ = ref$[i$];
+      ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + y$);
+    }
+    function fn$(){}
   });
   test('Number.isNaN', function(){
-    var isNaN;
+    var isNaN, i$, x$, ref$, len$;
     isNaN = Number.isNaN;
-    ok(isFunction(isNaN));
-    ok(isNaN(NaN));
-    ok(!isNaN(1));
-    ok(!isNaN(0.1));
-    ok(!isNaN(-1));
-    ok(!isNaN(Math.pow(2, 16)));
-    ok(!isNaN(Math.pow(2, 16) - 1));
-    ok(!isNaN(Math.pow(2, 31)));
-    ok(!isNaN(Math.pow(2, 31) - 1));
-    ok(!isNaN(Math.pow(2, 32)));
-    ok(!isNaN(Math.pow(2, 32) - 1));
-    ok(!isNaN(Infinity));
-    ok(!isNaN('NaN'));
-    ok(!isNaN('5'));
-    ok(!isNaN(false));
-    ok(!isNaN(new Number(NaN)));
-    ok(!isNaN(new Number(Infinity)));
-    ok(!isNaN(new Number(5)));
-    ok(!isNaN(new Number(0.1)));
-    ok(!isNaN(void 8));
-    ok(!isNaN(null));
-    ok(!isNaN({}));
-    ok(!isNaN(function(){}));
-    ok(!isNaN(-0));
+    ok(isFunction(isNaN), 'Number.isNaN is function');
+    ok(isNaN(NaN), 'Number.isNaN NaN');
+    for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + x$);
+    }
+    function fn$(){}
   });
   test('Number.isSafeInteger', function(){
-    var isSafeInteger;
+    var isSafeInteger, i$, x$, ref$, len$, y$;
     isSafeInteger = Number.isSafeInteger;
-    ok(isFunction(isSafeInteger));
-    ok(isSafeInteger(1));
-    ok(isSafeInteger(-1));
-    ok(isSafeInteger(Math.pow(2, 16)));
-    ok(isSafeInteger(Math.pow(2, 16) - 1));
-    ok(isSafeInteger(Math.pow(2, 31)));
-    ok(isSafeInteger(Math.pow(2, 31) - 1));
-    ok(isSafeInteger(Math.pow(2, 32)));
-    ok(isSafeInteger(Math.pow(2, 32) - 1));
-    ok(isSafeInteger(9007199254740991));
-    ok(isSafeInteger(-9007199254740991));
-    ok(isSafeInteger(-0));
-    ok(!isSafeInteger(NaN));
-    ok(!isSafeInteger(0.1));
-    ok(!isSafeInteger(9007199254740992));
-    ok(!isSafeInteger(-9007199254740992));
-    ok(!isSafeInteger(Infinity));
-    ok(!isSafeInteger('NaN'));
-    ok(!isSafeInteger('5'));
-    ok(!isSafeInteger(false));
-    ok(!isSafeInteger(new Number(NaN)));
-    ok(!isSafeInteger(new Number(Infinity)));
-    ok(!isSafeInteger(new Number(5)));
-    ok(!isSafeInteger(new Number(0.1)));
-    ok(!isSafeInteger(void 8));
-    ok(!isSafeInteger(null));
-    ok(!isSafeInteger({}));
-    ok(!isSafeInteger(function(){}));
+    ok(isFunction(isSafeInteger), 'Number.isSafeInteger is function');
+    for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, 9007199254740991, -9007199254740991]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(isSafeInteger(x$), "isSafeInteger " + typeof x$ + " " + x$);
+    }
+    for (i$ = 0, len$ = (ref$ = [9007199254740992, -9007199254740992, NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+      y$ = ref$[i$];
+      ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + y$);
+    }
+    function fn$(){}
   });
   test('Number.MAX_SAFE_INTEGER', function(){
-    ok(Number.MAX_SAFE_INTEGER === 9007199254740991);
+    ok(Number.MAX_SAFE_INTEGER === Math.pow(2, 53) - 1, 'Number.MAX_SAFE_INTEGER is 2^53 - 1');
   });
   test('Number.MIN_SAFE_INTEGER', function(){
-    ok(Number.MIN_SAFE_INTEGER === -9007199254740991);
+    ok(Number.MIN_SAFE_INTEGER === -Math.pow(2, 53) + 1, 'Number.MIN_SAFE_INTEGER is -2^53 + 1');
   });
   test('Number.parseFloat', function(){
-    ok(isFunction(Number.parseFloat));
+    ok(isFunction(Number.parseFloat), 'Number.parseFloat is function');
   });
   test('Number.parseInt', function(){
-    ok(isFunction(Number.parseInt));
+    ok(isFunction(Number.parseInt), 'Number.parseInt is function');
   });
   test('Math.acosh', function(){
     var acosh;
@@ -2197,50 +2135,42 @@
   test('Function.inherits', function(){
     var inherits, A, B;
     inherits = Function.inherits;
-    ok(isFunction(inherits));
+    ok(isFunction(inherits), 'Function.inherits is function');
     A = function(){};
     B = function(){};
-    B.prototype.prop = 42;
+    B.prototype.foo = 42;
     inherits(B, A);
-    ok(new B instanceof B);
-    ok(new B instanceof A);
-    ok(new B().prop === 42);
-    ok(new B().constructor === B);
+    ok(new B instanceof B, 'new B instanceof B');
+    ok(new B instanceof A, 'new B instanceof A');
+    ok(new B().foo === 42, 'B has own proto props after inherit');
+    ok(new B().constructor === B, 'new B!@@ is B');
   });
   test('Function.isFunction', function(){
-    var isFunction;
+    var isFunction, i$, x$, ref$, len$;
     isFunction = Function.isFunction;
-    ok(typeof isFunction === 'function');
-    ok(isFunction(function(){}));
-    ok(!isFunction(void 8));
-    ok(!isFunction(null));
-    ok(!isFunction(1));
-    ok(!isFunction(''));
-    ok(!isFunction(false));
-    ok(!isFunction({}));
-    ok(!isFunction(function(){
+    ok(typeof isFunction === 'function', 'Function.isFunction is function');
+    ok(isFunction(function(){}), 'isFunction function');
+    for (i$ = 0, len$ = (ref$ = [void 8, null, 1, '', false, {}, fn$(), [], /./]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(!isFunction(x$), "not isFunction " + toString$.call(x$).slice(8, -1));
+    }
+    function fn$(){
       return arguments;
-    }()));
-    ok(!isFunction([1]));
-    ok(!isFunction(/./));
+    }
   });
   test('Function.isNative', function(){
-    var isNative;
+    var isNative, i$, x$, ref$, len$;
     isNative = Function.isNative;
-    ok(isFunction(isNative));
-    ok(isNative(Object.prototype.hasOwnProperty));
-    ok(!isNative(void 8));
-    ok(!isNative(null));
-    ok(!isNative(1));
-    ok(!isNative(''));
-    ok(!isNative(false));
-    ok(!isNative({}));
-    ok(!isNative(function(){
+    ok(isFunction(isNative), 'Function.isNative is function');
+    ok(isNative(Object.prototype.hasOwnProperty), 'isNative native function');
+    for (i$ = 0, len$ = (ref$ = [fn$, void 8, null, 1, '', false, {}, fn1$(), [], /./]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(!isNative(x$), "not isNative " + toString$.call(x$).slice(8, -1));
+    }
+    function fn$(){}
+    function fn1$(){
       return arguments;
-    }()));
-    ok(!isNative([1]));
-    ok(!isNative(/./));
-    ok(!isNative(function(){}));
+    }
   });
   test('Function::methodize', function(){
     var num;
@@ -2445,85 +2375,19 @@
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
   });
-  /*
-  test 'Number::isOdd' !->
-    ok isFunction Number::isOdd
-    ok 1.isOdd!
-    ok 111.isOdd!
-    ok (-1)isOdd!
-    ok not NaN.isOdd!
-    ok not Infinity.isOdd!
-    ok not (-1.5)isOdd!
-    ok not (1.5)isOdd!
-    ok not 2.isOdd!
-    ok not 222.isOdd!
-  test 'Number::isEven' !->
-    ok isFunction Number::isEven
-    ok 2.isEven!
-    ok 222.isEven!
-    ok (-2)isEven!
-    ok not NaN.isEven!
-    ok not Infinity.isEven!
-    ok not (-1.5)isEven!
-    ok not (1.5)isEven!
-    ok not 1.isEven!
-    ok not 111.isEven!
-  test 'Number::format' !->
-    ok isFunction Number::format
-    ok NaN.format! is \NaN
-    ok (-Infinity)format! is \-Infinity
-    ok 123.format! is \123
-    ok (-123)format! is \-123
-    ok 123.45.format! is \123
-    ok (-123.45)format! is \-123
-    ok NaN.format(3) is \NaN
-    ok (-Infinity)format(3) is \-Infinity
-    ok NaN.format(7 ', ' '. ') is \NaN
-    ok (-Infinity)format(7 ', ' '. ') is \-Infinity
-    ok 123.format(3) is '123.000'
-    ok (-123)format(3) is '-123.000'
-    ok 123.45678.format(3) is '123.457'
-    ok (-123.45678)format(3) is '-123.457'
-    ok 1234.format(7 ', ' '. ') is '1, 234. 000, 000, 0'
-    ok (-1234)format(7 ', ' '. ') is '-1, 234. 000, 000, 0'
-    ok 1234.45678.format(7 ', ' '. ') is '1, 234. 456, 780, 0'
-    ok (-1234.45678)format(7 ', ' '. ') is '-1, 234. 456, 780, 0'
-    ok (-1234.45678)format(null ', ' '. ') is '-1, 234'
-    ok (0.1 ^ 10)format(6 \. \,) is '0,000.000'
-  */
-  test('Number:: <<< Math', function(){
-    ok(isFunction(Number.prototype.round));
-    ok(isFunction(Number.prototype.floor));
-    ok(isFunction(Number.prototype.ceil));
-    ok(isFunction(Number.prototype.abs));
-    ok(isFunction(Number.prototype.sin));
-    ok(isFunction(Number.prototype.asin));
-    ok(isFunction(Number.prototype.cos));
-    ok(isFunction(Number.prototype.acos));
-    ok(isFunction(Number.prototype.tan));
-    ok(isFunction(Number.prototype.atan));
-    ok(isFunction(Number.prototype.exp));
-    ok(isFunction(Number.prototype.pow));
-    ok(isFunction(Number.prototype.sqrt));
-    ok(isFunction(Number.prototype.max));
-    ok(isFunction(Number.prototype.min));
-    ok(isFunction(Number.prototype.pow));
-    ok(isFunction(Number.prototype.atan2));
-    ok(isFunction(Number.prototype.acosh));
-    ok(isFunction(Number.prototype.asinh));
-    ok(isFunction(Number.prototype.atanh));
-    ok(isFunction(Number.prototype.cbrt));
-    ok(isFunction(Number.prototype.cosh));
-    ok(isFunction(Number.prototype.expm1));
-    ok(isFunction(Number.prototype.hypot));
-    ok(isFunction(Number.prototype.imul));
-    ok(isFunction(Number.prototype.log1p));
-    ok(isFunction(Number.prototype.log10));
-    ok(isFunction(Number.prototype.log2));
-    ok(isFunction(Number.prototype.sign));
-    ok(isFunction(Number.prototype.sinh));
-    ok(isFunction(Number.prototype.tanh));
-    ok(isFunction(Number.prototype.trunc));
+  test('Number::{Math}', function(){
+    var i$, x$, ref$, len$, y$;
+    for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2']).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function (ES3)");
+    }
+    for (i$ = 0, len$ = (ref$ = ['acosh', 'asinh', 'atanh', 'cbrt', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
+      y$ = ref$[i$];
+      ok(isFunction(Number.prototype[y$]), "Number::" + y$ + " is function (ES6)");
+    }
+    ok(3 .max(2) === 3, 'context is argument of Number::{Math}');
+    ok(3 .min(2) === 2, 'Number::{Math} works with first argument');
+    ok(1 .max(2, 3, 4, 5, 6, 7) === 7, 'Number::{Math} works with various arguments length');
   });
 }).call(this);
 
@@ -3306,6 +3170,29 @@
     };
     b.x = b;
     ok(isEqual(a, b));
+  });
+  test('Object.symbol', function(){
+    var symbol;
+    symbol = Object.symbol;
+    ok(isFunction(symbol), 'Object.symbol is function');
+    ok(typeof symbol('foo') === 'string', "symbol('foo') return string");
+    ok(symbol('foo') !== symbol('foo'), "symbol('foo') !== symbol('foo')");
+    ok(symbol('foo').slice(0, 6) === '@@foo_', "symbol('foo') begin from @@foo_");
+    ok(symbol('foo').length > 15, "symbol('foo')length > 15");
+  });
+  test('Object.hidden', function(){
+    var hidden, o, desc;
+    hidden = Object.hidden;
+    ok(isFunction(hidden), 'Object.hidden is function');
+    o = {};
+    ok(hidden(o, 'key', 42) === o, 'hidden return target');
+    ok(o.key === 42, 'hidden define property');
+    if (isNative(getOwnPropertyDescriptor)) {
+      desc = getOwnPropertyDescriptor(o, 'key');
+      ok(!desc.enumerable, 'hidden define not enumerable property');
+      ok(desc.writable, 'hidden define writable property');
+      ok(desc.configurable, 'hidden define configurable property');
+    }
   });
   function clone$(it){
     function fun(){} fun.prototype = it;

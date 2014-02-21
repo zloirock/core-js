@@ -1,4 +1,6 @@
 function inherits(parent){
+  assertFunction(this);
+  assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -18,8 +20,9 @@ extendBuiltInObject(Function, {
 });
 extendBuiltInObject($Function, {
   invoke: function(args){
+    assertFunction(this);
     var instance = create(this[prototype])
-      , result   = this.apply(instance, arrayLikeSelf(args || []));
+      , result   = this.apply(instance, ES5Object(args || []));
     return isObject(result) ? result : instance;
   },
   // deferred call

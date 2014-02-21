@@ -9,8 +9,7 @@
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 extendBuiltInObject(Array, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames($Array),
+  // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
     // http://www.2ality.com/2012/02/concat-not-generic.html

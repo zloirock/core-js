@@ -121,7 +121,8 @@
     return true;
   }
   function forOwnKeys(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -130,7 +131,8 @@
     return object;
   }
   function findIndex(object, fn, that /* = undefined */){
-    var O      = arrayLikeSelf(object)
+    assertFunction(fn);
+    var O      = ES5Object(object)
       , props  = keys(O)
       , length = props.length
       , i      = 0
@@ -233,7 +235,8 @@
      * http://mootools.net/docs/core/Types/Object#Object:Object-every
      */
     every: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -248,7 +251,8 @@
      * http://mootools.net/docs/core/Types/Object#Object:Object-filter
      */
     filter: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -266,7 +270,7 @@
      */
     find: function(object, fn, that /* = undefined */){
       var index = findIndex(object, fn, that);
-      return index === undefined ? undefined : arrayLikeSelf(object)[index];
+      return index === undefined ? undefined : ES5Object(object)[index];
     },
     findIndex: findIndex,
     /**
@@ -283,7 +287,7 @@
      * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
      */
     indexOf: function(object, searchElement){
-      var O      = arrayLikeSelf(object)
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -298,7 +302,8 @@
      * http://api.jquery.com/jQuery.map/
      */
     map: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , result = create(null)
         , props  = keys(O)
         , length = props.length
@@ -313,7 +318,8 @@
      * http://sugarjs.com/api/Object/enumerable
      */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , i      = 0
         , length = props.length
@@ -332,7 +338,8 @@
      * http://mootools.net/docs/core/Types/Object#Object:Object-some
      */
     some: function(object, fn, that /* = undefined */){
-      var O      = arrayLikeSelf(object)
+      assertFunction(fn);
+      var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
@@ -346,7 +353,7 @@
      * http://sugarjs.com/api/Array/map
      */
     pluck: function(object, prop){
-      object = arrayLikeSelf(object);
+      object = ES5Object(object);
       var names  = keys(object)
         , result = create(null)
         , length = names.length

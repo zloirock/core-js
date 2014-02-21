@@ -47,11 +47,10 @@ extendBuiltInObject($Number, {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 extendBuiltInObject($Number, reduceTo.call(
-  // IE...
-  // getOwnPropertyNames(Math)
+  // IE... getOwnPropertyNames(Math)
   array(
     // ES3
-    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,pow,sqrt,max,min,pow,atan2,' +
+    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
     'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
