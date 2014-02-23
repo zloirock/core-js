@@ -1,6 +1,6 @@
 {isFunction, isNative} = Function
 test 'Symbol' !->
-  ok isFunction(global.Symbol), 'Symbol is function'
+  ok isFunction(global.Symbol), 'Is function'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'

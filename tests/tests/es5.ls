@@ -1,22 +1,22 @@
 {isFunction} = Function
 test 'Object.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Object
-  ok isFunction getOwnPropertyDescriptor
+  ok isFunction(getOwnPropertyDescriptor), 'Is function'
   deepEqual getOwnPropertyDescriptor(q:42, \q), {+writable, +enumerable, +configurable, value: 42}
   ok getOwnPropertyDescriptor({}, \toString) is void
 test 'Object.defineProperty' !->
   {defineProperty} = Object
-  ok isFunction defineProperty
+  ok isFunction(defineProperty), 'Is function'
   ok (rez = defineProperty src = {}, \q, value: 42) is src
   ok rez.q is 42
 test 'Object.defineProperties' !->
   {defineProperties} = Object
-  ok isFunction defineProperties
+  ok isFunction(defineProperties), 'Is function'
   ok (rez = defineProperties src = {}, q: {value: 42}, w: value: 33) is src
   ok rez.q is 42 and rez.w is 33
 test 'Object.getPrototypeOf' !->
   {create, getPrototypeOf} = Object
-  ok isFunction getPrototypeOf
+  ok isFunction(getPrototypeOf), 'Is function'
   ok getPrototypeOf({}) is Object::
   ok getPrototypeOf([]) is Array::
   ok getPrototypeOf(new class fn) is fn::
@@ -25,7 +25,7 @@ test 'Object.getPrototypeOf' !->
   ok getPrototypeOf(getPrototypeOf {}) is null
 test 'Object.getOwnPropertyNames' !->
   {getOwnPropertyNames} = Object
-  ok isFunction getOwnPropertyNames
+  ok isFunction(getOwnPropertyNames), 'Is function'
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
@@ -37,7 +37,7 @@ test 'Object.getOwnPropertyNames' !->
   ok \constructor in getOwnPropertyNames Object::
 test 'Object.create' !->
   {create, getPrototypeOf, getPropertyNames, isObject, isPrototype} = Object
-  ok isFunction create
+  ok isFunction(create), 'Is function'
   ok isPrototype obj = q:1, create(obj)
   ok create(obj)q is 1
   fn = -> @a = 1
@@ -51,7 +51,7 @@ test 'Object.create' !->
   deepEqual getPropertyNames(create null), []
 test 'Object.keys' !->
   {keys} = Object
-  ok isFunction keys
+  ok isFunction(keys), 'Is function'
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
@@ -60,32 +60,32 @@ test 'Object.keys' !->
   deepEqual keys(new fn2 1), <[toString]>
   ok \join not in keys Array::
 test 'Function.prototype.bind' !->
-  ok isFunction Function::bind
+  ok isFunction(Function::bind), 'Is function'
   ok 42   is (-> @a)bind(obj = a: 42)!
   ok void is new ((->)bind obj)!a
   ok 42   is (-> it)bind(null 42)!
 test 'Array.isArray' !->
   {isArray} = Array
-  ok isFunction isArray
+  ok isFunction(isArray), 'Is function'
   ok not isArray {}
   ok not isArray do -> &
   ok isArray []
+test 'ES5 Array prototype methods are functions' !->
+  for <[indexOf lastIndexOf every some forEach map filter reduce reduceRight]>
+    ok isFunction(Array::[..]), "Array::#{..} is function"
 test 'Array::indexOf' !->
-  ok isFunction Array::indexOf
   ok 0  is [1 1 1]indexOf 1
   ok -1 is [1 2 3]indexOf 1 1
   ok 1  is [1 2 3]indexOf 2 1
   ok -1 is [NaN]indexOf NaN
   ok 3  is Array(2)concat([1 2 3])indexOf 2
 test 'Array::lastIndexOf' !->
-  ok isFunction Array::lastIndexOf
   ok 2  is [1 1 1]lastIndexOf 1
   ok -1 is [1 2 3]lastIndexOf 3 1
   ok 1  is [1 2 3]lastIndexOf 2 1
   ok -1 is [NaN]lastIndexOf NaN
   ok 1  is [1 2 3]concat(Array 2)lastIndexOf 2
 test 'Array::every' !->
-  ok isFunction(Array::every)
   (a = [1])every (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -102,7 +102,6 @@ test 'Array::every' !->
   ok rez is \012
   ok (arr = [1 2 3])every -> &2 is arr
 test 'Array::some' !->
-  ok isFunction Array::some
   (a = [1])some (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -119,7 +118,6 @@ test 'Array::some' !->
   ok rez is \012
   ok not (arr = [1 2 3])some -> &2 isnt arr
 test 'Array::forEach' !->
-  ok isFunction Array::forEach
   (a = [1])forEach (val, key, that)!->
     ok val  is 1
     ok key  is 0
@@ -144,7 +142,6 @@ test 'Array::forEach' !->
   arr.forEach (, k)!-> rez += k
   ok rez is \5
 test 'Array::map' !->
-  ok isFunction Array::map
   (a = [1])map (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -155,7 +152,6 @@ test 'Array::map' !->
   deepEqual [1 3 5] [1 2 3]map ( + )
   deepEqual [2 2 2] [1 2 3]map (-> +@), 2 
 test 'Array::filter' !->
-  ok isFunction Array::filter
   (a = [1])filter (val, key, that)->
     ok val is 1
     ok key is 0
@@ -164,7 +160,6 @@ test 'Array::filter' !->
   , ctx = {}
   deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
 test 'Array::reduce' !->
-  ok isFunction Array::reduce
   ok -5 is [5 4 3 2 1]reduce (-)
   (a = [1])reduce (memo, val, key, that)->
     ok memo is 42
@@ -175,7 +170,6 @@ test 'Array::reduce' !->
   [42 43]reduce ->
     ok it is 42
 test 'Array::reduceRight' !->
-  ok isFunction Array::reduceRight
   ok -5 is [1 2 3 4 5]reduceRight (-)
   (a = [1])reduceRight (memo, val, key, that)->
     ok memo is 42
@@ -186,9 +180,9 @@ test 'Array::reduceRight' !->
   [42 43]reduceRight ->
     ok it is 43
 test 'String.prototype.trim' !->
-  ok \trim of String::
-  ok '   q w e \n  'trim! is 'q w e'
+  ok isFunction(String::trim), 'Is function'
+  ok '   q w e \n  'trim! is 'q w e', 'Remove whitespaces at left & right side of string'
 test 'Date.now' !->
   {now} = Date
-  ok isFunction now
-  ok +new Date - now! < 10
+  ok isFunction(now), 'Is function'
+  ok +new Date - now! < 10, 'Date.now() ~ +new Date'

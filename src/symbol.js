@@ -11,7 +11,6 @@ if(!isNative(global.Symbol)){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
-      return value;
     }});
     return {toString: function(){
       return tag;

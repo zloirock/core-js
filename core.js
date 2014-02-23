@@ -1,7 +1,7 @@
 /**
  * Core.js v0.0.6
  * http://core.zloirock.ru
- * © 2013 Denis Pushkarev
+ * © 2014 Denis Pushkarev
  * Available under MIT license
  */
 !function(global, undefined){
@@ -1570,7 +1570,6 @@ if(!isNative(global.Symbol)){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
-      return value;
     }});
     return {toString: function(){
       return tag;

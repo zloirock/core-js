@@ -2,7 +2,7 @@
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
 test 'Object.has' !->
   {has} = Object
-  ok isFunction(has), 'Object.has is function'
+  ok isFunction(has), 'Is function'
   ok has q:1, \q
   ok not has q:1, \w
   ok has [1] 0
@@ -11,7 +11,7 @@ test 'Object.has' !->
   ok not has {} \toString
 test 'Object.get' !->
   {get} = Object
-  ok isFunction(get), 'Object.get is function'
+  ok isFunction(get), 'Is function'
   ok get(q:1, \q) is 1
   ok get(q:1, \w) is void
   ok get([1] 0) is 1
@@ -20,13 +20,13 @@ test 'Object.get' !->
   ok get({} \toString) is void
 test 'Object.isEnumerable' !->
   {isEnumerable} = Object
-  ok isFunction isEnumerable
+  ok isFunction(isEnumerable), 'Is function'
   ok isEnumerable q:1, \q
   ok not isEnumerable {} \toString
   ok not isEnumerable ^^{q:1}, \q
 test 'Object.isPrototype' !->
   {isPrototype} = Object
-  ok isFunction isPrototype
+  ok isFunction(isPrototype), 'Is function'
   ok isPrototype Object::, {}
   ok isPrototype Object::, []
   ok not isPrototype Array::, {}
@@ -36,7 +36,7 @@ test 'Object.isPrototype' !->
   ok not isPrototype {}, ^^->
 test 'Object.classof' !->
   {classof} = Object
-  ok isFunction classof
+  ok isFunction(classof), 'Is function'
   ok classof({}) is \Object
   ok classof(void) is \Undefined
   ok classof(null) is \Null
@@ -52,7 +52,7 @@ test 'Object.classof' !->
   ok classof(TypeError!) is \Error
 test 'Object.tie' ->
   {tie} = Object
-  ok isFunction tie
+  ok isFunction(tie), 'Is function'
   array = [1 2 3]
   push = tie array, \push
   ok isFunction push
@@ -60,20 +60,20 @@ test 'Object.tie' ->
   deepEqual array, [1 2 3 4]
 test 'Object.make' !->
   {make} = Object
-  ok isFunction make
+  ok isFunction(make), 'Is function'
   object = make foo = {q:1}, {w:2}
   ok getPrototypeOf(object) is foo
   ok object.w is 2
 test 'Object.plane' !->
   {plane} = Object
-  ok isFunction plane
+  ok isFunction(plane), 'Is function'
   foo = plane q:1 w:2
   ok getPrototypeOf(foo) is null
   ok foo.q is 1
   ok foo.w is 2
 test 'Object.mixin' !->
   {mixin} = Object
-  ok isFunction mixin
+  ok isFunction(mixin), 'Is function'
   foo = q:1
   ok foo is mixin foo, w:2
   ok foo.w is 2
@@ -85,6 +85,8 @@ test 'Object.mixin' !->
 do !->
   # Object.clone
   {clone} = Object
+  test 'Object.clone' !->
+    ok isFunction(clone), 'Is function'
   test 'Object.clone(primitive)' !->
     ok clone(null) is null
     ok clone(void) is void
@@ -185,7 +187,7 @@ do ->
     e: 2
   obj = w: {q: 2, e: 5}, r: 1, e: 1
   test 'Object.merge' !->
-    ok isFunction merge
+    ok isFunction(merge), 'Is function'
   test 'simple Object.merge' !->
     i1 = new fn
     i2 = merge i1, obj
@@ -219,7 +221,7 @@ do ->
     ok i1.w.e is 5
 test 'Object.defaults' !->
   {defaults} = Object
-  ok isFunction defaults
+  ok isFunction(defaults), 'Is function'
   obj = defaults {q: 1 w: q: 1} q: 2, w: {w: 2} e: 3
   ok obj.q   is 1
   ok obj.w.q is 1
@@ -227,16 +229,16 @@ test 'Object.defaults' !->
   ok obj.e   is 3
 test 'Object.values' !->
   {values} = Object
-  ok isFunction values
+  ok isFunction(values), 'Is function'
   ok values(q: 1 w: 2 e: 3)length is 3
   ok ~values(q: 1 w: 2 e: 3)indexOf 3
 test 'Object.invert' !->
   {invert} = Object
-  ok isFunction invert
+  ok isFunction(invert), 'Is function'
   deepEqual invert(q:\a w:\s e:\d), a:\q s:\w d:\e  
 test 'Object.every' !->
   {every} = Object
-  ok isFunction every
+  ok isFunction(every), 'Is function'
   every obj = {q: 1} (val, key, that)->
     ok val  is 1
     ok key  is \q
@@ -247,7 +249,7 @@ test 'Object.every' !->
   ok not every {q:1 w:\2 e:3} -> typeof! it is \Number
 test 'Object.filter' !->
   {filter, plane} = Object
-  ok isFunction filter
+  ok isFunction(filter), 'Is function'
   filter obj = {q: 1}, (val, key, that)->
     ok val  is 1
     ok key  is \q
@@ -257,7 +259,7 @@ test 'Object.filter' !->
   deepEqual filter({q:1 w:2 e:3} -> it % 2), plane q:1 e:3
 test 'Object.find' !->
   {find} = Object
-  ok isFunction find
+  ok isFunction(find), 'Is function'
   find obj = {q: 1}, (val, key, that)->
     ok val  is 1
     ok key  is \q
@@ -267,7 +269,7 @@ test 'Object.find' !->
   ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
 test 'Object.findIndex' !->
   {findIndex} = Object
-  ok isFunction findIndex
+  ok isFunction(findIndex), 'Is function'
   findIndex obj = {q: 1}, (val, key, that)->
     ok val  is 1
     ok key  is \q
@@ -277,7 +279,7 @@ test 'Object.findIndex' !->
   ok findIndex({q:1 w:2 e:3} -> it is 2) is \w
 test 'Object.forEach' !->
   {forEach, make} = Object
-  ok isFunction forEach
+  ok isFunction(forEach), 'Is function'
   forEach obj = {q: 1}, (val, key, that)!->
     ok val  is 1
     ok key  is \q
@@ -301,13 +303,13 @@ test 'Object.forEach' !->
   ok \2 of rez
 test 'Object.indexOf' !->
   {indexOf} = Object
-  ok isFunction indexOf
+  ok isFunction(indexOf), 'Is function'
   ok indexOf({q:1 w:2 e:3} 2)     is \w
   ok indexOf({q:1 w:2 e:3} 4)     is void
   ok indexOf({q:1 w:2 e:NaN} NaN) is \e
 test 'Object.map' !->
   {map, plane} = Object
-  ok isFunction map
+  ok isFunction(map), 'Is function'
   map obj = {q: 1}, (val, key, that)->
     ok val  is 1
     ok key  is \q
@@ -317,7 +319,7 @@ test 'Object.map' !->
   deepEqual map({q:1 w:2 e:3} (^2)), plane q:1 w:4 e:9
 test 'Object.reduce' !->
   {reduce} = Object
-  ok isFunction reduce
+  ok isFunction(reduce), 'Is function'
   reduce (obj = a:1), (memo, val, key, that)->
     ok memo is foo
     ok val  is 1
@@ -335,7 +337,7 @@ test 'Object.reduce' !->
   deepEqual memo, 1:1 2:2 3:3
 test 'Object.some' !->
   {some} = Object
-  ok isFunction some
+  ok isFunction(some), 'Is function'
   some obj = {q: 1}, (val, key, that)->
     ok val is 1
     ok key is \q
@@ -346,13 +348,13 @@ test 'Object.some' !->
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
 test 'Object.pluck' !->
   {pluck, plane} = Object
-  ok isFunction pluck
+  ok isFunction(pluck), 'Is function'
   deepEqual pluck({q:1 w:22 e:333} \length), plane q:void w:void e:void
   deepEqual pluck({q:1 w:22 e:void} \length), plane q:void w:void e:void
   deepEqual pluck({q:\1 w:\22 e:\333} \length), plane q:1 w:2 e:3
 test 'Object.reduceTo' !->
   {reduceTo, plane} = Object
-  ok isFunction reduceTo
+  ok isFunction(reduceTo), 'Is function'
   reduceTo (obj = q: 1), (val, key, that)->
     deepEqual @, plane!
     ok val  is 1
@@ -363,7 +365,7 @@ test 'Object.reduceTo' !->
   deepEqual reduceTo({q:1 w:2 e:3} -> @[it] = it), plane {1:1 2:2 3:3}
 test 'Object.isObject' !->
   {isObject} = Object
-  ok isFunction isObject
+  ok isFunction(isObject), 'Is function'
   ok not isObject void
   ok not isObject null
   ok not isObject 1
@@ -378,7 +380,7 @@ test 'Object.isObject' !->
   ok isObject new ->
 test 'Object.isEqual' !->
   {isEqual} = Object
-  ok isFunction isEqual
+  ok isFunction(isEqual), 'Is function'
   ok isEqual  1 1
   ok not isEqual 1 2
   ok not isEqual 0 -0
@@ -395,16 +397,16 @@ test 'Object.isEqual' !->
   ok isEqual a, b
 test 'Object.symbol' !->
   {symbol} = Object
-  ok isFunction(symbol), 'Object.symbol is function'
+  ok isFunction(symbol), 'Is function'
   ok typeof symbol('foo') is 'string', "symbol('foo') return string"
   ok symbol('foo') isnt symbol('foo'), "symbol('foo') !== symbol('foo')"
   ok symbol('foo')slice(0 6) is '@@foo_', "symbol('foo') begin from @@foo_"
   ok symbol('foo')length > 15, "symbol('foo')length > 15"
 test 'Object.hidden' !->
   {hidden} = Object
-  ok isFunction(hidden), 'Object.hidden is function'
+  ok isFunction(hidden), 'Is function'
   o = {}
-  ok hidden(o, \key 42) is o, 'hidden return target'
+  ok hidden(o, \key 42) is o, 'return target'
   ok o.key is 42, 'hidden define property'
   if isNative getOwnPropertyDescriptor
     desc = getOwnPropertyDescriptor o, \key

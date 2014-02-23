@@ -1,7 +1,7 @@
 {isFunction, isNative} = Function
 {getOwnPropertyDescriptor} = Object
 test 'Map' !->
-  ok isFunction(global.Map), 'Map is function'
+  ok isFunction(global.Map), 'Is function'
   ok \clear   of Map::, 'clear in Map.prototype'
   ok \delete  of Map::, 'delete in Map.prototype'
   ok \forEach of Map::, 'forEach in Map.prototype'
@@ -10,12 +10,12 @@ test 'Map' !->
   ok \set     of Map::, 'set in Map.prototype'
   ok new Map instanceof Map, 'new Map instanceof Map'
 test 'Map::clear' !->
-  ok isFunction(Map::clear), 'Map::clear is function'
+  ok isFunction(Map::clear), 'Is function'
   M = new Map!set 1 2 .set 2 3 .set 1 4
   M.clear!
   ok M.size is 0
 test 'Map::delete' !->
-  ok isFunction(Map::delete), 'Map::delete is function'
+  ok isFunction(Map::delete), 'Is function'
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
   ok M.size is 5
@@ -28,7 +28,7 @@ test 'Map::delete' !->
   M.delete a
   ok M.size is 3
 test 'Map::forEach' !->
-  ok isFunction(Map::forEach), 'Map::forEach is function'
+  ok isFunction(Map::forEach), 'Is function'
   r = {}
   var T
   count = 0
@@ -41,7 +41,7 @@ test 'Map::forEach' !->
   ok count is 5
   deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
 test 'Map::get' !->
-  ok isFunction(Map::get), 'Map::get is function'
+  ok isFunction(Map::get), 'Is function'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   ok M.get(NaN) is 1
@@ -50,7 +50,7 @@ test 'Map::get' !->
   ok M.get(o)   is o
   ok M.get(2)   is 5
 test 'Map::has' !->
-  ok isFunction(Map::has), 'Map::has is function'
+  ok isFunction(Map::has), 'Is function'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   ok M.has NaN
@@ -59,7 +59,7 @@ test 'Map::has' !->
   ok not M.has 4
   ok not M.has {}
 test 'Map::set' !->
-  ok isFunction(Map::set), 'Map::set is function'
+  ok isFunction(Map::set), 'Is function'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   ok M.size is 5
@@ -89,7 +89,7 @@ test 'Map::size' !->
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
 
 test 'Set' !->
-  ok isFunction(global.Set), 'Set is function'
+  ok isFunction(global.Set), 'Is function'
   ok \add     of Set::, 'add in Set.prototype'
   ok \clear   of Set::, 'clear in Set.prototype'
   ok \delete  of Set::, 'delete in Set.prototype'
@@ -104,7 +104,7 @@ test 'Set' !->
   deepEqual r, {1:1,2:2,3:3}
   ok new Set([NaN, NaN, NaN])size is 1
 test 'Set::add' !->
-  ok isFunction(Set::add), 'Set::add is function'
+  ok isFunction(Set::add), 'Is function'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   ok S.size is 5
@@ -120,12 +120,12 @@ test 'Set::add' !->
   S.add 4
   ok S.size is 7
 test 'Set::clear' !->
-  ok isFunction(Set::clear), 'Set::clear is function'
+  ok isFunction(Set::clear), 'Is function'
   S = new Set [1 2 3 2 1]
   S.clear!
   ok S.size is 0
 test 'Set::delete' !->
-  ok isFunction(Set::delete), 'Set::delete is function'
+  ok isFunction(Set::delete), 'Is function'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   ok S.size is 5
@@ -138,7 +138,7 @@ test 'Set::delete' !->
   S.delete a
   ok S.size is 3
 test 'Set::forEach' !->
-  ok isFunction(Set::forEach), 'Set::forEach is function'
+  ok isFunction(Set::forEach), 'Is function'
   r = {}
   var T
   count = 0
@@ -151,7 +151,7 @@ test 'Set::forEach' !->
   ok count is 3
   deepEqual r, {1: 1, 2: 2, 3: 3}
 test 'Set::has' !->
-  ok isFunction(Set::has), 'Set::has is function'
+  ok isFunction(Set::has), 'Is function'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   ok S.has NaN
@@ -169,7 +169,7 @@ test 'Set::size' !->
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
 
 test 'WeakMap' !->
-  ok isFunction(global.WeakMap), 'WeakMap is function'
+  ok isFunction(global.WeakMap), 'Is function'
   ok \clear   of WeakMap::, 'clear in WeakMap.prototype'
   ok \delete  of WeakMap::, 'delete in WeakMap.prototype'
   ok \get     of WeakMap::, 'get in WeakMap.prototype'
@@ -177,7 +177,7 @@ test 'WeakMap' !->
   ok \set     of WeakMap::, 'set in WeakMap.prototype'
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
 test 'WeakMap::clear' !->
-  ok isFunction(WeakMap::clear), 'WeakMap::clear is function'
+  ok isFunction(WeakMap::clear), 'Is function'
   M = new WeakMap!
     .set a = {}, 42
     .set b = {}, 21
@@ -185,7 +185,7 @@ test 'WeakMap::clear' !->
   M.clear!
   ok !M.has(a) && !M.has(b), 'WeakMap has`nt values after .clear()'
 test 'WeakMap::delete' !->
-  ok isFunction WeakMap::delete, 'WeakMap::delete is function'
+  ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap!
     .set a = {}, 42
     .set b = {}, 21
@@ -193,7 +193,7 @@ test 'WeakMap::delete' !->
   M.delete a
   ok !M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()'
 test 'WeakMap::get' !->
-  ok isFunction WeakMap::get, 'WeakMap::get is function'
+  ok isFunction(WeakMap::get), 'Is function'
   M = new WeakMap!
   #ok M.get(42) is void, 'WeakMap .get(primitive) return undefined' !!!!!!!!!!!!!!!!!
   ok M.get({}) is void, 'WeakMap .get() before .set() return undefined'
@@ -202,7 +202,7 @@ test 'WeakMap::get' !->
   M.delete a
   ok M.get(a) is void, 'WeakMap .get() after .delete() return undefined'
 test 'WeakMap::has' !->
-  ok isFunction WeakMap::has, 'WeakMap::has is function'
+  ok isFunction(WeakMap::has), 'Is function'
   M = new WeakMap!
   #ok M.has(42) is no, 'WeakMap .has(primitive) return false' !!!!!!!!!!!!!!!!!
   ok M.has({}) is no, 'WeakMap .has() before .set() return false'
@@ -211,12 +211,12 @@ test 'WeakMap::has' !->
   M.delete a
   ok M.has(a) is no, 'WeakMap .has() after .delete() return false'
 test 'WeakMap::set' !->
-  ok isFunction WeakMap::set, 'WeakMap.prototype.set is function'
+  ok isFunction(WeakMap::set), 'Is function'
   ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
   ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
 
 test 'WeakSet' !->
-  ok isFunction(global.WeakSet), 'WeakSet is function'
+  ok isFunction(global.WeakSet), 'Is function'
   ok \add     of WeakSet::, 'add in WeakSet.prototype'
   ok \clear   of WeakSet::, 'clear in WeakSet.prototype'
   ok \delete  of WeakSet::, 'delete in WeakSet.prototype'
@@ -224,11 +224,11 @@ test 'WeakSet' !->
   ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
   ok new WeakSet([a = {}]).has(a), 'Init WeakSet from array'
 test 'WeakSet::add' !->
-  ok isFunction WeakSet::add, 'WeakSet.prototype.add is function'
+  ok isFunction(WeakSet::add), 'Is function'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
 test 'WeakSet::clear' !->
-  ok isFunction WeakSet::clear, 'WeakSet::clear is function'
+  ok isFunction(WeakSet::clear), 'Is function'
   M = new WeakSet!
     .add a = {}
     .add b = {}
@@ -236,7 +236,7 @@ test 'WeakSet::clear' !->
   M.clear!
   ok !M.has(a) && !M.has(b), 'WeakSet has`nt values after .clear()'
 test 'WeakSet::delete' !->
-  ok isFunction WeakSet::delete, 'WeakSet::delete is function'
+  ok isFunction(WeakSet::delete), 'Is function'
   M = new WeakSet!
     .add a = {}
     .add b = {}
@@ -244,7 +244,7 @@ test 'WeakSet::delete' !->
   M.delete a
   ok !M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()'
 test 'WeakSet::has' !->
-  ok isFunction WeakSet::has, 'WeakSet::has is function'
+  ok isFunction(WeakSet::has), 'Is function'
   M = new WeakSet!
   ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

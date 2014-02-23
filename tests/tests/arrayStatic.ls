@@ -1,17 +1,16 @@
-{isFunction} = Function
+test 'Array static are functions' !->
+  for <[join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at pluck reduceTo merge]>
+    ok Function.isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
-  ok isFunction join
   ok join(\123, \|) is \1|2|3
   ok join((-> &)(3 2 1), \|) is \3|2|1
 test 'Array.pop' !->
   {pop} = Array
-  ok isFunction pop
   ok pop(args = (-> &)(1 2 3)) is 3
   deepEqual args, (-> &)(1 2)
 test 'Array.push' !->
   {push} = Array
-  ok isFunction push
   push args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
   ok args.length is 5
@@ -22,16 +21,13 @@ test 'Array.push' !->
   ok args.4 is 5
 test 'Array.reverse' !->
   {reverse} = Array
-  ok isFunction reverse
   deepEqual reverse((-> &)(1 2 3)), (-> &)(3 2 1)
 test 'Array.shift' !->
   {shift} = Array
-  ok isFunction shift
   ok shift(args = (-> &)(1 2 3)) is 1
   deepEqual args, (-> &)(2 3)
 test 'Array.unshift' !->
   {unshift} = Array
-  ok isFunction unshift
   unshift args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
   ok args.length is 5
@@ -42,7 +38,6 @@ test 'Array.unshift' !->
   ok args.4 is 3
 test 'Array.slice' !->
   {slice} = Array
-  ok isFunction slice
   deepEqual slice(\123), <[1 2 3]>
   deepEqual slice(\123 1), <[2 3]>
   deepEqual slice(\123 1 2), <[2]>
@@ -53,7 +48,6 @@ test 'Array.slice' !->
   deepEqual slice((-> &)(1 2 3), 1, -1), [2]
 test 'Array.splice' !->
   {splice} = Array
-  ok isFunction splice
   splice args = (-> &)(1 2 3), 1 0 4 5
   # don't enum arguments props in ie 8-
   ok args.length is 5
@@ -75,13 +69,11 @@ test 'Array.splice' !->
   ok args.1 is 3
 test 'Array.sort' !->
   {sort} = Array
-  ok isFunction sort
   deepEqual sort((-> &)(2 1 3)), (-> &)(1 2 3)
   deepEqual sort((-> &)(11 2 3)), (-> &)(11 2 3)
   deepEqual sort((-> &)(11 2 3), (a, b)-> a - b), (-> &)(2 3 11)
 test 'Array.indexOf' !->
   {indexOf} = Array
-  ok isFunction indexOf
   ok indexOf(\111 \1) is 0
   ok indexOf(\123 \1 1) is -1
   ok indexOf(\123 \2 1) is 1
@@ -90,7 +82,6 @@ test 'Array.indexOf' !->
   ok indexOf((-> &)(1 2 3), 2 1) is 1
 test 'Array.lastIndexOf' !->
   {lastIndexOf} = Array
-  ok isFunction lastIndexOf
   ok lastIndexOf(\111 \1) is 2
   ok lastIndexOf(\123 \3 1) is -1
   ok lastIndexOf(\123 \2 1) is 1
@@ -99,7 +90,6 @@ test 'Array.lastIndexOf' !->
   ok lastIndexOf((-> &)(1 2 3), 2 1) is 1
 test 'Array.every' !->
   {every} = Array
-  ok isFunction every
   every al = (->&)(1), (val, key, that)->
     ok @ is ctx
     ok val is 1
@@ -114,7 +104,6 @@ test 'Array.every' !->
   ok every  (->&)(1,2,3), -> typeof! it is \Number
 test 'Array.some' !->
   {some} = Array
-  ok isFunction some
   some al = (->&)(1), (val, key, that)->
     ok @ is ctx
     ok val is 1
@@ -129,7 +118,6 @@ test 'Array.some' !->
   ok some  (-> &)(1 2 3), -> typeof! it is \Number
 test 'Array.forEach' !->
   {forEach} = Array
-  ok isFunction forEach
   forEach al = (->&)(1), (val, key, that)!->
     ok @    is ctx
     ok val  is 1
@@ -147,7 +135,6 @@ test 'Array.forEach' !->
   ok val is \101231211231321231
 test 'Array.map' !->
   {map} = Array
-  ok isFunction map
   map al = (->&)(1), (val, key, that)->
     ok @    is ctx
     ok val  is 1
@@ -158,7 +145,6 @@ test 'Array.map' !->
   deepEqual map((-> &)(1 2 3), (^2)), [1 4 9]
 test 'Array.filter' !->
   {filter} = Array
-  ok isFunction filter
   filter al = (->&)(1), (val, key, that)->
     ok @    is ctx
     ok val  is 1
@@ -170,7 +156,6 @@ test 'Array.filter' !->
   deepEqual filter(\123 -> &1 != 1), <[1 3]>
 test 'Array.reduce' !->
   {reduce} = Array
-  ok isFunction reduce
   reduce al = (->&)(1), (memo, val, key, that)->
     ok memo is ctx
     ok val  is 1
@@ -184,7 +169,6 @@ test 'Array.reduce' !->
   ok reduce(\123 ((+a, +b)-> a + b), 1) is 7
 test 'Array.reduceRight' !->
   {reduceRight} = Array
-  ok isFunction reduceRight
   reduceRight al = (->&)(1), (memo, val, key, that)->
     ok memo is ctx
     ok val  is 1
@@ -198,11 +182,9 @@ test 'Array.reduceRight' !->
   ok reduceRight(\123 ((+a, +b)-> a + b), 1) is 7
 test 'Array.fill' !->
   {fill} = Array
-  ok isFunction fill
   deepEqual fill((-> &)(null null null), 5), (-> &)(5 5 5)
 test 'Array.find' !->
   {find} = Array
-  ok isFunction find
   find al = (->&)(1), (val, key, that)->
     ok @    is ctx
     ok val  is 1
@@ -214,7 +196,6 @@ test 'Array.find' !->
   ok find(\123, (is \4)) is void
 test 'Array.findIndex' !->
   {findIndex} = Array
-  ok isFunction findIndex
   findIndex al = (->&)(1), (val, key, that)->
     ok @    is ctx
     ok val  is 1
@@ -226,7 +207,6 @@ test 'Array.findIndex' !->
   ok findIndex(\123 (is \4)) is -1
 test 'Array.at' !->
   {at} = Array
-  ok isFunction at
   ok at((->&)(1 2 3), 0)  is 1
   ok at((->&)(1 2 3), 2)  is 3
   ok at((->&)(1 2 3), 3)  is void
@@ -235,12 +215,10 @@ test 'Array.at' !->
   ok at((->&)(1 2 3), -4) is void
 test 'Array.pluck' !->
   {pluck} = Array
-  ok isFunction pluck
   deepEqual pluck((->&)(\1 \22  3), \length), [1 2 void]
   deepEqual pluck(\123 \length), [1 1 1]
 test 'Array.reduceTo' !->
   {reduceTo} = Array
-  ok isFunction reduceTo
   reduceTo (al = (->&)(1)), (val, key, that)->
     deepEqual {} @
     ok val  is 1
@@ -257,7 +235,6 @@ test 'Array.reduceTo' !->
   deepEqual [\3 \2 \1], reduceTo \123 [] (@unshift <|)
 test 'Array.merge' !->
   {merge} = Array
-  ok isFunction merge
   args = (->&)(1 2 3)
   ok args is merge args, (->&)(4 5 6)
   # don't enum arguments props in ie 8-

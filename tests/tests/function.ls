@@ -2,7 +2,7 @@
 {isFunction} = Function
 test 'Function.inherits' !->
   {inherits} = Function
-  ok isFunction(inherits), 'Function.inherits is function'
+  ok isFunction(inherits), 'Is function'
   A = ->
   B = ->
   B::foo = 42
@@ -13,24 +13,24 @@ test 'Function.inherits' !->
   ok new B!@@ is B, 'new B!@@ is B'
 test 'Function.isFunction' !->
   {isFunction} = Function
-  ok typeof isFunction is \function, 'Function.isFunction is function'
+  ok typeof isFunction is \function, 'Is function'
   ok isFunction(->), 'isFunction function'
   for [void, null, 1, '', no, {}, do -> &, [], /./]
     ok not isFunction(..), "not isFunction #{typeof! ..}"
 test 'Function.isNative' !->
   {isNative} = Function
-  ok isFunction(isNative), 'Function.isNative is function'
+  ok isFunction(isNative), 'Is function'
   ok isNative(Object::hasOwnProperty), 'isNative native function'
   for [->, void, null, 1, '', no, {}, do -> &, [], /./]
     ok not isNative(..), "not isNative #{typeof! ..}"
 test 'Function::methodize' !->
-  ok isFunction Function::methodize
+  ok isFunction(Function::methodize), 'Is function'
   ok {a: 42, fn: (-> it.a)methodize!}fn! is 42
   num = new Number 42
   num.fn = ((a, b)-> a + b)methodize!
   ok num.fn(21) is 63
 test 'Function::part' !->
-  ok isFunction Function::part
+  ok isFunction(Function::part), 'Is function'
   ok (-> typeof! it is \String)part(\qwe)!
   obj = a: 42
   obj.fn = (-> @a + it)part 21
@@ -43,13 +43,13 @@ test 'Function::part' !->
   ok part(\Шла \по \и) is 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders'
   ok part(\Шла \по \и \сушку) is 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders'
 test 'Function::invoke' !->
-  ok isFunction Function::invoke
+  ok isFunction(Function::invoke), 'Is function'
   class C
     (@a, @b)->
   ok C.invoke! instanceof C
   deepEqual C.invoke([1 2]), new C 1 2
 asyncTest 'Function::timeout' 7 !->
-  ok isFunction Function::timeout
+  ok isFunction(Function::timeout), 'Is function'
   timeout = (->
     ok val is 1
     ok it is 42
@@ -66,7 +66,7 @@ asyncTest 'Function::timeout' 7 !->
     start!
   , 20
 asyncTest 'Function::interval' 10 !->
-  ok isFunction Function::interval
+  ok isFunction(Function::interval), 'Is function'
   var i 
   interval = (->
     ok i < 4
@@ -81,7 +81,7 @@ asyncTest 'Function::interval' 10 !->
   ok isFunction interval.stop
   i = 1
 asyncTest 'Function::immediate' 7 !->
-  ok isFunction Function::immediate
+  ok isFunction(Function::immediate), 'Is function'
   immediate = (->
     ok val is 1
     ok it is 42
@@ -98,7 +98,7 @@ asyncTest 'Function::immediate' 7 !->
     start!
   , 20
 test 'Function::inherits' !->
-  ok isFunction Function::inherits
+  ok isFunction(Function::inherits), 'Is function'
   A = ->
   B = ->
   B::prop = 42
