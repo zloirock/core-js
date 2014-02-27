@@ -8,7 +8,7 @@
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-extendBuiltInObject(Array, reduceTo.call(
+$define(STATIC, 'Array', reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
@@ -21,7 +21,7 @@ extendBuiltInObject(Array, reduceTo.call(
     // Core.js:
     'at,pluck,reduceTo,merge'
   ),
-  function(key){
-    if(key in $Array)this[key] = unbind($Array[key]);
+  function(memo, key){
+    if(key in $Array)memo[key] = unbind($Array[key]);
   }
 ));

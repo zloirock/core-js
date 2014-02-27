@@ -219,20 +219,20 @@ test 'Array.pluck' !->
   deepEqual pluck(\123 \length), [1 1 1]
 test 'Array.reduceTo' !->
   {reduceTo} = Array
-  reduceTo (al = (->&)(1)), (val, key, that)->
-    deepEqual {} @
+  reduceTo (al = (->&)(1)), (memo, val, key, that)->
+    deepEqual {} memo
     ok val  is 1
     ok key  is 0
     ok that is al
-  reduceTo (al = \1), (val, key, that)->
-    deepEqual {} @
+  reduceTo (al = \1), (memo, val, key, that)->
+    deepEqual {} memo
     ok val is \1
     ok key is 0
     ok that ~= al
   reduceTo (->&)(1), obj = {} ->
-    ok @ is obj
-  deepEqual [3 2 1], reduceTo (->&)(1 2 3), [] (@unshift <|)
-  deepEqual [\3 \2 \1], reduceTo \123 [] (@unshift <|)
+    ok it is obj
+  deepEqual [3 2 1], reduceTo (->&)(1 2 3), [] (memo, it)-> memo.unshift it
+  deepEqual [\3 \2 \1], reduceTo \123 [] (memo, it)-> memo.unshift it
 test 'Array.merge' !->
   {merge} = Array
   args = (->&)(1 2 3)

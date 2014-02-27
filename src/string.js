@@ -11,7 +11,7 @@
     , RegExpEscapeHTML = RegExp('[' + keys(dictionaryEscapeHTML).join('') + ']', 'g')
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
-  extendBuiltInObject($String, {
+  $define(PROTO, 'String', {
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/at

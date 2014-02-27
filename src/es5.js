@@ -18,7 +18,7 @@
     , nativeSlice        = slice
     , nativeJoin         = $Array.join
     // Create object with null as it's prototype
-    , createNullProtoObject = PROTO
+    , createNullProtoObject = __PROTO__
       ? function(){
           return {__proto__: null};
         }
@@ -91,7 +91,7 @@
       return O;
     }
   }
-  extendBuiltInObject(Object, {
+  $define(STATIC, 'Object', {
     /**
      * 15.2.3.2 Object.getPrototypeOf ( O ) 
      * http://es5.github.io/#x15.2.3.2
@@ -117,7 +117,7 @@
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
-      PROTO || result.constructor[prototype] === O || (result.__proto__ = O);
+      __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
       return result;
     },
     /**
@@ -143,7 +143,7 @@
    * 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
    * http://es5.github.io/#x15.3.4.5
    */
-  extendBuiltInObject($Function, {
+  $define(PROTO, 'Function', {
     bind: function(scope /*, args...*/){
       var fn   = this
         , args = $slice(arguments, 1);
@@ -166,7 +166,7 @@
    * http://api.jquery.com/jQuery.isArray/
    * http://docs.angularjs.org/api/angular.isArray
    */
-  extendBuiltInObject(Array, {isArray: function(it){
+  $define(STATIC, 'Array', {isArray: function(it){
     return classof(it) == 'Array'
   }});
   function forEach(callbackfn, thisArg /* = undefined */){
@@ -176,7 +176,7 @@
       , i      = 0;
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
   }
-  extendBuiltInObject($Array, {
+  $define(PROTO, 'Array', {
     /**
      * 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
      * http://es5.github.io/#x15.4.4.14
@@ -301,14 +301,14 @@
    * 15.5.4.20 String.prototype.trim ( )
    * http://es5.github.io/#x15.5.4.20
    */
-  extendBuiltInObject($String, {trim: function(){
+  $define(PROTO, 'String', {trim: function(){
     return String(this).replace(trimRegExp, '');
   }});
   /**
    * 15.9.4.4 Date.now ( )
    * http://es5.github.io/#x15.9.4.4
    */
-  extendBuiltInObject(Date, {now: function(){
+  $define(STATIC, 'Date', {now: function(){
     return +new Date;
   }});
   if(isFunction(trimRegExp))isFunction = function(it){

@@ -6,7 +6,6 @@ var prototype      = 'prototype'
   , String         = global.String
   , Number         = global.Number
   , RegExp         = global.RegExp
-  , Date           = global.Date
   , Math           = global.Math
   , setTimeout     = global.setTimeout
   , clearTimeout   = global.clearTimeout
@@ -16,9 +15,7 @@ var prototype      = 'prototype'
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
-  , $Number        = Number[prototype]
   , $Object        = Object[prototype]
-  , $String        = String[prototype]
   , $Function      = Function[prototype]
   , console        = global.console || {log: $Function};
   
@@ -49,40 +46,40 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call;
-// unbind method from context
-// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
-function unbind(that){
-  return tie.call(that, 'call');
-}
-// simple bind context
-function tie(key){
-  var that = this
-    , fn   = that[key];
-  assertFunction(fn);
-  return function(){
-    return fn.apply(that, arguments);
-  }
-}
 // placeholder for partial apply
 var _ = {};
 // partial apply
 function part(/*args...*/){
-  var fn          = this
-    , lengthPart  = arguments.length
-    , argsPart    = Array(lengthPart)
-    , i           = 0
+  var length = arguments.length
+    , args   = Array(length)
+    , i      = 0
     , placeholder = false;
+  while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(this, args, length, placeholder, false);
+}
+function ctx(fn, that){
+  return function(){
+    return fn.apply(that, arguments);
+  }
+}
+function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
   assertFunction(fn);
-  while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
-    var length = arguments.length
-      , i, j, args;
-    if(!placeholder && length === 0)return fn.apply(this, argsPart);
+    var that   = bind ? context : this
+      , length = arguments.length
+      , i = 0, j = 0, args;
+    if(!placeholder && length == 0)return fn.apply(that, argsPart);
     args = argsPart.slice();
-    i = j = 0;
     if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(this, args);
+    return fn.apply(that, args);
+  }
+}
+// unbind method from context
+// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
+function unbind(that){
+  return function(){
+    return call.apply(that, arguments);
   }
 }
 // add `this` as first argument
@@ -106,7 +103,7 @@ function has(object, key){
 }
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
-  , PROTO          = '__proto__' in $Object
+  , __PROTO__      = '__proto__' in $Object
   , DESCRIPTORS    = 1;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
@@ -158,7 +155,11 @@ function reduceTo(target, callbackfn){
     callbackfn = target;
     target = {};
   } else target = Object(target);
-  forEach.call(this, callbackfn, target);
+  assertFunction(callbackfn);
+  var self   = ES5Object(this)
+    , length = toLength(self.length)
+    , i      = 0;
+  for(;length > i; i++)i in self && callbackfn(target, self[i], i, this);
   return target;
 }
 
@@ -208,3 +209,7 @@ function descriptor(bitmap, value){
 function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
+
+var GLOBAL = 0
+  , STATIC = 1
+  , PROTO  = 2;

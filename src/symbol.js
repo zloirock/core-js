@@ -6,8 +6,8 @@
  * https://github.com/component/symbol
  * https://github.com/anthonyshort/symbol
  */
-if(!isNative(global.Symbol)){
-  global.Symbol = function(description){
+$define(GLOBAL, undefined, {
+  Symbol: function(description){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
@@ -15,5 +15,5 @@ if(!isNative(global.Symbol)){
     return {toString: function(){
       return tag;
     }};
-  };
-};
+  }
+});

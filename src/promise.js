@@ -35,7 +35,7 @@
       , DETAIL      = symbol('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
-    function Promise(resolver){
+    Promise = function(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, 'Promise');
@@ -47,7 +47,6 @@
         rejectPromise(e);
       }
     }
-    global.Promise = Promise;
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -193,4 +192,5 @@
       }
     }
   }();
+  $define(GLOBAL, undefined, {Promise: Promise});
 }(global.Promise);

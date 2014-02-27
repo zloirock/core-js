@@ -1,6 +1,9 @@
 !function(){
-  function make(proto, props){
-    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined);
+  function mixin(target, source){
+    return defineProperties(target, getOwnPropertyDescriptors(source));
+  }
+  function make(proto, props, desc){
+    return props ? (desc ? mixin : assign)(create(proto), props) : create(proto);
   }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
@@ -92,13 +95,13 @@
     StackA = StackA.concat([a]);
     StackB = StackB.concat([b]);
     switch(type){
-      case'Boolean'   :
-      case'String'    :
-      case'Number'    : return a.valueOf() == b.valueOf();
-      case'RegExp'    : return '' + a == '' + b;
-      case'Error'     : return a.message == b.message;/*
-      case'Array'     :
-      case'Arguments' :
+      case 'Boolean'   :
+      case 'String'    :
+      case 'Number'    : return a.valueOf() == b.valueOf();
+      case 'RegExp'    : return '' + a == '' + b;
+      case 'Error'     : return a.message == b.message;/*
+      case 'Array'     :
+      case 'Arguments' :
         length = toLength(a.length);
         if(length != b.length)return false;
         while(length--){
@@ -120,16 +123,6 @@
     }
     return true;
   }
-  function forOwnKeys(object, fn, that /* = undefined */){
-    assertFunction(fn);
-    var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
-      , i      = 0
-      , key;
-    while(length > i)fn.call(that, O[key = props[i++]], key, object);
-    return object;
-  }
   function findIndex(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
@@ -141,7 +134,7 @@
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  extendBuiltInObject(Object, {
+  $define(STATIC, 'Object', {
     /**
      * Alternatives:
      * http://underscorejs.org/#has
@@ -172,9 +165,7 @@
      * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      * TODO: rename
      */
-    mixin: function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source));
-    },
+    mixin: mixin,
     /**
      * Alternatives:
      * http://underscorejs.org/#clone
@@ -281,7 +272,16 @@
      * http://api.jquery.com/jQuery.each/
      * http://docs.angularjs.org/api/angular.forEach
      */
-    forEach: forOwnKeys,
+    forEach: function(object, fn, that /* = undefined */){
+      assertFunction(fn);
+      var O      = ES5Object(object)
+        , props  = keys(O)
+        , length = props.length
+        , i      = 0
+        , key;
+      while(length > i)fn.call(that, O[key = props[i++]], key, object);
+      return object;
+    },
     /**
      * Alternatives:
      * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
@@ -372,7 +372,13 @@
         target = create(null);
       }
       else target = Object(target);
-      forOwnKeys(object, callbackfn, target);
+      assertFunction(callbackfn);
+      var O      = ES5Object(object)
+        , props  = keys(O)
+        , length = props.length
+        , i      = 0
+        , key;
+      while(length > i)callbackfn(target, O[key = props[i++]], key, object);
       return target;
     },
     /**

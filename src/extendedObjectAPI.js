@@ -3,7 +3,7 @@
  * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
-extendBuiltInObject(Object, {
+$define(STATIC, 'Object', {
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
       if(has(object, key))return getOwnPropertyDescriptor(object, key);

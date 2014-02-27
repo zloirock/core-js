@@ -6,7 +6,7 @@
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
-if(!isSetImmediate){
-  global.setImmediate = setImmediate;
-  global.clearImmediate = clearImmediate;
-}
+$define(GLOBAL, undefined, {
+  setImmediate: setImmediate,
+  clearImmediate: clearImmediate
+});

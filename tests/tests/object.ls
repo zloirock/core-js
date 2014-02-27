@@ -355,14 +355,14 @@ test 'Object.pluck' !->
 test 'Object.reduceTo' !->
   {reduceTo, plane} = Object
   ok isFunction(reduceTo), 'Is function'
-  reduceTo (obj = q: 1), (val, key, that)->
-    deepEqual @, plane!
+  reduceTo (obj = q: 1), (memo, val, key, that)->
+    deepEqual memo, plane!
     ok val  is 1
     ok key  is \q
     ok that is obj
   reduceTo {q:1} obj = {} ->
-    ok @    is obj
-  deepEqual reduceTo({q:1 w:2 e:3} -> @[it] = it), plane {1:1 2:2 3:3}
+    ok it   is obj
+  deepEqual reduceTo({q:1 w:2 e:3} (memo, it)-> memo[it] = it), plane {1:1 2:2 3:3}
 test 'Object.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'

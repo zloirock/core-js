@@ -17,7 +17,6 @@ var prototype      = 'prototype'
   , String         = global.String
   , Number         = global.Number
   , RegExp         = global.RegExp
-  , Date           = global.Date
   , Math           = global.Math
   , setTimeout     = global.setTimeout
   , clearTimeout   = global.clearTimeout
@@ -27,9 +26,7 @@ var prototype      = 'prototype'
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
-  , $Number        = Number[prototype]
   , $Object        = Object[prototype]
-  , $String        = String[prototype]
   , $Function      = Function[prototype]
   , console        = global.console || {log: $Function};
   
@@ -60,40 +57,40 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call;
-// unbind method from context
-// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
-function unbind(that){
-  return tie.call(that, 'call');
-}
-// simple bind context
-function tie(key){
-  var that = this
-    , fn   = that[key];
-  assertFunction(fn);
-  return function(){
-    return fn.apply(that, arguments);
-  }
-}
 // placeholder for partial apply
 var _ = {};
 // partial apply
 function part(/*args...*/){
-  var fn          = this
-    , lengthPart  = arguments.length
-    , argsPart    = Array(lengthPart)
-    , i           = 0
+  var length = arguments.length
+    , args   = Array(length)
+    , i      = 0
     , placeholder = false;
+  while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(this, args, length, placeholder, false);
+}
+function ctx(fn, that){
+  return function(){
+    return fn.apply(that, arguments);
+  }
+}
+function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
   assertFunction(fn);
-  while(lengthPart > i)if((argsPart[i] = arguments[i++]) === _)placeholder = true;
   return function(/*args...*/){
-    var length = arguments.length
-      , i, j, args;
-    if(!placeholder && length === 0)return fn.apply(this, argsPart);
+    var that   = bind ? context : this
+      , length = arguments.length
+      , i = 0, j = 0, args;
+    if(!placeholder && length == 0)return fn.apply(that, argsPart);
     args = argsPart.slice();
-    i = j = 0;
     if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(this, args);
+    return fn.apply(that, args);
+  }
+}
+// unbind method from context
+// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
+function unbind(that){
+  return function(){
+    return call.apply(that, arguments);
   }
 }
 // add `this` as first argument
@@ -117,7 +114,7 @@ function has(object, key){
 }
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
-  , PROTO          = '__proto__' in $Object
+  , __PROTO__      = '__proto__' in $Object
   , DESCRIPTORS    = 1;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
@@ -169,7 +166,11 @@ function reduceTo(target, callbackfn){
     callbackfn = target;
     target = {};
   } else target = Object(target);
-  forEach.call(this, callbackfn, target);
+  assertFunction(callbackfn);
+  var self   = ES5Object(this)
+    , length = toLength(self.length)
+    , i      = 0;
+  for(;length > i; i++)i in self && callbackfn(target, self[i], i, this);
   return target;
 }
 
@@ -219,11 +220,16 @@ function descriptor(bitmap, value){
 function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
+
+var GLOBAL = 0
+  , STATIC = 1
+  , PROTO  = 2;
 /**
  * Module : framework
  */
-function extendBuiltInObject(target, source, forced /* = false */){
-  if(target)for(var key in source){
+function $define(type, name, source, forced /* = false */){
+  var target = type == GLOBAL ? global : type == STATIC ? global[name] : global[name][prototype];
+  for(var key in source){
     try {
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))
@@ -301,7 +307,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   } else if(isFunction(MessageChannel)){
     channel = new MessageChannel();
     channel.port1.onmessage = listner;
-    defer = tie.call(channel.port2, 'postMessage');
+    defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
@@ -334,7 +340,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   function sign(it){
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
-  extendBuiltInObject(Object, {
+  $define(STATIC, 'Object', {
     /**
      * The assign function is used to copy the values of all of the enumerable
      * own properties from a source object to a target object.
@@ -358,7 +364,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
-  PROTO && extendBuiltInObject(Object, {
+  __PROTO__ && $define(STATIC, 'Object', {
     setPrototypeOf: function(O, proto){
       assertObject(O);
       assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
@@ -366,7 +372,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return O;
     }
   });
-  extendBuiltInObject(Number, {
+  $define(STATIC, 'Number', {
     /**
      * 20.1.2.1 Number.EPSILON
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
@@ -433,7 +439,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     , exp       = Math.exp
     , log       = Math.log
     , sqrt      = Math.sqrt;
-  extendBuiltInObject(Math, {
+  $define(STATIC, 'Math', {
     /**
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      * 20.2.2.3 Math.acosh(x)
@@ -595,7 +601,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   /**
-  extendBuiltInObject(String, {
+  $define(STATIC, 'String', {
      * 21.1.2.2 String.fromCodePoint ( ...codePoints)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
      * http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
@@ -605,7 +611,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     raw: function(){ TODO }
   });
   */
-  extendBuiltInObject($String, {
+  $define(PROTO, 'String', {
     /**
      * 21.1.3.3 String.prototype.codePointAt (pos)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
@@ -656,7 +662,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
-  extendBuiltInObject(Array, {
+  $define(STATIC, 'Array', {
     /**
      * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.from
@@ -697,7 +703,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
     return -1;
   }
-  extendBuiltInObject($Array, {
+  $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
@@ -828,8 +834,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
    */
   if(!isNative(Map) || !has(Map[prototype], 'forEach')){
-    global.Map = Map = createCollectionConstructor('Map');
-    extendBuiltInObject(Map[prototype], {
+    Map = createCollectionConstructor('Map');
+    assign(Map[prototype], {
       /**
        * 23.1.3.1 Map.prototype.clear ()
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
@@ -896,8 +902,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
    */
   if(!isNative(Set) || !has(Set[prototype], 'forEach')){
-    global.Set = Set = createCollectionConstructor('Set', 1);
-    extendBuiltInObject(Set[prototype], {
+    Set = createCollectionConstructor('Set', 1);
+    assign(Set[prototype], {
       /**
        * 23.2.3.1 Set.prototype.add ( value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.add
@@ -948,7 +954,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     defineProperties(Set[prototype], sizeGetter);
   } else {
     // IE 11 fix
-    if(new Set([1]).size != 1)global.Set = fixCollectionConstructor(Set, 'Set');
+    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set');
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -988,8 +994,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
    */
   if(!isNative(WeakMap) || !has(WeakMap[prototype], 'clear')){
-    global.WeakMap = WeakMap = createCollectionConstructor('WeakMap');
-    extendBuiltInObject(WeakMap[prototype], assign({
+    WeakMap = createCollectionConstructor('WeakMap');
+    assign(WeakMap[prototype], assign({
       /**
        * 23.3.3.4 WeakMap.prototype.get ( key )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
@@ -1013,8 +1019,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
    */
   if(!isNative(WeakSet)){
-    global.WeakSet = WeakSet = createCollectionConstructor('WeakSet', 1);
-    extendBuiltInObject(WeakSet[prototype], assign({
+    WeakSet = createCollectionConstructor('WeakSet', 1);
+    assign(WeakSet[prototype], assign({
       /**
        * 23.4.3.1 WeakSet.prototype.add (value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.add
@@ -1027,9 +1033,15 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }, commonWeakCollection));
   } else {
     // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))global.WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
+    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
     fixAdd(WeakSet, 'add');
   }
+  $define(GLOBAL, undefined, {
+    Map: Map,
+    Set: Set,
+    WeakMap: WeakMap,
+    WeakSet: WeakSet
+  }, 1);
 }(global.Map, global.Set, global.WeakMap, global.WeakSet);
 /**
  * Module : promise
@@ -1071,7 +1083,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       , DETAIL      = symbol('detail')
       , ITERABLE_ERROR = 'You must pass an array to race or all';
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
-    function Promise(resolver){
+    Promise = function(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, 'Promise');
@@ -1083,7 +1095,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         rejectPromise(e);
       }
     }
-    global.Promise = Promise;
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -1229,6 +1240,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     }
   }();
+  $define(GLOBAL, undefined, {Promise: Promise});
 }(global.Promise);
 /**
  * Module : symbol
@@ -1241,8 +1253,8 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/component/symbol
  * https://github.com/anthonyshort/symbol
  */
-if(!isNative(global.Symbol)){
-  global.Symbol = function(description){
+$define(GLOBAL, undefined, {
+  Symbol: function(description){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
       hidden(this, tag, value);
@@ -1250,8 +1262,8 @@ if(!isNative(global.Symbol)){
     return {toString: function(){
       return tag;
     }};
-  };
-};
+  }
+});
 /**
  * Module : extendedObjectAPI
  */
@@ -1260,7 +1272,7 @@ if(!isNative(global.Symbol)){
  * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
-extendBuiltInObject(Object, {
+$define(STATIC, 'Object', {
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
       if(has(object, key))return getOwnPropertyDescriptor(object, key);
@@ -1295,20 +1307,19 @@ extendBuiltInObject(Object, {
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
-if(!isSetImmediate){
-  global.setImmediate = setImmediate;
-  global.clearImmediate = clearImmediate;
-}
+$define(GLOBAL, undefined, {
+  setImmediate: setImmediate,
+  clearImmediate: clearImmediate
+});
 /**
  * Module : function
  */
 function inherits(parent){
-  assertFunction(this);
-  assertFunction(parent);
+  assertFunction(this), assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
-extendBuiltInObject(Function, {
+$define(STATIC, 'Function', {
   /**
    * Alternatives:
    * http://underscorejs.org/#isFunction
@@ -1322,7 +1333,7 @@ extendBuiltInObject(Function, {
   inherits: unbind(inherits),
   _: _
 });
-extendBuiltInObject($Function, {
+$define(PROTO, 'Function', {
   invoke: function(args){
     assertFunction(this);
     var instance = create(this[prototype])
@@ -1370,7 +1381,7 @@ function createDeferred(set, clear, args){
     },
     run: function(){
       id && clear(id);
-      id = apply.call(set, global, args);
+      id = apply.call(set, undefined, args);
       return deferred;
     }
   }, id;
@@ -1379,7 +1390,19 @@ function createDeferred(set, clear, args){
 /**
  * Module : binding
  */
-extendBuiltInObject($Function, {
+function tie(key){
+  var that = this
+    , i    = 1
+    , placeholder = false
+    , length, args;
+  assertObject(that);
+  length = arguments.length;
+  if(length < 2)return ctx(that[key], that);
+  args = Array(length - 1)
+  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(that[key], args, length, placeholder, true, that);
+}
+$define(PROTO, 'Function', {
   tie: tie,
   /**
    * Partial apply.
@@ -1390,6 +1413,17 @@ extendBuiltInObject($Function, {
    * http://fitzgen.github.io/wu.js/#wu-partial
    */
   part: part,
+  by: function(that){
+    var fn     = this
+      , length = arguments.length
+      , i      = 1
+      , placeholder = false
+      , args;
+    if(length < 2)return ctx(fn, that);
+    args = Array(length - 1);
+    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+    return createPartialApplication(fn, args, length, placeholder, true, that);
+  },
   /**
    * function -> method
    * Alternatives:
@@ -1397,9 +1431,9 @@ extendBuiltInObject($Function, {
    */
   methodize: methodize
 });
-extendBuiltInObject($Array, {tie: tie});
-extendBuiltInObject(RegExp[prototype], {tie: tie});
-extendBuiltInObject(Object, {
+$define(PROTO, 'Array', {tie: tie});
+$define(PROTO, 'RegExp', {tie: tie});
+$define(STATIC, 'Object', {
   /**
    * Alternatives:
    * http://www.2ality.com/2013/06/auto-binding.html
@@ -1407,14 +1441,17 @@ extendBuiltInObject(Object, {
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),
-  useTie: part.call(extendBuiltInObject, $Object, {tie: tie})
+  useTie: part.call($define, PROTO, 'Object', {tie: tie})
 });
 /**
  * Module : object
  */
 !function(){
-  function make(proto, props){
-    return create(proto, props ? getOwnPropertyDescriptors(props) : undefined);
+  function mixin(target, source){
+    return defineProperties(target, getOwnPropertyDescriptors(source));
+  }
+  function make(proto, props, desc){
+    return props ? (desc ? mixin : assign)(create(proto), props) : create(proto);
   }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
@@ -1506,13 +1543,13 @@ extendBuiltInObject(Object, {
     StackA = StackA.concat([a]);
     StackB = StackB.concat([b]);
     switch(type){
-      case'Boolean'   :
-      case'String'    :
-      case'Number'    : return a.valueOf() == b.valueOf();
-      case'RegExp'    : return '' + a == '' + b;
-      case'Error'     : return a.message == b.message;/*
-      case'Array'     :
-      case'Arguments' :
+      case 'Boolean'   :
+      case 'String'    :
+      case 'Number'    : return a.valueOf() == b.valueOf();
+      case 'RegExp'    : return '' + a == '' + b;
+      case 'Error'     : return a.message == b.message;/*
+      case 'Array'     :
+      case 'Arguments' :
         length = toLength(a.length);
         if(length != b.length)return false;
         while(length--){
@@ -1534,16 +1571,6 @@ extendBuiltInObject(Object, {
     }
     return true;
   }
-  function forOwnKeys(object, fn, that /* = undefined */){
-    assertFunction(fn);
-    var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
-      , i      = 0
-      , key;
-    while(length > i)fn.call(that, O[key = props[i++]], key, object);
-    return object;
-  }
   function findIndex(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
@@ -1555,7 +1582,7 @@ extendBuiltInObject(Object, {
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  extendBuiltInObject(Object, {
+  $define(STATIC, 'Object', {
     /**
      * Alternatives:
      * http://underscorejs.org/#has
@@ -1586,9 +1613,7 @@ extendBuiltInObject(Object, {
      * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      * TODO: rename
      */
-    mixin: function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source));
-    },
+    mixin: mixin,
     /**
      * Alternatives:
      * http://underscorejs.org/#clone
@@ -1695,7 +1720,16 @@ extendBuiltInObject(Object, {
      * http://api.jquery.com/jQuery.each/
      * http://docs.angularjs.org/api/angular.forEach
      */
-    forEach: forOwnKeys,
+    forEach: function(object, fn, that /* = undefined */){
+      assertFunction(fn);
+      var O      = ES5Object(object)
+        , props  = keys(O)
+        , length = props.length
+        , i      = 0
+        , key;
+      while(length > i)fn.call(that, O[key = props[i++]], key, object);
+      return object;
+    },
     /**
      * Alternatives:
      * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
@@ -1786,7 +1820,13 @@ extendBuiltInObject(Object, {
         target = create(null);
       }
       else target = Object(target);
-      forOwnKeys(object, callbackfn, target);
+      assertFunction(callbackfn);
+      var O      = ES5Object(object)
+        , props  = keys(O)
+        , length = props.length
+        , i      = 0
+        , key;
+      while(length > i)callbackfn(target, O[key = props[i++]], key, object);
       return target;
     },
     /**
@@ -1811,7 +1851,7 @@ extendBuiltInObject(Object, {
 /**
  * Module : array
  */
-extendBuiltInObject($Array, {
+$define(PROTO, 'Array', {
   /**
    * Alternatives:
    * http://sugarjs.com/api/Array/at
@@ -1862,7 +1902,7 @@ extendBuiltInObject($Array, {
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-extendBuiltInObject(Array, reduceTo.call(
+$define(STATIC, 'Array', reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
@@ -1875,21 +1915,21 @@ extendBuiltInObject(Array, reduceTo.call(
     // Core.js:
     'at,pluck,reduceTo,merge'
   ),
-  function(key){
-    if(key in $Array)this[key] = unbind($Array[key]);
+  function(memo, key){
+    if(key in $Array)memo[key] = unbind($Array[key]);
   }
 ));
 /**
  * Module : number
  */
-extendBuiltInObject(Number, {
+$define(STATIC, 'Number', {
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Number#Number:toInt
    */
   toInteger: toInteger
 });
-extendBuiltInObject($Number, {
+$define(PROTO, 'Number', {
   /**
    * Invoke function @ times and return array of results
    * Alternatives:
@@ -1930,7 +1970,7 @@ extendBuiltInObject($Number, {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-extendBuiltInObject($Number, reduceTo.call(
+$define(PROTO, 'Number', reduceTo.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3
@@ -1938,8 +1978,8 @@ extendBuiltInObject($Number, reduceTo.call(
     // ES6
     'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
-  function(key){
-    if(key in Math)this[key] = methodize.call(Math[key]);
+  function(memo, key){
+    if(key in Math)memo[key] = methodize.call(Math[key]);
   }
 ));
 /**
@@ -1958,7 +1998,7 @@ extendBuiltInObject($Number, reduceTo.call(
     , RegExpEscapeHTML = RegExp('[' + keys(dictionaryEscapeHTML).join('') + ']', 'g')
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
-  extendBuiltInObject($String, {
+  $define(PROTO, 'String', {
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/at
@@ -2072,14 +2112,14 @@ extendBuiltInObject($Number, reduceTo.call(
       });
     }
   }
-  extendBuiltInObject(Date, {
+  $define(STATIC, 'Date', {
     locale: function(locale){
       if(has(locales, locale))current = locale;
       return current;
     },
     addLocale: addLocale
   });
-  extendBuiltInObject(Date[prototype], {format: format});
+  $define(PROTO, 'Date', {format: format});
   addLocale('en', {
     w: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
     M: 'January,February,March,April,May,June,July,August,September,October,November,December'
@@ -2159,11 +2199,11 @@ var extendCollections = {
       fn = target;
       target = create(null);
     } else target = Object(target);
-    this.forEach(fn, target);
+    this.forEach(part.call(fn, target));
     return target;
   }
 };
-extendBuiltInObject(Map[prototype], assign({
+$define(PROTO, 'Map', assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Map;
@@ -2201,7 +2241,7 @@ extendBuiltInObject(Map[prototype], assign({
     return result;
   }
 }, extendCollections));
-extendBuiltInObject(Set[prototype], assign({
+$define(PROTO, 'Set', assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Set;
@@ -2234,8 +2274,8 @@ var $console = reduceTo.call(
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
   {enabled: true},
-  function(key){
-    this[key] = function(){
+  function(memo, key){
+    memo[key] = function(){
       return console[key] && $console.enabled ? apply.call(console[key], console, arguments) : undefined;
     };
   }
@@ -2243,5 +2283,5 @@ var $console = reduceTo.call(
 try {
   delete global.console;
 } catch(e){}
-$console = global.console = assign($console.log, $console);
+$define(GLOBAL, undefined, {console: $console = assign($console.log, $console)});
 }(typeof window != 'undefined' ? window : global);

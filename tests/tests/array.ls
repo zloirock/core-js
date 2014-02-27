@@ -13,14 +13,14 @@ test 'Array::pluck' !->
   deepEqual [\1 2 void]pluck(\length), [1 void void], 'works with undefined'
 test 'Array::reduceTo' !->
   ok isFunction(Array::reduceTo), 'Is function'
-  (arr = [1])reduceTo (val, key, that)->
-    deepEqual {} @, 'Default context is empty object'
+  (arr = [1])reduceTo (memo, val, key, that)->
+    deepEqual {} memo, 'Default memo is empty object'
     ok val  is 1, 'First argumert is value'
     ok key  is 0, 'Second argumert is index'
     ok that is arr, 'Third argumert is array' 
-  [1]reduceTo obj = {} ->
-    ok @ is obj, 'Can reduce to exist object'
-  deepEqual [3 2 1] [1 2 3]reduceTo([] (@unshift <|)), 'Reduce to object and return it'
+  [1]reduceTo obj = {} (memo)->
+    ok memo is obj, 'Can reduce to exist object'
+  deepEqual [3 2 1] [1 2 3]reduceTo([] (memo, it)-> memo.unshift it), 'Reduce to object and return it'
 test 'Array::merge' !->
   ok isFunction(Array::merge), 'Is function'
   arr = [1 2 3]

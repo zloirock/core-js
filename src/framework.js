@@ -1,5 +1,6 @@
-function extendBuiltInObject(target, source, forced /* = false */){
-  if(target)for(var key in source){
+function $define(type, name, source, forced /* = false */){
+  var target = type == GLOBAL ? global : type == STATIC ? global[name] : global[name][prototype];
+  for(var key in source){
     try {
       has(source, key)
       && (forced || !has(target, key) || !isNative(target[key]))

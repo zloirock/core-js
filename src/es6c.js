@@ -92,8 +92,8 @@
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
    */
   if(!isNative(Map) || !has(Map[prototype], 'forEach')){
-    global.Map = Map = createCollectionConstructor('Map');
-    extendBuiltInObject(Map[prototype], {
+    Map = createCollectionConstructor('Map');
+    assign(Map[prototype], {
       /**
        * 23.1.3.1 Map.prototype.clear ()
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
@@ -160,8 +160,8 @@
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
    */
   if(!isNative(Set) || !has(Set[prototype], 'forEach')){
-    global.Set = Set = createCollectionConstructor('Set', 1);
-    extendBuiltInObject(Set[prototype], {
+    Set = createCollectionConstructor('Set', 1);
+    assign(Set[prototype], {
       /**
        * 23.2.3.1 Set.prototype.add ( value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.add
@@ -212,7 +212,7 @@
     defineProperties(Set[prototype], sizeGetter);
   } else {
     // IE 11 fix
-    if(new Set([1]).size != 1)global.Set = fixCollectionConstructor(Set, 'Set');
+    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set');
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -252,8 +252,8 @@
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
    */
   if(!isNative(WeakMap) || !has(WeakMap[prototype], 'clear')){
-    global.WeakMap = WeakMap = createCollectionConstructor('WeakMap');
-    extendBuiltInObject(WeakMap[prototype], assign({
+    WeakMap = createCollectionConstructor('WeakMap');
+    assign(WeakMap[prototype], assign({
       /**
        * 23.3.3.4 WeakMap.prototype.get ( key )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
@@ -277,8 +277,8 @@
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
    */
   if(!isNative(WeakSet)){
-    global.WeakSet = WeakSet = createCollectionConstructor('WeakSet', 1);
-    extendBuiltInObject(WeakSet[prototype], assign({
+    WeakSet = createCollectionConstructor('WeakSet', 1);
+    assign(WeakSet[prototype], assign({
       /**
        * 23.4.3.1 WeakSet.prototype.add (value )
        * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.add
@@ -291,7 +291,13 @@
     }, commonWeakCollection));
   } else {
     // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))global.WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
+    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
     fixAdd(WeakSet, 'add');
   }
+  $define(GLOBAL, undefined, {
+    Map: Map,
+    Set: Set,
+    WeakMap: WeakMap,
+    WeakSet: WeakSet
+  }, 1);
 }(global.Map, global.Set, global.WeakMap, global.WeakSet);

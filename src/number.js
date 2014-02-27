@@ -1,11 +1,11 @@
-extendBuiltInObject(Number, {
+$define(STATIC, 'Number', {
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Number#Number:toInt
    */
   toInteger: toInteger
 });
-extendBuiltInObject($Number, {
+$define(PROTO, 'Number', {
   /**
    * Invoke function @ times and return array of results
    * Alternatives:
@@ -46,7 +46,7 @@ extendBuiltInObject($Number, {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-extendBuiltInObject($Number, reduceTo.call(
+$define(PROTO, 'Number', reduceTo.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3
@@ -54,7 +54,7 @@ extendBuiltInObject($Number, reduceTo.call(
     // ES6
     'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
-  function(key){
-    if(key in Math)this[key] = methodize.call(Math[key]);
+  function(memo, key){
+    if(key in Math)memo[key] = methodize.call(Math[key]);
   }
 ));

@@ -52,7 +52,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   } else if(isFunction(MessageChannel)){
     channel = new MessageChannel();
     channel.port1.onmessage = listner;
-    defer = tie.call(channel.port2, 'postMessage');
+    defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
   // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){

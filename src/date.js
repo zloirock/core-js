@@ -54,14 +54,14 @@
       });
     }
   }
-  extendBuiltInObject(Date, {
+  $define(STATIC, 'Date', {
     locale: function(locale){
       if(has(locales, locale))current = locale;
       return current;
     },
     addLocale: addLocale
   });
-  extendBuiltInObject(Date[prototype], {format: format});
+  $define(PROTO, 'Date', {format: format});
   addLocale('en', {
     w: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
     M: 'January,February,March,April,May,June,July,August,September,October,November,December'

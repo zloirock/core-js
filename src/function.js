@@ -1,10 +1,9 @@
 function inherits(parent){
-  assertFunction(this);
-  assertFunction(parent);
+  assertFunction(this), assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
-extendBuiltInObject(Function, {
+$define(STATIC, 'Function', {
   /**
    * Alternatives:
    * http://underscorejs.org/#isFunction
@@ -18,7 +17,7 @@ extendBuiltInObject(Function, {
   inherits: unbind(inherits),
   _: _
 });
-extendBuiltInObject($Function, {
+$define(PROTO, 'Function', {
   invoke: function(args){
     assertFunction(this);
     var instance = create(this[prototype])
@@ -66,7 +65,7 @@ function createDeferred(set, clear, args){
     },
     run: function(){
       id && clear(id);
-      id = apply.call(set, global, args);
+      id = apply.call(set, undefined, args);
       return deferred;
     }
   }, id;

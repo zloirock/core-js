@@ -65,11 +65,11 @@ var extendCollections = {
       fn = target;
       target = create(null);
     } else target = Object(target);
-    this.forEach(fn, target);
+    this.forEach(part.call(fn, target));
     return target;
   }
 };
-extendBuiltInObject(Map[prototype], assign({
+$define(PROTO, 'Map', assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Map;
@@ -107,7 +107,7 @@ extendBuiltInObject(Map[prototype], assign({
     return result;
   }
 }, extendCollections));
-extendBuiltInObject(Set[prototype], assign({
+$define(PROTO, 'Set', assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Set;

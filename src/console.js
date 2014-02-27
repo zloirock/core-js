@@ -10,8 +10,8 @@ var $console = reduceTo.call(
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
   {enabled: true},
-  function(key){
-    this[key] = function(){
+  function(memo, key){
+    memo[key] = function(){
       return console[key] && $console.enabled ? apply.call(console[key], console, arguments) : undefined;
     };
   }
@@ -19,4 +19,4 @@ var $console = reduceTo.call(
 try {
   delete global.console;
 } catch(e){}
-$console = global.console = assign($console.log, $console);
+$define(GLOBAL, undefined, {console: $console = assign($console.log, $console)});

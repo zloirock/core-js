@@ -1,23 +1,3 @@
-/*
-option 'all' => 'enable all modules'
-option 'node' => 'enable all modules for node.js'
-option 'es5' => 'enable ES5 polyfill'
-option 'es6' => 'enable ES6 polyfill'
-option 'es6c' => 'enable ES6 collections (Map and Set) polyfill'
-option 'timers' => 'enable timers polyfill'
-option 'global' => '`global` is one reference for global object on node and browser'
-option 'iz' => 'enable iz'
-option 'function' => 'enable extend Function and Function.prototype'
-option 'object' => 'enable extend Object'
-option 'array' => 'enable extend Array and Array.prototype'
-option 'number' => 'enable extend Number and Number.prototype'
-option 'string' => 'enable extend String.prototype'
-option 'regexp' => 'enable extend RegExp and RegExp.prototype'
-option 'date' => 'enable extend Date and Date.prototype'
-option 'events' => 'enable EventEmitter'
-option 'async' => 'enable async'
-option 'console' => 'enable console'
-*/
 require! <[./core-stab ./build fs ./config]>
 module.exports = (grunt)->
   require \load-grunt-tasks <| grunt
@@ -43,6 +23,13 @@ module.exports = (grunt)->
     options .= split \, .reduceTo -> @[it] = on
     done = @async!
     js <- build options
-    <- fs.writeFile if options.nodePath => './index.js' else './core.js', js
+    <- fs.writeFile grunt.option(\path) || './core.js', js
     done!
-  grunt.registerTask \default <[build:all build:node,nodePath uglify]>
+  grunt.registerTask \all <[build:all]>
+  grunt.registerTask \node ->
+    grunt.option \path './index.js'
+    grunt.task.run <[build:node]>
+  grunt.registerTask \library  ->
+    grunt.option \path './library.js'
+    grunt.task.run <[build:all,library]>
+  grunt.registerTask \default <[all node library uglify]>

@@ -11,7 +11,7 @@
   function sign(it){
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
-  extendBuiltInObject(Object, {
+  $define(STATIC, 'Object', {
     /**
      * The assign function is used to copy the values of all of the enumerable
      * own properties from a source object to a target object.
@@ -35,7 +35,7 @@
    * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
    * work only if browser support __proto__, don't work with null proto objects
    */
-  PROTO && extendBuiltInObject(Object, {
+  __PROTO__ && $define(STATIC, 'Object', {
     setPrototypeOf: function(O, proto){
       assertObject(O);
       assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
@@ -43,7 +43,7 @@
       return O;
     }
   });
-  extendBuiltInObject(Number, {
+  $define(STATIC, 'Number', {
     /**
      * 20.1.2.1 Number.EPSILON
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
@@ -110,7 +110,7 @@
     , exp       = Math.exp
     , log       = Math.log
     , sqrt      = Math.sqrt;
-  extendBuiltInObject(Math, {
+  $define(STATIC, 'Math', {
     /**
      * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
      * 20.2.2.3 Math.acosh(x)
@@ -272,7 +272,7 @@
     }
   });
   /**
-  extendBuiltInObject(String, {
+  $define(STATIC, 'String', {
      * 21.1.2.2 String.fromCodePoint ( ...codePoints)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
      * http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
@@ -282,7 +282,7 @@
     raw: function(){ TODO }
   });
   */
-  extendBuiltInObject($String, {
+  $define(PROTO, 'String', {
     /**
      * 21.1.3.3 String.prototype.codePointAt (pos)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
@@ -333,7 +333,7 @@
       return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
-  extendBuiltInObject(Array, {
+  $define(STATIC, 'Array', {
     /**
      * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.from
@@ -374,7 +374,7 @@
     }
     return -1;
   }
-  extendBuiltInObject($Array, {
+  $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin

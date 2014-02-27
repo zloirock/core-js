@@ -1,6 +1,6 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[global init framework library es5 resume immediateInternal es6 es6c promise symbol extendedObjectAPI timers immediate function binding object array arrayStatics number string date extendCollections console]>
+modules    = <[init framework library es5 resume global immediateInternal es6 es6c promise symbol extendedObjectAPI timers immediate function binding object array arrayStatics number string date extendCollections console]>
 required   = <[init resume]>
 module.exports = (opt, next)-> let @ = opt
   import {+global, +es5, +timers, +node} if @all

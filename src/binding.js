@@ -1,4 +1,16 @@
-extendBuiltInObject($Function, {
+function tie(key){
+  var that = this
+    , i    = 1
+    , placeholder = false
+    , length, args;
+  assertObject(that);
+  length = arguments.length;
+  if(length < 2)return ctx(that[key], that);
+  args = Array(length - 1)
+  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(that[key], args, length, placeholder, true, that);
+}
+$define(PROTO, 'Function', {
   tie: tie,
   /**
    * Partial apply.
@@ -9,6 +21,17 @@ extendBuiltInObject($Function, {
    * http://fitzgen.github.io/wu.js/#wu-partial
    */
   part: part,
+  by: function(that){
+    var fn     = this
+      , length = arguments.length
+      , i      = 1
+      , placeholder = false
+      , args;
+    if(length < 2)return ctx(fn, that);
+    args = Array(length - 1);
+    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+    return createPartialApplication(fn, args, length, placeholder, true, that);
+  },
   /**
    * function -> method
    * Alternatives:
@@ -16,9 +39,9 @@ extendBuiltInObject($Function, {
    */
   methodize: methodize
 });
-extendBuiltInObject($Array, {tie: tie});
-extendBuiltInObject(RegExp[prototype], {tie: tie});
-extendBuiltInObject(Object, {
+$define(PROTO, 'Array', {tie: tie});
+$define(PROTO, 'RegExp', {tie: tie});
+$define(STATIC, 'Object', {
   /**
    * Alternatives:
    * http://www.2ality.com/2013/06/auto-binding.html
@@ -26,5 +49,5 @@ extendBuiltInObject(Object, {
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),
-  useTie: part.call(extendBuiltInObject, $Object, {tie: tie})
+  useTie: part.call($define, PROTO, 'Object', {tie: tie})
 });

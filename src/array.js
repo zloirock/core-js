@@ -1,4 +1,4 @@
-extendBuiltInObject($Array, {
+$define(PROTO, 'Array', {
   /**
    * Alternatives:
    * http://sugarjs.com/api/Array/at

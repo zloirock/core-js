@@ -1,1 +1,1 @@
-global.global = global;
+$define(GLOBAL, undefined, {global: global});
