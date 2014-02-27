@@ -225,16 +225,17 @@ var GLOBAL = 0
   , STATIC = 1
   , PROTO  = 2;
 /**
- * Module : library
+ * Module : framework
  */
-var $exports = typeof exports != 'undefined' ? exports : (global.C = {});
 function $define(type, name, source, forced /* = false */){
-  var old    = type == GLOBAL ? global : type == STATIC ? global[name] || {} : (global[name] || {})[prototype] || {}
-    , target = type == GLOBAL ? $exports : $exports[name] || ($exports[name] = {})
-    , key, prop;
-  for(key in source)if(has(source, key)){
-    prop = !forced && old && isNative(old[key]) ? old[key] : source[key];
-    target[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
+  var target = type == GLOBAL ? global : type == STATIC ? global[name] : global[name][prototype];
+  for(var key in source){
+    try {
+      has(source, key)
+      && (forced || !has(target, key) || !isNative(target[key]))
+      && delete target[key]
+      && hidden(target, key, source[key]);
+    } catch(e){}
   }
 }
 /**
