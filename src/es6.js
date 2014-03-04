@@ -374,11 +374,38 @@
     }
     return -1;
   }
+  ArrayIterator = function(O, kind){
+    this._K = kind;
+    this._O = O;
+    this._i = -1;
+  }
+  ArrayIterator[prototype].next = function(){
+    var O = this._O
+      , length = O.length
+      , i = ++this._i;
+    while(i < length && !(i in O))this._i = ++i;
+    if(i >= length)return createIterResultObject(undefined, 1);
+    switch(this._K){
+      case KEY : return createIterResultObject(i, 0);
+      case VALUE : return createIterResultObject(O[i], 0);
+      case KEY+VALUE : return createIterResultObject([i, O[i]], 0);
+    }
+  }
+  function createArrayIterator(kind){
+    return function(){
+      return new ArrayIterator(this, kind);
+    }
+  }
   $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
     copyWithin: function(target, start, end){ TODO },
+     * 22.1.3.4 Array.prototype.entries ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
+    */
+    entries: createArrayIterator(KEY+VALUE),
+    /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
@@ -405,6 +432,21 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: findIndex
+    findIndex: findIndex,
+    /**
+     * 22.1.3.13 Array.prototype.keys ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
+     */
+    keys: createArrayIterator(KEY),
+    /**
+     * 22.1.3.29 Array.prototype.values ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
+     */
+    values: createArrayIterator(VALUE),
+    /**
+     * 22.1.3.30 Array.prototype [ @@iterator ] ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
+     */
+    '@@iterator': createArrayIterator(VALUE)
   });
 }(isFinite);

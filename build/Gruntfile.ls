@@ -31,5 +31,5 @@ module.exports = (grunt)->
     grunt.task.run <[build:node]>
   grunt.registerTask \library  ->
     grunt.option \path './library.js'
-    grunt.task.run <[build:all,library]>
+    grunt.task.run <[build:node,global,timers,library]>
   grunt.registerTask \default <[all node library uglify]>

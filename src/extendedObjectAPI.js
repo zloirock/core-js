@@ -4,11 +4,7 @@
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
 $define(STATIC, 'Object', {
-  getPropertyDescriptor: function(object, key){
-    if(key in object)do {
-      if(has(object, key))return getOwnPropertyDescriptor(object, key);
-    } while(object = getPrototypeOf(object));
-  },
+  getPropertyDescriptor: getPropertyDescriptor,
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
     var result = getOwnPropertyDescriptors(object);

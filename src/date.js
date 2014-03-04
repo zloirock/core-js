@@ -3,7 +3,6 @@
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
  * https://github.com/andyearnshaw/Intl.js
  * http://momentjs.com/
- * http://habrahabr.ru/post/204162/
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
@@ -30,8 +29,8 @@
         case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month   : 01-12
         case 'M'    : return locale.M[that[getMonth]()];                        // Month   : Январь
         case 'MM'   : return locale.MM[that[getMonth]()];                       // Month   : Января
-        case 'yy'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
-        case 'yyyy' : return that.getFullYear();                                // Year    : 2013
+        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
+        case 'YYYY' : return that.getFullYear();                                // Year    : 2013
       }
       return part;
     });

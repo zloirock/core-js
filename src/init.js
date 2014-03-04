@@ -45,9 +45,15 @@ function classof(it){
 
 // Function:
 var apply = $Function.apply
-  , call  = $Function.call;
+  , call  = $Function.call
+  , undescore = global._;
 // placeholder for partial apply
-var _ = {};
+var _ = {
+  noConflict: function(){
+    global._ = undescore;
+    return _;
+  }
+};
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -115,6 +121,12 @@ function getOwnPropertyDescriptors(object){
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
   return result;
 }
+// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+function getPropertyDescriptor(object, key){
+  if(key in object)do {
+    if(has(object, key))return getOwnPropertyDescriptor(object, key);
+  } while(object = getPrototypeOf(object));
+}
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
   target = Object(target);
@@ -146,7 +158,8 @@ var push   = $Array.push
   , slice  = $Array.slice
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
-    };
+    }
+  , ArrayIterator;
 // Dummy, fix for not array-like ES3 string in es5.js
 var ES5Object = Object;
 // simple reduce to object
@@ -212,4 +225,11 @@ function hidden(object, key, value){
 
 var GLOBAL = 0
   , STATIC = 1
-  , PROTO  = 2;
+  , PROTO  = 2
+  , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
+
+var KEY       = 1
+  , VALUE     = 2;
+function createIterResultObject(value, done){
+  return {value: value, done: !!done};
+}

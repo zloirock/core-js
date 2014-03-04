@@ -56,9 +56,15 @@ function classof(it){
 
 // Function:
 var apply = $Function.apply
-  , call  = $Function.call;
+  , call  = $Function.call
+  , undescore = global._;
 // placeholder for partial apply
-var _ = {};
+var _ = {
+  noConflict: function(){
+    global._ = undescore;
+    return _;
+  }
+};
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -126,6 +132,12 @@ function getOwnPropertyDescriptors(object){
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
   return result;
 }
+// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+function getPropertyDescriptor(object, key){
+  if(key in object)do {
+    if(has(object, key))return getOwnPropertyDescriptor(object, key);
+  } while(object = getPrototypeOf(object));
+}
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
   target = Object(target);
@@ -157,7 +169,8 @@ var push   = $Array.push
   , slice  = $Array.slice
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
-    };
+    }
+  , ArrayIterator;
 // Dummy, fix for not array-like ES3 string in es5.js
 var ES5Object = Object;
 // simple reduce to object
@@ -223,340 +236,26 @@ function hidden(object, key, value){
 
 var GLOBAL = 0
   , STATIC = 1
-  , PROTO  = 2;
+  , PROTO  = 2
+  , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
+
+var KEY       = 1
+  , VALUE     = 2;
+function createIterResultObject(value, done){
+  return {value: value, done: !!done};
+}
 /**
  * Module : library
  */
-var $exports = typeof exports != 'undefined' ? exports : (global.C = {});
 function $define(type, name, source, forced /* = false */){
-  var old    = type == GLOBAL ? global : type == STATIC ? global[name] || {} : (global[name] || {})[prototype] || {}
-    , target = type == GLOBAL ? $exports : $exports[name] || ($exports[name] = {})
+  var target  = type == GLOBAL ? global : type == STATIC ? global[name] || {} : (global[name] || {})[prototype] || {}
+    , exports = type == GLOBAL ? $exports : $exports[name] || ($exports[name] = {})
     , key, prop;
   for(key in source)if(has(source, key)){
-    prop = !forced && old && isNative(old[key]) ? old[key] : source[key];
-    target[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
+    prop = !forced && target && isNative(target[key]) ? target[key] : source[key];
+    exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
   }
 }
-/**
- * Module : es5
- */
-/**
- * ECMAScript 5 shim
- * Alternatives:
- * https://github.com/es-shims/es5-shim
- * https://github.com/ddrcode/ddr-ecma5
- * http://augmentjs.com/
- * https://github.com/inexorabletash/polyfill/blob/master/es5.js
- */
-!function(){
-  var Empty              = Function()
-    , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
-    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
-    // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
-    , hiddenNames2       = hiddenNames1.concat(['length'])
-    , hiddenNames1Length = hiddenNames1.length
-    , nativeSlice        = slice
-    , nativeJoin         = $Array.join
-    // Create object with null as it's prototype
-    , createNullProtoObject = __PROTO__
-      ? function(){
-          return {__proto__: null};
-        }
-      : function(){
-          // Thrash, waste and sodomy
-          var iframe   = document.createElement('iframe')
-            , i        = hiddenNames1Length
-            , body     = document.body || document.documentElement
-            , iframeDocument;
-          iframe.style.display = 'none';
-          body.appendChild(iframe);
-          iframe.src = 'javascript:';
-          iframeDocument = iframe.contentWindow.document || iframe.contentDocument || iframe.document;
-          iframeDocument.open();
-          iframeDocument.write('<script>document._=Object</script>');
-          iframeDocument.close();
-          createNullProtoObject = iframeDocument._;
-          while(i--)delete createNullProtoObject[prototype][hiddenNames1[i]];
-          return createNullProtoObject();
-        }
-    , createGetKeys = function(names, length){
-        return function(O){
-          O = ES5Object(O);
-          var i      = 0
-            , result = []
-            , key;
-          for(key in O)has(O, key) && result.push(key);
-          // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~result.indexOf(key) && result.push(key);
-          return result;
-        }
-      };
-  // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-  try {
-    defineProperty({}, 0, $Object);
-  }
-  catch(e){
-    DESCRIPTORS = 0;
-    /**
-     * 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
-     * http://es5.github.io/#x15.2.3.3
-     */
-    Object.getOwnPropertyDescriptor = function(O, P){
-      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
-    };
-    /**
-     * 15.2.3.6 Object.defineProperty ( O, P, Attributes )
-     * http://es5.github.io/#x15.2.3.6
-     */
-    Object.defineProperty = defineProperty = function(O, P, Attributes){
-      assertObject(O);
-      if('value' in Attributes)O[P] = Attributes.value;
-      return O;
-    };
-    /**
-     * 15.2.3.7 Object.defineProperties ( O, Properties ) 
-     * http://es5.github.io/#x15.2.3.7
-     */
-    Object.defineProperties = function(O, Properties){
-      assertObject(O);
-      var names  = keys(Properties)
-        , length = names.length
-        , i = 0
-        , P, Attributes;
-      while(length > i){
-        P          = names[i++];
-        Attributes = Properties[P];
-        if('value' in Attributes)O[P] = Attributes.value;
-      }
-      return O;
-    }
-  }
-  $define(STATIC, 'Object', {
-    /**
-     * 15.2.3.2 Object.getPrototypeOf ( O ) 
-     * http://es5.github.io/#x15.2.3.2
-     */
-    getPrototypeOf: function(O){
-      var constructor
-        , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
-      return O !== proto && 'toString' in O ? proto : null;
-    },
-    /**
-     * 15.2.3.4 Object.getOwnPropertyNames ( O )
-     * http://es5.github.io/#x15.2.3.4
-     */
-    getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
-    /**
-     * 15.2.3.5 Object.create ( O [, Properties] )
-     * http://es5.github.io/#x15.2.3.5
-     */
-    create: function(O, /*?*/Properties){
-      if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
-      assertObject(O);
-      Empty[prototype] = O;
-      var result = new Empty();
-      if(Properties)defineProperties(result, Properties);
-      // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
-      return result;
-    },
-    /**
-     * 15.2.3.14 Object.keys ( O )
-     * http://es5.github.io/#x15.2.3.14
-     */
-    keys: createGetKeys(hiddenNames1, hiddenNames1Length)
-  });
-  // not array-like strings fix
-  if(!(0 in Object('q') && 'q'[0] == 'q')){
-    ES5Object = function(it){
-      return classof(it) == 'String' ? it.split('') : Object(it);
-    }
-    // Array.prototype methods for strings in ES3
-    $Array.slice = slice = function(){
-      return nativeSlice.apply(ES5Object(this), arguments);
-    }
-    $Array.join = function(){
-      return nativeJoin.apply(ES5Object(this), arguments);
-    }
-  }
-  /**
-   * 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
-   * http://es5.github.io/#x15.3.4.5
-   */
-  $define(PROTO, 'Function', {
-    bind: function(scope /*, args...*/){
-      var fn   = this
-        , args = $slice(arguments, 1);
-      assertFunction(fn);
-      function bound(){
-        return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)));
-      }
-      bound[prototype] = create(fn[prototype]);
-      return bound;
-    }
-  });
-  /**
-   * 15.4.3.2 Array.isArray ( arg )
-   * http://es5.github.io/#x15.4.3.2
-   * Alternatives:
-   * http://underscorejs.org/#isArray
-   * http://sugarjs.com/api/Object/isType
-   * http://api.prototypejs.org/language/Object/isArray/
-   * http://nodejs.org/api/util.html#util_util_isarray_object
-   * http://api.jquery.com/jQuery.isArray/
-   * http://docs.angularjs.org/api/angular.isArray
-   */
-  $define(STATIC, 'Array', {isArray: function(it){
-    return classof(it) == 'Array'
-  }});
-  function forEach(callbackfn, thisArg /* = undefined */){
-    assertFunction(callbackfn);
-    var self   = ES5Object(this)
-      , length = toLength(self.length)
-      , i      = 0;
-    for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
-  }
-  $define(PROTO, 'Array', {
-    /**
-     * 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.14
-     */
-    indexOf: function(searchElement, fromIndex /* = 0 */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = fromIndex | 0;
-      if(0 > i)i = toLength(length + i);
-      for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
-      return -1;
-    },
-    /**
-     * 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.15
-     */
-    lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = length - 1;
-      if(arguments.length > 1)i = min(i, fromIndex | 0);
-      if(0 > i)i = toLength(length + i);
-      for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
-      return -1;
-    },
-    /**
-     * 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.16
-     */
-    every: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && !callbackfn.call(thisArg, self[i], i, this))return false;
-      }
-      return true;
-    },
-    /**
-     * 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.17
-     */
-    some: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && callbackfn.call(thisArg, self[i], i, this))return true;
-      }
-      return false;
-    },
-    /**
-     * 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.18
-     */
-    forEach: forEach,
-    /**
-     * 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.19
-     */
-    map: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = Array(toLength(this.length));
-      forEach.call(this, function(val, key, that){
-        result[key] = callbackfn.call(thisArg, val, key, that);
-      });
-      return result;
-    },
-    /**
-     * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.20
-     */
-    filter: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = [];
-      forEach.call(this, function(val){
-        callbackfn.apply(thisArg, arguments) && result.push(val);
-      });
-      return result;
-    },
-    /**
-     * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.21
-     */
-    reduce: function(callbackfn, memo /* = @.1 */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i++];
-          break;
-        }
-        assert(length > ++i, REDUCE_ERROR);
-      }
-      for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
-      return memo;
-    },
-    /**
-     * 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.22
-     */
-    reduceRight: function(callbackfn, memo /* = @[*-1] */){
-      assertFunction(callbackfn);
-      var self = ES5Object(this)
-        , i    = toLength(self.length) - 1;
-      if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i--];
-          break;
-        }
-        assert(0 <= --i, REDUCE_ERROR);
-      }
-      for(;i >= 0; i--)if(i in self)memo = callbackfn(memo, self[i], i, this);
-      return memo;
-    }
-  });
-  /**
-   * 15.5.4.20 String.prototype.trim ( )
-   * http://es5.github.io/#x15.5.4.20
-   */
-  $define(PROTO, 'String', {trim: function(){
-    return String(this).replace(trimRegExp, '');
-  }});
-  /**
-   * 15.9.4.4 Date.now ( )
-   * http://es5.github.io/#x15.9.4.4
-   */
-  $define(STATIC, 'Date', {now: function(){
-    return +new Date;
-  }});
-  if(isFunction(trimRegExp))isFunction = function(it){
-    return classof(it) == 'Function';
-  }
-}();
 /**
  * Module : resume
  */
@@ -1026,11 +725,38 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
     return -1;
   }
+  ArrayIterator = function(O, kind){
+    this._K = kind;
+    this._O = O;
+    this._i = -1;
+  }
+  ArrayIterator[prototype].next = function(){
+    var O = this._O
+      , length = O.length
+      , i = ++this._i;
+    while(i < length && !(i in O))this._i = ++i;
+    if(i >= length)return createIterResultObject(undefined, 1);
+    switch(this._K){
+      case KEY : return createIterResultObject(i, 0);
+      case VALUE : return createIterResultObject(O[i], 0);
+      case KEY+VALUE : return createIterResultObject([i, O[i]], 0);
+    }
+  }
+  function createArrayIterator(kind){
+    return function(){
+      return new ArrayIterator(this, kind);
+    }
+  }
   $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
     copyWithin: function(target, start, end){ TODO },
+     * 22.1.3.4 Array.prototype.entries ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
+    */
+    entries: createArrayIterator(KEY+VALUE),
+    /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
@@ -1057,7 +783,22 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: findIndex
+    findIndex: findIndex,
+    /**
+     * 22.1.3.13 Array.prototype.keys ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
+     */
+    keys: createArrayIterator(KEY),
+    /**
+     * 22.1.3.29 Array.prototype.values ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
+     */
+    values: createArrayIterator(VALUE),
+    /**
+     * 22.1.3.30 Array.prototype [ @@iterator ] ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
+     */
+    '@@iterator': createArrayIterator(VALUE)
   });
 }(isFinite);
 /**
@@ -1300,7 +1041,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
     'delete': function(key){
-      return this.has(key) && has(key, WEAKDATA) ? delete key[WEAKDATA][this[WEAKID]] : false;
+      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
@@ -1588,6 +1329,45 @@ $define(GLOBAL, undefined, {
   }
 });
 /**
+ * Module : reflect
+ */
+var id = Function('x', 'return x');
+$define(GLOBAL, undefined, {Reflect: {}});
+$define(STATIC, 'Reflect', {
+  defineProperty: defineProperty,
+  deleteProperty: function(target, propertyKey){
+    return delete target[propertyKey];
+  },
+  enumerate: function(target){
+    var list = []
+      , key;
+    for(key in target)list.push(key);
+    return list;
+  },
+  get: function(target, propertyKey, receiver){
+    if(arguments.length < 3)return target[propertyKey];
+    var desc = getPropertyDescriptor(target, propertyKey);
+    return desc && isFunction(desc.get) ? desc.get.call(receiver) : target[propertyKey];
+  },
+  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+  getPrototypeOf: getPrototypeOf,
+  has: function(target, propertyKey){
+    return propertyKey in target;
+  },
+  hasOwn: has,
+  isExtensible: Object.isExtensible || Function('return !0'),
+  ownKeys: function(target){
+    return new ArrayIterator(keys(target), VALUE);
+  },
+  preventExtensions: Object.preventExtensions || id,
+  set: function(target, propertyKey, V, receiver){
+    if(arguments.length < 3)return target[propertyKey] = V;
+    var desc = getPropertyDescriptor(target, propertyKey);
+    return desc && isFunction(desc.set) ? desc.set.call(receiver, V) : target[propertyKey] = V;
+  },
+  setPrototypeOf: Object.setPrototypeOf || id
+});
+/**
  * Module : extendedObjectAPI
  */
 /**
@@ -1596,11 +1376,7 @@ $define(GLOBAL, undefined, {
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
 $define(STATIC, 'Object', {
-  getPropertyDescriptor: function(object, key){
-    if(key in object)do {
-      if(has(object, key))return getOwnPropertyDescriptor(object, key);
-    } while(object = getPrototypeOf(object));
-  },
+  getPropertyDescriptor: getPropertyDescriptor,
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
     var result = getOwnPropertyDescriptors(object);
@@ -2407,7 +2183,6 @@ $define(PROTO, 'Number', reduceTo.call(
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
  * https://github.com/andyearnshaw/Intl.js
  * http://momentjs.com/
- * http://habrahabr.ru/post/204162/
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
@@ -2434,8 +2209,8 @@ $define(PROTO, 'Number', reduceTo.call(
         case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month   : 01-12
         case 'M'    : return locale.M[that[getMonth]()];                        // Month   : Январь
         case 'MM'   : return locale.MM[that[getMonth]()];                       // Month   : Января
-        case 'yy'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
-        case 'yyyy' : return that.getFullYear();                                // Year    : 2013
+        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
+        case 'YYYY' : return that.getFullYear();                                // Year    : 2013
       }
       return part;
     });

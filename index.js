@@ -56,9 +56,15 @@ function classof(it){
 
 // Function:
 var apply = $Function.apply
-  , call  = $Function.call;
+  , call  = $Function.call
+  , undescore = global._;
 // placeholder for partial apply
-var _ = {};
+var _ = {
+  noConflict: function(){
+    global._ = undescore;
+    return _;
+  }
+};
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -126,6 +132,12 @@ function getOwnPropertyDescriptors(object){
   while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
   return result;
 }
+// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+function getPropertyDescriptor(object, key){
+  if(key in object)do {
+    if(has(object, key))return getOwnPropertyDescriptor(object, key);
+  } while(object = getPrototypeOf(object));
+}
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
 var assign = Object.assign || function(target, source){
   target = Object(target);
@@ -157,7 +169,8 @@ var push   = $Array.push
   , slice  = $Array.slice
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
-    };
+    }
+  , ArrayIterator;
 // Dummy, fix for not array-like ES3 string in es5.js
 var ES5Object = Object;
 // simple reduce to object
@@ -223,16 +236,26 @@ function hidden(object, key, value){
 
 var GLOBAL = 0
   , STATIC = 1
-  , PROTO  = 2;
+  , PROTO  = 2
+  , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
+
+var KEY       = 1
+  , VALUE     = 2;
+function createIterResultObject(value, done){
+  return {value: value, done: !!done};
+}
 /**
  * Module : framework
  */
 function $define(type, name, source, forced /* = false */){
-  var target = type == GLOBAL ? global : type == STATIC ? global[name] : global[name][prototype];
-  for(var key in source){
+  var target = type == GLOBAL ? global : type == STATIC ? global[name] : global[name][prototype]
+    , exports = type == GLOBAL ? $exports : $exports[name] || ($exports[name] = {})
+    , key, prop;
+  for(var key in source)if(has(source, key)){
+    prop = !forced && target && isNative(target[key]) ? target[key] : source[key];
+    exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
     try {
-      has(source, key)
-      && (forced || !has(target, key) || !isNative(target[key]))
+      (forced || !has(target, key) || !isNative(target[key]))
       && delete target[key]
       && hidden(target, key, source[key]);
     } catch(e){}
@@ -703,11 +726,38 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
     return -1;
   }
+  ArrayIterator = function(O, kind){
+    this._K = kind;
+    this._O = O;
+    this._i = -1;
+  }
+  ArrayIterator[prototype].next = function(){
+    var O = this._O
+      , length = O.length
+      , i = ++this._i;
+    while(i < length && !(i in O))this._i = ++i;
+    if(i >= length)return createIterResultObject(undefined, 1);
+    switch(this._K){
+      case KEY : return createIterResultObject(i, 0);
+      case VALUE : return createIterResultObject(O[i], 0);
+      case KEY+VALUE : return createIterResultObject([i, O[i]], 0);
+    }
+  }
+  function createArrayIterator(kind){
+    return function(){
+      return new ArrayIterator(this, kind);
+    }
+  }
   $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
     copyWithin: function(target, start, end){ TODO },
+     * 22.1.3.4 Array.prototype.entries ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
+    */
+    entries: createArrayIterator(KEY+VALUE),
+    /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
@@ -734,7 +784,22 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: findIndex
+    findIndex: findIndex,
+    /**
+     * 22.1.3.13 Array.prototype.keys ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
+     */
+    keys: createArrayIterator(KEY),
+    /**
+     * 22.1.3.29 Array.prototype.values ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
+     */
+    values: createArrayIterator(VALUE),
+    /**
+     * 22.1.3.30 Array.prototype [ @@iterator ] ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
+     */
+    '@@iterator': createArrayIterator(VALUE)
   });
 }(isFinite);
 /**
@@ -977,7 +1042,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
     'delete': function(key){
-      return this.has(key) && has(key, WEAKDATA) ? delete key[WEAKDATA][this[WEAKID]] : false;
+      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
@@ -1265,6 +1330,45 @@ $define(GLOBAL, undefined, {
   }
 });
 /**
+ * Module : reflect
+ */
+var id = Function('x', 'return x');
+$define(GLOBAL, undefined, {Reflect: {}});
+$define(STATIC, 'Reflect', {
+  defineProperty: defineProperty,
+  deleteProperty: function(target, propertyKey){
+    return delete target[propertyKey];
+  },
+  enumerate: function(target){
+    var list = []
+      , key;
+    for(key in target)list.push(key);
+    return list;
+  },
+  get: function(target, propertyKey, receiver){
+    if(arguments.length < 3)return target[propertyKey];
+    var desc = getPropertyDescriptor(target, propertyKey);
+    return desc && isFunction(desc.get) ? desc.get.call(receiver) : target[propertyKey];
+  },
+  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+  getPrototypeOf: getPrototypeOf,
+  has: function(target, propertyKey){
+    return propertyKey in target;
+  },
+  hasOwn: has,
+  isExtensible: Object.isExtensible || Function('return !0'),
+  ownKeys: function(target){
+    return new ArrayIterator(keys(target), VALUE);
+  },
+  preventExtensions: Object.preventExtensions || id,
+  set: function(target, propertyKey, V, receiver){
+    if(arguments.length < 3)return target[propertyKey] = V;
+    var desc = getPropertyDescriptor(target, propertyKey);
+    return desc && isFunction(desc.set) ? desc.set.call(receiver, V) : target[propertyKey] = V;
+  },
+  setPrototypeOf: Object.setPrototypeOf || id
+});
+/**
  * Module : extendedObjectAPI
  */
 /**
@@ -1273,11 +1377,7 @@ $define(GLOBAL, undefined, {
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
 $define(STATIC, 'Object', {
-  getPropertyDescriptor: function(object, key){
-    if(key in object)do {
-      if(has(object, key))return getOwnPropertyDescriptor(object, key);
-    } while(object = getPrototypeOf(object));
-  },
+  getPropertyDescriptor: getPropertyDescriptor,
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
     var result = getOwnPropertyDescriptors(object);
@@ -2061,7 +2161,6 @@ $define(PROTO, 'Number', reduceTo.call(
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
  * https://github.com/andyearnshaw/Intl.js
  * http://momentjs.com/
- * http://habrahabr.ru/post/204162/
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
@@ -2088,8 +2187,8 @@ $define(PROTO, 'Number', reduceTo.call(
         case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month   : 01-12
         case 'M'    : return locale.M[that[getMonth]()];                        // Month   : Январь
         case 'MM'   : return locale.MM[that[getMonth]()];                       // Month   : Января
-        case 'yy'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
-        case 'yyyy' : return that.getFullYear();                                // Year    : 2013
+        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
+        case 'YYYY' : return that.getFullYear();                                // Year    : 2013
       }
       return part;
     });

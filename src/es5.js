@@ -144,14 +144,17 @@
    * http://es5.github.io/#x15.3.4.5
    */
   $define(PROTO, 'Function', {
-    bind: function(scope /*, args...*/){
+    bind: function(scope /*, args... */){
       var fn   = this
         , args = $slice(arguments, 1);
       assertFunction(fn);
-      function bound(){
-        return apply.call(fn, this instanceof fn ? this : scope, args.concat($slice(arguments)));
+      function bound(/* args... */){
+        var _args = args.concat($slice(arguments))
+          , result, that
+        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[prototype]), scope, _args)) ? result : that;
+        return apply.call(fn, scope, _args);
       }
-      bound[prototype] = create(fn[prototype]);
+      bound[prototype] = undefined;
       return bound;
     }
   });

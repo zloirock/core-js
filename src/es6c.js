@@ -235,7 +235,7 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
      */
     'delete': function(key){
-      return this.has(key) && has(key, WEAKDATA) ? delete key[WEAKDATA][this[WEAKID]] : false;
+      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
     /**
      * 23.3.3.5 WeakMap.prototype.has ( key )
