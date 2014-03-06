@@ -1,23 +1,23 @@
 {isFunction, isNative} = Function
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
-test 'Object.has' !->
-  {has} = Object
-  ok isFunction(has), 'Is function'
-  ok has q:1, \q
-  ok not has q:1, \w
-  ok has [1] 0
-  ok not has [] 0
-  ok not has ^^{q:1} \q
-  ok not has {} \toString
-test 'Object.get' !->
-  {get} = Object
-  ok isFunction(get), 'Is function'
-  ok get(q:1, \q) is 1
-  ok get(q:1, \w) is void
-  ok get([1] 0) is 1
-  ok get([] 0) is void
-  ok get(^^{q:1} \q) is void
-  ok get({} \toString) is void
+test 'Object.hasOwn' !->
+  {hasOwn} = Object
+  ok isFunction(hasOwn), 'Is function'
+  ok hasOwn q:1, \q
+  ok not hasOwn q:1, \w
+  ok hasOwn [1] 0
+  ok not hasOwn [] 0
+  ok not hasOwn ^^{q:1} \q
+  ok not hasOwn {} \toString
+test 'Object.getOwn' !->
+  {getOwn} = Object
+  ok isFunction(getOwn), 'Is function'
+  ok getOwn(q:1, \q) is 1
+  ok getOwn(q:1, \w) is void
+  ok getOwn([1] 0) is 1
+  ok getOwn([] 0) is void
+  ok getOwn(^^{q:1} \q) is void
+  ok getOwn({} \toString) is void
 test 'Object.isEnumerable' !->
   {isEnumerable} = Object
   ok isFunction(isEnumerable), 'Is function'

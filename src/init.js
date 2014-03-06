@@ -7,6 +7,7 @@ var prototype      = 'prototype'
   , Number         = global.Number
   , RegExp         = global.RegExp
   , Math           = global.Math
+  , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
   , clearTimeout   = global.clearTimeout
   , setInterval    = global.setInterval
@@ -46,14 +47,13 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call
-  , undescore = global._;
-// placeholder for partial apply
-var _ = {
-  noConflict: function(){
-    global._ = undescore;
-    return _;
-  }
-};
+  , undescore = global._
+  , _ = {
+    noConflict: function(){
+      global._ = undescore;
+      return _;
+    }
+  };
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -208,6 +208,7 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
+var ITERATOR = global.Symbol && Symbol.iterator || '@@iterator';
 function symbol(key){
   return '@@' + key + '_' + random().toString(36).slice(2);
 }
@@ -232,4 +233,9 @@ var KEY       = 1
   , VALUE     = 2;
 function createIterResultObject(value, done){
   return {value: value, done: !!done};
+}
+function createIteratorFactory(constructor, kind){
+  return function(){
+    return new constructor(this, kind);
+  }
 }

@@ -17,3 +17,4 @@ $define(GLOBAL, undefined, {
     }};
   }
 });
+$define(STATIC, 'Symbol', {iterator: ITERATOR});

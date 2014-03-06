@@ -2178,39 +2178,39 @@
   var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
   isFunction = Function.isFunction, isNative = Function.isNative;
   getPrototypeOf = Object.getPrototypeOf, create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  test('Object.has', function(){
-    var has;
-    has = Object.has;
-    ok(isFunction(has), 'Is function');
-    ok(has({
+  test('Object.hasOwn', function(){
+    var hasOwn;
+    hasOwn = Object.hasOwn;
+    ok(isFunction(hasOwn), 'Is function');
+    ok(hasOwn({
       q: 1
     }, 'q'));
-    ok(!has({
+    ok(!hasOwn({
       q: 1
     }, 'w'));
-    ok(has([1], 0));
-    ok(!has([], 0));
-    ok(!has(clone$({
+    ok(hasOwn([1], 0));
+    ok(!hasOwn([], 0));
+    ok(!hasOwn(clone$({
       q: 1
     }), 'q'));
-    ok(!has({}, 'toString'));
+    ok(!hasOwn({}, 'toString'));
   });
-  test('Object.get', function(){
-    var get;
-    get = Object.get;
-    ok(isFunction(get), 'Is function');
-    ok(get({
+  test('Object.getOwn', function(){
+    var getOwn;
+    getOwn = Object.getOwn;
+    ok(isFunction(getOwn), 'Is function');
+    ok(getOwn({
       q: 1
     }, 'q') === 1);
-    ok(get({
+    ok(getOwn({
       q: 1
     }, 'w') === void 8);
-    ok(get([1], 0) === 1);
-    ok(get([], 0) === void 8);
-    ok(get(clone$({
+    ok(getOwn([1], 0) === 1);
+    ok(getOwn([], 0) === void 8);
+    ok(getOwn(clone$({
       q: 1
     }), 'q') === void 8);
-    ok(get({}, 'toString') === void 8);
+    ok(getOwn({}, 'toString') === void 8);
   });
   test('Object.isEnumerable', function(){
     var isEnumerable;

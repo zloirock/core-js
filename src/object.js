@@ -142,8 +142,8 @@
      */
     isEnumerable: unbind(isEnumerable),
     isPrototype: unbind($Object.isPrototypeOf),
-    has: has,
-    get: function(object, key){
+    hasOwn: has,
+    getOwn: function(object, key){
       return has(object, key) ? object[key] : undefined;
     },
     /**
