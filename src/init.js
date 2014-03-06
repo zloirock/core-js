@@ -229,13 +229,5 @@ var GLOBAL = 0
   , PROTO  = 2
   , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
 
-var KEY       = 1
-  , VALUE     = 2;
-function createIterResultObject(value, done){
-  return {value: value, done: !!done};
-}
-function createIteratorFactory(constructor, kind){
-  return function(){
-    return new constructor(this, kind);
-  }
-}
+var KEY   = 1
+  , VALUE = 2;

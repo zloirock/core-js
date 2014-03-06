@@ -374,42 +374,11 @@
     }
     return -1;
   }
-  ArrayIterator = function(O, kind){
-    this._K = kind;
-    this._O = O;
-    this._i = -1;
-  }
-  ArrayIterator[prototype].next = function(){
-    var O = this._O
-      , length = O.length
-      , i = ++this._i;
-    while(i < length && !(i in O))this._i = ++i;
-    if(i >= length)return createIterResultObject(undefined, 1);
-    switch(this._K){
-      case KEY : return createIterResultObject(i, 0);
-      case VALUE : return createIterResultObject(O[i], 0);
-      case KEY+VALUE : return createIterResultObject([i, O[i]], 0);
-    }
-  }
-  ArrayIterator[prototype][ITERATOR] = function(){
-    return this;
-  }
-  var arrayProtoIterator = {};
-  /**
-   * 22.1.3.30 Array.prototype [ @@iterator ] ( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
-   */
-  arrayProtoIterator[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
-  $define(PROTO, 'Array', assign({
+  $define(PROTO, 'Array', {
     /**
      * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
     copyWithin: function(target, start, end){ TODO },
-     * 22.1.3.4 Array.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
-    */
-    entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    /**
      * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
      * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
@@ -436,23 +405,6 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
      * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
      */
-    findIndex: findIndex,
-    /**
-     * 22.1.3.13 Array.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
-     */
-    keys: createIteratorFactory(ArrayIterator, KEY),
-    /**
-     * 22.1.3.29 Array.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
-     */
-    values: createIteratorFactory(ArrayIterator, VALUE)
-  }, arrayProtoIterator));
-  _.forOf = function(it, fn){
-    var iterator, step;
-    if(isFunction(it.next))iterator = it;
-    else if(isFunction(it[ITERATOR]))iterator = it[ITERATOR]();
-    else throw TypeError();
-    while(!(step = iterator.next()).done)fn(step.value);
-  }
+    findIndex: findIndex
+  });
 }(isFinite);
