@@ -19,4 +19,4 @@ var $console = reduceTo.call(
 try {
   delete global.console;
 } catch(e){}
-$define(GLOBAL, undefined, {console: $console = assign($console.log, $console)});
+$define(GLOBAL, {console: $console = assign($console.log, $console)}, 1);

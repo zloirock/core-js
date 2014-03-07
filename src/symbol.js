@@ -6,7 +6,7 @@
  * https://github.com/component/symbol
  * https://github.com/anthonyshort/symbol
  */
-$define(GLOBAL, undefined, {
+$define(GLOBAL, {
   Symbol: function(description){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){

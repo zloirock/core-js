@@ -192,5 +192,5 @@
       }
     }
   }();
-  $define(GLOBAL, undefined, {Promise: Promise});
+  $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);

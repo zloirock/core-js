@@ -14,7 +14,11 @@
   }
   // ie9- dirty check
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    global.setTimeout  = wrap(setTimeout);
-    global.setInterval = wrap(setInterval);
+    setTimeout  = wrap(setTimeout);
+    setInterval = wrap(setInterval);
   }
+  $define(GLOBAL, {
+    setTimeout: setTimeout,
+    setInterval: setInterval
+  }, 1);
 }(global.navigator);

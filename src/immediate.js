@@ -6,7 +6,7 @@
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
-$define(GLOBAL, undefined, {
+$define(GLOBAL, {
   setImmediate: setImmediate,
   clearImmediate: clearImmediate
 });

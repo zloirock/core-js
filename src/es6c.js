@@ -11,7 +11,7 @@
  * https://github.com/montagejs/collections
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
-!function(Map, Set, WeakMap, WeakSet){
+!function(){
   var STOREID      = symbol('storeid')
     , KEYS_STORE   = symbol('keys')
     , VALUES_STORE = symbol('values')
@@ -28,21 +28,24 @@
           }
         }
       };
+  function initCollection(that, iterable, isSet){
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(val){
+      that.set(val[0], val[1]);
+    }, that);
+    return that;
+  }
   function createCollectionConstructor(key, isSet){
     function F(iterable){
       assertInstance(this, F, key);
       this.clear();
-      isSet && isArray(iterable) && iterable.forEach(this.add, this);
+      initCollection(this, iterable, isSet);
     }
     return F;
   }
-  // fix Set & WeakSet constructors for init array
-  function fixCollectionConstructor(Base, key){
+  function fixCollectionConstructor(Base, key, isSet){
     function F(iterable){
       assertInstance(this, F, key);
-      var that = new Base;
-      isArray(iterable) && iterable.forEach(that.add, that);
-      return that;
+      return initCollection(new Base, iterable, isSet);
     }
     F[prototype] = Base[prototype];
     return F;
@@ -154,7 +157,10 @@
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
      */
     defineProperties(Map[prototype], sizeGetter);
-  } else fixAdd(Map, 'set');
+  } else {
+    if(!new Map([tmp]).size != 1)Map = fixCollectionConstructor(Map, 'Map');
+    fixAdd(Map, 'set');
+  }
   /**
    * 23.2 Set Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
@@ -212,7 +218,7 @@
     defineProperties(Set[prototype], sizeGetter);
   } else {
     // IE 11 fix
-    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set');
+    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set', 1);
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -271,7 +277,10 @@
         return this;
       }
     }, commonWeakCollection));
-  } else fixAdd(WeakMap, 'set');
+  } else {
+    if(!new WeakMap([[tmp, 1]]).has(tmp))WeakMap = fixCollectionConstructor(WeakMap, 'WeakMap');
+    fixAdd(WeakMap, 'set');
+  }
   /**
    * 23.4 WeakSet Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
@@ -291,13 +300,13 @@
     }, commonWeakCollection));
   } else {
     // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
+    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet', 1);
     fixAdd(WeakSet, 'add');
   }
-  $define(GLOBAL, undefined, {
+  $define(GLOBAL, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
   }, 1);
-}(global.Map, global.Set, global.WeakMap, global.WeakSet);
+}();

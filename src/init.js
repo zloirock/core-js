@@ -6,6 +6,10 @@ var prototype      = 'prototype'
   , String         = global.String
   , Number         = global.Number
   , RegExp         = global.RegExp
+  , Map            = global.Map
+  , Set            = global.Set
+  , WeakMap        = global.WeakMap
+  , WeakSet        = global.WeakSet
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -14,6 +18,7 @@ var prototype      = 'prototype'
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
   , document       = global.document
+  , module         = global.module
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
   , $Object        = Object[prototype]
@@ -159,7 +164,6 @@ var push   = $Array.push
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
-  , ArrayIterator;
 // Dummy, fix for not array-like ES3 string in es5.js
 var ES5Object = Object;
 // simple reduce to object
@@ -224,10 +228,33 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var GLOBAL = 0
-  , STATIC = 1
-  , PROTO  = 2
-  , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
-
 var KEY   = 1
-  , VALUE = 2;
+  , VALUE = 2
+  , forOf, ArrayIterator;
+
+var GLOBAL = 1
+  , STATIC = 2
+  , PROTO  = 4
+  , $exports = module && module.exports ? (module.exports = _) : (global._ = _);
+function $define(type, name, source, forced /* = false */){
+  var target, exports, key, own, prop
+    , isGlobal = type == GLOBAL;
+  if(isGlobal){
+    forced = source;
+    source = name;
+    target = global;
+    exports = $exports;
+  } else {
+    target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
+    exports = $exports[name] || ($exports[name] = {});
+  }
+  for(key in source)if(has(source, key)){
+    own = !forced && target && isNative(target[key]);
+    prop = own ? target[key] : source[key];
+    exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
+    if(framework)try {
+      !own && (isGlobal || delete target[key])
+      && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
+    } catch(e){}
+  }
+}

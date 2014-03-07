@@ -1,5 +1,5 @@
 var id = Function('x', 'return x');
-$define(GLOBAL, undefined, {Reflect: {}});
+$define(GLOBAL, {Reflect: {}});
 $define(STATIC, 'Reflect', {
   defineProperty: defineProperty,
   deleteProperty: function(target, propertyKey){

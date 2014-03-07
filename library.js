@@ -4,7 +4,7 @@
  * © 2014 Denis Pushkarev
  * Available under MIT license
  */
-!function(global, undefined){
+!function(global, framework, undefined){
 'use strict';
 /**
  * Module : init
@@ -17,6 +17,10 @@ var prototype      = 'prototype'
   , String         = global.String
   , Number         = global.Number
   , RegExp         = global.RegExp
+  , Map            = global.Map
+  , Set            = global.Set
+  , WeakMap        = global.WeakMap
+  , WeakSet        = global.WeakSet
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -25,6 +29,7 @@ var prototype      = 'prototype'
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
   , document       = global.document
+  , module         = global.module
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
   , $Object        = Object[prototype]
@@ -170,7 +175,6 @@ var push   = $Array.push
   , $slice = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
-  , ArrayIterator;
 // Dummy, fix for not array-like ES3 string in es5.js
 var ES5Object = Object;
 // simple reduce to object
@@ -235,23 +239,34 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var GLOBAL = 0
-  , STATIC = 1
-  , PROTO  = 2
-  , $exports = typeof exports != 'undefined' ? (module.exports = _) : (global._ = _);
-
 var KEY   = 1
-  , VALUE = 2;
-/**
- * Module : library
- */
+  , VALUE = 2
+  , forOf, ArrayIterator;
+
+var GLOBAL = 1
+  , STATIC = 2
+  , PROTO  = 4
+  , $exports = module && module.exports ? (module.exports = _) : (global._ = _);
 function $define(type, name, source, forced /* = false */){
-  var target  = type == GLOBAL ? global : type == STATIC ? global[name] || {} : (global[name] || {})[prototype] || {}
-    , exports = type == GLOBAL ? $exports : $exports[name] || ($exports[name] = {})
-    , key, prop;
+  var target, exports, key, own, prop
+    , isGlobal = type == GLOBAL;
+  if(isGlobal){
+    forced = source;
+    source = name;
+    target = global;
+    exports = $exports;
+  } else {
+    target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
+    exports = $exports[name] || ($exports[name] = {});
+  }
   for(key in source)if(has(source, key)){
-    prop = !forced && target && isNative(target[key]) ? target[key] : source[key];
+    own = !forced && target && isNative(target[key]);
+    prop = own ? target[key] : source[key];
     exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
+    if(framework)try {
+      !own && (isGlobal || delete target[key])
+      && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
+    } catch(e){}
   }
 }
 /**
@@ -269,7 +284,7 @@ var create                   = Object.create
 /**
  * Module : global
  */
-$define(GLOBAL, undefined, {global: global});
+$define(GLOBAL, {global: global});
 /**
  * Module : immediateInternal
  */
@@ -773,7 +788,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/montagejs/collections
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
-!function(Map, Set, WeakMap, WeakSet){
+!function(){
   var STOREID      = symbol('storeid')
     , KEYS_STORE   = symbol('keys')
     , VALUES_STORE = symbol('values')
@@ -790,21 +805,24 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           }
         }
       };
+  function initCollection(that, iterable, isSet){
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(val){
+      that.set(val[0], val[1]);
+    }, that);
+    return that;
+  }
   function createCollectionConstructor(key, isSet){
     function F(iterable){
       assertInstance(this, F, key);
       this.clear();
-      isSet && isArray(iterable) && iterable.forEach(this.add, this);
+      initCollection(this, iterable, isSet);
     }
     return F;
   }
-  // fix Set & WeakSet constructors for init array
-  function fixCollectionConstructor(Base, key){
+  function fixCollectionConstructor(Base, key, isSet){
     function F(iterable){
       assertInstance(this, F, key);
-      var that = new Base;
-      isArray(iterable) && iterable.forEach(that.add, that);
-      return that;
+      return initCollection(new Base, iterable, isSet);
     }
     F[prototype] = Base[prototype];
     return F;
@@ -916,7 +934,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
      */
     defineProperties(Map[prototype], sizeGetter);
-  } else fixAdd(Map, 'set');
+  } else {
+    if(!new Map([tmp]).size != 1)Map = fixCollectionConstructor(Map, 'Map');
+    fixAdd(Map, 'set');
+  }
   /**
    * 23.2 Set Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
@@ -974,7 +995,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     defineProperties(Set[prototype], sizeGetter);
   } else {
     // IE 11 fix
-    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set');
+    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set', 1);
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -1033,7 +1054,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         return this;
       }
     }, commonWeakCollection));
-  } else fixAdd(WeakMap, 'set');
+  } else {
+    if(!new WeakMap([[tmp, 1]]).has(tmp))WeakMap = fixCollectionConstructor(WeakMap, 'WeakMap');
+    fixAdd(WeakMap, 'set');
+  }
   /**
    * 23.4 WeakSet Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
@@ -1053,16 +1077,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }, commonWeakCollection));
   } else {
     // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet');
+    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet', 1);
     fixAdd(WeakSet, 'add');
   }
-  $define(GLOBAL, undefined, {
+  $define(GLOBAL, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
   }, 1);
-}(global.Map, global.Set, global.WeakMap, global.WeakSet);
+}();
 /**
  * Module : promise
  */
@@ -1260,7 +1284,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     }
   }();
-  $define(GLOBAL, undefined, {Promise: Promise});
+  $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);
 /**
  * Module : symbol
@@ -1273,7 +1297,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/component/symbol
  * https://github.com/anthonyshort/symbol
  */
-$define(GLOBAL, undefined, {
+$define(GLOBAL, {
   Symbol: function(description){
     var tag = symbol(description);
     defineProperty($Object, tag, {set: function(value){
@@ -1289,7 +1313,7 @@ $define(STATIC, 'Symbol', {iterator: ITERATOR});
  * Module : reflect
  */
 var id = Function('x', 'return x');
-$define(GLOBAL, undefined, {Reflect: {}});
+$define(GLOBAL, {Reflect: {}});
 $define(STATIC, 'Reflect', {
   defineProperty: defineProperty,
   deleteProperty: function(target, propertyKey){
@@ -1339,17 +1363,20 @@ $define(STATIC, 'Reflect', {
   }
   
   ArrayIterator = function(O, kind){
-    this._K = kind;
-    this._O = O;
-    this._i = -1;
+    assign(this, {
+      O: O,
+      K: kind,
+      i: -1
+    });
   }
   ArrayIterator[prototype].next = function(){
-    var O = this._O
+    var that   = this
+      , O      = that.O
       , length = O.length
-      , i = ++this._i;
-    while(i < length && !(i in O))this._i = ++i;
+      , i      = ++that.i;
+    while(i < length && !(i in O))that.i = ++i;
     if(i >= length)return createIterResultObject(undefined, 1);
-    switch(this._K){
+    switch(that.K){
       case KEY : return createIterResultObject(i, 0);
       case VALUE : return createIterResultObject(O[i], 0);
     }
@@ -1379,22 +1406,24 @@ $define(STATIC, 'Reflect', {
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
   function MapIterator(O, kind){
-    var values = this._V = [];
+    var values = [];
     O.forEach(function(val, key){
       values.push(key);
     });
-    this._K = kind;
-    this._O = O;
-    this._l = values.length;
-    this._i = -1;
+    assign(this, {
+      O: O,
+      V: values,
+      K: kind,
+      i: -1
+    });
   }
   MapIterator[prototype].next = function(){
     var that = this
-      , O = that._O
-      , V = that._V
-      , i = ++that._i;
-    if(i >= that._l)return createIterResultObject(undefined, 1);
-    switch(that._K){
+      , O = that.O
+      , V = that.V
+      , i = ++that.i;
+    if(i >= V.length)return createIterResultObject(undefined, 1);
+    switch(that.K){
       case KEY : return createIterResultObject(V[i], 0);
       case VALUE : return createIterResultObject(O.get(V[i]), 0);
     }
@@ -1408,20 +1437,22 @@ $define(STATIC, 'Reflect', {
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
   function SetIterator(O, kind){
-    var values = this._V = [];
+    var values = [];
     O.forEach(function(val){
       values.push(val);
     });
-    this._K = kind;
-    this._l = values.length;
-    this._i = -1;
+    assign(this, {
+      V: values,
+      K: kind,
+      i: -1
+    });
   }
   SetIterator[prototype].next = function(){
     var that = this
-      , V = that._V
-      , i = ++that._i;
-    if(i >= that._l)return createIterResultObject(undefined, 1);
-    if(that._K == VALUE)return createIterResultObject(V[i], 0);
+      , V = that.V
+      , i = ++that.i;
+    if(i >= V.length)return createIterResultObject(undefined, 1);
+    if(that.K == VALUE)return createIterResultObject(V[i], 0);
     return createIterResultObject([V[i], V[i]], 0);
   }
   setIterators = {
@@ -1430,20 +1461,32 @@ $define(STATIC, 'Reflect', {
   }
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
-  ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = function(){
-    return this;
-  };
+  var returnThis = Function('return this');
+  ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
   
   $define(PROTO, 'Array', arrayIterators);
   $define(PROTO, 'Map', mapIterators);
   $define(PROTO, 'Set', setIterators);
   
-  _.forOf = function(it, fn){
-    var iterator, step;
-    if(isFunction(it.next))iterator = it;
-    else if(isFunction(it[ITERATOR]))iterator = it[ITERATOR]();
-    else throw TypeError();
-    while(!(step = iterator.next()).done)fn(step.value);
+  // Chrome fix
+  if(isFunction([].keys)){
+    var proto = getPrototypeOf([].keys());
+    if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
+  }
+  
+  function getIterator(it){
+    // plug for library
+    if(it instanceof Array)return new ArrayIterator(it, VALUE);
+    if(Map && it instanceof Map)return new MapIterator(it, KEY+VALUE);
+    if(Set && it instanceof Set)return new SetIterator(it, VALUE);
+    assert(isFunction(it[ITERATOR]), it + ' is not iterable!');
+    return it[ITERATOR]();
+  }
+  
+  _.forOf = forOf = function(it, fn, that){
+    var iterator = getIterator(it)
+      , step;
+    while(!(step = iterator.next()).done)fn.call(that, step.value);
   }
 }();
 /**
@@ -1493,9 +1536,13 @@ $define(STATIC, 'Object', {
   }
   // ie9- dirty check
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    global.setTimeout  = wrap(setTimeout);
-    global.setInterval = wrap(setInterval);
+    setTimeout  = wrap(setTimeout);
+    setInterval = wrap(setInterval);
   }
+  $define(GLOBAL, {
+    setTimeout: setTimeout,
+    setInterval: setInterval
+  }, 1);
 }(global.navigator);
 /**
  * Module : immediate
@@ -1508,7 +1555,7 @@ $define(STATIC, 'Object', {
  * https://github.com/NobleJS/setImmediate
  * https://github.com/calvinmetcalf/immediate
  */
-$define(GLOBAL, undefined, {
+$define(GLOBAL, {
   setImmediate: setImmediate,
   clearImmediate: clearImmediate
 });
@@ -2483,5 +2530,5 @@ var $console = reduceTo.call(
 try {
   delete global.console;
 } catch(e){}
-$define(GLOBAL, undefined, {console: $console = assign($console.log, $console)});
-}(typeof window != 'undefined' ? window : global);
+$define(GLOBAL, {console: $console = assign($console.log, $console)}, 1);
+}(typeof window != 'undefined' ? window : global, false);
