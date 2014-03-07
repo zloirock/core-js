@@ -24,7 +24,7 @@ $define(STATIC, 'Reflect', {
   hasOwn: has,
   isExtensible: Object.isExtensible || Function('return !0'),
   ownKeys: function(target){
-    return new ArrayIterator(keys(target), VALUE);
+    return getIterator(keys(target));
   },
   preventExtensions: Object.preventExtensions || id,
   set: function(target, propertyKey, V, receiver){

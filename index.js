@@ -241,7 +241,7 @@ function hidden(object, key, value){
 
 var KEY   = 1
   , VALUE = 2
-  , forOf, ArrayIterator;
+  , forOf, getIterator;
 
 var GLOBAL = 1
   , STATIC = 2
@@ -703,10 +703,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
       var O = ES5Object(arrayLike)
+        , result = new (isFunction(this) ? this : Array)
         , i = 0
-        , length = toLength(O.length)
-        , result = new (isFunction(this) ? this : Array)(length);
-      for(; i < length; i++)result[i] = mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i];
+        , length, iter, step;
+      if(isFunction(O[ITERATOR])){
+        iter = getIterator(O);
+        while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
+      }
+      else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
     /**
@@ -1120,8 +1124,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       , REJECTED  = 2
       , SUBSCRIBERS = symbol('subscribers')
       , STATE       = symbol('state')
-      , DETAIL      = symbol('detail')
-      , ITERABLE_ERROR = 'You must pass an array to race or all';
+      , DETAIL      = symbol('detail');
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     Promise = function(resolver){
       var promise       = this
@@ -1184,15 +1187,17 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
        */
       all: function(iterable){
-        assert(isArray(iterable), ITERABLE_ERROR);
+        var iter = getIterator(iterable);
         return new this(function(resolve, reject){
-          var results   = []
-            , remaining = iterable.length;
+          var values = [];
+          forOf(iter, values.push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
           function resolveAll(index, value){
             results[index] = value;
             --remaining || resolve(results);
           }
-          if(remaining)iterable.forEach(function(promise, i){
+          if(remaining)values.forEach(function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);
@@ -1212,9 +1217,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
        */
       race: function(iterable){
-        assert(isArray(iterable), ITERABLE_ERROR);
+        var iter = getIterator(iterable);
         return new this(function(resolve, reject){
-          iterable.forEach(function(promise){
+          forOf(iter, function(promise){
             promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
               : resolve(promise);
@@ -1334,7 +1339,7 @@ $define(STATIC, 'Reflect', {
   hasOwn: has,
   isExtensible: Object.isExtensible || Function('return !0'),
   ownKeys: function(target){
-    return new ArrayIterator(keys(target), VALUE);
+    return getIterator(keys(target));
   },
   preventExtensions: Object.preventExtensions || id,
   set: function(target, propertyKey, V, receiver){
@@ -1358,7 +1363,7 @@ $define(STATIC, 'Reflect', {
     }
   }
   
-  ArrayIterator = function(O, kind){
+  function ArrayIterator(O, kind){
     assign(this, {
       O: O,
       K: kind,
@@ -1470,12 +1475,12 @@ $define(STATIC, 'Reflect', {
     if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
   }
   
-  function getIterator(it){
+  getIterator = function(it){
     // plug for library
     if(it instanceof Array)return new ArrayIterator(it, VALUE);
     if(Map && it instanceof Map)return new MapIterator(it, KEY+VALUE);
     if(Set && it instanceof Set)return new SetIterator(it, VALUE);
-    assert(isFunction(it[ITERATOR]), it + ' is not iterable!');
+    assert(it && isFunction(it[ITERATOR]), it + ' is not iterable!');
     return it[ITERATOR]();
   }
   

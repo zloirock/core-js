@@ -230,7 +230,7 @@ function hidden(object, key, value){
 
 var KEY   = 1
   , VALUE = 2
-  , forOf, ArrayIterator;
+  , forOf, getIterator;
 
 var GLOBAL = 1
   , STATIC = 2

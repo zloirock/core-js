@@ -5,7 +5,7 @@ module.exports = (opt, next)-> let @ = opt
   import {+init, +resume}
   import {+global, +es5, +timers, +node} if @all
   import {+\function, +binding, +object, +array, +arrayStatics, +number, +string, +date, +es6, +es6c, +promise, +symbol, +reflect, +iterator, +extendedObjectAPI, +extendCollections, +immediate, +console} if @node
-  import {+iterator} if @reflect
+  import {+iterator} if @es6 or @reflect or @promise
   @immediateInternal = on if @immediate or @promise
   include = modules.filter ~> @[it]
   scripts = [] <~ Promise.all include.map (module)->

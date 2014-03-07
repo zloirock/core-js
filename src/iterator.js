@@ -9,7 +9,7 @@
     }
   }
   
-  ArrayIterator = function(O, kind){
+  function ArrayIterator(O, kind){
     assign(this, {
       O: O,
       K: kind,
@@ -121,12 +121,12 @@
     if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
   }
   
-  function getIterator(it){
+  getIterator = function(it){
     // plug for library
     if(it instanceof Array)return new ArrayIterator(it, VALUE);
     if(Map && it instanceof Map)return new MapIterator(it, KEY+VALUE);
     if(Set && it instanceof Set)return new SetIterator(it, VALUE);
-    assert(isFunction(it[ITERATOR]), it + ' is not iterable!');
+    assert(it && isFunction(it[ITERATOR]), it + ' is not iterable!');
     return it[ITERATOR]();
   }
   

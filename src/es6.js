@@ -343,10 +343,14 @@
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
       var O = ES5Object(arrayLike)
+        , result = new (isFunction(this) ? this : Array)
         , i = 0
-        , length = toLength(O.length)
-        , result = new (isFunction(this) ? this : Array)(length);
-      for(; i < length; i++)result[i] = mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i];
+        , length, iter, step;
+      if(isFunction(O[ITERATOR])){
+        iter = getIterator(O);
+        while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
+      }
+      else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
     /**

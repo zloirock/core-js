@@ -32,8 +32,7 @@
       , REJECTED  = 2
       , SUBSCRIBERS = symbol('subscribers')
       , STATE       = symbol('state')
-      , DETAIL      = symbol('detail')
-      , ITERABLE_ERROR = 'You must pass an array to race or all';
+      , DETAIL      = symbol('detail');
     // https://github.com/domenic/promises-unwrapping#the-promise-constructor
     Promise = function(resolver){
       var promise       = this
@@ -96,15 +95,17 @@
        * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
        */
       all: function(iterable){
-        assert(isArray(iterable), ITERABLE_ERROR);
+        var iter = getIterator(iterable);
         return new this(function(resolve, reject){
-          var results   = []
-            , remaining = iterable.length;
+          var values = [];
+          forOf(iter, values.push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
           function resolveAll(index, value){
             results[index] = value;
             --remaining || resolve(results);
           }
-          if(remaining)iterable.forEach(function(promise, i){
+          if(remaining)values.forEach(function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);
@@ -124,9 +125,9 @@
        * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
        */
       race: function(iterable){
-        assert(isArray(iterable), ITERABLE_ERROR);
+        var iter = getIterator(iterable);
         return new this(function(resolve, reject){
-          iterable.forEach(function(promise){
+          forOf(iter, function(promise){
             promise && isFunction(promise.then)
               ? promise.then(resolve, reject)
               : resolve(promise);
