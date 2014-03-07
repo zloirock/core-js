@@ -1,6 +1,6 @@
 /**
  * ie9- setTimeout & setInterval additional parameters fix
- * on ie8- work only as (global|window).setTimeout, instead of setTimeout
+ * on ie8- work only as (_|global|window).setTimeout, instead of setTimeout
  * http://www.w3.org/TR/html5/webappapis.html#timers
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  * Alternatives:

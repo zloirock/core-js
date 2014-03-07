@@ -12,7 +12,7 @@
  * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
  */
 !function(Promise){
-  isNative(Promise)
+  isFunction(Promise)
   &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
   // Older version of the spec had a resolver object as the arg rather than a function
   // Experimental implementations contains a number of inconsistencies with the spec,
@@ -95,10 +95,9 @@
        * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
        */
       all: function(iterable){
-        var iter = getIterator(iterable);
+        var values = [];
+        forOf(iterable, values.push, values);
         return new this(function(resolve, reject){
-          var values = [];
-          forOf(iter, values.push, values);
           var remaining = values.length
             , results   = Array(remaining);
           function resolveAll(index, value){

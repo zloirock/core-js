@@ -1,5 +1,7 @@
 !function(){
-  var arrayIterators, mapIterators, setIterators;
+  var returnThis = Function('return this')
+    , stringIterators = {}
+    , arrayIterators, mapIterators, setIterators;
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -9,22 +11,33 @@
     }
   }
   
+  function StringIterator(O){
+    this.O = O;
+    this.i = 0;
+  }
+  StringIterator[prototype].next = function(){
+    var O = this.O
+      , i = this.i++;
+    return i < O.length
+      ? createIterResultObject(O.charAt(i), 0)
+      : createIterResultObject(undefined, 1);
+  }
+  stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
+  
   function ArrayIterator(O, kind){
-    assign(this, {
-      O: O,
-      K: kind,
-      i: -1
-    });
+    this.O = O;
+    this.K = kind;
+    this.i = 0;
   }
   ArrayIterator[prototype].next = function(){
     var that   = this
       , O      = that.O
       , length = O.length
-      , i      = ++that.i;
+      , i      = that.i++;
     while(i < length && !(i in O))that.i = ++i;
     if(i >= length)return createIterResultObject(undefined, 1);
     switch(that.K){
-      case KEY : return createIterResultObject(i, 0);
+      case KEY   : return createIterResultObject(i, 0);
       case VALUE : return createIterResultObject(O[i], 0);
     }
     return createIterResultObject([i, O[i]], 0);
@@ -61,14 +74,14 @@
       O: O,
       V: values,
       K: kind,
-      i: -1
+      i: 0
     });
   }
   MapIterator[prototype].next = function(){
     var that = this
       , O = that.O
       , V = that.V
-      , i = ++that.i;
+      , i = that.i++;
     if(i >= V.length)return createIterResultObject(undefined, 1);
     switch(that.K){
       case KEY : return createIterResultObject(V[i], 0);
@@ -91,13 +104,13 @@
     assign(this, {
       V: values,
       K: kind,
-      i: -1
+      i: 0
     });
   }
   SetIterator[prototype].next = function(){
     var that = this
       , V = that.V
-      , i = ++that.i;
+      , i = that.i++;
     if(i >= V.length)return createIterResultObject(undefined, 1);
     if(that.K == VALUE)return createIterResultObject(V[i], 0);
     return createIterResultObject([V[i], V[i]], 0);
@@ -108,26 +121,29 @@
   }
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
-  var returnThis = Function('return this');
-  ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
+  StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
   
+  $define(PROTO, 'String', stringIterators);
   $define(PROTO, 'Array', arrayIterators);
   $define(PROTO, 'Map', mapIterators);
   $define(PROTO, 'Set', setIterators);
   
-  // Chrome fix
-  if(isFunction([].keys)){
+  // v8 fix
+  if(framework && isFunction([].keys)){
     var proto = getPrototypeOf([].keys());
     if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
   }
   
   getIterator = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library
-    if(it instanceof Array)return new ArrayIterator(it, VALUE);
-    if(Map && it instanceof Map)return new MapIterator(it, KEY+VALUE);
-    if(Set && it instanceof Set)return new SetIterator(it, VALUE);
-    assert(it && isFunction(it[ITERATOR]), it + ' is not iterable!');
-    return it[ITERATOR]();
+    switch(it && it.constructor){
+      case String: return new StringIterator(it);
+      case Array: return new ArrayIterator(it, VALUE);
+      case Map: return new MapIterator(it, KEY+VALUE);
+      case Set: return new SetIterator(it, VALUE);
+    }
+    throw TypeError(it + ' is not iterable!');
   }
   
   _.forOf = forOf = function(it, fn, that){

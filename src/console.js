@@ -17,6 +17,6 @@ var $console = reduceTo.call(
   }
 );
 try {
-  delete global.console;
+  framework && delete global.console;
 } catch(e){}
 $define(GLOBAL, {console: $console = assign($console.log, $console)}, 1);

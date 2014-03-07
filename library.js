@@ -6,9 +6,9 @@
  */
 !function(global, framework, undefined){
 'use strict';
-/**
+/*****************************
  * Module : init
- */
+ *****************************/
 var prototype      = 'prototype'
   // Aliases global objects and prototypes
   , Function       = global.Function
@@ -260,18 +260,19 @@ function $define(type, name, source, forced /* = false */){
     exports = $exports[name] || ($exports[name] = {});
   }
   for(key in source)if(has(source, key)){
-    own = !forced && target && isNative(target[key]);
+    own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework)try {
+    if(framework){
       !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
-    } catch(e){}
+    }
   }
 }
-/**
+
+/*****************************
  * Module : resume
- */
+ *****************************/
 var create                   = Object.create
   , defineProperties         = Object.defineProperties
   , getPrototypeOf           = Object.getPrototypeOf
@@ -281,13 +282,15 @@ var create                   = Object.create
   , forEach                  = $Array.forEach
   , isArray                  = Array.isArray
   , map                      = $Array.map;
-/**
+
+/*****************************
  * Module : global
- */
+ *****************************/
 $define(GLOBAL, {global: global});
-/**
+
+/*****************************
  * Module : immediateInternal
- */
+ *****************************/
 /**
  * setImmediate
  * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
@@ -359,9 +362,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       setTimeout(part.call(run, id), 0);
     }
 }(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
-/**
+
+/*****************************
  * Module : es6
- */
+ *****************************/
 /**
  * ECMAScript 6 shim
  * http://people.mozilla.org/~jorendorff/es6-draft.html
@@ -710,7 +714,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         , result = new (isFunction(this) ? this : Array)
         , i = 0
         , length, iter, step;
-      if(isFunction(O[ITERATOR])){
+      if(getIterator && isFunction(O[ITERATOR])){
         iter = getIterator(O);
         while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
       }
@@ -776,9 +780,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     findIndex: findIndex
   });
 }(isFinite);
-/**
+
+/*****************************
  * Module : es6c
- */
+ *****************************/
 /**
  * ECMAScript 6 collection polyfill
  * http://people.mozilla.org/~jorendorff/es6-draft.html
@@ -823,18 +828,26 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
     return F;
   }
-  function fixCollectionConstructor(Base, key, isSet){
-    function F(iterable){
-      assertInstance(this, F, key);
-      return initCollection(new Base, iterable, isSet);
-    }
+  function fixCollectionConstructor(fix, Base, key, isSet){
+    if(!fix && framework)return Base;
+    var F = fix
+      // wrap to init collections from iterable
+      ? function(iterable){
+          assertInstance(this, F, key);
+          return initCollection(new Base, iterable, isSet);
+        }
+      // wrap to prevent obstruction of the global constructors
+      : function(itareble){
+          return new Base(itareble);
+        }
     F[prototype] = Base[prototype];
     return F;
   }
+  
   // fix .add & .set for chaining
   function fixAdd(Collection, key){
     var collection = new Collection;
-    if(collection[key](tmp, 1) !== collection){
+    if(framework && collection[key](tmp, 1) !== collection){
       var fn = collection[key];
       hidden(Collection[prototype], key, function(){
         fn.apply(this, arguments);
@@ -875,7 +888,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * 23.1 Map Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
    */
-  if(!isNative(Map) || !has(Map[prototype], 'forEach')){
+  if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
       /**
@@ -939,14 +952,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      */
     defineProperties(Map[prototype], sizeGetter);
   } else {
-    if(!new Map([tmp]).size != 1)Map = fixCollectionConstructor(Map, 'Map');
+    Map = fixCollectionConstructor(!new Map([tmp]).size != 1, Map, 'Map');
     fixAdd(Map, 'set');
   }
   /**
    * 23.2 Set Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
    */
-  if(!isNative(Set) || !has(Set[prototype], 'forEach')){
+  if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
     assign(Set[prototype], {
       /**
@@ -998,8 +1011,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
      */
     defineProperties(Set[prototype], sizeGetter);
   } else {
-    // IE 11 fix
-    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set', 1);
+    Set = fixCollectionConstructor(new Set([1]).size != 1, Set, 'Set', 1);
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -1038,7 +1050,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
    * 23.3 WeakMap Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
    */
-  if(!isNative(WeakMap) || !has(WeakMap[prototype], 'clear')){
+  if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
     assign(WeakMap[prototype], assign({
       /**
@@ -1059,14 +1071,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     }, commonWeakCollection));
   } else {
-    if(!new WeakMap([[tmp, 1]]).has(tmp))WeakMap = fixCollectionConstructor(WeakMap, 'WeakMap');
+    WeakMap = fixCollectionConstructor(!new WeakMap([[tmp, 1]]).has(tmp), WeakMap, 'WeakMap');
     fixAdd(WeakMap, 'set');
   }
   /**
    * 23.4 WeakSet Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
    */
-  if(!isNative(WeakSet)){
+  if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
     assign(WeakSet[prototype], assign({
       /**
@@ -1080,8 +1092,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     }, commonWeakCollection));
   } else {
-    // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet', 1);
+    WeakSet = fixCollectionConstructor(!new WeakSet([tmp]).has(tmp), WeakSet, 'WeakSet', 1);
     fixAdd(WeakSet, 'add');
   }
   $define(GLOBAL, {
@@ -1091,9 +1102,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     WeakSet: WeakSet
   }, 1);
 }();
-/**
+
+/*****************************
  * Module : promise
- */
+ *****************************/
 /**
  * ES6 Promises
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
@@ -1108,7 +1120,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
  */
 !function(Promise){
-  isNative(Promise)
+  isFunction(Promise)
   &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
   // Older version of the spec had a resolver object as the arg rather than a function
   // Experimental implementations contains a number of inconsistencies with the spec,
@@ -1191,10 +1203,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
        * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
        */
       all: function(iterable){
-        var iter = getIterator(iterable);
+        var values = [];
+        forOf(iterable, values.push, values);
         return new this(function(resolve, reject){
-          var values = [];
-          forOf(iter, values.push, values);
           var remaining = values.length
             , results   = Array(remaining);
           function resolveAll(index, value){
@@ -1291,9 +1302,10 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }();
   $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);
-/**
+
+/*****************************
  * Module : symbol
- */
+ *****************************/
 /**
  * ECMAScript 6 Symbol
  * http://people.mozilla.org/~jorendorff/es6-draft.html
@@ -1314,9 +1326,10 @@ $define(GLOBAL, {
   }
 });
 $define(STATIC, 'Symbol', {iterator: ITERATOR});
-/**
+
+/*****************************
  * Module : reflect
- */
+ *****************************/
 var id = Function('x', 'return x');
 $define(GLOBAL, {Reflect: {}});
 $define(STATIC, 'Reflect', {
@@ -1353,11 +1366,14 @@ $define(STATIC, 'Reflect', {
   },
   setPrototypeOf: Object.setPrototypeOf || id
 });
-/**
+
+/*****************************
  * Module : iterator
- */
+ *****************************/
 !function(){
-  var arrayIterators, mapIterators, setIterators;
+  var returnThis = Function('return this')
+    , stringIterators = {}
+    , arrayIterators, mapIterators, setIterators;
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1367,22 +1383,33 @@ $define(STATIC, 'Reflect', {
     }
   }
   
+  function StringIterator(O){
+    this.O = O;
+    this.i = 0;
+  }
+  StringIterator[prototype].next = function(){
+    var O = this.O
+      , i = this.i++;
+    return i < O.length
+      ? createIterResultObject(O.charAt(i), 0)
+      : createIterResultObject(undefined, 1);
+  }
+  stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
+  
   function ArrayIterator(O, kind){
-    assign(this, {
-      O: O,
-      K: kind,
-      i: -1
-    });
+    this.O = O;
+    this.K = kind;
+    this.i = 0;
   }
   ArrayIterator[prototype].next = function(){
     var that   = this
       , O      = that.O
       , length = O.length
-      , i      = ++that.i;
+      , i      = that.i++;
     while(i < length && !(i in O))that.i = ++i;
     if(i >= length)return createIterResultObject(undefined, 1);
     switch(that.K){
-      case KEY : return createIterResultObject(i, 0);
+      case KEY   : return createIterResultObject(i, 0);
       case VALUE : return createIterResultObject(O[i], 0);
     }
     return createIterResultObject([i, O[i]], 0);
@@ -1419,14 +1446,14 @@ $define(STATIC, 'Reflect', {
       O: O,
       V: values,
       K: kind,
-      i: -1
+      i: 0
     });
   }
   MapIterator[prototype].next = function(){
     var that = this
       , O = that.O
       , V = that.V
-      , i = ++that.i;
+      , i = that.i++;
     if(i >= V.length)return createIterResultObject(undefined, 1);
     switch(that.K){
       case KEY : return createIterResultObject(V[i], 0);
@@ -1449,13 +1476,13 @@ $define(STATIC, 'Reflect', {
     assign(this, {
       V: values,
       K: kind,
-      i: -1
+      i: 0
     });
   }
   SetIterator[prototype].next = function(){
     var that = this
       , V = that.V
-      , i = ++that.i;
+      , i = that.i++;
     if(i >= V.length)return createIterResultObject(undefined, 1);
     if(that.K == VALUE)return createIterResultObject(V[i], 0);
     return createIterResultObject([V[i], V[i]], 0);
@@ -1466,26 +1493,29 @@ $define(STATIC, 'Reflect', {
   }
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
-  var returnThis = Function('return this');
-  ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
+  StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
   
+  $define(PROTO, 'String', stringIterators);
   $define(PROTO, 'Array', arrayIterators);
   $define(PROTO, 'Map', mapIterators);
   $define(PROTO, 'Set', setIterators);
   
-  // Chrome fix
-  if(isFunction([].keys)){
+  // v8 fix
+  if(framework && isFunction([].keys)){
     var proto = getPrototypeOf([].keys());
     if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
   }
   
   getIterator = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library
-    if(it instanceof Array)return new ArrayIterator(it, VALUE);
-    if(Map && it instanceof Map)return new MapIterator(it, KEY+VALUE);
-    if(Set && it instanceof Set)return new SetIterator(it, VALUE);
-    assert(it && isFunction(it[ITERATOR]), it + ' is not iterable!');
-    return it[ITERATOR]();
+    switch(it && it.constructor){
+      case String: return new StringIterator(it);
+      case Array: return new ArrayIterator(it, VALUE);
+      case Map: return new MapIterator(it, KEY+VALUE);
+      case Set: return new SetIterator(it, VALUE);
+    }
+    throw TypeError(it + ' is not iterable!');
   }
   
   _.forOf = forOf = function(it, fn, that){
@@ -1494,9 +1524,10 @@ $define(STATIC, 'Reflect', {
     while(!(step = iterator.next()).done)fn.call(that, step.value);
   }
 }();
-/**
+
+/*****************************
  * Module : extendedObjectAPI
- */
+ *****************************/
 /**
  * Extended object api from harmony and strawman :
  * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
@@ -1522,12 +1553,13 @@ $define(STATIC, 'Object', {
     return result;
   }
 });
-/**
+
+/*****************************
  * Module : timers
- */
+ *****************************/
 /**
  * ie9- setTimeout & setInterval additional parameters fix
- * on ie8- work only as (global|window).setTimeout, instead of setTimeout
+ * on ie8- work only as (_|global|window).setTimeout, instead of setTimeout
  * http://www.w3.org/TR/html5/webappapis.html#timers
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  * Alternatives:
@@ -1549,9 +1581,10 @@ $define(STATIC, 'Object', {
     setInterval: setInterval
   }, 1);
 }(global.navigator);
-/**
+
+/*****************************
  * Module : immediate
- */
+ *****************************/
 /**
  * setImmediate
  * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
@@ -1564,9 +1597,10 @@ $define(GLOBAL, {
   setImmediate: setImmediate,
   clearImmediate: clearImmediate
 });
-/**
+
+/*****************************
  * Module : function
- */
+ *****************************/
 function inherits(parent){
   assertFunction(this), assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
@@ -1640,9 +1674,10 @@ function createDeferred(set, clear, args){
   }, id;
   return deferred;
 }
-/**
+
+/*****************************
  * Module : binding
- */
+ *****************************/
 function tie(key){
   var that = this
     , i    = 1
@@ -1696,9 +1731,10 @@ $define(STATIC, 'Object', {
   tie: unbind(tie),
   useTie: part.call($define, PROTO, 'Object', {tie: tie})
 });
-/**
+
+/*****************************
  * Module : object
- */
+ *****************************/
 !function(){
   function mixin(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
@@ -2101,9 +2137,10 @@ $define(STATIC, 'Object', {
     hidden: hidden
   });
 }();
-/**
+
+/*****************************
  * Module : array
- */
+ *****************************/
 $define(PROTO, 'Array', {
   /**
    * Alternatives:
@@ -2142,9 +2179,10 @@ $define(PROTO, 'Array', {
     return this;
   }
 });
-/**
+
+/*****************************
  * Module : arrayStatics
- */
+ *****************************/
 /**
  * Array static methods
  * http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
@@ -2172,9 +2210,10 @@ $define(STATIC, 'Array', reduceTo.call(
     if(key in $Array)memo[key] = unbind($Array[key]);
   }
 ));
-/**
+
+/*****************************
  * Module : number
- */
+ *****************************/
 $define(STATIC, 'Number', {
   /**
    * Alternatives:
@@ -2235,9 +2274,10 @@ $define(PROTO, 'Number', reduceTo.call(
     if(key in Math)memo[key] = methodize.call(Math[key]);
   }
 ));
-/**
+
+/*****************************
  * Module : string
- */
+ *****************************/
 !function(){
   var dictionaryEscapeHTML = {
         '&': '&amp;',
@@ -2306,9 +2346,10 @@ $define(PROTO, 'Number', reduceTo.call(
     }
   });
 }();
-/**
+
+/*****************************
  * Module : date
- */
+ *****************************/
 /**
  * Alternatives:
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
@@ -2381,9 +2422,10 @@ $define(PROTO, 'Number', reduceTo.call(
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
 }(/\b(\w\w*)\b/g, {}, 'en', 'getHours', 'getMonth');
-/**
+
+/*****************************
  * Module : extendCollections
- */
+ *****************************/
 /**
  * http://esdiscuss.org/topic/additional-set-prototype-methods
  * Alternatives:
@@ -2511,9 +2553,10 @@ $define(PROTO, 'Set', assign({
     return result;
   }
 }, extendCollections));
-/**
+
+/*****************************
  * Module : console
- */
+ *****************************/
 /**
  * https://developer.mozilla.org/en-US/docs/Web/API/console
  * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
@@ -2533,7 +2576,7 @@ var $console = reduceTo.call(
   }
 );
 try {
-  delete global.console;
+  framework && delete global.console;
 } catch(e){}
 $define(GLOBAL, {console: $console = assign($console.log, $console)}, 1);
 }(typeof window != 'undefined' ? window : global, false);

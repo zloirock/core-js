@@ -346,7 +346,7 @@
         , result = new (isFunction(this) ? this : Array)
         , i = 0
         , length, iter, step;
-      if(isFunction(O[ITERATOR])){
+      if(getIterator && isFunction(O[ITERATOR])){
         iter = getIterator(O);
         while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
       }

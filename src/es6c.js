@@ -42,18 +42,26 @@
     }
     return F;
   }
-  function fixCollectionConstructor(Base, key, isSet){
-    function F(iterable){
-      assertInstance(this, F, key);
-      return initCollection(new Base, iterable, isSet);
-    }
+  function fixCollectionConstructor(fix, Base, key, isSet){
+    if(!fix && framework)return Base;
+    var F = fix
+      // wrap to init collections from iterable
+      ? function(iterable){
+          assertInstance(this, F, key);
+          return initCollection(new Base, iterable, isSet);
+        }
+      // wrap to prevent obstruction of the global constructors
+      : function(itareble){
+          return new Base(itareble);
+        }
     F[prototype] = Base[prototype];
     return F;
   }
+  
   // fix .add & .set for chaining
   function fixAdd(Collection, key){
     var collection = new Collection;
-    if(collection[key](tmp, 1) !== collection){
+    if(framework && collection[key](tmp, 1) !== collection){
       var fn = collection[key];
       hidden(Collection[prototype], key, function(){
         fn.apply(this, arguments);
@@ -94,7 +102,7 @@
    * 23.1 Map Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
    */
-  if(!isNative(Map) || !has(Map[prototype], 'forEach')){
+  if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
       /**
@@ -158,14 +166,14 @@
      */
     defineProperties(Map[prototype], sizeGetter);
   } else {
-    if(!new Map([tmp]).size != 1)Map = fixCollectionConstructor(Map, 'Map');
+    Map = fixCollectionConstructor(!new Map([tmp]).size != 1, Map, 'Map');
     fixAdd(Map, 'set');
   }
   /**
    * 23.2 Set Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
    */
-  if(!isNative(Set) || !has(Set[prototype], 'forEach')){
+  if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
     assign(Set[prototype], {
       /**
@@ -217,8 +225,7 @@
      */
     defineProperties(Set[prototype], sizeGetter);
   } else {
-    // IE 11 fix
-    if(new Set([1]).size != 1)Set = fixCollectionConstructor(Set, 'Set', 1);
+    Set = fixCollectionConstructor(new Set([1]).size != 1, Set, 'Set', 1);
     fixAdd(Set, 'add');
   }
   function getWeakData(it){
@@ -257,7 +264,7 @@
    * 23.3 WeakMap Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
    */
-  if(!isNative(WeakMap) || !has(WeakMap[prototype], 'clear')){
+  if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
     assign(WeakMap[prototype], assign({
       /**
@@ -278,14 +285,14 @@
       }
     }, commonWeakCollection));
   } else {
-    if(!new WeakMap([[tmp, 1]]).has(tmp))WeakMap = fixCollectionConstructor(WeakMap, 'WeakMap');
+    WeakMap = fixCollectionConstructor(!new WeakMap([[tmp, 1]]).has(tmp), WeakMap, 'WeakMap');
     fixAdd(WeakMap, 'set');
   }
   /**
    * 23.4 WeakSet Objects
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
    */
-  if(!isNative(WeakSet)){
+  if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
     assign(WeakSet[prototype], assign({
       /**
@@ -299,8 +306,7 @@
       }
     }, commonWeakCollection));
   } else {
-    // v8 fix
-    if(!new WeakSet([tmp]).has(tmp))WeakSet = fixCollectionConstructor(WeakSet, 'WeakSet', 1);
+    WeakSet = fixCollectionConstructor(!new WeakSet([tmp]).has(tmp), WeakSet, 'WeakSet', 1);
     fixAdd(WeakSet, 'add');
   }
   $define(GLOBAL, {

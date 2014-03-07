@@ -249,12 +249,12 @@ function $define(type, name, source, forced /* = false */){
     exports = $exports[name] || ($exports[name] = {});
   }
   for(key in source)if(has(source, key)){
-    own = !forced && target && isNative(target[key]);
+    own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework)try {
+    if(framework){
       !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
-    } catch(e){}
+    }
   }
 }
