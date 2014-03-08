@@ -23,6 +23,6 @@ module.exports = (opt, next)-> let @ = opt
     #banner
     !function(global, framework, undefined){
     'use strict';
-    #{scripts * '\n\n'}
+    #{scripts * '\n'}
     }(typeof window != 'undefined' ? window : global, #{!@library});
     """

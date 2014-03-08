@@ -269,7 +269,6 @@ function $define(type, name, source, forced /* = false */){
     }
   }
 }
-
 /*****************************
  * Module : resume
  *****************************/
@@ -282,12 +281,10 @@ var create                   = Object.create
   , forEach                  = $Array.forEach
   , isArray                  = Array.isArray
   , map                      = $Array.map;
-
 /*****************************
  * Module : global
  *****************************/
 $define(GLOBAL, {global: global});
-
 /*****************************
  * Module : immediateInternal
  *****************************/
@@ -362,7 +359,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       setTimeout(part.call(run, id), 0);
     }
 }(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
-
 /*****************************
  * Module : es6
  *****************************/
@@ -516,7 +512,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     },
     /**
      * 20.1.3.1 Number.prototype.clz ()
-     * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
+     * Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.prototype.clz
      * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
      */
@@ -780,7 +776,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     findIndex: findIndex
   });
 }(isFinite);
-
 /*****************************
  * Module : es6c
  *****************************/
@@ -1102,7 +1097,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     WeakSet: WeakSet
   }, 1);
 }();
-
 /*****************************
  * Module : promise
  *****************************/
@@ -1302,7 +1296,6 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }();
   $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);
-
 /*****************************
  * Module : symbol
  *****************************/
@@ -1326,7 +1319,6 @@ $define(GLOBAL, {
   }
 });
 $define(STATIC, 'Symbol', {iterator: ITERATOR});
-
 /*****************************
  * Module : reflect
  *****************************/
@@ -1366,12 +1358,15 @@ $define(STATIC, 'Reflect', {
   },
   setPrototypeOf: Object.setPrototypeOf || id
 });
-
 /*****************************
  * Module : iterator
  *****************************/
 !function(){
-  var returnThis = Function('return this')
+  var ITERATED = symbol('iterated')
+    , KIND     = symbol('kind')
+    , INDEX    = symbol('index')
+    , KEYS     = symbol('keys')
+    , returnThis = Function('return this')
     , stringIterators = {}
     , arrayIterators, mapIterators, setIterators;
   function createIterResultObject(value, done){
@@ -1383,36 +1378,38 @@ $define(STATIC, 'Reflect', {
     }
   }
   
-  function StringIterator(O){
-    this.O = O;
-    this.i = 0;
+  function StringIterator(iterated){
+    this[ITERATED] = iterated;
+    this[INDEX]    = 0;
   }
   StringIterator[prototype].next = function(){
-    var O = this.O
-      , i = this.i++;
-    return i < O.length
-      ? createIterResultObject(O.charAt(i), 0)
+    var iterated = this[ITERATED]
+      , index    = this[INDEX]++;
+    return index < iterated.length
+      ? createIterResultObject(iterated.charAt(index), 0)
       : createIterResultObject(undefined, 1);
   }
+  /**
+   * 21.1.3.27 String.prototype [ @@iterator ]( )
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype-@@iterator
+   */
   stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
   
-  function ArrayIterator(O, kind){
-    this.O = O;
-    this.K = kind;
-    this.i = 0;
+  function ArrayIterator(iterated, kind){
+    this[ITERATED] = iterated;
+    this[KIND]     = kind;
+    this[INDEX]    = 0;
   }
   ArrayIterator[prototype].next = function(){
-    var that   = this
-      , O      = that.O
-      , length = O.length
-      , i      = that.i++;
-    while(i < length && !(i in O))that.i = ++i;
-    if(i >= length)return createIterResultObject(undefined, 1);
-    switch(that.K){
-      case KEY   : return createIterResultObject(i, 0);
-      case VALUE : return createIterResultObject(O[i], 0);
+    var that     = this
+      , iterated = that[ITERATED]
+      , index    = that[INDEX]++;
+    if(index >= iterated.length)return createIterResultObject(undefined, 1);
+    switch(that[KIND]){
+      case KEY   : return createIterResultObject(index, 0);
+      case VALUE : return createIterResultObject(iterated[index], 0);
     }
-    return createIterResultObject([i, O[i]], 0);
+    return createIterResultObject([index, iterated[index]], 0);
   }
   arrayIterators = {
     /**
@@ -1437,60 +1434,83 @@ $define(STATIC, 'Reflect', {
    */
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
-  function MapIterator(O, kind){
-    var values = [];
-    O.forEach(function(val, key){
-      values.push(key);
-    });
-    assign(this, {
-      O: O,
-      V: values,
-      K: kind,
-      i: 0
-    });
+  function MapIterator(iterated, kind){
+    this[ITERATED] = iterated;
+    this[KIND]     = kind;
+    this[INDEX]    = 0;
+    iterated.forEach(function(val, key){
+      this.push(key);
+    }, this[KEYS] = []);
   }
   MapIterator[prototype].next = function(){
-    var that = this
-      , O = that.O
-      , V = that.V
-      , i = that.i++;
-    if(i >= V.length)return createIterResultObject(undefined, 1);
-    switch(that.K){
-      case KEY : return createIterResultObject(V[i], 0);
-      case VALUE : return createIterResultObject(O.get(V[i]), 0);
+    var iterated = this[ITERATED]
+      , keys     = this[KEYS]
+      , index    = this[INDEX]++;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    switch(this[KIND]){
+      case KEY   : return createIterResultObject(keys[index], 0);
+      case VALUE : return createIterResultObject(iterated.get(keys[index]), 0);
     }
-    return createIterResultObject([V[i], O.get(V[i])], 0);
+    return createIterResultObject([keys[index], iterated.get(keys[index])], 0);
   }
   mapIterators = {
+    /**
+     * 23.1.3.4 Map.prototype.entries ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.entries
+     */
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
+    /**
+     * 23.1.3.8 Map.prototype.keys ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.keys
+     */
     keys: createIteratorFactory(MapIterator, KEY),
+    /**
+     * 23.1.3.11 Map.prototype.values ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.values
+     */
     values: createIteratorFactory(MapIterator, VALUE)
   }
+  /**
+   * 23.1.3.12 Map.prototype [ @@iterator ]( )
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype-@@iterator
+   */
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
-  function SetIterator(O, kind){
-    var values = [];
-    O.forEach(function(val){
-      values.push(val);
-    });
-    assign(this, {
-      V: values,
-      K: kind,
-      i: 0
-    });
+  function SetIterator(iterated, kind){
+    this[KIND]  = kind;
+    this[INDEX] = 0;
+    iterated.forEach(function(val){
+      this.push(val);
+    }, this[KEYS] = []);
   }
   SetIterator[prototype].next = function(){
-    var that = this
-      , V = that.V
-      , i = that.i++;
-    if(i >= V.length)return createIterResultObject(undefined, 1);
-    if(that.K == VALUE)return createIterResultObject(V[i], 0);
-    return createIterResultObject([V[i], V[i]], 0);
+    var keys  = this[KEYS]
+      , index = this[INDEX]++;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    if(this[KIND] == VALUE)return createIterResultObject(keys[index], 0);
+    return createIterResultObject([keys[index], keys[index]], 0);
   }
   setIterators = {
+    /**
+     * 23.2.3.5 Set.prototype.entries ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.entries
+     */
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
+    /**
+     * 23.2.3.8 Set.prototype.keys ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.keys
+     */
+    keys: createIteratorFactory(SetIterator, VALUE),
+    /**
+     * 23.2.3.10 Set.prototype.values ( )
+     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.values
+     */
     values: createIteratorFactory(SetIterator, VALUE)
   }
+  /**
+   * 23.2.3.11 Set.prototype [@@iterator ] ( )
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype-@@iterator
+   */
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
   StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
@@ -1501,19 +1521,19 @@ $define(STATIC, 'Reflect', {
   $define(PROTO, 'Set', setIterators);
   
   // v8 fix
-  if(framework && isFunction([].keys)){
+  if(framework && isFunction($Array.keys)){
     var proto = getPrototypeOf([].keys());
-    if(!(ITERATOR in proto))proto[ITERATOR] = returnThis;
+    if(!(ITERATOR in proto))hidden(proto, ITERATOR, returnThis);
   }
   
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library
     switch(it && it.constructor){
-      case String: return new StringIterator(it);
-      case Array: return new ArrayIterator(it, VALUE);
-      case Map: return new MapIterator(it, KEY+VALUE);
-      case Set: return new SetIterator(it, VALUE);
+      case String : return new StringIterator(it);
+      case Array  : return new ArrayIterator(it, VALUE);
+      case Map    : return new MapIterator(it, KEY+VALUE);
+      case Set    : return new SetIterator(it, VALUE);
     }
     throw TypeError(it + ' is not iterable!');
   }
@@ -1521,10 +1541,9 @@ $define(STATIC, 'Reflect', {
   _.forOf = forOf = function(it, fn, that){
     var iterator = getIterator(it)
       , step;
-    while(!(step = iterator.next()).done)fn.call(that, step.value);
+    while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
   }
 }();
-
 /*****************************
  * Module : extendedObjectAPI
  *****************************/
@@ -1553,7 +1572,6 @@ $define(STATIC, 'Object', {
     return result;
   }
 });
-
 /*****************************
  * Module : timers
  *****************************/
@@ -1581,7 +1599,6 @@ $define(STATIC, 'Object', {
     setInterval: setInterval
   }, 1);
 }(global.navigator);
-
 /*****************************
  * Module : immediate
  *****************************/
@@ -1597,7 +1614,6 @@ $define(GLOBAL, {
   setImmediate: setImmediate,
   clearImmediate: clearImmediate
 });
-
 /*****************************
  * Module : function
  *****************************/
@@ -1674,7 +1690,6 @@ function createDeferred(set, clear, args){
   }, id;
   return deferred;
 }
-
 /*****************************
  * Module : binding
  *****************************/
@@ -1731,7 +1746,6 @@ $define(STATIC, 'Object', {
   tie: unbind(tie),
   useTie: part.call($define, PROTO, 'Object', {tie: tie})
 });
-
 /*****************************
  * Module : object
  *****************************/
@@ -2137,7 +2151,6 @@ $define(STATIC, 'Object', {
     hidden: hidden
   });
 }();
-
 /*****************************
  * Module : array
  *****************************/
@@ -2179,7 +2192,6 @@ $define(PROTO, 'Array', {
     return this;
   }
 });
-
 /*****************************
  * Module : arrayStatics
  *****************************/
@@ -2210,7 +2222,6 @@ $define(STATIC, 'Array', reduceTo.call(
     if(key in $Array)memo[key] = unbind($Array[key]);
   }
 ));
-
 /*****************************
  * Module : number
  *****************************/
@@ -2274,7 +2285,6 @@ $define(PROTO, 'Number', reduceTo.call(
     if(key in Math)memo[key] = methodize.call(Math[key]);
   }
 ));
-
 /*****************************
  * Module : string
  *****************************/
@@ -2346,7 +2356,6 @@ $define(PROTO, 'Number', reduceTo.call(
     }
   });
 }();
-
 /*****************************
  * Module : date
  *****************************/
@@ -2422,7 +2431,6 @@ $define(PROTO, 'Number', reduceTo.call(
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
 }(/\b(\w\w*)\b/g, {}, 'en', 'getHours', 'getMonth');
-
 /*****************************
  * Module : extendCollections
  *****************************/
@@ -2553,7 +2561,6 @@ $define(PROTO, 'Set', assign({
     return result;
   }
 }, extendCollections));
-
 /*****************************
  * Module : console
  *****************************/

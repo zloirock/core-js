@@ -148,7 +148,7 @@
     },
     /**
      * 20.1.3.1 Number.prototype.clz ()
-     * Rename to Math.clz32 <= http://esdiscuss.org/topic/january-19-meeting-notes#content-31
+     * Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
      * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.prototype.clz
      * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
      */
