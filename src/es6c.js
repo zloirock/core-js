@@ -98,25 +98,16 @@
     hidden(this, VALUES_STORE, create(null));
     hidden(this, SIZE, 0);
   }
-  /**
-   * 23.1 Map Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
-   */
+  // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
-      /**
-       * 23.1.3.1 Map.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
-       */
+      // 23.1.3.1 Map.prototype.clear ()
       clear: function(){
         hidden(this, KEYS_STORE, create(null));
         clearSet.call(this);
       },
-      /**
-       * 23.1.3.3 Map.prototype.delete ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.delete
-       */
+      // 23.1.3.3 Map.prototype.delete ( key )
       'delete': function(key){
         var index    = fastKey(key)
           , values   = this[VALUES_STORE]
@@ -128,27 +119,15 @@
         }
         return contains;
       },
-      /**
-       * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
-       */
+      // 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
       forEach: createForEach(KEYS_STORE),
-      /**
-       * 23.1.3.6 Map.prototype.get ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
-       */
+      // 23.1.3.6 Map.prototype.get ( key )
       get: function(key){
         return this[VALUES_STORE][fastKey(key)];
       },
-      /**
-       * 23.1.3.7 Map.prototype.has ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.has
-       */
+      // 23.1.3.7 Map.prototype.has ( key )
       has: collectionHas,
-      /**
-       * 23.1.3.9 Map.prototype.set ( key , value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.set
-       */
+      // 23.1.3.9 Map.prototype.set ( key , value )
       set: function(key, value){
         var index  = fastKey(key, 1)
           , values = this[VALUES_STORE];
@@ -160,26 +139,17 @@
         return this;
       }
     });
-    /**
-     * 23.1.3.10 get Map.prototype.size
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
-     */
+    // 23.1.3.10 get Map.prototype.size
     defineProperties(Map[prototype], sizeGetter);
   } else {
     Map = fixCollectionConstructor(!new Map([tmp]).size != 1, Map, 'Map');
     fixAdd(Map, 'set');
   }
-  /**
-   * 23.2 Set Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
-   */
+  // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
     assign(Set[prototype], {
-      /**
-       * 23.2.3.1 Set.prototype.add ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.add
-       */
+      // 23.2.3.1 Set.prototype.add ( value )
       add: function(value){
         var index  = fastKey(value, 1)
           , values = this[VALUES_STORE];
@@ -189,15 +159,9 @@
         }
         return this;
       },
-      /**
-       * 23.2.3.2 Set.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.clear
-       */
+      // 23.2.3.2 Set.prototype.clear ()
       clear: clearSet,
-      /**
-       * 23.2.3.4 Set.prototype.delete ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.delete
-       */
+      // 23.2.3.4 Set.prototype.delete ( value )
       'delete': function(value){
         var index    = fastKey(value)
           , values   = this[VALUES_STORE]
@@ -208,21 +172,12 @@
         }
         return contains;
       },
-      /**
-       * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
-       */
+      // 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
       forEach: createForEach(VALUES_STORE),
-      /**
-       * 23.2.3.7 Set.prototype.has ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
-       */
+      // 23.2.3.7 Set.prototype.has ( value )
       has: collectionHas
     });
-    /**
-     * 23.2.3.9 get Set.prototype.size
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-set.prototype.size
-     */
+    // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[prototype], sizeGetter);
   } else {
     Set = fixCollectionConstructor(new Set([1]).size != 1, Set, 'Set', 1);
@@ -232,52 +187,31 @@
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
   var commonWeakCollection = {
-    /**
-     * 23.3.3.1 WeakMap.prototype.clear ()
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.clear
-     * 23.4.3.2 WeakSet.prototype.clear ()
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
-     */
+    // 23.3.3.1 WeakMap.prototype.clear ()
+    // 23.4.3.2 WeakSet.prototype.clear ()
     clear: function(){
       hidden(this, WEAKID, wid++);
     },
-    /**
-     * 23.3.3.3 WeakMap.prototype.delete ( key )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.delete
-     * 23.4.3.4 WeakSet.prototype.delete ( value )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
-     */
+    // 23.3.3.3 WeakMap.prototype.delete ( key )
+    // 23.4.3.4 WeakSet.prototype.delete ( value )
     'delete': function(key){
       return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
-    /**
-     * 23.3.3.5 WeakMap.prototype.has ( key )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.has
-     * 23.4.3.5 WeakSet.prototype.has ( value )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
-     */
+    // 23.3.3.5 WeakMap.prototype.has ( key )
+    // 23.4.3.5 WeakSet.prototype.has ( value )
     has: function(key){
       return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
   };
-  /**
-   * 23.3 WeakMap Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
-   */
+  // 23.3 WeakMap Objects
   if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
     assign(WeakMap[prototype], assign({
-      /**
-       * 23.3.3.4 WeakMap.prototype.get ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
-       */
+      // 23.3.3.4 WeakMap.prototype.get ( key )
       get: function(key){
         return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
       },
-      /**
-       * 23.3.3.6 WeakMap.prototype.set ( key , value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.set
-       */
+      // 23.3.3.6 WeakMap.prototype.set ( key , value )
       set: function(key, value){
         assertObject(key);
         getWeakData(key)[this[WEAKID]] = value;
@@ -288,17 +222,11 @@
     WeakMap = fixCollectionConstructor(!new WeakMap([[tmp, 1]]).has(tmp), WeakMap, 'WeakMap');
     fixAdd(WeakMap, 'set');
   }
-  /**
-   * 23.4 WeakSet Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
-   */
+  // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
     assign(WeakSet[prototype], assign({
-      /**
-       * 23.4.3.1 WeakSet.prototype.add (value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.add
-       */
+      // 23.4.3.1 WeakSet.prototype.add (value )
       add: function(value){
         assertObject(value);
         getWeakData(value)[this[WEAKID]] = true;

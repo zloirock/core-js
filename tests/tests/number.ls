@@ -30,7 +30,7 @@ test 'Number::rand' !->
 test 'Number::{Math}' !->
   for <[round floor ceil abs sin asin cos acos tan atan exp sqrt max min pow atan2]>
     ok isFunction(Number::[..]), "Number::#{..} is function (ES3)"
-  for <[acosh asinh atanh cbrt cosh expm1 hypot imul log1p log10 log2 sign sinh tanh trunc]>
+  for <[acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign sinh tanh trunc]>
     ok isFunction(Number::[..]), "Number::#{..} is function (ES6)"
   ok 3.max(2) is 3, 'context is argument of Number::{Math}'
   ok 3.min(2) is 2, 'Number::{Math} works with first argument'

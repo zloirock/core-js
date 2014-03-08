@@ -26,10 +26,7 @@
       ? createIterResultObject(iterated.charAt(index), 0)
       : createIterResultObject(undefined, 1);
   }
-  /**
-   * 21.1.3.27 String.prototype [ @@iterator ]( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype-@@iterator
-   */
+  // 21.1.3.27 String.prototype [ @@iterator ]( )
   stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
   
   function ArrayIterator(iterated, kind){
@@ -49,26 +46,14 @@
     return createIterResultObject([index, iterated[index]], 0);
   }
   arrayIterators = {
-    /**
-     * 22.1.3.4 Array.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
-     */
+    // 22.1.3.4 Array.prototype.entries ( )
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    /**
-     * 22.1.3.13 Array.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
-     */
+    // 22.1.3.13 Array.prototype.keys ( )
     keys: createIteratorFactory(ArrayIterator, KEY),
-    /**
-     * 22.1.3.29 Array.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
-     */
+    // 22.1.3.29 Array.prototype.values ( )
     values: createIteratorFactory(ArrayIterator, VALUE)
   };
-  /**
-   * 22.1.3.30 Array.prototype [ @@iterator ] ( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
-   */
+  // 22.1.3.30 Array.prototype [ @@iterator ] ( )
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
   function MapIterator(iterated, kind){
@@ -82,35 +67,25 @@
   MapIterator[prototype].next = function(){
     var iterated = this[ITERATED]
       , keys     = this[KEYS]
-      , index    = this[INDEX]++;
+      , index    = this[INDEX]++
+      , key;
     if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
     switch(this[KIND]){
-      case KEY   : return createIterResultObject(keys[index], 0);
-      case VALUE : return createIterResultObject(iterated.get(keys[index]), 0);
+      case KEY   : return createIterResultObject(key, 0);
+      case VALUE : return createIterResultObject(iterated.get(key), 0);
     }
-    return createIterResultObject([keys[index], iterated.get(keys[index])], 0);
+    return createIterResultObject([key, iterated.get(key)], 0);
   }
   mapIterators = {
-    /**
-     * 23.1.3.4 Map.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.entries
-     */
+    // 23.1.3.4 Map.prototype.entries ( )
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    /**
-     * 23.1.3.8 Map.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.keys
-     */
+    // 23.1.3.8 Map.prototype.keys ( )
     keys: createIteratorFactory(MapIterator, KEY),
-    /**
-     * 23.1.3.11 Map.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.values
-     */
+    // 23.1.3.11 Map.prototype.values ( )
     values: createIteratorFactory(MapIterator, VALUE)
   }
-  /**
-   * 23.1.3.12 Map.prototype [ @@iterator ]( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype-@@iterator
-   */
+  // 23.1.3.12 Map.prototype [ @@iterator ]( )
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
   function SetIterator(iterated, kind){
@@ -122,32 +97,22 @@
   }
   SetIterator[prototype].next = function(){
     var keys  = this[KEYS]
-      , index = this[INDEX]++;
+      , index = this[INDEX]++
+      , key;
     if(index >= keys.length)return createIterResultObject(undefined, 1);
-    if(this[KIND] == VALUE)return createIterResultObject(keys[index], 0);
-    return createIterResultObject([keys[index], keys[index]], 0);
+    key = keys[index];
+    if(this[KIND] == VALUE)return createIterResultObject(key, 0);
+    return createIterResultObject([key, key], 0);
   }
   setIterators = {
-    /**
-     * 23.2.3.5 Set.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.entries
-     */
+    // 23.2.3.5 Set.prototype.entries ( )
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    /**
-     * 23.2.3.8 Set.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.keys
-     */
+    // 23.2.3.8 Set.prototype.keys ( )
     keys: createIteratorFactory(SetIterator, VALUE),
-    /**
-     * 23.2.3.10 Set.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.values
-     */
+    // 23.2.3.10 Set.prototype.values ( )
     values: createIteratorFactory(SetIterator, VALUE)
   }
-  /**
-   * 23.2.3.11 Set.prototype [@@iterator ] ( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype-@@iterator
-   */
+  // 23.2.3.11 Set.prototype [@@iterator ] ( )
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
   StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;

@@ -1,5 +1,6 @@
 /**
  * ECMAScript 5 shim
+ * http://es5.github.io/
  * Alternatives:
  * https://github.com/es-shims/es5-shim
  * https://github.com/ddrcode/ddr-ecma5
@@ -57,26 +58,17 @@
   }
   catch(e){
     DESCRIPTORS = 0;
-    /**
-     * 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
-     * http://es5.github.io/#x15.2.3.3
-     */
+    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
     Object.getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
-    /**
-     * 15.2.3.6 Object.defineProperty ( O, P, Attributes )
-     * http://es5.github.io/#x15.2.3.6
-     */
+    // 19.1.2.4 / 15.2.3.6 Object.defineProperty ( O, P, Attributes )
     Object.defineProperty = defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
-    /**
-     * 15.2.3.7 Object.defineProperties ( O, Properties ) 
-     * http://es5.github.io/#x15.2.3.7
-     */
+    // 19.1.2.3 / 15.2.3.7 Object.defineProperties ( O, Properties ) 
     Object.defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
@@ -92,24 +84,15 @@
     }
   }
   $define(STATIC, 'Object', {
-    /**
-     * 15.2.3.2 Object.getPrototypeOf ( O ) 
-     * http://es5.github.io/#x15.2.3.2
-     */
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf ( O ) 
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
       return O !== proto && 'toString' in O ? proto : null;
     },
-    /**
-     * 15.2.3.4 Object.getOwnPropertyNames ( O )
-     * http://es5.github.io/#x15.2.3.4
-     */
+    // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames ( O )
     getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
-    /**
-     * 15.2.3.5 Object.create ( O [, Properties] )
-     * http://es5.github.io/#x15.2.3.5
-     */
+    // 19.1.2.2 / 15.2.3.5 Object.create ( O [, Properties] )
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
       assertObject(O);
@@ -120,10 +103,7 @@
       __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
       return result;
     },
-    /**
-     * 15.2.3.14 Object.keys ( O )
-     * http://es5.github.io/#x15.2.3.14
-     */
+    // 19.1.2.14 / 15.2.3.14 Object.keys ( O )
     keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   // not array-like strings fix
@@ -132,17 +112,16 @@
       return classof(it) == 'String' ? it.split('') : Object(it);
     }
     // Array.prototype methods for strings in ES3
+    // 22.1.3.22 / 15.4.4.10 Array.prototype.slice (start, end)
     $Array.slice = slice = function(){
       return nativeSlice.apply(ES5Object(this), arguments);
     }
+    // 22.1.3.12 / 15.4.4.5 Array.prototype.join (separator)
     $Array.join = function(){
       return nativeJoin.apply(ES5Object(this), arguments);
     }
   }
-  /**
-   * 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
-   * http://es5.github.io/#x15.3.4.5
-   */
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, 'Function', {
     bind: function(scope /*, args... */){
       var fn   = this
@@ -158,17 +137,7 @@
       return bound;
     }
   });
-  /**
-   * 15.4.3.2 Array.isArray ( arg )
-   * http://es5.github.io/#x15.4.3.2
-   * Alternatives:
-   * http://underscorejs.org/#isArray
-   * http://sugarjs.com/api/Object/isType
-   * http://api.prototypejs.org/language/Object/isArray/
-   * http://nodejs.org/api/util.html#util_util_isarray_object
-   * http://api.jquery.com/jQuery.isArray/
-   * http://docs.angularjs.org/api/angular.isArray
-   */
+  // 22.1.2.2 / 15.4.3.2 Array.isArray ( arg )
   $define(STATIC, 'Array', {isArray: function(it){
     return classof(it) == 'Array'
   }});
@@ -180,10 +149,7 @@
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
   }
   $define(PROTO, 'Array', {
-    /**
-     * 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.14
-     */
+    // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
     indexOf: function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -192,10 +158,7 @@
       for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    /**
-     * 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.15
-     */
+    // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -205,10 +168,7 @@
       for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    /**
-     * 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.16
-     */
+    // 22.1.3.5 / 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
     every: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -219,10 +179,7 @@
       }
       return true;
     },
-    /**
-     * 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.17
-     */
+    // 22.1.3.23 / 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
     some: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -233,15 +190,9 @@
       }
       return false;
     },
-    /**
-     * 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.18
-     */
+    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
     forEach: forEach,
-    /**
-     * 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.19
-     */
+    // 22.1.3.15 / 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
     map: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = Array(toLength(this.length));
@@ -250,10 +201,7 @@
       });
       return result;
     },
-    /**
-     * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.20
-     */
+    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
     filter: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = [];
@@ -262,10 +210,7 @@
       });
       return result;
     },
-    /**
-     * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.21
-     */
+    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
     reduce: function(callbackfn, memo /* = @.1 */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -281,10 +226,7 @@
       for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
       return memo;
     },
-    /**
-     * 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.22
-     */
+    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       assertFunction(callbackfn);
       var self = ES5Object(this)
@@ -300,17 +242,11 @@
       return memo;
     }
   });
-  /**
-   * 15.5.4.20 String.prototype.trim ( )
-   * http://es5.github.io/#x15.5.4.20
-   */
+  // 21.1.3.25 / 15.5.4.20 String.prototype.trim ( )
   $define(PROTO, 'String', {trim: function(){
     return String(this).replace(trimRegExp, '');
   }});
-  /**
-   * 15.9.4.4 Date.now ( )
-   * http://es5.github.io/#x15.9.4.4
-   */
+  // 20.3.3.1 / 15.9.4.4 Date.now ( )
   $define(STATIC, 'Date', {now: function(){
     return +new Date;
   }});

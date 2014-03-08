@@ -1,6 +1,6 @@
 /**
- * https://developer.mozilla.org/en-US/docs/Web/API/console
  * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+ * https://developer.mozilla.org/en-US/docs/Web/API/console
  * Alternatives:
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap

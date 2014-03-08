@@ -52,7 +52,7 @@ $define(PROTO, 'Number', reduceTo.call(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
-    'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);

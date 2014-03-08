@@ -288,10 +288,6 @@ describe("RSVP extensions", function() {
       }, TypeError);
 
       assert.throws(function () {
-        var all = Promise.all('');
-      }, TypeError);
-
-      assert.throws(function () {
         var all = Promise.all({});
       }, TypeError);
     });
@@ -445,10 +441,6 @@ describe("RSVP extensions", function() {
     it("throws when not passed an array", function() {
       assert.throws(function () {
         var race = Promise.race();
-      }, TypeError);
-
-      assert.throws(function () {
-        var race = Promise.race('');
       }, TypeError);
 
       assert.throws(function () {

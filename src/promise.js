@@ -33,7 +33,7 @@
       , SUBSCRIBERS = symbol('subscribers')
       , STATE       = symbol('state')
       , DETAIL      = symbol('detail');
-    // https://github.com/domenic/promises-unwrapping#the-promise-constructor
+    // 25.4.3 The Promise Constructor
     Promise = function(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
@@ -68,17 +68,11 @@
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
-      /**
-       * 25.4.5.1 Promise.prototype.catch ( onRejected )
-       * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
-       */
+      // 25.4.5.1 Promise.prototype.catch ( onRejected )
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
       },
-      /**
-       * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
-       * https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
-       */
+      // 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
@@ -90,10 +84,7 @@
       }
     });
     assign(Promise, {
-      /**
-       * 25.4.4.1 Promise.all ( iterable )
-       * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
-       */
+      // 25.4.4.1 Promise.all ( iterable )
       all: function(iterable){
         var values = [];
         forOf(iterable, values.push, values);
@@ -112,17 +103,11 @@
           else resolve(results);
         });
       },
-      /**
-       * 25.4.4.2 Promise.cast ( x )
-       * https://github.com/domenic/promises-unwrapping#promisecast--x-
-       */
+      // 25.4.4.2 Promise.cast ( x )
       cast: function(x){
         return x instanceof this ? x : $resolve.call(this, x);
       },
-      /**
-       * 25.4.4.4 Promise.race ( iterable )
-       * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
-       */
+      // 25.4.4.4 Promise.race ( iterable )
       race: function(iterable){
         var iter = getIterator(iterable);
         return new this(function(resolve, reject){
@@ -133,19 +118,13 @@
           });
         });
       },
-      /**
-       * 25.4.4.5 Promise.reject ( r )
-       * https://github.com/domenic/promises-unwrapping#promisereject--r-
-       */
+      // 25.4.4.5 Promise.reject ( r )
       reject: function(r){
         return new this(function(resolve, reject){
           reject(r);
         });
       },
-      /**
-       * 25.4.4.6 Promise.resolve ( x )
-       * https://github.com/domenic/promises-unwrapping#promiseresolve--x-
-       */
+      // 25.4.4.6 Promise.resolve ( x )
       resolve: $resolve
     });
     function $resolve(x){

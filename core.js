@@ -274,6 +274,7 @@ function $define(type, name, source, forced /* = false */){
  *****************************/
 /**
  * ECMAScript 5 shim
+ * http://es5.github.io/
  * Alternatives:
  * https://github.com/es-shims/es5-shim
  * https://github.com/ddrcode/ddr-ecma5
@@ -331,26 +332,17 @@ function $define(type, name, source, forced /* = false */){
   }
   catch(e){
     DESCRIPTORS = 0;
-    /**
-     * 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
-     * http://es5.github.io/#x15.2.3.3
-     */
+    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
     Object.getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
-    /**
-     * 15.2.3.6 Object.defineProperty ( O, P, Attributes )
-     * http://es5.github.io/#x15.2.3.6
-     */
+    // 19.1.2.4 / 15.2.3.6 Object.defineProperty ( O, P, Attributes )
     Object.defineProperty = defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
-    /**
-     * 15.2.3.7 Object.defineProperties ( O, Properties ) 
-     * http://es5.github.io/#x15.2.3.7
-     */
+    // 19.1.2.3 / 15.2.3.7 Object.defineProperties ( O, Properties ) 
     Object.defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
@@ -366,24 +358,15 @@ function $define(type, name, source, forced /* = false */){
     }
   }
   $define(STATIC, 'Object', {
-    /**
-     * 15.2.3.2 Object.getPrototypeOf ( O ) 
-     * http://es5.github.io/#x15.2.3.2
-     */
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf ( O ) 
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
       return O !== proto && 'toString' in O ? proto : null;
     },
-    /**
-     * 15.2.3.4 Object.getOwnPropertyNames ( O )
-     * http://es5.github.io/#x15.2.3.4
-     */
+    // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames ( O )
     getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
-    /**
-     * 15.2.3.5 Object.create ( O [, Properties] )
-     * http://es5.github.io/#x15.2.3.5
-     */
+    // 19.1.2.2 / 15.2.3.5 Object.create ( O [, Properties] )
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
       assertObject(O);
@@ -394,10 +377,7 @@ function $define(type, name, source, forced /* = false */){
       __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
       return result;
     },
-    /**
-     * 15.2.3.14 Object.keys ( O )
-     * http://es5.github.io/#x15.2.3.14
-     */
+    // 19.1.2.14 / 15.2.3.14 Object.keys ( O )
     keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   // not array-like strings fix
@@ -406,17 +386,16 @@ function $define(type, name, source, forced /* = false */){
       return classof(it) == 'String' ? it.split('') : Object(it);
     }
     // Array.prototype methods for strings in ES3
+    // 22.1.3.22 / 15.4.4.10 Array.prototype.slice (start, end)
     $Array.slice = slice = function(){
       return nativeSlice.apply(ES5Object(this), arguments);
     }
+    // 22.1.3.12 / 15.4.4.5 Array.prototype.join (separator)
     $Array.join = function(){
       return nativeJoin.apply(ES5Object(this), arguments);
     }
   }
-  /**
-   * 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
-   * http://es5.github.io/#x15.3.4.5
-   */
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, 'Function', {
     bind: function(scope /*, args... */){
       var fn   = this
@@ -432,17 +411,7 @@ function $define(type, name, source, forced /* = false */){
       return bound;
     }
   });
-  /**
-   * 15.4.3.2 Array.isArray ( arg )
-   * http://es5.github.io/#x15.4.3.2
-   * Alternatives:
-   * http://underscorejs.org/#isArray
-   * http://sugarjs.com/api/Object/isType
-   * http://api.prototypejs.org/language/Object/isArray/
-   * http://nodejs.org/api/util.html#util_util_isarray_object
-   * http://api.jquery.com/jQuery.isArray/
-   * http://docs.angularjs.org/api/angular.isArray
-   */
+  // 22.1.2.2 / 15.4.3.2 Array.isArray ( arg )
   $define(STATIC, 'Array', {isArray: function(it){
     return classof(it) == 'Array'
   }});
@@ -454,10 +423,7 @@ function $define(type, name, source, forced /* = false */){
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
   }
   $define(PROTO, 'Array', {
-    /**
-     * 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.14
-     */
+    // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
     indexOf: function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -466,10 +432,7 @@ function $define(type, name, source, forced /* = false */){
       for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    /**
-     * 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
-     * http://es5.github.io/#x15.4.4.15
-     */
+    // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -479,10 +442,7 @@ function $define(type, name, source, forced /* = false */){
       for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    /**
-     * 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.16
-     */
+    // 22.1.3.5 / 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
     every: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -493,10 +453,7 @@ function $define(type, name, source, forced /* = false */){
       }
       return true;
     },
-    /**
-     * 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.17
-     */
+    // 22.1.3.23 / 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
     some: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -507,15 +464,9 @@ function $define(type, name, source, forced /* = false */){
       }
       return false;
     },
-    /**
-     * 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.18
-     */
+    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
     forEach: forEach,
-    /**
-     * 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.19
-     */
+    // 22.1.3.15 / 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
     map: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = Array(toLength(this.length));
@@ -524,10 +475,7 @@ function $define(type, name, source, forced /* = false */){
       });
       return result;
     },
-    /**
-     * 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
-     * http://es5.github.io/#x15.4.4.20
-     */
+    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
     filter: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = [];
@@ -536,10 +484,7 @@ function $define(type, name, source, forced /* = false */){
       });
       return result;
     },
-    /**
-     * 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.21
-     */
+    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
     reduce: function(callbackfn, memo /* = @.1 */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -555,10 +500,7 @@ function $define(type, name, source, forced /* = false */){
       for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
       return memo;
     },
-    /**
-     * 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
-     * http://es5.github.io/#x15.4.4.22
-     */
+    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       assertFunction(callbackfn);
       var self = ES5Object(this)
@@ -574,17 +516,11 @@ function $define(type, name, source, forced /* = false */){
       return memo;
     }
   });
-  /**
-   * 15.5.4.20 String.prototype.trim ( )
-   * http://es5.github.io/#x15.5.4.20
-   */
+  // 21.1.3.25 / 15.5.4.20 String.prototype.trim ( )
   $define(PROTO, 'String', {trim: function(){
     return String(this).replace(trimRegExp, '');
   }});
-  /**
-   * 15.9.4.4 Date.now ( )
-   * http://es5.github.io/#x15.9.4.4
-   */
+  // 20.3.3.1 / 15.9.4.4 Date.now ( )
   $define(STATIC, 'Date', {now: function(){
     return +new Date;
   }});
@@ -699,30 +635,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   $define(STATIC, 'Object', {
-    /**
-     * The assign function is used to copy the values of all of the enumerable
-     * own properties from a source object to a target object.
-     * 19.1.3.1 Object.assign ( target, source )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
-     * http://kangax.github.io/es5-compat-table/es6/#Object.assign
-     * http://www.2ality.com/2014/01/object-assign.html
-     */
+    // 19.1.3.1 Object.assign ( target, source )
+    // The assign function is used to copy the values of all of the enumerable
+    // own properties from a source object to a target object.
     assign: assign,
-    /**
-     * 19.1.3.10 Object.is ( value1, value2 )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
-     * http://wiki.ecmascript.org/doku.php?id=harmony:egal
-     * http://kangax.github.io/es5-compat-table/es6/#Object.is
-     */
+    // 19.1.3.10 Object.is ( value1, value2 )
     is: same
   });
-  /**
-   * 19.1.3.19 Object.setPrototypeOf ( O, proto )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.setprototypeof
-   * http://kangax.github.io/es5-compat-table/es6/#Object.setPrototypeOf
-   * work only if browser support __proto__, don't work with null proto objects
-   */
   __PROTO__ && $define(STATIC, 'Object', {
+    // 19.1.3.19 Object.setPrototypeOf ( O, proto )
+    // work only if browser support __proto__, don't work with null proto objects
     setPrototypeOf: function(O, proto){
       assertObject(O);
       assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
@@ -731,65 +653,31 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   $define(STATIC, 'Number', {
-    /**
-     * 20.1.2.1 Number.EPSILON
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.epsilon
-     * http://wiki.ecmascript.org/doku.php?id=harmony:number_epsilon
-     */
+    // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
-    /**
-     * 20.1.2.2 Number.isFinite (number)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
-     * http://wiki.ecmascript.org/doku.php?id=harmony:number.isfinite
-     * http://kangax.github.io/es5-compat-table/es6/#Number.isFinite
-     */
+    // 20.1.2.2 Number.isFinite (number)
     isFinite: function(it){
       return typeof it == 'number' && isFinite(it);
     },
-    /**
-     * 20.1.2.3 Number.isInteger (number)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
-     * http://wiki.ecmascript.org/doku.php?id=harmony:number.isinteger
-     * http://kangax.github.io/es5-compat-table/es6/#Number.isInteger
-     */
+    // 20.1.2.3 Number.isInteger (number)
     isInteger: function(it){
       return isFinite(it) && floor(it) === it;
     },
-    /**
-     * 20.1.2.4 Number.isNaN (number)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isnan
-     * http://wiki.ecmascript.org/doku.php?id=harmony:number.isnan
-     * http://kangax.github.io/es5-compat-table/es6/#Number.isNaN
-     */
+    // 20.1.2.4 Number.isNaN (number)
     isNaN: function(number){
       return typeof number == 'number' && number != number;
     },
-    /**
-     * 20.1.2.5 Number.isSafeInteger (number)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.issafeinteger
-     */
+    // 20.1.2.5 Number.isSafeInteger (number)
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
-    /**
-     * 20.1.2.6 Number.MAX_SAFE_INTEGER
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer
-     */
+    // 20.1.2.6 Number.MAX_SAFE_INTEGER
     MAX_SAFE_INTEGER: MAX_SAFE_INTEGER,
-    /**
-     * 20.1.2.10 Number.MIN_SAFE_INTEGER
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.min_safe_integer
-     */
+    // 20.1.2.10 Number.MIN_SAFE_INTEGER
     MIN_SAFE_INTEGER: -MAX_SAFE_INTEGER,
-    /**
-     * 20.1.2.12 Number.parseFloat (string)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parsefloat
-     */
+    // 20.1.2.12 Number.parseFloat (string)
     parseFloat: parseFloat,
-    /**
-     * 20.1.2.13 Number.parseInt (string, radix)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.parseint
-     */
+    // 20.1.2.13 Number.parseInt (string, radix)
     parseInt: parseInt
   });
   var isInteger = Number.isInteger
@@ -798,79 +686,47 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     , log       = Math.log
     , sqrt      = Math.sqrt;
   $define(STATIC, 'Math', {
-    /**
-     * Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
-     * 20.2.2.3 Math.acosh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.acosh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.acosh
-     */
+    // 20.2.2.3 Math.acosh(x)
+    // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
     acosh: function(x){
       return log(x + sqrt(x * x - 1));
     },
-    /**
-     * Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
-     * 20.2.2.5 Math.asinh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.asinh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.asinh
-     */
+    // 20.2.2.5 Math.asinh(x)
+    // Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
     asinh: function(x){
       return !isFinite(x = +x) || x === 0 ? x : log(x + sqrt(x * x + 1));
     },
-    /**
-     * Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
-     * 20.2.2.7 Math.atanh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.atanh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.atanh
-     */
+    // 20.2.2.7 Math.atanh(x)
+    // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
       return x === 0 ? x : 0.5 * log((1 + x) / (1 - x));
     },
-    /**
-     * Returns an implementation-dependent approximation to the cube root of x.
-     * 20.2.2.9 Math.cbrt(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cbrt
-     */
+    // 20.2.2.9 Math.cbrt(x)
+    // Returns an implementation-dependent approximation to the cube root of x.
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
     },
-    /**
-     * 20.1.3.1 Number.prototype.clz ()
-     * Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.prototype.clz
-     * http://kangax.github.io/es5-compat-table/es6/#Number.prototype.clz
-     */
+    // 20.1.3.1 Number.prototype.clz ()
+    // Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
     clz32: function(number){
       number = number >>> 0;
       return number ? 32 - number.toString(2).length : 32;
     },
-    /**
-     * Returns an implementation-dependent approximation to the hyperbolic cosine of x.
-     * 20.2.2.12 Math.cosh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.cosh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.cosh
-     */
+    // 20.2.2.12 Math.cosh(x)
+    // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
     cosh: function(x){
       return (exp(x) + exp(-x)) / 2;
     },
-    /**
-     * Returns an implementation-dependent approximation to subtracting 1
-     * from the exponential function of x 
-     * 20.2.2.14 Math.expm1 (x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.expm1
-     * http://kangax.github.io/es5-compat-table/es6/#Math.expm1
-     */
+    // 20.2.2.14 Math.expm1 (x)
+    // Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
     expm1: function(x){
       return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
     },
-    /**
-     * 20.2.2.16 Math.fround (x)
-    fround: function(x){ TODO },
-     * Returns an implementation-dependent approximation of the square root
-     * of the sum of squares of its arguments.
-     * 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.hypot
-     * http://kangax.github.io/es5-compat-table/es6/#Math.hypot
-     */
+    // 20.2.2.16 Math.fround (x)
+    // fround: function(x){ TODO },
+    // 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
+    // Returns an implementation-dependent approximation of the square root
+    // of the sum of squares of its arguments.
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
@@ -882,11 +738,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
       return sqrt(sum);
     },
-    /**
-     * 20.2.2.18 Math.imul(x, y)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.imul
-     * http://kangax.github.io/es5-compat-table/es6/#Math.imul
-     */
+    // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
       var xh = (x >>> 0x10) & 0xffff
         , xl = x & 0xffff
@@ -894,126 +746,70 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         , yl = y & 0xffff;
       return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
-    /**
-     * Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
-     * The result is computed in a way that is accurate even when the value of x is close to zero.
-     * 20.2.2.20 Math.log1p (x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log1p
-     * http://kangax.github.io/es5-compat-table/es6/#Math.log1p
-     */
+    // 20.2.2.20 Math.log1p (x)
+    // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
+    // The result is computed in a way that is accurate even when the value of x is close to zero.
     log1p: function(x){
       return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
     },
-    /**
-     * Returns an implementation-dependent approximation to the base 10 logarithm of x.
-     * 20.2.2.21 Math.log10 (x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log10
-     * http://kangax.github.io/es5-compat-table/es6/#Math.log10
-     */
+    // 20.2.2.21 Math.log10 (x)
+    // Returns an implementation-dependent approximation to the base 10 logarithm of x.
     log10: function(x){
       return log(x) / Math.LN10;
     },
-    /**
-     * Returns an implementation-dependent approximation to the base 2 logarithm of x.
-     * 20.2.2.22 Math.log2 (x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.log2
-     * http://kangax.github.io/es5-compat-table/es6/#Math.log2
-     */
+    // 20.2.2.22 Math.log2 (x)
+    // Returns an implementation-dependent approximation to the base 2 logarithm of x.
     log2: function(x){
       return log(x) / Math.LN2;
     },
-    /**
-     * Returns the sign of the x, indicating whether x is positive, negative or zero.
-     * 20.2.2.28 Math.sign(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sign
-     * http://kangax.github.io/es5-compat-table/es6/#Math.sign
-     */
+    // 20.2.2.28 Math.sign(x)
+    // Returns the sign of the x, indicating whether x is positive, negative or zero.
     sign: sign,
-    /**
-     * Returns an implementation-dependent approximation to the hyperbolic sine of x.
-     * 20.2.2.30 Math.sinh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.sinh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.sinh
-     */
+    // 20.2.2.30 Math.sinh(x)
+    // Returns an implementation-dependent approximation to the hyperbolic sine of x.
     sinh: function(x){
       return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
     },
-    /**
-     * Returns an implementation-dependent approximation to the hyperbolic tangent of x.
-     * 20.2.2.33 Math.tanh(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.tanh
-     * http://kangax.github.io/es5-compat-table/es6/#Math.tanh
-     */
+    // 20.2.2.33 Math.tanh(x)
+    // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
     tanh: function(x){
       return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
-    /**
-     * Returns the integral part of the number x, removing any fractional digits.
-     * If x is already an integer, the result is x.
-     * 20.2.2.34 Math.trunc(x)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-math.trunc
-     * http://kangax.github.io/es5-compat-table/es6/#Math.trunc
-     */
+    // 20.2.2.34 Math.trunc(x)
+    // Returns the integral part of the number x, removing any fractional digits.
+    // If x is already an integer, the result is x.
     trunc: function(x){
       return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
   /**
   $define(STATIC, 'String', {
-     * 21.1.2.2 String.fromCodePoint ( ...codePoints)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.fromcodepoint
-     * http://kangax.github.io/es5-compat-table/es6/#String.fromCodePoint
-    fromCodePoint: function(){ TODO },
-     * 21.1.2.4 String.raw ( callSite, ...substitutions)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.raw
+    // 21.1.2.2 String.fromCodePoint ( ...codePoints)
+    // fromCodePoint: function(){ TODO },
+    // 21.1.2.4 String.raw ( callSite, ...substitutions)
     raw: function(){ TODO }
   });
   */
   $define(PROTO, 'String', {
-    /**
-     * 21.1.3.3 String.prototype.codePointAt (pos)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.codepointat
-     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.codePointAt
-    codePointAt: function(pos /* = 0 * /){ TODO },
-     * 21.1.3.6 String.prototype.contains (searchString, position = 0 )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.contains
-     * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
-     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/contains
-     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.contains
-     */
+    // 21.1.3.3 String.prototype.codePointAt (pos)
+    // codePointAt: function(pos /* = 0 * /){ TODO },
+    // 21.1.3.6 String.prototype.contains (searchString, position = 0 )
     contains: function(searchString, position /* = 0 */){
       return !!~String(this).indexOf(searchString, position);
     },
-    /**
-     * 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.endswith
-     * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
-     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/endsWith
-     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.endsWith
-     */
+    // 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length;
       searchString += '';
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
       return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
     },
-    /**
-     * 21.1.3.13 String.prototype.repeat (count)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.repeat
-     * http://wiki.ecmascript.org/doku.php?id=harmony:string.prototype.repeat
-     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.repeat
-     */
+    // 21.1.3.13 String.prototype.repeat (count)
     repeat: function(count){
       assert(0 <= (count |= 0), "Count can't be negative");
       return Array(count + 1).join(this);
     },
-    /**
-     * 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype.startswith
-     * http://wiki.ecmascript.org/doku.php?id=harmony:string_extras
-     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/startsWith
-     * http://kangax.github.io/es5-compat-table/es6/#String.prototype.startsWith
-     */
+    // 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
       position = toLength(min(position, this.length));
@@ -1021,12 +817,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   $define(STATIC, 'Array', {
-    /**
-     * 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.from
-     * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
-     * http://kangax.github.io/es5-compat-table/es6/#Array.from
-     */
+    // 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
       var O = ES5Object(arrayLike)
@@ -1040,12 +831,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
-    /**
-     * 22.1.2.3 Array.of ( ...items )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.of
-     * http://wiki.ecmascript.org/doku.php?id=strawman:array_extras
-     * http://kangax.github.io/es5-compat-table/es6/#Array.of
-     */
+    // 22.1.2.3 Array.of ( ...items )
     of: function(/*args...*/){
       var i = 0
         , length = arguments.length
@@ -1066,15 +852,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return -1;
   }
   $define(PROTO, 'Array', {
-    /**
-     * 22.1.3.3 Array.prototype.copyWithin (target, start, end = this.length)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
-    copyWithin: function(target, start, end){ TODO },
-     * 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.fill
-     * http://wiki.ecmascript.org/doku.php?id=strawman:array_fill_and_move
-     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.fill
-     */
+    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
+    // copyWithin: function(target, start, end){ TODO },
+    // 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length);
       if((start |= 0) < 0 && (start = length + start) < 0)return this;
@@ -1082,20 +862,12 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       while(end > start)this[start++] = value;
       return this;
     },
-    /**
-     * 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.find
-     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.find
-     */
+    // 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
       return index === -1 ? undefined : ES5Object(this)[index];
     },
-    /**
-     * 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.findindex
-     * http://kangax.github.io/es5-compat-table/es6/#Array.prototype.findIndex
-     */
+    // 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
     findIndex: findIndex
   });
 }(isFinite);
@@ -1202,25 +974,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     hidden(this, VALUES_STORE, create(null));
     hidden(this, SIZE, 0);
   }
-  /**
-   * 23.1 Map Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map-objects
-   */
+  // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
-      /**
-       * 23.1.3.1 Map.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.clear
-       */
+      // 23.1.3.1 Map.prototype.clear ()
       clear: function(){
         hidden(this, KEYS_STORE, create(null));
         clearSet.call(this);
       },
-      /**
-       * 23.1.3.3 Map.prototype.delete ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.delete
-       */
+      // 23.1.3.3 Map.prototype.delete ( key )
       'delete': function(key){
         var index    = fastKey(key)
           , values   = this[VALUES_STORE]
@@ -1232,27 +995,15 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return contains;
       },
-      /**
-       * 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.foreach
-       */
+      // 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
       forEach: createForEach(KEYS_STORE),
-      /**
-       * 23.1.3.6 Map.prototype.get ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.get
-       */
+      // 23.1.3.6 Map.prototype.get ( key )
       get: function(key){
         return this[VALUES_STORE][fastKey(key)];
       },
-      /**
-       * 23.1.3.7 Map.prototype.has ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.has
-       */
+      // 23.1.3.7 Map.prototype.has ( key )
       has: collectionHas,
-      /**
-       * 23.1.3.9 Map.prototype.set ( key , value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.set
-       */
+      // 23.1.3.9 Map.prototype.set ( key , value )
       set: function(key, value){
         var index  = fastKey(key, 1)
           , values = this[VALUES_STORE];
@@ -1264,26 +1015,17 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         return this;
       }
     });
-    /**
-     * 23.1.3.10 get Map.prototype.size
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-map.prototype.size
-     */
+    // 23.1.3.10 get Map.prototype.size
     defineProperties(Map[prototype], sizeGetter);
   } else {
     Map = fixCollectionConstructor(!new Map([tmp]).size != 1, Map, 'Map');
     fixAdd(Map, 'set');
   }
-  /**
-   * 23.2 Set Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set-objects
-   */
+  // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
     assign(Set[prototype], {
-      /**
-       * 23.2.3.1 Set.prototype.add ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.add
-       */
+      // 23.2.3.1 Set.prototype.add ( value )
       add: function(value){
         var index  = fastKey(value, 1)
           , values = this[VALUES_STORE];
@@ -1293,15 +1035,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return this;
       },
-      /**
-       * 23.2.3.2 Set.prototype.clear ()
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.clear
-       */
+      // 23.2.3.2 Set.prototype.clear ()
       clear: clearSet,
-      /**
-       * 23.2.3.4 Set.prototype.delete ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.delete
-       */
+      // 23.2.3.4 Set.prototype.delete ( value )
       'delete': function(value){
         var index    = fastKey(value)
           , values   = this[VALUES_STORE]
@@ -1312,21 +1048,12 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return contains;
       },
-      /**
-       * 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.foreach
-       */
+      // 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
       forEach: createForEach(VALUES_STORE),
-      /**
-       * 23.2.3.7 Set.prototype.has ( value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.has
-       */
+      // 23.2.3.7 Set.prototype.has ( value )
       has: collectionHas
     });
-    /**
-     * 23.2.3.9 get Set.prototype.size
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-get-set.prototype.size
-     */
+    // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[prototype], sizeGetter);
   } else {
     Set = fixCollectionConstructor(new Set([1]).size != 1, Set, 'Set', 1);
@@ -1336,52 +1063,31 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
   var commonWeakCollection = {
-    /**
-     * 23.3.3.1 WeakMap.prototype.clear ()
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.clear
-     * 23.4.3.2 WeakSet.prototype.clear ()
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.clear
-     */
+    // 23.3.3.1 WeakMap.prototype.clear ()
+    // 23.4.3.2 WeakSet.prototype.clear ()
     clear: function(){
       hidden(this, WEAKID, wid++);
     },
-    /**
-     * 23.3.3.3 WeakMap.prototype.delete ( key )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.delete
-     * 23.4.3.4 WeakSet.prototype.delete ( value )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.delete
-     */
+    // 23.3.3.3 WeakMap.prototype.delete ( key )
+    // 23.4.3.4 WeakSet.prototype.delete ( value )
     'delete': function(key){
       return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
-    /**
-     * 23.3.3.5 WeakMap.prototype.has ( key )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.has
-     * 23.4.3.5 WeakSet.prototype.has ( value )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.has
-     */
+    // 23.3.3.5 WeakMap.prototype.has ( key )
+    // 23.4.3.5 WeakSet.prototype.has ( value )
     has: function(key){
       return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
   };
-  /**
-   * 23.3 WeakMap Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap-objects
-   */
+  // 23.3 WeakMap Objects
   if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
     assign(WeakMap[prototype], assign({
-      /**
-       * 23.3.3.4 WeakMap.prototype.get ( key )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.get
-       */
+      // 23.3.3.4 WeakMap.prototype.get ( key )
       get: function(key){
         return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
       },
-      /**
-       * 23.3.3.6 WeakMap.prototype.set ( key , value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakmap.prototype.set
-       */
+      // 23.3.3.6 WeakMap.prototype.set ( key , value )
       set: function(key, value){
         assertObject(key);
         getWeakData(key)[this[WEAKID]] = value;
@@ -1392,17 +1098,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     WeakMap = fixCollectionConstructor(!new WeakMap([[tmp, 1]]).has(tmp), WeakMap, 'WeakMap');
     fixAdd(WeakMap, 'set');
   }
-  /**
-   * 23.4 WeakSet Objects
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset-objects
-   */
+  // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
     assign(WeakSet[prototype], assign({
-      /**
-       * 23.4.3.1 WeakSet.prototype.add (value )
-       * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-weakset.prototype.add
-       */
+      // 23.4.3.1 WeakSet.prototype.add (value )
       add: function(value){
         assertObject(value);
         getWeakData(value)[this[WEAKID]] = true;
@@ -1458,7 +1158,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       , SUBSCRIBERS = symbol('subscribers')
       , STATE       = symbol('state')
       , DETAIL      = symbol('detail');
-    // https://github.com/domenic/promises-unwrapping#the-promise-constructor
+    // 25.4.3 The Promise Constructor
     Promise = function(resolver){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
@@ -1493,17 +1193,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
-      /**
-       * 25.4.5.1 Promise.prototype.catch ( onRejected )
-       * https://github.com/domenic/promises-unwrapping#promiseprototypecatch--onrejected-
-       */
+      // 25.4.5.1 Promise.prototype.catch ( onRejected )
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
       },
-      /**
-       * 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
-       * https://github.com/domenic/promises-unwrapping#promiseprototypethen--onfulfilled--onrejected-
-       */
+      // 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
@@ -1515,10 +1209,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     });
     assign(Promise, {
-      /**
-       * 25.4.4.1 Promise.all ( iterable )
-       * https://github.com/domenic/promises-unwrapping#promiseall--iterable-
-       */
+      // 25.4.4.1 Promise.all ( iterable )
       all: function(iterable){
         var values = [];
         forOf(iterable, values.push, values);
@@ -1537,17 +1228,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           else resolve(results);
         });
       },
-      /**
-       * 25.4.4.2 Promise.cast ( x )
-       * https://github.com/domenic/promises-unwrapping#promisecast--x-
-       */
+      // 25.4.4.2 Promise.cast ( x )
       cast: function(x){
         return x instanceof this ? x : $resolve.call(this, x);
       },
-      /**
-       * 25.4.4.4 Promise.race ( iterable )
-       * https://github.com/domenic/promises-unwrapping#promiserace--iterable-
-       */
+      // 25.4.4.4 Promise.race ( iterable )
       race: function(iterable){
         var iter = getIterator(iterable);
         return new this(function(resolve, reject){
@@ -1558,19 +1243,13 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           });
         });
       },
-      /**
-       * 25.4.4.5 Promise.reject ( r )
-       * https://github.com/domenic/promises-unwrapping#promisereject--r-
-       */
+      // 25.4.4.5 Promise.reject ( r )
       reject: function(r){
         return new this(function(resolve, reject){
           reject(r);
         });
       },
-      /**
-       * 25.4.4.6 Promise.resolve ( x )
-       * https://github.com/domenic/promises-unwrapping#promiseresolve--x-
-       */
+      // 25.4.4.6 Promise.resolve ( x )
       resolve: $resolve
     });
     function $resolve(x){
@@ -1624,61 +1303,94 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
  *****************************/
 /**
  * ECMAScript 6 Symbol
- * http://people.mozilla.org/~jorendorff/es6-draft.html
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
  * Alternatives:
+ * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
- * https://github.com/component/symbol
- * https://github.com/anthonyshort/symbol
  */
-$define(GLOBAL, {
-  Symbol: function(description){
+!function(TAG, SymbolRegistry){
+  // 19.4.1 The Symbol Constructor
+  function Symbol(description){
+    if(!(this instanceof Symbol))return new Symbol(description);
     var tag = symbol(description);
-    defineProperty($Object, tag, {set: function(value){
-      hidden(this, tag, value);
-    }});
-    return {toString: function(){
-      return tag;
-    }};
+    hidden(this, TAG, tag);
+    defineProperty($Object, tag, {
+      set: function(value){
+        hidden(this, tag, value);
+      }
+    });
   }
-});
-$define(STATIC, 'Symbol', {iterator: ITERATOR});
+  Symbol[prototype].toString = function(){
+    return this[TAG];
+  }
+  $define(GLOBAL, {Symbol: Symbol});
+  $define(STATIC, 'Symbol', {
+    // 19.4.2.2 Symbol.for(key)
+    'for': function(key){
+      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = new Symbol(key);
+    },
+    // 19.4.2.6 Symbol.iterator
+    iterator: ITERATOR,
+    // 19.4.2.7 Symbol.keyFor(sym)
+    keyFor: function(sym){
+      for(var key in SymbolRegistry)if(has(SymbolRegistry, key) && SymbolRegistry[key] === sym)return key;
+    }
+  });
+}(symbol('tag'), {});
 /*****************************
  * Module : reflect
  *****************************/
+/**
+ * 26.1 The Reflect Object
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-reflect-object
+ */
 var id = Function('x', 'return x');
 $define(GLOBAL, {Reflect: {}});
 $define(STATIC, 'Reflect', {
+  // 26.1.1 Reflect.defineProperty(target, propertyKey, attributes)
   defineProperty: defineProperty,
+  // 26.1.2 Reflect.deleteProperty (target, propertyKey)
   deleteProperty: function(target, propertyKey){
     return delete target[propertyKey];
   },
+  // 26.1.3 Reflect.enumerate (target)
   enumerate: function(target){
     var list = []
       , key;
     for(key in target)list.push(key);
     return list;
   },
+  // 26.1.4 Reflect.get (target, propertyKey, receiver=target)
   get: function(target, propertyKey, receiver){
     if(arguments.length < 3)return target[propertyKey];
     var desc = getPropertyDescriptor(target, propertyKey);
     return desc && isFunction(desc.get) ? desc.get.call(receiver) : target[propertyKey];
   },
+  // 26.1.5 Reflect.getOwnPropertyDescriptor(target, propertyKey)
   getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+  // 26.1.6 Reflect.getPrototypeOf (target)
   getPrototypeOf: getPrototypeOf,
+  // 26.1.7 Reflect.has (target, propertyKey)
   has: function(target, propertyKey){
     return propertyKey in target;
   },
+  // 26.1.8 Reflect.hasOwn (target, propertyKey) Deprecated???
   hasOwn: has,
+  // 26.1.9 Reflect.isExtensible (target)
   isExtensible: Object.isExtensible || Function('return !0'),
+  // 26.1.10 Reflect.ownKeys (target)
   ownKeys: function(target){
     return getIterator(keys(target));
   },
+  // 26.1.11 Reflect.preventExtensions (target)
   preventExtensions: Object.preventExtensions || id,
+  // 26.1.12 Reflect.set (target, propertyKey, V, receiver=target)
   set: function(target, propertyKey, V, receiver){
     if(arguments.length < 3)return target[propertyKey] = V;
     var desc = getPropertyDescriptor(target, propertyKey);
     return desc && isFunction(desc.set) ? desc.set.call(receiver, V) : target[propertyKey] = V;
   },
+  // 26.1.13 Reflect.setPrototypeOf (target, proto)
   setPrototypeOf: Object.setPrototypeOf || id
 });
 /*****************************
@@ -1712,10 +1424,7 @@ $define(STATIC, 'Reflect', {
       ? createIterResultObject(iterated.charAt(index), 0)
       : createIterResultObject(undefined, 1);
   }
-  /**
-   * 21.1.3.27 String.prototype [ @@iterator ]( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype-@@iterator
-   */
+  // 21.1.3.27 String.prototype [ @@iterator ]( )
   stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
   
   function ArrayIterator(iterated, kind){
@@ -1735,26 +1444,14 @@ $define(STATIC, 'Reflect', {
     return createIterResultObject([index, iterated[index]], 0);
   }
   arrayIterators = {
-    /**
-     * 22.1.3.4 Array.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.entries
-     */
+    // 22.1.3.4 Array.prototype.entries ( )
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    /**
-     * 22.1.3.13 Array.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.keys
-     */
+    // 22.1.3.13 Array.prototype.keys ( )
     keys: createIteratorFactory(ArrayIterator, KEY),
-    /**
-     * 22.1.3.29 Array.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.values
-     */
+    // 22.1.3.29 Array.prototype.values ( )
     values: createIteratorFactory(ArrayIterator, VALUE)
   };
-  /**
-   * 22.1.3.30 Array.prototype [ @@iterator ] ( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype-@@iterator
-   */
+  // 22.1.3.30 Array.prototype [ @@iterator ] ( )
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
   function MapIterator(iterated, kind){
@@ -1768,35 +1465,25 @@ $define(STATIC, 'Reflect', {
   MapIterator[prototype].next = function(){
     var iterated = this[ITERATED]
       , keys     = this[KEYS]
-      , index    = this[INDEX]++;
+      , index    = this[INDEX]++
+      , key;
     if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
     switch(this[KIND]){
-      case KEY   : return createIterResultObject(keys[index], 0);
-      case VALUE : return createIterResultObject(iterated.get(keys[index]), 0);
+      case KEY   : return createIterResultObject(key, 0);
+      case VALUE : return createIterResultObject(iterated.get(key), 0);
     }
-    return createIterResultObject([keys[index], iterated.get(keys[index])], 0);
+    return createIterResultObject([key, iterated.get(key)], 0);
   }
   mapIterators = {
-    /**
-     * 23.1.3.4 Map.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.entries
-     */
+    // 23.1.3.4 Map.prototype.entries ( )
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    /**
-     * 23.1.3.8 Map.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.keys
-     */
+    // 23.1.3.8 Map.prototype.keys ( )
     keys: createIteratorFactory(MapIterator, KEY),
-    /**
-     * 23.1.3.11 Map.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype.values
-     */
+    // 23.1.3.11 Map.prototype.values ( )
     values: createIteratorFactory(MapIterator, VALUE)
   }
-  /**
-   * 23.1.3.12 Map.prototype [ @@iterator ]( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-map.prototype-@@iterator
-   */
+  // 23.1.3.12 Map.prototype [ @@iterator ]( )
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
   function SetIterator(iterated, kind){
@@ -1808,32 +1495,22 @@ $define(STATIC, 'Reflect', {
   }
   SetIterator[prototype].next = function(){
     var keys  = this[KEYS]
-      , index = this[INDEX]++;
+      , index = this[INDEX]++
+      , key;
     if(index >= keys.length)return createIterResultObject(undefined, 1);
-    if(this[KIND] == VALUE)return createIterResultObject(keys[index], 0);
-    return createIterResultObject([keys[index], keys[index]], 0);
+    key = keys[index];
+    if(this[KIND] == VALUE)return createIterResultObject(key, 0);
+    return createIterResultObject([key, key], 0);
   }
   setIterators = {
-    /**
-     * 23.2.3.5 Set.prototype.entries ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.entries
-     */
+    // 23.2.3.5 Set.prototype.entries ( )
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    /**
-     * 23.2.3.8 Set.prototype.keys ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.keys
-     */
+    // 23.2.3.8 Set.prototype.keys ( )
     keys: createIteratorFactory(SetIterator, VALUE),
-    /**
-     * 23.2.3.10 Set.prototype.values ( )
-     * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype.values
-     */
+    // 23.2.3.10 Set.prototype.values ( )
     values: createIteratorFactory(SetIterator, VALUE)
   }
-  /**
-   * 23.2.3.11 Set.prototype [@@iterator ] ( )
-   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-set.prototype-@@iterator
-   */
+  // 23.2.3.11 Set.prototype [@@iterator ] ( )
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
   StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
@@ -2602,7 +2279,7 @@ $define(PROTO, 'Number', reduceTo.call(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
-    'acosh,asinh,atanh,cbrt,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);
@@ -2888,8 +2565,8 @@ $define(PROTO, 'Set', assign({
  * Module : console
  *****************************/
 /**
- * https://developer.mozilla.org/en-US/docs/Web/API/console
  * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+ * https://developer.mozilla.org/en-US/docs/Web/API/console
  * Alternatives:
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap

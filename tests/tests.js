@@ -2163,7 +2163,7 @@
       x$ = ref$[i$];
       ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function (ES3)");
     }
-    for (i$ = 0, len$ = (ref$ = ['acosh', 'asinh', 'atanh', 'cbrt', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
       ok(isFunction(Number.prototype[y$]), "Number::" + y$ + " is function (ES6)");
     }
