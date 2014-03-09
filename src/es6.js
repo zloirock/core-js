@@ -12,15 +12,15 @@
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   $define(STATIC, 'Object', {
-    // 19.1.3.1 Object.assign ( target, source )
+    // 19.1.3.1 Object.assign(target, source)
     // The assign function is used to copy the values of all of the enumerable
     // own properties from a source object to a target object.
     assign: assign,
-    // 19.1.3.10 Object.is ( value1, value2 )
+    // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
   __PROTO__ && $define(STATIC, 'Object', {
-    // 19.1.3.19 Object.setPrototypeOf ( O, proto )
+    // 19.1.3.19 Object.setPrototypeOf(O, proto)
     // work only if browser support __proto__, don't work with null proto objects
     setPrototypeOf: function(O, proto){
       assertObject(O);
@@ -32,19 +32,19 @@
   $define(STATIC, 'Number', {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
-    // 20.1.2.2 Number.isFinite (number)
+    // 20.1.2.2 Number.isFinite(number)
     isFinite: function(it){
       return typeof it == 'number' && isFinite(it);
     },
-    // 20.1.2.3 Number.isInteger (number)
+    // 20.1.2.3 Number.isInteger(number)
     isInteger: function(it){
       return isFinite(it) && floor(it) === it;
     },
-    // 20.1.2.4 Number.isNaN (number)
+    // 20.1.2.4 Number.isNaN(number)
     isNaN: function(number){
       return typeof number == 'number' && number != number;
     },
-    // 20.1.2.5 Number.isSafeInteger (number)
+    // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
@@ -52,9 +52,9 @@
     MAX_SAFE_INTEGER: MAX_SAFE_INTEGER,
     // 20.1.2.10 Number.MIN_SAFE_INTEGER
     MIN_SAFE_INTEGER: -MAX_SAFE_INTEGER,
-    // 20.1.2.12 Number.parseFloat (string)
+    // 20.1.2.12 Number.parseFloat(string)
     parseFloat: parseFloat,
-    // 20.1.2.13 Number.parseInt (string, radix)
+    // 20.1.2.13 Number.parseInt(string, radix)
     parseInt: parseInt
   });
   var isInteger = Number.isInteger
@@ -83,7 +83,7 @@
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
     },
-    // 20.1.3.1 Number.prototype.clz ()
+    // 20.1.3.1 Number.prototype.clz()
     // Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
     clz32: function(number){
       number = number >>> 0;
@@ -94,14 +94,14 @@
     cosh: function(x){
       return (exp(x) + exp(-x)) / 2;
     },
-    // 20.2.2.14 Math.expm1 (x)
+    // 20.2.2.14 Math.expm1(x)
     // Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
     expm1: function(x){
       return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
     },
-    // 20.2.2.16 Math.fround (x)
+    // 20.2.2.16 Math.fround(x)
     // fround: function(x){ TODO },
-    // 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
+    // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
     // Returns an implementation-dependent approximation of the square root
     // of the sum of squares of its arguments.
     hypot: function(value1, value2){
@@ -123,18 +123,18 @@
         , yl = y & 0xffff;
       return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
-    // 20.2.2.20 Math.log1p (x)
+    // 20.2.2.20 Math.log1p(x)
     // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
     // The result is computed in a way that is accurate even when the value of x is close to zero.
     log1p: function(x){
       return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
     },
-    // 20.2.2.21 Math.log10 (x)
+    // 20.2.2.21 Math.log10(x)
     // Returns an implementation-dependent approximation to the base 10 logarithm of x.
     log10: function(x){
       return log(x) / Math.LN10;
     },
-    // 20.2.2.22 Math.log2 (x)
+    // 20.2.2.22 Math.log2(x)
     // Returns an implementation-dependent approximation to the base 2 logarithm of x.
     log2: function(x){
       return log(x) / Math.LN2;
@@ -161,32 +161,32 @@
   });
   /**
   $define(STATIC, 'String', {
-    // 21.1.2.2 String.fromCodePoint ( ...codePoints)
+    // 21.1.2.2 String.fromCodePoint(...codePoints)
     // fromCodePoint: function(){ TODO },
-    // 21.1.2.4 String.raw ( callSite, ...substitutions)
+    // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(){ TODO }
   });
   */
   $define(PROTO, 'String', {
-    // 21.1.3.3 String.prototype.codePointAt (pos)
+    // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
-    // 21.1.3.6 String.prototype.contains (searchString, position = 0 )
+    // 21.1.3.6 String.prototype.contains(searchString, position = 0)
     contains: function(searchString, position /* = 0 */){
       return !!~String(this).indexOf(searchString, position);
     },
-    // 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
+    // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length;
       searchString += '';
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
       return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
     },
-    // 21.1.3.13 String.prototype.repeat (count)
+    // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
       assert(0 <= (count |= 0), "Count can't be negative");
       return Array(count + 1).join(this);
     },
-    // 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
+    // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
       position = toLength(min(position, this.length));
@@ -194,7 +194,7 @@
     }
   });
   $define(STATIC, 'Array', {
-    // 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
+    // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
       var O = ES5Object(arrayLike)
@@ -208,7 +208,7 @@
       else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
-    // 22.1.2.3 Array.of ( ...items )
+    // 22.1.2.3 Array.of( ...items)
     of: function(/*args...*/){
       var i = 0
         , length = arguments.length
@@ -229,9 +229,9 @@
     return -1;
   }
   $define(PROTO, 'Array', {
-    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
+    // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // copyWithin: function(target, start, end){ TODO },
-    // 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
+    // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length);
       if((start |= 0) < 0 && (start = length + start) < 0)return this;
@@ -239,12 +239,12 @@
       while(end > start)this[start++] = value;
       return this;
     },
-    // 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
+    // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
       return index === -1 ? undefined : ES5Object(this)[index];
     },
-    // 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
+    // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex
   });
 }(isFinite);

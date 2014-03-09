@@ -53,14 +53,14 @@ asyncTest 'Function::timeout' 7 !->
   timeout = (->
     ok val is 1
     ok it is 42
-  )timeout 1 42 .run!
+  )timeout 1 42
   ok isObject timeout
   ok isFunction timeout.run
   ok isFunction timeout.stop
   val = 1
   (->
     ok no
-  )timeout 1 .run!stop!
+  )timeout 1 .stop!run!stop!
   setTimeout ->
     ok on
     start!
@@ -75,7 +75,7 @@ asyncTest 'Function::interval' 10 !->
       interval.stop!
       start!
     i := i + 1
-  )interval 1 42 .run!
+  )interval 1 42
   ok isObject interval
   ok isFunction interval.run
   ok isFunction interval.stop
@@ -85,14 +85,14 @@ asyncTest 'Function::immediate' 7 !->
   immediate = (->
     ok val is 1
     ok it is 42
-  )immediate 42 .run!
+  )immediate 42
   ok isObject immediate
   ok isFunction immediate.run
   ok isFunction immediate.stop
   val = 1
   (->
     ok no
-  )immediate!run!stop!
+  )immediate!stop!run!stop!
   setTimeout ->
     ok on
     start!

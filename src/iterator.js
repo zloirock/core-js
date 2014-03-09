@@ -26,7 +26,7 @@
       ? createIterResultObject(iterated.charAt(index), 0)
       : createIterResultObject(undefined, 1);
   }
-  // 21.1.3.27 String.prototype [ @@iterator ]( )
+  // 21.1.3.27 String.prototype[@@iterator]()
   stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
   
   function ArrayIterator(iterated, kind){
@@ -46,14 +46,14 @@
     return createIterResultObject([index, iterated[index]], 0);
   }
   arrayIterators = {
-    // 22.1.3.4 Array.prototype.entries ( )
+    // 22.1.3.4 Array.prototype.entries()
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    // 22.1.3.13 Array.prototype.keys ( )
+    // 22.1.3.13 Array.prototype.keys()
     keys: createIteratorFactory(ArrayIterator, KEY),
-    // 22.1.3.29 Array.prototype.values ( )
+    // 22.1.3.29 Array.prototype.values()
     values: createIteratorFactory(ArrayIterator, VALUE)
   };
-  // 22.1.3.30 Array.prototype [ @@iterator ] ( )
+  // 22.1.3.30 Array.prototype[@@iterator]()
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
   function MapIterator(iterated, kind){
@@ -78,14 +78,14 @@
     return createIterResultObject([key, iterated.get(key)], 0);
   }
   mapIterators = {
-    // 23.1.3.4 Map.prototype.entries ( )
+    // 23.1.3.4 Map.prototype.entries()
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    // 23.1.3.8 Map.prototype.keys ( )
+    // 23.1.3.8 Map.prototype.keys()
     keys: createIteratorFactory(MapIterator, KEY),
-    // 23.1.3.11 Map.prototype.values ( )
+    // 23.1.3.11 Map.prototype.values()
     values: createIteratorFactory(MapIterator, VALUE)
   }
-  // 23.1.3.12 Map.prototype [ @@iterator ]( )
+  // 23.1.3.12 Map.prototype[@@iterator]()
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
   function SetIterator(iterated, kind){
@@ -105,14 +105,14 @@
     return createIterResultObject([key, key], 0);
   }
   setIterators = {
-    // 23.2.3.5 Set.prototype.entries ( )
+    // 23.2.3.5 Set.prototype.entries()
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    // 23.2.3.8 Set.prototype.keys ( )
+    // 23.2.3.8 Set.prototype.keys()
     keys: createIteratorFactory(SetIterator, VALUE),
-    // 23.2.3.10 Set.prototype.values ( )
+    // 23.2.3.10 Set.prototype.values()
     values: createIteratorFactory(SetIterator, VALUE)
   }
-  // 23.2.3.11 Set.prototype [@@iterator ] ( )
+  // 23.2.3.11 Set.prototype[@@iterator]()
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
   StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;

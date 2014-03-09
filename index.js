@@ -126,7 +126,7 @@ function has(object, key){
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
   , __PROTO__      = '__proto__' in $Object
-  , DESCRIPTORS    = 1;
+  , DESCRIPTORS    = true;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -170,9 +170,10 @@ function invert(object){
 function array(it){
   return String(it).split(',');
 }
-var push   = $Array.push
-  , slice  = $Array.slice
-  , $slice = Array.slice || function(arrayLike, from){
+var push    = $Array.push
+  , unshift = $Array.unshift
+  , slice   = $Array.slice
+  , $slice  = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // Dummy, fix for not array-like ES3 string in es5.js
@@ -269,6 +270,7 @@ function $define(type, name, source, forced /* = false */){
     }
   }
 }
+
 /*****************************
  * Module : resume
  *****************************/
@@ -281,6 +283,7 @@ var create                   = Object.create
   , forEach                  = $Array.forEach
   , isArray                  = Array.isArray
   , map                      = $Array.map;
+
 /*****************************
  * Module : immediateInternal
  *****************************/
@@ -355,6 +358,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       setTimeout(part.call(run, id), 0);
     }
 }(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
+
 /*****************************
  * Module : es6
  *****************************/
@@ -372,15 +376,15 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   $define(STATIC, 'Object', {
-    // 19.1.3.1 Object.assign ( target, source )
+    // 19.1.3.1 Object.assign(target, source)
     // The assign function is used to copy the values of all of the enumerable
     // own properties from a source object to a target object.
     assign: assign,
-    // 19.1.3.10 Object.is ( value1, value2 )
+    // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
   __PROTO__ && $define(STATIC, 'Object', {
-    // 19.1.3.19 Object.setPrototypeOf ( O, proto )
+    // 19.1.3.19 Object.setPrototypeOf(O, proto)
     // work only if browser support __proto__, don't work with null proto objects
     setPrototypeOf: function(O, proto){
       assertObject(O);
@@ -392,19 +396,19 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   $define(STATIC, 'Number', {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
-    // 20.1.2.2 Number.isFinite (number)
+    // 20.1.2.2 Number.isFinite(number)
     isFinite: function(it){
       return typeof it == 'number' && isFinite(it);
     },
-    // 20.1.2.3 Number.isInteger (number)
+    // 20.1.2.3 Number.isInteger(number)
     isInteger: function(it){
       return isFinite(it) && floor(it) === it;
     },
-    // 20.1.2.4 Number.isNaN (number)
+    // 20.1.2.4 Number.isNaN(number)
     isNaN: function(number){
       return typeof number == 'number' && number != number;
     },
-    // 20.1.2.5 Number.isSafeInteger (number)
+    // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
     },
@@ -412,9 +416,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     MAX_SAFE_INTEGER: MAX_SAFE_INTEGER,
     // 20.1.2.10 Number.MIN_SAFE_INTEGER
     MIN_SAFE_INTEGER: -MAX_SAFE_INTEGER,
-    // 20.1.2.12 Number.parseFloat (string)
+    // 20.1.2.12 Number.parseFloat(string)
     parseFloat: parseFloat,
-    // 20.1.2.13 Number.parseInt (string, radix)
+    // 20.1.2.13 Number.parseInt(string, radix)
     parseInt: parseInt
   });
   var isInteger = Number.isInteger
@@ -443,7 +447,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
     },
-    // 20.1.3.1 Number.prototype.clz ()
+    // 20.1.3.1 Number.prototype.clz()
     // Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
     clz32: function(number){
       number = number >>> 0;
@@ -454,14 +458,14 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     cosh: function(x){
       return (exp(x) + exp(-x)) / 2;
     },
-    // 20.2.2.14 Math.expm1 (x)
+    // 20.2.2.14 Math.expm1(x)
     // Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
     expm1: function(x){
       return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
     },
-    // 20.2.2.16 Math.fround (x)
+    // 20.2.2.16 Math.fround(x)
     // fround: function(x){ TODO },
-    // 20.2.2.17 Math.hypot([ value1 [ , value2 [ , … ] ] ] )
+    // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
     // Returns an implementation-dependent approximation of the square root
     // of the sum of squares of its arguments.
     hypot: function(value1, value2){
@@ -483,18 +487,18 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         , yl = y & 0xffff;
       return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
     },
-    // 20.2.2.20 Math.log1p (x)
+    // 20.2.2.20 Math.log1p(x)
     // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
     // The result is computed in a way that is accurate even when the value of x is close to zero.
     log1p: function(x){
       return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
     },
-    // 20.2.2.21 Math.log10 (x)
+    // 20.2.2.21 Math.log10(x)
     // Returns an implementation-dependent approximation to the base 10 logarithm of x.
     log10: function(x){
       return log(x) / Math.LN10;
     },
-    // 20.2.2.22 Math.log2 (x)
+    // 20.2.2.22 Math.log2(x)
     // Returns an implementation-dependent approximation to the base 2 logarithm of x.
     log2: function(x){
       return log(x) / Math.LN2;
@@ -521,32 +525,32 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   });
   /**
   $define(STATIC, 'String', {
-    // 21.1.2.2 String.fromCodePoint ( ...codePoints)
+    // 21.1.2.2 String.fromCodePoint(...codePoints)
     // fromCodePoint: function(){ TODO },
-    // 21.1.2.4 String.raw ( callSite, ...substitutions)
+    // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(){ TODO }
   });
   */
   $define(PROTO, 'String', {
-    // 21.1.3.3 String.prototype.codePointAt (pos)
+    // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
-    // 21.1.3.6 String.prototype.contains (searchString, position = 0 )
+    // 21.1.3.6 String.prototype.contains(searchString, position = 0)
     contains: function(searchString, position /* = 0 */){
       return !!~String(this).indexOf(searchString, position);
     },
-    // 21.1.3.7 String.prototype.endsWith (searchString [, endPosition] )
+    // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length;
       searchString += '';
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
       return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
     },
-    // 21.1.3.13 String.prototype.repeat (count)
+    // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
       assert(0 <= (count |= 0), "Count can't be negative");
       return Array(count + 1).join(this);
     },
-    // 21.1.3.18 String.prototype.startsWith (searchString [, position ] )
+    // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       searchString += '';
       position = toLength(min(position, this.length));
@@ -554,7 +558,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
   $define(STATIC, 'Array', {
-    // 22.1.2.1 Array.from ( arrayLike , mapfn=undefined, thisArg=undefined )
+    // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
       var O = ES5Object(arrayLike)
@@ -568,7 +572,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
-    // 22.1.2.3 Array.of ( ...items )
+    // 22.1.2.3 Array.of( ...items)
     of: function(/*args...*/){
       var i = 0
         , length = arguments.length
@@ -589,9 +593,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return -1;
   }
   $define(PROTO, 'Array', {
-    // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-array.prototype.copywithin
+    // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // copyWithin: function(target, start, end){ TODO },
-    // 22.1.3.6 Array.prototype.fill (value, start = 0, end = this.length)
+    // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length);
       if((start |= 0) < 0 && (start = length + start) < 0)return this;
@@ -599,15 +603,16 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       while(end > start)this[start++] = value;
       return this;
     },
-    // 22.1.3.8 Array.prototype.find ( predicate , thisArg = undefined )
+    // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
       return index === -1 ? undefined : ES5Object(this)[index];
     },
-    // 22.1.3.9 Array.prototype.findIndex ( predicate , thisArg = undefined )
+    // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex
   });
 }(isFinite);
+
 /*****************************
  * Module : es6c
  *****************************/
@@ -715,12 +720,12 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
-      // 23.1.3.1 Map.prototype.clear ()
+      // 23.1.3.1 Map.prototype.clear()
       clear: function(){
         hidden(this, KEYS_STORE, create(null));
         clearSet.call(this);
       },
-      // 23.1.3.3 Map.prototype.delete ( key )
+      // 23.1.3.3 Map.prototype.delete(key)
       'delete': function(key){
         var index    = fastKey(key)
           , values   = this[VALUES_STORE]
@@ -732,15 +737,15 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return contains;
       },
-      // 23.1.3.5 Map.prototype.forEach ( callbackfn , thisArg = undefined )
+      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: createForEach(KEYS_STORE),
-      // 23.1.3.6 Map.prototype.get ( key )
+      // 23.1.3.6 Map.prototype.get(key)
       get: function(key){
         return this[VALUES_STORE][fastKey(key)];
       },
-      // 23.1.3.7 Map.prototype.has ( key )
+      // 23.1.3.7 Map.prototype.has(key)
       has: collectionHas,
-      // 23.1.3.9 Map.prototype.set ( key , value )
+      // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
         var index  = fastKey(key, 1)
           , values = this[VALUES_STORE];
@@ -762,7 +767,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
     assign(Set[prototype], {
-      // 23.2.3.1 Set.prototype.add ( value )
+      // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
           , values = this[VALUES_STORE];
@@ -772,9 +777,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return this;
       },
-      // 23.2.3.2 Set.prototype.clear ()
+      // 23.2.3.2 Set.prototype.clear()
       clear: clearSet,
-      // 23.2.3.4 Set.prototype.delete ( value )
+      // 23.2.3.4 Set.prototype.delete(value)
       'delete': function(value){
         var index    = fastKey(value)
           , values   = this[VALUES_STORE]
@@ -785,9 +790,9 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
         }
         return contains;
       },
-      // 23.2.3.6 Set.prototype.forEach ( callbackfn , thisArg = undefined )
+      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: createForEach(VALUES_STORE),
-      // 23.2.3.7 Set.prototype.has ( value )
+      // 23.2.3.7 Set.prototype.has(value)
       has: collectionHas
     });
     // 23.2.3.9 get Set.prototype.size
@@ -800,18 +805,18 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
   var commonWeakCollection = {
-    // 23.3.3.1 WeakMap.prototype.clear ()
-    // 23.4.3.2 WeakSet.prototype.clear ()
+    // 23.3.3.1 WeakMap.prototype.clear()
+    // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
       hidden(this, WEAKID, wid++);
     },
-    // 23.3.3.3 WeakMap.prototype.delete ( key )
-    // 23.4.3.4 WeakSet.prototype.delete ( value )
+    // 23.3.3.3 WeakMap.prototype.delete(key)
+    // 23.4.3.4 WeakSet.prototype.delete(value)
     'delete': function(key){
       return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
     },
-    // 23.3.3.5 WeakMap.prototype.has ( key )
-    // 23.4.3.5 WeakSet.prototype.has ( value )
+    // 23.3.3.5 WeakMap.prototype.has(key)
+    // 23.4.3.5 WeakSet.prototype.has(value)
     has: function(key){
       return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
@@ -820,11 +825,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
     assign(WeakMap[prototype], assign({
-      // 23.3.3.4 WeakMap.prototype.get ( key )
+      // 23.3.3.4 WeakMap.prototype.get(key)
       get: function(key){
         return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
       },
-      // 23.3.3.6 WeakMap.prototype.set ( key , value )
+      // 23.3.3.6 WeakMap.prototype.set(key, value)
       set: function(key, value){
         assertObject(key);
         getWeakData(key)[this[WEAKID]] = value;
@@ -839,7 +844,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
     assign(WeakSet[prototype], assign({
-      // 23.4.3.1 WeakSet.prototype.add (value )
+      // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
         assertObject(value);
         getWeakData(value)[this[WEAKID]] = true;
@@ -857,6 +862,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     WeakSet: WeakSet
   }, 1);
 }();
+
 /*****************************
  * Module : promise
  *****************************/
@@ -930,11 +936,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
-      // 25.4.5.1 Promise.prototype.catch ( onRejected )
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
       },
-      // 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
@@ -946,7 +952,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
       }
     });
     assign(Promise, {
-      // 25.4.4.1 Promise.all ( iterable )
+      // 25.4.4.1 Promise.all(iterable)
       all: function(iterable){
         var values = [];
         forOf(iterable, values.push, values);
@@ -965,11 +971,11 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           else resolve(results);
         });
       },
-      // 25.4.4.2 Promise.cast ( x )
+      // 25.4.4.2 Promise.cast(x)
       cast: function(x){
         return x instanceof this ? x : $resolve.call(this, x);
       },
-      // 25.4.4.4 Promise.race ( iterable )
+      // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
         var iter = getIterator(iterable);
         return new this(function(resolve, reject){
@@ -980,13 +986,13 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
           });
         });
       },
-      // 25.4.4.5 Promise.reject ( r )
+      // 25.4.4.5 Promise.reject(r)
       reject: function(r){
         return new this(function(resolve, reject){
           reject(r);
         });
       },
-      // 25.4.4.6 Promise.resolve ( x )
+      // 25.4.4.6 Promise.resolve(x)
       resolve: $resolve
     });
     function $resolve(x){
@@ -1035,6 +1041,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
   }();
   $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);
+
 /*****************************
  * Module : symbol
  *****************************/
@@ -1074,6 +1081,7 @@ isSetImmediate || !function(process, postMessage, MessageChannel, onreadystatech
     }
   });
 }(symbol('tag'), {});
+
 /*****************************
  * Module : reflect
  *****************************/
@@ -1086,18 +1094,18 @@ $define(GLOBAL, {Reflect: {}});
 $define(STATIC, 'Reflect', {
   // 26.1.1 Reflect.defineProperty(target, propertyKey, attributes)
   defineProperty: defineProperty,
-  // 26.1.2 Reflect.deleteProperty (target, propertyKey)
+  // 26.1.2 Reflect.deleteProperty(target, propertyKey)
   deleteProperty: function(target, propertyKey){
     return delete target[propertyKey];
   },
-  // 26.1.3 Reflect.enumerate (target)
+  // 26.1.3 Reflect.enumerate(target)
   enumerate: function(target){
     var list = []
       , key;
     for(key in target)list.push(key);
     return list;
   },
-  // 26.1.4 Reflect.get (target, propertyKey, receiver=target)
+  // 26.1.4 Reflect.get(target, propertyKey, receiver=target)
   get: function(target, propertyKey, receiver){
     if(arguments.length < 3)return target[propertyKey];
     var desc = getPropertyDescriptor(target, propertyKey);
@@ -1105,31 +1113,32 @@ $define(STATIC, 'Reflect', {
   },
   // 26.1.5 Reflect.getOwnPropertyDescriptor(target, propertyKey)
   getOwnPropertyDescriptor: getOwnPropertyDescriptor,
-  // 26.1.6 Reflect.getPrototypeOf (target)
+  // 26.1.6 Reflect.getPrototypeOf(target)
   getPrototypeOf: getPrototypeOf,
-  // 26.1.7 Reflect.has (target, propertyKey)
+  // 26.1.7 Reflect.has(target, propertyKey)
   has: function(target, propertyKey){
     return propertyKey in target;
   },
-  // 26.1.8 Reflect.hasOwn (target, propertyKey) Deprecated???
+  // 26.1.8 Reflect.hasOwn(target, propertyKey) Deprecated???
   hasOwn: has,
-  // 26.1.9 Reflect.isExtensible (target)
+  // 26.1.9 Reflect.isExtensible(target)
   isExtensible: Object.isExtensible || Function('return !0'),
-  // 26.1.10 Reflect.ownKeys (target)
+  // 26.1.10 Reflect.ownKeys(target)
   ownKeys: function(target){
     return getIterator(keys(target));
   },
-  // 26.1.11 Reflect.preventExtensions (target)
+  // 26.1.11 Reflect.preventExtensions(target)
   preventExtensions: Object.preventExtensions || id,
-  // 26.1.12 Reflect.set (target, propertyKey, V, receiver=target)
+  // 26.1.12 Reflect.set(target, propertyKey, V, receiver=target)
   set: function(target, propertyKey, V, receiver){
     if(arguments.length < 3)return target[propertyKey] = V;
     var desc = getPropertyDescriptor(target, propertyKey);
     return desc && isFunction(desc.set) ? desc.set.call(receiver, V) : target[propertyKey] = V;
   },
-  // 26.1.13 Reflect.setPrototypeOf (target, proto)
+  // 26.1.13 Reflect.setPrototypeOf(target, proto)
   setPrototypeOf: Object.setPrototypeOf || id
 });
+
 /*****************************
  * Module : iterator
  *****************************/
@@ -1161,7 +1170,7 @@ $define(STATIC, 'Reflect', {
       ? createIterResultObject(iterated.charAt(index), 0)
       : createIterResultObject(undefined, 1);
   }
-  // 21.1.3.27 String.prototype [ @@iterator ]( )
+  // 21.1.3.27 String.prototype[@@iterator]()
   stringIterators[ITERATOR] = createIteratorFactory(StringIterator);
   
   function ArrayIterator(iterated, kind){
@@ -1181,14 +1190,14 @@ $define(STATIC, 'Reflect', {
     return createIterResultObject([index, iterated[index]], 0);
   }
   arrayIterators = {
-    // 22.1.3.4 Array.prototype.entries ( )
+    // 22.1.3.4 Array.prototype.entries()
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    // 22.1.3.13 Array.prototype.keys ( )
+    // 22.1.3.13 Array.prototype.keys()
     keys: createIteratorFactory(ArrayIterator, KEY),
-    // 22.1.3.29 Array.prototype.values ( )
+    // 22.1.3.29 Array.prototype.values()
     values: createIteratorFactory(ArrayIterator, VALUE)
   };
-  // 22.1.3.30 Array.prototype [ @@iterator ] ( )
+  // 22.1.3.30 Array.prototype[@@iterator]()
   arrayIterators[ITERATOR] = createIteratorFactory(ArrayIterator, VALUE);
   
   function MapIterator(iterated, kind){
@@ -1213,14 +1222,14 @@ $define(STATIC, 'Reflect', {
     return createIterResultObject([key, iterated.get(key)], 0);
   }
   mapIterators = {
-    // 23.1.3.4 Map.prototype.entries ( )
+    // 23.1.3.4 Map.prototype.entries()
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    // 23.1.3.8 Map.prototype.keys ( )
+    // 23.1.3.8 Map.prototype.keys()
     keys: createIteratorFactory(MapIterator, KEY),
-    // 23.1.3.11 Map.prototype.values ( )
+    // 23.1.3.11 Map.prototype.values()
     values: createIteratorFactory(MapIterator, VALUE)
   }
-  // 23.1.3.12 Map.prototype [ @@iterator ]( )
+  // 23.1.3.12 Map.prototype[@@iterator]()
   mapIterators[ITERATOR] = createIteratorFactory(MapIterator, KEY+VALUE);
   
   function SetIterator(iterated, kind){
@@ -1240,14 +1249,14 @@ $define(STATIC, 'Reflect', {
     return createIterResultObject([key, key], 0);
   }
   setIterators = {
-    // 23.2.3.5 Set.prototype.entries ( )
+    // 23.2.3.5 Set.prototype.entries()
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    // 23.2.3.8 Set.prototype.keys ( )
+    // 23.2.3.8 Set.prototype.keys()
     keys: createIteratorFactory(SetIterator, VALUE),
-    // 23.2.3.10 Set.prototype.values ( )
+    // 23.2.3.10 Set.prototype.values()
     values: createIteratorFactory(SetIterator, VALUE)
   }
-  // 23.2.3.11 Set.prototype [@@iterator ] ( )
+  // 23.2.3.11 Set.prototype[@@iterator]()
   setIterators[ITERATOR] = createIteratorFactory(SetIterator, VALUE);
   
   StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
@@ -1281,6 +1290,7 @@ $define(STATIC, 'Reflect', {
     while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
   }
 }();
+
 /*****************************
  * Module : extendedObjectAPI
  *****************************/
@@ -1309,6 +1319,7 @@ $define(STATIC, 'Object', {
     return result;
   }
 });
+
 /*****************************
  * Module : immediate
  *****************************/
@@ -1324,6 +1335,7 @@ $define(GLOBAL, {
   setImmediate: setImmediate,
   clearImmediate: clearImmediate
 });
+
 /*****************************
  * Module : function
  *****************************/
@@ -1353,53 +1365,61 @@ $define(PROTO, 'Function', {
       , result   = this.apply(instance, ES5Object(args || []));
     return isObject(result) ? result : instance;
   },
-  // deferred call
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#delay
-   * http://sugarjs.com/api/Function/delay
-   * http://api.prototypejs.org/language/Function/prototype/delay/
-   * http://mootools.net/docs/core/Types/Function#Function:delay
-   */
-  timeout: function(del /*, args...*/){
-    return createDeferred(setTimeout, clearTimeout, [part.apply(this, $slice(arguments, 1)), del]);
-  },
-  /**
-   * Alternatives:
-   * http://sugarjs.com/api/Function/every
-   * http://mootools.net/docs/core/Types/Function#Function:periodical
-   */
-  interval: function(del /*, args...*/){
-    return createDeferred(setInterval, clearInterval, [part.apply(this, $slice(arguments, 1)), del]);
-  },
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#defer
-   * http://api.prototypejs.org/language/Function/prototype/defer/
-   */
-  immediate: function(/*, args...*/){
-    return createDeferred(setImmediate, clearImmediate, [part.apply(this, arguments)]);
-  },
-  /**
-   * Alternatives:
-   * http://nodejs.org/api/util.html#util_util_inherits_constructor_superconstructor
-   */
   inherits: inherits
 });
-function createDeferred(set, clear, args){
-  var deferred = {
-    stop: function(){
-      id && clear(id);
-      return deferred;
-    },
-    run: function(){
-      id && clear(id);
-      id = apply.call(set, undefined, args);
-      return deferred;
+
+/*****************************
+ * Module : deferred
+ *****************************/
+!function(SET, CLEAR, ARGUMENTS, ID){
+  function Deferred(set, clear, fn, args){
+    unshift.call(args, fn);
+    this[SET]       = set;
+    this[CLEAR]     = clear;
+    this[ARGUMENTS] = args;
+    this[ID]        = 0;
+  }
+  Deferred[prototype].run = function(){
+    var that = this;
+    that[ID] && that.stop();
+    that[ID] = that[SET].apply(global, that[ARGUMENTS]);
+    return that;
+  },
+  Deferred[prototype].stop = function(){
+    var that  = this
+      , clear = that[CLEAR];
+    that[ID] && clear(that[ID]);
+    return that;
+  }
+  function createDeferredFactory(set, clear){
+    return function(/* args... */){
+      return new Deferred(set, clear, this, arguments).run();
     }
-  }, id;
-  return deferred;
-}
+  }
+  $define(PROTO, 'Function', {
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#delay
+     * http://sugarjs.com/api/Function/delay
+     * http://api.prototypejs.org/language/Function/prototype/delay/
+     * http://mootools.net/docs/core/Types/Function#Function:delay
+     */
+    timeout: createDeferredFactory(setTimeout, clearTimeout),
+    /**
+     * Alternatives:
+     * http://sugarjs.com/api/Function/every
+     * http://mootools.net/docs/core/Types/Function#Function:periodical
+     */
+    interval: createDeferredFactory(setInterval, clearInterval),
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#defer
+     * http://api.prototypejs.org/language/Function/prototype/defer/
+     */
+    immediate: createDeferredFactory(setImmediate, clearImmediate)
+  });
+}(symbol('set'), symbol('clear'), symbol('arguments'), symbol('id'));
+
 /*****************************
  * Module : binding
  *****************************/
@@ -1456,6 +1476,7 @@ $define(STATIC, 'Object', {
   tie: unbind(tie),
   useTie: part.call($define, PROTO, 'Object', {tie: tie})
 });
+
 /*****************************
  * Module : object
  *****************************/
@@ -1861,6 +1882,7 @@ $define(STATIC, 'Object', {
     hidden: hidden
   });
 }();
+
 /*****************************
  * Module : array
  *****************************/
@@ -1902,6 +1924,7 @@ $define(PROTO, 'Array', {
     return this;
   }
 });
+
 /*****************************
  * Module : arrayStatics
  *****************************/
@@ -1932,6 +1955,7 @@ $define(STATIC, 'Array', reduceTo.call(
     if(key in $Array)memo[key] = unbind($Array[key]);
   }
 ));
+
 /*****************************
  * Module : number
  *****************************/
@@ -1995,6 +2019,7 @@ $define(PROTO, 'Number', reduceTo.call(
     if(key in Math)memo[key] = methodize.call(Math[key]);
   }
 ));
+
 /*****************************
  * Module : string
  *****************************/
@@ -2066,6 +2091,7 @@ $define(PROTO, 'Number', reduceTo.call(
     }
   });
 }();
+
 /*****************************
  * Module : date
  *****************************/
@@ -2141,6 +2167,7 @@ $define(PROTO, 'Number', reduceTo.call(
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
 }(/\b(\w\w*)\b/g, {}, 'en', 'getHours', 'getMonth');
+
 /*****************************
  * Module : extendCollections
  *****************************/
@@ -2271,6 +2298,7 @@ $define(PROTO, 'Set', assign({
     return result;
   }
 }, extendCollections));
+
 /*****************************
  * Module : console
  *****************************/

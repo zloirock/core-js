@@ -57,18 +57,18 @@
     defineProperty({}, 0, $Object);
   }
   catch(e){
-    DESCRIPTORS = 0;
-    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor ( O, P )
+    DESCRIPTORS = false;
+    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     Object.getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
-    // 19.1.2.4 / 15.2.3.6 Object.defineProperty ( O, P, Attributes )
+    // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     Object.defineProperty = defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
-    // 19.1.2.3 / 15.2.3.7 Object.defineProperties ( O, Properties ) 
+    // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     Object.defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
@@ -84,15 +84,15 @@
     }
   }
   $define(STATIC, 'Object', {
-    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf ( O ) 
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: function(O){
       var constructor
         , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
       return O !== proto && 'toString' in O ? proto : null;
     },
-    // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames ( O )
+    // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
-    // 19.1.2.2 / 15.2.3.5 Object.create ( O [, Properties] )
+    // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
       assertObject(O);
@@ -103,7 +103,7 @@
       __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
       return result;
     },
-    // 19.1.2.14 / 15.2.3.14 Object.keys ( O )
+    // 19.1.2.14 / 15.2.3.14 Object.keys(O)
     keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   // not array-like strings fix
@@ -112,16 +112,16 @@
       return classof(it) == 'String' ? it.split('') : Object(it);
     }
     // Array.prototype methods for strings in ES3
-    // 22.1.3.22 / 15.4.4.10 Array.prototype.slice (start, end)
+    // 22.1.3.22 / 15.4.4.10 Array.prototype.slice(start = 0, end = @[*-1])
     $Array.slice = slice = function(){
       return nativeSlice.apply(ES5Object(this), arguments);
     }
-    // 22.1.3.12 / 15.4.4.5 Array.prototype.join (separator)
+    // 22.1.3.12 / 15.4.4.5 Array.prototype.join(separator = ',')
     $Array.join = function(){
       return nativeJoin.apply(ES5Object(this), arguments);
     }
   }
-  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind (thisArg [, arg1 [, arg2, …]]) 
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, 'Function', {
     bind: function(scope /*, args... */){
       var fn   = this
@@ -137,9 +137,9 @@
       return bound;
     }
   });
-  // 22.1.2.2 / 15.4.3.2 Array.isArray ( arg )
-  $define(STATIC, 'Array', {isArray: function(it){
-    return classof(it) == 'Array'
+  // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
+  $define(STATIC, 'Array', {isArray: function(arg){
+    return classof(arg) == 'Array'
   }});
   function forEach(callbackfn, thisArg /* = undefined */){
     assertFunction(callbackfn);
@@ -149,7 +149,7 @@
     for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
   }
   $define(PROTO, 'Array', {
-    // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
+    // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
     indexOf: function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -158,7 +158,7 @@
       for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
+    // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -168,7 +168,7 @@
       for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
       return -1;
     },
-    // 22.1.3.5 / 15.4.4.16 Array.prototype.every ( callbackfn [ , thisArg ] )
+    // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
     every: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -179,7 +179,7 @@
       }
       return true;
     },
-    // 22.1.3.23 / 15.4.4.17 Array.prototype.some ( callbackfn [ , thisArg ] )
+    // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
     some: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
@@ -190,9 +190,9 @@
       }
       return false;
     },
-    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach ( callbackfn [ , thisArg ] )
+    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach,
-    // 22.1.3.15 / 15.4.4.19 Array.prototype.map ( callbackfn [ , thisArg ] )
+    // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
     map: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = Array(toLength(this.length));
@@ -201,7 +201,7 @@
       });
       return result;
     },
-    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter ( callbackfn [ , thisArg ] )
+    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
     filter: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = [];
@@ -210,8 +210,8 @@
       });
       return result;
     },
-    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
-    reduce: function(callbackfn, memo /* = @.1 */){
+    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
+    reduce: function(callbackfn, memo /* = @.0 */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -226,7 +226,7 @@
       for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
       return memo;
     },
-    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
+    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       assertFunction(callbackfn);
       var self = ES5Object(this)
@@ -242,11 +242,11 @@
       return memo;
     }
   });
-  // 21.1.3.25 / 15.5.4.20 String.prototype.trim ( )
+  // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
   $define(PROTO, 'String', {trim: function(){
     return String(this).replace(trimRegExp, '');
   }});
-  // 20.3.3.1 / 15.9.4.4 Date.now ( )
+  // 20.3.3.1 / 15.9.4.4 Date.now()
   $define(STATIC, 'Date', {now: function(){
     return +new Date;
   }});

@@ -115,7 +115,7 @@ function has(object, key){
 var isEnumerable   = $Object.propertyIsEnumerable
   , defineProperty = Object.defineProperty
   , __PROTO__      = '__proto__' in $Object
-  , DESCRIPTORS    = 1;
+  , DESCRIPTORS    = true;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -159,9 +159,10 @@ function invert(object){
 function array(it){
   return String(it).split(',');
 }
-var push   = $Array.push
-  , slice  = $Array.slice
-  , $slice = Array.slice || function(arrayLike, from){
+var push    = $Array.push
+  , unshift = $Array.unshift
+  , slice   = $Array.slice
+  , $slice  = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // Dummy, fix for not array-like ES3 string in es5.js

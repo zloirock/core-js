@@ -68,11 +68,11 @@
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
     assign(Promise[prototype], {
-      // 25.4.5.1 Promise.prototype.catch ( onRejected )
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
       },
-      // 25.4.5.3 Promise.prototype.then ( onFulfilled , onRejected )
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
         var promise     = this
           , thenPromise = new Promise(Function());
@@ -84,7 +84,7 @@
       }
     });
     assign(Promise, {
-      // 25.4.4.1 Promise.all ( iterable )
+      // 25.4.4.1 Promise.all(iterable)
       all: function(iterable){
         var values = [];
         forOf(iterable, values.push, values);
@@ -103,11 +103,11 @@
           else resolve(results);
         });
       },
-      // 25.4.4.2 Promise.cast ( x )
+      // 25.4.4.2 Promise.cast(x)
       cast: function(x){
         return x instanceof this ? x : $resolve.call(this, x);
       },
-      // 25.4.4.4 Promise.race ( iterable )
+      // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
         var iter = getIterator(iterable);
         return new this(function(resolve, reject){
@@ -118,13 +118,13 @@
           });
         });
       },
-      // 25.4.4.5 Promise.reject ( r )
+      // 25.4.4.5 Promise.reject(r)
       reject: function(r){
         return new this(function(resolve, reject){
           reject(r);
         });
       },
-      // 25.4.4.6 Promise.resolve ( x )
+      // 25.4.4.6 Promise.resolve(x)
       resolve: $resolve
     });
     function $resolve(x){
