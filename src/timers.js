@@ -5,6 +5,7 @@
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  * Alternatives:
  * https://developer.mozilla.org/ru/docs/Web/API/Window.setTimeout#IE_Only_Fix
+ * http://underscorejs.org/#delay
  */
 !function(navigator){
   function wrap(set){

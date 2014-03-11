@@ -1,4 +1,3 @@
-{isObject} = Object
 {isFunction} = Function
 test 'Function.inherits' !->
   {inherits} = Function
@@ -48,55 +47,6 @@ test 'Function::invoke' !->
     (@a, @b)->
   ok C.invoke! instanceof C
   deepEqual C.invoke([1 2]), new C 1 2
-asyncTest 'Function::timeout' 7 !->
-  ok isFunction(Function::timeout), 'Is function'
-  timeout = (->
-    ok val is 1
-    ok it is 42
-  )timeout 1 42
-  ok isObject timeout
-  ok isFunction timeout.run
-  ok isFunction timeout.stop
-  val = 1
-  (->
-    ok no
-  )timeout 1 .stop!run!stop!
-  setTimeout ->
-    ok on
-    start!
-  , 20
-asyncTest 'Function::interval' 10 !->
-  ok isFunction(Function::interval), 'Is function'
-  var i 
-  interval = (->
-    ok i < 4
-    ok it is 42
-    if i is 3
-      interval.stop!
-      start!
-    i := i + 1
-  )interval 1 42
-  ok isObject interval
-  ok isFunction interval.run
-  ok isFunction interval.stop
-  i = 1
-asyncTest 'Function::immediate' 7 !->
-  ok isFunction(Function::immediate), 'Is function'
-  immediate = (->
-    ok val is 1
-    ok it is 42
-  )immediate 42
-  ok isObject immediate
-  ok isFunction immediate.run
-  ok isFunction immediate.stop
-  val = 1
-  (->
-    ok no
-  )immediate!stop!run!stop!
-  setTimeout ->
-    ok on
-    start!
-  , 20
 test 'Function::inherits' !->
   ok isFunction(Function::inherits), 'Is function'
   A = ->

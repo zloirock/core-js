@@ -1,48 +1,40 @@
-!function(SET, CLEAR, ARGUMENTS, ID){
-  function Deferred(set, clear, fn, args){
-    unshift.call(args, fn);
-    this[SET]       = set;
-    this[CLEAR]     = clear;
-    this[ARGUMENTS] = args;
-    this[ID]        = 0;
-  }
-  Deferred[prototype].run = function(){
-    var that = this;
-    that[ID] && that.stop();
-    that[ID] = that[SET].apply(global, that[ARGUMENTS]);
-    return that;
-  },
-  Deferred[prototype].stop = function(){
-    var that  = this
-      , clear = that[CLEAR];
-    that[ID] && clear(that[ID]);
-    return that;
-  }
+/**
+ * Alternatives:
+ * http://sugarjs.com/api/Function/delay
+ * http://sugarjs.com/api/Function/every
+ * http://api.prototypejs.org/language/Function/prototype/delay/
+ * http://api.prototypejs.org/language/Function/prototype/defer/
+ * http://mootools.net/docs/core/Types/Function#Function:delay
+ * http://mootools.net/docs/core/Types/Function#Function:periodical
+ */
+!function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
+    function Deferred(args){
+      this[ARGUMENTS] = args;
+    }
+    assign(Deferred[prototype], {
+      set: function(){
+        this[ID] && clear(this[ID]);
+        this[ID] = set.apply(global, this[ARGUMENTS]);
+        return this;
+      },
+      clear: function(){
+        this[ID] && clear(this[ID]);
+        return this;
+      },
+      clone: function(){
+        return new Deferred(this[ARGUMENTS]).set();
+      }
+    });
     return function(/* args... */){
-      return new Deferred(set, clear, this, arguments).run();
+      var args = [this], i = 0;
+      while(arguments.length > i)args.push(arguments[i++]);
+      return new Deferred(args).set();
     }
   }
   $define(PROTO, 'Function', {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#delay
-     * http://sugarjs.com/api/Function/delay
-     * http://api.prototypejs.org/language/Function/prototype/delay/
-     * http://mootools.net/docs/core/Types/Function#Function:delay
-     */
-    timeout: createDeferredFactory(setTimeout, clearTimeout),
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/Function/every
-     * http://mootools.net/docs/core/Types/Function#Function:periodical
-     */
-    interval: createDeferredFactory(setInterval, clearInterval),
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#defer
-     * http://api.prototypejs.org/language/Function/prototype/defer/
-     */
+    timeout:   createDeferredFactory(setTimeout, clearTimeout),
+    interval:  createDeferredFactory(setInterval, clearInterval),
     immediate: createDeferredFactory(setImmediate, clearImmediate)
   });
-}(symbol('set'), symbol('clear'), symbol('arguments'), symbol('id'));
+}(symbol('arguments'), symbol('id'));

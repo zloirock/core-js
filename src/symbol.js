@@ -8,16 +8,16 @@
 !function(TAG, SymbolRegistry){
   // 19.4.1 The Symbol Constructor
   function Symbol(description){
-    if(!(this instanceof Symbol))return new Symbol(description);
     var tag = symbol(description);
-    hidden(this, TAG, tag);
     defineProperty($Object, tag, {
       set: function(value){
         hidden(this, tag, value);
       }
     });
+    if(!(this instanceof Symbol))return tag;
+    hidden(this, TAG, tag);
   }
-  Symbol[prototype].toString = function(){
+  Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
     return this[TAG];
   }
   $define(GLOBAL, {Symbol: Symbol});
@@ -30,7 +30,7 @@
     iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
-      for(var key in SymbolRegistry)if(has(SymbolRegistry, key) && SymbolRegistry[key] === sym)return key;
+      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     }
   });
 }(symbol('tag'), {});

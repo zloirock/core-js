@@ -17,16 +17,15 @@ var prototype      = 'prototype'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
+  , console        = global.console || {}
   , document       = global.document
   , module         = global.module
   , Infinity       = 1 / 0
   , $Array         = Array[prototype]
   , $Object        = Object[prototype]
-  , $Function      = Function[prototype]
-  , console        = global.console || {log: $Function};
+  , $Function      = Function[prototype];
   
-// http://es5.github.io/#x9.12
-// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.is
+// 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y;
 }
@@ -112,10 +111,16 @@ var _hasOwn = $Object.hasOwnProperty;
 function has(object, key){
   return _hasOwn.call(object, key);
 }
-var isEnumerable   = $Object.propertyIsEnumerable
-  , defineProperty = Object.defineProperty
-  , __PROTO__      = '__proto__' in $Object
-  , DESCRIPTORS    = true;
+var create                   = Object.create
+  , getPrototypeOf           = Object.getPrototypeOf
+  , defineProperty           = Object.defineProperty
+  , defineProperties         = Object.defineProperties
+  , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
+  , keys                     = Object.keys
+  , getOwnPropertyNames      = Object.getOwnPropertyNames
+  , isEnumerable             = $Object.propertyIsEnumerable
+  , __PROTO__   = '__proto__' in $Object
+  , DESCRIPTORS = true;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -132,7 +137,7 @@ function getPropertyDescriptor(object, key){
     if(has(object, key))return getOwnPropertyDescriptor(object, key);
   } while(object = getPrototypeOf(object));
 }
-// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.assign
+// 19.1.2.1 Object.assign ( target, source )
 var assign = Object.assign || function(target, source){
   target = Object(target);
   source = ES5Object(source);
@@ -189,11 +194,11 @@ var ceil   = Math.ceil
   , pow    = Math.pow
   , random = Math.random
   , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
-// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tointeger
+// 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
   return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
-// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
+// 7.1.15 ToLength
 function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
@@ -229,9 +234,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var KEY   = 1
-  , VALUE = 2
-  , forOf, getIterator;
+var forOf, getIterator; // define in iterator mudule
 
 var GLOBAL = 1
   , STATIC = 2

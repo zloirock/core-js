@@ -1,9 +1,0 @@
-var create                   = Object.create
-  , defineProperties         = Object.defineProperties
-  , getPrototypeOf           = Object.getPrototypeOf
-  , keys                     = Object.keys
-  , getOwnPropertyNames      = Object.getOwnPropertyNames
-  , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
-  , forEach                  = $Array.forEach
-  , isArray                  = Array.isArray
-  , map                      = $Array.map;

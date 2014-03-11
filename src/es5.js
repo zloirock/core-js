@@ -63,7 +63,7 @@
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
-    Object.defineProperty = defineProperty = function(O, P, Attributes){
+    Object.defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
@@ -253,4 +253,11 @@
   if(isFunction(trimRegExp))isFunction = function(it){
     return classof(it) == 'Function';
   }
+  create                   = Object.create;
+  getPrototypeOf           = Object.getPrototypeOf;
+  defineProperty           = Object.defineProperty;
+  defineProperties         = Object.defineProperties;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  keys                     = Object.keys;
+  getOwnPropertyNames      = Object.getOwnPropertyNames;
 }();

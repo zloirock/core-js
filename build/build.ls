@@ -1,12 +1,12 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[init es5 resume global immediateInternal es6 es6c promise symbol reflect iterator extendedObjectAPI timers immediate function deferred binding object array arrayStatics number string date extendCollections console]>
+modules    = <[init es5 global es6 es6c promise symbol reflect iterator extendedObjectAPI timers immediate function deferred binding object array arrayStatics number string date extendCollections console]>
 module.exports = (opt, next)-> let @ = opt
-  import {+init, +resume}
+  @init = on
   import {+global, +es5, +timers, +node} if @all
   import {+\function, +deferred, +binding, +object, +array, +arrayStatics, +number, +string, +date, +es6, +es6c, +promise, +symbol, +reflect, +iterator, +extendedObjectAPI, +extendCollections, +immediate, +console} if @node
   import {+iterator} if @reflect or @promise
-  import {+immediateInternal} if @immediate or @promise
+  import {+immediate} if @promise
   include = modules.filter ~> @[it]
   scripts = [] <~ Promise.all include.map (module)->
     resolve, reject <- new Promise _
@@ -16,7 +16,7 @@ module.exports = (opt, next)-> let @ = opt
   scripts .= map (script, key)-> """
     /*****************************
      * Module : #{include[key]}
-     *****************************/
+     *****************************/\n
     #script
     """
   next """

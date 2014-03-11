@@ -13,8 +13,7 @@ $define(STATIC, 'Reflect', {
   },
   // 26.1.3 Reflect.enumerate(target)
   enumerate: function(target){
-    var list = []
-      , key;
+    var list = [], key;
     for(key in target)list.push(key);
     return list;
   },

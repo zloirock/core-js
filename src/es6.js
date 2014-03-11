@@ -197,9 +197,9 @@
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
-      var O = ES5Object(arrayLike)
+      var O      = ES5Object(arrayLike)
         , result = new (isFunction(this) ? this : Array)
-        , i = 0
+        , i      = 0
         , length, iter, step;
       if(getIterator && isFunction(O[ITERATOR])){
         iter = getIterator(O);
@@ -210,7 +210,7 @@
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/*args...*/){
-      var i = 0
+      var i      = 0
         , length = arguments.length
         , result = new (isFunction(this) ? this : Array)(length);
       while(i < length)result[i] = arguments[i++];
