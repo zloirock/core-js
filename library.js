@@ -22,6 +22,7 @@ var prototype      = 'prototype'
   , Set            = global.Set
   , WeakMap        = global.WeakMap
   , WeakSet        = global.WeakSet
+  , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -231,7 +232,7 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR   = global.Symbol && Symbol.iterator || '@@iterator'
+var ITERATOR   = Symbol && Symbol.iterator || '@@iterator'
   , symbolUniq = 0;
 function symbol(key){
   return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
@@ -248,7 +249,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, getIterator; // define in iterator mudule
+var forOf, isIterable, getIterator; // define in iterator mudule
 
 var GLOBAL = 1
   , STATIC = 2
@@ -275,6 +276,12 @@ function $define(type, name, source, forced /* = false */){
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
     }
   }
+}
+// wrap to prevent obstruction of the global constructors, when build as library
+function wrapGlobalConstructor(Base){
+  return !framework && isNative(Base) ? function(param){
+    return this instanceof Base ? new Base(param) : Base(param);
+  } : Base;
 }
 
 /*****************************
@@ -490,7 +497,7 @@ $define(GLOBAL, {global: global});
         , result = new (isFunction(this) ? this : Array)
         , i      = 0
         , length, iter, step;
-      if(getIterator && isFunction(O[ITERATOR])){
+      if(isIterable && isIterable(O)){
         iter = getIterator(O);
         while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
       }
@@ -574,9 +581,9 @@ $define(GLOBAL, {global: global});
     }, that);
     return that;
   }
-  function createCollectionConstructor(key, isSet){
+  function createCollectionConstructor(name, isSet){
     function F(iterable){
-      assertInstance(this, F, key);
+      assertInstance(this, F, name);
       this.clear();
       initCollection(this, iterable, isSet);
     }
@@ -586,7 +593,7 @@ $define(GLOBAL, {global: global});
     var collection   = new Base([isSet ? tmp : [tmp, 1]])
       , initFromIter = collection.has(tmp)
       , key = isSet ? 'add' : 'set'
-      , fn, F;
+      , fn;
     // fix .add & .set for chaining
     if(framework && collection[key](tmp, 1) !== collection){
       fn = collection[key];
@@ -595,17 +602,12 @@ $define(GLOBAL, {global: global});
         return this;
       });
     }
-    if(initFromIter && framework)return Base;
-    F = initFromIter
-      // wrap to prevent obstruction of the global constructors, when build as library
-      ? function(itareble){
-          return new Base(itareble);
-        }
-      // wrap to init collections from iterable
-      : function(iterable){
-          assertInstance(this, F, name);
-          return initCollection(new Base, iterable, isSet);
-        }
+    if(initFromIter)return wrapGlobalConstructor(Base);
+    // wrap to init collections from iterable
+    function F(iterable){
+      assertInstance(this, F, name);
+      return initCollection(new Base, iterable, isSet);
+    }
     F[prototype] = Base[prototype];
     return F;
   }
@@ -973,20 +975,22 @@ $define(GLOBAL, {global: global});
  */
 !function(TAG, SymbolRegistry){
   // 19.4.1 The Symbol Constructor
-  function Symbol(description){
-    var tag = symbol(description);
-    defineProperty($Object, tag, {
-      set: function(value){
-        hidden(this, tag, value);
-      }
-    });
-    if(!(this instanceof Symbol))return tag;
-    hidden(this, TAG, tag);
+  if(!isNative(Symbol)){
+    Symbol = function(description){
+      var tag = symbol(description);
+      defineProperty($Object, tag, {
+        set: function(value){
+          hidden(this, tag, value);
+        }
+      });
+      if(!(this instanceof Symbol))return tag;
+      hidden(this, TAG, tag);
+    }
+    Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
+      return this[TAG];
+    }
   }
-  Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
-    return this[TAG];
-  }
-  $define(GLOBAL, {Symbol: Symbol});
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
   $define(STATIC, 'Symbol', {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
@@ -1153,6 +1157,31 @@ $define(STATIC, 'Reflect', {
     ITERATOR in object || hidden(object, ITERATOR, value);
   }
   
+  isIterable = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return true;
+    // plug for library
+    switch(it && it.constructor){
+      case String: case Array: case Map: case Set:
+        return true;
+    }
+    return false;
+  }
+  getIterator = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
+    // plug for library
+    switch(it && it.constructor){
+      case String : return new StringIterator(it);
+      case Array  : return new ArrayIterator(it, VALUE);
+      case Map    : return new MapIterator(it, KEY+VALUE);
+      case Set    : return new SetIterator(it, VALUE);
+    }
+    throw TypeError(it + ' is not iterable!');
+  }
+  forOf = function(it, fn, that){
+    var iterator = getIterator(it), step;
+    while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
+  }
+  
   // v8 fix
   framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
   
@@ -1192,24 +1221,7 @@ $define(STATIC, 'Reflect', {
     defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
   }
   
-  getIterator = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    // plug for library
-    switch(it && it.constructor){
-      case String : return new StringIterator(it);
-      case Array  : return new ArrayIterator(it, VALUE);
-      case Map    : return new MapIterator(it, KEY+VALUE);
-      case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
-  }
-  
-  $define(GLOBAL, {
-    forOf: forOf = function(it, fn, that){
-      var iterator = getIterator(it), step;
-      while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
-    }
-  });
+  $define(GLOBAL, {forOf: forOf});
 }();
 
 /*****************************
@@ -2124,25 +2136,25 @@ $define(PROTO, 'Number', reduceTo.call(
       , locale = locales[lang && has(locales, lang) ? lang : current];
     return String(template).replace(formatRegExp, function(part){
       switch(part){
-        case 'ms'   : return that.getMilliseconds();                            // mSec    : 1-999
-        case 's'    : return that.getSeconds();                                 // Seconds : 1-59
-        case 'ss'   : return lz2(that.getSeconds());                            // Seconds : 01-59
-        case 'm'    : return that.getMinutes();                                 // Minutes : 1-59
-        case 'mm'   : return lz2(that.getMinutes());                            // Minutes : 01-59
-        case 'h'    : return that[getHours]()                                   // Hours   : 0-23
-        case 'hh'   : return lz2(that[getHours]());                             // Hours   : 00-23
-        case 'H'    : return that[getHours]() % 12 || 12;                       // Hours   : 1-12
-        case 'HH'   : return lz2(that[getHours]() % 12 || 12);                  // Hours   : 01-12
+        case 'ms'   : return that.getMilliseconds();                            // Milliseconds : 1-999
+        case 's'    : return that.getSeconds();                                 // Seconds      : 1-59
+        case 'ss'   : return lz2(that.getSeconds());                            // Seconds      : 01-59
+        case 'm'    : return that.getMinutes();                                 // Minutes      : 1-59
+        case 'mm'   : return lz2(that.getMinutes());                            // Minutes      : 01-59
+        case 'h'    : return that[getHours]()                                   // Hours        : 0-23
+        case 'hh'   : return lz2(that[getHours]());                             // Hours        : 00-23
+        case 'H'    : return that[getHours]() % 12 || 12;                       // Hours        : 1-12
+        case 'HH'   : return lz2(that[getHours]() % 12 || 12);                  // Hours        : 01-12
         case 'a'    : return that[getHours]() < 12 ? 'AM' : 'PM';               // AM/PM
-        case 'd'    : return that.getDate();                                    // Date    : 1-31
-        case 'dd'   : return lz2(that.getDate());                               // Date    : 01-31
-        case 'w'    : return locale.w[that.getDay()];                           // Day     : Понедельник
-        case 'n'    : return that[getMonth]() + 1;                              // Month   : 1-12
-        case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month   : 01-12
-        case 'M'    : return locale.M[that[getMonth]()];                        // Month   : Январь
-        case 'MM'   : return locale.MM[that[getMonth]()];                       // Month   : Января
-        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year    : 13
-        case 'YYYY' : return that.getFullYear();                                // Year    : 2013
+        case 'd'    : return that.getDate();                                    // Date         : 1-31
+        case 'dd'   : return lz2(that.getDate());                               // Date         : 01-31
+        case 'w'    : return locale.w[that.getDay()];                           // Day          : Понедельник
+        case 'n'    : return that[getMonth]() + 1;                              // Month        : 1-12
+        case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month        : 01-12
+        case 'M'    : return locale.M[that[getMonth]()];                        // Month        : Январь
+        case 'MM'   : return locale.MM[that[getMonth]()];                       // Month        : Января
+        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year         : 13
+        case 'YYYY' : return that.getFullYear();                                // Year         : 2013
       }
       return part;
     });

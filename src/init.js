@@ -10,6 +10,7 @@ var prototype      = 'prototype'
   , Set            = global.Set
   , WeakMap        = global.WeakMap
   , WeakSet        = global.WeakSet
+  , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -219,7 +220,7 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR   = global.Symbol && Symbol.iterator || '@@iterator'
+var ITERATOR   = Symbol && Symbol.iterator || '@@iterator'
   , symbolUniq = 0;
 function symbol(key){
   return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
@@ -236,7 +237,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, getIterator; // define in iterator mudule
+var forOf, isIterable, getIterator; // define in iterator mudule
 
 var GLOBAL = 1
   , STATIC = 2
@@ -263,4 +264,10 @@ function $define(type, name, source, forced /* = false */){
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
     }
   }
+}
+// wrap to prevent obstruction of the global constructors, when build as library
+function wrapGlobalConstructor(Base){
+  return !framework && isNative(Base) ? function(param){
+    return this instanceof Base ? new Base(param) : Base(param);
+  } : Base;
 }

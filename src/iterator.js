@@ -89,6 +89,31 @@
     ITERATOR in object || hidden(object, ITERATOR, value);
   }
   
+  isIterable = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return true;
+    // plug for library
+    switch(it && it.constructor){
+      case String: case Array: case Map: case Set:
+        return true;
+    }
+    return false;
+  }
+  getIterator = function(it){
+    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
+    // plug for library
+    switch(it && it.constructor){
+      case String : return new StringIterator(it);
+      case Array  : return new ArrayIterator(it, VALUE);
+      case Map    : return new MapIterator(it, KEY+VALUE);
+      case Set    : return new SetIterator(it, VALUE);
+    }
+    throw TypeError(it + ' is not iterable!');
+  }
+  forOf = function(it, fn, that){
+    var iterator = getIterator(it), step;
+    while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
+  }
+  
   // v8 fix
   framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
   
@@ -128,22 +153,5 @@
     defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
   }
   
-  getIterator = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    // plug for library
-    switch(it && it.constructor){
-      case String : return new StringIterator(it);
-      case Array  : return new ArrayIterator(it, VALUE);
-      case Map    : return new MapIterator(it, KEY+VALUE);
-      case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
-  }
-  
-  $define(GLOBAL, {
-    forOf: forOf = function(it, fn, that){
-      var iterator = getIterator(it), step;
-      while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
-    }
-  });
+  $define(GLOBAL, {forOf: forOf});
 }();

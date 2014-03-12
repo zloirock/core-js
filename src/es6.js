@@ -201,7 +201,7 @@
         , result = new (isFunction(this) ? this : Array)
         , i      = 0
         , length, iter, step;
-      if(getIterator && isFunction(O[ITERATOR])){
+      if(isIterable && isIterable(O)){
         iter = getIterator(O);
         while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
       }

@@ -7,20 +7,22 @@
  */
 !function(TAG, SymbolRegistry){
   // 19.4.1 The Symbol Constructor
-  function Symbol(description){
-    var tag = symbol(description);
-    defineProperty($Object, tag, {
-      set: function(value){
-        hidden(this, tag, value);
-      }
-    });
-    if(!(this instanceof Symbol))return tag;
-    hidden(this, TAG, tag);
+  if(!isNative(Symbol)){
+    Symbol = function(description){
+      var tag = symbol(description);
+      defineProperty($Object, tag, {
+        set: function(value){
+          hidden(this, tag, value);
+        }
+      });
+      if(!(this instanceof Symbol))return tag;
+      hidden(this, TAG, tag);
+    }
+    Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
+      return this[TAG];
+    }
   }
-  Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
-    return this[TAG];
-  }
-  $define(GLOBAL, {Symbol: Symbol});
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
   $define(STATIC, 'Symbol', {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){

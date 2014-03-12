@@ -30,9 +30,9 @@
     }, that);
     return that;
   }
-  function createCollectionConstructor(key, isSet){
+  function createCollectionConstructor(name, isSet){
     function F(iterable){
-      assertInstance(this, F, key);
+      assertInstance(this, F, name);
       this.clear();
       initCollection(this, iterable, isSet);
     }
@@ -42,7 +42,7 @@
     var collection   = new Base([isSet ? tmp : [tmp, 1]])
       , initFromIter = collection.has(tmp)
       , key = isSet ? 'add' : 'set'
-      , fn, F;
+      , fn;
     // fix .add & .set for chaining
     if(framework && collection[key](tmp, 1) !== collection){
       fn = collection[key];
@@ -51,17 +51,12 @@
         return this;
       });
     }
-    if(initFromIter && framework)return Base;
-    F = initFromIter
-      // wrap to prevent obstruction of the global constructors, when build as library
-      ? function(itareble){
-          return new Base(itareble);
-        }
-      // wrap to init collections from iterable
-      : function(iterable){
-          assertInstance(this, F, name);
-          return initCollection(new Base, iterable, isSet);
-        }
+    if(initFromIter)return wrapGlobalConstructor(Base);
+    // wrap to init collections from iterable
+    function F(iterable){
+      assertInstance(this, F, name);
+      return initCollection(new Base, iterable, isSet);
+    }
     F[prototype] = Base[prototype];
     return F;
   }
