@@ -1,4 +1,4 @@
-methods = <[assert count debug dir dirxml error exception group groupEnd groupCollapsed groupEnd info log table trace warn markTimeline profile profileEnd time timeEnd timeStamp clear]>
+methods = <[assert count debug dir dirxml error exception group groupEnd groupCollapsed groupEnd info log table trace warn markTimeline profile profileEnd time timeEnd timeStamp]>
 test 'console' !->
   ok Object.isObject(global.console), 'global.console is object'
 test 'console.#{..} are functions' !->

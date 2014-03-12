@@ -58,7 +58,7 @@ test 'Object.keys' !->
   deepEqual keys([1,2,3]), <[0 1 2]>
   deepEqual keys(new fn1 1), <[w]>
   deepEqual keys(new fn2 1), <[toString]>
-  ok \join not in keys Array::
+  ok \push not in keys Array::
 test 'Function.prototype.bind' !->
   ok isFunction(Function::bind), 'Is function'
   ok 42   is (-> @a)bind(obj = a: 42)!

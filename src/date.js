@@ -41,17 +41,19 @@
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
-      M : array(locale.M).map(flexio(0)),
-      MM: array(locale.M).map(flexio(1))
+      M : flexio(array(locale.M), 0),
+      MM: flexio(array(locale.M), 1)
     };
     return Date;
   }
-  function flexio(index){
-    return function(it){
-      return it.replace(/\+(.+)$/, function(part, str){
+  function flexio(locale, index){
+    var result = [];
+    $forEach(locale, function(it){
+      result.push(it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
-      });
-    }
+      }));
+    });
+    return result;
   }
   $define(STATIC, 'Date', {
     locale: function(locale){

@@ -115,7 +115,9 @@ function has(object, key){
 }
 var create                   = Object.create
   , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty
+  , defineProperty           = Object.defineProperty || function(O, P, Attributes){
+      if('value' in Attributes)O[P] = Attributes.value;
+    }
   , defineProperties         = Object.defineProperties
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , keys                     = Object.keys
@@ -166,10 +168,12 @@ function invert(object){
 function array(it){
   return String(it).split(',');
 }
-var push    = $Array.push
-  , unshift = $Array.unshift
-  , slice   = $Array.slice
-  , $slice  = Array.slice || function(arrayLike, from){
+var push     = $Array.push
+  , unshift  = $Array.unshift
+  , slice    = $Array.slice
+  , $indexOf = unbind($Array.indexOf)
+  , $forEach = unbind($Array.forEach)
+  , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // Dummy, fix for not array-like ES3 string in es5.js
@@ -237,7 +241,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator; // define in iterator mudule
+var forOf, isIterable, getIterator; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
@@ -247,9 +251,9 @@ function $define(type, name, source, forced /* = false */){
   var target, exports, key, own, prop
     , isGlobal = type == GLOBAL;
   if(isGlobal){
-    forced = source;
-    source = name;
-    target = global;
+    forced  = source;
+    source  = name;
+    target  = global;
     exports = $exports;
   } else {
     target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
@@ -259,7 +263,7 @@ function $define(type, name, source, forced /* = false */){
     own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework){
+    if(framework && target){
       !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
     }

@@ -41,7 +41,7 @@
    */
   function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
     if(!isObject(object))return object;
-    var already = stackA.indexOf(object)
+    var already = $indexOf(stackA, object)
       , F       = object.constructor
       , result;
     if(~already)return stackB[already];
@@ -106,7 +106,7 @@
         if(length != b.length)return false;
         while(length--){
           if(
-            !(~StackA.indexOf(a[length]) && ~StackB.indexOf(b[length]))
+            !(~$indexOf(StackA, a[length]) && ~$indexOf(StackB, b[length]))
             && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
@@ -117,7 +117,7 @@
     if(length != getOwnPropertyNames(b).length)return false;
     while(length--){
       if(
-        !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
+        !(~$indexOf(StackA, a[val = keys[length]]) && ~$indexOf(StackB, b[val]))
         && !isEqual(a[val], b[val], StackA, StackB)
       )return false;
     }
@@ -370,8 +370,7 @@
       if(arguments.length < 3){
         callbackfn = target;
         target = create(null);
-      }
-      else target = Object(target);
+      } else target = Object(target);
       assertFunction(callbackfn);
       var O      = ES5Object(object)
         , props  = keys(O)

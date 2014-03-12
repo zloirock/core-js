@@ -64,7 +64,7 @@ test 'Map::set' !->
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   ok M.size is 5
   chain = M.set(7 2)
-  ok chain is M # firefox / ie11 problems
+  ok chain is M
   M.set 7 2
   ok M.size is 6
   ok M.get(7) is 2
@@ -109,7 +109,7 @@ test 'Set::add' !->
   S = new Set [NaN, 2 3 2 1 a]
   ok S.size is 5
   chain = S.add NaN
-  ok chain is S # firefox / ie11 problems
+  ok chain is S
   ok S.size is 5
   S.add 2
   ok S.size is 5
@@ -170,11 +170,11 @@ test 'Set::size' !->
 
 test 'WeakMap' !->
   ok isFunction(global.WeakMap), 'Is function'
-  ok \clear   of WeakMap::, 'clear in WeakMap.prototype'
-  ok \delete  of WeakMap::, 'delete in WeakMap.prototype'
-  ok \get     of WeakMap::, 'get in WeakMap.prototype'
-  ok \has     of WeakMap::, 'has in WeakMap.prototype'
-  ok \set     of WeakMap::, 'set in WeakMap.prototype'
+  ok \clear  of WeakMap::, 'clear in WeakMap.prototype'
+  ok \delete of WeakMap::, 'delete in WeakMap.prototype'
+  ok \get    of WeakMap::, 'get in WeakMap.prototype'
+  ok \has    of WeakMap::, 'has in WeakMap.prototype'
+  ok \set    of WeakMap::, 'set in WeakMap.prototype'
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
 test 'WeakMap::clear' !->
   ok isFunction(WeakMap::clear), 'Is function'
@@ -195,7 +195,6 @@ test 'WeakMap::delete' !->
 test 'WeakMap::get' !->
   ok isFunction(WeakMap::get), 'Is function'
   M = new WeakMap!
-  #ok M.get(42) is void, 'WeakMap .get(primitive) return undefined' !!!!!!!!!!!!!!!!!
   ok M.get({}) is void, 'WeakMap .get() before .set() return undefined'
   M.set a = {}, 42
   ok M.get(a) is 42, 'WeakMap .get() return value'
@@ -204,7 +203,6 @@ test 'WeakMap::get' !->
 test 'WeakMap::has' !->
   ok isFunction(WeakMap::has), 'Is function'
   M = new WeakMap!
-  #ok M.has(42) is no, 'WeakMap .has(primitive) return false' !!!!!!!!!!!!!!!!!
   ok M.has({}) is no, 'WeakMap .has() before .set() return false'
   M.set a = {}, 42
   ok M.has(a), 'WeakMap .has() return true'
@@ -217,10 +215,10 @@ test 'WeakMap::set' !->
 
 test 'WeakSet' !->
   ok isFunction(global.WeakSet), 'Is function'
-  ok \add     of WeakSet::, 'add in WeakSet.prototype'
-  ok \clear   of WeakSet::, 'clear in WeakSet.prototype'
-  ok \delete  of WeakSet::, 'delete in WeakSet.prototype'
-  ok \has     of WeakSet::, 'has in WeakSet.prototype'
+  ok \add    of WeakSet::, 'add in WeakSet.prototype'
+  ok \clear  of WeakSet::, 'clear in WeakSet.prototype'
+  ok \delete of WeakSet::, 'delete in WeakSet.prototype'
+  ok \has    of WeakSet::, 'has in WeakSet.prototype'
   ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
   ok new WeakSet([a = {}]).has(a), 'Init WeakSet from array'
 test 'WeakSet::add' !->

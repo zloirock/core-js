@@ -203,9 +203,8 @@
         , length, iter, step;
       if(isIterable && isIterable(O)){
         iter = getIterator(O);
-        while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
-      }
-      else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
+        while(!(step = iter.next()).done)push.call(result, mapfn ? mapfn.call(thisArg, step.value) : step.value);
+      } else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
     // 22.1.2.3 Array.of( ...items)

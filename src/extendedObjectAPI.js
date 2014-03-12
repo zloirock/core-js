@@ -16,8 +16,8 @@ $define(STATIC, 'Object', {
   getPropertyNames: function(object){
     var result = getOwnPropertyNames(object);
     while(object = getPrototypeOf(object)){
-      getOwnPropertyNames(object).forEach(function(key){
-        ~result.indexOf(key) || result.push(key);
+      $forEach(getOwnPropertyNames(object), function(key){
+        ~$indexOf(result, key) || result.push(key);
       });
     }
     return result;

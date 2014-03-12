@@ -13,7 +13,7 @@
  */
 !function(Promise){
   isFunction(Promise)
-  &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
+  &&  Promise.cast && Promise.resolve && Promise.reject && Promise.all && Promise.race
   // Older version of the spec had a resolver object as the arg rather than a function
   // Experimental implementations contains a number of inconsistencies with the spec,
   // such as this: onFulfilled must be a function or undefined
@@ -95,7 +95,7 @@
             results[index] = value;
             --remaining || resolve(results);
           }
-          if(remaining)values.forEach(function(promise, i){
+          if(remaining)$forEach(values, function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);

@@ -127,7 +127,9 @@ function has(object, key){
 }
 var create                   = Object.create
   , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty
+  , defineProperty           = Object.defineProperty || function(O, P, Attributes){
+      if('value' in Attributes)O[P] = Attributes.value;
+    }
   , defineProperties         = Object.defineProperties
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , keys                     = Object.keys
@@ -178,10 +180,12 @@ function invert(object){
 function array(it){
   return String(it).split(',');
 }
-var push    = $Array.push
-  , unshift = $Array.unshift
-  , slice   = $Array.slice
-  , $slice  = Array.slice || function(arrayLike, from){
+var push     = $Array.push
+  , unshift  = $Array.unshift
+  , slice    = $Array.slice
+  , $indexOf = unbind($Array.indexOf)
+  , $forEach = unbind($Array.forEach)
+  , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // Dummy, fix for not array-like ES3 string in es5.js
@@ -249,7 +253,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator; // define in iterator mudule
+var forOf, isIterable, getIterator; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
@@ -259,9 +263,9 @@ function $define(type, name, source, forced /* = false */){
   var target, exports, key, own, prop
     , isGlobal = type == GLOBAL;
   if(isGlobal){
-    forced = source;
-    source = name;
-    target = global;
+    forced  = source;
+    source  = name;
+    target  = global;
     exports = $exports;
   } else {
     target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
@@ -271,7 +275,7 @@ function $define(type, name, source, forced /* = false */){
     own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework){
+    if(framework && target){
       !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
     }
@@ -493,9 +497,8 @@ function wrapGlobalConstructor(Base){
         , length, iter, step;
       if(isIterable && isIterable(O)){
         iter = getIterator(O);
-        while(!(step = iter.next()).done)result.push(mapfn ? mapfn.call(thisArg, step.value) : step.value);
-      }
-      else for(length = toLength(O.length); i < length; i++)result.push(mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
+        while(!(step = iter.next()).done)push.call(result, mapfn ? mapfn.call(thisArg, step.value) : step.value);
+      } else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
@@ -795,7 +798,7 @@ function wrapGlobalConstructor(Base){
  */
 !function(Promise){
   isFunction(Promise)
-  &&  array('cast,resolve,reject,all,race').every(part.call(has, Promise))
+  &&  Promise.cast && Promise.resolve && Promise.reject && Promise.all && Promise.race
   // Older version of the spec had a resolver object as the arg rather than a function
   // Experimental implementations contains a number of inconsistencies with the spec,
   // such as this: onFulfilled must be a function or undefined
@@ -877,7 +880,7 @@ function wrapGlobalConstructor(Base){
             results[index] = value;
             --remaining || resolve(results);
           }
-          if(remaining)values.forEach(function(promise, i){
+          if(remaining)$forEach(values, function(promise, i){
             promise && isFunction(promise.then)
               ? promise.then(part.call(resolveAll, i), reject)
               : resolveAll(i, promise);
@@ -1240,8 +1243,8 @@ $define(STATIC, 'Object', {
   getPropertyNames: function(object){
     var result = getOwnPropertyNames(object);
     while(object = getPrototypeOf(object)){
-      getOwnPropertyNames(object).forEach(function(key){
-        ~result.indexOf(key) || result.push(key);
+      $forEach(getOwnPropertyNames(object), function(key){
+        ~$indexOf(result, key) || result.push(key);
       });
     }
     return result;
@@ -1509,7 +1512,7 @@ $define(STATIC, 'Object', {
    */
   function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
     if(!isObject(object))return object;
-    var already = stackA.indexOf(object)
+    var already = $indexOf(stackA, object)
       , F       = object.constructor
       , result;
     if(~already)return stackB[already];
@@ -1574,7 +1577,7 @@ $define(STATIC, 'Object', {
         if(length != b.length)return false;
         while(length--){
           if(
-            !(~StackA.indexOf(a[length]) && ~StackB.indexOf(b[length]))
+            !(~$indexOf(StackA, a[length]) && ~$indexOf(StackB, b[length]))
             && !isEqual(a[length], b[length], StackA, StackB)
           )return false;
         }
@@ -1585,7 +1588,7 @@ $define(STATIC, 'Object', {
     if(length != getOwnPropertyNames(b).length)return false;
     while(length--){
       if(
-        !(~StackA.indexOf(a[val = keys[length]]) && ~StackB.indexOf(b[val]))
+        !(~$indexOf(StackA, a[val = keys[length]]) && ~$indexOf(StackB, b[val]))
         && !isEqual(a[val], b[val], StackA, StackB)
       )return false;
     }
@@ -1838,8 +1841,7 @@ $define(STATIC, 'Object', {
       if(arguments.length < 3){
         callbackfn = target;
         target = create(null);
-      }
-      else target = Object(target);
+      } else target = Object(target);
       assertFunction(callbackfn);
       var O      = ES5Object(object)
         , props  = keys(O)
@@ -2129,17 +2131,19 @@ $define(PROTO, 'Number', reduceTo.call(
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
-      M : array(locale.M).map(flexio(0)),
-      MM: array(locale.M).map(flexio(1))
+      M : flexio(array(locale.M), 0),
+      MM: flexio(array(locale.M), 1)
     };
     return Date;
   }
-  function flexio(index){
-    return function(it){
-      return it.replace(/\+(.+)$/, function(part, str){
+  function flexio(locale, index){
+    var result = [];
+    $forEach(locale, function(it){
+      result.push(it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
-      });
-    }
+      }));
+    });
+    return result;
   }
   $define(STATIC, 'Date', {
     locale: function(locale){

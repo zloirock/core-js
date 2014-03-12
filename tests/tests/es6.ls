@@ -297,6 +297,11 @@ test 'Array.from' !->
     ok key is 0
     ok that is al
   , ctx = {}
+  from [1], (val, foo)->
+    ok @ is ctx
+    ok val is 1
+    ok foo is void
+  , ctx = {}
   deepEqual from((-> &)(1 2 3), (^2)), [1 4 9]
 test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'
