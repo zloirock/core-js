@@ -59,17 +59,17 @@
   catch(e){
     DESCRIPTORS = false;
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
-    Object.getOwnPropertyDescriptor = function(O, P){
+    Object.getOwnPropertyDescriptor = getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
-    Object.defineProperty = function(O, P, Attributes){
+    Object.defineProperty = defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
-    Object.defineProperties = function(O, Properties){
+    Object.defineProperties = defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
         , length = names.length
@@ -253,11 +253,8 @@
   if(isFunction(trimRegExp))isFunction = function(it){
     return classof(it) == 'Function';
   }
-  create                   = Object.create;
-  getPrototypeOf           = Object.getPrototypeOf;
-  defineProperty           = Object.defineProperty;
-  defineProperties         = Object.defineProperties;
-  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  keys                     = Object.keys;
-  getOwnPropertyNames      = Object.getOwnPropertyNames;
 }();
+create              = Object.create;
+getPrototypeOf      = Object.getPrototypeOf;
+keys                = Object.keys;
+getOwnPropertyNames = Object.getOwnPropertyNames;

@@ -8,12 +8,12 @@ asyncTest 'setImmediate / clearImmediate' 6 !->
   var tmp2
   setImmediate !->
     tmp2 := on
-  setTimeout _, 20 <| !->
+  setTimeout _, 50 <| !->
     ok tmp2, 'setImmediate works'
   var tmp3
   setImmediate _, \b \c <| (b, c)!->
     tmp3 := b + c
-  setTimeout _, 20 <| !->
+  setTimeout _, 50 <| !->
     ok tmp3 is \bc, 'setImmediate works with additional params'
   var tmp4
   clearImmediate setImmediate !-> tmp4 := 42

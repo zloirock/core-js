@@ -8,7 +8,7 @@
         '/': '&#x2f;'
       }
     , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
-    , RegExpEscapeHTML = RegExp('[' + keys(dictionaryEscapeHTML).join('') + ']', 'g')
+    , RegExpEscapeHTML   = /[&<>"'/]/g
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
   $define(PROTO, 'String', {

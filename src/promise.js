@@ -135,7 +135,7 @@
     function handleThenable(promise, value){
       var resolved;
       try {
-        assert(promise !== value, 'A promises callback cannot return that same promise.');
+        assert(promise !== value, "A promises callback can't return that same promise.");
         if(value && isFunction(value.then)){
           value.then(function(val){
             if(resolved)return true;

@@ -2058,13 +2058,13 @@
     });
     setTimeout(function(){
       ok(tmp2, 'setImmediate works');
-    }, 20);
+    }, 50);
     setImmediate(function(b, c){
       tmp3 = b + c;
     }, 'b', 'c');
     setTimeout(function(){
       ok(tmp3 === 'bc', 'setImmediate works with additional params');
-    }, 20);
+    }, 50);
     clearImmediate(setImmediate(function(){
       tmp4 = 42;
     }));

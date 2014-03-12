@@ -68,7 +68,8 @@ function part(/*args...*/){
   return createPartialApplication(this, args, length, placeholder, false);
 }
 function ctx(fn, that){
-  return function(){
+  assertFunction(fn);
+  return function(/*args...*/){
     return fn.apply(that, arguments);
   }
 }
@@ -80,7 +81,7 @@ function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, c
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
     args = argsPart.slice();
-    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
+    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return fn.apply(that, args);
   }
@@ -209,18 +210,19 @@ function assert(condition){
   if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
 function assertFunction(it){
-  assert(isFunction(it), it, 'is not a function!');
+  if(!isFunction(it))throw TypeError(it + 'is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object!');
+  if(!isObject(it))throw TypeError(it + 'is not an object!');
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR = global.Symbol && Symbol.iterator || '@@iterator';
+var ITERATOR   = global.Symbol && Symbol.iterator || '@@iterator'
+  , symbolUniq = 0;
 function symbol(key){
-  return '@@' + key + '_' + random().toString(36).slice(2);
+  return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
 }
 function descriptor(bitmap, value){
   return {

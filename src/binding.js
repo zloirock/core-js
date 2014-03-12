@@ -1,8 +1,7 @@
 function tie(key){
   var that = this
-    , i    = 1
     , placeholder = false
-    , length, args;
+    , i = 1, length, args;
   assertObject(that);
   length = arguments.length;
   if(length < 2)return ctx(that[key], that);
@@ -22,11 +21,10 @@ $define(PROTO, 'Function', {
    */
   part: part,
   by: function(that){
-    var fn     = this
-      , length = arguments.length
-      , i      = 1
+    var fn = this
       , placeholder = false
-      , args;
+      , length = arguments.length
+      , i = 1, args;
     if(length < 2)return ctx(fn, that);
     args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;

@@ -1,5 +1,5 @@
 function inherits(parent){
-  assertFunction(this), assertFunction(parent);
+  assertFunction(this); assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }

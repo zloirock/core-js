@@ -13,43 +13,31 @@ var extendCollections = {
   },
   some: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(fn.call(that, val, key, foo))throw DONE;
-      });
-    } catch(error){
-      if(error === DONE)return true;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(fn.call(that, value[1], value[0], this))return true;
     }
     return false;
   },
   every: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(!fn.call(that, val, key, foo))throw DONE;
-      });
-    } catch(error){
-      if(error === DONE)return false;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(!fn.call(that, value[1], value[0], this))return false;
     }
     return true;
   },
   find: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(fn.call(that, val, key, foo)){
-          DONE.value = val;
-          throw DONE;
-        }
-      });
-    } catch(error){
-      if(error === DONE)return DONE.value;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(fn.call(that, value[1], value[0], this))return value[1];
     }
   },
   toArray: function(){

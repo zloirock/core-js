@@ -80,7 +80,8 @@ function part(/*args...*/){
   return createPartialApplication(this, args, length, placeholder, false);
 }
 function ctx(fn, that){
-  return function(){
+  assertFunction(fn);
+  return function(/*args...*/){
     return fn.apply(that, arguments);
   }
 }
@@ -92,7 +93,7 @@ function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, c
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
     args = argsPart.slice();
-    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++]
+    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return fn.apply(that, args);
   }
@@ -221,18 +222,19 @@ function assert(condition){
   if(!condition)throw TypeError($slice(arguments, 1).join(' '));
 }
 function assertFunction(it){
-  assert(isFunction(it), it, 'is not a function!');
+  if(!isFunction(it))throw TypeError(it + 'is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object!');
+  if(!isObject(it))throw TypeError(it + 'is not an object!');
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR = global.Symbol && Symbol.iterator || '@@iterator';
+var ITERATOR   = global.Symbol && Symbol.iterator || '@@iterator'
+  , symbolUniq = 0;
 function symbol(key){
-  return '@@' + key + '_' + random().toString(36).slice(2);
+  return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
 }
 function descriptor(bitmap, value){
   return {
@@ -340,17 +342,17 @@ function $define(type, name, source, forced /* = false */){
   catch(e){
     DESCRIPTORS = false;
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
-    Object.getOwnPropertyDescriptor = function(O, P){
+    Object.getOwnPropertyDescriptor = getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
-    Object.defineProperty = function(O, P, Attributes){
+    Object.defineProperty = defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
-    Object.defineProperties = function(O, Properties){
+    Object.defineProperties = defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
         , length = names.length
@@ -534,14 +536,11 @@ function $define(type, name, source, forced /* = false */){
   if(isFunction(trimRegExp))isFunction = function(it){
     return classof(it) == 'Function';
   }
-  create                   = Object.create;
-  getPrototypeOf           = Object.getPrototypeOf;
-  defineProperty           = Object.defineProperty;
-  defineProperties         = Object.defineProperties;
-  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  keys                     = Object.keys;
-  getOwnPropertyNames      = Object.getOwnPropertyNames;
 }();
+create              = Object.create;
+getPrototypeOf      = Object.getPrototypeOf;
+keys                = Object.keys;
+getOwnPropertyNames = Object.getOwnPropertyNames;
 
 /*****************************
  * Module : global
@@ -822,22 +821,18 @@ $define(GLOBAL, {global: global});
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
-  var STOREID      = symbol('storeid')
-    , KEYS_STORE   = symbol('keys')
-    , VALUES_STORE = symbol('values')
-    , WEAKDATA     = symbol('weakdata')
-    , WEAKID       = symbol('weakid')
-    , SIZE         = DESCRIPTORS ? symbol('size') : 'size'
-    , uid          = 0
-    , wid          = 0
-    , tmp          = {}
-    , sizeGetter   = {
-        size: {
-          get: function(){
-            return this[SIZE];
-          }
-        }
-      };
+  var STOREID  = symbol('storeid')
+    , KEYS     = symbol('keys')
+    , VALUES   = symbol('values')
+    , WEAKDATA = symbol('weakdata')
+    , WEAKID   = symbol('weakid')
+    , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
+    , uid = 0
+    , wid = 0
+    , tmp = {}
+    , sizeGetter = {size: {get: function(){
+        return this[SIZE];
+      }}};
   function initCollection(that, iterable, isSet){
     if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(val){
       that.set(val[0], val[1]);
@@ -852,33 +847,34 @@ $define(GLOBAL, {global: global});
     }
     return F;
   }
-  function fixCollectionConstructor(fix, Base, key, isSet){
-    if(!fix && framework)return Base;
-    var F = fix
-      // wrap to init collections from iterable
-      ? function(iterable){
-          assertInstance(this, F, key);
-          return initCollection(new Base, iterable, isSet);
-        }
-      // wrap to prevent obstruction of the global constructors
-      : function(itareble){
+  function fixCollection(Base, name, isSet){
+    var collection   = new Base([isSet ? tmp : [tmp, 1]])
+      , initFromIter = collection.has(tmp)
+      , key = isSet ? 'add' : 'set'
+      , fn, F;
+    // fix .add & .set for chaining
+    if(framework && collection[key](tmp, 1) !== collection){
+      fn = collection[key];
+      hidden(Base[prototype], key, function(){
+        fn.apply(this, arguments);
+        return this;
+      });
+    }
+    if(initFromIter && framework)return Base;
+    F = initFromIter
+      // wrap to prevent obstruction of the global constructors, when build as library
+      ? function(itareble){
           return new Base(itareble);
+        }
+      // wrap to init collections from iterable
+      : function(iterable){
+          assertInstance(this, F, name);
+          return initCollection(new Base, iterable, isSet);
         }
     F[prototype] = Base[prototype];
     return F;
   }
   
-  // fix .add & .set for chaining
-  function fixAdd(Collection, key){
-    var collection = new Collection;
-    if(framework && collection[key](tmp, 1) !== collection){
-      var fn = collection[key];
-      hidden(Collection[prototype], key, function(){
-        fn.apply(this, arguments);
-        return this;
-      });
-    }
-  }
   function fastKey(it, create){
     return isObject(it)
       ? '_' + (has(it, STOREID)
@@ -889,7 +885,7 @@ $define(GLOBAL, {global: global});
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
-      var values = this[VALUES_STORE]
+      var values = this[VALUES]
         , keyz   = this[key]
         , names  = keys(keyz)
         , length = names.length
@@ -902,47 +898,48 @@ $define(GLOBAL, {global: global});
     }
   }
   function collectionHas(key){
-    return fastKey(key) in this[VALUES_STORE];
+    return fastKey(key) in this[VALUES];
   }
   function clearSet(){
-    hidden(this, VALUES_STORE, create(null));
+    hidden(this, VALUES, create(null));
     hidden(this, SIZE, 0);
   }
+  
   // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
     Map = createCollectionConstructor('Map');
     assign(Map[prototype], {
       // 23.1.3.1 Map.prototype.clear()
       clear: function(){
-        hidden(this, KEYS_STORE, create(null));
+        hidden(this, KEYS, create(null));
         clearSet.call(this);
       },
       // 23.1.3.3 Map.prototype.delete(key)
       'delete': function(key){
         var index    = fastKey(key)
-          , values   = this[VALUES_STORE]
+          , values   = this[VALUES]
           , contains = index in values;
         if(contains){
-          delete this[KEYS_STORE][index];
+          delete this[KEYS][index];
           delete values[index];
           this[SIZE]--;
         }
         return contains;
       },
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(KEYS_STORE),
+      forEach: createForEach(KEYS),
       // 23.1.3.6 Map.prototype.get(key)
       get: function(key){
-        return this[VALUES_STORE][fastKey(key)];
+        return this[VALUES][fastKey(key)];
       },
       // 23.1.3.7 Map.prototype.has(key)
       has: collectionHas,
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
         var index  = fastKey(key, 1)
-          , values = this[VALUES_STORE];
+          , values = this[VALUES];
         if(!(index in values)){
-          this[KEYS_STORE][index] = key;
+          this[KEYS][index] = key;
           this[SIZE]++;
         }
         values[index] = value;
@@ -951,10 +948,8 @@ $define(GLOBAL, {global: global});
     });
     // 23.1.3.10 get Map.prototype.size
     defineProperties(Map[prototype], sizeGetter);
-  } else {
-    Map = fixCollectionConstructor(!new Map([tmp]).size != 1, Map, 'Map');
-    fixAdd(Map, 'set');
-  }
+  } else Map = fixCollection(Map, 'Map');
+  
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
     Set = createCollectionConstructor('Set', 1);
@@ -962,7 +957,7 @@ $define(GLOBAL, {global: global});
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this[VALUES_STORE];
+          , values = this[VALUES];
         if(!(index in values)){
           values[index] = value;
           this[SIZE]++;
@@ -974,7 +969,7 @@ $define(GLOBAL, {global: global});
       // 23.2.3.4 Set.prototype.delete(value)
       'delete': function(value){
         var index    = fastKey(value)
-          , values   = this[VALUES_STORE]
+          , values   = this[VALUES]
           , contains = index in values;
         if(contains){
           delete values[index];
@@ -983,20 +978,18 @@ $define(GLOBAL, {global: global});
         return contains;
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(VALUES_STORE),
+      forEach: createForEach(VALUES),
       // 23.2.3.7 Set.prototype.has(value)
       has: collectionHas
     });
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[prototype], sizeGetter);
-  } else {
-    Set = fixCollectionConstructor(new Set([1]).size != 1, Set, 'Set', 1);
-    fixAdd(Set, 'add');
-  }
+  } else Set = fixCollection(Set, 'Set', 1);
+  
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
-  var commonWeakCollection = {
+  var weakCollectionMethods = {
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
@@ -1013,6 +1006,7 @@ $define(GLOBAL, {global: global});
       return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
   };
+  
   // 23.3 WeakMap Objects
   if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
     WeakMap = createCollectionConstructor('WeakMap');
@@ -1027,11 +1021,9 @@ $define(GLOBAL, {global: global});
         getWeakData(key)[this[WEAKID]] = value;
         return this;
       }
-    }, commonWeakCollection));
-  } else {
-    WeakMap = fixCollectionConstructor(!new WeakMap([[tmp, 1]]).has(tmp), WeakMap, 'WeakMap');
-    fixAdd(WeakMap, 'set');
-  }
+    }, weakCollectionMethods));
+  } else WeakMap = fixCollection(WeakMap, 'WeakMap');
+  
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
     WeakSet = createCollectionConstructor('WeakSet', 1);
@@ -1042,11 +1034,9 @@ $define(GLOBAL, {global: global});
         getWeakData(value)[this[WEAKID]] = true;
         return this;
       }
-    }, commonWeakCollection));
-  } else {
-    WeakSet = fixCollectionConstructor(!new WeakSet([tmp]).has(tmp), WeakSet, 'WeakSet', 1);
-    fixAdd(WeakSet, 'add');
-  }
+    }, weakCollectionMethods));
+  } else WeakSet = fixCollection(WeakSet, 'WeakSet', 1);
+  
   $define(GLOBAL, {
     Map: Map,
     Set: Set,
@@ -1196,7 +1186,7 @@ $define(GLOBAL, {global: global});
     function handleThenable(promise, value){
       var resolved;
       try {
-        assert(promise !== value, 'A promises callback cannot return that same promise.');
+        assert(promise !== value, "A promises callback can't return that same promise.");
         if(value && isFunction(value.then)){
           value.then(function(val){
             if(resolved)return true;
@@ -1427,18 +1417,9 @@ $define(STATIC, 'Reflect', {
   function defineIterator(object, value){
     ITERATOR in object || hidden(object, ITERATOR, value);
   }
-  if(framework){
-    // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[prototype], createIteratorFactory(StringIterator));
-    // 22.1.3.30 Array.prototype[@@iterator]()
-    defineIterator($Array, createIteratorFactory(ArrayIterator, VALUE));
-    // 23.1.3.12 Map.prototype[@@iterator]()
-    defineIterator(Map[prototype], createIteratorFactory(MapIterator, KEY+VALUE));
-    // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
-    // v8 fix
-    isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  }
+  
+  // v8 fix
+  framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
   
   $define(PROTO, 'Array', {
     // 22.1.3.4 Array.prototype.entries()
@@ -1464,6 +1445,17 @@ $define(STATIC, 'Reflect', {
     // 23.2.3.10 Set.prototype.values()
     values: createIteratorFactory(SetIterator, VALUE)
   });
+  
+  if(framework){
+    // 21.1.3.27 String.prototype[@@iterator]()
+    defineIterator(String[prototype], createIteratorFactory(StringIterator));
+    // 22.1.3.30 Array.prototype[@@iterator]()
+    defineIterator($Array, $Array.values);
+    // 23.1.3.12 Map.prototype[@@iterator]()
+    defineIterator(Map[prototype], createIteratorFactory(MapIterator, KEY+VALUE));
+    // 23.2.3.11 Set.prototype[@@iterator]()
+    defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
+  }
   
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
@@ -1630,7 +1622,7 @@ $define(GLOBAL, {
  *****************************/
 
 function inherits(parent){
-  assertFunction(this), assertFunction(parent);
+  assertFunction(this); assertFunction(parent);
   this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
   return this;
 }
@@ -1709,9 +1701,8 @@ $define(PROTO, 'Function', {
 
 function tie(key){
   var that = this
-    , i    = 1
     , placeholder = false
-    , length, args;
+    , i = 1, length, args;
   assertObject(that);
   length = arguments.length;
   if(length < 2)return ctx(that[key], that);
@@ -1731,11 +1722,10 @@ $define(PROTO, 'Function', {
    */
   part: part,
   by: function(that){
-    var fn     = this
-      , length = arguments.length
-      , i      = 1
+    var fn = this
       , placeholder = false
-      , args;
+      , length = arguments.length
+      , i = 1, args;
     if(length < 2)return ctx(fn, that);
     args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
@@ -2322,7 +2312,7 @@ $define(PROTO, 'Number', reduceTo.call(
         '/': '&#x2f;'
       }
     , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
-    , RegExpEscapeHTML = RegExp('[' + keys(dictionaryEscapeHTML).join('') + ']', 'g')
+    , RegExpEscapeHTML   = /[&<>"'/]/g
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
   $define(PROTO, 'String', {
@@ -2477,43 +2467,31 @@ var extendCollections = {
   },
   some: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(fn.call(that, val, key, foo))throw DONE;
-      });
-    } catch(error){
-      if(error === DONE)return true;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(fn.call(that, value[1], value[0], this))return true;
     }
     return false;
   },
   every: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(!fn.call(that, val, key, foo))throw DONE;
-      });
-    } catch(error){
-      if(error === DONE)return false;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(!fn.call(that, value[1], value[0], this))return false;
     }
     return true;
   },
   find: function(fn, that){
     assertFunction(fn);
-    var DONE = {};
-    try {
-      this.forEach(function(val, key, foo){
-        if(fn.call(that, val, key, foo)){
-          DONE.value = val;
-          throw DONE;
-        }
-      });
-    } catch(error){
-      if(error === DONE)return DONE.value;
-      else throw error;
+    var iter = this.entries()
+      , step, value;
+    while(!(step = iter.next()).done){
+      value = step.value;
+      if(fn.call(that, value[1], value[0], this))return value[1];
     }
   },
   toArray: function(){
