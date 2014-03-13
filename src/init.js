@@ -1,15 +1,26 @@
-var prototype      = 'prototype'
+// Shortcuts for property names
+var PROTOTYPE      = 'prototype'
+  , OBJECT         = 'Object'
+  , FUNCTION       = 'Function'
+  , ARRAY          = 'Array'
+  , STRING         = 'String'
+  , NUMBER         = 'Number'
+  , REGEXP         = 'RegExp'
+  , MAP            = 'Map'
+  , SET            = 'Set'
+  , WEAKMAP        = 'WeakMap'
+  , WEAKSET        = 'WeakSet'
   // Aliases global objects and prototypes
-  , Function       = global.Function
-  , Object         = global.Object
-  , Array          = global.Array
-  , String         = global.String
-  , Number         = global.Number
-  , RegExp         = global.RegExp
-  , Map            = global.Map
-  , Set            = global.Set
-  , WeakMap        = global.WeakMap
-  , WeakSet        = global.WeakSet
+  , Function       = global[FUNCTION]
+  , Object         = global[OBJECT]
+  , Array          = global[ARRAY]
+  , String         = global[STRING]
+  , Number         = global[NUMBER]
+  , RegExp         = global[REGEXP]
+  , Map            = global[MAP]
+  , Set            = global[SET]
+  , WeakMap        = global[WEAKMAP]
+  , WeakSet        = global[WEAKSET]
   , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
@@ -20,11 +31,10 @@ var prototype      = 'prototype'
   , clearImmediate = global.clearImmediate
   , console        = global.console || {}
   , document       = global.document
-  , module         = global.module
   , Infinity       = 1 / 0
-  , $Array         = Array[prototype]
-  , $Object        = Object[prototype]
-  , $Function      = Function[prototype];
+  , $Array         = Array[PROTOTYPE]
+  , $Object        = Object[PROTOTYPE]
+  , $Function      = Function[PROTOTYPE];
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -53,12 +63,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call
   , undescore = global._
-  , _ = {
-    noConflict: function(){
-      global._ = undescore;
-      return _;
-    }
-  };
+  , _ = {};
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -115,15 +120,13 @@ function has(object, key){
 }
 var create                   = Object.create
   , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty || function(O, P, Attributes){
-      if('value' in Attributes)O[P] = Attributes.value;
-    }
+  , defineProperty           = Object.defineProperty
   , defineProperties         = Object.defineProperties
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , keys                     = Object.keys
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , isEnumerable             = $Object.propertyIsEnumerable
-  , __PROTO__   = '__proto__' in $Object
+  , __PROTO__ = '__proto__' in $Object
   , DESCRIPTORS = true;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
@@ -245,33 +248,47 @@ var forOf, isIterable, getIterator; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
-  , PROTO  = 4
-  , $exports = module && module.exports ? (module.exports = _) : (global._ = _);
+  , PROTO  = 4;
 function $define(type, name, source, forced /* = false */){
-  var target, exports, key, own, prop
-    , isGlobal = type == GLOBAL;
+  var key, own, prop
+    , isGlobal = type & GLOBAL
+    , isStatic = type & STATIC
+    , isProto  = type & PROTO
+    , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , exports  = isGlobal ? _ : _[name] || (_[name] = {});
   if(isGlobal){
-    forced  = source;
-    source  = name;
-    target  = global;
-    exports = $exports;
-  } else {
-    target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
-    exports = $exports[name] || ($exports[name] = {});
+    forced = source;
+    source = name;
   }
   for(key in source)if(has(source, key)){
-    own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
+    own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
-    exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework && target){
-      !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
-    }
+    // export to `_`
+    exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    // create shortcuts in `_` for Object & Function static methods
+    if(isStatic && (name == OBJECT || name == FUNCTION))_[key] = prop;
+    // if build as fremework, extend global objects
+    framework && target && !own && (isGlobal || delete target[key])
+      && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
-  return !framework && isNative(Base) ? function(param){
+  if(framework || !isNative(Base))return Base;
+  function F(param){
     return this instanceof Base ? new Base(param) : Base(param);
-  } : Base;
+  }
+  F[PROTOTYPE] = Base[PROTOTYPE];
+  return F;
+}
+// export `_`
+var module    = global.module
+  , isExports = module && module.exports;
+if(isExports)module.exports = _;
+if(!isExports || framework){
+  _.noConflict = function(){
+    global._ = undescore;
+    return _;
+  }
+  global._ = _;
 }

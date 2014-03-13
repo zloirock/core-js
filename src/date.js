@@ -41,14 +41,14 @@
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
-      M : flexio(array(locale.M), 0),
-      MM: flexio(array(locale.M), 1)
+      M : flexio(locale.M, 0),
+      MM: flexio(locale.M, 1)
     };
     return Date;
   }
   function flexio(locale, index){
     var result = [];
-    $forEach(locale, function(it){
+    $forEach(array(locale), function(it){
       result.push(it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
       }));

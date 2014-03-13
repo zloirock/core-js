@@ -10,18 +10,29 @@
  * Module : init
  *****************************/
 
-var prototype      = 'prototype'
+// Shortcuts for property names
+var PROTOTYPE      = 'prototype'
+  , OBJECT         = 'Object'
+  , FUNCTION       = 'Function'
+  , ARRAY          = 'Array'
+  , STRING         = 'String'
+  , NUMBER         = 'Number'
+  , REGEXP         = 'RegExp'
+  , MAP            = 'Map'
+  , SET            = 'Set'
+  , WEAKMAP        = 'WeakMap'
+  , WEAKSET        = 'WeakSet'
   // Aliases global objects and prototypes
-  , Function       = global.Function
-  , Object         = global.Object
-  , Array          = global.Array
-  , String         = global.String
-  , Number         = global.Number
-  , RegExp         = global.RegExp
-  , Map            = global.Map
-  , Set            = global.Set
-  , WeakMap        = global.WeakMap
-  , WeakSet        = global.WeakSet
+  , Function       = global[FUNCTION]
+  , Object         = global[OBJECT]
+  , Array          = global[ARRAY]
+  , String         = global[STRING]
+  , Number         = global[NUMBER]
+  , RegExp         = global[REGEXP]
+  , Map            = global[MAP]
+  , Set            = global[SET]
+  , WeakMap        = global[WEAKMAP]
+  , WeakSet        = global[WEAKSET]
   , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
@@ -32,11 +43,10 @@ var prototype      = 'prototype'
   , clearImmediate = global.clearImmediate
   , console        = global.console || {}
   , document       = global.document
-  , module         = global.module
   , Infinity       = 1 / 0
-  , $Array         = Array[prototype]
-  , $Object        = Object[prototype]
-  , $Function      = Function[prototype];
+  , $Array         = Array[PROTOTYPE]
+  , $Object        = Object[PROTOTYPE]
+  , $Function      = Function[PROTOTYPE];
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -65,12 +75,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call
   , undescore = global._
-  , _ = {
-    noConflict: function(){
-      global._ = undescore;
-      return _;
-    }
-  };
+  , _ = {};
 // partial apply
 function part(/*args...*/){
   var length = arguments.length
@@ -127,15 +132,13 @@ function has(object, key){
 }
 var create                   = Object.create
   , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty || function(O, P, Attributes){
-      if('value' in Attributes)O[P] = Attributes.value;
-    }
+  , defineProperty           = Object.defineProperty
   , defineProperties         = Object.defineProperties
   , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
   , keys                     = Object.keys
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , isEnumerable             = $Object.propertyIsEnumerable
-  , __PROTO__   = '__proto__' in $Object
+  , __PROTO__ = '__proto__' in $Object
   , DESCRIPTORS = true;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
@@ -257,36 +260,61 @@ var forOf, isIterable, getIterator; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
-  , PROTO  = 4
-  , $exports = module && module.exports ? (module.exports = _) : (global._ = _);
+  , PROTO  = 4;
 function $define(type, name, source, forced /* = false */){
-  var target, exports, key, own, prop
-    , isGlobal = type == GLOBAL;
+  var key, own, prop
+    , isGlobal = type & GLOBAL
+    , isStatic = type & STATIC
+    , isProto  = type & PROTO
+    , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , exports  = isGlobal ? _ : _[name] || (_[name] = {});
   if(isGlobal){
-    forced  = source;
-    source  = name;
-    target  = global;
-    exports = $exports;
-  } else {
-    target  = type == STATIC ? global[name] : (global[name] || $Object)[prototype];
-    exports = $exports[name] || ($exports[name] = {});
+    forced = source;
+    source = name;
   }
   for(key in source)if(has(source, key)){
-    own = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
+    own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
-    exports[key] = type == PROTO && isFunction(prop) ? unbind(prop) : prop;
-    if(framework && target){
-      !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6 + isGlobal, source[key]));
-    }
+    // export to `_`
+    exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    // create shortcuts in `_` for Object & Function static methods
+    if(isStatic && (name == OBJECT || name == FUNCTION))_[key] = prop;
+    // if build as fremework, extend global objects
+    framework && target && !own && (isGlobal || delete target[key])
+      && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
-  return !framework && isNative(Base) ? function(param){
+  if(framework || !isNative(Base))return Base;
+  function F(param){
     return this instanceof Base ? new Base(param) : Base(param);
-  } : Base;
+  }
+  F[PROTOTYPE] = Base[PROTOTYPE];
+  return F;
 }
+// export `_`
+var module    = global.module
+  , isExports = module && module.exports;
+if(isExports)module.exports = _;
+if(!isExports || framework){
+  _.noConflict = function(){
+    global._ = undescore;
+    return _;
+  }
+  global._ = _;
+}
+
+/*****************************
+ * Module : shortcuts
+ *****************************/
+
+$forEach(array('create,getPrototypeOf,defineProperties,defineProperty,' +
+    'getOwnPropertyDescriptor,keys,getOwnPropertyNames'),
+  function(key){
+    if(!(key in _) && key in Object)_[key] = Object[key];
+  }
+);
 
 /*****************************
  * Module : es6
@@ -305,7 +333,7 @@ function wrapGlobalConstructor(Base){
   function sign(it){
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
     // The assign function is used to copy the values of all of the enumerable
     // own properties from a source object to a target object.
@@ -313,7 +341,7 @@ function wrapGlobalConstructor(Base){
     // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
-  __PROTO__ && $define(STATIC, 'Object', {
+  __PROTO__ && $define(STATIC, OBJECT, {
     // 19.1.3.19 Object.setPrototypeOf(O, proto)
     // work only if browser support __proto__, don't work with null proto objects
     setPrototypeOf: function(O, proto){
@@ -323,7 +351,7 @@ function wrapGlobalConstructor(Base){
       return O;
     }
   });
-  $define(STATIC, 'Number', {
+  $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
     // 20.1.2.2 Number.isFinite(number)
@@ -454,14 +482,14 @@ function wrapGlobalConstructor(Base){
     }
   });
   /**
-  $define(STATIC, 'String', {
+  $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     // fromCodePoint: function(){ TODO },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(){ TODO }
   });
   */
-  $define(PROTO, 'String', {
+  $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
     // 21.1.3.6 String.prototype.contains(searchString, position = 0)
@@ -487,7 +515,7 @@ function wrapGlobalConstructor(Base){
       return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
-  $define(STATIC, 'Array', {
+  $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
@@ -505,8 +533,8 @@ function wrapGlobalConstructor(Base){
     of: function(/*args...*/){
       var i      = 0
         , length = arguments.length
-        , result = new (isFunction(this) ? this : Array)(length);
-      while(i < length)result[i] = arguments[i++];
+        , result = new (isFunction(this) ? this : Array);
+      while(i < length)push.call(result, arguments[i++]);
       return result;
     }
   });
@@ -521,7 +549,7 @@ function wrapGlobalConstructor(Base){
     }
     return -1;
   }
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // copyWithin: function(target, start, end){ TODO },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
@@ -535,7 +563,7 @@ function wrapGlobalConstructor(Base){
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
-      return index === -1 ? undefined : ES5Object(this)[index];
+      if(~index)return ES5Object(this)[index];
     },
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex
@@ -594,7 +622,7 @@ function wrapGlobalConstructor(Base){
     // fix .add & .set for chaining
     if(framework && collection[key](tmp, 1) !== collection){
       fn = collection[key];
-      hidden(Base[prototype], key, function(){
+      hidden(Base[PROTOTYPE], key, function(){
         fn.apply(this, arguments);
         return this;
       });
@@ -605,7 +633,7 @@ function wrapGlobalConstructor(Base){
       assertInstance(this, F, name);
       return initCollection(new Base, iterable, isSet);
     }
-    F[prototype] = Base[prototype];
+    F[PROTOTYPE] = Base[PROTOTYPE];
     return F;
   }
   
@@ -640,9 +668,9 @@ function wrapGlobalConstructor(Base){
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
-    Map = createCollectionConstructor('Map');
-    assign(Map[prototype], {
+  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+    Map = createCollectionConstructor(MAP);
+    assign(Map[PROTOTYPE], {
       // 23.1.3.1 Map.prototype.clear()
       clear: function(){
         hidden(this, KEYS, create(null));
@@ -681,13 +709,13 @@ function wrapGlobalConstructor(Base){
       }
     });
     // 23.1.3.10 get Map.prototype.size
-    defineProperties(Map[prototype], sizeGetter);
-  } else Map = fixCollection(Map, 'Map');
+    defineProperties(Map[PROTOTYPE], sizeGetter);
+  } else Map = fixCollection(Map, MAP);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
-    Set = createCollectionConstructor('Set', 1);
-    assign(Set[prototype], {
+  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+    Set = createCollectionConstructor(SET, 1);
+    assign(Set[PROTOTYPE], {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
@@ -717,8 +745,8 @@ function wrapGlobalConstructor(Base){
       has: collectionHas
     });
     // 23.2.3.9 get Set.prototype.size
-    defineProperties(Set[prototype], sizeGetter);
-  } else Set = fixCollection(Set, 'Set', 1);
+    defineProperties(Set[PROTOTYPE], sizeGetter);
+  } else Set = fixCollection(Set, SET, 1);
   
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
@@ -742,9 +770,9 @@ function wrapGlobalConstructor(Base){
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
-    WeakMap = createCollectionConstructor('WeakMap');
-    assign(WeakMap[prototype], assign({
+  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+    WeakMap = createCollectionConstructor(WEAKMAP);
+    assign(WeakMap[PROTOTYPE], assign({
       // 23.3.3.4 WeakMap.prototype.get(key)
       get: function(key){
         return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
@@ -756,12 +784,12 @@ function wrapGlobalConstructor(Base){
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakMap = fixCollection(WeakMap, 'WeakMap');
+  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor('WeakSet', 1);
-    assign(WeakSet[prototype], assign({
+    WeakSet = createCollectionConstructor(WEAKSET, 1);
+    assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
         assertObject(value);
@@ -769,7 +797,7 @@ function wrapGlobalConstructor(Base){
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, 'WeakSet', 1);
+  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
   
   $define(GLOBAL, {
     Map: Map,
@@ -852,7 +880,7 @@ function wrapGlobalConstructor(Base){
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
-    assign(Promise[prototype], {
+    assign(Promise[PROTOTYPE], {
       // 25.4.5.1 Promise.prototype.catch(onRejected)
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
@@ -983,7 +1011,7 @@ function wrapGlobalConstructor(Base){
       if(!(this instanceof Symbol))return tag;
       hidden(this, TAG, tag);
     }
-    Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
+    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
       return this[TAG];
     }
   }
@@ -1084,7 +1112,7 @@ $define(STATIC, 'Reflect', {
     this[ITERATED] = iterated;
     this[INDEX]    = 0;
   }
-  StringIterator[prototype].next = function(){
+  StringIterator[PROTOTYPE].next = function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++;
     return index < iterated.length
@@ -1097,7 +1125,7 @@ $define(STATIC, 'Reflect', {
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
-  ArrayIterator[prototype].next = function(){
+  ArrayIterator[PROTOTYPE].next = function(){
     var that     = this
       , iterated = that[ITERATED]
       , index    = that[INDEX]++;
@@ -1117,7 +1145,7 @@ $define(STATIC, 'Reflect', {
       this.push(key);
     }, this[KEYS] = []);
   }
-  MapIterator[prototype].next = function(){
+  MapIterator[PROTOTYPE].next = function(){
     var iterated = this[ITERATED]
       , keys     = this[KEYS]
       , index    = this[INDEX]++
@@ -1138,7 +1166,7 @@ $define(STATIC, 'Reflect', {
       this.push(val);
     }, this[KEYS] = []);
   }
-  SetIterator[prototype].next = function(){
+  SetIterator[PROTOTYPE].next = function(){
     var keys  = this[KEYS]
       , index = this[INDEX]++
       , key;
@@ -1148,7 +1176,7 @@ $define(STATIC, 'Reflect', {
     return createIterResultObject([key, key], 0);
   }
   
-  StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
+  StringIterator[PROTOTYPE][ITERATOR] = ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] = SetIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
     ITERATOR in object || hidden(object, ITERATOR, value);
@@ -1182,7 +1210,7 @@ $define(STATIC, 'Reflect', {
   // v8 fix
   framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
   
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
     // 22.1.3.13 Array.prototype.keys()
@@ -1190,7 +1218,7 @@ $define(STATIC, 'Reflect', {
     // 22.1.3.29 Array.prototype.values()
     values: createIteratorFactory(ArrayIterator, VALUE)
   });
-  $define(PROTO, 'Map', {
+  $define(PROTO, MAP, {
     // 23.1.3.4 Map.prototype.entries()
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
     // 23.1.3.8 Map.prototype.keys()
@@ -1198,7 +1226,7 @@ $define(STATIC, 'Reflect', {
     // 23.1.3.11 Map.prototype.values()
     values: createIteratorFactory(MapIterator, VALUE)
   });
-  $define(PROTO, 'Set', {
+  $define(PROTO, SET, {
     // 23.2.3.5 Set.prototype.entries()
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
     // 23.2.3.8 Set.prototype.keys()
@@ -1209,13 +1237,13 @@ $define(STATIC, 'Reflect', {
   
   if(framework){
     // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[prototype], createIteratorFactory(StringIterator));
+    defineIterator(String[PROTOTYPE], createIteratorFactory(StringIterator));
     // 22.1.3.30 Array.prototype[@@iterator]()
     defineIterator($Array, $Array.values);
     // 23.1.3.12 Map.prototype[@@iterator]()
-    defineIterator(Map[prototype], createIteratorFactory(MapIterator, KEY+VALUE));
+    defineIterator(Map[PROTOTYPE], createIteratorFactory(MapIterator, KEY+VALUE));
     // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
+    defineIterator(Set[PROTOTYPE], createIteratorFactory(SetIterator, VALUE));
   }
   
   $define(GLOBAL, {forOf: forOf});
@@ -1230,7 +1258,7 @@ $define(STATIC, 'Reflect', {
  * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
-$define(STATIC, 'Object', {
+$define(STATIC, OBJECT, {
   getPropertyDescriptor: getPropertyDescriptor,
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){
@@ -1337,10 +1365,10 @@ $define(GLOBAL, {
 
 function inherits(parent){
   assertFunction(this); assertFunction(parent);
-  this[prototype] = create(parent[prototype], getOwnPropertyDescriptors(this[prototype]));
+  this[PROTOTYPE] = create(parent[PROTOTYPE], getOwnPropertyDescriptors(this[PROTOTYPE]));
   return this;
 }
-$define(STATIC, 'Function', {
+$define(STATIC, FUNCTION, {
   /**
    * Alternatives:
    * http://underscorejs.org/#isFunction
@@ -1354,10 +1382,10 @@ $define(STATIC, 'Function', {
   inherits: unbind(inherits),
   _: _
 });
-$define(PROTO, 'Function', {
+$define(PROTO, FUNCTION, {
   invoke: function(args){
     assertFunction(this);
-    var instance = create(this[prototype])
+    var instance = create(this[PROTOTYPE])
       , result   = this.apply(instance, ES5Object(args || []));
     return isObject(result) ? result : instance;
   },
@@ -1382,7 +1410,7 @@ $define(PROTO, 'Function', {
     function Deferred(args){
       this[ARGUMENTS] = args;
     }
-    assign(Deferred[prototype], {
+    assign(Deferred[PROTOTYPE], {
       set: function(){
         this[ID] && clear(this[ID]);
         this[ID] = set.apply(global, this[ARGUMENTS]);
@@ -1402,7 +1430,7 @@ $define(PROTO, 'Function', {
       return new Deferred(args).set();
     }
   }
-  $define(PROTO, 'Function', {
+  $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
     immediate: createDeferredFactory(setImmediate, clearImmediate)
@@ -1417,14 +1445,23 @@ function tie(key){
   var that = this
     , placeholder = false
     , i = 1, length, args;
-  assertObject(that);
   length = arguments.length;
   if(length < 2)return ctx(that[key], that);
   args = Array(length - 1)
   while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
   return createPartialApplication(that[key], args, length, placeholder, true, that);
 }
-$define(PROTO, 'Function', {
+function by(that){
+  var fn = this
+    , placeholder = false
+    , length = arguments.length
+    , i = 1, args;
+  if(length < 2)return ctx(fn, that);
+  args = Array(length - 1);
+  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(fn, args, length, placeholder, true, that);
+}
+$define(PROTO, FUNCTION, {
   tie: tie,
   /**
    * Partial apply.
@@ -1435,16 +1472,7 @@ $define(PROTO, 'Function', {
    * http://fitzgen.github.io/wu.js/#wu-partial
    */
   part: part,
-  by: function(that){
-    var fn = this
-      , placeholder = false
-      , length = arguments.length
-      , i = 1, args;
-    if(length < 2)return ctx(fn, that);
-    args = Array(length - 1);
-    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(fn, args, length, placeholder, true, that);
-  },
+  by: by,
   /**
    * function -> method
    * Alternatives:
@@ -1452,9 +1480,9 @@ $define(PROTO, 'Function', {
    */
   methodize: methodize
 });
-$define(PROTO, 'Array', {tie: tie});
-$define(PROTO, 'RegExp', {tie: tie});
-$define(STATIC, 'Object', {
+$define(PROTO, ARRAY, {tie: tie});
+$define(PROTO, REGEXP, {tie: tie});
+$define(STATIC, OBJECT, {
   /**
    * Alternatives:
    * http://www.2ality.com/2013/06/auto-binding.html
@@ -1462,7 +1490,12 @@ $define(STATIC, 'Object', {
    * http://lodash.com/docs#bindKey
    */
   tie: unbind(tie),
-  useTie: part.call($define, PROTO, 'Object', {tie: tie})
+  useTie: part.call($define, PROTO, OBJECT, {tie: tie})
+});
+$define(STATIC, FUNCTION, {
+  part: unbind(part),
+  by: unbind(by),
+  tie: unbind(tie)
 });
 
 /*****************************
@@ -1518,27 +1551,27 @@ $define(STATIC, 'Object', {
     if(~already)return stackB[already];
     switch(classof(object)){
       case 'Arguments' :
-      case 'Array'     :
+      case ARRAY       :
         result = Array(object.length);
         break;
-      case 'Function'  :
+      case FUNCTION    :
         return object;
-      case 'RegExp'    :
+      case REGEXP      :
         result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
         break;
-      case 'String'    :
+      case STRING      :
         return new F(object);
       case 'Boolean'   :
       case 'Date'      :
-      case 'Number'    :
+      case NUMBER      :
         result = new F(object.valueOf());
         break;
       /*
-      case 'Set'       :
+      case SET         :
         result = new F;
         object.forEach(result.add, result);
         break;
-      case 'Map'       :
+      case MAP         :
         result = new F;
         object.forEach(function(val, key){
           result.set(key, val);
@@ -1567,11 +1600,11 @@ $define(STATIC, 'Object', {
     StackB = StackB.concat([b]);
     switch(type){
       case 'Boolean'   :
-      case 'String'    :
-      case 'Number'    : return a.valueOf() == b.valueOf();
-      case 'RegExp'    : return '' + a == '' + b;
+      case STRING      :
+      case NUMBER      : return a.valueOf() == b.valueOf();
+      case REGEXP      : return '' + a == '' + b;
       case 'Error'     : return a.message == b.message;/*
-      case 'Array'     :
+      case ARRAY       :
       case 'Arguments' :
         length = toLength(a.length);
         if(length != b.length)return false;
@@ -1605,7 +1638,7 @@ $define(STATIC, 'Object', {
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     /**
      * Alternatives:
      * http://underscorejs.org/#has
@@ -1630,8 +1663,10 @@ $define(STATIC, 'Object', {
      * http://lodash.com/docs#create
      */
     make: make,
-    // Shugar for Object.make(null[, props])
-    plane: part.call(make, null),
+    // Shugar for Object.make(null [, props [, desc]])
+    plane: function(props, desc){
+      return make(null, props, desc);
+    },
     /**
      * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      * TODO: rename
@@ -1865,7 +1900,9 @@ $define(STATIC, 'Object', {
      * http://docs.angularjs.org/api/angular.equals
      * http://fitzgen.github.io/wu.js/#wu-eq
      */
-    isEqual: part.call(isEqual, _, _, [], []),
+    isEqual: function(a, b){
+      return isEqual(a, b, [], []);
+    },
     symbol: symbol,
     hidden: hidden
   });
@@ -1875,7 +1912,7 @@ $define(STATIC, 'Object', {
  * Module : array
  *****************************/
 
-$define(PROTO, 'Array', {
+$define(PROTO, ARRAY, {
   /**
    * Alternatives:
    * http://sugarjs.com/api/Array/at
@@ -1928,7 +1965,7 @@ $define(PROTO, 'Array', {
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, 'Array', reduceTo.call(
+$define(STATIC, ARRAY, reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
@@ -1950,14 +1987,14 @@ $define(STATIC, 'Array', reduceTo.call(
  * Module : number
  *****************************/
 
-$define(STATIC, 'Number', {
+$define(STATIC, NUMBER, {
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Number#Number:toInt
    */
   toInteger: toInteger
 });
-$define(PROTO, 'Number', {
+$define(PROTO, NUMBER, {
   /**
    * Invoke function @ times and return array of results
    * Alternatives:
@@ -1998,7 +2035,7 @@ $define(PROTO, 'Number', {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, 'Number', reduceTo.call(
+$define(PROTO, NUMBER, reduceTo.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3
@@ -2028,7 +2065,7 @@ $define(PROTO, 'Number', reduceTo.call(
     , RegExpEscapeHTML   = /[&<>"'/]/g
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
-  $define(PROTO, 'String', {
+  $define(PROTO, STRING, {
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/at
@@ -2131,14 +2168,14 @@ $define(PROTO, 'Number', reduceTo.call(
   function addLocale(lang, locale){
     locales[lang] = {
       w : array(locale.w),
-      M : flexio(array(locale.M), 0),
-      MM: flexio(array(locale.M), 1)
+      M : flexio(locale.M, 0),
+      MM: flexio(locale.M, 1)
     };
     return Date;
   }
   function flexio(locale, index){
     var result = [];
-    $forEach(locale, function(it){
+    $forEach(array(locale), function(it){
       result.push(it.replace(/\+(.+)$/, function(part, str){
         return str.split('|')[index];
       }));
@@ -2226,7 +2263,7 @@ var extendCollections = {
     return target;
   }
 };
-$define(PROTO, 'Map', assign({
+$define(PROTO, MAP, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Map;
@@ -2264,7 +2301,7 @@ $define(PROTO, 'Map', assign({
     return result;
   }
 }, extendCollections));
-$define(PROTO, 'Set', assign({
+$define(PROTO, SET, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Set;

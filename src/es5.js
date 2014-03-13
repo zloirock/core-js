@@ -16,9 +16,9 @@
     , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hiddenNames2       = hiddenNames1.concat(['length'])
     , hiddenNames1Length = hiddenNames1.length
-    , nativeSlice        = slice
+    , _slice             = slice
     , join               = $Array.join
-    , nativeJoin         = join
+    , _join              = join
     // Create object with null as it's prototype
     , createNullProtoObject = __PROTO__
       ? function(){
@@ -38,7 +38,7 @@
           iframeDocument.write('<script>document._=Object</script>');
           iframeDocument.close();
           createNullProtoObject = iframeDocument._;
-          while(i--)delete createNullProtoObject[prototype][hiddenNames1[i]];
+          while(i--)delete createNullProtoObject[PROTOTYPE][hiddenNames1[i]];
           return createNullProtoObject();
         }
     , createGetKeys = function(names, length){
@@ -59,17 +59,14 @@
   }
   catch(e){
     DESCRIPTORS = false;
-    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
-    // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     defineProperty = function(O, P, Attributes){
       assertObject(O);
       if('value' in Attributes)O[P] = Attributes.value;
       return O;
     };
-    // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties = function(O, Properties){
       assertObject(O);
       var names  = keys(Properties)
@@ -84,7 +81,7 @@
       return O;
     }
   }
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnPropertyDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -92,11 +89,11 @@
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
   }, 1);
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: function(O){
       var constructor
-        , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[prototype] : $Object);
+        , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[PROTOTYPE] : $Object);
       return O !== proto && 'toString' in O ? proto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -105,11 +102,11 @@
     create: function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
       assertObject(O);
-      Empty[prototype] = O;
+      Empty[PROTOTYPE] = O;
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result.constructor[prototype] === O || (result.__proto__ = O);
+      __PROTO__ || result.constructor[PROTOTYPE] === O || (result.__proto__ = O);
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
@@ -119,23 +116,23 @@
   // not array-like strings fix
   if(!(0 in Object('q') && 'q'[0] == 'q')){
     ES5Object = function(it){
-      return classof(it) == 'String' ? it.split('') : Object(it);
+      return classof(it) == STRING ? it.split('') : Object(it);
     }
     slice = function(){
-      return nativeSlice.apply(ES5Object(this), arguments);
+      return _slice.apply(ES5Object(this), arguments);
     }
     join = function(){
-      return nativeJoin.apply(ES5Object(this), arguments);
+      return _join.apply(ES5Object(this), arguments);
     }
   }
   // fix for not array-like ES3 string
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     slice: slice,
     join: join
   }, 1);
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
-  $define(PROTO, 'Function', {
+  $define(PROTO, FUNCTION, {
     bind: function(scope /*, args... */){
       var fn   = this
         , args = $slice(arguments, 1);
@@ -143,19 +140,19 @@
       function bound(/* args... */){
         var _args = args.concat($slice(arguments))
           , result, that
-        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[prototype]), scope, _args)) ? result : that;
+        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
         return apply.call(fn, scope, _args);
       }
-      bound[prototype] = undefined;
+      bound[PROTOTYPE] = undefined;
       return bound;
     }
   });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-  $define(STATIC, 'Array', {isArray: function(arg){
-    return classof(arg) == 'Array'
+  $define(STATIC, ARRAY, {isArray: function(arg){
+    return classof(arg) == ARRAY
   }});
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
     indexOf: function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
@@ -257,7 +254,7 @@
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-  $define(PROTO, 'String', {trim: function(){
+  $define(PROTO, STRING, {trim: function(){
     return String(this).replace(trimRegExp, '');
   }});
   
@@ -267,13 +264,13 @@
   }});
   
   if(isFunction(trimRegExp))isFunction = function(it){
-    return classof(it) == 'Function';
+    return classof(it) == FUNCTION;
   }
+  
+  create              = _[OBJECT].create;
+  getPrototypeOf      = _[OBJECT].getPrototypeOf;
+  keys                = _[OBJECT].keys;
+  getOwnPropertyNames = _[OBJECT].getOwnPropertyNames;
+  $indexOf            = _[ARRAY].indexOf;
+  $forEach            = _[ARRAY].forEach;
 }();
-
-create              = _.Object.create;
-getPrototypeOf      = _.Object.getPrototypeOf;
-keys                = _.Object.keys;
-getOwnPropertyNames = _.Object.getOwnPropertyNames;
-$indexOf            = _.Array.indexOf;
-$forEach            = _.Array.forEach;

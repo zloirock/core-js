@@ -11,7 +11,7 @@
   function sign(it){
     return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
     // The assign function is used to copy the values of all of the enumerable
     // own properties from a source object to a target object.
@@ -19,7 +19,7 @@
     // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
-  __PROTO__ && $define(STATIC, 'Object', {
+  __PROTO__ && $define(STATIC, OBJECT, {
     // 19.1.3.19 Object.setPrototypeOf(O, proto)
     // work only if browser support __proto__, don't work with null proto objects
     setPrototypeOf: function(O, proto){
@@ -29,7 +29,7 @@
       return O;
     }
   });
-  $define(STATIC, 'Number', {
+  $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
     // 20.1.2.2 Number.isFinite(number)
@@ -160,14 +160,14 @@
     }
   });
   /**
-  $define(STATIC, 'String', {
+  $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     // fromCodePoint: function(){ TODO },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(){ TODO }
   });
   */
-  $define(PROTO, 'String', {
+  $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
     // 21.1.3.6 String.prototype.contains(searchString, position = 0)
@@ -193,7 +193,7 @@
       return String(this).slice(position, position + searchString.length) === searchString;
     }
   });
-  $define(STATIC, 'Array', {
+  $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       (mapfn === undefined) || assertFunction(mapfn);
@@ -211,8 +211,8 @@
     of: function(/*args...*/){
       var i      = 0
         , length = arguments.length
-        , result = new (isFunction(this) ? this : Array)(length);
-      while(i < length)result[i] = arguments[i++];
+        , result = new (isFunction(this) ? this : Array);
+      while(i < length)push.call(result, arguments[i++]);
       return result;
     }
   });
@@ -227,7 +227,7 @@
     }
     return -1;
   }
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // copyWithin: function(target, start, end){ TODO },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
@@ -241,7 +241,7 @@
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
     find: function(predicate, thisArg /* = undefind */){
       var index = findIndex.call(this, predicate, thisArg);
-      return index === -1 ? undefined : ES5Object(this)[index];
+      if(~index)return ES5Object(this)[index];
     },
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex

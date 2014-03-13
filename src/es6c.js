@@ -46,7 +46,7 @@
     // fix .add & .set for chaining
     if(framework && collection[key](tmp, 1) !== collection){
       fn = collection[key];
-      hidden(Base[prototype], key, function(){
+      hidden(Base[PROTOTYPE], key, function(){
         fn.apply(this, arguments);
         return this;
       });
@@ -57,7 +57,7 @@
       assertInstance(this, F, name);
       return initCollection(new Base, iterable, isSet);
     }
-    F[prototype] = Base[prototype];
+    F[PROTOTYPE] = Base[PROTOTYPE];
     return F;
   }
   
@@ -92,9 +92,9 @@
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[prototype], 'forEach')){
-    Map = createCollectionConstructor('Map');
-    assign(Map[prototype], {
+  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+    Map = createCollectionConstructor(MAP);
+    assign(Map[PROTOTYPE], {
       // 23.1.3.1 Map.prototype.clear()
       clear: function(){
         hidden(this, KEYS, create(null));
@@ -133,13 +133,13 @@
       }
     });
     // 23.1.3.10 get Map.prototype.size
-    defineProperties(Map[prototype], sizeGetter);
-  } else Map = fixCollection(Map, 'Map');
+    defineProperties(Map[PROTOTYPE], sizeGetter);
+  } else Map = fixCollection(Map, MAP);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[prototype], 'forEach')){
-    Set = createCollectionConstructor('Set', 1);
-    assign(Set[prototype], {
+  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+    Set = createCollectionConstructor(SET, 1);
+    assign(Set[PROTOTYPE], {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
@@ -169,8 +169,8 @@
       has: collectionHas
     });
     // 23.2.3.9 get Set.prototype.size
-    defineProperties(Set[prototype], sizeGetter);
-  } else Set = fixCollection(Set, 'Set', 1);
+    defineProperties(Set[PROTOTYPE], sizeGetter);
+  } else Set = fixCollection(Set, SET, 1);
   
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
@@ -194,9 +194,9 @@
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[prototype], 'clear')){
-    WeakMap = createCollectionConstructor('WeakMap');
-    assign(WeakMap[prototype], assign({
+  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+    WeakMap = createCollectionConstructor(WEAKMAP);
+    assign(WeakMap[PROTOTYPE], assign({
       // 23.3.3.4 WeakMap.prototype.get(key)
       get: function(key){
         return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
@@ -208,12 +208,12 @@
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakMap = fixCollection(WeakMap, 'WeakMap');
+  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor('WeakSet', 1);
-    assign(WeakSet[prototype], assign({
+    WeakSet = createCollectionConstructor(WEAKSET, 1);
+    assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
         assertObject(value);
@@ -221,7 +221,7 @@
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, 'WeakSet', 1);
+  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
   
   $define(GLOBAL, {
     Map: Map,

@@ -1,11 +1,11 @@
-$define(STATIC, 'Number', {
+$define(STATIC, NUMBER, {
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Number#Number:toInt
    */
   toInteger: toInteger
 });
-$define(PROTO, 'Number', {
+$define(PROTO, NUMBER, {
   /**
    * Invoke function @ times and return array of results
    * Alternatives:
@@ -46,7 +46,7 @@ $define(PROTO, 'Number', {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, 'Number', reduceTo.call(
+$define(PROTO, NUMBER, reduceTo.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3

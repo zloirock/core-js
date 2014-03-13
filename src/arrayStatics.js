@@ -8,7 +8,7 @@
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, 'Array', reduceTo.call(
+$define(STATIC, ARRAY, reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:

@@ -3,7 +3,7 @@
  * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
  * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
  */
-$define(STATIC, 'Object', {
+$define(STATIC, OBJECT, {
   getPropertyDescriptor: getPropertyDescriptor,
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   getPropertyDescriptors: function(object){

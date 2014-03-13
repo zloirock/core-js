@@ -1,4 +1,4 @@
-$define(PROTO, 'Array', {
+$define(PROTO, ARRAY, {
   /**
    * Alternatives:
    * http://sugarjs.com/api/Array/at

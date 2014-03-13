@@ -47,27 +47,27 @@
     if(~already)return stackB[already];
     switch(classof(object)){
       case 'Arguments' :
-      case 'Array'     :
+      case ARRAY       :
         result = Array(object.length);
         break;
-      case 'Function'  :
+      case FUNCTION    :
         return object;
-      case 'RegExp'    :
+      case REGEXP      :
         result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
         break;
-      case 'String'    :
+      case STRING      :
         return new F(object);
       case 'Boolean'   :
       case 'Date'      :
-      case 'Number'    :
+      case NUMBER      :
         result = new F(object.valueOf());
         break;
       /*
-      case 'Set'       :
+      case SET         :
         result = new F;
         object.forEach(result.add, result);
         break;
-      case 'Map'       :
+      case MAP         :
         result = new F;
         object.forEach(function(val, key){
           result.set(key, val);
@@ -96,11 +96,11 @@
     StackB = StackB.concat([b]);
     switch(type){
       case 'Boolean'   :
-      case 'String'    :
-      case 'Number'    : return a.valueOf() == b.valueOf();
-      case 'RegExp'    : return '' + a == '' + b;
+      case STRING      :
+      case NUMBER      : return a.valueOf() == b.valueOf();
+      case REGEXP      : return '' + a == '' + b;
       case 'Error'     : return a.message == b.message;/*
-      case 'Array'     :
+      case ARRAY       :
       case 'Arguments' :
         length = toLength(a.length);
         if(length != b.length)return false;
@@ -134,7 +134,7 @@
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  $define(STATIC, 'Object', {
+  $define(STATIC, OBJECT, {
     /**
      * Alternatives:
      * http://underscorejs.org/#has
@@ -159,8 +159,10 @@
      * http://lodash.com/docs#create
      */
     make: make,
-    // Shugar for Object.make(null[, props])
-    plane: part.call(make, null),
+    // Shugar for Object.make(null [, props [, desc]])
+    plane: function(props, desc){
+      return make(null, props, desc);
+    },
     /**
      * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      * TODO: rename
@@ -394,7 +396,9 @@
      * http://docs.angularjs.org/api/angular.equals
      * http://fitzgen.github.io/wu.js/#wu-eq
      */
-    isEqual: part.call(isEqual, _, _, [], []),
+    isEqual: function(a, b){
+      return isEqual(a, b, [], []);
+    },
     symbol: symbol,
     hidden: hidden
   });

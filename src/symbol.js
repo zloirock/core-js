@@ -18,7 +18,7 @@
       if(!(this instanceof Symbol))return tag;
       hidden(this, TAG, tag);
     }
-    Symbol[prototype].toString = Symbol[prototype].valueOf = function(){
+    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
       return this[TAG];
     }
   }

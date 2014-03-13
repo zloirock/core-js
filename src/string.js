@@ -11,7 +11,7 @@
     , RegExpEscapeHTML   = /[&<>"'/]/g
     , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
     , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
-  $define(PROTO, 'String', {
+  $define(PROTO, STRING, {
     /**
      * Alternatives:
      * http://sugarjs.com/api/String/at

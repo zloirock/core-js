@@ -19,7 +19,7 @@
     this[ITERATED] = iterated;
     this[INDEX]    = 0;
   }
-  StringIterator[prototype].next = function(){
+  StringIterator[PROTOTYPE].next = function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++;
     return index < iterated.length
@@ -32,7 +32,7 @@
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
-  ArrayIterator[prototype].next = function(){
+  ArrayIterator[PROTOTYPE].next = function(){
     var that     = this
       , iterated = that[ITERATED]
       , index    = that[INDEX]++;
@@ -52,7 +52,7 @@
       this.push(key);
     }, this[KEYS] = []);
   }
-  MapIterator[prototype].next = function(){
+  MapIterator[PROTOTYPE].next = function(){
     var iterated = this[ITERATED]
       , keys     = this[KEYS]
       , index    = this[INDEX]++
@@ -73,7 +73,7 @@
       this.push(val);
     }, this[KEYS] = []);
   }
-  SetIterator[prototype].next = function(){
+  SetIterator[PROTOTYPE].next = function(){
     var keys  = this[KEYS]
       , index = this[INDEX]++
       , key;
@@ -83,7 +83,7 @@
     return createIterResultObject([key, key], 0);
   }
   
-  StringIterator[prototype][ITERATOR] = ArrayIterator[prototype][ITERATOR] = MapIterator[prototype][ITERATOR] = SetIterator[prototype][ITERATOR] = returnThis;
+  StringIterator[PROTOTYPE][ITERATOR] = ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] = SetIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
     ITERATOR in object || hidden(object, ITERATOR, value);
@@ -117,7 +117,7 @@
   // v8 fix
   framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
   
-  $define(PROTO, 'Array', {
+  $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
     // 22.1.3.13 Array.prototype.keys()
@@ -125,7 +125,7 @@
     // 22.1.3.29 Array.prototype.values()
     values: createIteratorFactory(ArrayIterator, VALUE)
   });
-  $define(PROTO, 'Map', {
+  $define(PROTO, MAP, {
     // 23.1.3.4 Map.prototype.entries()
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
     // 23.1.3.8 Map.prototype.keys()
@@ -133,7 +133,7 @@
     // 23.1.3.11 Map.prototype.values()
     values: createIteratorFactory(MapIterator, VALUE)
   });
-  $define(PROTO, 'Set', {
+  $define(PROTO, SET, {
     // 23.2.3.5 Set.prototype.entries()
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
     // 23.2.3.8 Set.prototype.keys()
@@ -144,13 +144,13 @@
   
   if(framework){
     // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[prototype], createIteratorFactory(StringIterator));
+    defineIterator(String[PROTOTYPE], createIteratorFactory(StringIterator));
     // 22.1.3.30 Array.prototype[@@iterator]()
     defineIterator($Array, $Array.values);
     // 23.1.3.12 Map.prototype[@@iterator]()
-    defineIterator(Map[prototype], createIteratorFactory(MapIterator, KEY+VALUE));
+    defineIterator(Map[PROTOTYPE], createIteratorFactory(MapIterator, KEY+VALUE));
     // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Set[prototype], createIteratorFactory(SetIterator, VALUE));
+    defineIterator(Set[PROTOTYPE], createIteratorFactory(SetIterator, VALUE));
   }
   
   $define(GLOBAL, {forOf: forOf});

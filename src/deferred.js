@@ -12,7 +12,7 @@
     function Deferred(args){
       this[ARGUMENTS] = args;
     }
-    assign(Deferred[prototype], {
+    assign(Deferred[PROTOTYPE], {
       set: function(){
         this[ID] && clear(this[ID]);
         this[ID] = set.apply(global, this[ARGUMENTS]);
@@ -32,7 +32,7 @@
       return new Deferred(args).set();
     }
   }
-  $define(PROTO, 'Function', {
+  $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
     immediate: createDeferredFactory(setImmediate, clearImmediate)

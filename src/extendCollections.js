@@ -57,7 +57,7 @@ var extendCollections = {
     return target;
   }
 };
-$define(PROTO, 'Map', assign({
+$define(PROTO, MAP, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Map;
@@ -95,7 +95,7 @@ $define(PROTO, 'Map', assign({
     return result;
   }
 }, extendCollections));
-$define(PROTO, 'Set', assign({
+$define(PROTO, SET, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Set;

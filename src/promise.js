@@ -67,7 +67,7 @@
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
-    assign(Promise[prototype], {
+    assign(Promise[PROTOTYPE], {
       // 25.4.5.1 Promise.prototype.catch(onRejected)
       'catch': function(onRejected){
         return this.then(undefined, onRejected);
