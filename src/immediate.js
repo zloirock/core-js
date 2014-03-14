@@ -11,7 +11,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
   var IMMEDIATE_PREFIX = symbol('immediate')
     , counter = 0
     , queue   = {}
-    , defer, channel;
+    , defer, channel, key;
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
@@ -38,6 +38,11 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
   if(classof(process) == 'process'){
     defer = function(id){
       process.nextTick(part.call(run, id));
+    }
+  // Modern browsers with native Promise
+  } else if($Promise && isFunction($Promise.resolve)){
+    defer = function(id){
+      $Promise.resolve(id).then(run);
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object

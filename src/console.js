@@ -9,13 +9,20 @@ var $console = reduceTo.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
-  {enabled: true},
+  {
+    enable: function(){
+      enabled = true;
+    },
+    disable: function(){
+      enabled = false;
+    }
+  },
   function(memo, key){
     memo[key] = function(){
-      return console[key] && $console.enabled ? apply.call(console[key], console, arguments) : undefined;
+      if(enabled && console[key])return apply.call(console[key], console, arguments);
     };
   }
-);
+), enabled = true;
 try {
   framework && delete global.console;
 } catch(e){}

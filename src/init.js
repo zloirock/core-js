@@ -21,6 +21,7 @@ var PROTOTYPE      = 'prototype'
   , Set            = global[SET]
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
+  , $Promise       = global.Promise
   , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
@@ -127,7 +128,9 @@ var create                   = Object.create
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , isEnumerable             = $Object.propertyIsEnumerable
   , __PROTO__ = '__proto__' in $Object
-  , DESCRIPTORS = true;
+  , DESCRIPTORS = true
+  // Dummy, fix for not array-like ES3 string in es5.js
+  , ES5Object = Object;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -179,8 +182,6 @@ var push     = $Array.push
   , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
-// Dummy, fix for not array-like ES3 string in es5.js
-var ES5Object = Object;
 // simple reduce to object
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){

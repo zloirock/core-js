@@ -33,6 +33,7 @@ var PROTOTYPE      = 'prototype'
   , Set            = global[SET]
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
+  , $Promise       = global.Promise
   , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
@@ -139,7 +140,9 @@ var create                   = Object.create
   , getOwnPropertyNames      = Object.getOwnPropertyNames
   , isEnumerable             = $Object.propertyIsEnumerable
   , __PROTO__ = '__proto__' in $Object
-  , DESCRIPTORS = true;
+  , DESCRIPTORS = true
+  // Dummy, fix for not array-like ES3 string in es5.js
+  , ES5Object = Object;
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
@@ -191,8 +194,6 @@ var push     = $Array.push
   , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
-// Dummy, fix for not array-like ES3 string in es5.js
-var ES5Object = Object;
 // simple reduce to object
 function reduceTo(target, callbackfn){
   if(arguments.length < 2){
@@ -1296,7 +1297,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
   var IMMEDIATE_PREFIX = symbol('immediate')
     , counter = 0
     , queue   = {}
-    , defer, channel;
+    , defer, channel, key;
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
@@ -1323,6 +1324,11 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
   if(classof(process) == 'process'){
     defer = function(id){
       process.nextTick(part.call(run, id));
+    }
+  // Modern browsers with native Promise
+  } else if($Promise && isFunction($Promise.resolve)){
+    defer = function(id){
+      $Promise.resolve(id).then(run);
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
@@ -2335,13 +2341,20 @@ var $console = reduceTo.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
-  {enabled: true},
+  {
+    enable: function(){
+      enabled = true;
+    },
+    disable: function(){
+      enabled = false;
+    }
+  },
   function(memo, key){
     memo[key] = function(){
-      return console[key] && $console.enabled ? apply.call(console[key], console, arguments) : undefined;
+      if(enabled && console[key])return apply.call(console[key], console, arguments);
     };
   }
-);
+), enabled = true;
 try {
   framework && delete global.console;
 } catch(e){}
