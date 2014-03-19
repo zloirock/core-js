@@ -18,10 +18,10 @@ $define(STATIC, FUNCTION, {
   _: _
 });
 $define(PROTO, FUNCTION, {
-  invoke: function(args){
+  construct: function(args){
     assertFunction(this);
     var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, ES5Object(args || []));
+      , result   = this.apply(instance, ES5Object(args));
     return isObject(result) ? result : instance;
   },
   inherits: inherits

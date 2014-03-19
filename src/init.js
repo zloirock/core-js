@@ -245,7 +245,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator; // define in iterator module
+var forOf, isIterable, getIterator, objectIterators; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2

@@ -735,6 +735,333 @@
 (function(){
   var isFunction, toString$ = {}.toString;
   isFunction = Function.isFunction;
+  test('Dict', function(){
+    var foo;
+    ok(isFunction(global.Dict), 'Is function');
+    foo = Dict({
+      q: 1,
+      w: 2
+    });
+    ok(Object.getPrototypeOf(foo) === null);
+    ok(foo.toString === void 8);
+    ok(foo.q === 1);
+    ok(foo.w === 2);
+  });
+  test('Dict.every', function(){
+    var every, obj, ctx;
+    every = Dict.every;
+    ok(isFunction(every), 'Is function');
+    every(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    ok(every({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
+    ok(!every({
+      q: 1,
+      w: '2',
+      e: 3
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'Number';
+    }));
+  });
+  test('Dict.filter', function(){
+    var filter, obj, ctx;
+    filter = Dict.filter;
+    ok(isFunction(filter), 'Is function');
+    filter(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    deepEqual(filter({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(it){
+      return it % 2;
+    }), Dict({
+      q: 1,
+      e: 3
+    }));
+  });
+  test('Dict.find', function(){
+    var find, obj, ctx;
+    find = Dict.find;
+    ok(isFunction(find), 'Is function');
+    find(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    ok(find({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(it){
+      return !(it % 2);
+    }) === 2);
+  });
+  test('Dict.findIndex', function(){
+    var findIndex, obj, ctx;
+    findIndex = Dict.findIndex;
+    ok(isFunction(findIndex), 'Is function');
+    findIndex(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    ok(findIndex({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(it){
+      return it === 2;
+    }) === 'w');
+  });
+  test('Dict.forEach', function(){
+    var forEach, obj, ctx, rez;
+    forEach = Dict.forEach;
+    ok(isFunction(forEach), 'Is function');
+    forEach(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      ok(this === ctx);
+    }, ctx = {});
+    rez = {};
+    forEach({
+      q: 1,
+      w: 2
+    }, function(){
+      rez[arguments[1]] = arguments[0] + this;
+    }, '_');
+    deepEqual(rez, {
+      q: '1_',
+      w: '2_'
+    });
+    rez = true;
+    forEach(obj = {
+      q: 1,
+      w: 2
+    }, function(){
+      var rez;
+      rez && (rez = obj === arguments[2]);
+    });
+    ok(rez);
+    rez = {};
+    forEach(Object.make({
+      e: 3
+    }, {
+      q: 1,
+      w: 2
+    }), function(){
+      rez[arguments[1]] = arguments[0];
+    });
+    ok(!('e' in rez));
+    rez = {};
+    forEach([1, 2], function(){
+      rez[arguments[1]] = arguments[0];
+    });
+    ok(!('length' in rez));
+    rez = {};
+    forEach('123', function(){
+      rez[arguments[1]] = arguments[0];
+    });
+    ok('2' in rez);
+  });
+  test('Dict.indexOf', function(){
+    var indexOf;
+    indexOf = Dict.indexOf;
+    ok(isFunction(indexOf), 'Is function');
+    ok(indexOf({
+      q: 1,
+      w: 2,
+      e: 3
+    }, 2) === 'w');
+    ok(indexOf({
+      q: 1,
+      w: 2,
+      e: 3
+    }, 4) === void 8);
+    ok(indexOf({
+      q: 1,
+      w: 2,
+      e: NaN
+    }, NaN) === 'e');
+  });
+  test('Dict.map', function(){
+    var map, obj, ctx;
+    map = Dict.map;
+    ok(isFunction(map), 'Is function');
+    map(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    deepEqual(map({
+      q: 1,
+      w: 2,
+      e: 3
+    }, (function(it){
+      return Math.pow(it, 2);
+    })), Dict({
+      q: 1,
+      w: 4,
+      e: 9
+    }));
+  });
+  test('Dict.reduce', function(){
+    var reduce, obj, foo, memo;
+    reduce = Dict.reduce;
+    ok(isFunction(reduce), 'Is function');
+    reduce(obj = {
+      a: 1
+    }, function(memo, val, key, that){
+      ok(memo === foo);
+      ok(val === 1);
+      ok(key === 'a');
+      return ok(that === obj);
+    }, foo = {});
+    reduce({
+      a: 1,
+      b: 2
+    }, function(memo, val, key){
+      ok(memo === 1);
+      ok(val === 2);
+      return ok(key === 'b');
+    });
+    reduce({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(that, it){
+      that[it] = it;
+      return that;
+    }, memo = {});
+    deepEqual(memo, {
+      1: 1,
+      2: 2,
+      3: 3
+    });
+  });
+  test('Dict.some', function(){
+    var some, obj, ctx;
+    some = Dict.some;
+    ok(isFunction(some), 'Is function');
+    some(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    ok(!some({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
+    ok(some({
+      q: 1,
+      w: '2',
+      e: 3
+    }, function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }));
+  });
+  test('Dict.pluck', function(){
+    var pluck;
+    pluck = Dict.pluck;
+    ok(isFunction(pluck), 'Is function');
+    deepEqual(pluck({
+      q: 1,
+      w: 22,
+      e: 333
+    }, 'length'), Dict({
+      q: void 8,
+      w: void 8,
+      e: void 8
+    }));
+    deepEqual(pluck({
+      q: 1,
+      w: 22,
+      e: void 8
+    }, 'length'), Dict({
+      q: void 8,
+      w: void 8,
+      e: void 8
+    }));
+    deepEqual(pluck({
+      q: '1',
+      w: '22',
+      e: '333'
+    }, 'length'), Dict({
+      q: 1,
+      w: 2,
+      e: 3
+    }));
+  });
+  test('Dict.reduceTo', function(){
+    var reduceTo, obj;
+    reduceTo = Dict.reduceTo;
+    ok(isFunction(reduceTo), 'Is function');
+    reduceTo(obj = {
+      q: 1
+    }, function(memo, val, key, that){
+      deepEqual(memo, Dict());
+      ok(val === 1);
+      ok(key === 'q');
+      return ok(that === obj);
+    });
+    reduceTo({
+      q: 1
+    }, obj = {}, function(it){
+      return ok(it === obj);
+    });
+    deepEqual(reduceTo({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(memo, it){
+      return memo[it] = it;
+    }), Dict({
+      1: 1,
+      2: 2,
+      3: 3
+    }));
+  });
+}).call(this);
+
+// Generated by LiveScript 1.2.0
+(function(){
+  var isFunction, toString$ = {}.toString;
+  isFunction = Function.isFunction;
   test('Object.getOwnPropertyDescriptor', function(){
     var getOwnPropertyDescriptor;
     getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -2021,9 +2348,9 @@
     ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
     ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
-  test('Function::invoke', function(){
+  test('Function::construct', function(){
     var C;
-    ok(isFunction(Function.prototype.invoke), 'Is function');
+    ok(isFunction(Function.prototype.construct), 'Is function');
     C = (function(){
       C.displayName = 'C';
       var prototype = C.prototype, constructor = C;
@@ -2033,8 +2360,8 @@
       }
       return C;
     }());
-    ok(C.invoke() instanceof C);
-    deepEqual(C.invoke([1, 2]), new C(1, 2));
+    ok(C.construct() instanceof C);
+    deepEqual(C.construct([1, 2]), new C(1, 2));
   });
   test('Function::inherits', function(){
     var A, B;
@@ -2202,7 +2529,7 @@
 
 // Generated by LiveScript 1.2.0
 (function(){
-  var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
+  var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor;
   isFunction = Function.isFunction, isNative = Function.isNative;
   getPrototypeOf = Object.getPrototypeOf, create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Object.hasOwn', function(){
@@ -2303,26 +2630,14 @@
     ok(getPrototypeOf(object) === foo);
     ok(object.w === 2);
   });
-  test('Object.plane', function(){
-    var plane, foo;
-    plane = Object.plane;
-    ok(isFunction(plane), 'Is function');
-    foo = plane({
-      q: 1,
-      w: 2
-    });
-    ok(getPrototypeOf(foo) === null);
-    ok(foo.q === 1);
-    ok(foo.w === 2);
-  });
-  test('Object.mixin', function(){
-    var mixin, foo, foo2;
-    mixin = Object.mixin;
-    ok(isFunction(mixin), 'Is function');
+  test('Object.define', function(){
+    var define, foo, foo2;
+    define = Object.define;
+    ok(isFunction(define), 'Is function');
     foo = {
       q: 1
     };
-    ok(foo === mixin(foo, {
+    ok(foo === define(foo, {
       w: 2
     }));
     ok(foo.w === 2);
@@ -2335,7 +2650,7 @@
           return this.q + 1;
         }
       });
-      mixin(foo, foo2);
+      define(foo, foo2);
       ok(foo.w === 2);
     }
   });
@@ -2557,27 +2872,6 @@
       ok(i1.w.e === 5);
     });
   })();
-  test('Object.defaults', function(){
-    var defaults, obj;
-    defaults = Object.defaults;
-    ok(isFunction(defaults), 'Is function');
-    obj = defaults({
-      q: 1,
-      w: {
-        q: 1
-      }
-    }, {
-      q: 2,
-      w: {
-        w: 2
-      },
-      e: 3
-    });
-    ok(obj.q === 1);
-    ok(obj.w.q === 1);
-    ok(obj.w.w === 2);
-    ok(obj.e === 3);
-  });
   test('Object.values', function(){
     var values;
     values = Object.values;
@@ -2607,315 +2901,6 @@
       d: 'e'
     });
   });
-  test('Object.every', function(){
-    var every, obj, ctx;
-    every = Object.every;
-    ok(isFunction(every), 'Is function');
-    every(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    ok(every({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(it){
-      return toString$.call(it).slice(8, -1) === 'Number';
-    }));
-    ok(!every({
-      q: 1,
-      w: '2',
-      e: 3
-    }, function(it){
-      return toString$.call(it).slice(8, -1) === 'Number';
-    }));
-  });
-  test('Object.filter', function(){
-    var filter, plane, obj, ctx;
-    filter = Object.filter, plane = Object.plane;
-    ok(isFunction(filter), 'Is function');
-    filter(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    deepEqual(filter({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(it){
-      return it % 2;
-    }), plane({
-      q: 1,
-      e: 3
-    }));
-  });
-  test('Object.find', function(){
-    var find, obj, ctx;
-    find = Object.find;
-    ok(isFunction(find), 'Is function');
-    find(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    ok(find({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(it){
-      return !(it % 2);
-    }) === 2);
-  });
-  test('Object.findIndex', function(){
-    var findIndex, obj, ctx;
-    findIndex = Object.findIndex;
-    ok(isFunction(findIndex), 'Is function');
-    findIndex(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    ok(findIndex({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(it){
-      return it === 2;
-    }) === 'w');
-  });
-  test('Object.forEach', function(){
-    var forEach, make, obj, ctx, rez;
-    forEach = Object.forEach, make = Object.make;
-    ok(isFunction(forEach), 'Is function');
-    forEach(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      ok(this === ctx);
-    }, ctx = {});
-    rez = {};
-    forEach({
-      q: 1,
-      w: 2
-    }, function(){
-      rez[arguments[1]] = arguments[0] + this;
-    }, '_');
-    deepEqual(rez, {
-      q: '1_',
-      w: '2_'
-    });
-    rez = true;
-    forEach(obj = {
-      q: 1,
-      w: 2
-    }, function(){
-      var rez;
-      rez && (rez = obj === arguments[2]);
-    });
-    ok(rez);
-    rez = {};
-    forEach(make({
-      e: 3
-    }, {
-      q: 1,
-      w: 2
-    }), function(){
-      rez[arguments[1]] = arguments[0];
-    });
-    ok(!('e' in rez));
-    rez = {};
-    forEach([1, 2], function(){
-      rez[arguments[1]] = arguments[0];
-    });
-    ok(!('length' in rez));
-    rez = {};
-    forEach('123', function(){
-      rez[arguments[1]] = arguments[0];
-    });
-    ok('2' in rez);
-  });
-  test('Object.indexOf', function(){
-    var indexOf;
-    indexOf = Object.indexOf;
-    ok(isFunction(indexOf), 'Is function');
-    ok(indexOf({
-      q: 1,
-      w: 2,
-      e: 3
-    }, 2) === 'w');
-    ok(indexOf({
-      q: 1,
-      w: 2,
-      e: 3
-    }, 4) === void 8);
-    ok(indexOf({
-      q: 1,
-      w: 2,
-      e: NaN
-    }, NaN) === 'e');
-  });
-  test('Object.map', function(){
-    var map, plane, obj, ctx;
-    map = Object.map, plane = Object.plane;
-    ok(isFunction(map), 'Is function');
-    map(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    deepEqual(map({
-      q: 1,
-      w: 2,
-      e: 3
-    }, (function(it){
-      return Math.pow(it, 2);
-    })), plane({
-      q: 1,
-      w: 4,
-      e: 9
-    }));
-  });
-  test('Object.reduce', function(){
-    var reduce, obj, foo, memo;
-    reduce = Object.reduce;
-    ok(isFunction(reduce), 'Is function');
-    reduce(obj = {
-      a: 1
-    }, function(memo, val, key, that){
-      ok(memo === foo);
-      ok(val === 1);
-      ok(key === 'a');
-      return ok(that === obj);
-    }, foo = {});
-    reduce({
-      a: 1,
-      b: 2
-    }, function(memo, val, key){
-      ok(memo === 1);
-      ok(val === 2);
-      return ok(key === 'b');
-    });
-    reduce({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(that, it){
-      that[it] = it;
-      return that;
-    }, memo = {});
-    deepEqual(memo, {
-      1: 1,
-      2: 2,
-      3: 3
-    });
-  });
-  test('Object.some', function(){
-    var some, obj, ctx;
-    some = Object.some;
-    ok(isFunction(some), 'Is function');
-    some(obj = {
-      q: 1
-    }, function(val, key, that){
-      ok(val === 1);
-      ok(key === 'q');
-      ok(that === obj);
-      return ok(this === ctx);
-    }, ctx = {});
-    ok(!some({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(it){
-      return toString$.call(it).slice(8, -1) === 'String';
-    }));
-    ok(some({
-      q: 1,
-      w: '2',
-      e: 3
-    }, function(it){
-      return toString$.call(it).slice(8, -1) === 'String';
-    }));
-  });
-  test('Object.pluck', function(){
-    var pluck, plane;
-    pluck = Object.pluck, plane = Object.plane;
-    ok(isFunction(pluck), 'Is function');
-    deepEqual(pluck({
-      q: 1,
-      w: 22,
-      e: 333
-    }, 'length'), plane({
-      q: void 8,
-      w: void 8,
-      e: void 8
-    }));
-    deepEqual(pluck({
-      q: 1,
-      w: 22,
-      e: void 8
-    }, 'length'), plane({
-      q: void 8,
-      w: void 8,
-      e: void 8
-    }));
-    deepEqual(pluck({
-      q: '1',
-      w: '22',
-      e: '333'
-    }, 'length'), plane({
-      q: 1,
-      w: 2,
-      e: 3
-    }));
-  });
-  test('Object.reduceTo', function(){
-    var reduceTo, plane, obj;
-    reduceTo = Object.reduceTo, plane = Object.plane;
-    ok(isFunction(reduceTo), 'Is function');
-    reduceTo(obj = {
-      q: 1
-    }, function(memo, val, key, that){
-      deepEqual(memo, plane());
-      ok(val === 1);
-      ok(key === 'q');
-      return ok(that === obj);
-    });
-    reduceTo({
-      q: 1
-    }, obj = {}, function(it){
-      return ok(it === obj);
-    });
-    deepEqual(reduceTo({
-      q: 1,
-      w: 2,
-      e: 3
-    }, function(memo, it){
-      return memo[it] = it;
-    }), plane({
-      1: 1,
-      2: 2,
-      3: 3
-    }));
-  });
   test('Object.isObject', function(){
     var isObject;
     isObject = Object.isObject;
@@ -2932,56 +2917,6 @@
     ok(isObject([]));
     ok(isObject(/./));
     ok(isObject(new function(){}));
-  });
-  test('Object.isEqual', function(){
-    var isEqual, a, b;
-    isEqual = Object.isEqual;
-    ok(isFunction(isEqual), 'Is function');
-    ok(isEqual(1, 1));
-    ok(!isEqual(1, 2));
-    ok(!isEqual(0, -0));
-    ok(isEqual({}, {}));
-    ok(isEqual({
-      q: 1
-    }, {
-      q: 1
-    }));
-    ok(!isEqual({
-      q: 1
-    }, {}));
-    ok(!isEqual({}, []));
-    ok(isEqual({
-      q: 1,
-      w: {
-        q: 1
-      }
-    }, {
-      q: 1,
-      w: {
-        q: 1
-      }
-    }));
-    ok(!isEqual({
-      q: 1,
-      w: {
-        q: 1
-      }
-    }, {
-      q: 1,
-      w: {
-        q: 1,
-        w: 2
-      }
-    }));
-    a = {
-      y: 1
-    };
-    a.x = a;
-    b = {
-      y: 1
-    };
-    b.x = b;
-    ok(isEqual(a, b));
   });
   test('Object.symbol', function(){
     var symbol;

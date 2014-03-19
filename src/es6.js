@@ -196,7 +196,7 @@
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      (mapfn === undefined) || assertFunction(mapfn);
+      if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
         , result = new (isFunction(this) ? this : Array)
         , i      = 0

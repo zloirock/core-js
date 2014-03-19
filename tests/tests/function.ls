@@ -41,12 +41,12 @@ test 'Function::part' !->
   ok part(\Шла \по) is 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders'
   ok part(\Шла \по \и) is 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders'
   ok part(\Шла \по \и \сушку) is 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders'
-test 'Function::invoke' !->
-  ok isFunction(Function::invoke), 'Is function'
+test 'Function::construct' !->
+  ok isFunction(Function::construct), 'Is function'
   class C
     (@a, @b)->
-  ok C.invoke! instanceof C
-  deepEqual C.invoke([1 2]), new C 1 2
+  ok C.construct! instanceof C
+  deepEqual C.construct([1 2]), new C 1 2
 test 'Function::inherits' !->
   ok isFunction(Function::inherits), 'Is function'
   A = ->

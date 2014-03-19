@@ -257,7 +257,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator; // define in iterator module
+var forOf, isIterable, getIterator, objectIterators; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
@@ -795,7 +795,7 @@ $define(GLOBAL, {global: global});
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      (mapfn === undefined) || assertFunction(mapfn);
+      if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
         , result = new (isFunction(this) ? this : Array)
         , i      = 0
@@ -1389,30 +1389,34 @@ $define(STATIC, 'Reflect', {
     this[ITERATED] = iterated;
     this[INDEX]    = 0;
   }
-  StringIterator[PROTOTYPE].next = function(){
-    var iterated = this[ITERATED]
-      , index    = this[INDEX]++;
-    return index < iterated.length
-      ? createIterResultObject(iterated.charAt(index), 0)
-      : createIterResultObject(undefined, 1);
-  }
+  StringIterator[PROTOTYPE] = {
+    next: function(){
+      var iterated = this[ITERATED]
+        , index    = this[INDEX]++;
+      return index < iterated.length
+        ? createIterResultObject(iterated.charAt(index), 0)
+        : createIterResultObject(undefined, 1);
+    }
+  };
   
   function ArrayIterator(iterated, kind){
     this[ITERATED] = iterated;
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
-  ArrayIterator[PROTOTYPE].next = function(){
-    var that     = this
-      , iterated = that[ITERATED]
-      , index    = that[INDEX]++;
-    if(index >= iterated.length)return createIterResultObject(undefined, 1);
-    switch(that[KIND]){
-      case KEY   : return createIterResultObject(index, 0);
-      case VALUE : return createIterResultObject(iterated[index], 0);
+  ArrayIterator[PROTOTYPE] = {
+    next: function(){
+      var that     = this
+        , iterated = that[ITERATED]
+        , index    = that[INDEX]++;
+      if(index >= iterated.length)return createIterResultObject(undefined, 1);
+      switch(that[KIND]){
+        case KEY   : return createIterResultObject(index, 0);
+        case VALUE : return createIterResultObject(iterated[index], 0);
+      }
+      return createIterResultObject([index, iterated[index]], 0);
     }
-    return createIterResultObject([index, iterated[index]], 0);
-  }
+  };
   
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1422,19 +1426,21 @@ $define(STATIC, 'Reflect', {
       this.push(key);
     }, this[KEYS] = []);
   }
-  MapIterator[PROTOTYPE].next = function(){
-    var iterated = this[ITERATED]
-      , keys     = this[KEYS]
-      , index    = this[INDEX]++
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
-    key = keys[index];
-    switch(this[KIND]){
-      case KEY   : return createIterResultObject(key, 0);
-      case VALUE : return createIterResultObject(iterated.get(key), 0);
+  MapIterator[PROTOTYPE] = {
+    next: function(){
+      var iterated = this[ITERATED]
+        , keys     = this[KEYS]
+        , index    = this[INDEX]++
+        , key;
+      if(index >= keys.length)return createIterResultObject(undefined, 1);
+      key = keys[index];
+      switch(this[KIND]){
+        case KEY   : return createIterResultObject(key, 0);
+        case VALUE : return createIterResultObject(iterated.get(key), 0);
+      }
+      return createIterResultObject([key, iterated.get(key)], 0);
     }
-    return createIterResultObject([key, iterated.get(key)], 0);
-  }
+  };
   
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
@@ -1443,17 +1449,43 @@ $define(STATIC, 'Reflect', {
       this.push(val);
     }, this[KEYS] = []);
   }
-  SetIterator[PROTOTYPE].next = function(){
-    var keys  = this[KEYS]
-      , index = this[INDEX]++
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
-    key = keys[index];
-    if(this[KIND] == VALUE)return createIterResultObject(key, 0);
-    return createIterResultObject([key, key], 0);
+  SetIterator[PROTOTYPE] = {
+    next: function(){
+      var keys  = this[KEYS]
+        , index = this[INDEX]++
+        , key;
+      if(index >= keys.length)return createIterResultObject(undefined, 1);
+      key = keys[index];
+      if(this[KIND] == VALUE)return createIterResultObject(key, 0);
+      return createIterResultObject([key, key], 0);
+    }
+  };
+  
+  function ObjectIterator(iterated, kind){
+    this[ITERATED] = iterated;
+    this[KEYS]     = keys(iterated);
+    this[INDEX]    = 0;
+    this[KIND]     = kind;
+  }
+  ObjectIterator[PROTOTYPE] = {
+    next: function(){
+      var index  = this[INDEX]++
+        , object = this[ITERATED]
+        , keys   = this[KEYS]
+        , key;
+      if(index >= keys.length)return createIterResultObject(undefined, 1);
+      key = keys[index];
+      switch(this[KIND]){
+        case KEY: return createIterResultObject(key, 0);
+        case VALUE: return createIterResultObject(object[key], 0);
+      }
+      return createIterResultObject([key, object[key]], 0);
+    }
   }
   
-  StringIterator[PROTOTYPE][ITERATOR] = ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] = SetIterator[PROTOTYPE][ITERATOR] = returnThis;
+  StringIterator[PROTOTYPE][ITERATOR] = ArrayIterator[PROTOTYPE][ITERATOR] =
+    MapIterator[PROTOTYPE][ITERATOR] = SetIterator[PROTOTYPE][ITERATOR] =
+      ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
     ITERATOR in object || hidden(object, ITERATOR, value);
@@ -1523,421 +1555,29 @@ $define(STATIC, 'Reflect', {
     defineIterator(Set[PROTOTYPE], createIteratorFactory(SetIterator, VALUE));
   }
   
+  function createObjectIteratorFactory(kind){
+    return function(it){
+      return new ObjectIterator(it, kind);
+    }
+  }
+  objectIterators = {
+    keys: createObjectIteratorFactory(KEY),
+    values: createObjectIteratorFactory(VALUE),
+    entries: createObjectIteratorFactory(KEY+VALUE)
+  }
+  
   $define(GLOBAL, {forOf: forOf});
 }();
 
 /*****************************
- * Module : extendedObjectAPI
- *****************************/
-
-/**
- * Extended object api from harmony and strawman :
- * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
- * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
- */
-$define(STATIC, OBJECT, {
-  getPropertyDescriptor: getPropertyDescriptor,
-  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-  getPropertyDescriptors: function(object){
-    var result = getOwnPropertyDescriptors(object);
-    while(object = getPrototypeOf(object)){
-      result = assign(getOwnPropertyDescriptors(object), result);
-    }
-    return result;
-  },
-  getPropertyNames: function(object){
-    var result = getOwnPropertyNames(object);
-    while(object = getPrototypeOf(object)){
-      $forEach(getOwnPropertyNames(object), function(key){
-        ~$indexOf(result, key) || result.push(key);
-      });
-    }
-    return result;
-  }
-});
-
-/*****************************
- * Module : timers
- *****************************/
-
-/**
- * ie9- setTimeout & setInterval additional parameters fix
- * http://www.w3.org/TR/html5/webappapis.html#timers
- * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
- * Alternatives:
- * https://developer.mozilla.org/ru/docs/Web/API/Window.setTimeout#IE_Only_Fix
- * http://underscorejs.org/#delay
- */
-!function(navigator){
-  function wrap(set){
-    return function(fn, time /*, args...*/){
-      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1);
-    }
-  }
-  // ie9- dirty check
-  if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    setTimeout  = wrap(setTimeout);
-    setInterval = wrap(setInterval);
-  }
-  $define(GLOBAL, {
-    setTimeout: setTimeout,
-    setInterval: setInterval
-  }, 1);
-}(global.navigator);
-
-/*****************************
- * Module : immediate
- *****************************/
-
-/**
- * setImmediate
- * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
- * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
- * Alternatives:
- * https://github.com/NobleJS/setImmediate
- * https://github.com/calvinmetcalf/immediate
- */
-// Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var IMMEDIATE_PREFIX = symbol('immediate')
-    , counter = 0
-    , queue   = {}
-    , defer, channel, key;
-  setImmediate = function(fn){
-    var id   = IMMEDIATE_PREFIX + ++counter
-      , args = $slice(arguments, 1);
-    queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
-    }
-    defer(id);
-    return counter;
-  }
-  clearImmediate = function(id){
-    delete queue[IMMEDIATE_PREFIX + id];
-  }
-  function run(id){
-    if(has(queue, id)){
-      var fn = queue[id];
-      delete queue[id];
-      fn();
-    }
-  }
-  function listner(event){
-    run(event.data);
-  }
-  // Node.js 0.8-
-  if(classof(process) == 'process'){
-    defer = function(id){
-      process.nextTick(part.call(run, id));
-    }
-  // Modern browsers with native Promise
-  } else if($Promise && isFunction($Promise.resolve)){
-    defer = function(id){
-      $Promise.resolve(id).then(run);
-    }
-  // Modern browsers, skip implementation for WebWorkers
-  // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(isFunction(postMessage) && !global.importScripts){
-    defer = function(id){
-      postMessage(id, '*');
-    }
-    addEventListener('message', listner, false);
-  // WebWorkers
-  } else if(isFunction(MessageChannel)){
-    channel = new MessageChannel();
-    channel.port1.onmessage = listner;
-    defer = ctx(channel.port2.postMessage, channel.port2);
-  // IE8-
-  // always run before timers, like nextTick => some problems with recursive call
-  } else if(document && onreadystatechange in document.createElement('script')){
-    defer = function(id){
-      var el = document.createElement('script');
-      el[onreadystatechange] = function(){
-        el.parentNode.removeChild(el);
-        run(id);
-      }
-      document.documentElement.appendChild(el);
-    }
-  // Rest old browsers
-  } else {
-    defer = function(id){
-      setTimeout(part.call(run, id), 0);
-    }
-  }
-}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
-$define(GLOBAL, {
-  setImmediate: setImmediate,
-  clearImmediate: clearImmediate
-});
-
-/*****************************
- * Module : function
- *****************************/
-
-function inherits(parent){
-  assertFunction(this); assertFunction(parent);
-  this[PROTOTYPE] = create(parent[PROTOTYPE], getOwnPropertyDescriptors(this[PROTOTYPE]));
-  return this;
-}
-$define(STATIC, FUNCTION, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#isFunction
-   * http://sugarjs.com/api/Object/isType
-   * http://api.prototypejs.org/language/Object/isFunction/
-   * http://api.jquery.com/jQuery.isFunction/
-   * http://docs.angularjs.org/api/angular.isFunction
-   */
-  isFunction: isFunction,
-  isNative: isNative,
-  inherits: unbind(inherits),
-  _: _
-});
-$define(PROTO, FUNCTION, {
-  invoke: function(args){
-    assertFunction(this);
-    var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, ES5Object(args || []));
-    return isObject(result) ? result : instance;
-  },
-  inherits: inherits
-});
-
-/*****************************
- * Module : deferred
- *****************************/
-
-/**
- * Alternatives:
- * http://sugarjs.com/api/Function/delay
- * http://sugarjs.com/api/Function/every
- * http://api.prototypejs.org/language/Function/prototype/delay/
- * http://api.prototypejs.org/language/Function/prototype/defer/
- * http://mootools.net/docs/core/Types/Function#Function:delay
- * http://mootools.net/docs/core/Types/Function#Function:periodical
- */
-!function(ARGUMENTS, ID){
-  function createDeferredFactory(set, clear){
-    function Deferred(args){
-      this[ARGUMENTS] = args;
-    }
-    assign(Deferred[PROTOTYPE], {
-      set: function(){
-        this[ID] && clear(this[ID]);
-        this[ID] = set.apply(global, this[ARGUMENTS]);
-        return this;
-      },
-      clear: function(){
-        this[ID] && clear(this[ID]);
-        return this;
-      },
-      clone: function(){
-        return new Deferred(this[ARGUMENTS]).set();
-      }
-    });
-    return function(/* args... */){
-      var args = [this], i = 0;
-      while(arguments.length > i)args.push(arguments[i++]);
-      return new Deferred(args).set();
-    }
-  }
-  $define(PROTO, FUNCTION, {
-    timeout:   createDeferredFactory(setTimeout, clearTimeout),
-    interval:  createDeferredFactory(setInterval, clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate)
-  });
-}(symbol('arguments'), symbol('id'));
-
-/*****************************
- * Module : binding
- *****************************/
-
-function tie(key){
-  var that = this
-    , placeholder = false
-    , i = 1, length, args;
-  length = arguments.length;
-  if(length < 2)return ctx(that[key], that);
-  args = Array(length - 1)
-  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(that[key], args, length, placeholder, true, that);
-}
-function by(that){
-  var fn = this
-    , placeholder = false
-    , length = arguments.length
-    , i = 1, args;
-  if(length < 2)return ctx(fn, that);
-  args = Array(length - 1);
-  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(fn, args, length, placeholder, true, that);
-}
-$define(PROTO, FUNCTION, {
-  tie: tie,
-  /**
-   * Partial apply.
-   * Alternatives:
-   * http://sugarjs.com/api/Function/fill
-   * http://underscorejs.org/#partial
-   * http://mootools.net/docs/core/Types/Function#Function:pass
-   * http://fitzgen.github.io/wu.js/#wu-partial
-   */
-  part: part,
-  by: by,
-  /**
-   * function -> method
-   * Alternatives:
-   * http://api.prototypejs.org/language/Function/prototype/methodize/
-   */
-  methodize: methodize
-});
-$define(PROTO, ARRAY, {tie: tie});
-$define(PROTO, REGEXP, {tie: tie});
-$define(STATIC, OBJECT, {
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   * http://livescript.net/#property-access -> foo~bar
-   * http://lodash.com/docs#bindKey
-   */
-  tie: unbind(tie),
-  useTie: part.call($define, PROTO, OBJECT, {tie: tie})
-});
-$define(STATIC, FUNCTION, {
-  part: unbind(part),
-  by: unbind(by),
-  tie: unbind(tie)
-});
-
-/*****************************
- * Module : object
+ * Module : dict
  *****************************/
 
 !function(){
-  function mixin(target, source){
-    return defineProperties(target, getOwnPropertyDescriptors(source));
+  function Dict(props){
+    return props ? assign(create(null), props) : create(null);
   }
-  function make(proto, props, desc){
-    return props ? (desc ? mixin : assign)(create(proto), props) : create(proto);
-  }
-  function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
-    if(isObject(target) && isObject(source)){
-      var isComp = isFunction(reverse)
-        , names  = (desc ? getOwnPropertyNames : keys)(source)
-        , length = names.length
-        , i      = 0
-        , key, targetDescriptor, sourceDescriptor;
-      while(length > i){
-        key = names[i++];
-        if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
-          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB);   // if not deep - skip
-        } else if(desc){
-          targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
-          if(targetDescriptor.configurable !== false && delete target[key]){
-            sourceDescriptor = getOwnPropertyDescriptor(source, key);
-            if(deep && !sourceDescriptor.get && !sourceDescriptor.set){
-              sourceDescriptor.value =
-                merge(clone(sourceDescriptor.value, 1, 1, stackA, stackB),
-                  targetDescriptor.value, 1, 1, 1, stackA, stackB);
-            }
-            defineProperty(target, key, sourceDescriptor);
-          }
-        } else target[key] = deep
-          ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
-          : source[key];
-      }
-    }
-    return target;
-  }
-  /**
-   * NB:
-   * http://wiki.ecmascript.org/doku.php?id=strawman:structured_clone
-   * https://github.com/dslomov-chromium/ecmascript-structured-clone
-   */
-  function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
-    if(!isObject(object))return object;
-    var already = $indexOf(stackA, object)
-      , F       = object.constructor
-      , result;
-    if(~already)return stackB[already];
-    switch(classof(object)){
-      case 'Arguments' :
-      case ARRAY       :
-        result = Array(object.length);
-        break;
-      case FUNCTION    :
-        return object;
-      case REGEXP      :
-        result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
-        break;
-      case STRING      :
-        return new F(object);
-      case 'Boolean'   :
-      case 'Date'      :
-      case NUMBER      :
-        result = new F(object.valueOf());
-        break;
-      /*
-      case SET         :
-        result = new F;
-        object.forEach(result.add, result);
-        break;
-      case MAP         :
-        result = new F;
-        object.forEach(function(val, key){
-          result.set(key, val);
-        });
-        break;
-      */
-      default:
-        result = create(getPrototypeOf(object));
-    }
-    stackA.push(object);
-    stackB.push(result);
-    return merge(result, object, deep, 0, desc, stackA, stackB);
-  }
-  // Objects deep compare
-  function isEqual(a, b, StackA, StackB){
-    if(same(a, b))return true;
-    var type = classof(a)
-      , length, keys, val;
-    if(
-      !isObject(a) ||
-      !isObject(b) ||
-      type != classof(b) ||
-      getPrototypeOf(a) != getPrototypeOf(b)
-    )return false;
-    StackA = StackA.concat([a]);
-    StackB = StackB.concat([b]);
-    switch(type){
-      case 'Boolean'   :
-      case STRING      :
-      case NUMBER      : return a.valueOf() == b.valueOf();
-      case REGEXP      : return '' + a == '' + b;
-      case 'Error'     : return a.message == b.message;/*
-      case ARRAY       :
-      case 'Arguments' :
-        length = toLength(a.length);
-        if(length != b.length)return false;
-        while(length--){
-          if(
-            !(~$indexOf(StackA, a[length]) && ~$indexOf(StackB, b[length]))
-            && !isEqual(a[length], b[length], StackA, StackB)
-          )return false;
-        }
-        return true;*/
-    }
-    keys = getOwnPropertyNames(a);
-    length = keys.length;
-    if(length != getOwnPropertyNames(b).length)return false;
-    while(length--){
-      if(
-        !(~$indexOf(StackA, a[val = keys[length]]) && ~$indexOf(StackB, b[val]))
-        && !isEqual(a[val], b[val], StackA, StackB)
-      )return false;
-    }
-    return true;
-  }
+  assign(Dict, objectIterators);
   function findIndex(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
@@ -1949,93 +1589,7 @@ $define(STATIC, FUNCTION, {
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  $define(STATIC, OBJECT, {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#has
-     * http://sugarjs.com/api/Object/has
-     */
-    isEnumerable: unbind(isEnumerable),
-    isPrototype: unbind($Object.isPrototypeOf),
-    hasOwn: has,
-    getOwn: function(object, key){
-      return has(object, key) ? object[key] : undefined;
-    },
-    /**
-     * Alternatives:
-     * http://livescript.net/#operators -> typeof!
-     * http://mootools.net/docs/core/Core/Core#Core:typeOf
-     * http://api.jquery.com/jQuery.type/
-     */
-    classof: classof,
-    /**
-     * Shugar for Object.create
-     * Alternatives:
-     * http://lodash.com/docs#create
-     */
-    make: make,
-    // Shugar for Object.make(null [, props [, desc]])
-    plane: function(props, desc){
-      return make(null, props, desc);
-    },
-    /**
-     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
-     * TODO: rename
-     */
-    mixin: mixin,
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#clone
-     * http://lodash.com/docs#cloneDeep
-     * http://sugarjs.com/api/Object/clone
-     * http://api.prototypejs.org/language/Object/clone/
-     * http://mootools.net/docs/core/Types/Object#Object:Object-clone
-     * http://docs.angularjs.org/api/angular.copy
-     */
-    clone: function(object, deep /* = false */, desc /* = false */){
-      return clone(object, deep, desc, [], []);
-    },
-    /**
-     * Alternatives:
-     * http://lodash.com/docs#merge
-     * http://sugarjs.com/api/Object/merge
-     * http://mootools.net/docs/core/Types/Object#Object:Object-merge
-     * http://api.jquery.com/jQuery.extend/
-     */
-    merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
-      return merge(target, source, deep, reverse, desc, [], []);
-    },
-    /**
-     * Shugar for Object.merge(target, props, 1, 1)
-     * Alternatives:
-     * http://underscorejs.org/#defaults
-     */
-    defaults: function(target, props){
-      return merge(target, props, 1, 1, 0, [], []);
-    },
-    /**
-     * {a: b} -> [b]
-     * Alternatives:
-     * http://underscorejs.org/#values
-     * http://sugarjs.com/api/Object/values
-     * http://api.prototypejs.org/language/Object/values/
-     * http://mootools.net/docs/core/Types/Object#Object:Object-values
-     */
-    values: function(object){
-      var props  = keys(object)
-        , length = props.length
-        , result = Array(length)
-        , i      = 0;
-      while(length > i)result[i] = object[props[i++]];
-      return result;
-    },
-    /**
-     * {a: b} -> {b: a}
-     * Alternatives:
-     * http://underscorejs.org/#invert
-     */
-    invert: invert,
-    // Enumerable
+  assign(Dict, {
     /**
      * Alternatives:
      * http://underscorejs.org/#every
@@ -2196,7 +1750,454 @@ $define(STATIC, FUNCTION, {
         , key;
       while(length > i)callbackfn(target, O[key = props[i++]], key, object);
       return target;
+    }
+  });
+  $define(GLOBAL, {Dict: Dict});
+}();
+
+/*****************************
+ * Module : extendedObjectAPI
+ *****************************/
+
+/**
+ * Extended object api from harmony and strawman :
+ * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+ * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+ */
+$define(STATIC, OBJECT, {
+  getPropertyDescriptor: getPropertyDescriptor,
+  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
+  getPropertyDescriptors: function(object){
+    var result = getOwnPropertyDescriptors(object);
+    while(object = getPrototypeOf(object)){
+      result = assign(getOwnPropertyDescriptors(object), result);
+    }
+    return result;
+  },
+  getPropertyNames: function(object){
+    var result = getOwnPropertyNames(object);
+    while(object = getPrototypeOf(object)){
+      $forEach(getOwnPropertyNames(object), function(key){
+        ~$indexOf(result, key) || result.push(key);
+      });
+    }
+    return result;
+  }
+});
+
+/*****************************
+ * Module : timers
+ *****************************/
+
+/**
+ * ie9- setTimeout & setInterval additional parameters fix
+ * http://www.w3.org/TR/html5/webappapis.html#timers
+ * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
+ * Alternatives:
+ * https://developer.mozilla.org/ru/docs/Web/API/Window.setTimeout#IE_Only_Fix
+ * http://underscorejs.org/#delay
+ */
+!function(navigator){
+  function wrap(set){
+    return function(fn, time /*, args...*/){
+      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1);
+    }
+  }
+  // ie9- dirty check
+  if(navigator && /MSIE .\./.test(navigator.userAgent)){
+    setTimeout  = wrap(setTimeout);
+    setInterval = wrap(setInterval);
+  }
+  $define(GLOBAL, {
+    setTimeout: setTimeout,
+    setInterval: setInterval
+  }, 1);
+}(global.navigator);
+
+/*****************************
+ * Module : immediate
+ *****************************/
+
+/**
+ * setImmediate
+ * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+ * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
+ * Alternatives:
+ * https://github.com/NobleJS/setImmediate
+ * https://github.com/calvinmetcalf/immediate
+ */
+// Node.js 0.9+ & IE10+ has setImmediate, else:
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, onreadystatechange){
+  var IMMEDIATE_PREFIX = symbol('immediate')
+    , counter = 0
+    , queue   = {}
+    , defer, channel;
+  setImmediate = function(fn){
+    var id   = IMMEDIATE_PREFIX + ++counter
+      , args = $slice(arguments, 1);
+    queue[id] = function(){
+      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
+    }
+    defer(id);
+    return counter;
+  }
+  clearImmediate = function(id){
+    delete queue[IMMEDIATE_PREFIX + id];
+  }
+  function run(id){
+    if(has(queue, id)){
+      var fn = queue[id];
+      delete queue[id];
+      fn();
+    }
+  }
+  function listner(event){
+    run(event.data);
+  }
+  // Node.js 0.8-
+  if(classof(process) == 'process'){
+    defer = function(id){
+      process.nextTick(part.call(run, id));
+    }
+  // Modern browsers with native Promise
+  } else if($Promise && isFunction($Promise.resolve)){
+    defer = function(id){
+      $Promise.resolve(id).then(run);
+    }
+  // Modern browsers, skip implementation for WebWorkers
+  // IE8 has postMessage, but it's sync & typeof its postMessage is object
+  } else if(isFunction(postMessage) && !global.importScripts){
+    defer = function(id){
+      postMessage(id, '*');
+    }
+    addEventListener('message', listner, false);
+  // WebWorkers
+  } else if(isFunction(MessageChannel)){
+    channel = new MessageChannel();
+    channel.port1.onmessage = listner;
+    defer = ctx(channel.port2.postMessage, channel.port2);
+  // IE8-
+  // always run before timers, like nextTick => some problems with recursive call
+  } else if(document && onreadystatechange in document.createElement('script')){
+    defer = function(id){
+      var el = document.createElement('script');
+      el[onreadystatechange] = function(){
+        el.parentNode.removeChild(el);
+        run(id);
+      }
+      document.documentElement.appendChild(el);
+    }
+  // Rest old browsers
+  } else {
+    defer = function(id){
+      setTimeout(part.call(run, id), 0);
+    }
+  }
+}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
+$define(GLOBAL, {
+  setImmediate: setImmediate,
+  clearImmediate: clearImmediate
+});
+
+/*****************************
+ * Module : function
+ *****************************/
+
+function inherits(parent){
+  assertFunction(this); assertFunction(parent);
+  this[PROTOTYPE] = create(parent[PROTOTYPE], getOwnPropertyDescriptors(this[PROTOTYPE]));
+  return this;
+}
+$define(STATIC, FUNCTION, {
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#isFunction
+   * http://sugarjs.com/api/Object/isType
+   * http://api.prototypejs.org/language/Object/isFunction/
+   * http://api.jquery.com/jQuery.isFunction/
+   * http://docs.angularjs.org/api/angular.isFunction
+   */
+  isFunction: isFunction,
+  isNative: isNative,
+  inherits: unbind(inherits),
+  _: _
+});
+$define(PROTO, FUNCTION, {
+  construct: function(args){
+    assertFunction(this);
+    var instance = create(this[PROTOTYPE])
+      , result   = this.apply(instance, ES5Object(args));
+    return isObject(result) ? result : instance;
+  },
+  inherits: inherits
+});
+
+/*****************************
+ * Module : deferred
+ *****************************/
+
+/**
+ * Alternatives:
+ * http://sugarjs.com/api/Function/delay
+ * http://sugarjs.com/api/Function/every
+ * http://api.prototypejs.org/language/Function/prototype/delay/
+ * http://api.prototypejs.org/language/Function/prototype/defer/
+ * http://mootools.net/docs/core/Types/Function#Function:delay
+ * http://mootools.net/docs/core/Types/Function#Function:periodical
+ */
+!function(ARGUMENTS, ID){
+  function createDeferredFactory(set, clear){
+    function Deferred(args){
+      this[ARGUMENTS] = args;
+    }
+    assign(Deferred[PROTOTYPE], {
+      set: function(){
+        this[ID] && clear(this[ID]);
+        this[ID] = set.apply(global, this[ARGUMENTS]);
+        return this;
+      },
+      clear: function(){
+        this[ID] && clear(this[ID]);
+        return this;
+      },
+      clone: function(){
+        return new Deferred(this[ARGUMENTS]).set();
+      }
+    });
+    return function(/* args... */){
+      var args = [this], i = 0;
+      while(arguments.length > i)args.push(arguments[i++]);
+      return new Deferred(args).set();
+    }
+  }
+  $define(PROTO, FUNCTION, {
+    timeout:   createDeferredFactory(setTimeout, clearTimeout),
+    interval:  createDeferredFactory(setInterval, clearInterval),
+    immediate: createDeferredFactory(setImmediate, clearImmediate)
+  });
+}(symbol('arguments'), symbol('id'));
+
+/*****************************
+ * Module : binding
+ *****************************/
+
+function tie(key){
+  var that = this
+    , placeholder = false
+    , i = 1, length, args;
+  length = arguments.length;
+  if(length < 2)return ctx(that[key], that);
+  args = Array(length - 1)
+  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(that[key], args, length, placeholder, true, that);
+}
+function by(that){
+  var fn = this
+    , placeholder = false
+    , length = arguments.length
+    , i = 1, args;
+  if(length < 2)return ctx(fn, that);
+  args = Array(length - 1);
+  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+  return createPartialApplication(fn, args, length, placeholder, true, that);
+}
+$define(PROTO, FUNCTION, {
+  tie: tie,
+  /**
+   * Partial apply.
+   * Alternatives:
+   * http://sugarjs.com/api/Function/fill
+   * http://underscorejs.org/#partial
+   * http://mootools.net/docs/core/Types/Function#Function:pass
+   * http://fitzgen.github.io/wu.js/#wu-partial
+   */
+  part: part,
+  by: by,
+  /**
+   * function -> method
+   * Alternatives:
+   * http://api.prototypejs.org/language/Function/prototype/methodize/
+   */
+  methodize: methodize
+});
+$define(PROTO, ARRAY, {tie: tie});
+$define(PROTO, REGEXP, {tie: tie});
+$define(STATIC, OBJECT, {
+  /**
+   * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
+   * http://livescript.net/#property-access -> foo~bar
+   * http://lodash.com/docs#bindKey
+   */
+  tie: unbind(tie),
+  useTie: part.call($define, PROTO, OBJECT, {tie: tie})
+});
+$define(STATIC, FUNCTION, {
+  part: unbind(part),
+  by: unbind(by),
+  tie: unbind(tie)
+});
+
+/*****************************
+ * Module : object
+ *****************************/
+
+!function(){
+  function define(target, source){
+    return defineProperties(target, getOwnPropertyDescriptors(source));
+  }
+  function make(proto, props, desc){
+    return props ? (desc ? define : assign)(create(proto), props) : create(proto);
+  }
+  function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
+    if(isObject(target) && isObject(source)){
+      var isComp = isFunction(reverse)
+        , names  = (desc ? getOwnPropertyNames : keys)(source)
+        , length = names.length
+        , i      = 0
+        , key, targetDescriptor, sourceDescriptor;
+      while(length > i){
+        key = names[i++];
+        if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
+          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB);   // if not deep - skip
+        } else if(desc){
+          targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
+          if(targetDescriptor.configurable !== false && delete target[key]){
+            sourceDescriptor = getOwnPropertyDescriptor(source, key);
+            if(deep && !sourceDescriptor.get && !sourceDescriptor.set){
+              sourceDescriptor.value =
+                merge(clone(sourceDescriptor.value, 1, 1, stackA, stackB),
+                  targetDescriptor.value, 1, 1, 1, stackA, stackB);
+            }
+            defineProperty(target, key, sourceDescriptor);
+          }
+        } else target[key] = deep
+          ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
+          : source[key];
+      }
+    }
+    return target;
+  }
+  /**
+   * NB:
+   * http://wiki.ecmascript.org/doku.php?id=strawman:structured_clone
+   * https://github.com/dslomov-chromium/ecmascript-structured-clone
+   */
+  function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
+    if(!isObject(object))return object;
+    var already = $indexOf(stackA, object)
+      , F       = object.constructor
+      , result;
+    if(~already)return stackB[already];
+    switch(classof(object)){
+      case 'Arguments' :
+      case ARRAY       :
+        result = Array(object.length);
+        break;
+      case FUNCTION    :
+        return object;
+      case REGEXP      :
+        result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
+        break;
+      case STRING      :
+        return new F(object);
+      case 'Boolean'   :
+      case 'Date'      :
+      case NUMBER      :
+        result = new F(object.valueOf());
+        break;
+      /*
+      case SET         :
+        result = new F;
+        object.forEach(result.add, result);
+        break;
+      case MAP         :
+        result = new F;
+        object.forEach(function(val, key){
+          result.set(key, val);
+        });
+        break;
+      */
+      default:
+        result = create(getPrototypeOf(object));
+    }
+    stackA.push(object);
+    stackB.push(result);
+    return merge(result, object, deep, 0, desc, stackA, stackB);
+  }
+  $define(STATIC, OBJECT, {
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#has
+     * http://sugarjs.com/api/Object/has
+     */
+    isEnumerable: unbind(isEnumerable),
+    isPrototype: unbind($Object.isPrototypeOf),
+    hasOwn: has,
+    getOwn: function(object, key){
+      return has(object, key) ? object[key] : undefined;
     },
+    /**
+     * Alternatives:
+     * http://livescript.net/#operators -> typeof!
+     * http://mootools.net/docs/core/Core/Core#Core:typeOf
+     * http://api.jquery.com/jQuery.type/
+     */
+    classof: classof,
+    /**
+     * Shugar for Object.create
+     * Alternatives:
+     * http://lodash.com/docs#create
+     */
+    make: make,
+    /**
+     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     */
+    define: define,
+    /**
+     * Alternatives:
+     * http://underscorejs.org/#clone
+     * http://lodash.com/docs#cloneDeep
+     * http://sugarjs.com/api/Object/clone
+     * http://api.prototypejs.org/language/Object/clone/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-clone
+     * http://docs.angularjs.org/api/angular.copy
+     */
+    clone: function(object, deep /* = false */, desc /* = false */){
+      return clone(object, deep, desc, [], []);
+    },
+    /**
+     * Alternatives:
+     * http://lodash.com/docs#merge
+     * http://sugarjs.com/api/Object/merge
+     * http://mootools.net/docs/core/Types/Object#Object:Object-merge
+     * http://api.jquery.com/jQuery.extend/
+     */
+    merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
+      return merge(target, source, deep, reverse, desc, [], []);
+    },
+    /**
+     * {a: b} -> [b]
+     * Alternatives:
+     * http://underscorejs.org/#values
+     * http://sugarjs.com/api/Object/values
+     * http://api.prototypejs.org/language/Object/values/
+     * http://mootools.net/docs/core/Types/Object#Object:Object-values
+     */
+    values: function(object){
+      var props  = keys(object)
+        , length = props.length
+        , result = Array(length)
+        , i      = 0;
+      while(length > i)result[i] = object[props[i++]];
+      return result;
+    },
+    /**
+     * {a: b} -> {b: a}
+     * Alternatives:
+     * http://underscorejs.org/#invert
+     */
+    invert: invert,
     /**
      * Alternatives:
      * http://underscorejs.org/#isObject
@@ -2204,16 +2205,6 @@ $define(STATIC, FUNCTION, {
      * http://docs.angularjs.org/api/angular.isObject
      */
     isObject: isObject,
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#isEqual
-     * http://sugarjs.com/api/Object/equal
-     * http://docs.angularjs.org/api/angular.equals
-     * http://fitzgen.github.io/wu.js/#wu-eq
-     */
-    isEqual: function(a, b){
-      return isEqual(a, b, [], []);
-    },
     symbol: symbol,
     hidden: hidden
   });
