@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it  is \Function
 test 'Function.inherits' !->
   {inherits} = Function
   ok isFunction(inherits), 'Is function'
@@ -35,7 +35,7 @@ test 'Function::part' !->
   obj.fn = (-> @a + it)part 21
   ok obj.fn! is 63
   $ = Function._
-  fn = -> Array.map &, String .join ' '
+  fn = -> Array::map.call(&, String).join ' '
   part = fn.part $, \Саша, $, \шоссе, $, \сосала
   ok isFunction(part), '.part with placeholders return function'
   ok part(\Шла \по) is 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders'
@@ -45,7 +45,7 @@ test 'Function::construct' !->
   ok isFunction(Function::construct), 'Is function'
   class C
     (@a, @b)->
-  ok C.construct! instanceof C
+  ok C.construct([]) instanceof C
   deepEqual C.construct([1 2]), new C 1 2
 test 'Function::inherits' !->
   ok isFunction(Function::inherits), 'Is function'

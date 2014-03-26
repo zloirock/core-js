@@ -106,8 +106,8 @@
       if(index >= keys.length)return createIterResultObject(undefined, 1);
       key = keys[index];
       switch(this[KIND]){
-        case KEY: return createIterResultObject(key, 0);
-        case VALUE: return createIterResultObject(object[key], 0);
+        case KEY   : return createIterResultObject(key, 0);
+        case VALUE : return createIterResultObject(object[key], 0);
       }
       return createIterResultObject([key, object[key]], 0);
     }

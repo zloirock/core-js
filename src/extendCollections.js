@@ -14,39 +14,31 @@ var extendCollections = {
   some: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(fn.call(that, value[1], value[0], this))return true;
+      entry = step.value;
+      if(fn.call(that, entry[1], entry[0], this))return true;
     }
     return false;
   },
   every: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(!fn.call(that, value[1], value[0], this))return false;
+      entry = step.value;
+      if(!fn.call(that, entry[1], entry[0], this))return false;
     }
     return true;
   },
   find: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(fn.call(that, value[1], value[0], this))return value[1];
+      entry = step.value;
+      if(fn.call(that, entry[1], entry[0], this))return entry[1];
     }
-  },
-  toArray: function(){
-    var index  = 0
-      , result = Array(this.size);
-    this.forEach(function(val){
-      result[index++] = val;
-    });
-    return result;
   },
   reduceTo: function(target, fn){
     if(arguments.length < 2){
@@ -71,21 +63,6 @@ $define(PROTO, MAP, assign({
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
-    });
-    return result;
-  },
-  toObject: function(){
-    var result = create(null);
-    this.forEach(function(val, key){
-      result[key] = val;
-    });
-    return result;
-  },
-  getKeys: function(){
-    var index  = 0
-      , result = Array(this.size);
-    this.forEach(function(val, key){
-      result[index++] = key;
     });
     return result;
   },

@@ -12,14 +12,13 @@ $define(STATIC, ARRAY, reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
-    // http://www.2ality.com/2012/02/concat-not-generic.html
-    'join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
+    'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
     // ES5:
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,pluck,reduceTo,merge'
+    'at,reduceTo,merge'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);

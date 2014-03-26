@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Promise constructor' !->
   ok isFunction(global.Promise), 'Is function'
   ok Promise.length is 1, 'Promise.length is 1'

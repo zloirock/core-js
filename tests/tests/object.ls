@@ -1,4 +1,5 @@
-{isFunction, isNative} = Function
+isFunction = -> typeof! it is \Function
+isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
 test 'Object.hasOwn' !->
   {hasOwn} = Object
@@ -18,6 +19,16 @@ test 'Object.getOwn' !->
   ok getOwn([] 0) is void
   ok getOwn(^^{q:1} \q) is void
   ok getOwn({} \toString) is void
+test 'Object.getPropertyDescriptor' !->
+  {getPropertyDescriptor, create} = Object
+  ok isFunction(getPropertyDescriptor), 'Is function'
+  deepEqual getPropertyDescriptor(create(q: 1), \q), {+enumerable, +configurable, +writable, value: 1}
+test 'Object.getOwnPropertyDescriptors' !->
+  {getOwnPropertyDescriptors, make} = Object
+  ok isFunction(getOwnPropertyDescriptors), 'Is function'
+  descs = getOwnPropertyDescriptors(make({q: 1}, w:2), \q)
+  ok descs.q is void
+  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
 test 'Object.isEnumerable' !->
   {isEnumerable} = Object
   ok isFunction(isEnumerable), 'Is function'
@@ -158,7 +169,7 @@ do !->
     ok i1 isnt i2
     ok i2.q is 1
     ok getPrototypeOf(i1) is getPrototypeOf i2
-  if Function.isNative Object.getOwnPropertyDescriptor
+  if isNative Object.getOwnPropertyDescriptor
     test 'deep Object.clone without descriptors' !->
       i1 = q: defineProperty {} \q {get: (->42), +enumerable}
       i2 = clone i1, 1 0

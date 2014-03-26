@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Array::at' !->
   ok isFunction(Array::at), 'Is function'
   ok [1 2 3]at(0)  is 1,    '[1, 2, 3].at(0) is 1'
@@ -7,10 +7,6 @@ test 'Array::at' !->
   ok [1 2 3]at(-1) is 3,    '[1, 2, 3].at(-1) is 3'
   ok [1 2 3]at(-3) is 1,    '[1, 2, 3].at(-3) is 1'
   ok [1 2 3]at(-4) is void, '[1, 2, 3].at(-4) is undefined'
-test 'Array::pluck' !->
-  ok isFunction(Array::pluck), 'Is function'
-  deepEqual <[1 2 321]>pluck(\length), [1 1 3], 'return array of properties'
-  deepEqual [\1 2 void]pluck(\length), [1 void void], 'works with undefined'
 test 'Array::reduceTo' !->
   ok isFunction(Array::reduceTo), 'Is function'
   (arr = [1])reduceTo (memo, val, key, that)->

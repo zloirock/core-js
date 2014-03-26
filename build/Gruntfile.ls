@@ -31,7 +31,8 @@ module.exports = (grunt)->
   grunt.registerTask \node ->
     grunt.option \path './index'
     grunt.task.run <[build:node]>
-  grunt.registerTask \library  ->
+  grunt.registerTask \library ->
     grunt.option \path './library'
     grunt.task.run <[build:all,library]>
+  grunt.registerTask \shim <[build:es5,es6,es6c,promise,symbol,reflect,iterator,timers,immediate,console]>
   grunt.registerTask \default <[node library all uglify]>

@@ -1,5 +1,8 @@
 /*global describe, specify, it, assert */
 
+function isNative(fn){
+  return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(fn);
+}
 var local = (typeof global === "undefined") ? this : global,
     oldSetTimeout, newSetTimeout;
 local.setTimeout = local.setTimeout;
@@ -641,7 +644,7 @@ describe("RSVP extensions", function() {
         thenable = { };
 
         // we likely don't need to test this, if the browser doesn't support it
-        if (!Function.isNative(Object.defineProperty)) { done(); return; }
+        if (!isNative(Object.defineProperty)) { done(); return; }
 
         Object.defineProperty(thenable, 'then', {
           get: function(){
@@ -666,7 +669,7 @@ describe("RSVP extensions", function() {
         thenable = { };
 
         // we likely don't need to test this, if the browser doesn't support it
-        if (!Function.isNative(Object.defineProperty)) { done(); return; }
+        if (!isNative(Object.defineProperty)) { done(); return; }
 
         Object.defineProperty(thenable, 'then', {
           get: function(){

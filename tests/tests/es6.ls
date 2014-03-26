@@ -1,4 +1,5 @@
-{isFunction, isNative} = Function
+isFunction = -> typeof! it is \Function
+isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor, defineProperty} = Object
 same = Object.is
 epsilon = (a, b)-> Math.abs(a - b) <= Number.EPSILON

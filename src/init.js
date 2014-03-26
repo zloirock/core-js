@@ -273,6 +273,10 @@ function $define(type, name, source, forced /* = false */){
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
+function $defineTimer(key, fn){
+  if(framework)global[key] = fn;
+  _[key] = ctx(fn, global);
+}
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
   if(framework || !isNative(Base))return Base;

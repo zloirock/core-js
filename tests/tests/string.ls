@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'String::at' !->
   ok isFunction(String::at), 'Is function'
   ok ''at(-1) is ''
@@ -25,7 +25,3 @@ test 'String::escapeURL' !->
 test 'String::unescapeURL' !->
   ok isFunction(String::unescapeURL), 'Is function'
   # TODO
-test 'String::escapeRegExp' !->
-  ok isFunction(String::escapeRegExp), 'Is function'
-  ok 'qwe asd'escapeRegExp! is 'qwe asd'
-  ok '\\/\'*+?|()[]{}.^$'escapeRegExp! is "\\\\\\/\\'\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}\\.\\^\\$"

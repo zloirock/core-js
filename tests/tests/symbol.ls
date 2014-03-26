@@ -1,6 +1,8 @@
-{isFunction, isNative} = Function
+isFunction = -> typeof! it is \Function
+isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
+that = global? && global || window
 test 'Symbol' !->
-  ok isFunction(global.Symbol), 'Is function'
+  ok isFunction(that.Symbol), 'Is function'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'

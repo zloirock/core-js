@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Date.locale' !->
   {locale} = Date
   ok isFunction(locale), 'Is function'

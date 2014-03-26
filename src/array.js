@@ -7,24 +7,6 @@ $define(PROTO, ARRAY, {
   at: function(index){
     return this[0 > (index |= 0) ? this.length + index : index];
   },
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#pluck
-   * http://sugarjs.com/api/Array/map
-   * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
-   */
-  pluck: function(key){
-    var that   = ES5Object(this)
-      , length = toLength(that.length)
-      , result = Array(length)
-      , i      = 0
-      , val;
-    for(; length > i; i++)if(i in that){
-      val = that[i];
-      result[i] = val == undefined ? undefined : val[key];
-    }
-    return result;
-  },
   reduceTo: reduceTo,
   /**
    * Alternatives:

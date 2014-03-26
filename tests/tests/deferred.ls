@@ -1,5 +1,5 @@
-{isObject} = Object
-{isFunction} = Function
+isObject = -> it is Object it
+isFunction = -> typeof! it is \Function
 asyncTest 'Function::timeout' 8 !->
   ok isFunction(Function::timeout), 'Is function'
   timeout = (->

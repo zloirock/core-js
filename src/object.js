@@ -93,6 +93,10 @@
     getOwn: function(object, key){
       return has(object, key) ? object[key] : undefined;
     },
+    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+    getPropertyDescriptor: getPropertyDescriptor,
+    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
     /**
      * Alternatives:
      * http://livescript.net/#operators -> typeof!

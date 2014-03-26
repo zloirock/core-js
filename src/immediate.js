@@ -74,7 +74,5 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     }
   }
 }(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
-$define(GLOBAL, {
-  setImmediate: setImmediate,
-  clearImmediate: clearImmediate
-});
+$defineTimer('setImmediate', setImmediate);
+$defineTimer('clearImmediate', clearImmediate);

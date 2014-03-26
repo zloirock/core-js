@@ -285,6 +285,10 @@ function $define(type, name, source, forced /* = false */){
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
+function $defineTimer(key, fn){
+  if(framework)global[key] = fn;
+  _[key] = ctx(fn, global);
+}
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
   if(framework || !isNative(Base))return Base;
@@ -305,17 +309,6 @@ if(!isExports || framework){
   }
   global._ = _;
 }
-
-/*****************************
- * Module : shortcuts
- *****************************/
-
-$forEach(array('create,getPrototypeOf,defineProperties,defineProperty,' +
-    'getOwnPropertyDescriptor,keys,getOwnPropertyNames'),
-  function(key){
-    if(!(key in _) && key in Object)_[key] = Object[key];
-  }
-);
 
 /*****************************
  * Module : es6
@@ -602,8 +595,8 @@ $forEach(array('create,getPrototypeOf,defineProperties,defineProperty,' +
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(val){
-      that.set(val[0], val[1]);
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(entry){
+      that.set(entry[0], entry[1]);
     }, that);
     return that;
   }
@@ -1200,8 +1193,8 @@ $define(STATIC, 'Reflect', {
       if(index >= keys.length)return createIterResultObject(undefined, 1);
       key = keys[index];
       switch(this[KIND]){
-        case KEY: return createIterResultObject(key, 0);
-        case VALUE: return createIterResultObject(object[key], 0);
+        case KEY   : return createIterResultObject(key, 0);
+        case VALUE : return createIterResultObject(object[key], 0);
       }
       return createIterResultObject([key, object[key]], 0);
     }
@@ -1298,11 +1291,27 @@ $define(STATIC, 'Reflect', {
  *****************************/
 
 !function(){
-  function Dict(props){
-    return props ? assign(create(null), props) : create(null);
+  function Dict(iterable){
+    var dict = create(null);
+    if(iterable != undefined){
+      if(isIterable(iterable))forOf(iterable, function(entry){
+        dict[entry[0]] = entry[1];
+      });
+      else assign(dict, iterable);
+    }
+    return dict;
   }
   assign(Dict, objectIterators);
-  function findIndex(object, fn, that /* = undefined */){
+  /**
+   * Object enumumerabe
+   * Alternatives:
+   * http://underscorejs.org/ _.{enumerable...}
+   * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
+   * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
+   * http://api.jquery.com/category/utilities/ $.{enumerable...}
+   * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
+   */
+  function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
       , props  = keys(O)
@@ -1314,12 +1323,6 @@ $define(STATIC, 'Reflect', {
     }
   }
   assign(Dict, {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#every
-     * http://sugarjs.com/api/Object/enumerable
-     * http://mootools.net/docs/core/Types/Object#Object:Object-every
-     */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1327,15 +1330,11 @@ $define(STATIC, 'Reflect', {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)if(!fn.call(that, O[key = props[i++]], key, object))return false;
+      while(length > i){
+        if(!fn.call(that, O[key = props[i++]], key, object))return false;
+      }
       return true;
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#filter
-     * http://sugarjs.com/api/Object/enumerable
-     * http://mootools.net/docs/core/Types/Object#Object:Object-filter
-     */
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1349,24 +1348,11 @@ $define(STATIC, 'Reflect', {
       }
       return result;
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#find
-     * http://sugarjs.com/api/Object/enumerable
-     */
     find: function(object, fn, that /* = undefined */){
-      var index = findIndex(object, fn, that);
+      var index = findKey(object, fn, that);
       return index === undefined ? undefined : ES5Object(object)[index];
     },
-    findIndex: findIndex,
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#each
-     * http://sugarjs.com/api/Object/enumerable
-     * http://mootools.net/docs/core/Types/Object#Object:Object-each
-     * http://api.jquery.com/jQuery.each/
-     * http://docs.angularjs.org/api/angular.forEach
-     */
+    findKey: findKey,
     forEach: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1377,11 +1363,7 @@ $define(STATIC, 'Reflect', {
       while(length > i)fn.call(that, O[key = props[i++]], key, object);
       return object;
     },
-    /**
-     * Alternatives:
-     * http://mootools.net/docs/core/Types/Object#Object:Object-keyOf
-     */
-    indexOf: function(object, searchElement){
+    keyOf: function(object, searchElement){
       var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
@@ -1389,13 +1371,6 @@ $define(STATIC, 'Reflect', {
         , key;
       while(length > i)if(same(O[key = props[i++]], searchElement))return key;
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#map
-     * http://sugarjs.com/api/Object/enumerable
-     * http://mootools.net/docs/core/Types/Object#Object:Object-map
-     * http://api.jquery.com/jQuery.map/
-     */
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1404,14 +1379,11 @@ $define(STATIC, 'Reflect', {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)result[key = props[i++]] = fn.call(that, O[key], key, object);
+      while(length > i){
+        result[key = props[i++]] = fn.call(that, O[key], key, object);
+      }
       return result;
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#reduce
-     * http://sugarjs.com/api/Object/enumerable
-     */
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1423,15 +1395,11 @@ $define(STATIC, 'Reflect', {
         assert(length--, REDUCE_ERROR);
         result = O[props.shift()];
       }
-      while(length > i)result = fn.call(that, result, O[key = props[i++]], key, object);
+      while(length > i){
+        result = fn.call(that, result, O[key = props[i++]], key, object);
+      }
       return result;
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#some
-     * http://sugarjs.com/api/Object/enumerable
-     * http://mootools.net/docs/core/Types/Object#Object:Object-some
-     */
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1439,27 +1407,10 @@ $define(STATIC, 'Reflect', {
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)if(fn.call(that, O[key = props[i++]], key, object))return true;
-      return false;
-    },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#pluck
-     * http://sugarjs.com/api/Array/map
-     */
-    pluck: function(object, prop){
-      object = ES5Object(object);
-      var names  = keys(object)
-        , result = create(null)
-        , length = names.length
-        , i      = 0
-        , key, val;
       while(length > i){
-        key = names[i++];
-        val = object[key];
-        result[key] = val == undefined ? undefined : val[prop];
+        if(fn.call(that, O[key = props[i++]], key, object))return true;
       }
-      return result;
+      return false;
     },
     reduceTo: function(object, target, callbackfn){
       if(arguments.length < 3){
@@ -1478,36 +1429,6 @@ $define(STATIC, 'Reflect', {
   });
   $define(GLOBAL, {Dict: Dict});
 }();
-
-/*****************************
- * Module : extendedObjectAPI
- *****************************/
-
-/**
- * Extended object api from harmony and strawman :
- * http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
- * http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
- */
-$define(STATIC, OBJECT, {
-  getPropertyDescriptor: getPropertyDescriptor,
-  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-  getPropertyDescriptors: function(object){
-    var result = getOwnPropertyDescriptors(object);
-    while(object = getPrototypeOf(object)){
-      result = assign(getOwnPropertyDescriptors(object), result);
-    }
-    return result;
-  },
-  getPropertyNames: function(object){
-    var result = getOwnPropertyNames(object);
-    while(object = getPrototypeOf(object)){
-      $forEach(getOwnPropertyNames(object), function(key){
-        ~$indexOf(result, key) || result.push(key);
-      });
-    }
-    return result;
-  }
-});
 
 /*****************************
  * Module : immediate
@@ -1589,10 +1510,8 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     }
   }
 }(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
-$define(GLOBAL, {
-  setImmediate: setImmediate,
-  clearImmediate: clearImmediate
-});
+$defineTimer('setImmediate', setImmediate);
+$defineTimer('clearImmediate', clearImmediate);
 
 /*****************************
  * Module : function
@@ -1676,62 +1595,67 @@ $define(PROTO, FUNCTION, {
  * Module : binding
  *****************************/
 
-function tie(key){
-  var that = this
-    , placeholder = false
-    , i = 1, length, args;
-  length = arguments.length;
-  if(length < 2)return ctx(that[key], that);
-  args = Array(length - 1)
-  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(that[key], args, length, placeholder, true, that);
-}
-function by(that){
-  var fn = this
-    , placeholder = false
-    , length = arguments.length
-    , i = 1, args;
-  if(length < 2)return ctx(fn, that);
-  args = Array(length - 1);
-  while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(fn, args, length, placeholder, true, that);
-}
-$define(PROTO, FUNCTION, {
-  tie: tie,
-  /**
-   * Partial apply.
-   * Alternatives:
-   * http://sugarjs.com/api/Function/fill
-   * http://underscorejs.org/#partial
-   * http://mootools.net/docs/core/Types/Function#Function:pass
-   * http://fitzgen.github.io/wu.js/#wu-partial
-   */
-  part: part,
-  by: by,
-  /**
-   * function -> method
-   * Alternatives:
-   * http://api.prototypejs.org/language/Function/prototype/methodize/
-   */
-  methodize: methodize
-});
-$define(PROTO, ARRAY, {tie: tie});
-$define(PROTO, REGEXP, {tie: tie});
-$define(STATIC, OBJECT, {
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   * http://livescript.net/#property-access -> foo~bar
-   * http://lodash.com/docs#bindKey
-   */
-  tie: unbind(tie),
-  useTie: part.call($define, PROTO, OBJECT, {tie: tie})
-});
-$define(STATIC, FUNCTION, {
-  part: unbind(part),
-  by: unbind(by),
-  tie: unbind(tie)
-});
+!function(){
+  function tie(key){
+    var that = this
+      , placeholder = false
+      , i = 1, length, args;
+    length = arguments.length;
+    if(length < 2)return ctx(that[key], that);
+    args = Array(length - 1)
+    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+    return createPartialApplication(that[key], args, length, placeholder, true, that);
+  }
+  function by(that){
+    var fn = this
+      , placeholder = false
+      , length = arguments.length
+      , i = 1, args;
+    if(length < 2)return ctx(fn, that);
+    args = Array(length - 1);
+    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+    return createPartialApplication(fn, args, length, placeholder, true, that);
+  }
+  $define(PROTO, FUNCTION, {
+    tie: tie,
+    /**
+     * Partial apply.
+     * Alternatives:
+     * http://sugarjs.com/api/Function/fill
+     * http://underscorejs.org/#partial
+     * http://mootools.net/docs/core/Types/Function#Function:pass
+     * http://fitzgen.github.io/wu.js/#wu-partial
+     */
+    part: part,
+    by: by,
+    /**
+     * function -> method
+     * Alternatives:
+     * http://api.prototypejs.org/language/Function/prototype/methodize/
+     */
+    methodize: methodize
+  });
+  $define(PROTO, ARRAY, {tie: tie});
+  $define(PROTO, REGEXP, {tie: tie});
+  $define(STATIC, OBJECT, {
+    /**
+     * Alternatives:
+     * http://www.2ality.com/2013/06/auto-binding.html
+     * http://livescript.net/#property-access -> foo~bar
+     * http://lodash.com/docs#bindKey
+     */
+    tie: unbind(tie)
+  });
+  $define(STATIC, FUNCTION, {
+    part: unbind(part),
+    by: unbind(by),
+    tie: unbind(tie)
+  });
+  _.useTie = function(){
+    $define(PROTO, OBJECT, {tie: tie});
+    return _;
+  }
+}();
 
 /*****************************
  * Module : object
@@ -1832,6 +1756,10 @@ $define(STATIC, FUNCTION, {
     getOwn: function(object, key){
       return has(object, key) ? object[key] : undefined;
     },
+    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+    getPropertyDescriptor: getPropertyDescriptor,
+    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
     /**
      * Alternatives:
      * http://livescript.net/#operators -> typeof!
@@ -1918,24 +1846,6 @@ $define(PROTO, ARRAY, {
   at: function(index){
     return this[0 > (index |= 0) ? this.length + index : index];
   },
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#pluck
-   * http://sugarjs.com/api/Array/map
-   * http://api.prototypejs.org/language/Enumerable/prototype/pluck/
-   */
-  pluck: function(key){
-    var that   = ES5Object(this)
-      , length = toLength(that.length)
-      , result = Array(length)
-      , i      = 0
-      , val;
-    for(; length > i; i++)if(i in that){
-      val = that[i];
-      result[i] = val == undefined ? undefined : val[key];
-    }
-    return result;
-  },
   reduceTo: reduceTo,
   /**
    * Alternatives:
@@ -1966,14 +1876,13 @@ $define(STATIC, ARRAY, reduceTo.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
-    // http://www.2ality.com/2012/02/concat-not-generic.html
-    'join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
+    'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
     // ES5:
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,pluck,reduceTo,merge'
+    'at,reduceTo,merge'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);
@@ -2060,8 +1969,7 @@ $define(PROTO, NUMBER, reduceTo.call(
       }
     , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
     , RegExpEscapeHTML   = /[&<>"'/]/g
-    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
-    , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
+    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g');
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -2105,18 +2013,28 @@ $define(PROTO, NUMBER, reduceTo.call(
      */
     unescapeURL: function(component /* = false */){
       return (component ? decodeURIComponent : decodeURI)(this);
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/escapeRegExp
-     * http://api.prototypejs.org/language/RegExp/escape/
-     * http://mootools.net/docs/core/Types/String#String:escapeRegExp
-     */
-    escapeRegExp: function(){
-      return String(this).replace(RegExpEscapeRegExp, '\\$1');
     }
   });
 }();
+
+/*****************************
+ * Module : regexp
+ *****************************/
+
+!function(escape){
+  /**
+   * https://gist.github.com/kangax/9698100
+   * Alternatives:
+   * http://sugarjs.com/api/String/escapeRegExp
+   * http://api.prototypejs.org/language/RegExp/escape/
+   * http://mootools.net/docs/core/Types/String#String:escapeRegExp
+   */
+  $define(STATIC, REGEXP, {
+    escape: function(it){
+      return String(it).replace(escape, '\\$1');
+    }
+  });
+}(/([\\\-[\]{}()*+?.,^$|])/g);
 
 /*****************************
  * Module : date
@@ -2217,39 +2135,31 @@ var extendCollections = {
   some: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(fn.call(that, value[1], value[0], this))return true;
+      entry = step.value;
+      if(fn.call(that, entry[1], entry[0], this))return true;
     }
     return false;
   },
   every: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(!fn.call(that, value[1], value[0], this))return false;
+      entry = step.value;
+      if(!fn.call(that, entry[1], entry[0], this))return false;
     }
     return true;
   },
   find: function(fn, that){
     assertFunction(fn);
     var iter = this.entries()
-      , step, value;
+      , step, entry;
     while(!(step = iter.next()).done){
-      value = step.value;
-      if(fn.call(that, value[1], value[0], this))return value[1];
+      entry = step.value;
+      if(fn.call(that, entry[1], entry[0], this))return entry[1];
     }
-  },
-  toArray: function(){
-    var index  = 0
-      , result = Array(this.size);
-    this.forEach(function(val){
-      result[index++] = val;
-    });
-    return result;
   },
   reduceTo: function(target, fn){
     if(arguments.length < 2){
@@ -2274,21 +2184,6 @@ $define(PROTO, MAP, assign({
     var result = new Map;
     this.forEach(function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
-    });
-    return result;
-  },
-  toObject: function(){
-    var result = create(null);
-    this.forEach(function(val, key){
-      result[key] = val;
-    });
-    return result;
-  },
-  getKeys: function(){
-    var index  = 0
-      , result = Array(this.size);
-    this.forEach(function(val, key){
-      result[index++] = key;
     });
     return result;
   },

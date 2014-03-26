@@ -25,8 +25,8 @@
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(val){
-      that.set(val[0], val[1]);
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(entry){
+      that.set(entry[0], entry[1]);
     }, that);
     return that;
   }

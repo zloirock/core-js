@@ -1,6 +1,8 @@
+isFunction = -> typeof! it  is \Function
+that = global? && global || window
 asyncTest 'setImmediate / clearImmediate' 6 !->
-  ok Function.isFunction(global.setImmediate), 'setImmediate is function'
-  ok Function.isFunction(global.clearImmediate), 'clearImmediate is function'
+  ok isFunction(that.setImmediate), 'setImmediate is function'
+  ok isFunction(that.clearImmediate), 'clearImmediate is function'
   var tmp1
   id = setImmediate !-> tmp1 := 42
   ok tmp1 is void, 'setImmediate is async'
@@ -8,18 +10,18 @@ asyncTest 'setImmediate / clearImmediate' 6 !->
   var tmp2
   setImmediate !->
     tmp2 := on
-  setTimeout _, 50 <| !->
+  setTimeout _, 70 <| !->
     ok tmp2, 'setImmediate works'
   var tmp3
   setImmediate _, \b \c <| (b, c)!->
     tmp3 := b + c
-  setTimeout _, 50 <| !->
+  setTimeout _, 80 <| !->
     ok tmp3 is \bc, 'setImmediate works with additional params'
   var tmp4
   clearImmediate setImmediate !-> tmp4 := 42
-  setTimeout _, 20 <| !->
+  setTimeout _, 90 <| !->
     ok tmp4 is void, 'clearImmediate works'
-  setTimeout start, 50
+  setTimeout start, 100
 
 bzzzzz = ->
   x = 0

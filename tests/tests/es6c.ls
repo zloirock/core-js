@@ -1,7 +1,9 @@
-{isFunction, isNative} = Function
+isFunction = -> typeof! it is \Function
+isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor} = Object
+that = global? && global || window
 test 'Map' !->
-  ok isFunction(global.Map), 'Is function'
+  ok isFunction(that.Map), 'Is function'
   ok \clear   of Map::, 'clear in Map.prototype'
   ok \delete  of Map::, 'delete in Map.prototype'
   ok \forEach of Map::, 'forEach in Map.prototype'
@@ -89,7 +91,7 @@ test 'Map::size' !->
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
 
 test 'Set' !->
-  ok isFunction(global.Set), 'Is function'
+  ok isFunction(that.Set), 'Is function'
   ok \add     of Set::, 'add in Set.prototype'
   ok \clear   of Set::, 'clear in Set.prototype'
   ok \delete  of Set::, 'delete in Set.prototype'
@@ -169,7 +171,7 @@ test 'Set::size' !->
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
 
 test 'WeakMap' !->
-  ok isFunction(global.WeakMap), 'Is function'
+  ok isFunction(that.WeakMap), 'Is function'
   ok \clear  of WeakMap::, 'clear in WeakMap.prototype'
   ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   ok \get    of WeakMap::, 'get in WeakMap.prototype'
@@ -214,7 +216,7 @@ test 'WeakMap::set' !->
   ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
 
 test 'WeakSet' !->
-  ok isFunction(global.WeakSet), 'Is function'
+  ok isFunction(that.WeakSet), 'Is function'
   ok \add    of WeakSet::, 'add in WeakSet.prototype'
   ok \clear  of WeakSet::, 'clear in WeakSet.prototype'
   ok \delete of WeakSet::, 'delete in WeakSet.prototype'

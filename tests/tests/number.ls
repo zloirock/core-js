@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Number.toInteger' !->
   {toInteger} = Number
   ok isFunction(toInteger), 'Is function'
@@ -35,4 +35,3 @@ test 'Number::{Math}' !->
   ok 3.max(2) is 3, 'context is argument of Number::{Math}'
   ok 3.min(2) is 2, 'Number::{Math} works with first argument'
   ok 1.max(2 3 4 5 6 7) is 7, 'Number::{Math} works with various arguments length'
-  

@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Object.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Object
   ok isFunction(getOwnPropertyDescriptor), 'Is function'
@@ -36,7 +36,15 @@ test 'Object.getOwnPropertyNames' !->
   ok \toString in getOwnPropertyNames Object::
   ok \constructor in getOwnPropertyNames Object::
 test 'Object.create' !->
-  {create, getPrototypeOf, getPropertyNames, isObject, isPrototype} = Object
+  {create, getPrototypeOf, getOwnPropertyNames} = Object
+  isObject = -> it is Object it
+  isPrototype = (a, b)-> ({}).isPrototypeOf.call a, b
+  getPropertyNames = (object)->
+    result = getOwnPropertyNames object
+    while object = getPrototypeOf(object)
+      for getOwnPropertyNames(object)
+        .. in result or result.push ..
+    result
   ok isFunction(create), 'Is function'
   ok isPrototype obj = q:1, create(obj)
   ok create(obj)q is 1

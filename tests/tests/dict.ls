@@ -1,4 +1,4 @@
-{isFunction} = Function
+isFunction = -> typeof! it is \Function
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
   foo = Dict q:1 w:2
@@ -37,16 +37,16 @@ test 'Dict.find' !->
     ok @    is ctx
   , ctx = {}
   ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
-test 'Dict.findIndex' !->
-  {findIndex} = Dict
-  ok isFunction(findIndex), 'Is function'
-  findIndex obj = {q: 1}, (val, key, that)->
+test 'Dict.findKey' !->
+  {findKey} = Dict
+  ok isFunction(findKey), 'Is function'
+  findKey obj = {q: 1}, (val, key, that)->
     ok val  is 1
     ok key  is \q
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  ok findIndex({q:1 w:2 e:3} -> it is 2) is \w
+  ok findKey({q:1 w:2 e:3} -> it is 2) is \w
 test 'Dict.forEach' !->
   {forEach} = Dict
   ok isFunction(forEach), 'Is function'
@@ -71,12 +71,12 @@ test 'Dict.forEach' !->
   rez = {}
   forEach \123 !-> rez[&1] = &0
   ok \2 of rez
-test 'Dict.indexOf' !->
-  {indexOf} = Dict
-  ok isFunction(indexOf), 'Is function'
-  ok indexOf({q:1 w:2 e:3} 2)     is \w
-  ok indexOf({q:1 w:2 e:3} 4)     is void
-  ok indexOf({q:1 w:2 e:NaN} NaN) is \e
+test 'Dict.keyOf' !->
+  {keyOf} = Dict
+  ok isFunction(keyOf), 'Is function'
+  ok keyOf({q:1 w:2 e:3} 2)     is \w
+  ok keyOf({q:1 w:2 e:3} 4)     is void
+  ok keyOf({q:1 w:2 e:NaN} NaN) is \e
 test 'Dict.map' !->
   {map} = Dict
   ok isFunction(map), 'Is function'
@@ -116,12 +116,6 @@ test 'Dict.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test 'Dict.pluck' !->
-  {pluck} = Dict
-  ok isFunction(pluck), 'Is function'
-  deepEqual pluck({q:1 w:22 e:333} \length), Dict q:void w:void e:void
-  deepEqual pluck({q:1 w:22 e:void} \length), Dict q:void w:void e:void
-  deepEqual pluck({q:\1 w:\22 e:\333} \length), Dict q:1 w:2 e:3
 test 'Dict.reduceTo' !->
   {reduceTo} = Dict
   ok isFunction(reduceTo), 'Is function'

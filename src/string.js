@@ -9,8 +9,7 @@
       }
     , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
     , RegExpEscapeHTML   = /[&<>"'/]/g
-    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g')
-    , RegExpEscapeRegExp = /([\\\/'*+?|()\[\]{}.^$])/g;
+    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g');
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -54,15 +53,6 @@
      */
     unescapeURL: function(component /* = false */){
       return (component ? decodeURIComponent : decodeURI)(this);
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/escapeRegExp
-     * http://api.prototypejs.org/language/RegExp/escape/
-     * http://mootools.net/docs/core/Types/String#String:escapeRegExp
-     */
-    escapeRegExp: function(){
-      return String(this).replace(RegExpEscapeRegExp, '\\$1');
     }
   });
 }();

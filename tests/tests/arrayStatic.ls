@@ -1,6 +1,7 @@
+isFunction = -> typeof! it is \Function
 test 'Array static are functions' !->
-  for <[join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at pluck reduceTo merge]>
-    ok Function.isFunction(Array[..]), "Array.#{..} is function"
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at reduceTo merge]>
+    ok isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
   ok join(\123, \|) is \1|2|3
@@ -213,10 +214,6 @@ test 'Array.at' !->
   ok at((->&)(1 2 3), -1) is 3
   ok at((->&)(1 2 3), -3) is 1
   ok at((->&)(1 2 3), -4) is void
-test 'Array.pluck' !->
-  {pluck} = Array
-  deepEqual pluck((->&)(\1 \22  3), \length), [1 2 void]
-  deepEqual pluck(\123 \length), [1 1 1]
 test 'Array.reduceTo' !->
   {reduceTo} = Array
   reduceTo (al = (->&)(1)), (memo, val, key, that)->
