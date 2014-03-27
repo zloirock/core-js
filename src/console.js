@@ -5,7 +5,7 @@
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap
  */
-var $console = reduceTo.call(
+var $console = transform.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),

@@ -40,7 +40,7 @@ var extendCollections = {
       if(fn.call(that, entry[1], entry[0], this))return entry[1];
     }
   },
-  reduceTo: function(target, fn){
+  transform: function(target, fn){
     if(arguments.length < 2){
       fn = target;
       target = create(null);

@@ -2,9 +2,6 @@
   function define(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
   }
-  function make(proto, props, desc){
-    return props ? (desc ? define : assign)(create(proto), props) : create(proto);
-  }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
       var isComp = isFunction(reverse)
@@ -89,10 +86,6 @@
      */
     isEnumerable: unbind(isEnumerable),
     isPrototype: unbind($Object.isPrototypeOf),
-    hasOwn: has,
-    getOwn: function(object, key){
-      return has(object, key) ? object[key] : undefined;
-    },
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: getPropertyDescriptor,
     // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
@@ -109,9 +102,13 @@
      * Alternatives:
      * http://lodash.com/docs#create
      */
-    make: make,
+    make: function(proto, props, desc){
+      return props ? (desc ? define : assign)(create(proto), props) : create(proto);
+    },
     /**
-     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     * 19.1.3.15 Object.mixin ( target, source )
+     * Removed in Draft Rev 22, January 20, 2014
+     * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      */
     define: define,
     /**
@@ -136,28 +133,6 @@
     merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
       return merge(target, source, deep, reverse, desc, [], []);
     },
-    /**
-     * {a: b} -> [b]
-     * Alternatives:
-     * http://underscorejs.org/#values
-     * http://sugarjs.com/api/Object/values
-     * http://api.prototypejs.org/language/Object/values/
-     * http://mootools.net/docs/core/Types/Object#Object:Object-values
-     */
-    values: function(object){
-      var props  = keys(object)
-        , length = props.length
-        , result = Array(length)
-        , i      = 0;
-      while(length > i)result[i] = object[props[i++]];
-      return result;
-    },
-    /**
-     * {a: b} -> {b: a}
-     * Alternatives:
-     * http://underscorejs.org/#invert
-     */
-    invert: invert,
     /**
      * Alternatives:
      * http://underscorejs.org/#isObject

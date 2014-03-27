@@ -170,16 +170,6 @@ var assign = Object.assign || function(target, source){
   while(length > i)target[key = props[i++]] = source[key];
   return target;
 }
-function invert(object){
-  object = ES5Object(object);
-  var result = {}
-    , names  = keys(object)
-    , length = names.length
-    , i      = 0
-    , key;
-  while(length > i)result[object[key = names[i++]]] = key;
-  return result;
-}
 
 // Array:
 // array('str1,str2,str3') => ['str1', 'str2', 'str3']
@@ -195,7 +185,7 @@ var push     = $Array.push
       return slice.call(arrayLike, from);
     }
 // simple reduce to object
-function reduceTo(target, callbackfn){
+function transform(target, callbackfn){
   if(arguments.length < 2){
     callbackfn = target;
     target = {};
@@ -1013,7 +1003,7 @@ if(!isExports || framework){
   $define(STATIC, 'Symbol', {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
-      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = new Symbol(key);
+      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,
@@ -1023,63 +1013,6 @@ if(!isExports || framework){
     }
   });
 }(symbol('tag'), {});
-
-/*****************************
- * Module : reflect
- *****************************/
-
-/**
- * 26.1 The Reflect Object
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-reflect-object
- */
-var id = Function('x', 'return x');
-$define(GLOBAL, {Reflect: {}});
-$define(STATIC, 'Reflect', {
-  // 26.1.1 Reflect.defineProperty(target, propertyKey, attributes)
-  defineProperty: defineProperty,
-  // 26.1.2 Reflect.deleteProperty(target, propertyKey)
-  deleteProperty: function(target, propertyKey){
-    return delete target[propertyKey];
-  },
-  // 26.1.3 Reflect.enumerate(target)
-  enumerate: function(target){
-    var list = [], key;
-    for(key in target)list.push(key);
-    return list;
-  },
-  // 26.1.4 Reflect.get(target, propertyKey, receiver=target)
-  get: function(target, propertyKey, receiver){
-    if(arguments.length < 3)return target[propertyKey];
-    var desc = getPropertyDescriptor(target, propertyKey);
-    return desc && isFunction(desc.get) ? desc.get.call(receiver) : target[propertyKey];
-  },
-  // 26.1.5 Reflect.getOwnPropertyDescriptor(target, propertyKey)
-  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
-  // 26.1.6 Reflect.getPrototypeOf(target)
-  getPrototypeOf: getPrototypeOf,
-  // 26.1.7 Reflect.has(target, propertyKey)
-  has: function(target, propertyKey){
-    return propertyKey in target;
-  },
-  // 26.1.8 Reflect.hasOwn(target, propertyKey) Deprecated???
-  hasOwn: has,
-  // 26.1.9 Reflect.isExtensible(target)
-  isExtensible: Object.isExtensible || Function('return !0'),
-  // 26.1.10 Reflect.ownKeys(target)
-  ownKeys: function(target){
-    return getIterator(keys(target));
-  },
-  // 26.1.11 Reflect.preventExtensions(target)
-  preventExtensions: Object.preventExtensions || id,
-  // 26.1.12 Reflect.set(target, propertyKey, V, receiver=target)
-  set: function(target, propertyKey, V, receiver){
-    if(arguments.length < 3)return target[propertyKey] = V;
-    var desc = getPropertyDescriptor(target, propertyKey);
-    return desc && isFunction(desc.set) ? desc.set.call(receiver, V) : target[propertyKey] = V;
-  },
-  // 26.1.13 Reflect.setPrototypeOf(target, proto)
-  setPrototypeOf: Object.setPrototypeOf || id
-});
 
 /*****************************
  * Module : iterator
@@ -1412,7 +1345,7 @@ $define(STATIC, 'Reflect', {
       }
       return false;
     },
-    reduceTo: function(object, target, callbackfn){
+    transform: function(object, target, callbackfn){
       if(arguments.length < 3){
         callbackfn = target;
         target = create(null);
@@ -1425,6 +1358,11 @@ $define(STATIC, 'Reflect', {
         , key;
       while(length > i)callbackfn(target, O[key = props[i++]], key, object);
       return target;
+    },
+    // Has / get own property
+    has: has,
+    get: function(object, key){
+      if(has(object, key))return object[key];
     }
   });
   $define(GLOBAL, {Dict: Dict});
@@ -1665,9 +1603,6 @@ $define(PROTO, FUNCTION, {
   function define(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
   }
-  function make(proto, props, desc){
-    return props ? (desc ? define : assign)(create(proto), props) : create(proto);
-  }
   function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
     if(isObject(target) && isObject(source)){
       var isComp = isFunction(reverse)
@@ -1752,10 +1687,6 @@ $define(PROTO, FUNCTION, {
      */
     isEnumerable: unbind(isEnumerable),
     isPrototype: unbind($Object.isPrototypeOf),
-    hasOwn: has,
-    getOwn: function(object, key){
-      return has(object, key) ? object[key] : undefined;
-    },
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: getPropertyDescriptor,
     // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
@@ -1772,9 +1703,13 @@ $define(PROTO, FUNCTION, {
      * Alternatives:
      * http://lodash.com/docs#create
      */
-    make: make,
+    make: function(proto, props, desc){
+      return props ? (desc ? define : assign)(create(proto), props) : create(proto);
+    },
     /**
-     * 19.1.3.15 Object.mixin ( target, source ) <= Removed in Draft Rev 22, January 20, 2014, http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     * 19.1.3.15 Object.mixin ( target, source )
+     * Removed in Draft Rev 22, January 20, 2014
+     * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
      */
     define: define,
     /**
@@ -1800,28 +1735,6 @@ $define(PROTO, FUNCTION, {
       return merge(target, source, deep, reverse, desc, [], []);
     },
     /**
-     * {a: b} -> [b]
-     * Alternatives:
-     * http://underscorejs.org/#values
-     * http://sugarjs.com/api/Object/values
-     * http://api.prototypejs.org/language/Object/values/
-     * http://mootools.net/docs/core/Types/Object#Object:Object-values
-     */
-    values: function(object){
-      var props  = keys(object)
-        , length = props.length
-        , result = Array(length)
-        , i      = 0;
-      while(length > i)result[i] = object[props[i++]];
-      return result;
-    },
-    /**
-     * {a: b} -> {b: a}
-     * Alternatives:
-     * http://underscorejs.org/#invert
-     */
-    invert: invert,
-    /**
      * Alternatives:
      * http://underscorejs.org/#isObject
      * http://sugarjs.com/api/Object/isType
@@ -1844,9 +1757,9 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   at: function(index){
-    return this[0 > (index |= 0) ? this.length + index : index];
+    return ES5Object(this)[0 > (index |= 0) ? this.length + index : index];
   },
-  reduceTo: reduceTo,
+  transform: transform,
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Array#Array:append
@@ -1872,7 +1785,7 @@ $define(PROTO, ARRAY, {
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, ARRAY, reduceTo.call(
+$define(STATIC, ARRAY, transform.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
@@ -1882,7 +1795,7 @@ $define(STATIC, ARRAY, reduceTo.call(
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,reduceTo,merge'
+    'at,transform,merge'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);
@@ -1941,7 +1854,7 @@ $define(PROTO, NUMBER, {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, NUMBER, reduceTo.call(
+$define(PROTO, NUMBER, transform.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3
@@ -1959,17 +1872,18 @@ $define(PROTO, NUMBER, reduceTo.call(
  *****************************/
 
 !function(){
-  var dictionaryEscapeHTML = {
+  var escapeHTMLDict = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&apos;',
-        '/': '&#x2f;'
+        "'": '&apos;'
       }
-    , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
-    , RegExpEscapeHTML   = /[&<>"'/]/g
-    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g');
+    , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
+        memo[escapeHTMLDict[key]] = key;
+      })
+    , RegExpEscapeHTML   = /[&<>"']/g
+    , RegExpUnescapeHTML = RegExp('(' + keys(unescapeHTMLDict).join('|') + ')', 'g');
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -1986,7 +1900,7 @@ $define(PROTO, NUMBER, reduceTo.call(
      */
     escapeHTML: function(){
       return String(this).replace(RegExpEscapeHTML, function(part){
-        return dictionaryEscapeHTML[part];
+        return escapeHTMLDict[part];
       });
     },
     /**
@@ -1997,7 +1911,7 @@ $define(PROTO, NUMBER, reduceTo.call(
      */
     unescapeHTML: function(){
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
-        return dictionaryUnescapeHTML[key];
+        return unescapeHTMLDict[key];
       });
     },
     /**
@@ -2161,7 +2075,7 @@ var extendCollections = {
       if(fn.call(that, entry[1], entry[0], this))return entry[1];
     }
   },
-  reduceTo: function(target, fn){
+  transform: function(target, fn){
     if(arguments.length < 2){
       fn = target;
       target = create(null);
@@ -2223,7 +2137,7 @@ $define(PROTO, SET, assign({
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap
  */
-var $console = reduceTo.call(
+var $console = transform.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),

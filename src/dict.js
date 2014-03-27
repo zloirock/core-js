@@ -120,7 +120,7 @@
       }
       return false;
     },
-    reduceTo: function(object, target, callbackfn){
+    transform: function(object, target, callbackfn){
       if(arguments.length < 3){
         callbackfn = target;
         target = create(null);
@@ -133,6 +133,11 @@
         , key;
       while(length > i)callbackfn(target, O[key = props[i++]], key, object);
       return target;
+    },
+    // Has / get own property
+    has: has,
+    get: function(object, key){
+      if(has(object, key))return object[key];
     }
   });
   $define(GLOBAL, {Dict: Dict});

@@ -116,14 +116,32 @@ test 'Dict.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test 'Dict.reduceTo' !->
-  {reduceTo} = Dict
-  ok isFunction(reduceTo), 'Is function'
-  reduceTo (obj = q: 1), (memo, val, key, that)->
+test 'Dict.transform' !->
+  {transform} = Dict
+  ok isFunction(transform), 'Is function'
+  transform (obj = q: 1), (memo, val, key, that)->
     deepEqual memo, Dict!
     ok val  is 1
     ok key  is \q
     ok that is obj
-  reduceTo {q:1} obj = {} ->
+  transform {q:1} obj = {} ->
     ok it   is obj
-  deepEqual reduceTo({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
+  deepEqual transform({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
+test 'Dict.has' !->
+  {has} = Dict
+  ok isFunction(has), 'Is function'
+  ok has q:1, \q
+  ok not has q:1, \w
+  ok has [1] 0
+  ok not has [] 0
+  ok not has ^^{q:1} \q
+  ok not has {} \toString
+test 'Dict.get' !->
+  {get} = Dict
+  ok isFunction(get), 'Is function'
+  ok get(q:1, \q) is 1
+  ok get(q:1, \w) is void
+  ok get([1] 0) is 1
+  ok get([] 0) is void
+  ok get(^^{q:1} \q) is void
+  ok get({} \toString) is void

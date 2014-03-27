@@ -8,7 +8,7 @@
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, ARRAY, reduceTo.call(
+$define(STATIC, ARRAY, transform.call(
   // IE... getOwnPropertyNames($Array),
   array(
     // ES3:
@@ -18,7 +18,7 @@ $define(STATIC, ARRAY, reduceTo.call(
     // ES6:
     'fill,find,findIndex,' +
     // Core.js:
-    'at,reduceTo,merge'
+    'at,transform,merge'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);

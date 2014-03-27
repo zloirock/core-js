@@ -1,24 +1,6 @@
 isFunction = -> typeof! it is \Function
 isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
-test 'Object.hasOwn' !->
-  {hasOwn} = Object
-  ok isFunction(hasOwn), 'Is function'
-  ok hasOwn q:1, \q
-  ok not hasOwn q:1, \w
-  ok hasOwn [1] 0
-  ok not hasOwn [] 0
-  ok not hasOwn ^^{q:1} \q
-  ok not hasOwn {} \toString
-test 'Object.getOwn' !->
-  {getOwn} = Object
-  ok isFunction(getOwn), 'Is function'
-  ok getOwn(q:1, \q) is 1
-  ok getOwn(q:1, \w) is void
-  ok getOwn([1] 0) is 1
-  ok getOwn([] 0) is void
-  ok getOwn(^^{q:1} \q) is void
-  ok getOwn({} \toString) is void
 test 'Object.getPropertyDescriptor' !->
   {getPropertyDescriptor, create} = Object
   ok isFunction(getPropertyDescriptor), 'Is function'
@@ -223,15 +205,6 @@ do ->
     ok i1.w.q is 1
     ok i1.w.w is 2
     ok i1.w.e is 5
-test 'Object.values' !->
-  {values} = Object
-  ok isFunction(values), 'Is function'
-  ok values(q: 1 w: 2 e: 3)length is 3
-  ok ~values(q: 1 w: 2 e: 3)indexOf 3
-test 'Object.invert' !->
-  {invert} = Object
-  ok isFunction(invert), 'Is function'
-  deepEqual invert(q:\a w:\s e:\d), a:\q s:\w d:\e  
 test 'Object.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'

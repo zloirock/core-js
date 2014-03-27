@@ -1,14 +1,14 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[ init es5 global es6 es6c promise symbol reflect iterator dict
-                timers immediate function deferred binding object array
-                arrayStatics number string regexp date extendCollections console ]>
+modules    = <[ init es5 global es6 es6c promise symbol iterator dict timers
+                immediate function deferred binding object array arrayStatics
+                number string regexp date extendCollections console ]>
 module.exports = (opt, next)-> let @ = opt
   @init = on
   import {+global, +es5, +timers, +node} if @all
   import {+\function, +deferred, +binding, +object, +array, +arrayStatics
         , +number, +string, +regexp, +date, +es6, +es6c, +promise, +symbol
-        , +reflect, +iterator, +dict, +extendCollections, +immediate, +console
+        , +iterator, +dict, +extendCollections, +immediate, +console
   } if @node
   import {+iterator} if @reflect or @promise or @extendCollections or @dict
   import {+es6c} if @iterator

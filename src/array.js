@@ -5,9 +5,9 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   at: function(index){
-    return this[0 > (index |= 0) ? this.length + index : index];
+    return ES5Object(this)[0 > (index |= 0) ? this.length + index : index];
   },
-  reduceTo: reduceTo,
+  transform: transform,
   /**
    * Alternatives:
    * http://mootools.net/docs/core/Types/Array#Array:append

@@ -158,16 +158,6 @@ var assign = Object.assign || function(target, source){
   while(length > i)target[key = props[i++]] = source[key];
   return target;
 }
-function invert(object){
-  object = ES5Object(object);
-  var result = {}
-    , names  = keys(object)
-    , length = names.length
-    , i      = 0
-    , key;
-  while(length > i)result[object[key = names[i++]]] = key;
-  return result;
-}
 
 // Array:
 // array('str1,str2,str3') => ['str1', 'str2', 'str3']
@@ -183,7 +173,7 @@ var push     = $Array.push
       return slice.call(arrayLike, from);
     }
 // simple reduce to object
-function reduceTo(target, callbackfn){
+function transform(target, callbackfn){
   if(arguments.length < 2){
     callbackfn = target;
     target = {};

@@ -46,7 +46,7 @@ $define(PROTO, NUMBER, {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, NUMBER, reduceTo.call(
+$define(PROTO, NUMBER, transform.call(
   // IE... getOwnPropertyNames(Math)
   array(
     // ES3

@@ -1,15 +1,16 @@
 !function(){
-  var dictionaryEscapeHTML = {
+  var escapeHTMLDict = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&apos;',
-        '/': '&#x2f;'
+        "'": '&apos;'
       }
-    , dictionaryUnescapeHTML = invert(dictionaryEscapeHTML)
-    , RegExpEscapeHTML   = /[&<>"'/]/g
-    , RegExpUnescapeHTML = RegExp('(' + keys(dictionaryUnescapeHTML).join('|') + ')', 'g');
+    , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
+        memo[escapeHTMLDict[key]] = key;
+      })
+    , RegExpEscapeHTML   = /[&<>"']/g
+    , RegExpUnescapeHTML = RegExp('(' + keys(unescapeHTMLDict).join('|') + ')', 'g');
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -26,7 +27,7 @@
      */
     escapeHTML: function(){
       return String(this).replace(RegExpEscapeHTML, function(part){
-        return dictionaryEscapeHTML[part];
+        return escapeHTMLDict[part];
       });
     },
     /**
@@ -37,7 +38,7 @@
      */
     unescapeHTML: function(){
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
-        return dictionaryUnescapeHTML[key];
+        return unescapeHTMLDict[key];
       });
     },
     /**
