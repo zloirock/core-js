@@ -193,7 +193,7 @@ var ceil   = Math.ceil
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
+  , MAX_SAFE_INTEGER = pow(2, 53) - 1; // 0x1fffffffffffff == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
   return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
@@ -256,8 +256,6 @@ function $define(type, name, source, forced /* = false */){
     prop = own ? target[key] : source[key];
     // export to `_`
     exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
-    // create shortcuts in `_` for Object & Function static methods
-    if(isStatic && (name == OBJECT || name == FUNCTION))_[key] = prop;
     // if build as fremework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
@@ -271,6 +269,7 @@ function $defineTimer(key, fn){
 function wrapGlobalConstructor(Base){
   if(framework || !isNative(Base))return Base;
   function F(param){
+    // used on constructors that takes 1 argument
     return this instanceof Base ? new Base(param) : Base(param);
   }
   F[PROTOTYPE] = Base[PROTOTYPE];

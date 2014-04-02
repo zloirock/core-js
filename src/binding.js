@@ -1,24 +1,25 @@
 !function(){
   function tie(key){
-    var that = this
+    var that        = this
       , placeholder = false
-      , i = 1, length, args;
-    length = arguments.length;
+      , length      = arguments.length
+      , i = 1, args;
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
     return createPartialApplication(that[key], args, length, placeholder, true, that);
   }
   function by(that){
-    var fn = this
+    var fn          = this
       , placeholder = false
-      , length = arguments.length
+      , length      = arguments.length
       , i = 1, args;
     if(length < 2)return ctx(fn, that);
     args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
     return createPartialApplication(fn, args, length, placeholder, true, that);
   }
+  var $tie = {tie: tie};
   $define(PROTO, FUNCTION, {
     tie: tie,
     /**
@@ -38,8 +39,8 @@
      */
     methodize: methodize
   });
-  $define(PROTO, ARRAY, {tie: tie});
-  $define(PROTO, REGEXP, {tie: tie});
+  $define(PROTO, ARRAY, $tie);
+  $define(PROTO, REGEXP, $tie);
   $define(STATIC, OBJECT, {
     /**
      * Alternatives:
@@ -49,13 +50,8 @@
      */
     tie: unbind(tie)
   });
-  $define(STATIC, FUNCTION, {
-    part: unbind(part),
-    by: unbind(by),
-    tie: unbind(tie)
-  });
   _.useTie = function(){
-    $define(PROTO, OBJECT, {tie: tie});
+    $define(PROTO, OBJECT, $tie);
     return _;
   }
 }();

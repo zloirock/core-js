@@ -19,19 +19,25 @@ test 'Number::times' !->
   deepEqual 5.times((->(@ .|. 0) + it + &1 + &2), 1), [6 8 10 12 14]
 test 'Number::random' !->
   ok isFunction(Number::random), 'Is function'
-  ok 100.times(-> 10.rand!)every -> 0 <= it <= 10
-  ok 100.times(-> 10.rand 7)every -> 7 <= it <= 10
-  ok 100.times(-> 7.rand 10)every -> 7 <= it <= 10
-test 'Number::rand' !->
-  ok isFunction(Number::rand), 'Is function'
-  ok 100.times(-> 10.rand!)every (in [to 10])
-  ok 100.times(-> 10.rand 7)every (in [7 to 10])
-  ok 100.times(-> 7.rand 10)every (in [7 to 10])
+  ok 100.times(-> 10.random!)every -> 0 <= it <= 10
+  ok 100.times(-> 10.random 7)every -> 7 <= it <= 10
+  ok 100.times(-> 7.random 10)every -> 7 <= it <= 10
+test 'Math.randomInt' !->
+  {randomInt} = Math
+  ok isFunction(randomInt), 'Is function'
+  ok 100.times(-> randomInt!)every (is 0)
+  ok 100.times(-> randomInt 10)every (in [to 10])
+  ok 100.times(-> randomInt 10 7)every (in [7 to 10])
+  ok 100.times(-> randomInt 7 10)every (in [7 to 10])
 test 'Number::{Math}' !->
-  for <[round floor ceil abs sin asin cos acos tan atan exp sqrt max min pow atan2]>
-    ok isFunction(Number::[..]), "Number::#{..} is function (ES3)"
-  for <[acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign sinh tanh trunc]>
-    ok isFunction(Number::[..]), "Number::#{..} is function (ES6)"
+  for <[round floor ceil abs sin asin cos acos tan atan exp sqrt max min pow atan2
+        acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign
+        sinh tanh trunc randomInt]>
+    ok isFunction(Number::[..]), "Number::#{..} is function"
   ok 3.max(2) is 3, 'context is argument of Number::{Math}'
   ok 3.min(2) is 2, 'Number::{Math} works with first argument'
   ok 1.max(2 3 4 5 6 7) is 7, 'Number::{Math} works with various arguments length'
+test 'Number::randomInt' !->
+  ok 100.times(-> 10.randomInt!)every (in [to 10])
+  ok 100.times(-> 10.randomInt 7)every (in [7 to 10])
+  ok 100.times(-> 7.randomInt 10)every (in [7 to 10])

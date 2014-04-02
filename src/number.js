@@ -27,16 +27,18 @@ $define(PROTO, NUMBER, {
       , b = +number || 0
       , m = min(a, b);
     return random() * (max(a, b) - m) + m;
-  },
+  }
+});
+$define(STATIC, 'Math', {
   /**
    * Alternatives:
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  rand: function(number /* = 0 */){
-    var a = toInteger(this)
-      , b = toInteger(number)
-      , m = min(a, b);
+  randomInt: function(a /* = 0 */, b /* = 0 */){
+    a = toInteger(a);
+    b = toInteger(b);
+    var m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });
@@ -52,7 +54,9 @@ $define(PROTO, NUMBER, transform.call(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
-    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc,' +
+    // Core.js
+    'randomInt'
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);

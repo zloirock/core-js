@@ -649,7 +649,7 @@
       M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
     }) === Date);
     ok(locale('zz') === 'zz');
-    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('w, d MM YYYY', 'zz') === 'Воскресенье, 3 Марта 1901');
+    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('w, d MM YYYY') === 'Воскресенье, 3 Марта 1901');
   });
   test('Date::format', function(){
     var locale, date;
@@ -658,10 +658,15 @@
     date = new Date(1, 2, 3, 4, 5, 6, 7);
     ok(date.format('dd.nn.YYYY') === '03.03.1901', 'Works basic');
     locale('en');
-    ok(date.format('ms s ss m mm h hh H HH d dd w n nn M MM YY foo YYYY', 'ru') === '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with locale from second argument');
     ok(date.format('ms s ss m mm h hh H HH d dd w n nn M MM YY foo YYYY') === '7 6 06 5 05 4 04 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
     locale('ru');
     ok(date.format('ms s ss m mm h hh H HH d dd w n nn M MM YY foo YYYY') === '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
+  });
+  test('Date::formatUTC', function(){
+    var date;
+    ok(isFunction(Date.prototype.formatUTC), 'Is function');
+    date = new Date(1, 2, 3, 4, 5, 6, 7);
+    ok(date.formatUTC('h') === '' + date.getUTCHours(), 'Works');
   });
 }).call(this);
 
@@ -2453,52 +2458,72 @@
   test('Number::random', function(){
     ok(isFunction(Number.prototype.random), 'Is function');
     ok(100 .times(function(){
-      return 10 .rand();
+      return 10 .random();
     }).every(function(it){
       return 0 <= it && it <= 10;
     }));
     ok(100 .times(function(){
-      return 10 .rand(7);
+      return 10 .random(7);
     }).every(function(it){
       return 7 <= it && it <= 10;
     }));
     ok(100 .times(function(){
-      return 7 .rand(10);
+      return 7 .random(10);
     }).every(function(it){
       return 7 <= it && it <= 10;
     }));
   });
-  test('Number::rand', function(){
-    ok(isFunction(Number.prototype.rand), 'Is function');
+  test('Math.randomInt', function(){
+    var randomInt;
+    randomInt = Math.randomInt;
+    ok(isFunction(randomInt), 'Is function');
     ok(100 .times(function(){
-      return 10 .rand();
+      return randomInt();
+    }).every((function(it){
+      return it === 0;
+    })));
+    ok(100 .times(function(){
+      return randomInt(10);
     }).every((function(it){
       return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
     })));
     ok(100 .times(function(){
-      return 10 .rand(7);
+      return randomInt(10, 7);
     }).every((function(it){
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
     ok(100 .times(function(){
-      return 7 .rand(10);
+      return randomInt(7, 10);
     }).every((function(it){
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
   });
   test('Number::{Math}', function(){
-    var i$, x$, ref$, len$, y$;
-    for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2']).length; i$ < len$; ++i$) {
+    var i$, x$, ref$, len$;
+    for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2', 'acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc', 'randomInt']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function (ES3)");
-    }
-    for (i$ = 0, len$ = (ref$ = ['acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
-      y$ = ref$[i$];
-      ok(isFunction(Number.prototype[y$]), "Number::" + y$ + " is function (ES6)");
+      ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function");
     }
     ok(3 .max(2) === 3, 'context is argument of Number::{Math}');
     ok(3 .min(2) === 2, 'Number::{Math} works with first argument');
     ok(1 .max(2, 3, 4, 5, 6, 7) === 7, 'Number::{Math} works with various arguments length');
+  });
+  test('Number::randomInt', function(){
+    ok(100 .times(function(){
+      return 10 .randomInt();
+    }).every((function(it){
+      return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
+    })));
+    ok(100 .times(function(){
+      return 10 .randomInt(7);
+    }).every((function(it){
+      return it === 7 || it === 8 || it === 9 || it === 10;
+    })));
+    ok(100 .times(function(){
+      return 7 .randomInt(10);
+    }).every((function(it){
+      return it === 7 || it === 8 || it === 9 || it === 10;
+    })));
   });
 }).call(this);
 
@@ -2630,224 +2655,6 @@
       ok(foo.w === 2);
     }
   });
-  (function(){
-    var clone;
-    clone = Object.clone;
-    test('Object.clone', function(){
-      ok(isFunction(clone), 'Is function');
-    });
-    test('Object.clone(primitive)', function(){
-      ok(clone(null) === null);
-      ok(clone(void 8) === void 8);
-      ok(clone('qwe') === 'qwe');
-      ok(clone(123), 123);
-      ok(!clone(false));
-    });
-    test('Object.clone(Object(String|Number|Boolean))', function(){
-      var i1, i2;
-      i1 = new String('qwe');
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i1.valueOf() === i2.valueOf());
-      i1 = new Number(123);
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i1.valueOf() === i2.valueOf());
-      i1 = new Boolean(false);
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.valueOf() === false);
-    });
-    test('Object.clone(Date)', function(){
-      var i1, i2;
-      i1 = new Date(1350861246986);
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.getTime() === 1350861246986);
-    });
-    test('Object.clone(RegExp)', function(){
-      var i1, i2;
-      i1 = /q/i;
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.toString() === '/q/i');
-      ok(i2.test('Q'));
-    });
-    test('simple Object.clone(Array)', function(){
-      var i1, i2;
-      i1 = [1, 2, 3];
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2[2] === 3);
-      ok(i2.length === 3);
-      ok(i2.constructor === Array);
-      ok(Array.isArray(i2));
-    });
-    test('simple Object.clone(Object)', function(){
-      var i1, i2;
-      i1 = {
-        q: 123,
-        w: 'qwe'
-      };
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.q === 123);
-      ok(i2.w === 'qwe');
-      i1 = {
-        q: {}
-      };
-      i2 = clone(i1);
-      ok(i1.q === i2.q);
-    });
-    test('deep Object.clone(Object)', function(){
-      var i1, i2;
-      i1 = {
-        q: {
-          q: 1
-        }
-      };
-      i2 = clone(i1, 1);
-      ok(i1.q !== i2.q);
-      ok(i1.q.q === i2.q.q);
-    });
-    test('deep Object.clone(Array)', function(){
-      var i1, i2;
-      i1 = [/^qwe$/];
-      i2 = clone(i1, 1);
-      ok(i1[0] !== i2[0]);
-      ok(i2[0].test('qwe'));
-      ok(!i2[0].test('qwer'));
-    });
-    test('deep Object.clone(instance)', function(){
-      var fn, i1, i2;
-      fn = function(){
-        return this.q = 1;
-      };
-      i1 = new fn;
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.q === 1);
-      ok(getPrototypeOf(i1) === getPrototypeOf(i2));
-      i1 = create({
-        q: 1
-      });
-      i2 = clone(i1);
-      ok(i1 !== i2);
-      ok(i2.q === 1);
-      ok(getPrototypeOf(i1) === getPrototypeOf(i2));
-    });
-    if (isNative(Object.getOwnPropertyDescriptor)) {
-      test('deep Object.clone without descriptors', function(){
-        var i1, i2;
-        i1 = {
-          q: defineProperty({}, 'q', {
-            get: function(){
-              return 42;
-            },
-            enumerable: true
-          })
-        };
-        i2 = clone(i1, 1, 0);
-        ok(i1.q !== i2.q);
-        ok(i2.q.q === 42);
-        ok(getOwnPropertyDescriptor(i2.q, 'q').get === void 8);
-      });
-      test('deep Object.clone with descriptors', function(){
-        var i1, i2;
-        i1 = {
-          q: defineProperty({}, 'q', {
-            get: function(){
-              return 52;
-            }
-          })
-        };
-        i2 = clone(i1, 1, 1);
-        ok(i1.q !== i2.q);
-        ok(i2.q.q === 52);
-        ok(typeof getOwnPropertyDescriptor(i2.q, 'q').get === 'function');
-      });
-    }
-  })();
-  (function(){
-    var merge, fn, obj;
-    merge = Object.merge;
-    fn = (function(){
-      fn.displayName = 'fn';
-      var prototype = fn.prototype, constructor = fn;
-      prototype.w = {
-        q: 1,
-        w: 2
-      };
-      prototype.q = 1;
-      prototype.e = 2;
-      function fn(){}
-      return fn;
-    }());
-    obj = {
-      w: {
-        q: 2,
-        e: 5
-      },
-      r: 1,
-      e: 1
-    };
-    test('Object.merge', function(){
-      ok(isFunction(merge), 'Is function');
-    });
-    test('simple Object.merge', function(){
-      var i1, i2;
-      i1 = new fn;
-      i2 = merge(i1, obj);
-      ok(i1 === i2);
-      ok(i1.q === 1);
-      ok(i1.r === 1);
-      ok(i1.w === obj.w);
-      ok(i1.e === 1);
-    });
-    test('deep Object.merge', function(){
-      var i1;
-      i1 = merge(new fn, obj, 1);
-      ok(i1.q === 1);
-      ok(i1.r === 1);
-      ok(i1.w !== obj.w);
-      ok(i1.w.q === 2);
-      ok(i1.w.w === 2);
-    });
-    test('reverse Object.merge', function(){
-      var i1;
-      i1 = merge({
-        w: {
-          q: 1,
-          w: 2
-        },
-        q: 1,
-        e: 2
-      }, obj, 0, 1);
-      ok(i1.q === 1);
-      ok(i1.r === 1);
-      ok(i1.e === 2);
-      ok(i1.w.q === 1);
-      ok(i1.w.w === 2);
-      ok(i1.w.e !== 5);
-    });
-    return test('reverse deep Object.merge', function(){
-      var i1;
-      i1 = merge({
-        w: {
-          q: 1,
-          w: 2
-        },
-        q: 1,
-        e: 2
-      }, obj, 1, 1);
-      ok(i1.q === 1);
-      ok(i1.r === 1);
-      ok(i1.e === 2);
-      ok(i1.w.q === 1);
-      ok(i1.w.w === 2);
-      ok(i1.w.e === 5);
-    });
-  })();
   test('Object.isObject', function(){
     var isObject;
     isObject = Object.isObject;
@@ -2970,12 +2777,6 @@
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');
     ok('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML() === "&<>\"'");
-  });
-  test('String::escapeURL', function(){
-    ok(isFunction(String.prototype.escapeURL), 'Is function');
-  });
-  test('String::unescapeURL', function(){
-    ok(isFunction(String.prototype.unescapeURL), 'Is function');
   });
 }).call(this);
 

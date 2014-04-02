@@ -123,7 +123,7 @@
   
   isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
-    // plug for library
+    // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String: case Array: case Map: case Set:
         return true;
@@ -132,7 +132,7 @@
   }
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    // plug for library
+    // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String : return new StringIterator(it);
       case Array  : return new ArrayIterator(it, VALUE);

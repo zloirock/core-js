@@ -205,7 +205,7 @@ var ceil   = Math.ceil
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
+  , MAX_SAFE_INTEGER = pow(2, 53) - 1; // 0x1fffffffffffff == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
   return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
@@ -268,8 +268,6 @@ function $define(type, name, source, forced /* = false */){
     prop = own ? target[key] : source[key];
     // export to `_`
     exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
-    // create shortcuts in `_` for Object & Function static methods
-    if(isStatic && (name == OBJECT || name == FUNCTION))_[key] = prop;
     // if build as fremework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
@@ -283,6 +281,7 @@ function $defineTimer(key, fn){
 function wrapGlobalConstructor(Base){
   if(framework || !isNative(Base))return Base;
   function F(param){
+    // used on constructors that takes 1 argument
     return this instanceof Base ? new Base(param) : Base(param);
   }
   F[PROTOTYPE] = Base[PROTOTYPE];
@@ -1430,7 +1429,7 @@ $define(GLOBAL, {global: global});
   
   isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
-    // plug for library
+    // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String: case Array: case Map: case Set:
         return true;
@@ -1439,7 +1438,7 @@ $define(GLOBAL, {global: global});
   }
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    // plug for library
+    // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String : return new StringIterator(it);
       case Array  : return new ArrayIterator(it, VALUE);
@@ -1849,25 +1848,26 @@ $define(PROTO, FUNCTION, {
 
 !function(){
   function tie(key){
-    var that = this
+    var that        = this
       , placeholder = false
-      , i = 1, length, args;
-    length = arguments.length;
+      , length      = arguments.length
+      , i = 1, args;
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
     return createPartialApplication(that[key], args, length, placeholder, true, that);
   }
   function by(that){
-    var fn = this
+    var fn          = this
       , placeholder = false
-      , length = arguments.length
+      , length      = arguments.length
       , i = 1, args;
     if(length < 2)return ctx(fn, that);
     args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
     return createPartialApplication(fn, args, length, placeholder, true, that);
   }
+  var $tie = {tie: tie};
   $define(PROTO, FUNCTION, {
     tie: tie,
     /**
@@ -1887,8 +1887,8 @@ $define(PROTO, FUNCTION, {
      */
     methodize: methodize
   });
-  $define(PROTO, ARRAY, {tie: tie});
-  $define(PROTO, REGEXP, {tie: tie});
+  $define(PROTO, ARRAY, $tie);
+  $define(PROTO, REGEXP, $tie);
   $define(STATIC, OBJECT, {
     /**
      * Alternatives:
@@ -1898,13 +1898,8 @@ $define(PROTO, FUNCTION, {
      */
     tie: unbind(tie)
   });
-  $define(STATIC, FUNCTION, {
-    part: unbind(part),
-    by: unbind(by),
-    tie: unbind(tie)
-  });
   _.useTie = function(){
-    $define(PROTO, OBJECT, {tie: tie});
+    $define(PROTO, OBJECT, $tie);
     return _;
   }
 }();
@@ -1916,82 +1911,6 @@ $define(PROTO, FUNCTION, {
 !function(){
   function define(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
-  }
-  function merge(target, source, deep /* = false */, reverse /* = false */, desc /* = false */, stackA, stackB){
-    if(isObject(target) && isObject(source)){
-      var isComp = isFunction(reverse)
-        , names  = (desc ? getOwnPropertyNames : keys)(source)
-        , length = names.length
-        , i      = 0
-        , key, targetDescriptor, sourceDescriptor;
-      while(length > i){
-        key = names[i++];
-        if(has(target, key) && (isComp ? reverse(target[key], source[key]) : reverse)){// if key in target && reverse merge
-          deep && merge(target[key], source[key], 1, reverse, desc, stackA, stackB);   // if not deep - skip
-        } else if(desc){
-          targetDescriptor = getOwnPropertyDescriptor(target, key) || $Object;
-          if(targetDescriptor.configurable !== false && delete target[key]){
-            sourceDescriptor = getOwnPropertyDescriptor(source, key);
-            if(deep && !sourceDescriptor.get && !sourceDescriptor.set){
-              sourceDescriptor.value =
-                merge(clone(sourceDescriptor.value, 1, 1, stackA, stackB),
-                  targetDescriptor.value, 1, 1, 1, stackA, stackB);
-            }
-            defineProperty(target, key, sourceDescriptor);
-          }
-        } else target[key] = deep
-          ? merge(clone(source[key], 1, 0, stackA, stackB), target[key], 1, 1, 0, stackA, stackB)
-          : source[key];
-      }
-    }
-    return target;
-  }
-  /**
-   * NB:
-   * http://wiki.ecmascript.org/doku.php?id=strawman:structured_clone
-   * https://github.com/dslomov-chromium/ecmascript-structured-clone
-   */
-  function clone(object, deep /* = false */, desc /* = false */, stackA, stackB){
-    if(!isObject(object))return object;
-    var already = $indexOf(stackA, object)
-      , F       = object.constructor
-      , result;
-    if(~already)return stackB[already];
-    switch(classof(object)){
-      case 'Arguments' :
-      case ARRAY       :
-        result = Array(object.length);
-        break;
-      case FUNCTION    :
-        return object;
-      case REGEXP      :
-        result = RegExp(object.source, String(object).match(/[^\/]*$/)[0]);
-        break;
-      case STRING      :
-        return new F(object);
-      case 'Boolean'   :
-      case 'Date'      :
-      case NUMBER      :
-        result = new F(object.valueOf());
-        break;
-      /*
-      case SET         :
-        result = new F;
-        object.forEach(result.add, result);
-        break;
-      case MAP         :
-        result = new F;
-        object.forEach(function(val, key){
-          result.set(key, val);
-        });
-        break;
-      */
-      default:
-        result = create(getPrototypeOf(object));
-    }
-    stackA.push(object);
-    stackB.push(result);
-    return merge(result, object, deep, 0, desc, stackA, stackB);
   }
   $define(STATIC, OBJECT, {
     /**
@@ -2006,19 +1925,12 @@ $define(PROTO, FUNCTION, {
     // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
     getOwnPropertyDescriptors: getOwnPropertyDescriptors,
     /**
-     * Alternatives:
-     * http://livescript.net/#operators -> typeof!
-     * http://mootools.net/docs/core/Core/Core#Core:typeOf
-     * http://api.jquery.com/jQuery.type/
-     */
-    classof: classof,
-    /**
      * Shugar for Object.create
      * Alternatives:
      * http://lodash.com/docs#create
      */
     make: function(proto, props, desc){
-      return props ? (desc ? define : assign)(create(proto), props) : create(proto);
+      return props == undefined ? create(proto) : (desc ? define : assign)(create(proto), props);
     },
     /**
      * 19.1.3.15 Object.mixin ( target, source )
@@ -2028,33 +1940,19 @@ $define(PROTO, FUNCTION, {
     define: define,
     /**
      * Alternatives:
-     * http://underscorejs.org/#clone
-     * http://lodash.com/docs#cloneDeep
-     * http://sugarjs.com/api/Object/clone
-     * http://api.prototypejs.org/language/Object/clone/
-     * http://mootools.net/docs/core/Types/Object#Object:Object-clone
-     * http://docs.angularjs.org/api/angular.copy
-     */
-    clone: function(object, deep /* = false */, desc /* = false */){
-      return clone(object, deep, desc, [], []);
-    },
-    /**
-     * Alternatives:
-     * http://lodash.com/docs#merge
-     * http://sugarjs.com/api/Object/merge
-     * http://mootools.net/docs/core/Types/Object#Object:Object-merge
-     * http://api.jquery.com/jQuery.extend/
-     */
-    merge: function(target, source, deep /* = false */, reverse /* = false */, desc /* = false */){
-      return merge(target, source, deep, reverse, desc, [], []);
-    },
-    /**
-     * Alternatives:
      * http://underscorejs.org/#isObject
      * http://sugarjs.com/api/Object/isType
      * http://docs.angularjs.org/api/angular.isObject
      */
     isObject: isObject,
+    /**
+     * Alternatives:
+     * http://livescript.net/#operators -> typeof!
+     * http://mootools.net/docs/core/Core/Core#Core:typeOf
+     * http://api.jquery.com/jQuery.type/
+     */
+    classof: classof,
+    // Simple symbol API
     symbol: symbol,
     hidden: hidden
   });
@@ -2149,16 +2047,18 @@ $define(PROTO, NUMBER, {
       , b = +number || 0
       , m = min(a, b);
     return random() * (max(a, b) - m) + m;
-  },
+  }
+});
+$define(STATIC, 'Math', {
   /**
    * Alternatives:
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  rand: function(number /* = 0 */){
-    var a = toInteger(this)
-      , b = toInteger(number)
-      , m = min(a, b);
+  randomInt: function(a /* = 0 */, b /* = 0 */){
+    a = toInteger(a);
+    b = toInteger(b);
+    var m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });
@@ -2174,7 +2074,9 @@ $define(PROTO, NUMBER, transform.call(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6
-    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc,' +
+    // Core.js
+    'randomInt'
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);
@@ -2227,20 +2129,6 @@ $define(PROTO, NUMBER, transform.call(
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
         return unescapeHTMLDict[key];
       });
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/escapeURL
-     */
-    escapeURL: function(component /* = false */){
-      return (component ? encodeURIComponent : encodeURI)(this);
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/unescapeURL
-     */
-    unescapeURL: function(component /* = false */){
-      return (component ? decodeURIComponent : decodeURI)(this);
     }
   });
 }();
@@ -2276,34 +2164,39 @@ $define(PROTO, NUMBER, transform.call(
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
-!function(formatRegExp, locales, current, getHours, getMonth){
-  function format(template, lang /* = current */){
-    var that   = this
-      , locale = locales[lang && has(locales, lang) ? lang : current];
-    return String(template).replace(formatRegExp, function(part){
-      switch(part){
-        case 'ms'   : return that.getMilliseconds();                            // Milliseconds : 1-999
-        case 's'    : return that.getSeconds();                                 // Seconds      : 1-59
-        case 'ss'   : return lz2(that.getSeconds());                            // Seconds      : 01-59
-        case 'm'    : return that.getMinutes();                                 // Minutes      : 1-59
-        case 'mm'   : return lz2(that.getMinutes());                            // Minutes      : 01-59
-        case 'h'    : return that[getHours]()                                   // Hours        : 0-23
-        case 'hh'   : return lz2(that[getHours]());                             // Hours        : 00-23
-        case 'H'    : return that[getHours]() % 12 || 12;                       // Hours        : 1-12
-        case 'HH'   : return lz2(that[getHours]() % 12 || 12);                  // Hours        : 01-12
-        case 'a'    : return that[getHours]() < 12 ? 'AM' : 'PM';               // AM/PM
-        case 'd'    : return that.getDate();                                    // Date         : 1-31
-        case 'dd'   : return lz2(that.getDate());                               // Date         : 01-31
-        case 'w'    : return locale.w[that.getDay()];                           // Day          : Понедельник
-        case 'n'    : return that[getMonth]() + 1;                              // Month        : 1-12
-        case 'nn'   : return lz2(that[getMonth]() + 1);                         // Month        : 01-12
-        case 'M'    : return locale.M[that[getMonth]()];                        // Month        : Январь
-        case 'MM'   : return locale.MM[that[getMonth]()];                       // Month        : Января
-        case 'YY'   : return lz2(that.getFullYear() % 100);                     // Year         : 13
-        case 'YYYY' : return that.getFullYear();                                // Year         : 2013
+!function(formatRegExp, locales, current, Seconds, Minutes, Hours, $Date, Month, FullYear){
+  function createFormat(UTC){
+    return function(template, locale /* = current */){
+      var that   = this
+        , locale = locales[has(locales, locale) ? locale : current];
+      function get(unit){
+        return that[(UTC ? 'getUTC' : 'get') + unit]();
       }
-      return part;
-    });
+      return String(template).replace(formatRegExp, function(part){
+        switch(part){
+          case 'ms'   : return get('Milliseconds');                             // Milliseconds : 1-999
+          case 's'    : return get(Seconds);                                    // Seconds      : 1-59
+          case 'ss'   : return lz2(get(Seconds));                               // Seconds      : 01-59
+          case 'm'    : return get(Minutes);                                    // Minutes      : 1-59
+          case 'mm'   : return lz2(get(Minutes));                               // Minutes      : 01-59
+          case 'h'    : return get(Hours);                                      // Hours        : 0-23
+          case 'hh'   : return lz2(get(Hours));                                 // Hours        : 00-23
+          case 'H'    : return get(Hours) % 12 || 12;                           // Hours        : 1-12
+          case 'HH'   : return lz2(get(Hours) % 12 || 12);                      // Hours        : 01-12
+          case 'a'    : return get(Hours) < 12 ? 'AM' : 'PM';                   // AM/PM
+          case 'd'    : return get($Date)                                       // Date         : 1-31
+          case 'dd'   : return lz2(get($Date));                                 // Date         : 01-31
+          case 'w'    : return locale.w[get('Day')];                            // Day          : Понедельник
+          case 'n'    : return get(Month) + 1;                                  // Month        : 1-12
+          case 'nn'   : return lz2(get(Month) + 1);                             // Month        : 01-12
+          case 'M'    : return locale.M[get(Month)];                            // Month        : Январь
+          case 'MM'   : return locale.MM[get(Month)];                           // Month        : Января
+          case 'YY'   : return lz2(get(FullYear) % 100);                        // Year         : 13
+          case 'YYYY' : return get(FullYear);                                   // Year         : 2013
+        }
+        return part;
+      });
+    }
   }
   function lz2(num){
     return num > 9 ? num : '0' + num;
@@ -2325,14 +2218,16 @@ $define(PROTO, NUMBER, transform.call(
     });
     return result;
   }
-  $define(STATIC, 'Date', {
+  $define(STATIC, $Date, {
     locale: function(locale){
-      if(has(locales, locale))current = locale;
-      return current;
+      return has(locales, locale) ? current = locale : current;
     },
     addLocale: addLocale
   });
-  $define(PROTO, 'Date', {format: format});
+  $define(PROTO, $Date, {
+    format: createFormat(0),
+    formatUTC: createFormat(1)
+  });
   addLocale('en', {
     w: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
     M: 'January,February,March,April,May,June,July,August,September,October,November,December'
@@ -2341,7 +2236,7 @@ $define(PROTO, NUMBER, transform.call(
     w: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
   });
-}(/\b(\w\w*)\b/g, {}, 'en', 'getHours', 'getMonth');
+}(/\b\w{1,4}\b/g, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
 
 /*****************************
  * Module : extendCollections

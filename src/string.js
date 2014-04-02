@@ -40,20 +40,6 @@
       return String(this).replace(RegExpUnescapeHTML, function(part, key){
         return unescapeHTMLDict[key];
       });
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/escapeURL
-     */
-    escapeURL: function(component /* = false */){
-      return (component ? encodeURIComponent : encodeURI)(this);
-    },
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/unescapeURL
-     */
-    unescapeURL: function(component /* = false */){
-      return (component ? decodeURIComponent : decodeURI)(this);
     }
   });
 }();
