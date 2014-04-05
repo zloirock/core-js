@@ -129,7 +129,7 @@
   $define(PROTO, ARRAY, {
     slice: slice,
     join: join
-  }, 1);
+  }, ES5Object != Object);
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {

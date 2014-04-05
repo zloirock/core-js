@@ -274,7 +274,7 @@ function $define(type, name, source, forced /* = false */){
   }
 }
 function $defineTimer(key, fn){
-  if(framework)global[key] = fn;
+  if(framework && global[key] != fn)global[key] = fn;
   _[key] = ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library
@@ -367,6 +367,9 @@ if(!isExports || framework){
     , exp       = Math.exp
     , log       = Math.log
     , sqrt      = Math.sqrt;
+  function asinh(x){
+    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+  }
   $define(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
@@ -375,9 +378,7 @@ if(!isExports || framework){
     },
     // 20.2.2.5 Math.asinh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
-    asinh: function(x){
-      return !isFinite(x = +x) || x === 0 ? x : log(x + sqrt(x * x + 1));
-    },
+    asinh: asinh,
     // 20.2.2.7 Math.atanh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
@@ -1233,6 +1234,7 @@ if(!isExports || framework){
     }
     return dict;
   }
+  Dict[PROTOTYPE] = null;
   assign(Dict, objectIterators);
   /**
    * Object enumumerabe
@@ -1362,6 +1364,9 @@ if(!isExports || framework){
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
+    },
+    isDict: function(it){
+      return getPrototypeOf(it) == null;
     }
   });
   $define(GLOBAL, {Dict: Dict});
@@ -1430,7 +1435,6 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     channel.port1.onmessage = listner;
     defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
-  // always run before timers, like nextTick => some problems with recursive call
   } else if(document && onreadystatechange in document.createElement('script')){
     defer = function(id){
       var el = document.createElement('script');
@@ -1454,23 +1458,9 @@ $defineTimer('clearImmediate', clearImmediate);
  * Module : function
  *****************************/
 
-function inherits(parent){
-  assertFunction(this); assertFunction(parent);
-  this[PROTOTYPE] = create(parent[PROTOTYPE], getOwnPropertyDescriptors(this[PROTOTYPE]));
-  return this;
-}
 $define(STATIC, FUNCTION, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#isFunction
-   * http://sugarjs.com/api/Object/isType
-   * http://api.prototypejs.org/language/Object/isFunction/
-   * http://api.jquery.com/jQuery.isFunction/
-   * http://docs.angularjs.org/api/angular.isFunction
-   */
   isFunction: isFunction,
   isNative: isNative,
-  inherits: unbind(inherits),
   _: _
 });
 $define(PROTO, FUNCTION, {
@@ -1479,8 +1469,7 @@ $define(PROTO, FUNCTION, {
     var instance = create(this[PROTOTYPE])
       , result   = this.apply(instance, ES5Object(args));
     return isObject(result) ? result : instance;
-  },
-  inherits: inherits
+  }
 });
 
 /*****************************
@@ -1543,16 +1532,6 @@ $define(PROTO, FUNCTION, {
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
     return createPartialApplication(that[key], args, length, placeholder, true, that);
   }
-  function by(that){
-    var fn          = this
-      , placeholder = false
-      , length      = arguments.length
-      , i = 1, args;
-    if(length < 2)return ctx(fn, that);
-    args = Array(length - 1);
-    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(fn, args, length, placeholder, true, that);
-  }
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, {
     tie: tie,
@@ -1565,9 +1544,18 @@ $define(PROTO, FUNCTION, {
      * http://fitzgen.github.io/wu.js/#wu-partial
      */
     part: part,
-    by: by,
+    by: function(that){
+      var fn          = this
+        , placeholder = false
+        , length      = arguments.length
+        , i = 1, args;
+      if(length < 2)return ctx(fn, that);
+      args = Array(length - 1);
+      while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
+      return createPartialApplication(fn, args, length, placeholder, true, that);
+    },
     /**
-     * function -> method
+     * fn(a, b, c...) -> a.fn(b, c...)
      * Alternatives:
      * http://api.prototypejs.org/language/Function/prototype/methodize/
      */
@@ -1720,12 +1708,12 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(fn, that /* = undefined */){
-    assertFunction(fn);
+  times: function(fn /* = -> it */, that /* = undefined */){
     var number = toLength(this)
       , result = Array(number)
       , i      = 0;
-    while(number > i)result[i] = fn.call(that, i, i++, this);
+    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
+    else while(number > i)result[i] = i++;
     return result;
   },
   random: function(number /* = 0 */){
@@ -1850,7 +1838,7 @@ $define(PROTO, NUMBER, transform.call(
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
-!function(formatRegExp, locales, current, Seconds, Minutes, Hours, $Date, Month, FullYear){
+!function(formatRegExp, locales, current, Seconds, Minutes, Hours, _Date, Month, FullYear){
   function createFormat(UTC){
     return function(template, locale /* = current */){
       var that   = this
@@ -1862,29 +1850,29 @@ $define(PROTO, NUMBER, transform.call(
         switch(part){
           case 'ms'   : return get('Milliseconds');                             // Milliseconds : 1-999
           case 's'    : return get(Seconds);                                    // Seconds      : 1-59
-          case 'ss'   : return lz2(get(Seconds));                               // Seconds      : 01-59
+          case 'ss'   : return lz(get(Seconds));                                // Seconds      : 01-59
           case 'm'    : return get(Minutes);                                    // Minutes      : 1-59
-          case 'mm'   : return lz2(get(Minutes));                               // Minutes      : 01-59
+          case 'mm'   : return lz(get(Minutes));                                // Minutes      : 01-59
           case 'h'    : return get(Hours);                                      // Hours        : 0-23
-          case 'hh'   : return lz2(get(Hours));                                 // Hours        : 00-23
+          case 'hh'   : return lz(get(Hours));                                  // Hours        : 00-23
           case 'H'    : return get(Hours) % 12 || 12;                           // Hours        : 1-12
-          case 'HH'   : return lz2(get(Hours) % 12 || 12);                      // Hours        : 01-12
+          case 'HH'   : return lz(get(Hours) % 12 || 12);                       // Hours        : 01-12
           case 'a'    : return get(Hours) < 12 ? 'AM' : 'PM';                   // AM/PM
-          case 'd'    : return get($Date)                                       // Date         : 1-31
-          case 'dd'   : return lz2(get($Date));                                 // Date         : 01-31
+          case 'd'    : return get(_Date)                                       // Date         : 1-31
+          case 'dd'   : return lz(get(_Date));                                  // Date         : 01-31
           case 'w'    : return locale.w[get('Day')];                            // Day          : Понедельник
           case 'n'    : return get(Month) + 1;                                  // Month        : 1-12
-          case 'nn'   : return lz2(get(Month) + 1);                             // Month        : 01-12
+          case 'nn'   : return lz(get(Month) + 1);                              // Month        : 01-12
           case 'M'    : return locale.M[get(Month)];                            // Month        : Январь
           case 'MM'   : return locale.MM[get(Month)];                           // Month        : Января
-          case 'YY'   : return lz2(get(FullYear) % 100);                        // Year         : 13
+          case 'YY'   : return lz(get(FullYear) % 100);                         // Year         : 13
           case 'YYYY' : return get(FullYear);                                   // Year         : 2013
         }
         return part;
       });
     }
   }
-  function lz2(num){
+  function lz(num){
     return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
@@ -1904,13 +1892,13 @@ $define(PROTO, NUMBER, transform.call(
     });
     return result;
   }
-  $define(STATIC, $Date, {
+  $define(STATIC, _Date, {
     locale: function(locale){
       return has(locales, locale) ? current = locale : current;
     },
     addLocale: addLocale
   });
-  $define(PROTO, $Date, {
+  $define(PROTO, _Date, {
     format: createFormat(0),
     formatUTC: createFormat(1)
   });

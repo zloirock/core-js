@@ -14,12 +14,12 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(fn, that /* = undefined */){
-    assertFunction(fn);
+  times: function(fn /* = -> it */, that /* = undefined */){
     var number = toLength(this)
       , result = Array(number)
       , i      = 0;
-    while(number > i)result[i] = fn.call(that, i, i++, this);
+    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
+    else while(number > i)result[i] = i++;
     return result;
   },
   random: function(number /* = 0 */){

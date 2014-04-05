@@ -9,6 +9,7 @@
     }
     return dict;
   }
+  Dict[PROTOTYPE] = null;
   assign(Dict, objectIterators);
   /**
    * Object enumumerabe
@@ -138,6 +139,9 @@
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
+    },
+    isDict: function(it){
+      return getPrototypeOf(it) == null;
     }
   });
   $define(GLOBAL, {Dict: Dict});

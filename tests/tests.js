@@ -1460,8 +1460,8 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
   same = Object.is;
-  epsilon = function(a, b){
-    return Math.abs(a - b) <= Number.EPSILON;
+  epsilon = function(a, b, E){
+    return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
   test('Object.assign', function(){
     var assign, foo;
@@ -1600,6 +1600,8 @@
     ok(same(acosh(-1), NaN));
     ok(same(acosh(1), 0));
     ok(same(acosh(Infinity), Infinity));
+    ok(epsilon(acosh(1234), 7.811163220849231));
+    ok(epsilon(acosh(8.88), 2.8737631531629235));
   });
   test('Math.asinh', function(){
     var asinh;
@@ -1609,6 +1611,11 @@
     ok(same(asinh(-0), -0));
     ok(same(asinh(Infinity), Infinity));
     ok(same(asinh(-Infinity), -Infinity));
+    ok(epsilon(asinh(1234), 7.811163549201245));
+    ok(epsilon(asinh(9.99), 2.997227420191335));
+    ok(epsilon(asinh(1e150), 346.0809111296668));
+    ok(epsilon(asinh(1e7), 16.811242831518268));
+    ok(epsilon(asinh(-1e7), -16.811242831518268));
   });
   test('Math.atanh', function(){
     var atanh;
@@ -1622,6 +1629,11 @@
     ok(same(atanh(1), Infinity));
     ok(same(atanh(0), 0));
     ok(same(atanh(-0), -0));
+    ok(same(atanh(-1e300), NaN));
+    ok(same(atanh(1e300), NaN));
+    ok(epsilon(atanh(0.5), 0.5493061443340549));
+    ok(epsilon(atanh(-0.5), -0.5493061443340549));
+    ok(epsilon(atanh(0.444), 0.47720201260109457));
   });
   test('Math.cbrt', function(){
     var cbrt;
@@ -1631,6 +1643,10 @@
     ok(same(cbrt(-0), -0));
     ok(same(cbrt(Infinity), Infinity));
     ok(same(cbrt(-Infinity), -Infinity));
+    ok(same(cbrt(-8), -2));
+    ok(same(cbrt(8), 2));
+    ok(epsilon(cbrt(-1000), -10));
+    ok(epsilon(cbrt(1000), 10));
   });
   test('Math.clz32', function(){
     var clz32;
@@ -1650,6 +1666,10 @@
     ok(same(cosh(-0), 1));
     ok(same(cosh(Infinity), Infinity));
     ok(same(cosh(-Infinity), Infinity));
+    ok(epsilon(cosh(12), 81377.39571257407, 3e-11));
+    ok(epsilon(cosh(22), 1792456423.065795780980053377, 1e-5));
+    ok(epsilon(cosh(-10), 11013.23292010332313972137));
+    ok(epsilon(cosh(-23), 4872401723.1244513000, 1e-5));
   });
   test('Math.expm1', function(){
     var expm1;
@@ -1659,6 +1679,7 @@
     ok(same(expm1(-0), -0));
     ok(same(expm1(Infinity), Infinity));
     ok(same(expm1(-Infinity), -1));
+    ok(epsilon(expm1(10), 22025.465794806718, ok(epsilon(expm1(-10), -0.9999546000702375))));
   });
   test('Math.hypot', function(){
     var hypot, sqrt;
@@ -1689,6 +1710,8 @@
     ok(same(hypot(1, 0, 0), 1));
     ok(same(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)));
     ok(same(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)));
+    ok(epsilon(hypot(66, 66), 93.33809511662427));
+    ok(epsilon(hypot(0.1, 100), 100.0000499999875));
   });
   test('Math.imul', function(){
     var imul;
@@ -1698,6 +1721,36 @@
     ok(imul(-123, 456) === -56088);
     ok(imul(123, -456) === -56088);
     ok(imul(19088743, 4275878552) === 602016552);
+    ok(imul(false, 7) === 0);
+    ok(imul(7, false) === 0);
+    ok(imul(false, false) === 0);
+    ok(imul(true, 7) === 7);
+    ok(imul(7, true) === 7);
+    ok(imul(true, true) === 1);
+    ok(imul(void 8, 7) === 0);
+    ok(imul(7, void 8) === 0);
+    ok(imul(void 8, void 8) === 0);
+    ok(imul('str', 7) === 0);
+    ok(imul(7, 'str') === 0);
+    ok(imul({}, 7) === 0);
+    ok(imul(7, {}) === 0);
+    ok(imul([], 7) === 0);
+    ok(imul(7, []) === 0);
+    ok(imul(0xffffffff, 5) === -5);
+    ok(imul(0xfffffffe, 5) === -10);
+    ok(imul(2, 4) === 8);
+    ok(imul(-1, 8) === -8);
+    ok(imul(-2, -2) === 4);
+    ok(imul(-0, 7) === 0);
+    ok(imul(7, -0) === 0);
+    ok(imul(0.1, 7) === 0);
+    ok(imul(7, 0.1) === 0);
+    ok(imul(0.9, 7) === 0);
+    ok(imul(7, 0.9) === 0);
+    ok(imul(1.1, 7) === 7);
+    ok(imul(7, 1.1) === 7);
+    ok(imul(1.9, 7) === 7);
+    ok(imul(7, 1.9) === 7);
   });
   test('Math.log1p', function(){
     var log1p;
@@ -1709,6 +1762,8 @@
     ok(same(log1p(0), 0));
     ok(same(log1p(-0), -0));
     ok(same(log1p(Infinity), Infinity));
+    ok(epsilon(log1p(5), 1.791759469228055));
+    ok(epsilon(log1p(50), 3.9318256327243257));
   });
   test('Math.log10', function(){
     var log10;
@@ -1723,6 +1778,8 @@
     ok(epsilon(log10(0.1), -1));
     ok(epsilon(log10(0.5), -0.3010299956639812));
     ok(epsilon(log10(1.5), 0.17609125905568124));
+    ok(epsilon(log10(5), 0.6989700043360189));
+    ok(epsilon(log10(50), 1.6989700043360187));
   });
   test('Math.log2', function(){
     var log2;
@@ -1735,11 +1792,14 @@
     ok(same(log2(1), 0));
     ok(same(log2(Infinity), Infinity));
     ok(same(log2(0.5), -1));
+    ok(same(log2(32), 5));
+    ok(epsilon(log2(5), 2.321928094887362));
   });
   test('Math.sign', function(){
     var sign;
     sign = Math.sign;
     ok(same(sign(NaN), NaN));
+    ok(same(sign(), NaN));
     ok(same(sign(-0), -0));
     ok(same(sign(0), 0));
     ok(same(sign(Infinity), 1));
@@ -1757,6 +1817,8 @@
     ok(same(sinh(-0), -0));
     ok(same(sinh(Infinity), Infinity));
     ok(same(sinh(-Infinity), -Infinity));
+    ok(epsilon(sinh(-5), -74.20321057778875));
+    ok(epsilon(sinh(2), 3.6268604078470186));
   });
   test('Math.tanh', function(){
     var tanh;
@@ -1765,7 +1827,8 @@
     ok(same(tanh(0), 0));
     ok(same(tanh(-0), -0));
     ok(same(tanh(Infinity), 1));
-    ok(same(tanh(-Infinity), -1));
+    ok(same(tanh(90), 1));
+    ok(epsilon(tanh(10), 0.9999999958776927));
   });
   test('Math.trunc', function(){
     var trunc;
@@ -1775,11 +1838,11 @@
     ok(same(trunc(0), 0));
     ok(same(trunc(Infinity), Infinity));
     ok(same(trunc(-Infinity), -Infinity));
-    ok(same(trunc(-0.3), -0));
-    ok(same(trunc(0.3), 0));
     ok(trunc([]) === 0);
-    ok(trunc(-42.42) === -42);
-    ok(trunc(13510798882111488) === 13510798882111488);
+    ok(trunc(1.01) === 1);
+    ok(trunc(1.99) === 1);
+    ok(trunc(-555.555) === -555);
+    ok(trunc(-1.99) === -1);
   });
   test('String::contains', function(){
     ok(isFunction(String.prototype.contains), 'Is function');
@@ -2244,19 +2307,6 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Function.inherits', function(){
-    var inherits, A, B;
-    inherits = Function.inherits;
-    ok(isFunction(inherits), 'Is function');
-    A = function(){};
-    B = function(){};
-    B.prototype.foo = 42;
-    inherits(B, A);
-    ok(new B instanceof B, 'new B instanceof B');
-    ok(new B instanceof A, 'new B instanceof A');
-    ok(new B().foo === 42, 'B has own proto props after inherit');
-    ok(new B().constructor === B, 'new B!@@ is B');
-  });
   test('Function.isFunction', function(){
     var isFunction, i$, x$, ref$, len$;
     isFunction = Function.isFunction;
@@ -2337,27 +2387,15 @@
     ok(C.construct([]) instanceof C);
     deepEqual(C.construct([1, 2]), new C(1, 2));
   });
-  test('Function::inherits', function(){
-    var A, B;
-    ok(isFunction(Function.prototype.inherits), 'Is function');
-    A = function(){};
-    B = function(){};
-    B.prototype.prop = 42;
-    B.inherits(A);
-    ok(new B instanceof B);
-    ok(new B instanceof A);
-    ok(new B().prop === 42);
-    ok(new B().constructor === B);
-  });
 }).call(this);
 
 // Generated by LiveScript 1.2.0
 (function(){
   test('global', function(){
-    ok(typeof global != 'undefined' && global !== null);
-    ok(global.global === global);
+    ok(typeof global != 'undefined' && global !== null, 'global is define');
+    ok(global.global === global, 'global.global is global');
     global.__tmp__ = {};
-    ok(__tmp__ === global.__tmp__);
+    ok(__tmp__ === global.__tmp__, 'global object properties are global variables');
   });
 }).call(this);
 

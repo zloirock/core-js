@@ -262,7 +262,7 @@ function $define(type, name, source, forced /* = false */){
   }
 }
 function $defineTimer(key, fn){
-  if(framework)global[key] = fn;
+  if(framework && global[key] != fn)global[key] = fn;
   _[key] = ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library

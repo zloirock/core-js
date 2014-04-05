@@ -1,15 +1,4 @@
 isFunction = -> typeof! it  is \Function
-test 'Function.inherits' !->
-  {inherits} = Function
-  ok isFunction(inherits), 'Is function'
-  A = ->
-  B = ->
-  B::foo = 42
-  inherits B, A
-  ok new B instanceof B, 'new B instanceof B'
-  ok new B instanceof A, 'new B instanceof A'
-  ok new B!foo is 42, 'B has own proto props after inherit'
-  ok new B!@@ is B, 'new B!@@ is B'
 test 'Function.isFunction' !->
   {isFunction} = Function
   ok typeof isFunction is \function, 'Is function'
@@ -47,13 +36,3 @@ test 'Function::construct' !->
     (@a, @b)->
   ok C.construct([]) instanceof C
   deepEqual C.construct([1 2]), new C 1 2
-test 'Function::inherits' !->
-  ok isFunction(Function::inherits), 'Is function'
-  A = ->
-  B = ->
-  B::prop = 42
-  B.inherits A
-  ok new B instanceof B
-  ok new B instanceof A
-  ok new B!prop is 42
-  ok new B!@@ is B

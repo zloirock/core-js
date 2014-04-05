@@ -62,6 +62,9 @@
     , exp       = Math.exp
     , log       = Math.log
     , sqrt      = Math.sqrt;
+  function asinh(x){
+    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+  }
   $define(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
@@ -70,9 +73,7 @@
     },
     // 20.2.2.5 Math.asinh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
-    asinh: function(x){
-      return !isFinite(x = +x) || x === 0 ? x : log(x + sqrt(x * x + 1));
-    },
+    asinh: asinh,
     // 20.2.2.7 Math.atanh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
