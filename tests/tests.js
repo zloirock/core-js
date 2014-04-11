@@ -2773,17 +2773,6 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('String::at', function(){
-    ok(isFunction(String.prototype.at), 'Is function');
-    ok(''.at(-1) === '');
-    ok(''.at(void 8) === '');
-    ok('qwerty'.at(0) === 'q');
-    ok('qwerty'.at(5) === 'y');
-    ok('qwerty'.at(-1) === 'y');
-    ok('qwerty'.at(-6) === 'q');
-    ok('qwerty'.at(6) === '');
-    ok('qwerty'.at(-7) === '');
-  });
   test('String::escapeHTML', function(){
     ok(isFunction(String.prototype.escapeHTML), 'Is function');
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');

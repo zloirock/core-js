@@ -1,14 +1,4 @@
 isFunction = -> typeof! it is \Function
-test 'String::at' !->
-  ok isFunction(String::at), 'Is function'
-  ok ''at(-1) is ''
-  ok ''at(void) is ''
-  ok 'qwerty'at(0) is \q
-  ok 'qwerty'at(5) is \y
-  ok 'qwerty'at(-1) is \y
-  ok 'qwerty'at(-6) is \q
-  ok 'qwerty'at(6) is ''
-  ok 'qwerty'at(-7) is ''
 test 'String::escapeHTML' !->
   ok isFunction(String::escapeHTML), 'Is function'
   ok 'qwe, asd'escapeHTML! is 'qwe, asd'

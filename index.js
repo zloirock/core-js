@@ -244,7 +244,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in iterator module
+var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in symbol & iterators modules
 
 var GLOBAL = 1
   , STATIC = 2
@@ -271,8 +271,10 @@ function $define(type, name, source, forced /* = false */){
   }
 }
 function $defineTimer(key, fn){
-  if(framework && global[key] != fn)global[key] = fn;
-  _[key] = ctx(fn, global);
+  if(framework && global[key] != fn){
+    global[key] = fn;
+    _[key] = fn;
+  } else _[key] = ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
@@ -552,7 +554,7 @@ if(!isExports || framework){
 }(isFinite);
 
 /*****************************
- * Module : collections
+ * Module : es6_collections
  *****************************/
 
 /**
@@ -789,7 +791,7 @@ if(!isExports || framework){
 }();
 
 /*****************************
- * Module : promise
+ * Module : es6_promise
  *****************************/
 
 /**
@@ -969,7 +971,7 @@ if(!isExports || framework){
 }(global.Promise);
 
 /*****************************
- * Module : symbol
+ * Module : es6_symbol
  *****************************/
 
 /**
@@ -1012,7 +1014,7 @@ if(!isExports || framework){
 }(global.Symbol, symbol('tag'), {});
 
 /*****************************
- * Module : iterators
+ * Module : es6_iterators
  *****************************/
 
 !function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
@@ -1159,8 +1161,8 @@ if(!isExports || framework){
   
   // v8 & FF fix
   isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  Set && isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
-  Map && isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
+  isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
+  isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
@@ -1643,7 +1645,7 @@ $define(PROTO, ARRAY, {
 });
 
 /*****************************
- * Module : arrayStatics
+ * Module : array_statics
  *****************************/
 
 /**
@@ -1664,7 +1666,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES5:
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
-    'fill,find,findIndex,' +
+    'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
     'at,transform,merge'
   ),
@@ -1760,13 +1762,6 @@ $define(PROTO, NUMBER, transform.call(
     , RegExpEscapeHTML   = /[&<>"']/g
     , RegExpUnescapeHTML = RegExp('(' + keys(unescapeHTMLDict).join('|') + ')', 'g');
   $define(PROTO, STRING, {
-    /**
-     * Alternatives:
-     * http://sugarjs.com/api/String/at
-     */
-    at: function(index){
-      return String(this).charAt(0 > (index |= 0) ? this.length + index : index);
-    },
     /**
      * Alternatives:
      * http://underscorejs.org/#escape
@@ -1881,21 +1876,21 @@ $define(PROTO, NUMBER, transform.call(
     addLocale: addLocale
   });
   $define(PROTO, _Date, {
-    format: createFormat(0),
+    format:    createFormat(0),
     formatUTC: createFormat(1)
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
+    months:   'January,February,March,April,May,June,July,August,September,October,November,December'
   });
   addLocale('ru', {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
+    months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
 
 /*****************************
- * Module : extendCollections
+ * Module : collections
  *****************************/
 
 /**

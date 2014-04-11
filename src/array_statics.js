@@ -16,7 +16,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES5:
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
-    'fill,find,findIndex,' +
+    'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
     'at,transform,merge'
   ),

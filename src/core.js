@@ -232,7 +232,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in iterator module
+var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in symbol & iterators modules
 
 var GLOBAL = 1
   , STATIC = 2
@@ -259,8 +259,10 @@ function $define(type, name, source, forced /* = false */){
   }
 }
 function $defineTimer(key, fn){
-  if(framework && global[key] != fn)global[key] = fn;
-  _[key] = ctx(fn, global);
+  if(framework && global[key] != fn){
+    global[key] = fn;
+    _[key] = fn;
+  } else _[key] = ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){

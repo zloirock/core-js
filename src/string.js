@@ -14,13 +14,6 @@
   $define(PROTO, STRING, {
     /**
      * Alternatives:
-     * http://sugarjs.com/api/String/at
-     */
-    at: function(index){
-      return String(this).charAt(0 > (index |= 0) ? this.length + index : index);
-    },
-    /**
-     * Alternatives:
      * http://underscorejs.org/#escape
      * http://sugarjs.com/api/String/escapeHTML
      * http://api.prototypejs.org/language/String/prototype/escapeHTML/

@@ -64,15 +64,15 @@
     addLocale: addLocale
   });
   $define(PROTO, _Date, {
-    format: createFormat(0),
+    format:    createFormat(0),
     formatUTC: createFormat(1)
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
+    months:   'January,February,March,April,May,June,July,August,September,October,November,December'
   });
   addLocale('ru', {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
+    months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');

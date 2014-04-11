@@ -142,8 +142,8 @@
   
   // v8 & FF fix
   isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  Set && isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
-  Map && isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
+  isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
+  isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
