@@ -13,6 +13,12 @@
     "load-grunt-tasks": "*",
     "grunt-livescript": "*",
     "grunt-contrib-uglify":  "*",
-    "grunt-contrib-watch":  "*"
+    "grunt-contrib-watch":  "*",
+    "karma": "*",
+    "karma-qunit": "*",
+    "karma-chrome-launcher": "*",
+    "karma-ie-launcher": "*",
+    "karma-firefox-launcher": "*",
+    "karma-opera-launcher": "*"
   }
 }

@@ -13,20 +13,20 @@ test 'Date.addLocale' !->
   ok locale(\en) is \en
   ok locale(\zz) is \en
   ok addLocale(\zz, {
-    w: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
+    weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
+    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   }) is Date
   ok locale(\zz) is \zz
-  ok new Date(1 2 3 4 5 6 7)format('w, d MM YYYY') is 'Воскресенье, 3 Марта 1901'
+  ok new Date(1 2 3 4 5 6 7)format('W, D MM YYYY') is 'Воскресенье, 3 Марта 1901'
 test 'Date::format' !->
   {locale} = Date
   ok isFunction(Date::format), 'Is function'
   date = new Date 1 2 3 4 5 6 7
-  ok date.format('dd.nn.YYYY') is '03.03.1901', 'Works basic'
+  ok date.format('DD.NN.YYYY') is '03.03.1901', 'Works basic'
   locale \en
-  ok date.format('ms s ss m mm h hh H HH d dd w n nn M MM YY foo YYYY') is '7 6 06 5 05 4 04 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale'
+  ok date.format('mmm s ss m mm h hh H HH D DD W N NN M MM YY foo YYYY') is '007 6 06 5 05 4 04 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale'
   locale \ru
-  ok date.format('ms s ss m mm h hh H HH d dd w n nn M MM YY foo YYYY') is '7 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale'
+  ok date.format('mmm s ss m mm h hh H HH D DD W N NN M MM YY foo YYYY') is '007 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale'
 test 'Date::formatUTC' !->
   ok isFunction(Date::formatUTC), 'Is function'
   date = new Date 1 2 3 4 5 6 7

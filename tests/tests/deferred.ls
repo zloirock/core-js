@@ -1,6 +1,6 @@
 isObject = -> it is Object it
 isFunction = -> typeof! it is \Function
-asyncTest 'Function::timeout' 8 !->
+asyncTest 'Function::timeout' 7 !->
   ok isFunction(Function::timeout), 'Is function'
   timeout = (->
     ok val is 1
@@ -9,7 +9,6 @@ asyncTest 'Function::timeout' 8 !->
   ok isObject timeout
   ok isFunction timeout.set
   ok isFunction timeout.clear
-  ok isFunction timeout.clone
   val = 1
   (->
     ok no
@@ -18,7 +17,7 @@ asyncTest 'Function::timeout' 8 !->
     ok on
     start!
   , 20
-asyncTest 'Function::interval' 11 !->
+asyncTest 'Function::interval' 10 !->
   ok isFunction(Function::interval), 'Is function'
   var i 
   interval = (->
@@ -32,9 +31,8 @@ asyncTest 'Function::interval' 11 !->
   ok isObject interval
   ok isFunction interval.set
   ok isFunction interval.clear
-  ok isFunction interval.clone
   i = 1
-asyncTest 'Function::immediate' 8 !->
+asyncTest 'Function::immediate' 7 !->
   ok isFunction(Function::immediate), 'Is function'
   immediate = (->
     ok val is 1
@@ -43,7 +41,6 @@ asyncTest 'Function::immediate' 8 !->
   ok isObject immediate
   ok isFunction immediate.set
   ok isFunction immediate.clear
-  ok isFunction immediate.clone
   val = 1
   (->
     ok no

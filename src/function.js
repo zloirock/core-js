@@ -4,6 +4,7 @@ $define(STATIC, FUNCTION, {
   _: _
 });
 $define(PROTO, FUNCTION, {
+  // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
     var instance = create(this[PROTOTYPE])

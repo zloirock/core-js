@@ -1,4 +1,10 @@
 !function(){
+  /**
+   * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
+   * http://livescript.net/#property-access -> foo~bar
+   * http://lodash.com/docs#bindKey
+   */
   function tie(key){
     var that        = this
       , placeholder = false
@@ -10,8 +16,7 @@
     return createPartialApplication(that[key], args, length, placeholder, true, that);
   }
   var $tie = {tie: tie};
-  $define(PROTO, FUNCTION, {
-    tie: tie,
+  $define(PROTO, FUNCTION, assign({
     /**
      * Partial apply.
      * Alternatives:
@@ -37,16 +42,10 @@
      * http://api.prototypejs.org/language/Function/prototype/methodize/
      */
     methodize: methodize
-  });
+  }, $tie));
   $define(PROTO, ARRAY, $tie);
   $define(PROTO, REGEXP, $tie);
   $define(STATIC, OBJECT, {
-    /**
-     * Alternatives:
-     * http://www.2ality.com/2013/06/auto-binding.html
-     * http://livescript.net/#property-access -> foo~bar
-     * http://lodash.com/docs#bindKey
-     */
     tie: unbind(tie)
   });
   _.useTie = function(){

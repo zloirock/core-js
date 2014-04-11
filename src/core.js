@@ -22,7 +22,6 @@ var PROTOTYPE      = 'prototype'
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
   , $Promise       = global.Promise
-  , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -63,7 +62,6 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call
-  , undescore = global._
   , _ = {};
 // partial apply
 function part(/*args...*/){
@@ -218,8 +216,7 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR   = Symbol && Symbol.iterator || '@@iterator'
-  , symbolUniq = 0;
+var symbolUniq = 0;
 function symbol(key){
   return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
 }
@@ -235,7 +232,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator, objectIterators; // define in iterator module
+var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
@@ -276,8 +273,8 @@ function wrapGlobalConstructor(Base){
   return F;
 }
 // export `_`
-var module    = global.module
-  , isExports = module && module.exports;
+var isExports = typeof module != 'undefined'
+  , undescore = global._;
 if(isExports)module.exports = _;
 if(!isExports || framework){
   _.noConflict = function(){

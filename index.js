@@ -7,7 +7,7 @@
 !function(global, framework, undefined){
 'use strict';
 /*****************************
- * Module : init
+ * Module : core
  *****************************/
 
 // Shortcuts for property names
@@ -34,7 +34,6 @@ var PROTOTYPE      = 'prototype'
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
   , $Promise       = global.Promise
-  , Symbol         = global.Symbol
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -75,7 +74,6 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call
-  , undescore = global._
   , _ = {};
 // partial apply
 function part(/*args...*/){
@@ -230,8 +228,7 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var ITERATOR   = Symbol && Symbol.iterator || '@@iterator'
-  , symbolUniq = 0;
+var symbolUniq = 0;
 function symbol(key){
   return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
 }
@@ -247,7 +244,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var forOf, isIterable, getIterator, objectIterators; // define in iterator module
+var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in iterator module
 
 var GLOBAL = 1
   , STATIC = 2
@@ -288,8 +285,8 @@ function wrapGlobalConstructor(Base){
   return F;
 }
 // export `_`
-var module    = global.module
-  , isExports = module && module.exports;
+var isExports = typeof module != 'undefined'
+  , undescore = global._;
 if(isExports)module.exports = _;
 if(!isExports || framework){
   _.noConflict = function(){
@@ -555,7 +552,7 @@ if(!isExports || framework){
 }(isFinite);
 
 /*****************************
- * Module : es6c
+ * Module : collections
  *****************************/
 
 /**
@@ -982,7 +979,7 @@ if(!isExports || framework){
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(TAG, SymbolRegistry){
+!function(Symbol, TAG, SymbolRegistry){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -1006,26 +1003,19 @@ if(!isExports || framework){
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR,
+    iterator: ITERATOR = Symbol.iterator || Symbol('Symbol.iterator'),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     }
   });
-}(symbol('tag'), {});
+}(global.Symbol, symbol('tag'), {});
 
 /*****************************
- * Module : iterator
+ * Module : iterators
  *****************************/
 
-!function(){
-  var KEY      = 1
-    , VALUE    = 2
-    , ITERATED = symbol('iterated')
-    , KIND     = symbol('kind')
-    , INDEX    = symbol('index')
-    , KEYS     = symbol('keys')
-    , returnThis = Function('return this');
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1133,20 +1123,21 @@ if(!isExports || framework){
     }
   }
   
-  StringIterator[PROTOTYPE][ITERATOR] = ArrayIterator[PROTOTYPE][ITERATOR] =
-    MapIterator[PROTOTYPE][ITERATOR] = SetIterator[PROTOTYPE][ITERATOR] =
-      ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
+  StringIterator[PROTOTYPE][ITERATOR] =
+    ArrayIterator[PROTOTYPE][ITERATOR] =
+      MapIterator[PROTOTYPE][ITERATOR] =
+        SetIterator[PROTOTYPE][ITERATOR] =
+          ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
-    ITERATOR in object || hidden(object, ITERATOR, value);
+    has(object, ITERATOR) || (object[ITERATOR] = value);
   }
   
   isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
-      case String: case Array: case Map: case Set:
-        return true;
+      case String: case Array: case Map: case Set: return true;
     }
     return false;
   }
@@ -1166,32 +1157,34 @@ if(!isExports || framework){
     while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
   }
   
-  // v8 fix
-  framework && isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
+  // v8 & FF fix
+  isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
+  Set && isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
+  Map && isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
     entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
     // 22.1.3.13 Array.prototype.keys()
-    keys: createIteratorFactory(ArrayIterator, KEY),
+    keys:    createIteratorFactory(ArrayIterator, KEY),
     // 22.1.3.29 Array.prototype.values()
-    values: createIteratorFactory(ArrayIterator, VALUE)
+    values:  createIteratorFactory(ArrayIterator, VALUE)
   });
   $define(PROTO, MAP, {
     // 23.1.3.4 Map.prototype.entries()
     entries: createIteratorFactory(MapIterator, KEY+VALUE),
     // 23.1.3.8 Map.prototype.keys()
-    keys: createIteratorFactory(MapIterator, KEY),
+    keys:    createIteratorFactory(MapIterator, KEY),
     // 23.1.3.11 Map.prototype.values()
-    values: createIteratorFactory(MapIterator, VALUE)
+    values:  createIteratorFactory(MapIterator, VALUE)
   });
   $define(PROTO, SET, {
     // 23.2.3.5 Set.prototype.entries()
     entries: createIteratorFactory(SetIterator, KEY+VALUE),
     // 23.2.3.8 Set.prototype.keys()
-    keys: createIteratorFactory(SetIterator, VALUE),
+    keys:    createIteratorFactory(SetIterator, VALUE),
     // 23.2.3.10 Set.prototype.values()
-    values: createIteratorFactory(SetIterator, VALUE)
+    values:  createIteratorFactory(SetIterator, VALUE)
   });
   
   if(framework){
@@ -1211,13 +1204,13 @@ if(!isExports || framework){
     }
   }
   objectIterators = {
-    keys: createObjectIteratorFactory(KEY),
-    values: createObjectIteratorFactory(VALUE),
+    keys:    createObjectIteratorFactory(KEY),
+    values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
   
   $define(GLOBAL, {forOf: forOf});
-}();
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
 
 /*****************************
  * Module : dict
@@ -1464,6 +1457,7 @@ $define(STATIC, FUNCTION, {
   _: _
 });
 $define(PROTO, FUNCTION, {
+  // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
     var instance = create(this[PROTOTYPE])
@@ -1488,26 +1482,21 @@ $define(PROTO, FUNCTION, {
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ARGUMENTS] = args;
+      this[ID] = set.apply(global, this[ARGUMENTS] = args)
     }
-    assign(Deferred[PROTOTYPE], {
-      set: function(){
-        this[ID] && clear(this[ID]);
-        this[ID] = set.apply(global, this[ARGUMENTS]);
-        return this;
-      },
-      clear: function(){
-        this[ID] && clear(this[ID]);
-        return this;
-      },
-      clone: function(){
-        return new Deferred(this[ARGUMENTS]).set();
-      }
-    });
+    Deferred[PROTOTYPE].set = function(){
+      clear(this[ID]);
+      this[ID] = set.apply(global, this[ARGUMENTS]);
+      return this;
+    }
+    Deferred[PROTOTYPE].clear = function(){
+      clear(this[ID]);
+      return this;
+    }
     return function(/* args... */){
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
-      return new Deferred(args).set();
+      return new Deferred(args);
     }
   }
   $define(PROTO, FUNCTION, {
@@ -1522,6 +1511,12 @@ $define(PROTO, FUNCTION, {
  *****************************/
 
 !function(){
+  /**
+   * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
+   * http://livescript.net/#property-access -> foo~bar
+   * http://lodash.com/docs#bindKey
+   */
   function tie(key){
     var that        = this
       , placeholder = false
@@ -1533,8 +1528,7 @@ $define(PROTO, FUNCTION, {
     return createPartialApplication(that[key], args, length, placeholder, true, that);
   }
   var $tie = {tie: tie};
-  $define(PROTO, FUNCTION, {
-    tie: tie,
+  $define(PROTO, FUNCTION, assign({
     /**
      * Partial apply.
      * Alternatives:
@@ -1560,16 +1554,10 @@ $define(PROTO, FUNCTION, {
      * http://api.prototypejs.org/language/Function/prototype/methodize/
      */
     methodize: methodize
-  });
+  }, $tie));
   $define(PROTO, ARRAY, $tie);
   $define(PROTO, REGEXP, $tie);
   $define(STATIC, OBJECT, {
-    /**
-     * Alternatives:
-     * http://www.2ality.com/2013/06/auto-binding.html
-     * http://livescript.net/#property-access -> foo~bar
-     * http://lodash.com/docs#bindKey
-     */
     tie: unbind(tie)
   });
   _.useTie = function(){
@@ -1582,55 +1570,52 @@ $define(PROTO, FUNCTION, {
  * Module : object
  *****************************/
 
-!function(){
-  function define(target, source){
+$define(STATIC, OBJECT, {
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#has
+   * http://sugarjs.com/api/Object/has
+   */
+  isEnumerable: unbind(isEnumerable),
+  isPrototype: unbind($Object.isPrototypeOf),
+  // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+  getPropertyDescriptor: getPropertyDescriptor,
+  // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
+  /**
+   * Shugar for Object.create
+   * Alternatives:
+   * http://lodash.com/docs#create
+   */
+  make: function(proto, props){
+    return props == undefined ? create(proto) : create(proto, getOwnPropertyDescriptors(props));
+  },
+  /**
+   * 19.1.3.15 Object.mixin ( target, source )
+   * Removed in Draft Rev 22, January 20, 2014
+   * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+   */
+  define: function(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
-  }
-  $define(STATIC, OBJECT, {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#has
-     * http://sugarjs.com/api/Object/has
-     */
-    isEnumerable: unbind(isEnumerable),
-    isPrototype: unbind($Object.isPrototypeOf),
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getPropertyDescriptor: getPropertyDescriptor,
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-    /**
-     * Shugar for Object.create
-     * Alternatives:
-     * http://lodash.com/docs#create
-     */
-    make: function(proto, props, desc){
-      return props == undefined ? create(proto) : (desc ? define : assign)(create(proto), props);
-    },
-    /**
-     * 19.1.3.15 Object.mixin ( target, source )
-     * Removed in Draft Rev 22, January 20, 2014
-     * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
-     */
-    define: define,
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#isObject
-     * http://sugarjs.com/api/Object/isType
-     * http://docs.angularjs.org/api/angular.isObject
-     */
-    isObject: isObject,
-    /**
-     * Alternatives:
-     * http://livescript.net/#operators -> typeof!
-     * http://mootools.net/docs/core/Core/Core#Core:typeOf
-     * http://api.jquery.com/jQuery.type/
-     */
-    classof: classof,
-    // Simple symbol API
-    symbol: symbol,
-    hidden: hidden
-  });
-}();
+  },
+  /**
+   * Alternatives:
+   * http://underscorejs.org/#isObject
+   * http://sugarjs.com/api/Object/isType
+   * http://docs.angularjs.org/api/angular.isObject
+   */
+  isObject: isObject,
+  /**
+   * Alternatives:
+   * http://livescript.net/#operators -> typeof!
+   * http://mootools.net/docs/core/Core/Core#Core:typeOf
+   * http://api.jquery.com/jQuery.type/
+   */
+  classof: classof,
+  // Simple symbol API
+  symbol: symbol,
+  hidden: hidden
+});
 
 /*****************************
  * Module : array
@@ -1838,17 +1823,18 @@ $define(PROTO, NUMBER, transform.call(
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
-!function(formatRegExp, locales, current, Seconds, Minutes, Hours, _Date, Month, FullYear){
+!function(formatRegExp, flexioRegExp, locales, current, Seconds, Minutes, Hours, _Date, Month, FullYear){
   function createFormat(UTC){
     return function(template, locale /* = current */){
-      var that   = this
-        , locale = locales[has(locales, locale) ? locale : current];
+      var that = this
+        , dict = locales[has(locales, locale) ? locale : current];
       function get(unit){
         return that[(UTC ? 'getUTC' : 'get') + unit]();
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'ms'   : return get('Milliseconds');                             // Milliseconds : 1-999
+          case 'mmm'  : var ms = get('Milliseconds');                           // Milliseconds : 001-999
+            return ms > 99 ? ms : ms > 9 ? '0' + ms : '00' + ms;
           case 's'    : return get(Seconds);                                    // Seconds      : 1-59
           case 'ss'   : return lz(get(Seconds));                                // Seconds      : 01-59
           case 'm'    : return get(Minutes);                                    // Minutes      : 1-59
@@ -1858,13 +1844,13 @@ $define(PROTO, NUMBER, transform.call(
           case 'H'    : return get(Hours) % 12 || 12;                           // Hours        : 1-12
           case 'HH'   : return lz(get(Hours) % 12 || 12);                       // Hours        : 01-12
           case 'a'    : return get(Hours) < 12 ? 'AM' : 'PM';                   // AM/PM
-          case 'd'    : return get(_Date)                                       // Date         : 1-31
-          case 'dd'   : return lz(get(_Date));                                  // Date         : 01-31
-          case 'w'    : return locale.w[get('Day')];                            // Day          : Понедельник
-          case 'n'    : return get(Month) + 1;                                  // Month        : 1-12
-          case 'nn'   : return lz(get(Month) + 1);                              // Month        : 01-12
-          case 'M'    : return locale.M[get(Month)];                            // Month        : Январь
-          case 'MM'   : return locale.MM[get(Month)];                           // Month        : Января
+          case 'D'    : return get(_Date)                                       // Date         : 1-31
+          case 'DD'   : return lz(get(_Date));                                  // Date         : 01-31
+          case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
+          case 'N'    : return get(Month) + 1;                                  // Month        : 1-12
+          case 'NN'   : return lz(get(Month) + 1);                              // Month        : 01-12
+          case 'M'    : return dict.M[get(Month)];                              // Month        : Январь
+          case 'MM'   : return dict.MM[get(Month)];                             // Month        : Января
           case 'YY'   : return lz(get(FullYear) % 100);                         // Year         : 13
           case 'YYYY' : return get(FullYear);                                   // Year         : 2013
         }
@@ -1877,20 +1863,16 @@ $define(PROTO, NUMBER, transform.call(
   }
   function addLocale(lang, locale){
     locales[lang] = {
-      w : array(locale.w),
-      M : flexio(locale.M, 0),
-      MM: flexio(locale.M, 1)
+      W : array(locale.weekdays),
+      MM: flexio(locale.months, 1),
+      M : flexio(locale.months, 2)
     };
     return Date;
   }
   function flexio(locale, index){
-    var result = [];
-    $forEach(array(locale), function(it){
-      result.push(it.replace(/\+(.+)$/, function(part, str){
-        return str.split('|')[index];
-      }));
+    return transform.call(array(locale), [], function(memo, it){
+      memo.push(it.replace(flexioRegExp, '$' + index));
     });
-    return result;
   }
   $define(STATIC, _Date, {
     locale: function(locale){
@@ -1902,15 +1884,15 @@ $define(PROTO, NUMBER, transform.call(
     format: createFormat(0),
     formatUTC: createFormat(1)
   });
-  addLocale('en', {
-    w: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    M: 'January,February,March,April,May,June,July,August,September,October,November,December'
+  addLocale(current, {
+    weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
+    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
   });
   addLocale('ru', {
-    w: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    M: 'Январ+ь|я,Феврал+ь|я,Март+|а,Апрел+ь|я,Ма+й|я,Июн+ь|я,Июл+ь|я,Август+|а,Сентябр+ь|я,Октябр+ь|я,Ноябр+ь|я,Декабр+ь|я'
+    weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
+    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
-}(/\b\w{1,4}\b/g, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
+}(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
 
 /*****************************
  * Module : extendCollections

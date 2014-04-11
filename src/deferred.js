@@ -10,26 +10,21 @@
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ARGUMENTS] = args;
+      this[ID] = set.apply(global, this[ARGUMENTS] = args)
     }
-    assign(Deferred[PROTOTYPE], {
-      set: function(){
-        this[ID] && clear(this[ID]);
-        this[ID] = set.apply(global, this[ARGUMENTS]);
-        return this;
-      },
-      clear: function(){
-        this[ID] && clear(this[ID]);
-        return this;
-      },
-      clone: function(){
-        return new Deferred(this[ARGUMENTS]).set();
-      }
-    });
+    Deferred[PROTOTYPE].set = function(){
+      clear(this[ID]);
+      this[ID] = set.apply(global, this[ARGUMENTS]);
+      return this;
+    }
+    Deferred[PROTOTYPE].clear = function(){
+      clear(this[ID]);
+      return this;
+    }
     return function(/* args... */){
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
-      return new Deferred(args).set();
+      return new Deferred(args);
     }
   }
   $define(PROTO, FUNCTION, {
