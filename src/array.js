@@ -5,7 +5,8 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   at: function(index){
-    return ES5Object(this)[0 > (index |= 0) ? this.length + index : index];
+    index = toInteger(index);
+    return ES5Object(this)[0 > index ? this.length + index : index];
   },
   transform: transform,
   /**

@@ -7,11 +7,7 @@
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var IMMEDIATE_PREFIX = symbol('immediate')
-    , counter = 0
-    , queue   = {}
-    , defer, channel;
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
@@ -57,10 +53,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     channel.port1.onmessage = listner;
     defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
-  } else if(document && onreadystatechange in document.createElement('script')){
+  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
     defer = function(id){
       var el = document.createElement('script');
-      el[onreadystatechange] = function(){
+      el[ONREADYSTATECHANGE] = function(){
         el.parentNode.removeChild(el);
         run(id);
       }
@@ -72,6 +68,6 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
       setTimeout(part.call(run, id), 0);
     }
   }
-}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
+}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
 $defineTimer('setImmediate', setImmediate);
 $defineTimer('clearImmediate', clearImmediate);

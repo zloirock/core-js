@@ -13,26 +13,11 @@
  */
 !function(Promise){
   isFunction(Promise)
-  &&  Promise.cast && Promise.resolve && Promise.reject && Promise.all && Promise.race
-  // Older version of the spec had a resolver object as the arg rather than a function
-  // Experimental implementations contains a number of inconsistencies with the spec,
-  // such as this: onFulfilled must be a function or undefined
-  &&  (function(resolve){
-        try {
-          new Promise(function(r){
-            resolve = r;
-          }).then(null);
-          return isFunction(resolve);
-        } catch(e){}
-      })()
-  || !function(){
-    var PENDING
-      , SEALED    = 0
-      , FULFILLED = 1
-      , REJECTED  = 2
-      , SUBSCRIBERS = symbol('subscribers')
-      , STATE       = symbol('state')
-      , DETAIL      = symbol('detail');
+  && Promise.resolve && Promise.reject && Promise.all && Promise.race
+  && (function(promise){
+    return Promise.resolve(promise) === promise;
+  })(new Promise(Function()))
+  || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // 25.4.3 The Promise Constructor
     Promise = function(resolver){
       var promise       = this
@@ -103,10 +88,6 @@
           else resolve(results);
         });
       },
-      // 25.4.4.2 Promise.cast(x)
-      cast: function(x){
-        return x instanceof this ? x : $resolve.call(this, x);
-      },
       // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
         var iter = getIterator(iterable);
@@ -125,13 +106,12 @@
         });
       },
       // 25.4.4.6 Promise.resolve(x)
-      resolve: $resolve
+      resolve: function(x){
+        return x instanceof this ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
+      }
     });
-    function $resolve(x){
-      return new this(function(resolve, reject){
-        resolve(x);
-      });
-    }
     function handleThenable(promise, value){
       var resolved;
       try {
@@ -170,6 +150,6 @@
         });
       }
     }
-  }();
+  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
   $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);

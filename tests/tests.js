@@ -2294,6 +2294,64 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
+  test('Promise constructor', function(){
+    ok(isFunction(global.Promise), 'Is function');
+    ok(Promise.length === 1, 'Promise.length is 1');
+  });
+  test('Promise.all', function(){
+    ok(isFunction(Promise.all), 'Is function');
+  });
+  test('Promise.race', function(){
+    ok(isFunction(Promise.race), 'Is function');
+  });
+  test('Promise.resolve', function(){
+    ok(isFunction(Promise.resolve), 'Is function');
+  });
+  test('Promise.reject', function(){
+    ok(isFunction(Promise.reject), 'Is function');
+  });
+  test('Promise::then', function(){
+    ok(isFunction(Promise.prototype.then), 'Is function');
+  });
+  test('Promise::catch', function(){
+    ok(isFunction(Promise.prototype['catch']), 'Is function');
+  });
+}).call(this);
+
+(function(){
+  var isFunction, isNative, that, toString$ = {}.toString;
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  isNative = function(it){
+    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+  };
+  that = (typeof global != 'undefined' && global !== null) && global || window;
+  test('Symbol', function(){
+    var s1, s2, o, count, i;
+    ok(isFunction(that.Symbol), 'Is function');
+    s1 = Symbol('foo');
+    s2 = Symbol('foo');
+    ok(s1 !== s2, 'Symbol("foo") !== Symbol("foo")');
+    o = {};
+    o[s1] = 42;
+    ok(o[s1] === 42, 'Symbol() work as key');
+    ok(o[s2] !== 42, 'Various symbols from one description are various keys');
+    if (isNative(Object.defineProperty)) {
+      count = 0;
+      for (i in o) {
+        count++;
+      }
+      ok(count === 0, 'object[Symbol()] is not enumerable');
+    }
+  });
+}).call(this);
+
+(function(){
+  var isFunction, toString$ = {}.toString;
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
   test('Function.isFunction', function(){
     var isFunction, i$, x$, ref$, len$;
     isFunction = Function.isFunction;
@@ -2727,38 +2785,6 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Promise constructor', function(){
-    ok(isFunction(global.Promise), 'Is function');
-    ok(Promise.length === 1, 'Promise.length is 1');
-  });
-  test('Promise.all', function(){
-    ok(isFunction(Promise.all), 'Is function');
-  });
-  test('Promise.race', function(){
-    ok(isFunction(Promise.race), 'Is function');
-  });
-  test('Promise.resolve', function(){
-    ok(isFunction(Promise.resolve), 'Is function');
-  });
-  test('Promise.reject', function(){
-    ok(isFunction(Promise.reject), 'Is function');
-  });
-  test('Promise.cast', function(){
-    ok(isFunction(Promise.cast), 'Is function');
-  });
-  test('Promise::then', function(){
-    ok(isFunction(Promise.prototype.then), 'Is function');
-  });
-  test('Promise::catch', function(){
-    ok(isFunction(Promise.prototype['catch']), 'Is function');
-  });
-}).call(this);
-
-(function(){
-  var isFunction, toString$ = {}.toString;
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
   test('RegExp.escape', function(){
     var escape;
     escape = RegExp.escape;
@@ -2784,35 +2810,6 @@
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');
     ok('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML() === "&<>\"'");
-  });
-}).call(this);
-
-(function(){
-  var isFunction, isNative, that, toString$ = {}.toString;
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
-  };
-  that = (typeof global != 'undefined' && global !== null) && global || window;
-  test('Symbol', function(){
-    var s1, s2, o, count, i;
-    ok(isFunction(that.Symbol), 'Is function');
-    s1 = Symbol('foo');
-    s2 = Symbol('foo');
-    ok(s1 !== s2, 'Symbol("foo") !== Symbol("foo")');
-    o = {};
-    o[s1] = 42;
-    ok(o[s1] === 42, 'Symbol() work as key');
-    ok(o[s2] !== 42, 'Various symbols from one description are various keys');
-    if (isNative(Object.defineProperty)) {
-      count = 0;
-      for (i in o) {
-        count++;
-      }
-      ok(count === 0, 'object[Symbol()] is not enumerable');
-    }
   });
 }).call(this);
 

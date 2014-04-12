@@ -10,8 +10,6 @@ test 'Promise.resolve' !->
   ok isFunction(Promise.resolve), 'Is function'
 test 'Promise.reject' !->
   ok isFunction(Promise.reject), 'Is function'
-test 'Promise.cast' !->
-  ok isFunction(Promise.cast), 'Is function'
 test 'Promise::then' !->
   ok isFunction(Promise::then), 'Is function'
 test 'Promise::catch' !->

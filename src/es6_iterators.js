@@ -8,22 +8,8 @@
     }
   }
   
-  function StringIterator(iterated){
-    this[ITERATED] = iterated;
-    this[INDEX]    = 0;
-  }
-  StringIterator[PROTOTYPE] = {
-    next: function(){
-      var iterated = this[ITERATED]
-        , index    = this[INDEX]++;
-      return index < iterated.length
-        ? createIterResultObject(iterated.charAt(index), 0)
-        : createIterResultObject(undefined, 1);
-    }
-  };
-  
   function ArrayIterator(iterated, kind){
-    this[ITERATED] = iterated;
+    this[ITERATED] = ES5Object(iterated);
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
@@ -106,11 +92,8 @@
     }
   }
   
-  StringIterator[PROTOTYPE][ITERATOR] =
-    ArrayIterator[PROTOTYPE][ITERATOR] =
-      MapIterator[PROTOTYPE][ITERATOR] =
-        SetIterator[PROTOTYPE][ITERATOR] =
-          ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
+  ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
+    SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
     has(object, ITERATOR) || (object[ITERATOR] = value);
@@ -128,7 +111,7 @@
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
-      case String : return new StringIterator(it);
+      case String :
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
@@ -172,7 +155,7 @@
   
   if(framework){
     // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[PROTOTYPE], createIteratorFactory(StringIterator));
+    defineIterator(String[PROTOTYPE], createIteratorFactory(ArrayIterator, VALUE));
     // 22.1.3.30 Array.prototype[@@iterator]()
     defineIterator($Array, $Array.values);
     // 23.1.3.12 Map.prototype[@@iterator]()

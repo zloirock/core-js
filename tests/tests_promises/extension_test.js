@@ -16,6 +16,12 @@ newSetTimeout = function(callback) {
   }
 };
 
+function resolve(it){
+  return new Promise(function(resolve){
+    resolve(it);
+  });
+}
+
 if (typeof Object.getPrototypeOf !== "function") {
   Object.getPrototypeOf = "".__proto__ === String.prototype
     ? function (object) {
@@ -573,300 +579,17 @@ describe("RSVP extensions", function() {
     });
   });
 
-  describe("RSVP.resolve", function(){
-    specify("it should exist", function(){
-      assert(Promise.resolve);
-    });
-
-    describe("1. If x is a promise, adopt its state ", function(){
-      specify("1.1 If x is pending, promise must remain pending until x is fulfilled or rejected.", function(done){
-        var expectedValue, resolver, thenable, wrapped;
-
-        expectedValue = 'the value';
-        thenable = {
-          then: function(resolve, reject){
-            resolver = resolve;
-          }
-        };
-
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(function(value){
-          assert(value === expectedValue);
-          done();
-        });
-
-        resolver(expectedValue);
-      });
-
-      specify("1.2 If/when x is fulfilled, fulfill promise with the same value.", function(done){
-        var expectedValue, thenable, wrapped;
-
-        expectedValue = 'the value';
-        thenable = {
-          then: function(resolve, reject){
-            resolve(expectedValue);
-          }
-        };
-
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(function(value){
-          assert(value === expectedValue);
-          done();
-        })
-      });
-
-      specify("1.3 If/when x is rejected, reject promise with the same reason.", function(done){
-        var expectedError, thenable, wrapped;
-
-        expectedError =  new Error();
-        thenable = {
-          then: function(resolve, reject){
-            reject(expectedError);
-          }
-        };
-
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(null, function(error){
-          assert(error === expectedError);
-          done();
-        });
-      });
-    });
-
-    describe("2. Otherwise, if x is an object or function,", function(){
-      specify("2.1 Let then x.then", function(done){
-        var accessCount, resolver, wrapped, thenable;
-
-        accessCount = 0;
-        thenable = { };
-
-        // we likely don't need to test this, if the browser doesn't support it
-        if (!isNative(Object.defineProperty)) { done(); return; }
-
-        Object.defineProperty(thenable, 'then', {
-          get: function(){
-            accessCount++;
-            return function(){ };
-          }
-        });
-
-        assert(accessCount === 0);
-
-        wrapped = Promise.resolve(thenable);
-        
-        assert(accessCount > 0);
-
-        done();
-      });
-
-      specify("2.2 If retrieving the property x.then results in a thrown exception e, reject promise with e as the reason.", function(done){
-        var wrapped, thenable, expectedError;
-
-        expectedError = new Error();
-        thenable = { };
-
-        // we likely don't need to test this, if the browser doesn't support it
-        if (!isNative(Object.defineProperty)) { done(); return; }
-
-        Object.defineProperty(thenable, 'then', {
-          get: function(){
-            throw expectedError;
-          }
-        });
-
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(null, function(error){
-          assert(error === expectedError, 'incorrect exception was thrown');
-          done();
-        });
-      });
-
-      describe('2.3. If then is a function, call it with x as this, first argument resolvePromise, and second argument rejectPromise, where', function(){
-        specify('2.3.1 If/when resolvePromise is called with a value y, run Resolve(promise, y)', function(done){
-          var expectedSuccess, resolver, rejector, thenable, wrapped, calledThis;
-
-          thenable = {
-            then: function(resolve, reject){
-              calledThis = this;
-              resolver = resolve;
-              rejector = reject;
-            }
-          };
-
-          expectedSuccess = 'success';
-          wrapped = Promise.resolve(thenable);
-
-          wrapped.then(function(success){
-            assert(calledThis === thenable, 'this must be the thenable');
-            assert(success === expectedSuccess, 'rejected promise with x');
-            done();
-          });
-
-          resolver(expectedSuccess);
-        });
-
-        specify('2.3.2 If/when rejectPromise is called with a reason r, reject promise with r.', function(done){
-          var expectedError, resolver, rejector, thenable, wrapped, calledThis,
-
-          thenable = {
-            then: function(resolve, reject){
-              calledThis = this;
-              resolver = resolve;
-              rejector = reject;
-            }
-          };
-
-          expectedError = new Error();
-
-          wrapped = Promise.resolve(thenable);
-
-          wrapped.then(null, function(error){
-            assert(error === expectedError, 'rejected promise with x');
-            done();
-          });
-
-          rejector(expectedError);
-        });
-
-        specify("2.3.3 If both resolvePromise and rejectPromise are called, or multiple calls to the same argument are made, the first call takes precedence, and any further calls are ignored", function(done){
-          var expectedError, expectedSuccess, resolver, rejector, thenable, wrapped, calledThis,
-          calledRejected, calledResolved;
-
-          calledRejected = 0;
-          calledResolved = 0;
-
-          thenable = {
-            then: function(resolve, reject){
-              calledThis = this;
-              resolver = resolve;
-              rejector = reject;
-            }
-          };
-
-          expectedError = new Error();
-
-          wrapped = Promise.resolve(thenable);
-
-          wrapped.then(function(){
-            calledResolved++;
-          }, function(error){
-            calledRejected++;
-            assert(calledResolved === 0, 'never resolved');
-            assert(calledRejected === 1, 'rejected only once');
-            assert(error === expectedError, 'rejected promise with x');
-          });
-
-          rejector(expectedError);
-          rejector(expectedError);
-
-          rejector('foo');
-
-          resolver('bar');
-          resolver('baz');
-
-          setTimeout(function(){
-            assert(calledRejected === 1, 'only rejected once');
-            assert(calledResolved === 0, 'never resolved');
-            done();
-          }, 50);
-        });
-
-        describe("2.3.4 If calling then throws an exception e", function(){
-          specify("2.3.4.1 If resolvePromise or rejectPromise have been called, ignore it.", function(done){
-            var expectedSuccess, resolver, rejector, thenable, wrapped, calledThis,
-            calledRejected, calledResolved;
-
-            expectedSuccess = 'success';
-
-            thenable = {
-              then: function(resolve, reject){
-                resolve(expectedSuccess);
-                throw expectedError;
-              }
-            };
-
-            wrapped = Promise.resolve(thenable);
-
-            wrapped.then(function(success){
-              assert(success === expectedSuccess, 'resolved not errored');
-              done();
-            });
-          });
-
-          specify("2.3.4.2 Otherwise, reject promise with e as the reason.", function(done) {
-            var expectedError, resolver, rejector, thenable, wrapped, calledThis, callCount;
-
-            expectedError = new Error();
-            callCount = 0;
-
-            thenable = { then: function() { throw expectedError; } };
-
-            wrapped = Promise.resolve(thenable);
-
-            wrapped.then(null, function(error){
-              callCount++;
-              assert(expectedError === error, 'expected the correct error to be rejected');
-              done();
-            });
-
-            assert(callCount === 0, 'expected async, was sync');
-          });
-        });
-      });
-
-      specify("2.4 If then is not a function, fulfill promise with x", function(done){
-        var expectedError, resolver, rejector, thenable, wrapped, calledThis, callCount;
-
-        thenable = { then: 3 };
-        callCount = 0;
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(function(success){
-          callCount++;
-          assert(thenable === success, 'fulfilled promise with x');
-          done();
-        });
-
-        assert(callCount === 0, 'expected async, was sync');
-      });
-    });
-
-    describe("3. If x is not an object or function, ", function(){
-      specify("fulfill promise with x.", function(done){
-        var thenable, callCount, wrapped;
-
-        thenable = null;
-        callCount = 0;
-        wrapped = Promise.resolve(thenable);
-
-        wrapped.then(function(success){
-          callCount++;
-          assert(success === thenable, 'fulfilled promise with x');
-          done();
-        }, function(a){
-          assert(false, 'should not also reject');
-        });
-
-        assert(callCount === 0, 'expected async, was sync');
-      });
-    });
-  });
-
-  describe("Promise.cast", function () {
+  describe("Promise.resolve", function () {
     it("If SameValue(constructor, C) is true, return x.", function(){
-      var promise = Promise.resolve(1);
-      var casted = Promise.cast(promise);
+      var promise = resolve(1);
+      var casted = Promise.resolve(promise);
 
       assert.deepEqual(casted, promise);
     });
 
     it("If SameValue(constructor, C) is false, and isThenable(C) is true, return PromiseResolve(promise, x).", function(){
       var promise = { then: function() { } };
-      var casted = Promise.cast(promise);
+      var casted = Promise.resolve(promise);
 
       assert(casted instanceof Promise);
       assert(casted !== promise);
@@ -879,10 +602,10 @@ describe("RSVP extensions", function() {
 
       PromiseSubclass.prototype = Object.create(Promise.prototype);
       PromiseSubclass.prototype.constructor = PromiseSubclass;
-      PromiseSubclass.cast = Promise.cast;
+      PromiseSubclass.resolve = Promise.resolve;
 
-      var promise = Promise.resolve(1);
-      var casted = PromiseSubclass.cast(promise);
+      var promise = resolve(1);
+      var casted = PromiseSubclass.resolve(promise);
 
       assert(casted instanceof Promise);
       assert(casted instanceof PromiseSubclass);
@@ -896,14 +619,14 @@ describe("RSVP extensions", function() {
 
     it("If SameValue(constructor, C) is false, and isThenable(C) is false, return PromiseResolve(promise, x).", function(){
       var value = 1;
-      var casted = Promise.cast(value);
+      var casted = Promise.resolve(value);
 
       assert(casted instanceof Promise);
       assert(casted !== value);
     });
 
     it("casts null correctly", function(done){
-      Promise.cast(null).then(function(value){
+      Promise.resolve(null).then(function(value){
         assert.equal(value, null);
         done();
       });
@@ -926,11 +649,11 @@ if (typeof module !== 'undefined' && module.exports) {
         array.push(i);
       }
 
-      pZero = Promise.resolve(0);
+      pZero = resolve(0);
 
       array.reduce(function(promise, nextVal) {
         return promise.then(function(currentVal) {
-          return Promise.resolve(currentVal + nextVal);
+          return resolve(currentVal + nextVal);
         });
       }, pZero);
     });
@@ -938,7 +661,7 @@ if (typeof module !== 'undefined' && module.exports) {
     it("should get correct answer without blowing the nextTick stack", function(done){
       var pZero, array, iters, result, i;
 
-      pZero = Promise.resolve(0);
+      pZero = resolve(0);
 
       array = [];
       iters = 1000;
@@ -949,7 +672,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
       result = array.reduce(function(promise, nextVal) {
         return promise.then(function(currentVal) {
-          return Promise.resolve(currentVal + nextVal);
+          return resolve(currentVal + nextVal);
         });
       }, pZero);
 

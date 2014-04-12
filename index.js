@@ -809,26 +809,11 @@ if(!isExports || framework){
  */
 !function(Promise){
   isFunction(Promise)
-  &&  Promise.cast && Promise.resolve && Promise.reject && Promise.all && Promise.race
-  // Older version of the spec had a resolver object as the arg rather than a function
-  // Experimental implementations contains a number of inconsistencies with the spec,
-  // such as this: onFulfilled must be a function or undefined
-  &&  (function(resolve){
-        try {
-          new Promise(function(r){
-            resolve = r;
-          }).then(null);
-          return isFunction(resolve);
-        } catch(e){}
-      })()
-  || !function(){
-    var PENDING
-      , SEALED    = 0
-      , FULFILLED = 1
-      , REJECTED  = 2
-      , SUBSCRIBERS = symbol('subscribers')
-      , STATE       = symbol('state')
-      , DETAIL      = symbol('detail');
+  && Promise.resolve && Promise.reject && Promise.all && Promise.race
+  && (function(promise){
+    return Promise.resolve(promise) === promise;
+  })(new Promise(Function()))
+  || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // 25.4.3 The Promise Constructor
     Promise = function(resolver){
       var promise       = this
@@ -899,10 +884,6 @@ if(!isExports || framework){
           else resolve(results);
         });
       },
-      // 25.4.4.2 Promise.cast(x)
-      cast: function(x){
-        return x instanceof this ? x : $resolve.call(this, x);
-      },
       // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
         var iter = getIterator(iterable);
@@ -921,13 +902,12 @@ if(!isExports || framework){
         });
       },
       // 25.4.4.6 Promise.resolve(x)
-      resolve: $resolve
+      resolve: function(x){
+        return x instanceof this ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
+      }
     });
-    function $resolve(x){
-      return new this(function(resolve, reject){
-        resolve(x);
-      });
-    }
     function handleThenable(promise, value){
       var resolved;
       try {
@@ -966,7 +946,7 @@ if(!isExports || framework){
         });
       }
     }
-  }();
+  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
   $define(GLOBAL, {Promise: Promise}, 1);
 }(global.Promise);
 
@@ -1027,22 +1007,8 @@ if(!isExports || framework){
     }
   }
   
-  function StringIterator(iterated){
-    this[ITERATED] = iterated;
-    this[INDEX]    = 0;
-  }
-  StringIterator[PROTOTYPE] = {
-    next: function(){
-      var iterated = this[ITERATED]
-        , index    = this[INDEX]++;
-      return index < iterated.length
-        ? createIterResultObject(iterated.charAt(index), 0)
-        : createIterResultObject(undefined, 1);
-    }
-  };
-  
   function ArrayIterator(iterated, kind){
-    this[ITERATED] = iterated;
+    this[ITERATED] = ES5Object(iterated);
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
@@ -1125,11 +1091,8 @@ if(!isExports || framework){
     }
   }
   
-  StringIterator[PROTOTYPE][ITERATOR] =
-    ArrayIterator[PROTOTYPE][ITERATOR] =
-      MapIterator[PROTOTYPE][ITERATOR] =
-        SetIterator[PROTOTYPE][ITERATOR] =
-          ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
+  ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
+    SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
   
   function defineIterator(object, value){
     has(object, ITERATOR) || (object[ITERATOR] = value);
@@ -1147,7 +1110,7 @@ if(!isExports || framework){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
-      case String : return new StringIterator(it);
+      case String :
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
@@ -1191,7 +1154,7 @@ if(!isExports || framework){
   
   if(framework){
     // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[PROTOTYPE], createIteratorFactory(StringIterator));
+    defineIterator(String[PROTOTYPE], createIteratorFactory(ArrayIterator, VALUE));
     // 22.1.3.30 Array.prototype[@@iterator]()
     defineIterator($Array, $Array.values);
     // 23.1.3.12 Map.prototype[@@iterator]()
@@ -1380,11 +1343,7 @@ if(!isExports || framework){
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, onreadystatechange){
-  var IMMEDIATE_PREFIX = symbol('immediate')
-    , counter = 0
-    , queue   = {}
-    , defer, channel;
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
@@ -1430,10 +1389,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     channel.port1.onmessage = listner;
     defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
-  } else if(document && onreadystatechange in document.createElement('script')){
+  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
     defer = function(id){
       var el = document.createElement('script');
-      el[onreadystatechange] = function(){
+      el[ONREADYSTATECHANGE] = function(){
         el.parentNode.removeChild(el);
         run(id);
       }
@@ -1445,7 +1404,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
       setTimeout(part.call(run, id), 0);
     }
   }
-}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange');
+}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
 $defineTimer('setImmediate', setImmediate);
 $defineTimer('clearImmediate', clearImmediate);
 
@@ -1630,7 +1589,8 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   at: function(index){
-    return ES5Object(this)[0 > (index |= 0) ? this.length + index : index];
+    index = toInteger(index);
+    return ES5Object(this)[0 > index ? this.length + index : index];
   },
   transform: transform,
   /**
