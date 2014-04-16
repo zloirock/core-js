@@ -60,5 +60,5 @@ $define(PROTO, NUMBER, transform.call(
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);
-  }
+  }, {}
 ));

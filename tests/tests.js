@@ -16,25 +16,17 @@
     var arr, obj;
     ok(isFunction(Array.prototype.transform), 'Is function');
     (arr = [1]).transform(function(memo, val, key, that){
-      deepEqual({}, memo, 'Default memo is empty object');
+      deepEqual([], memo, 'Default memo is array');
       ok(val === 1, 'First argumert is value');
       ok(key === 0, 'Second argumert is index');
       return ok(that === arr, 'Third argumert is array');
     });
-    [1].transform(obj = {}, function(memo){
+    [1].transform(function(memo){
       return ok(memo === obj, 'Can reduce to exist object');
-    });
-    deepEqual([3, 2, 1], [1, 2, 3].transform([], function(memo, it){
+    }, obj = {});
+    deepEqual([3, 2, 1], [1, 2, 3].transform(function(memo, it){
       return memo.unshift(it);
     }), 'Reduce to object and return it');
-  });
-  test('Array::merge', function(){
-    var arr;
-    ok(isFunction(Array.prototype.merge), 'Is function');
-    arr = [1, 2, 3];
-    ok(arr === arr.merge([4, 5, 6]), 'Return exist array');
-    deepEqual(arr, [1, 2, 3, 4, 5, 6], 'Add elements of argument array to this array');
-    deepEqual(['q', 'w', 'e'].merge('asd'), ['q', 'w', 'e', 'a', 's', 'd'], 'Work with array-like objects');
   });
 }).call(this);
 
@@ -45,7 +37,7 @@
   };
   test('Array static are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'at', 'transform', 'merge']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'at', 'transform']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -495,47 +487,30 @@
     transform(al = function(){
       return arguments;
     }(1), function(memo, val, key, that){
-      deepEqual({}, memo);
+      deepEqual([], memo);
       ok(val === 1);
       ok(key === 0);
       return ok(that === al);
     });
     transform(al = '1', function(memo, val, key, that){
-      deepEqual({}, memo);
+      deepEqual([], memo);
       ok(val === '1');
       ok(key === 0);
       return ok(that == al);
     });
     transform(function(){
       return arguments;
-    }(1), obj = {}, function(it){
+    }(1), function(it){
       return ok(it === obj);
-    });
+    }, obj = {});
     deepEqual([3, 2, 1], transform(function(){
       return arguments;
-    }(1, 2, 3), [], function(memo, it){
+    }(1, 2, 3), function(memo, it){
       return memo.unshift(it);
     }));
-    deepEqual(['3', '2', '1'], transform('123', [], function(memo, it){
+    deepEqual(['3', '2', '1'], transform('123', function(memo, it){
       return memo.unshift(it);
     }));
-  });
-  test('Array.merge', function(){
-    var merge, args;
-    merge = Array.merge;
-    args = function(){
-      return arguments;
-    }(1, 2, 3);
-    ok(args === merge(args, function(){
-      return arguments;
-    }(4, 5, 6)));
-    ok(args.length === 6);
-    ok(args[0] === 1);
-    ok(args[1] === 2);
-    ok(args[2] === 3);
-    ok(args[3] === 4);
-    ok(args[4] === 5);
-    ok(args[5] === 6);
   });
 }).call(this);
 
@@ -549,7 +524,7 @@
   };
   methods = ['assert', 'count', 'debug', 'dir', 'dirxml', 'error', 'exception', 'group', 'groupEnd', 'groupCollapsed', 'groupEnd', 'info', 'log', 'table', 'trace', 'warn', 'markTimeline', 'profile', 'profileEnd', 'time', 'timeEnd', 'timeStamp'];
   test('console', function(){
-    ok(isObject(global.console), 'global.console is object');
+    ok(isObject(((typeof global != 'undefined' && global !== null) && global || window).console), 'global.console is object');
   });
   test('console.#{..} are functions', function(){
     var i$, x$, ref$, len$;
@@ -1010,9 +985,9 @@
     });
     transform({
       q: 1
-    }, obj = {}, function(it){
+    }, function(it){
       return ok(it === obj);
-    });
+    }, obj = {});
     deepEqual(transform({
       q: 1,
       w: 2,
@@ -2295,7 +2270,7 @@
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   test('Promise constructor', function(){
-    ok(isFunction(global.Promise), 'Is function');
+    ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
     ok(Promise.length === 1, 'Promise.length is 1');
   });
   test('Promise.all', function(){
@@ -2803,13 +2778,13 @@
     ok(isFunction(String.prototype.escapeHTML), 'Is function');
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');
     ok('<div>qwe</div>'.escapeHTML() === '&lt;div&gt;qwe&lt;/div&gt;');
-    ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;');
+    ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&#39;');
   });
   test('String::unescapeHTML', function(){
     ok(isFunction(String.prototype.unescapeHTML), 'Is function');
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');
-    ok('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML() === "&<>\"'");
+    ok('&amp;&lt;&gt;&quot;&#39;'.unescapeHTML() === "&<>\"'");
   });
 }).call(this);
 

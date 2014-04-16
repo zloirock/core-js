@@ -16,12 +16,6 @@ newSetTimeout = function(callback) {
   }
 };
 
-function resolve(it){
-  return new Promise(function(resolve){
-    resolve(it);
-  });
-}
-
 if (typeof Object.getPrototypeOf !== "function") {
   Object.getPrototypeOf = "".__proto__ === String.prototype
     ? function (object) {
@@ -581,7 +575,7 @@ describe("RSVP extensions", function() {
 
   describe("Promise.resolve", function () {
     it("If SameValue(constructor, C) is true, return x.", function(){
-      var promise = resolve(1);
+      var promise = Promise.resolve(1);
       var casted = Promise.resolve(promise);
 
       assert.deepEqual(casted, promise);
@@ -604,7 +598,7 @@ describe("RSVP extensions", function() {
       PromiseSubclass.prototype.constructor = PromiseSubclass;
       PromiseSubclass.resolve = Promise.resolve;
 
-      var promise = resolve(1);
+      var promise = Promise.resolve(1);
       var casted = PromiseSubclass.resolve(promise);
 
       assert(casted instanceof Promise);
@@ -649,11 +643,11 @@ if (typeof module !== 'undefined' && module.exports) {
         array.push(i);
       }
 
-      pZero = resolve(0);
+      pZero = Promise.resolve(0);
 
       array.reduce(function(promise, nextVal) {
         return promise.then(function(currentVal) {
-          return resolve(currentVal + nextVal);
+          return Promise.resolve(currentVal + nextVal);
         });
       }, pZero);
     });
@@ -661,7 +655,7 @@ if (typeof module !== 'undefined' && module.exports) {
     it("should get correct answer without blowing the nextTick stack", function(done){
       var pZero, array, iters, result, i;
 
-      pZero = resolve(0);
+      pZero = Promise.resolve(0);
 
       array = [];
       iters = 1000;
@@ -672,7 +666,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
       result = array.reduce(function(promise, nextVal) {
         return promise.then(function(currentVal) {
-          return resolve(currentVal + nextVal);
+          return Promise.resolve(currentVal + nextVal);
         });
       }, pZero);
 

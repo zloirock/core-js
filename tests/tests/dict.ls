@@ -124,8 +124,9 @@ test 'Dict.transform' !->
     ok val  is 1
     ok key  is \q
     ok that is obj
-  transform {q:1} obj = {} ->
+  transform {q:1} ->
     ok it   is obj
+  , obj = {}
   deepEqual transform({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
 test 'Dict.has' !->
   {has} = Dict

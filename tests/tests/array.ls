@@ -10,16 +10,11 @@ test 'Array::at' !->
 test 'Array::transform' !->
   ok isFunction(Array::transform), 'Is function'
   (arr = [1])transform (memo, val, key, that)->
-    deepEqual {} memo, 'Default memo is empty object'
+    deepEqual [] memo, 'Default memo is array'
     ok val  is 1, 'First argumert is value'
     ok key  is 0, 'Second argumert is index'
     ok that is arr, 'Third argumert is array' 
-  [1]transform obj = {} (memo)->
+  [1]transform (memo)->
     ok memo is obj, 'Can reduce to exist object'
-  deepEqual [3 2 1] [1 2 3]transform([] (memo, it)-> memo.unshift it), 'Reduce to object and return it'
-test 'Array::merge' !->
-  ok isFunction(Array::merge), 'Is function'
-  arr = [1 2 3]
-  ok arr is arr.merge([4 5 6]), 'Return exist array'
-  deepEqual arr, [1 2 3 4 5 6], 'Add elements of argument array to this array'
-  deepEqual <[q w e]>.merge(\asd), <[q w e a s d]>, 'Work with array-like objects'
+  , obj = {}
+  deepEqual [3 2 1] [1 2 3]transform((memo, it)-> memo.unshift it), 'Reduce to object and return it'

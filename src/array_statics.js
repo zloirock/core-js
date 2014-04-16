@@ -18,9 +18,9 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'at,transform,merge'
+    'at,transform'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);
-  }
+  }, {}
 ));

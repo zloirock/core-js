@@ -5,7 +5,7 @@
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, TAG, SymbolRegistry){
+!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -29,10 +29,10 @@
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || Symbol('Symbol.iterator'),
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     }
   });
-}(global.Symbol, symbol('tag'), {});
+}(global.Symbol, symbol('tag'), {}, '@@iterator');

@@ -118,15 +118,17 @@
     }
     throw TypeError(it + ' is not iterable!');
   }
-  forOf = function(it, fn, that){
-    var iterator = getIterator(it), step;
-    while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
+  forOf = function(it, fn, that, entries){
+    var iterator = getIterator(it), step, value;
+    while(!(step = iterator.next()).done){
+      if(fn[entries ? 'apply' : 'call'](that, step.value) === false)return;
+    }
   }
   
   // v8 & FF fix
   isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
-  isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
+  //isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
+  //isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()

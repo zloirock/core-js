@@ -1,6 +1,6 @@
 isFunction = -> typeof! it is \Function
 test 'Array static are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at transform merge]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at transform]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
@@ -217,28 +217,17 @@ test 'Array.at' !->
 test 'Array.transform' !->
   {transform} = Array
   transform (al = (->&)(1)), (memo, val, key, that)->
-    deepEqual {} memo
+    deepEqual [] memo
     ok val  is 1
     ok key  is 0
     ok that is al
   transform (al = \1), (memo, val, key, that)->
-    deepEqual {} memo
+    deepEqual [] memo
     ok val is \1
     ok key is 0
     ok that ~= al
-  transform (->&)(1), obj = {} ->
+  transform (->&)(1), ->
     ok it is obj
-  deepEqual [3 2 1], transform (->&)(1 2 3), [] (memo, it)-> memo.unshift it
-  deepEqual [\3 \2 \1], transform \123 [] (memo, it)-> memo.unshift it
-test 'Array.merge' !->
-  {merge} = Array
-  args = (->&)(1 2 3)
-  ok args is merge args, (->&)(4 5 6)
-  # don't enum arguments props in ie 8-
-  ok args.length is 6
-  ok args.0 is 1
-  ok args.1 is 2
-  ok args.2 is 3
-  ok args.3 is 4
-  ok args.4 is 5
-  ok args.5 is 6
+  , obj = {}
+  deepEqual [3 2 1], transform (->&)(1 2 3), ((memo, it)-> memo.unshift it)
+  deepEqual [\3 \2 \1], transform \123, ((memo, it)-> memo.unshift it)

@@ -3,52 +3,60 @@
  * Alternatives:
  * https://github.com/calvinmetcalf/set.up (Firefox only)
  */
-var extendCollections = {
-  reduce: function(fn, memo){
-    assertFunction(fn);
-    this.forEach(function(val, key, foo){
-      memo = fn(memo, val, key, foo);
-    });
-    return memo;
-  },
-  some: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(fn.call(that, entry[1], entry[0], this))return true;
+function extendCollections(Constructor, entries){
+  return {
+    reduce: function(fn, memo){
+      assertFunction(fn);
+      var iter = entries(this)
+        , step, entry;
+      while(!(step = iter.next()).done){
+        entry = step.value;
+        memo = fn(memo, entry[1], entry[0], this);
+      }
+      return memo;
+    },
+    some: function(fn, that){
+      assertFunction(fn);
+      var iter = entries(this)
+        , step, entry;
+      while(!(step = iter.next()).done){
+        entry = step.value;
+        if(fn.call(that, entry[1], entry[0], this))return true;
+      }
+      return false;
+    },
+    every: function(fn, that){
+      assertFunction(fn);
+      var iter = entries(this)
+        , step, entry;
+      while(!(step = iter.next()).done){
+        entry = step.value;
+        if(!fn.call(that, entry[1], entry[0], this))return false;
+      }
+      return true;
+    },
+    find: function(fn, that){
+      assertFunction(fn);
+      var iter = entries(this)
+        , step, entry;
+      while(!(step = iter.next()).done){
+        entry = step.value;
+        if(fn.call(that, entry[1], entry[0], this))return entry[1];
+      }
+    },
+    transform: function(mapfn, target /* = new Constructor */){
+      assertFunction(mapfn);
+      target = target == undefined ? new Constructor : Object(target);
+      var iter = entries(this)
+        , step, entry;
+      while(!(step = iter.next()).done){
+        entry = step.value;
+        if(mapfn(target, entry[1], entry[0], this) === false)break;
+      }
+      return target;
     }
-    return false;
-  },
-  every: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(!fn.call(that, entry[1], entry[0], this))return false;
-    }
-    return true;
-  },
-  find: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(fn.call(that, entry[1], entry[0], this))return entry[1];
-    }
-  },
-  transform: function(target, fn){
-    if(arguments.length < 2){
-      fn = target;
-      target = create(null);
-    } else target = Object(target);
-    this.forEach(part.call(fn, target));
-    return target;
-  }
-};
+  };
+}
 $define(PROTO, MAP, assign({
   map: function(fn, that){
     assertFunction(fn);
@@ -65,13 +73,8 @@ $define(PROTO, MAP, assign({
       if(fn.apply(that, arguments))result.set(key, val);
     });
     return result;
-  },
-  invert: function(){
-    var result = new Map;
-    this.forEach(result.set, result);
-    return result;
   }
-}, extendCollections));
+}, extendCollections(Map, unbind(Map[PROTOTYPE].entries))));
 $define(PROTO, SET, assign({
   map: function(fn, that){
     assertFunction(fn);
@@ -89,4 +92,4 @@ $define(PROTO, SET, assign({
     });
     return result;
   }
-}, extendCollections));
+}, extendCollections(Set, unbind(Set[PROTOTYPE].entries))));

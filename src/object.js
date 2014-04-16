@@ -9,6 +9,7 @@ $define(STATIC, OBJECT, {
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: getPropertyDescriptor,
   // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+  // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   /**
    * Shugar for Object.create
@@ -25,6 +26,27 @@ $define(STATIC, OBJECT, {
    */
   define: function(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
+  },
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  values: function(object){
+    var O      = Object(object)
+      , names  = keys(object)
+      , length = names.length
+      , i      = 0
+      , result = Array(length);
+    while(length > i)result[i] = O[names[i++]];
+    return result;
+  },
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  entries: function(object){
+    var O      = Object(object)
+      , names  = keys(object)
+      , length = names.length
+      , i      = 0
+      , result = Array(length)
+      , key;
+    while(length > i)result[i] = [key = names[i++], O[key]];
+    return result;
   },
   /**
    * Alternatives:

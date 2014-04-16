@@ -50,7 +50,11 @@ var PROTOTYPE      = 'prototype'
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y;
+  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+}
+// 7.2.4 SameValueZero(x, y)
+function same0(x, y){
+  return x === y || (x !== x && y !== y);
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -157,15 +161,19 @@ function getPropertyDescriptor(object, key){
     if(has(object, key))return getOwnPropertyDescriptor(object, key);
   } while(object = getPrototypeOf(object));
 }
-// 19.1.2.1 Object.assign ( target, source )
+// 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
   target = Object(target);
-  source = ES5Object(source);
-  var props  = keys(source)
-    , length = props.length
-    , i      = 0
-    , key;
-  while(length > i)target[key = props[i++]] = source[key];
+  var agsLength = arguments.length
+    , i         = 1;
+  while(agsLength > i){
+    source = ES5Object(arguments[i++]);
+    var props  = keys(source)
+      , length = props.length
+      , j      = 0
+      , key;
+    while(length > j)target[key = props[j++]] = source[key];
+  }
   return target;
 }
 
@@ -177,22 +185,19 @@ function array(it){
 var push     = $Array.push
   , unshift  = $Array.unshift
   , slice    = $Array.slice
-  , $indexOf = unbind($Array.indexOf)
-  , $forEach = unbind($Array.forEach)
+  , $indexOf = Array.indexOf || unbind($Array.indexOf)
+  , $forEach = Array.forEach || unbind($Array.forEach)
   , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // simple reduce to object
-function transform(target, callbackfn){
-  if(arguments.length < 2){
-    callbackfn = target;
-    target = {};
-  } else target = Object(target);
-  assertFunction(callbackfn);
+function transform(mapfn, target /* = [] */){
+  assertFunction(mapfn);
+  target = target == undefined ? [] : Object(target);
   var self   = ES5Object(this)
     , length = toLength(self.length)
     , i      = 0;
-  for(;length > i; i++)i in self && callbackfn(target, self[i], i, this);
+  for(;length > i; i++)if(i in self && mapfn(target, self[i], i, this) === false)break;
   return target;
 }
 
@@ -323,16 +328,21 @@ if(!isExports || framework){
     // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
-  __PROTO__ && $define(STATIC, OBJECT, {
-    // 19.1.3.19 Object.setPrototypeOf(O, proto)
-    // work only if browser support __proto__, don't work with null proto objects
-    setPrototypeOf: function(O, proto){
-      assertObject(O);
-      assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
-      O.__proto__ = proto;
-      return O;
-    }
-  });
+  // 19.1.3.19 Object.setPrototypeOf(O, proto)
+  // Works with __proto__ only. Old v8 can't works with null proto objects.
+  __PROTO__ && (function(set, buggy){
+    try { set({}, $Array) }
+    catch(e){ buggy = true }
+    $define(STATIC, OBJECT, {
+      setPrototypeOf: function(O, proto){
+        assertObject(O);
+        assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
+        if(buggy)O.__proto__ = proto;
+        else set(O, proto);
+        return O;
+      }
+    });
+  })(unbind(getOwnPropertyDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -538,8 +548,9 @@ if(!isExports || framework){
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length);
-      if((start |= 0) < 0 && (start = length + start) < 0)return this;
-      end = end == undefined ? length : end | 0;
+      start = toInteger(start);
+      if(0 > start)start = length + start;
+      end = end == undefined ? length : toInteger(end);
       while(end > start)this[start++] = value;
       return this;
     },
@@ -584,9 +595,7 @@ if(!isExports || framework){
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : function(entry){
-      that.set(entry[0], entry[1]);
-    }, that);
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : that.set, that, !isSet);
     return that;
   }
   function createCollectionConstructor(name, isSet){
@@ -961,7 +970,7 @@ if(!isExports || framework){
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, TAG, SymbolRegistry){
+!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -985,13 +994,13 @@ if(!isExports || framework){
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || Symbol('Symbol.iterator'),
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     }
   });
-}(global.Symbol, symbol('tag'), {});
+}(global.Symbol, symbol('tag'), {}, '@@iterator');
 
 /*****************************
  * Module : es6_iterators
@@ -1117,15 +1126,17 @@ if(!isExports || framework){
     }
     throw TypeError(it + ' is not iterable!');
   }
-  forOf = function(it, fn, that){
-    var iterator = getIterator(it), step;
-    while(!(step = iterator.next()).done)if(fn.call(that, step.value) === _)return;
+  forOf = function(it, fn, that, entries){
+    var iterator = getIterator(it), step, value;
+    while(!(step = iterator.next()).done){
+      if(fn[entries ? 'apply' : 'call'](that, step.value) === false)return;
+    }
   }
   
   // v8 & FF fix
   isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
-  isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
+  //isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
+  //isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
@@ -1193,16 +1204,6 @@ if(!isExports || framework){
     return dict;
   }
   Dict[PROTOTYPE] = null;
-  assign(Dict, objectIterators);
-  /**
-   * Object enumumerabe
-   * Alternatives:
-   * http://underscorejs.org/ _.{enumerable...}
-   * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
-   * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
-   * http://api.jquery.com/category/utilities/ $.{enumerable...}
-   * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
-   */
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
@@ -1214,7 +1215,16 @@ if(!isExports || framework){
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  assign(Dict, {
+  assign(Dict, objectIterators, {
+    /**
+     * Object enumumerabe
+     * Alternatives:
+     * http://underscorejs.org/ _.{enumerable...}
+     * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
+     * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
+     * http://api.jquery.com/category/utilities/ $.{enumerable...}
+     * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
+     */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1304,18 +1314,17 @@ if(!isExports || framework){
       }
       return false;
     },
-    transform: function(object, target, callbackfn){
-      if(arguments.length < 3){
-        callbackfn = target;
-        target = create(null);
-      } else target = Object(target);
-      assertFunction(callbackfn);
+    transform: function(object, mapfn, target /* = Dict() */){
+      assertFunction(mapfn);
+      target = target == undefined ? create(null) : Object(target);
       var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)callbackfn(target, O[key = props[i++]], key, object);
+      while(length > i){
+        if(mapfn(target, O[key = props[i++]], key, object) === false)break;
+      }
       return target;
     },
     // Has / get own property
@@ -1343,7 +1352,8 @@ if(!isExports || framework){
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage, MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage,
+    MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = $slice(arguments, 1);
@@ -1542,6 +1552,7 @@ $define(STATIC, OBJECT, {
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: getPropertyDescriptor,
   // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+  // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
   /**
    * Shugar for Object.create
@@ -1558,6 +1569,27 @@ $define(STATIC, OBJECT, {
    */
   define: function(target, source){
     return defineProperties(target, getOwnPropertyDescriptors(source));
+  },
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  values: function(object){
+    var O      = Object(object)
+      , names  = keys(object)
+      , length = names.length
+      , i      = 0
+      , result = Array(length);
+    while(length > i)result[i] = O[names[i++]];
+    return result;
+  },
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  entries: function(object){
+    var O      = Object(object)
+      , names  = keys(object)
+      , length = names.length
+      , i      = 0
+      , result = Array(length)
+      , key;
+    while(length > i)result[i] = [key = names[i++], O[key]];
+    return result;
   },
   /**
    * Alternatives:
@@ -1592,15 +1624,18 @@ $define(PROTO, ARRAY, {
     index = toInteger(index);
     return ES5Object(this)[0 > index ? this.length + index : index];
   },
-  transform: transform,
   /**
    * Alternatives:
-   * http://mootools.net/docs/core/Types/Array#Array:append
-   * http://api.jquery.com/jQuery.merge/
+   * http://lodash.com/docs#template
    */
-  merge: function(arrayLike){
-    push.apply(this, ES5Object(arrayLike));
-    return this;
+  transform: transform,
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  contains: function(value){
+    var O      = ES5Object(this)
+      , length = O.length
+      , i      = 0;
+    while(length > i)if(same0(value, O[i++]))return true;
+    return false;
   }
 });
 
@@ -1628,11 +1663,11 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'at,transform,merge'
+    'at,transform'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);
-  }
+  }, {}
 ));
 
 /*****************************
@@ -1701,7 +1736,7 @@ $define(PROTO, NUMBER, transform.call(
   ),
   function(memo, key){
     if(key in Math)memo[key] = methodize.call(Math[key]);
-  }
+  }, {}
 ));
 
 /*****************************
@@ -1714,13 +1749,13 @@ $define(PROTO, NUMBER, transform.call(
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&apos;'
+        "'": '&#39;'
       }
     , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
-      })
+      }, {})
     , RegExpEscapeHTML   = /[&<>"']/g
-    , RegExpUnescapeHTML = RegExp('(' + keys(unescapeHTMLDict).join('|') + ')', 'g');
+    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|#39);/g;
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -1740,8 +1775,8 @@ $define(PROTO, NUMBER, transform.call(
      * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
      */
     unescapeHTML: function(){
-      return String(this).replace(RegExpUnescapeHTML, function(part, key){
-        return unescapeHTMLDict[key];
+      return String(this).replace(RegExpUnescapeHTML, function(part){
+        return unescapeHTMLDict[part];
       });
     }
   });
@@ -1825,7 +1860,7 @@ $define(PROTO, NUMBER, transform.call(
     return Date;
   }
   function flexio(locale, index){
-    return transform.call(array(locale), [], function(memo, it){
+    return transform.call(array(locale), function(memo, it){
       memo.push(it.replace(flexioRegExp, '$' + index));
     });
   }
@@ -1850,103 +1885,6 @@ $define(PROTO, NUMBER, transform.call(
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
 
 /*****************************
- * Module : collections
- *****************************/
-
-/**
- * http://esdiscuss.org/topic/additional-set-prototype-methods
- * Alternatives:
- * https://github.com/calvinmetcalf/set.up (Firefox only)
- */
-var extendCollections = {
-  reduce: function(fn, memo){
-    assertFunction(fn);
-    this.forEach(function(val, key, foo){
-      memo = fn(memo, val, key, foo);
-    });
-    return memo;
-  },
-  some: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(fn.call(that, entry[1], entry[0], this))return true;
-    }
-    return false;
-  },
-  every: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(!fn.call(that, entry[1], entry[0], this))return false;
-    }
-    return true;
-  },
-  find: function(fn, that){
-    assertFunction(fn);
-    var iter = this.entries()
-      , step, entry;
-    while(!(step = iter.next()).done){
-      entry = step.value;
-      if(fn.call(that, entry[1], entry[0], this))return entry[1];
-    }
-  },
-  transform: function(target, fn){
-    if(arguments.length < 2){
-      fn = target;
-      target = create(null);
-    } else target = Object(target);
-    this.forEach(part.call(fn, target));
-    return target;
-  }
-};
-$define(PROTO, MAP, assign({
-  map: function(fn, that){
-    assertFunction(fn);
-    var result = new Map;
-    this.forEach(function(val, key){
-      result.set(key, fn.apply(that, arguments));
-    });
-    return result;
-  },
-  filter: function(fn, that){
-    assertFunction(fn);
-    var result = new Map;
-    this.forEach(function(val, key){
-      if(fn.apply(that, arguments))result.set(key, val);
-    });
-    return result;
-  },
-  invert: function(){
-    var result = new Map;
-    this.forEach(result.set, result);
-    return result;
-  }
-}, extendCollections));
-$define(PROTO, SET, assign({
-  map: function(fn, that){
-    assertFunction(fn);
-    var result = new Set;
-    this.forEach(function(){
-      result.add(fn.apply(that, arguments));
-    });
-    return result;
-  },
-  filter: function(fn, that){
-    assertFunction(fn);
-    var result = new Set;
-    this.forEach(function(val){
-      if(fn.apply(that, arguments))result.add(val);
-    });
-    return result;
-  }
-}, extendCollections));
-
-/*****************************
  * Module : console
  *****************************/
 
@@ -1961,6 +1899,11 @@ var $console = transform.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+  function(memo, key){
+    memo[key] = function(){
+      if(enabled && console[key])return apply.call(console[key], console, arguments);
+    };
+  },
   {
     enable: function(){
       enabled = true;
@@ -1968,11 +1911,6 @@ var $console = transform.call(
     disable: function(){
       enabled = false;
     }
-  },
-  function(memo, key){
-    memo[key] = function(){
-      if(enabled && console[key])return apply.call(console[key], console, arguments);
-    };
   }
 ), enabled = true;
 try {

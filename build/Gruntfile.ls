@@ -21,18 +21,17 @@ module.exports = (grunt)->
         tasks: \livescript
   grunt.registerTask \build (options = 'all')->
     options .= split \, .reduceTo -> @[it] = on
+    grunt.option(\path) || grunt.option \path './core'
     done = @async!
     js <- build options
-    <- fs.writeFile (grunt.option(\path) || './core') + '.js', js
-    done!
-  grunt.registerTask \all ->
-    grunt.option \path './core'
-    grunt.task.run <[build:all]>
+    fs.writeFile grunt.option(\path) + '.js', js, done
+  grunt.registerTask \all <[build:all uglify]>
   grunt.registerTask \node ->
     grunt.option \path './index'
     grunt.task.run <[build:node]>
   grunt.registerTask \library ->
     grunt.option \path './library'
     grunt.task.run <[build:all,library]>
-  grunt.registerTask \shim <[build:es5,es6,es6c,promise,symbol,reflect,iterator,timers,immediate,console]>
-  grunt.registerTask \default <[node library all uglify]>
+  grunt.registerTask \shim <[build:es5,es6,es6_collections,es6_promise,es6_symbol,es6_iterators,timers,immediate,array_statics,console]>
+  grunt.registerTask \test <[build:all,collections uglify]>
+  grunt.registerTask \default <[all node library]>

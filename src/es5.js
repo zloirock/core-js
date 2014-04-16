@@ -16,9 +16,6 @@
     , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hiddenNames2       = hiddenNames1.concat(['length'])
     , hiddenNames1Length = hiddenNames1.length
-    , _slice             = slice
-    , join               = $Array.join
-    , _join              = join
     // Create object with null as it's prototype
     , createNullProtoObject = __PROTO__
       ? function(){
@@ -113,22 +110,21 @@
     keys: createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   
-  // not array-like strings fix
+  // fix for not array-like ES3 string
+  function arrayMethodFix(fn){
+    return function(){
+      return fn.apply(ES5Object(this), arguments);
+    }
+  }
   if(!(0 in Object('q') && 'q'[0] == 'q')){
     ES5Object = function(it){
       return classof(it) == STRING ? it.split('') : Object(it);
     }
-    slice = function(){
-      return _slice.apply(ES5Object(this), arguments);
-    }
-    join = function(){
-      return _join.apply(ES5Object(this), arguments);
-    }
+    slice = arrayMethodFix(slice);
   }
-  // fix for not array-like ES3 string
   $define(PROTO, ARRAY, {
     slice: slice,
-    join: join
+    join: arrayMethodFix($Array.join)
   }, ES5Object != Object);
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 

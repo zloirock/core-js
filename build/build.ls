@@ -9,7 +9,7 @@ module.exports = (opt, next)-> let @ = opt
   import {+global, +es5, +timers, +node} if @all
   import {+\function, +deferred, +binding, +object, +array, +array_statics
         , +number, +string, +regexp, +date, +es6, +es6_collections, +es6_promise
-        , +es6_symbol, +es6_iterators, +dict, +collections, +immediate, +console
+        , +es6_symbol, +es6_iterators, +dict, +immediate, +console
   } if @node
   import {+es6_iterators, +es6_collections} if @collections
   import {+es6_collections, +es6_symbol} if @es6_iterators

@@ -10,16 +10,6 @@
     return dict;
   }
   Dict[PROTOTYPE] = null;
-  assign(Dict, objectIterators);
-  /**
-   * Object enumumerabe
-   * Alternatives:
-   * http://underscorejs.org/ _.{enumerable...}
-   * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
-   * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
-   * http://api.jquery.com/category/utilities/ $.{enumerable...}
-   * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
-   */
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
@@ -31,7 +21,16 @@
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
-  assign(Dict, {
+  assign(Dict, objectIterators, {
+    /**
+     * Object enumumerabe
+     * Alternatives:
+     * http://underscorejs.org/ _.{enumerable...}
+     * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
+     * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
+     * http://api.jquery.com/category/utilities/ $.{enumerable...}
+     * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
+     */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -121,18 +120,17 @@
       }
       return false;
     },
-    transform: function(object, target, callbackfn){
-      if(arguments.length < 3){
-        callbackfn = target;
-        target = create(null);
-      } else target = Object(target);
-      assertFunction(callbackfn);
+    transform: function(object, mapfn, target /* = Dict() */){
+      assertFunction(mapfn);
+      target = target == undefined ? create(null) : Object(target);
       var O      = ES5Object(object)
         , props  = keys(O)
         , length = props.length
         , i      = 0
         , key;
-      while(length > i)callbackfn(target, O[key = props[i++]], key, object);
+      while(length > i){
+        if(mapfn(target, O[key = props[i++]], key, object) === false)break;
+      }
       return target;
     },
     // Has / get own property

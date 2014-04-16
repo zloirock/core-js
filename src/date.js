@@ -53,7 +53,7 @@
     return Date;
   }
   function flexio(locale, index){
-    return transform.call(array(locale), [], function(memo, it){
+    return transform.call(array(locale), function(memo, it){
       memo.push(it.replace(flexioRegExp, '$' + index));
     });
   }

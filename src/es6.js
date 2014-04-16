@@ -19,16 +19,21 @@
     // 19.1.3.10 Object.is(value1, value2)
     is: same
   });
-  __PROTO__ && $define(STATIC, OBJECT, {
-    // 19.1.3.19 Object.setPrototypeOf(O, proto)
-    // work only if browser support __proto__, don't work with null proto objects
-    setPrototypeOf: function(O, proto){
-      assertObject(O);
-      assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
-      O.__proto__ = proto;
-      return O;
-    }
-  });
+  // 19.1.3.19 Object.setPrototypeOf(O, proto)
+  // Works with __proto__ only. Old v8 can't works with null proto objects.
+  __PROTO__ && (function(set, buggy){
+    try { set({}, $Array) }
+    catch(e){ buggy = true }
+    $define(STATIC, OBJECT, {
+      setPrototypeOf: function(O, proto){
+        assertObject(O);
+        assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
+        if(buggy)O.__proto__ = proto;
+        else set(O, proto);
+        return O;
+      }
+    });
+  })(unbind(getOwnPropertyDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -234,8 +239,9 @@
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length);
-      if((start |= 0) < 0 && (start = length + start) < 0)return this;
-      end = end == undefined ? length : end | 0;
+      start = toInteger(start);
+      if(0 > start)start = length + start;
+      end = end == undefined ? length : toInteger(end);
       while(end > start)this[start++] = value;
       return this;
     },

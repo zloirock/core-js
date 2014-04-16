@@ -8,14 +8,17 @@ $define(PROTO, ARRAY, {
     index = toInteger(index);
     return ES5Object(this)[0 > index ? this.length + index : index];
   },
-  transform: transform,
   /**
    * Alternatives:
-   * http://mootools.net/docs/core/Types/Array#Array:append
-   * http://api.jquery.com/jQuery.merge/
+   * http://lodash.com/docs#template
    */
-  merge: function(arrayLike){
-    push.apply(this, ES5Object(arrayLike));
-    return this;
+  transform: transform,
+  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  contains: function(value){
+    var O      = ES5Object(this)
+      , length = O.length
+      , i      = 0;
+    while(length > i)if(same0(value, O[i++]))return true;
+    return false;
   }
 });

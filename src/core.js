@@ -38,7 +38,11 @@ var PROTOTYPE      = 'prototype'
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !==y;
+  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+}
+// 7.2.4 SameValueZero(x, y)
+function same0(x, y){
+  return x === y || (x !== x && y !== y);
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -145,15 +149,19 @@ function getPropertyDescriptor(object, key){
     if(has(object, key))return getOwnPropertyDescriptor(object, key);
   } while(object = getPrototypeOf(object));
 }
-// 19.1.2.1 Object.assign ( target, source )
+// 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
   target = Object(target);
-  source = ES5Object(source);
-  var props  = keys(source)
-    , length = props.length
-    , i      = 0
-    , key;
-  while(length > i)target[key = props[i++]] = source[key];
+  var agsLength = arguments.length
+    , i         = 1;
+  while(agsLength > i){
+    source = ES5Object(arguments[i++]);
+    var props  = keys(source)
+      , length = props.length
+      , j      = 0
+      , key;
+    while(length > j)target[key = props[j++]] = source[key];
+  }
   return target;
 }
 
@@ -165,22 +173,19 @@ function array(it){
 var push     = $Array.push
   , unshift  = $Array.unshift
   , slice    = $Array.slice
-  , $indexOf = unbind($Array.indexOf)
-  , $forEach = unbind($Array.forEach)
+  , $indexOf = Array.indexOf || unbind($Array.indexOf)
+  , $forEach = Array.forEach || unbind($Array.forEach)
   , $slice   = Array.slice || function(arrayLike, from){
       return slice.call(arrayLike, from);
     }
 // simple reduce to object
-function transform(target, callbackfn){
-  if(arguments.length < 2){
-    callbackfn = target;
-    target = {};
-  } else target = Object(target);
-  assertFunction(callbackfn);
+function transform(mapfn, target /* = [] */){
+  assertFunction(mapfn);
+  target = target == undefined ? [] : Object(target);
   var self   = ES5Object(this)
     , length = toLength(self.length)
     , i      = 0;
-  for(;length > i; i++)i in self && callbackfn(target, self[i], i, this);
+  for(;length > i; i++)if(i in self && mapfn(target, self[i], i, this) === false)break;
   return target;
 }
 

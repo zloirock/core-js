@@ -9,6 +9,11 @@ var $console = transform.call(
   array('assert,count,clear,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
     'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+  function(memo, key){
+    memo[key] = function(){
+      if(enabled && console[key])return apply.call(console[key], console, arguments);
+    };
+  },
   {
     enable: function(){
       enabled = true;
@@ -16,11 +21,6 @@ var $console = transform.call(
     disable: function(){
       enabled = false;
     }
-  },
-  function(memo, key){
-    memo[key] = function(){
-      if(enabled && console[key])return apply.call(console[key], console, arguments);
-    };
   }
 ), enabled = true;
 try {
