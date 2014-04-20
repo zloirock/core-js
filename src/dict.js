@@ -2,9 +2,9 @@
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))forOf(iterable, function(entry){
-        dict[entry[0]] = entry[1];
-      });
+      if(isIterable(iterable))forOf(iterable, function(key, value){
+        dict[key] = value;
+      }, undefined, 1);
       else assign(dict, iterable);
     }
     return dict;

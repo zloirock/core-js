@@ -4,13 +4,13 @@
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&#39;'
+        "'": '&apos;'
       }
     , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
     , RegExpEscapeHTML   = /[&<>"']/g
-    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|#39);/g;
+    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
     /**
      * Alternatives:

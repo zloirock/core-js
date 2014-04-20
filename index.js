@@ -1196,9 +1196,9 @@ if(!isExports || framework){
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))forOf(iterable, function(entry){
-        dict[entry[0]] = entry[1];
-      });
+      if(isIterable(iterable))forOf(iterable, function(key, value){
+        dict[key] = value;
+      }, undefined, 1);
       else assign(dict, iterable);
     }
     return dict;
@@ -1749,13 +1749,13 @@ $define(PROTO, NUMBER, transform.call(
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&#39;'
+        "'": '&apos;'
       }
     , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
     , RegExpEscapeHTML   = /[&<>"']/g
-    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|#39);/g;
+    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -1813,7 +1813,7 @@ $define(PROTO, NUMBER, transform.call(
  * http://sugarjs.com/api/Date/format
  * http://mootools.net/docs/more/Types/Date#Date:format
  */
-!function(formatRegExp, flexioRegExp, locales, current, Seconds, Minutes, Hours, _Date, Month, FullYear){
+!function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
   function createFormat(UTC){
     return function(template, locale /* = current */){
       var that = this
@@ -1823,26 +1823,23 @@ $define(PROTO, NUMBER, transform.call(
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'mmm'  : var ms = get('Milliseconds');                           // Milliseconds : 001-999
+          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 001-999
             return ms > 99 ? ms : ms > 9 ? '0' + ms : '00' + ms;
-          case 's'    : return get(Seconds);                                    // Seconds      : 1-59
-          case 'ss'   : return lz(get(Seconds));                                // Seconds      : 01-59
-          case 'm'    : return get(Minutes);                                    // Minutes      : 1-59
-          case 'mm'   : return lz(get(Minutes));                                // Minutes      : 01-59
-          case 'h'    : return get(Hours);                                      // Hours        : 0-23
-          case 'hh'   : return lz(get(Hours));                                  // Hours        : 00-23
-          case 'H'    : return get(Hours) % 12 || 12;                           // Hours        : 1-12
-          case 'HH'   : return lz(get(Hours) % 12 || 12);                       // Hours        : 01-12
-          case 'a'    : return get(Hours) < 12 ? 'AM' : 'PM';                   // AM/PM
-          case 'D'    : return get(_Date)                                       // Date         : 1-31
-          case 'DD'   : return lz(get(_Date));                                  // Date         : 01-31
+          case 's'    : return get(SECONDS);                                    // Seconds      : 1-59
+          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 01-59
+          case 'm'    : return get(MINUTES);                                    // Minutes      : 1-59
+          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 01-59
+          case 'h'    : return get(HOURS);                                      // Hours        : 0-23
+          case 'hh'   : return lz(get(HOURS));                                  // Hours        : 00-23
+          case 'D'    : return get(DATE)                                        // Date         : 1-31
+          case 'DD'   : return lz(get(DATE));                                   // Date         : 01-31
           case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
-          case 'N'    : return get(Month) + 1;                                  // Month        : 1-12
-          case 'NN'   : return lz(get(Month) + 1);                              // Month        : 01-12
-          case 'M'    : return dict.M[get(Month)];                              // Month        : Январь
-          case 'MM'   : return dict.MM[get(Month)];                             // Month        : Января
-          case 'YY'   : return lz(get(FullYear) % 100);                         // Year         : 13
-          case 'YYYY' : return get(FullYear);                                   // Year         : 2013
+          case 'N'    : return get(MONTH) + 1;                                  // Month        : 1-12
+          case 'NN'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
+          case 'M'    : return dict.M[get(MONTH)];                              // Month        : Январь
+          case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
+          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 13
+          case 'YYYY' : return get(YEAR);                                       // Year         : 2013
         }
         return part;
       });
@@ -1864,13 +1861,13 @@ $define(PROTO, NUMBER, transform.call(
       memo.push(it.replace(flexioRegExp, '$' + index));
     });
   }
-  $define(STATIC, _Date, {
+  $define(STATIC, DATE, {
     locale: function(locale){
       return has(locales, locale) ? current = locale : current;
     },
     addLocale: addLocale
   });
-  $define(PROTO, _Date, {
+  $define(PROTO, DATE, {
     format:    createFormat(0),
     formatUTC: createFormat(1)
   });

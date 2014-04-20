@@ -629,9 +629,9 @@
     date = new Date(1, 2, 3, 4, 5, 6, 7);
     ok(date.format('DD.NN.YYYY') === '03.03.1901', 'Works basic');
     locale('en');
-    ok(date.format('mmm s ss m mm h hh H HH D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
+    ok(date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
     locale('ru');
-    ok(date.format('mmm s ss m mm h hh H HH D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
+    ok(date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
   });
   test('Date::formatUTC', function(){
     var date;
@@ -2778,13 +2778,13 @@
     ok(isFunction(String.prototype.escapeHTML), 'Is function');
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');
     ok('<div>qwe</div>'.escapeHTML() === '&lt;div&gt;qwe&lt;/div&gt;');
-    ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&#39;');
+    ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;');
   });
   test('String::unescapeHTML', function(){
     ok(isFunction(String.prototype.unescapeHTML), 'Is function');
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');
-    ok('&amp;&lt;&gt;&quot;&#39;'.unescapeHTML() === "&<>\"'");
+    ok('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML() === "&<>\"'");
   });
 }).call(this);
 

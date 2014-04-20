@@ -3,6 +3,8 @@
  * Alternatives:
  * https://github.com/calvinmetcalf/set.up (Firefox only)
  */
+ var mapEntries = unbind(Map[PROTOTYPE].entries)
+   , setEntries = unbind(Set[PROTOTYPE].entries);
 function extendCollections(Constructor, entries){
   return {
     reduce: function(fn, memo){
@@ -74,7 +76,7 @@ $define(PROTO, MAP, assign({
     });
     return result;
   }
-}, extendCollections(Map, unbind(Map[PROTOTYPE].entries))));
+}, extendCollections(Map, mapEntries)));
 $define(PROTO, SET, assign({
   map: function(fn, that){
     assertFunction(fn);
@@ -92,4 +94,4 @@ $define(PROTO, SET, assign({
     });
     return result;
   }
-}, extendCollections(Set, unbind(Set[PROTOTYPE].entries))));
+}, extendCollections(Set, setEntries)));
