@@ -515,6 +515,73 @@
 }).call(this);
 
 (function(){
+  var isFunction, toString$ = {}.toString;
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  test('Function::by', function(){
+    ok(isFunction(Function.prototype.by), 'Is function');
+  });
+  test('Function::part', function(){
+    var obj, $, fn, part;
+    ok(isFunction(Function.prototype.part), 'Is function');
+    ok(function(it){
+      return toString$.call(it).slice(8, -1) === 'String';
+    }.part('qwe')());
+    obj = {
+      a: 42
+    };
+    obj.fn = function(it){
+      return this.a + it;
+    }.part(21);
+    ok(obj.fn() === 63);
+    $ = Function._;
+    fn = function(){
+      return Array.prototype.map.call(arguments, String).join(' ');
+    };
+    part = fn.part($, 'Саша', $, 'шоссе', $, 'сосала');
+    ok(isFunction(part), '.part with placeholders return function');
+    ok(part('Шла', 'по') === 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders');
+    ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
+    ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
+  });
+  test('::tie', function(){
+    ok(isFunction(Function.prototype.tie), 'Function::tie is function');
+    ok(isFunction(Array.prototype.tie), 'Array::tie is function');
+    ok(isFunction(RegExp.prototype.tie), 'RegExp::tie is function');
+    ok(!('tie' in Object.prototype), 'tie not in Object:: before useTie call');
+    _.useTie();
+    ok(isFunction(Object.prototype.tie), 'Object::tie is function');
+    delete Object.prototype.tie;
+  });
+  test('Object.tie', function(){
+    var tie, array, push;
+    tie = Object.tie;
+    ok(isFunction(tie), 'Is function');
+    array = [1, 2, 3];
+    push = tie(array, 'push');
+    ok(isFunction(push));
+    ok(push(4) === 4);
+    return deepEqual(array, [1, 2, 3, 4]);
+  });
+  test('Function::methodize', function(){
+    var num;
+    ok(isFunction(Function.prototype.methodize), 'Is function');
+    ok({
+      a: 42,
+      fn: function(it){
+        return it.a;
+      }.methodize()
+    }.fn() === 42);
+    num = new Number(42);
+    num.fn = function(a, b){
+      return a + b;
+    }.methodize();
+    ok(num.fn(21) === 63);
+  });
+}).call(this);
+
+(function(){
   var isFunction, isObject, methods, toString$ = {}.toString;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
@@ -1629,7 +1696,6 @@
     ok(same(cosh(0), 1));
     ok(same(cosh(-0), 1));
     ok(same(cosh(Infinity), Infinity));
-    ok(same(cosh(-Infinity), Infinity));
     ok(epsilon(cosh(12), 81377.39571257407, 3e-11));
     ok(epsilon(cosh(22), 1792456423.065795780980053377, 1e-5));
     ok(epsilon(cosh(-10), 11013.23292010332313972137));
@@ -1885,6 +1951,7 @@
     }(1, 2, 3), (function(it){
       return Math.pow(it, 2);
     })), [1, 4, 9]);
+    deepEqual(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
   });
   test('Array.of', function(){
     ok(isFunction(Array.of), 'Is function');
@@ -2265,13 +2332,18 @@
 }).call(this);
 
 (function(){
+
+}).call(this);
+
+(function(){
   var isFunction, toString$ = {}.toString;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Promise constructor', function(){
+  test('Promise', function(){
     ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
-    ok(Promise.length === 1, 'Promise.length is 1');
+    ok(isFunction(Promise.prototype.then), 'Promise::then is function');
+    ok(isFunction(Promise.prototype['catch']), 'Promise::catch is function');
   });
   test('Promise.all', function(){
     ok(isFunction(Promise.all), 'Is function');
@@ -2284,12 +2356,6 @@
   });
   test('Promise.reject', function(){
     ok(isFunction(Promise.reject), 'Is function');
-  });
-  test('Promise::then', function(){
-    ok(isFunction(Promise.prototype.then), 'Is function');
-  });
-  test('Promise::catch', function(){
-    ok(isFunction(Promise.prototype['catch']), 'Is function');
   });
 }).call(this);
 
@@ -2353,44 +2419,6 @@
     function fn1$(){
       return arguments;
     }
-  });
-  test('Function::methodize', function(){
-    var num;
-    ok(isFunction(Function.prototype.methodize), 'Is function');
-    ok({
-      a: 42,
-      fn: function(it){
-        return it.a;
-      }.methodize()
-    }.fn() === 42);
-    num = new Number(42);
-    num.fn = function(a, b){
-      return a + b;
-    }.methodize();
-    ok(num.fn(21) === 63);
-  });
-  test('Function::part', function(){
-    var obj, $, fn, part;
-    ok(isFunction(Function.prototype.part), 'Is function');
-    ok(function(it){
-      return toString$.call(it).slice(8, -1) === 'String';
-    }.part('qwe')());
-    obj = {
-      a: 42
-    };
-    obj.fn = function(it){
-      return this.a + it;
-    }.part(21);
-    ok(obj.fn() === 63);
-    $ = Function._;
-    fn = function(){
-      return Array.prototype.map.call(arguments, String).join(' ');
-    };
-    part = fn.part($, 'Саша', $, 'шоссе', $, 'сосала');
-    ok(isFunction(part), '.part with placeholders return function');
-    ok(part('Шла', 'по') === 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders');
-    ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
-    ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
   test('Function::construct', function(){
     var C;
@@ -2662,16 +2690,6 @@
     ok(classof(function(){}) === 'Function');
     ok(classof(/./) === 'RegExp');
     ok(classof(TypeError()) === 'Error');
-  });
-  test('Object.tie', function(){
-    var tie, array, push;
-    tie = Object.tie;
-    ok(isFunction(tie), 'Is function');
-    array = [1, 2, 3];
-    push = tie(array, 'push');
-    ok(isFunction(push));
-    ok(push(4) === 4);
-    return deepEqual(array, [1, 2, 3, 4]);
   });
   test('Object.make', function(){
     var make, object, foo;

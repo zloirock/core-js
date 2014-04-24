@@ -37,9 +37,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
       process.nextTick(part.call(run, id));
     }
   // Modern browsers with native Promise
-  } else if($Promise && isFunction($Promise.resolve)){
+  } else if(Promise && isFunction(Promise.resolve)){
     defer = function(id){
-      $Promise.resolve(id).then(run);
+      Promise.resolve(id).then(run);
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object

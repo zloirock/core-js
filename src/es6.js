@@ -89,11 +89,10 @@
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
     },
-    // 20.1.3.1 Number.prototype.clz()
-    // Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
-    clz32: function(number){
-      number = number >>> 0;
-      return number ? 32 - number.toString(2).length : 32;
+    // 20.2.2.11 Math.clz32 (x)
+    clz32: function(x){
+      x = x >>> 0;
+      return x ? 32 - x.toString(2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.

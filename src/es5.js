@@ -16,27 +16,27 @@
     , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hiddenNames2       = hiddenNames1.concat(['length'])
     , hiddenNames1Length = hiddenNames1.length
-    // Create object with null as it's prototype
-    , createNullProtoObject = __PROTO__
+    // Create object with null prototype
+    , createDict         = __PROTO__
       ? function(){
           return {__proto__: null};
         }
       : function(){
           // Thrash, waste and sodomy
-          var iframe   = document.createElement('iframe')
-            , i        = hiddenNames1Length
-            , body     = document.body || document.documentElement
+          var iframe = document.createElement('iframe')
+            , i      = hiddenNames1Length
+            , body   = document.body || document.documentElement
             , iframeDocument;
           iframe.style.display = 'none';
           body.appendChild(iframe);
           iframe.src = 'javascript:';
           iframeDocument = iframe.contentWindow.document || iframe.contentDocument || iframe.document;
           iframeDocument.open();
-          iframeDocument.write('<script>document._=Object</script>');
+          iframeDocument.write('<script>document.F=Object</script>');
           iframeDocument.close();
-          createNullProtoObject = iframeDocument._;
-          while(i--)delete createNullProtoObject[PROTOTYPE][hiddenNames1[i]];
-          return createNullProtoObject();
+          createDict = iframeDocument.F;
+          while(i--)delete createDict[PROTOTYPE][hiddenNames1[i]];
+          return createDict();
         }
     , createGetKeys = function(names, length){
         return function(O){
@@ -53,8 +53,7 @@
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
     Object.defineProperty({}, 0, $Object);
-  }
-  catch(e){
+  } catch(e){
     DESCRIPTORS = false;
     getOwnPropertyDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
@@ -97,7 +96,7 @@
     getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: function(O, /*?*/Properties){
-      if(O === null)return Properties ? defineProperties(createNullProtoObject(), Properties) : createNullProtoObject();
+      if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
       assertObject(O);
       Empty[PROTOTYPE] = O;
       var result = new Empty();
@@ -108,6 +107,23 @@
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
     keys: createGetKeys(hiddenNames1, hiddenNames1Length)
+  });
+  
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
+  $define(PROTO, FUNCTION, {
+    bind: function(scope /*, args... */){
+      var fn   = this
+        , args = $slice(arguments, 1);
+      assertFunction(fn);
+      function bound(/* args... */){
+        var _args = args.concat($slice(arguments))
+          , result, that
+        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
+        return apply.call(fn, scope, _args);
+      }
+      bound[PROTOTYPE] = undefined;
+      return bound;
+    }
   });
   
   // fix for not array-like ES3 string
@@ -126,23 +142,6 @@
     slice: slice,
     join: arrayMethodFix($Array.join)
   }, ES5Object != Object);
-  
-  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
-  $define(PROTO, FUNCTION, {
-    bind: function(scope /*, args... */){
-      var fn   = this
-        , args = $slice(arguments, 1);
-      assertFunction(fn);
-      function bound(/* args... */){
-        var _args = args.concat($slice(arguments))
-          , result, that
-        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
-        return apply.call(fn, scope, _args);
-      }
-      bound[PROTOTYPE] = undefined;
-      return bound;
-    }
-  });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
   $define(STATIC, ARRAY, {isArray: function(arg){

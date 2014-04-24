@@ -285,14 +285,19 @@ describe("RSVP extensions", function() {
       assert(Promise.all);
     });
 
-    it('throws when not passed an array', function() {
-      assert.throws(function () {
-        var all = Promise.all();
-      }, TypeError);
-
-      assert.throws(function () {
-        var all = Promise.all({});
-      }, TypeError);
+    it('rejects when not passed an array', function() {
+      Promise.all().then(function(){
+        assert(false, 'should not fulfill');
+      }, function(actualReason){
+        assert.equal(reason, undefined);
+      });
+      
+      var O ={}
+      Promise.all(O).then(function(){
+        assert(false, 'should not fulfill');
+      }, function(actualReason){
+        assert.equal(reason, O);
+      });
     });
 
     specify('fulfilled only after all of the other promises are fulfilled', function(done) {
@@ -441,14 +446,19 @@ describe("RSVP extensions", function() {
       assert(Promise.race);
     });
 
-    it("throws when not passed an array", function() {
-      assert.throws(function () {
-        var race = Promise.race();
-      }, TypeError);
-
-      assert.throws(function () {
-        var race = Promise.race({});
-      }, TypeError);
+    it("rejects when not passed an array", function() {
+      Promise.race().then(function(){
+        assert(false, 'should not fulfill');
+      }, function(actualReason){
+        assert.equal(reason, undefined);
+      });
+      
+      var O ={}
+      Promise.race(O).then(function(){
+        assert(false, 'should not fulfill');
+      }, function(actualReason){
+        assert.equal(reason, O);
+      });
     });
 
     specify('fulfilled after one of the other promises are fulfilled', function(done) {
@@ -483,19 +493,13 @@ describe("RSVP extensions", function() {
       });
     });
 
-    specify('if one of the promises is not thenable fulfills with it first', function(done) {
-      var firstResolver, secondResolver, nonPromise = 5;
-
-      var first = new Promise(function(resolve, reject) {
-        resolve(true);
+    specify('if one of the promises is not thenable', function(done) {
+      Promise.race([Promise.resolve(1), Promise.resolve(2), 3]).then(function(value) {
+        assert.equal(value, 1);
+        done();
       });
-
-      var second = new Promise(function(resolve, reject) {
-        resolve(false);
-      });
-
-      Promise.race([first, second, nonPromise]).then(function(value) {
-        assert.equal(value, 5);
+      Promise.race([1, Promise.resolve(2), Promise.resolve(3)]).then(function(value) {
+        assert.equal(value, 1);
         done();
       });
     });
@@ -587,28 +591,6 @@ describe("RSVP extensions", function() {
 
       assert(casted instanceof Promise);
       assert(casted !== promise);
-    });
-
-    it("If SameValue(constructor, C) is false, and isPromiseSubClass(C) is true, return PromiseResolve(promise, x).", function(done) {
-      function PromiseSubclass() {
-        Promise.apply(this, arguments);
-      }
-
-      PromiseSubclass.prototype = Object.create(Promise.prototype);
-      PromiseSubclass.prototype.constructor = PromiseSubclass;
-      PromiseSubclass.resolve = Promise.resolve;
-
-      var promise = Promise.resolve(1);
-      var casted = PromiseSubclass.resolve(promise);
-
-      assert(casted instanceof Promise);
-      assert(casted instanceof PromiseSubclass);
-      assert(casted !== promise);
-
-      casted.then(function(value) {
-        assert.equal(value, 1);
-        done();
-      });
     });
 
     it("If SameValue(constructor, C) is false, and isThenable(C) is false, return PromiseResolve(promise, x).", function(){

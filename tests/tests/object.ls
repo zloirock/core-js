@@ -43,14 +43,6 @@ test 'Object.classof' !->
   ok classof(->) is \Function
   ok classof(/./) is \RegExp
   ok classof(TypeError!) is \Error
-test 'Object.tie' ->
-  {tie} = Object
-  ok isFunction(tie), 'Is function'
-  array = [1 2 3]
-  push = tie array, \push
-  ok isFunction push
-  ok push(4) is 4
-  deepEqual array, [1 2 3 4]
 test 'Object.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'

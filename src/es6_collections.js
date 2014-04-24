@@ -61,10 +61,10 @@
   
   function fastKey(it, create){
     return isObject(it)
-      ? '_' + (has(it, STOREID)
+      ? 'O' + (has(it, STOREID)
         ? it[STOREID]
         : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
-      : typeof it == 'string' ? '$' + it : it;
+      : (typeof it == 'string' ? 'S' : 'P') + it;
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){

@@ -1,7 +1,8 @@
 isFunction = -> typeof! it is \Function
-test 'Promise constructor' !->
+test 'Promise' !->
   ok isFunction((global? && global || window)Promise), 'Is function'
-  ok Promise.length is 1, 'Promise.length is 1'
+  ok isFunction(Promise::then), 'Promise::then is function'
+  ok isFunction(Promise::catch), 'Promise::catch is function'
 test 'Promise.all' !->
   ok isFunction(Promise.all), 'Is function'
 test 'Promise.race' !->
@@ -10,7 +11,3 @@ test 'Promise.resolve' !->
   ok isFunction(Promise.resolve), 'Is function'
 test 'Promise.reject' !->
   ok isFunction(Promise.reject), 'Is function'
-test 'Promise::then' !->
-  ok isFunction(Promise::then), 'Is function'
-test 'Promise::catch' !->
-  ok isFunction(Promise::catch), 'Is function'

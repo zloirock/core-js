@@ -33,7 +33,7 @@ var PROTOTYPE      = 'prototype'
   , Set            = global[SET]
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
-  , $Promise       = global.Promise
+  , Promise        = global.Promise
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -398,11 +398,10 @@ if(!isExports || framework){
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1/3);
     },
-    // 20.1.3.1 Number.prototype.clz()
-    // Rename to Math.clz32 <= http://esdiscuss.org/notes/2014-01-28
-    clz32: function(number){
-      number = number >>> 0;
-      return number ? 32 - number.toString(2).length : 32;
+    // 20.2.2.11 Math.clz32 (x)
+    clz32: function(x){
+      x = x >>> 0;
+      return x ? 32 - x.toString(2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
@@ -631,10 +630,10 @@ if(!isExports || framework){
   
   function fastKey(it, create){
     return isObject(it)
-      ? '_' + (has(it, STOREID)
+      ? 'O' + (has(it, STOREID)
         ? it[STOREID]
         : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
-      : typeof it == 'string' ? '$' + it : it;
+      : (typeof it == 'string' ? 'S' : 'P') + it;
   }
   function createForEach(key){
     return function(callbackfn, thisArg /* = undefined */){
@@ -824,18 +823,74 @@ if(!isExports || framework){
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // 25.4.3 The Promise Constructor
-    Promise = function(resolver){
+    Promise = function(executor){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, 'Promise');
-      assertFunction(resolver);
+      assertFunction(executor);
       promise[SUBSCRIBERS] = [];
       try {
-        resolver(part.call(resolve, promise), rejectPromise);
+        executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
         rejectPromise(e);
       }
     }
+    assign(Promise[PROTOTYPE], {
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
+      'catch': function(onRejected){
+        return this.then(undefined, onRejected);
+      },
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+      then: function(onFulfilled, onRejected){
+        var promise     = this
+          , thenPromise = new Promise(Function());
+        if(promise[STATE])setImmediate(function(){
+          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
+        }, onFulfilled, onRejected);
+        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
+        return thenPromise;
+      }
+    });
+    assign(Promise, {
+      // 25.4.4.1 Promise.all(iterable)
+      all: function(iterable){
+        var C      = this
+          , values = [];
+        return new C(function(resolve, reject){
+          forOf(iterable, push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
+          if(remaining)$forEach(values, function(promise, index){
+            C.resolve(promise).then(function(value){
+              results[index] = value;
+              --remaining || resolve(results);
+            }, reject);
+          });
+          else resolve(results);
+        });
+      },
+      // 25.4.4.4 Promise.race(iterable)
+      race: function(iterable){
+        var C = this;
+        return new C(function(resolve, reject){
+          forOf(iterable, function(promise){
+            C.resolve(promise).then(resolve, reject)
+          });
+        });
+      },
+      // 25.4.4.5 Promise.reject(r)
+      reject: function(r){
+        return new this(function(resolve, reject){
+          reject(r);
+        });
+      },
+      // 25.4.4.6 Promise.resolve(x)
+      resolve: function(x){
+        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
+      }
+    });
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -857,66 +912,6 @@ if(!isExports || framework){
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
-    assign(Promise[PROTOTYPE], {
-      // 25.4.5.1 Promise.prototype.catch(onRejected)
-      'catch': function(onRejected){
-        return this.then(undefined, onRejected);
-      },
-      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-      then: function(onFulfilled, onRejected){
-        var promise     = this
-          , thenPromise = new Promise(Function());
-        if(promise[STATE])setImmediate(function(){
-          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
-        }, onFulfilled, onRejected);
-        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
-        return thenPromise;
-      }
-    });
-    assign(Promise, {
-      // 25.4.4.1 Promise.all(iterable)
-      all: function(iterable){
-        var values = [];
-        forOf(iterable, values.push, values);
-        return new this(function(resolve, reject){
-          var remaining = values.length
-            , results   = Array(remaining);
-          function resolveAll(index, value){
-            results[index] = value;
-            --remaining || resolve(results);
-          }
-          if(remaining)$forEach(values, function(promise, i){
-            promise && isFunction(promise.then)
-              ? promise.then(part.call(resolveAll, i), reject)
-              : resolveAll(i, promise);
-          });
-          else resolve(results);
-        });
-      },
-      // 25.4.4.4 Promise.race(iterable)
-      race: function(iterable){
-        var iter = getIterator(iterable);
-        return new this(function(resolve, reject){
-          forOf(iter, function(promise){
-            promise && isFunction(promise.then)
-              ? promise.then(resolve, reject)
-              : resolve(promise);
-          });
-        });
-      },
-      // 25.4.4.5 Promise.reject(r)
-      reject: function(r){
-        return new this(function(resolve, reject){
-          reject(r);
-        });
-      },
-      // 25.4.4.6 Promise.resolve(x)
-      resolve: function(x){
-        return x instanceof this ? x : new this(function(resolve, reject){
-          resolve(x);
-        });
-      }
-    });
     function handleThenable(promise, value){
       var resolved;
       try {
@@ -957,7 +952,7 @@ if(!isExports || framework){
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
   $define(GLOBAL, {Promise: Promise}, 1);
-}(global.Promise);
+}(Promise);
 
 /*****************************
  * Module : es6_symbol
@@ -1382,9 +1377,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
       process.nextTick(part.call(run, id));
     }
   // Modern browsers with native Promise
-  } else if($Promise && isFunction($Promise.resolve)){
+  } else if(Promise && isFunction(Promise.resolve)){
     defer = function(id){
-      $Promise.resolve(id).then(run);
+      Promise.resolve(id).then(run);
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object

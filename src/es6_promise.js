@@ -19,18 +19,74 @@
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // 25.4.3 The Promise Constructor
-    Promise = function(resolver){
+    Promise = function(executor){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, 'Promise');
-      assertFunction(resolver);
+      assertFunction(executor);
       promise[SUBSCRIBERS] = [];
       try {
-        resolver(part.call(resolve, promise), rejectPromise);
+        executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
         rejectPromise(e);
       }
     }
+    assign(Promise[PROTOTYPE], {
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
+      'catch': function(onRejected){
+        return this.then(undefined, onRejected);
+      },
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+      then: function(onFulfilled, onRejected){
+        var promise     = this
+          , thenPromise = new Promise(Function());
+        if(promise[STATE])setImmediate(function(){
+          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
+        }, onFulfilled, onRejected);
+        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
+        return thenPromise;
+      }
+    });
+    assign(Promise, {
+      // 25.4.4.1 Promise.all(iterable)
+      all: function(iterable){
+        var C      = this
+          , values = [];
+        return new C(function(resolve, reject){
+          forOf(iterable, push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
+          if(remaining)$forEach(values, function(promise, index){
+            C.resolve(promise).then(function(value){
+              results[index] = value;
+              --remaining || resolve(results);
+            }, reject);
+          });
+          else resolve(results);
+        });
+      },
+      // 25.4.4.4 Promise.race(iterable)
+      race: function(iterable){
+        var C = this;
+        return new C(function(resolve, reject){
+          forOf(iterable, function(promise){
+            C.resolve(promise).then(resolve, reject)
+          });
+        });
+      },
+      // 25.4.4.5 Promise.reject(r)
+      reject: function(r){
+        return new this(function(resolve, reject){
+          reject(r);
+        });
+      },
+      // 25.4.4.6 Promise.resolve(x)
+      resolve: function(x){
+        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
+      }
+    });
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -52,66 +108,6 @@
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
-    assign(Promise[PROTOTYPE], {
-      // 25.4.5.1 Promise.prototype.catch(onRejected)
-      'catch': function(onRejected){
-        return this.then(undefined, onRejected);
-      },
-      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-      then: function(onFulfilled, onRejected){
-        var promise     = this
-          , thenPromise = new Promise(Function());
-        if(promise[STATE])setImmediate(function(){
-          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
-        }, onFulfilled, onRejected);
-        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
-        return thenPromise;
-      }
-    });
-    assign(Promise, {
-      // 25.4.4.1 Promise.all(iterable)
-      all: function(iterable){
-        var values = [];
-        forOf(iterable, values.push, values);
-        return new this(function(resolve, reject){
-          var remaining = values.length
-            , results   = Array(remaining);
-          function resolveAll(index, value){
-            results[index] = value;
-            --remaining || resolve(results);
-          }
-          if(remaining)$forEach(values, function(promise, i){
-            promise && isFunction(promise.then)
-              ? promise.then(part.call(resolveAll, i), reject)
-              : resolveAll(i, promise);
-          });
-          else resolve(results);
-        });
-      },
-      // 25.4.4.4 Promise.race(iterable)
-      race: function(iterable){
-        var iter = getIterator(iterable);
-        return new this(function(resolve, reject){
-          forOf(iter, function(promise){
-            promise && isFunction(promise.then)
-              ? promise.then(resolve, reject)
-              : resolve(promise);
-          });
-        });
-      },
-      // 25.4.4.5 Promise.reject(r)
-      reject: function(r){
-        return new this(function(resolve, reject){
-          reject(r);
-        });
-      },
-      // 25.4.4.6 Promise.resolve(x)
-      resolve: function(x){
-        return x instanceof this ? x : new this(function(resolve, reject){
-          resolve(x);
-        });
-      }
-    });
     function handleThenable(promise, value){
       var resolved;
       try {
@@ -152,4 +148,4 @@
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
   $define(GLOBAL, {Promise: Promise}, 1);
-}(global.Promise);
+}(Promise);
