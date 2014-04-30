@@ -115,13 +115,12 @@
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
+    } throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
-      if(fn[entries ? 'apply' : 'call'](that, step.value) === false)return;
+      if(entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value) === false)return;
     }
   }
   

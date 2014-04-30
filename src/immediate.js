@@ -11,7 +11,8 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
-      , args = $slice(arguments, 1);
+      , args = [], i = 1;
+    while(arguments.length > i)args.push(arguments[i++]);
     queue[id] = function(){
       (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
     }

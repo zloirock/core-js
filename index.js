@@ -807,17 +807,15 @@ if(!isExports || framework){
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
  * https://github.com/domenic/promises-unwrapping
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
- * http://kangax.github.io/es5-compat-table/es6/#Promise
  * http://caniuse.com/promises
  * Based on:
  * https://github.com/jakearchibald/ES6-Promises
  * Alternatives:
- * https://github.com/jakearchibald/ES6-Promises
- * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
+ * https://github.com/paulmillr/es6-shim
  */
 !function(Promise){
   isFunction(Promise)
-  && Promise.resolve && Promise.reject && Promise.all && Promise.race
+  && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
   && (function(promise){
     return Promise.resolve(promise) === promise;
   })(new Promise(Function()))
@@ -835,62 +833,58 @@ if(!isExports || framework){
         rejectPromise(e);
       }
     }
-    assign(Promise[PROTOTYPE], {
-      // 25.4.5.1 Promise.prototype.catch(onRejected)
-      'catch': function(onRejected){
-        return this.then(undefined, onRejected);
-      },
-      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-      then: function(onFulfilled, onRejected){
-        var promise     = this
-          , thenPromise = new Promise(Function());
-        if(promise[STATE])setImmediate(function(){
-          invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
-        }, onFulfilled, onRejected);
-        else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
-        return thenPromise;
-      }
-    });
-    assign(Promise, {
-      // 25.4.4.1 Promise.all(iterable)
-      all: function(iterable){
-        var C      = this
-          , values = [];
-        return new C(function(resolve, reject){
-          forOf(iterable, push, values);
-          var remaining = values.length
-            , results   = Array(remaining);
-          if(remaining)$forEach(values, function(promise, index){
-            C.resolve(promise).then(function(value){
-              results[index] = value;
-              --remaining || resolve(results);
-            }, reject);
-          });
-          else resolve(results);
+    // 25.4.5.1 Promise.prototype.catch(onRejected)
+    Promise[PROTOTYPE]['catch'] = function(onRejected){
+      return this.then(undefined, onRejected);
+    },
+    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+    Promise[PROTOTYPE].then = function(onFulfilled, onRejected){
+      var promise     = this
+        , thenPromise = new Promise(Function());
+      if(promise[STATE])setImmediate(function(){
+        invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
+      }, onFulfilled, onRejected);
+      else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
+      return thenPromise;
+    }
+    // 25.4.4.1 Promise.all(iterable)
+    Promise.all = function(iterable){
+      var C      = this
+        , values = [];
+      return new C(function(resolve, reject){
+        forOf(iterable, push, values);
+        var remaining = values.length
+          , results   = Array(remaining);
+        if(remaining)$forEach(values, function(promise, index){
+          C.resolve(promise).then(function(value){
+            results[index] = value;
+            --remaining || resolve(results);
+          }, reject);
         });
-      },
-      // 25.4.4.4 Promise.race(iterable)
-      race: function(iterable){
-        var C = this;
-        return new C(function(resolve, reject){
-          forOf(iterable, function(promise){
-            C.resolve(promise).then(resolve, reject)
-          });
+        else resolve(results);
+      });
+    }
+    // 25.4.4.4 Promise.race(iterable)
+    Promise.race = function(iterable){
+      var C = this;
+      return new C(function(resolve, reject){
+        forOf(iterable, function(promise){
+          C.resolve(promise).then(resolve, reject)
         });
-      },
-      // 25.4.4.5 Promise.reject(r)
-      reject: function(r){
-        return new this(function(resolve, reject){
-          reject(r);
-        });
-      },
-      // 25.4.4.6 Promise.resolve(x)
-      resolve: function(x){
-        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
-          resolve(x);
-        });
-      }
-    });
+      });
+    }
+    // 25.4.4.5 Promise.reject(r)
+    Promise.reject = function(r){
+      return new this(function(resolve, reject){
+        reject(r);
+      });
+    }
+    // 25.4.4.6 Promise.resolve(x)
+    Promise.resolve = function(x){
+      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
+        resolve(x);
+      });
+    }
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, error, succeeded, failed;
@@ -1118,13 +1112,12 @@ if(!isExports || framework){
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
+    } throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
-      if(fn[entries ? 'apply' : 'call'](that, step.value) === false)return;
+      if(entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value) === false)return;
     }
   }
   
@@ -1351,7 +1344,8 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
-      , args = $slice(arguments, 1);
+      , args = [], i = 1;
+    while(arguments.length > i)args.push(arguments[i++]);
     queue[id] = function(){
       (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
     }
@@ -1460,6 +1454,7 @@ $define(PROTO, FUNCTION, {
       return this;
     }
     return function(/* args... */){
+      assertFunction(this);
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
       return new Deferred(args);
@@ -1468,7 +1463,17 @@ $define(PROTO, FUNCTION, {
   $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate)
+    immediate: createDeferredFactory(setImmediate, clearImmediate),
+    loop: function(){
+      var fn = this;
+      assertFunction(fn);
+      function next(){
+        var args = [fn, next], i = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        setImmediate.apply(global, args);
+      }
+      next.apply(global, arguments);
+    }
   });
 }(symbol('arguments'), symbol('id'));
 

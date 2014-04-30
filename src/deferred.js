@@ -22,6 +22,7 @@
       return this;
     }
     return function(/* args... */){
+      assertFunction(this);
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
       return new Deferred(args);
@@ -30,6 +31,16 @@
   $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate)
+    immediate: createDeferredFactory(setImmediate, clearImmediate),
+    loop: function(){
+      var fn = this;
+      assertFunction(fn);
+      function next(){
+        var args = [fn, next], i = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        setImmediate.apply(global, args);
+      }
+      next.apply(global, arguments);
+    }
   });
 }(symbol('arguments'), symbol('id'));
