@@ -11,8 +11,7 @@
  *****************************/
 
 // Shortcuts for property names
-var PROTOTYPE      = 'prototype'
-  , OBJECT         = 'Object'
+var OBJECT         = 'Object'
   , FUNCTION       = 'Function'
   , ARRAY          = 'Array'
   , STRING         = 'String'
@@ -22,6 +21,8 @@ var PROTOTYPE      = 'prototype'
   , SET            = 'Set'
   , WEAKMAP        = 'WeakMap'
   , WEAKSET        = 'WeakSet'
+  , PROTOTYPE      = 'prototype'
+  , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
   , Object         = global[OBJECT]
@@ -69,10 +70,12 @@ function isNative(it){
   return nativeRegExp.test(it);
 }
 // object internal [[Class]]
-// http://jsperf.com/core-js-classof
-var toString = $Object.toString;
+var toString = $Object.toString
+  , TOSTRINGTAG;
 function classof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+  if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
+  var cof = toString.call(it).slice(8, -1);
+  return TOSTRINGTAG && cof == OBJECT && it[TOSTRINGTAG] ? it[TOSTRINGTAG] : cof;
 }
 
 // Function:
@@ -333,7 +336,7 @@ if(!isExports || framework){
         }
       : function(){
           // Thrash, waste and sodomy
-          var iframe = document.createElement('iframe')
+          var iframe = document[CREATE_ELEMENT]('iframe')
             , i      = hiddenNames1Length
             , body   = document.body || document.documentElement
             , iframeDocument;
@@ -800,18 +803,16 @@ $define(GLOBAL, {global: global});
       if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
         , result = new (isFunction(this) ? this : Array)
-        , i      = 0
-        , length, iter, step;
+        , i = 0, length, iter, step;
       if(isIterable && isIterable(O)){
         iter = getIterator(O);
-        while(!(step = iter.next()).done)push.call(result, mapfn ? mapfn.call(thisArg, step.value) : step.value);
-      } else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i, O) : O[i]);
+        while(!(step = iter.next()).done)push.call(result, mapfn ? mapfn.call(thisArg, step.value, i++) : step.value);
+      } else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/*args...*/){
-      var i      = 0
-        , length = arguments.length
+      var i = 0, length = arguments.length
         , result = new (isFunction(this) ? this : Array);
       while(i < length)push.call(result, arguments[i++]);
       return result;
@@ -851,239 +852,50 @@ $define(GLOBAL, {global: global});
 }(isFinite);
 
 /*****************************
- * Module : es6_collections
+ * Module : es6_symbol
  *****************************/
 
 /**
- * ECMAScript 6 collection polyfill
- * http://people.mozilla.org/~jorendorff/es6-draft.html
- * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
+ * ECMAScript 6 Symbol
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
  * Alternatives:
- * https://github.com/paulmillr/es6-shim
- * https://github.com/monolithed/ECMAScript-6
- * https://github.com/Benvie/harmony-collections
- * https://github.com/eriwen/es6-map-shim
- * https://github.com/EliSnow/Blitz-Collections
- * https://github.com/montagejs/collections
- * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
+ * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
+ * https://github.com/seanmonstar/symbol
  */
-!function(){
-  var STOREID  = symbol('storeid')
-    , KEYS     = symbol('keys')
-    , VALUES   = symbol('values')
-    , WEAKDATA = symbol('weakdata')
-    , WEAKID   = symbol('weakid')
-    , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
-    , uid = 0
-    , wid = 0
-    , tmp = {}
-    , sizeGetter = {size: {get: function(){
-        return this[SIZE];
-      }}};
-  function initCollection(that, iterable, isSet){
-    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : that.set, that, !isSet);
-    return that;
-  }
-  function createCollectionConstructor(name, isSet){
-    function F(iterable){
-      assertInstance(this, F, name);
-      this.clear();
-      initCollection(this, iterable, isSet);
-    }
-    return F;
-  }
-  function fixCollection(Base, name, isSet){
-    var collection   = new Base([isSet ? tmp : [tmp, 1]])
-      , initFromIter = collection.has(tmp)
-      , key = isSet ? 'add' : 'set'
-      , fn;
-    // fix .add & .set for chaining
-    if(framework && collection[key](tmp, 1) !== collection){
-      fn = collection[key];
-      hidden(Base[PROTOTYPE], key, function(){
-        fn.apply(this, arguments);
-        return this;
+!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
+  // 19.4.1 The Symbol Constructor
+  if(!isNative(Symbol)){
+    Symbol = function(description){
+      if(!(this instanceof Symbol))return new Symbol(description);
+      var tag = symbol(description);
+      defineProperty($Object, tag, {
+        set: function(value){
+          hidden(this, tag, value);
+        }
       });
+      hidden(this, TAG, tag);
     }
-    if(initFromIter)return wrapGlobalConstructor(Base);
-    // wrap to init collections from iterable
-    function F(iterable){
-      assertInstance(this, F, name);
-      return initCollection(new Base, iterable, isSet);
-    }
-    F[PROTOTYPE] = Base[PROTOTYPE];
-    return F;
-  }
-  
-  function fastKey(it, create){
-    return isObject(it)
-      ? 'O' + (has(it, STOREID)
-        ? it[STOREID]
-        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
-      : (typeof it == 'string' ? 'S' : 'P') + it;
-  }
-  function createForEach(key){
-    return function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var values = this[VALUES]
-        , keyz   = this[key]
-        , names  = keys(keyz)
-        , length = names.length
-        , i = 0
-        , index;
-      while(length > i){
-        index = names[i++];
-        callbackfn.call(thisArg, values[index], keyz[index], this);
-      }
+    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
+      return this[TAG];
     }
   }
-  function collectionHas(key){
-    return fastKey(key) in this[VALUES];
-  }
-  function clearSet(){
-    hidden(this, VALUES, create(null));
-    hidden(this, SIZE, 0);
-  }
-  
-  // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
-    Map = createCollectionConstructor(MAP);
-    assign(Map[PROTOTYPE], {
-      // 23.1.3.1 Map.prototype.clear()
-      clear: function(){
-        hidden(this, KEYS, create(null));
-        clearSet.call(this);
-      },
-      // 23.1.3.3 Map.prototype.delete(key)
-      'delete': function(key){
-        var index    = fastKey(key)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete this[KEYS][index];
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(KEYS),
-      // 23.1.3.6 Map.prototype.get(key)
-      get: function(key){
-        return this[VALUES][fastKey(key)];
-      },
-      // 23.1.3.7 Map.prototype.has(key)
-      has: collectionHas,
-      // 23.1.3.9 Map.prototype.set(key, value)
-      set: function(key, value){
-        var index  = fastKey(key, 1)
-          , values = this[VALUES];
-        if(!(index in values)){
-          this[KEYS][index] = key;
-          this[SIZE]++;
-        }
-        values[index] = value;
-        return this;
-      }
-    });
-    // 23.1.3.10 get Map.prototype.size
-    defineProperties(Map[PROTOTYPE], sizeGetter);
-  } else Map = fixCollection(Map, MAP);
-  
-  // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
-    Set = createCollectionConstructor(SET, 1);
-    assign(Set[PROTOTYPE], {
-      // 23.2.3.1 Set.prototype.add(value)
-      add: function(value){
-        var index  = fastKey(value, 1)
-          , values = this[VALUES];
-        if(!(index in values)){
-          values[index] = value;
-          this[SIZE]++;
-        }
-        return this;
-      },
-      // 23.2.3.2 Set.prototype.clear()
-      clear: clearSet,
-      // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function(value){
-        var index    = fastKey(value)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(VALUES),
-      // 23.2.3.7 Set.prototype.has(value)
-      has: collectionHas
-    });
-    // 23.2.3.9 get Set.prototype.size
-    defineProperties(Set[PROTOTYPE], sizeGetter);
-  } else Set = fixCollection(Set, SET, 1);
-  
-  function getWeakData(it){
-    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
-  }
-  var weakCollectionMethods = {
-    // 23.3.3.1 WeakMap.prototype.clear()
-    // 23.4.3.2 WeakSet.prototype.clear()
-    clear: function(){
-      hidden(this, WEAKID, wid++);
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
+  $define(STATIC, 'Symbol', {
+    // 19.4.2.2 Symbol.for(key)
+    'for': function(key){
+      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
-    // 23.3.3.3 WeakMap.prototype.delete(key)
-    // 23.4.3.4 WeakSet.prototype.delete(value)
-    'delete': function(key){
-      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
+    // 19.4.2.6 Symbol.iterator
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
+    // 19.4.2.7 Symbol.keyFor(sym)
+    keyFor: function(sym){
+      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     },
-    // 23.3.3.5 WeakMap.prototype.has(key)
-    // 23.4.3.5 WeakSet.prototype.has(value)
-    has: function(key){
-      return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
-    }
-  };
-  
-  // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
-    WeakMap = createCollectionConstructor(WEAKMAP);
-    assign(WeakMap[PROTOTYPE], assign({
-      // 23.3.3.4 WeakMap.prototype.get(key)
-      get: function(key){
-        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
-      },
-      // 23.3.3.6 WeakMap.prototype.set(key, value)
-      set: function(key, value){
-        assertObject(key);
-        getWeakData(key)[this[WEAKID]] = value;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
-  
-  // 23.4 WeakSet Objects
-  if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor(WEAKSET, 1);
-    assign(WeakSet[PROTOTYPE], assign({
-      // 23.4.3.1 WeakSet.prototype.add(value)
-      add: function(value){
-        assertObject(value);
-        getWeakData(value)[this[WEAKID]] = true;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
-  
-  $define(GLOBAL, {
-    Map: Map,
-    Set: Set,
-    WeakMap: WeakMap,
-    WeakSet: WeakSet
-  }, 1);
-}();
+    // 19.4.2.10 Symbol.toStringTag
+    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol('Symbol.toStringTag')
+  });
+  Symbol[PROTOTYPE][TOSTRINGTAG] = 'Symbol';
+}(global.Symbol, symbol('tag'), {}, '@@iterator');
 
 /*****************************
  * Module : es6_promise
@@ -1232,57 +1044,254 @@ $define(GLOBAL, {global: global});
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
+  Promise[PROTOTYPE][TOSTRINGTAG] = 'Promise';
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise);
 
 /*****************************
- * Module : es6_symbol
+ * Module : es6_collections
  *****************************/
 
 /**
- * ECMAScript 6 Symbol
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
+ * ECMAScript 6 collection polyfill
+ * http://people.mozilla.org/~jorendorff/es6-draft.html
+ * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
  * Alternatives:
- * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
- * https://github.com/seanmonstar/symbol
+ * https://github.com/paulmillr/es6-shim
+ * https://github.com/monolithed/ECMAScript-6
+ * https://github.com/Benvie/harmony-collections
+ * https://github.com/eriwen/es6-map-shim
+ * https://github.com/EliSnow/Blitz-Collections
+ * https://github.com/montagejs/collections
+ * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
-!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
-  // 19.4.1 The Symbol Constructor
-  if(!isNative(Symbol)){
-    Symbol = function(description){
-      var tag = symbol(description);
-      defineProperty($Object, tag, {
-        set: function(value){
-          hidden(this, tag, value);
-        }
-      });
-      if(!(this instanceof Symbol))return tag;
-      hidden(this, TAG, tag);
+!function(){
+  var STOREID  = symbol('storeid')
+    , KEYS     = symbol('keys')
+    , VALUES   = symbol('values')
+    , WEAKDATA = symbol('weakdata')
+    , WEAKID   = symbol('weakid')
+    , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
+    , uid = 0
+    , wid = 0
+    , tmp = {}
+    , sizeGetter = {size: {get: function(){
+        return this[SIZE];
+      }}};
+  function initCollection(that, iterable, isSet){
+    if(iterable != undefined)forOf && forOf(iterable, isSet ? that.add : that.set, that, !isSet);
+    return that;
+  }
+  function createCollectionConstructor(name, isSet){
+    function F(iterable){
+      assertInstance(this, F, name);
+      this.clear();
+      initCollection(this, iterable, isSet);
     }
-    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
-      return this[TAG];
+    return F;
+  }
+  function fixCollection(Base, name, isSet){
+    var collection   = new Base([isSet ? tmp : [tmp, 1]])
+      , initFromIter = collection.has(tmp)
+      , key = isSet ? 'add' : 'set'
+      , fn;
+    // fix .add & .set for chaining
+    if(framework && collection[key](tmp, 1) !== collection){
+      fn = collection[key];
+      hidden(Base[PROTOTYPE], key, function(){
+        fn.apply(this, arguments);
+        return this;
+      });
+    }
+    if(initFromIter)return wrapGlobalConstructor(Base);
+    // wrap to init collections from iterable
+    function F(iterable){
+      assertInstance(this, F, name);
+      return initCollection(new Base, iterable, isSet);
+    }
+    F[PROTOTYPE] = Base[PROTOTYPE];
+    return F;
+  }
+  
+  function fastKey(it, create){
+    return isObject(it)
+      ? 'O' + (has(it, STOREID)
+        ? it[STOREID]
+        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
+      : (typeof it == 'string' ? 'S' : 'P') + it;
+  }
+  function createForEach(key){
+    return function(callbackfn, thisArg /* = undefined */){
+      assertFunction(callbackfn);
+      var values = this[VALUES]
+        , keyz   = this[key]
+        , names  = keys(keyz)
+        , length = names.length
+        , i = 0
+        , index;
+      while(length > i){
+        index = names[i++];
+        callbackfn.call(thisArg, values[index], keyz[index], this);
+      }
     }
   }
-  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
-  $define(STATIC, 'Symbol', {
-    // 19.4.2.2 Symbol.for(key)
-    'for': function(key){
-      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
+  function collectionHas(key){
+    return fastKey(key) in this[VALUES];
+  }
+  function clearSet(){
+    hidden(this, VALUES, create(null));
+    hidden(this, SIZE, 0);
+  }
+  
+  // 23.1 Map Objects
+  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+    Map = createCollectionConstructor(MAP);
+    assign(Map[PROTOTYPE], {
+      // 23.1.3.1 Map.prototype.clear()
+      clear: function(){
+        hidden(this, KEYS, create(null));
+        clearSet.call(this);
+      },
+      // 23.1.3.3 Map.prototype.delete(key)
+      'delete': function(key){
+        var index    = fastKey(key)
+          , values   = this[VALUES]
+          , contains = index in values;
+        if(contains){
+          delete this[KEYS][index];
+          delete values[index];
+          this[SIZE]--;
+        }
+        return contains;
+      },
+      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
+      forEach: createForEach(KEYS),
+      // 23.1.3.6 Map.prototype.get(key)
+      get: function(key){
+        return this[VALUES][fastKey(key)];
+      },
+      // 23.1.3.7 Map.prototype.has(key)
+      has: collectionHas,
+      // 23.1.3.9 Map.prototype.set(key, value)
+      set: function(key, value){
+        var index  = fastKey(key, 1)
+          , values = this[VALUES];
+        if(!(index in values)){
+          this[KEYS][index] = key;
+          this[SIZE]++;
+        }
+        values[index] = value;
+        return this;
+      }
+    });
+    // 23.1.3.10 get Map.prototype.size
+    defineProperties(Map[PROTOTYPE], sizeGetter);
+  } else Map = fixCollection(Map, MAP);
+  Map[PROTOTYPE][TOSTRINGTAG] = 'Map';
+  
+  // 23.2 Set Objects
+  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+    Set = createCollectionConstructor(SET, 1);
+    assign(Set[PROTOTYPE], {
+      // 23.2.3.1 Set.prototype.add(value)
+      add: function(value){
+        var index  = fastKey(value, 1)
+          , values = this[VALUES];
+        if(!(index in values)){
+          values[index] = value;
+          this[SIZE]++;
+        }
+        return this;
+      },
+      // 23.2.3.2 Set.prototype.clear()
+      clear: clearSet,
+      // 23.2.3.4 Set.prototype.delete(value)
+      'delete': function(value){
+        var index    = fastKey(value)
+          , values   = this[VALUES]
+          , contains = index in values;
+        if(contains){
+          delete values[index];
+          this[SIZE]--;
+        }
+        return contains;
+      },
+      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
+      forEach: createForEach(VALUES),
+      // 23.2.3.7 Set.prototype.has(value)
+      has: collectionHas
+    });
+    // 23.2.3.9 get Set.prototype.size
+    defineProperties(Set[PROTOTYPE], sizeGetter);
+  } else Set = fixCollection(Set, SET, 1);
+  Set[PROTOTYPE][TOSTRINGTAG] = 'Set';
+  
+  function getWeakData(it){
+    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
+  }
+  var weakCollectionMethods = {
+    // 23.3.3.1 WeakMap.prototype.clear()
+    // 23.4.3.2 WeakSet.prototype.clear()
+    clear: function(){
+      hidden(this, WEAKID, wid++);
     },
-    // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
-    // 19.4.2.7 Symbol.keyFor(sym)
-    keyFor: function(sym){
-      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
+    // 23.3.3.3 WeakMap.prototype.delete(key)
+    // 23.4.3.4 WeakSet.prototype.delete(value)
+    'delete': function(key){
+      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
+    },
+    // 23.3.3.5 WeakMap.prototype.has(key)
+    // 23.4.3.5 WeakSet.prototype.has(value)
+    has: function(key){
+      return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
     }
-  });
-}(global.Symbol, symbol('tag'), {}, '@@iterator');
+  };
+  
+  // 23.3 WeakMap Objects
+  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+    WeakMap = createCollectionConstructor(WEAKMAP);
+    assign(WeakMap[PROTOTYPE], assign({
+      // 23.3.3.4 WeakMap.prototype.get(key)
+      get: function(key){
+        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
+      },
+      // 23.3.3.6 WeakMap.prototype.set(key, value)
+      set: function(key, value){
+        assertObject(key);
+        getWeakData(key)[this[WEAKID]] = value;
+        return this;
+      }
+    }, weakCollectionMethods));
+  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
+  WeakMap[PROTOTYPE][TOSTRINGTAG] = 'WeakMap';
+  
+  // 23.4 WeakSet Objects
+  if(!isFunction(WeakSet)){
+    WeakSet = createCollectionConstructor(WEAKSET, 1);
+    assign(WeakSet[PROTOTYPE], assign({
+      // 23.4.3.1 WeakSet.prototype.add(value)
+      add: function(value){
+        assertObject(value);
+        getWeakData(value)[this[WEAKID]] = true;
+        return this;
+      }
+    }, weakCollectionMethods));
+  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
+  WeakSet[PROTOTYPE][TOSTRINGTAG] = 'WeakSet';
+    
+  $define(GLOBAL, {
+    Map: Map,
+    Set: Set,
+    WeakMap: WeakMap,
+    WeakSet: WeakSet
+  }, 1);
+}();
 
 /*****************************
  * Module : es6_iterators
  *****************************/
 
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ARGUMENTS, returnThis){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1310,6 +1319,7 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([index, iterated[index]], 0);
     }
   };
+  ArrayIterator[PROTOTYPE][TOSTRINGTAG] = 'Array Iterator';
   
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1334,6 +1344,7 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, iterated.get(key)], 0);
     }
   };
+  MapIterator[PROTOTYPE][TOSTRINGTAG] = 'Map Iterator';
   
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
@@ -1353,6 +1364,7 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, key], 0);
     }
   };
+  SetIterator[PROTOTYPE][TOSTRINGTAG] = 'Set Iterator';
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1375,6 +1387,7 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, object[key]], 0);
     }
   }
+  ObjectIterator[PROTOTYPE][TOSTRINGTAG] = 'Object Iterator';
   
   ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
     SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
@@ -1388,6 +1401,7 @@ $define(GLOBAL, {global: global});
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String: case Array: case Map: case Set: return true;
+      case Object: return classof(it) == ARGUMENTS;
     }
     return false;
   }
@@ -1395,11 +1409,13 @@ $define(GLOBAL, {global: global});
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
+      case Object : if(classof(it) != ARGUMENTS)break;
       case String :
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    } throw TypeError(it + ' is not iterable!');
+    }
+    throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
@@ -1461,7 +1477,7 @@ $define(GLOBAL, {global: global});
   }
   
   $define(GLOBAL, {forOf: forOf});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), 'Arguments', Function('return this'));
 
 /*****************************
  * Module : dict
@@ -1701,9 +1717,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     channel.port1.onmessage = listner;
     defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
-  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
+  } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){
-      var el = document.createElement('script');
+      var el = document[CREATE_ELEMENT]('script');
       el[ONREADYSTATECHANGE] = function(){
         el.parentNode.removeChild(el);
         run(id);

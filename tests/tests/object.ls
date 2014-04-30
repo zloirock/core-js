@@ -43,6 +43,17 @@ test 'Object.classof' !->
   ok classof(->) is \Function
   ok classof(/./) is \RegExp
   ok classof(TypeError!) is \Error
+  ok classof((->&)!) is \Arguments
+  ok classof(new Set) is \Set
+  ok classof(new Map) is \Map
+  ok classof(new WeakSet) is \WeakSet
+  ok classof(new WeakMap) is \WeakMap
+  ok classof(new Promise ->) is \Promise
+  ok classof(new Symbol) is \Symbol
+  ok classof(Symbol!) is \Symbol
+  ok classof([]entries!) is 'Array Iterator'
+  ok classof(new Set!entries!) is 'Set Iterator'
+  ok classof(new Map!entries!) is 'Map Iterator'
 test 'Object.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'

@@ -9,13 +9,13 @@
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
+      if(!(this instanceof Symbol))return new Symbol(description);
       var tag = symbol(description);
       defineProperty($Object, tag, {
         set: function(value){
           hidden(this, tag, value);
         }
       });
-      if(!(this instanceof Symbol))return tag;
       hidden(this, TAG, tag);
     }
     Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
@@ -33,6 +33,9 @@
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
-    }
+    },
+    // 19.4.2.10 Symbol.toStringTag
+    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol('Symbol.toStringTag')
   });
+  Symbol[PROTOTYPE][TOSTRINGTAG] = 'Symbol';
 }(global.Symbol, symbol('tag'), {}, '@@iterator');

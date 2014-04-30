@@ -355,19 +355,18 @@ test 'Array.from' !->
   {from} = Array
   ok isFunction(from), 'Is function'
   deepEqual from(\123), <[1 2 3]>
-  deepEqual from((-> &)(1 2 3)), [1 2 3]
-  from al = (-> &)(1), (val, key, that)->
+  deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
+  from al = (-> &)(1), (val, key)->
     ok @ is ctx
     ok val is 1
     ok key is 0
-    ok that is al
   , ctx = {}
-  from [1], (val, foo)->
+  from [1], (val, key)->
     ok @ is ctx
     ok val is 1
-    ok foo is void
+    ok key is 0
   , ctx = {}
-  deepEqual from((-> &)(1 2 3), (^2)), [1 4 9]
+  deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}, (^2)), [1 4 9]
   deepEqual from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
 test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'

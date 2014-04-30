@@ -24,7 +24,7 @@
         }
       : function(){
           // Thrash, waste and sodomy
-          var iframe = document.createElement('iframe')
+          var iframe = document[CREATE_ELEMENT]('iframe')
             , i      = hiddenNames1Length
             , body   = document.body || document.documentElement
             , iframeDocument;

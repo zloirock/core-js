@@ -1,4 +1,4 @@
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ARGUMENTS, returnThis){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -26,6 +26,7 @@
       return createIterResultObject([index, iterated[index]], 0);
     }
   };
+  ArrayIterator[PROTOTYPE][TOSTRINGTAG] = 'Array Iterator';
   
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -50,6 +51,7 @@
       return createIterResultObject([key, iterated.get(key)], 0);
     }
   };
+  MapIterator[PROTOTYPE][TOSTRINGTAG] = 'Map Iterator';
   
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
@@ -69,6 +71,7 @@
       return createIterResultObject([key, key], 0);
     }
   };
+  SetIterator[PROTOTYPE][TOSTRINGTAG] = 'Set Iterator';
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -91,6 +94,7 @@
       return createIterResultObject([key, object[key]], 0);
     }
   }
+  ObjectIterator[PROTOTYPE][TOSTRINGTAG] = 'Object Iterator';
   
   ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
     SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
@@ -104,6 +108,7 @@
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
       case String: case Array: case Map: case Set: return true;
+      case Object: return classof(it) == ARGUMENTS;
     }
     return false;
   }
@@ -111,11 +116,13 @@
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
     switch(it && it.constructor){
+      case Object : if(classof(it) != ARGUMENTS)break;
       case String :
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    } throw TypeError(it + ' is not iterable!');
+    }
+    throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
@@ -177,4 +184,4 @@
   }
   
   $define(GLOBAL, {forOf: forOf});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), 'Arguments', Function('return this'));

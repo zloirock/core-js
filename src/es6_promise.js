@@ -141,5 +141,6 @@
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
+  Promise[PROTOTYPE][TOSTRINGTAG] = 'Promise';
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise);

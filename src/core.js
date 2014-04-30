@@ -1,6 +1,5 @@
 // Shortcuts for property names
-var PROTOTYPE      = 'prototype'
-  , OBJECT         = 'Object'
+var OBJECT         = 'Object'
   , FUNCTION       = 'Function'
   , ARRAY          = 'Array'
   , STRING         = 'String'
@@ -10,6 +9,8 @@ var PROTOTYPE      = 'prototype'
   , SET            = 'Set'
   , WEAKMAP        = 'WeakMap'
   , WEAKSET        = 'WeakSet'
+  , PROTOTYPE      = 'prototype'
+  , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
   , Object         = global[OBJECT]
@@ -57,10 +58,12 @@ function isNative(it){
   return nativeRegExp.test(it);
 }
 // object internal [[Class]]
-// http://jsperf.com/core-js-classof
-var toString = $Object.toString;
+var toString = $Object.toString
+  , TOSTRINGTAG;
 function classof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+  if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
+  var cof = toString.call(it).slice(8, -1);
+  return TOSTRINGTAG && cof == OBJECT && it[TOSTRINGTAG] ? it[TOSTRINGTAG] : cof;
 }
 
 // Function:

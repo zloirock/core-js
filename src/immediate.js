@@ -55,9 +55,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     channel.port1.onmessage = listner;
     defer = ctx(channel.port2.postMessage, channel.port2);
   // IE8-
-  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
+  } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){
-      var el = document.createElement('script');
+      var el = document[CREATE_ELEMENT]('script');
       el[ONREADYSTATECHANGE] = function(){
         el.parentNode.removeChild(el);
         run(id);

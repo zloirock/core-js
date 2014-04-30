@@ -1930,25 +1930,30 @@
     from = Array.from;
     ok(isFunction(from), 'Is function');
     deepEqual(from('123'), ['1', '2', '3']);
-    deepEqual(from(function(){
-      return arguments;
-    }(1, 2, 3)), [1, 2, 3]);
+    deepEqual(from({
+      length: 3,
+      0: 1,
+      1: 2,
+      2: 3
+    }), [1, 2, 3]);
     from(al = function(){
       return arguments;
-    }(1), function(val, key, that){
+    }(1), function(val, key){
       ok(this === ctx);
       ok(val === 1);
-      ok(key === 0);
-      return ok(that === al);
+      return ok(key === 0);
     }, ctx = {});
-    from([1], function(val, foo){
+    from([1], function(val, key){
       ok(this === ctx);
       ok(val === 1);
-      return ok(foo === void 8);
+      return ok(key === 0);
     }, ctx = {});
-    deepEqual(from(function(){
-      return arguments;
-    }(1, 2, 3), (function(it){
+    deepEqual(from({
+      length: 3,
+      0: 1,
+      1: 2,
+      2: 3
+    }, (function(it){
       return Math.pow(it, 2);
     })), [1, 4, 9]);
     deepEqual(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
@@ -2690,6 +2695,19 @@
     ok(classof(function(){}) === 'Function');
     ok(classof(/./) === 'RegExp');
     ok(classof(TypeError()) === 'Error');
+    ok(classof(function(){
+      return arguments;
+    }()) === 'Arguments');
+    ok(classof(new Set) === 'Set');
+    ok(classof(new Map) === 'Map');
+    ok(classof(new WeakSet) === 'WeakSet');
+    ok(classof(new WeakMap) === 'WeakMap');
+    ok(classof(new Promise(function(){})) === 'Promise');
+    ok(classof(new Symbol) === 'Symbol');
+    ok(classof(Symbol()) === 'Symbol');
+    ok(classof([].entries()) === 'Array Iterator');
+    ok(classof(new Set().entries()) === 'Set Iterator');
+    ok(classof(new Map().entries()) === 'Map Iterator');
   });
   test('Object.make', function(){
     var make, object, foo;
