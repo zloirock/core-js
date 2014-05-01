@@ -9,18 +9,22 @@
  * Alternatives:
  * https://github.com/paulmillr/es6-shim
  */
-!function(Promise){
+!function(Promise, $Promise){
   isFunction(Promise)
   && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
   && (function(promise){
     return Promise.resolve(promise) === promise;
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
+    var asap = 
+      classof(process) == PROCESS ? process.nextTick :
+      Promise && isFunction(Promise.resolve) ? function(fn){ $Promise.resolve().then(fn); } :
+      setImmediate;
     // 25.4.3 The Promise Constructor
     Promise = function(executor){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
-      assertInstance(promise, Promise, 'Promise');
+      assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
       promise[SUBSCRIBERS] = [];
       try {
@@ -36,10 +40,11 @@
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     Promise[PROTOTYPE].then = function(onFulfilled, onRejected){
       var promise     = this
-        , thenPromise = new Promise(Function());
-      if(promise[STATE])setImmediate(function(){
-        invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
-      }, onFulfilled, onRejected);
+        , thenPromise = new Promise(Function())
+        , args        = [onFulfilled, onRejected]; 
+      if(promise[STATE])asap(function(){
+        invokeCallback(promise[STATE], thenPromise, args[promise[STATE] - 1], promise[DETAIL]);
+      });
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     }
@@ -131,7 +136,7 @@
       if(promise[STATE] === PENDING){
         promise[STATE]  = SEALED;
         promise[DETAIL] = reason;
-        setImmediate(function(){
+        asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
             invokeCallback(state, subscribers[i], subscribers[i + state], promise[DETAIL]);
@@ -141,6 +146,6 @@
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
-  Promise[PROTOTYPE][TOSTRINGTAG] = 'Promise';
+  setTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
-}(Promise);
+}(Promise, Promise);

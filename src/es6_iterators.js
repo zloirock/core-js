@@ -1,4 +1,4 @@
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ARGUMENTS, returnThis){
+!function($ITERATOR, KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -26,7 +26,6 @@
       return createIterResultObject([index, iterated[index]], 0);
     }
   };
-  ArrayIterator[PROTOTYPE][TOSTRINGTAG] = 'Array Iterator';
   
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -51,7 +50,6 @@
       return createIterResultObject([key, iterated.get(key)], 0);
     }
   };
-  MapIterator[PROTOTYPE][TOSTRINGTAG] = 'Map Iterator';
   
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
@@ -71,7 +69,6 @@
       return createIterResultObject([key, key], 0);
     }
   };
-  SetIterator[PROTOTYPE][TOSTRINGTAG] = 'Set Iterator';
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -94,7 +91,11 @@
       return createIterResultObject([key, object[key]], 0);
     }
   }
-  ObjectIterator[PROTOTYPE][TOSTRINGTAG] = 'Object Iterator';
+  
+  setTag(ArrayIterator, ARRAY + $ITERATOR);
+  setTag(MapIterator, MAP + $ITERATOR);
+  setTag(SetIterator, SET + $ITERATOR);
+  setTag(ObjectIterator, OBJECT + $ITERATOR);
   
   ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
     SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
@@ -109,8 +110,7 @@
     switch(it && it.constructor){
       case String: case Array: case Map: case Set: return true;
       case Object: return classof(it) == ARGUMENTS;
-    }
-    return false;
+    } return false;
   }
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
@@ -121,13 +121,12 @@
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
+    } throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
-      if(entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value) === false)return;
+      if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
     }
   }
   
@@ -184,4 +183,4 @@
   }
   
   $define(GLOBAL, {forOf: forOf});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), 'Arguments', Function('return this'));
+}(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));

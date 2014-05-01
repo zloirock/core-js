@@ -7,8 +7,8 @@
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage,
-    MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage, MessageChannel,
+    ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
   setImmediate = function(fn){
     var id   = IMMEDIATE_PREFIX + ++counter
       , args = [], i = 1;
@@ -33,14 +33,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
     run(event.data);
   }
   // Node.js 0.8-
-  if(classof(process) == 'process'){
+  if(classof(process) == PROCESS){
     defer = function(id){
       process.nextTick(part.call(run, id));
-    }
-  // Modern browsers with native Promise
-  } else if(Promise && isFunction(Promise.resolve)){
-    defer = function(id){
-      Promise.resolve(id).then(run);
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
@@ -70,6 +65,6 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, pos
       setTimeout(part.call(run, id), 0);
     }
   }
-}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
+}(global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
 $defineTimer('setImmediate', setImmediate);
 $defineTimer('clearImmediate', clearImmediate);

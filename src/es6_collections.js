@@ -133,7 +133,6 @@
     // 23.1.3.10 get Map.prototype.size
     defineProperties(Map[PROTOTYPE], sizeGetter);
   } else Map = fixCollection(Map, MAP);
-  Map[PROTOTYPE][TOSTRINGTAG] = 'Map';
   
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
@@ -170,7 +169,6 @@
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
   } else Set = fixCollection(Set, SET, 1);
-  Set[PROTOTYPE][TOSTRINGTAG] = 'Set';
   
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
@@ -209,7 +207,6 @@
       }
     }, weakCollectionMethods));
   } else WeakMap = fixCollection(WeakMap, WEAKMAP);
-  WeakMap[PROTOTYPE][TOSTRINGTAG] = 'WeakMap';
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
@@ -223,7 +220,11 @@
       }
     }, weakCollectionMethods));
   } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
-  WeakSet[PROTOTYPE][TOSTRINGTAG] = 'WeakSet';
+  
+  setTag(Map, MAP);
+  setTag(Set, SET);
+  setTag(WeakMap, WEAKMAP);
+  setTag(WeakSet, WEAKSET);
     
   $define(GLOBAL, {
     Map: Map,

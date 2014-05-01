@@ -9,6 +9,9 @@ var OBJECT         = 'Object'
   , SET            = 'Set'
   , WEAKMAP        = 'WeakMap'
   , WEAKSET        = 'WeakSet'
+  , PROMISE        = 'Promise'
+  , ARGUMENTS      = 'Arguments'
+  , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
@@ -22,7 +25,7 @@ var OBJECT         = 'Object'
   , Set            = global[SET]
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
-  , Promise        = global.Promise
+  , Promise        = global[PROMISE]
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -31,6 +34,7 @@ var OBJECT         = 'Object'
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
   , console        = global.console || {}
+  , process        = global[PROCESS]
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[PROTOTYPE]
@@ -57,9 +61,12 @@ var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
 function isNative(it){
   return nativeRegExp.test(it);
 }
-// object internal [[Class]]
 var toString = $Object.toString
   , TOSTRINGTAG;
+function setTag(constructor, tag){
+  if(TOSTRINGTAG)constructor[PROTOTYPE][TOSTRINGTAG] = tag;
+}
+// object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
   var cof = toString.call(it).slice(8, -1);

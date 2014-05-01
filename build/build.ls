@@ -1,9 +1,9 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[ core es5 global es6 es6_symbol es6_promise es6_collections
-                es6_iterators dict timers immediate function deferred binding
-                object array array_statics number string regexp date collections
-                console ]>
+modules    = <[ core es5 global es6 es6_symbol immediate es6_promise
+                es6_collections es6_iterators dict timers function deferred
+                binding object array array_statics number string regexp date
+                collections console ]>
 module.exports = (opt, next)-> let @ = opt
   @core = on
   import {+global, +es5, +timers, +node} if @all

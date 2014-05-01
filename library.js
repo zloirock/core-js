@@ -21,6 +21,9 @@ var OBJECT         = 'Object'
   , SET            = 'Set'
   , WEAKMAP        = 'WeakMap'
   , WEAKSET        = 'WeakSet'
+  , PROMISE        = 'Promise'
+  , ARGUMENTS      = 'Arguments'
+  , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
@@ -34,7 +37,7 @@ var OBJECT         = 'Object'
   , Set            = global[SET]
   , WeakMap        = global[WEAKMAP]
   , WeakSet        = global[WEAKSET]
-  , Promise        = global.Promise
+  , Promise        = global[PROMISE]
   , Math           = global.Math
   , TypeError      = global.TypeError
   , setTimeout     = global.setTimeout
@@ -43,6 +46,7 @@ var OBJECT         = 'Object'
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
   , console        = global.console || {}
+  , process        = global[PROCESS]
   , document       = global.document
   , Infinity       = 1 / 0
   , $Array         = Array[PROTOTYPE]
@@ -69,9 +73,12 @@ var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
 function isNative(it){
   return nativeRegExp.test(it);
 }
-// object internal [[Class]]
 var toString = $Object.toString
   , TOSTRINGTAG;
+function setTag(constructor, tag){
+  if(TOSTRINGTAG)constructor[PROTOTYPE][TOSTRINGTAG] = tag;
+}
+// object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
   var cof = toString.call(it).slice(8, -1);
@@ -576,7 +583,7 @@ if(!isExports || framework){
   }
   if(_classof(function(){return arguments}()) == OBJECT)classof =  function(it){
     var cof = _classof(it);
-    return cof != OBJECT || !isFunction(it.callee) ? cof : 'Arguments';
+    return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
   create              = _[OBJECT].create;
@@ -862,7 +869,7 @@ $define(GLOBAL, {global: global});
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
+!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -880,22 +887,97 @@ $define(GLOBAL, {global: global});
     }
   }
   $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
-  $define(STATIC, 'Symbol', {
+  $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.iterator'),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol('Symbol.toStringTag')
+    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol(SYMBOL + '.toStringTag')
   });
-  Symbol[PROTOTYPE][TOSTRINGTAG] = 'Symbol';
-}(global.Symbol, symbol('tag'), {}, '@@iterator');
+  setTag(Symbol, SYMBOL);
+}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator');
+
+/*****************************
+ * Module : immediate
+ *****************************/
+
+/**
+ * setImmediate
+ * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+ * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
+ * Alternatives:
+ * https://github.com/NobleJS/setImmediate
+ * https://github.com/calvinmetcalf/immediate
+ */
+// Node.js 0.9+ & IE10+ has setImmediate, else:
+isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage, MessageChannel,
+    ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
+  setImmediate = function(fn){
+    var id   = IMMEDIATE_PREFIX + ++counter
+      , args = [], i = 1;
+    while(arguments.length > i)args.push(arguments[i++]);
+    queue[id] = function(){
+      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
+    }
+    defer(id);
+    return counter;
+  }
+  clearImmediate = function(id){
+    delete queue[IMMEDIATE_PREFIX + id];
+  }
+  function run(id){
+    if(has(queue, id)){
+      var fn = queue[id];
+      delete queue[id];
+      fn();
+    }
+  }
+  function listner(event){
+    run(event.data);
+  }
+  // Node.js 0.8-
+  if(classof(process) == PROCESS){
+    defer = function(id){
+      process.nextTick(part.call(run, id));
+    }
+  // Modern browsers, skip implementation for WebWorkers
+  // IE8 has postMessage, but it's sync & typeof its postMessage is object
+  } else if(isFunction(postMessage) && !global.importScripts){
+    defer = function(id){
+      postMessage(id, '*');
+    }
+    addEventListener('message', listner, false);
+  // WebWorkers
+  } else if(isFunction(MessageChannel)){
+    channel = new MessageChannel();
+    channel.port1.onmessage = listner;
+    defer = ctx(channel.port2.postMessage, channel.port2);
+  // IE8-
+  } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
+    defer = function(id){
+      var el = document[CREATE_ELEMENT]('script');
+      el[ONREADYSTATECHANGE] = function(){
+        el.parentNode.removeChild(el);
+        run(id);
+      }
+      document.documentElement.appendChild(el);
+    }
+  // Rest old browsers
+  } else {
+    defer = function(id){
+      setTimeout(part.call(run, id), 0);
+    }
+  }
+}(global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
+$defineTimer('setImmediate', setImmediate);
+$defineTimer('clearImmediate', clearImmediate);
 
 /*****************************
  * Module : es6_promise
@@ -912,18 +994,22 @@ $define(GLOBAL, {global: global});
  * Alternatives:
  * https://github.com/paulmillr/es6-shim
  */
-!function(Promise){
+!function(Promise, $Promise){
   isFunction(Promise)
   && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
   && (function(promise){
     return Promise.resolve(promise) === promise;
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
+    var asap = 
+      classof(process) == PROCESS ? process.nextTick :
+      Promise && isFunction(Promise.resolve) ? function(fn){ $Promise.resolve().then(fn); } :
+      setImmediate;
     // 25.4.3 The Promise Constructor
     Promise = function(executor){
       var promise       = this
         , rejectPromise = part.call(handle, promise, REJECTED);
-      assertInstance(promise, Promise, 'Promise');
+      assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
       promise[SUBSCRIBERS] = [];
       try {
@@ -939,10 +1025,11 @@ $define(GLOBAL, {global: global});
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     Promise[PROTOTYPE].then = function(onFulfilled, onRejected){
       var promise     = this
-        , thenPromise = new Promise(Function());
-      if(promise[STATE])setImmediate(function(){
-        invokeCallback(promise[STATE], thenPromise, arguments[promise[STATE] - 1], promise[DETAIL]);
-      }, onFulfilled, onRejected);
+        , thenPromise = new Promise(Function())
+        , args        = [onFulfilled, onRejected]; 
+      if(promise[STATE])asap(function(){
+        invokeCallback(promise[STATE], thenPromise, args[promise[STATE] - 1], promise[DETAIL]);
+      });
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     }
@@ -1034,7 +1121,7 @@ $define(GLOBAL, {global: global});
       if(promise[STATE] === PENDING){
         promise[STATE]  = SEALED;
         promise[DETAIL] = reason;
-        setImmediate(function(){
+        asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
             invokeCallback(state, subscribers[i], subscribers[i + state], promise[DETAIL]);
@@ -1044,9 +1131,9 @@ $define(GLOBAL, {global: global});
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
-  Promise[PROTOTYPE][TOSTRINGTAG] = 'Promise';
+  setTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
-}(Promise);
+}(Promise, Promise);
 
 /*****************************
  * Module : es6_collections
@@ -1187,7 +1274,6 @@ $define(GLOBAL, {global: global});
     // 23.1.3.10 get Map.prototype.size
     defineProperties(Map[PROTOTYPE], sizeGetter);
   } else Map = fixCollection(Map, MAP);
-  Map[PROTOTYPE][TOSTRINGTAG] = 'Map';
   
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
@@ -1224,7 +1310,6 @@ $define(GLOBAL, {global: global});
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
   } else Set = fixCollection(Set, SET, 1);
-  Set[PROTOTYPE][TOSTRINGTAG] = 'Set';
   
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
@@ -1263,7 +1348,6 @@ $define(GLOBAL, {global: global});
       }
     }, weakCollectionMethods));
   } else WeakMap = fixCollection(WeakMap, WEAKMAP);
-  WeakMap[PROTOTYPE][TOSTRINGTAG] = 'WeakMap';
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
@@ -1277,7 +1361,11 @@ $define(GLOBAL, {global: global});
       }
     }, weakCollectionMethods));
   } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
-  WeakSet[PROTOTYPE][TOSTRINGTAG] = 'WeakSet';
+  
+  setTag(Map, MAP);
+  setTag(Set, SET);
+  setTag(WeakMap, WEAKMAP);
+  setTag(WeakSet, WEAKSET);
     
   $define(GLOBAL, {
     Map: Map,
@@ -1291,7 +1379,7 @@ $define(GLOBAL, {global: global});
  * Module : es6_iterators
  *****************************/
 
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ARGUMENTS, returnThis){
+!function($ITERATOR, KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1319,7 +1407,6 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([index, iterated[index]], 0);
     }
   };
-  ArrayIterator[PROTOTYPE][TOSTRINGTAG] = 'Array Iterator';
   
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1344,7 +1431,6 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, iterated.get(key)], 0);
     }
   };
-  MapIterator[PROTOTYPE][TOSTRINGTAG] = 'Map Iterator';
   
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
@@ -1364,7 +1450,6 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, key], 0);
     }
   };
-  SetIterator[PROTOTYPE][TOSTRINGTAG] = 'Set Iterator';
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1387,7 +1472,11 @@ $define(GLOBAL, {global: global});
       return createIterResultObject([key, object[key]], 0);
     }
   }
-  ObjectIterator[PROTOTYPE][TOSTRINGTAG] = 'Object Iterator';
+  
+  setTag(ArrayIterator, ARRAY + $ITERATOR);
+  setTag(MapIterator, MAP + $ITERATOR);
+  setTag(SetIterator, SET + $ITERATOR);
+  setTag(ObjectIterator, OBJECT + $ITERATOR);
   
   ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
     SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
@@ -1402,8 +1491,7 @@ $define(GLOBAL, {global: global});
     switch(it && it.constructor){
       case String: case Array: case Map: case Set: return true;
       case Object: return classof(it) == ARGUMENTS;
-    }
-    return false;
+    } return false;
   }
   getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
@@ -1414,13 +1502,12 @@ $define(GLOBAL, {global: global});
       case Array  : return new ArrayIterator(it, VALUE);
       case Map    : return new MapIterator(it, KEY+VALUE);
       case Set    : return new SetIterator(it, VALUE);
-    }
-    throw TypeError(it + ' is not iterable!');
+    } throw TypeError(it + ' is not iterable!');
   }
   forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
-      if(entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value) === false)return;
+      if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
     }
   }
   
@@ -1477,7 +1564,7 @@ $define(GLOBAL, {global: global});
   }
   
   $define(GLOBAL, {forOf: forOf});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), 'Arguments', Function('return this'));
+}(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
 
 /*****************************
  * Module : dict
@@ -1655,86 +1742,6 @@ $define(GLOBAL, {global: global});
   $defineTimer('setTimeout', setTimeout);
   $defineTimer('setInterval', setInterval);
 }(global.navigator);
-
-/*****************************
- * Module : immediate
- *****************************/
-
-/**
- * setImmediate
- * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
- * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
- * Alternatives:
- * https://github.com/NobleJS/setImmediate
- * https://github.com/calvinmetcalf/immediate
- */
-// Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(process, postMessage,
-    MessageChannel, ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
-  setImmediate = function(fn){
-    var id   = IMMEDIATE_PREFIX + ++counter
-      , args = [], i = 1;
-    while(arguments.length > i)args.push(arguments[i++]);
-    queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
-    }
-    defer(id);
-    return counter;
-  }
-  clearImmediate = function(id){
-    delete queue[IMMEDIATE_PREFIX + id];
-  }
-  function run(id){
-    if(has(queue, id)){
-      var fn = queue[id];
-      delete queue[id];
-      fn();
-    }
-  }
-  function listner(event){
-    run(event.data);
-  }
-  // Node.js 0.8-
-  if(classof(process) == 'process'){
-    defer = function(id){
-      process.nextTick(part.call(run, id));
-    }
-  // Modern browsers with native Promise
-  } else if(Promise && isFunction(Promise.resolve)){
-    defer = function(id){
-      Promise.resolve(id).then(run);
-    }
-  // Modern browsers, skip implementation for WebWorkers
-  // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(isFunction(postMessage) && !global.importScripts){
-    defer = function(id){
-      postMessage(id, '*');
-    }
-    addEventListener('message', listner, false);
-  // WebWorkers
-  } else if(isFunction(MessageChannel)){
-    channel = new MessageChannel();
-    channel.port1.onmessage = listner;
-    defer = ctx(channel.port2.postMessage, channel.port2);
-  // IE8-
-  } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
-    defer = function(id){
-      var el = document[CREATE_ELEMENT]('script');
-      el[ONREADYSTATECHANGE] = function(){
-        el.parentNode.removeChild(el);
-        run(id);
-      }
-      document.documentElement.appendChild(el);
-    }
-  // Rest old browsers
-  } else {
-    defer = function(id){
-      setTimeout(part.call(run, id), 0);
-    }
-  }
-}(global.process, global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
-$defineTimer('setImmediate', setImmediate);
-$defineTimer('clearImmediate', clearImmediate);
 
 /*****************************
  * Module : function

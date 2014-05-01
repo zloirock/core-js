@@ -264,7 +264,7 @@
   }
   if(_classof(function(){return arguments}()) == OBJECT)classof =  function(it){
     var cof = _classof(it);
-    return cof != OBJECT || !isFunction(it.callee) ? cof : 'Arguments';
+    return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
   create              = _[OBJECT].create;

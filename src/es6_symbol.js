@@ -5,7 +5,7 @@
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, TAG, SymbolRegistry, FFITERATOR){
+!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -23,19 +23,19 @@
     }
   }
   $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
-  $define(STATIC, 'Symbol', {
+  $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol('Symbol.iterator'),
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.iterator'),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol('Symbol.toStringTag')
+    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol(SYMBOL + '.toStringTag')
   });
-  Symbol[PROTOTYPE][TOSTRINGTAG] = 'Symbol';
-}(global.Symbol, symbol('tag'), {}, '@@iterator');
+  setTag(Symbol, SYMBOL);
+}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator');
