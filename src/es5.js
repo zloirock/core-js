@@ -267,10 +267,10 @@
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
-  create              = _[OBJECT].create;
-  getPrototypeOf      = _[OBJECT].getPrototypeOf;
-  keys                = _[OBJECT].keys;
-  getOwnPropertyNames = _[OBJECT].getOwnPropertyNames;
-  $indexOf            = _[ARRAY].indexOf;
-  $forEach            = _[ARRAY].forEach;
+  create              = Export[OBJECT].create;
+  getPrototypeOf      = Export[OBJECT].getPrototypeOf;
+  keys                = Export[OBJECT].keys;
+  getOwnPropertyNames = Export[OBJECT].getOwnPropertyNames;
+  $indexOf            = Export[ARRAY].indexOf;
+  $forEach            = Export[ARRAY].forEach;
 }();

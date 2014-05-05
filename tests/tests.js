@@ -535,7 +535,7 @@
       return this.a + it;
     }.part(21);
     ok(obj.fn() === 63);
-    $ = Function._;
+    $ = _;
     fn = function(){
       return Array.prototype.map.call(arguments, String).join(' ');
     };
@@ -550,7 +550,7 @@
     ok(isFunction(Array.prototype.tie), 'Array::tie is function');
     ok(isFunction(RegExp.prototype.tie), 'RegExp::tie is function');
     ok(!('tie' in Object.prototype), 'tie not in Object:: before useTie call');
-    _.useTie();
+    C.useTie();
     ok(isFunction(Object.prototype.tie), 'Object::tie is function');
     delete Object.prototype.tie;
   });
@@ -2708,6 +2708,10 @@
     ok(classof([].entries()) === 'Array Iterator');
     ok(classof(new Set().entries()) === 'Set Iterator');
     ok(classof(new Map().entries()) === 'Map Iterator');
+    ok(classof(Math) === 'Math');
+    if (typeof JSON != 'undefined' && JSON !== null) {
+      ok(classof(JSON) === 'JSON');
+    }
   });
   test('Object.make', function(){
     var make, object, foo;

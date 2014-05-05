@@ -25,11 +25,11 @@
     /**
      * Object enumumerabe
      * Alternatives:
-     * http://underscorejs.org/ _.{enumerable...}
-     * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
-     * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
-     * http://api.jquery.com/category/utilities/ $.{enumerable...}
-     * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
+     * http://underscorejs.org/ _.{...enumerable}
+     * http://sugarjs.com/api/Object/enumerable Object.{...enumerable}
+     * http://mootools.net/docs/core/Types/Object Object.{...enumerable}
+     * http://api.jquery.com/category/utilities/ $.{...enumerable}
+     * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
      */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);

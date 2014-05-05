@@ -7,7 +7,7 @@ test 'Function::part' !->
   obj = a: 42
   obj.fn = (-> @a + it)part 21
   ok obj.fn! is 63
-  $ = Function._
+  $ = _
   fn = -> Array::map.call(&, String).join ' '
   part = fn.part $, \Саша, $, \шоссе, $, \сосала
   ok isFunction(part), '.part with placeholders return function'
@@ -19,7 +19,7 @@ test '::tie' !->
   ok isFunction(Array::tie), 'Array::tie is function'
   ok isFunction(RegExp::tie), 'RegExp::tie is function'
   ok \tie not of Object::, 'tie not in Object:: before useTie call'
-  _.useTie!
+  C.useTie!
   ok isFunction(Object::tie), 'Object::tie is function'
   delete Object::tie
 test 'Object.tie' ->

@@ -16,8 +16,9 @@
     return Promise.resolve(promise) === promise;
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
-    var asap = 
-      classof(process) == PROCESS ? process.nextTick :
+    // microtask or, if not possible, macrotask
+    var asap =
+      isNode ? process.nextTick :
       Promise && isFunction(Promise.resolve) ? function(fn){ $Promise.resolve().then(fn); } :
       setImmediate;
     // 25.4.3 The Promise Constructor
@@ -88,14 +89,14 @@
     }
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
-        , value, error, succeeded, failed;
+        , value, succeeded, failed;
       if(hasCallback){
         try {
           value     = callback(detail);
           succeeded = 1;
         } catch(e){
           failed = 1;
-          error  = e;
+          value  = e;
         }
       } else {
         value = detail;
@@ -103,7 +104,7 @@
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
-      else if(failed)handle(promise, REJECTED, error);
+      else if(failed)handle(promise, REJECTED, value);
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }

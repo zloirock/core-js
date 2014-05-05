@@ -1,6 +1,6 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules    = <[ core es5 global es6 es6_symbol immediate es6_promise
+modules    = <[ core es5 global es6_symbol es6 immediate es6_promise
                 es6_collections es6_iterators dict timers function deferred
                 binding object array array_statics number string regexp date
                 collections console ]>

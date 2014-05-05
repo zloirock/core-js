@@ -33,7 +33,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
     run(event.data);
   }
   // Node.js 0.8-
-  if(classof(process) == PROCESS){
+  if(isNode){
     defer = function(id){
       process.nextTick(part.call(run, id));
     }

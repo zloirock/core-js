@@ -1,7 +1,6 @@
 $define(STATIC, FUNCTION, {
   isFunction: isFunction,
-  isNative: isNative,
-  _: _
+  isNative: isNative
 });
 $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)

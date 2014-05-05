@@ -39,7 +39,8 @@ var OBJECT         = 'Object'
   , Infinity       = 1 / 0
   , $Array         = Array[PROTOTYPE]
   , $Object        = Object[PROTOTYPE]
-  , $Function      = Function[PROTOTYPE];
+  , $Function      = Function[PROTOTYPE]
+  , Export         = {};
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -63,8 +64,8 @@ function isNative(it){
 }
 var toString = $Object.toString
   , TOSTRINGTAG;
-function setTag(constructor, tag){
-  if(TOSTRINGTAG)constructor[PROTOTYPE][TOSTRINGTAG] = tag;
+function setTag(constructor, tag, stat){
+  if(TOSTRINGTAG && constructor)(stat ? constructor : constructor[PROTOTYPE])[TOSTRINGTAG] = tag;
 }
 // object internal [[Class]]
 function classof(it){
@@ -76,26 +77,29 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call
-  , _ = {};
+  , path  = framework ? global : Export;
+Export._ = path._ = path._ || {};
 // partial apply
-function part(/*args...*/){
+function part(/*...args*/){
   var length = arguments.length
     , args   = Array(length)
     , i      = 0
+    , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
   return createPartialApplication(this, args, length, placeholder, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
-  return function(/*args...*/){
+  return function(/*...args*/){
     return fn.apply(that, arguments);
   }
 }
 function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
   assertFunction(fn);
-  return function(/*args...*/){
+  return function(/*...args*/){
     var that   = bind ? context : this
+      , _      = path._
       , length = arguments.length
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
@@ -116,7 +120,7 @@ function unbind(that){
 // fn(foo, arg1, arg2, ...) => foo.fn(arg1, arg2, ...)
 function methodize(){
   var fn = this;
-  return function(/*args...*/){
+  return function(/*...args*/){
     var length = arguments.length
       , args   = Array(length + 1)
       , i      = 0;
@@ -258,7 +262,7 @@ function $define(type, name, source, forced /* = false */){
     , isStatic = type & STATIC
     , isProto  = type & PROTO
     , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
-    , exports  = isGlobal ? _ : _[name] || (_[name] = {});
+    , exports  = isGlobal ? Export : Export[name] || (Export[name] = {});
   if(isGlobal){
     forced = source;
     source = name;
@@ -266,18 +270,16 @@ function $define(type, name, source, forced /* = false */){
   for(key in source)if(has(source, key)){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
-    // export to `_`
+    // export to `C`
     exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
-    // if build as fremework, extend global objects
+    // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
 function $defineTimer(key, fn){
-  if(framework && global[key] != fn){
-    global[key] = fn;
-    _[key] = fn;
-  } else _[key] = ctx(fn, global);
+  if(framework)global[key] = fn;
+  Export[key] = global[key] != fn ? fn : ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
@@ -289,14 +291,7 @@ function wrapGlobalConstructor(Base){
   F[PROTOTYPE] = Base[PROTOTYPE];
   return F;
 }
-// export `_`
-var isExports = typeof module != 'undefined'
-  , undescore = global._;
-if(isExports)module.exports = _;
-if(!isExports || framework){
-  _.noConflict = function(){
-    global._ = undescore;
-    return _;
-  }
-  global._ = _;
-}
+// export
+var isNode = classof(process) == PROCESS;
+if(isNode)module.exports = Export;
+if(!isNode || framework)global.C = Export;

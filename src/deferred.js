@@ -21,7 +21,7 @@
       clear(this[ID]);
       return this;
     }
-    return function(/* args... */){
+    return function(/* ...args */){
       assertFunction(this);
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
@@ -31,16 +31,6 @@
   $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate),
-    loop: function(){
-      var fn = this;
-      assertFunction(fn);
-      function next(){
-        var args = [fn, next], i = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        setImmediate.apply(global, args);
-      }
-      next.apply(global, arguments);
-    }
+    immediate: createDeferredFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));

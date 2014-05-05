@@ -51,7 +51,8 @@ var OBJECT         = 'Object'
   , Infinity       = 1 / 0
   , $Array         = Array[PROTOTYPE]
   , $Object        = Object[PROTOTYPE]
-  , $Function      = Function[PROTOTYPE];
+  , $Function      = Function[PROTOTYPE]
+  , Export         = {};
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -75,8 +76,8 @@ function isNative(it){
 }
 var toString = $Object.toString
   , TOSTRINGTAG;
-function setTag(constructor, tag){
-  if(TOSTRINGTAG)constructor[PROTOTYPE][TOSTRINGTAG] = tag;
+function setTag(constructor, tag, stat){
+  if(TOSTRINGTAG && constructor)(stat ? constructor : constructor[PROTOTYPE])[TOSTRINGTAG] = tag;
 }
 // object internal [[Class]]
 function classof(it){
@@ -88,26 +89,29 @@ function classof(it){
 // Function:
 var apply = $Function.apply
   , call  = $Function.call
-  , _ = {};
+  , path  = framework ? global : Export;
+Export._ = path._ = path._ || {};
 // partial apply
-function part(/*args...*/){
+function part(/*...args*/){
   var length = arguments.length
     , args   = Array(length)
     , i      = 0
+    , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
   return createPartialApplication(this, args, length, placeholder, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
-  return function(/*args...*/){
+  return function(/*...args*/){
     return fn.apply(that, arguments);
   }
 }
 function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
   assertFunction(fn);
-  return function(/*args...*/){
+  return function(/*...args*/){
     var that   = bind ? context : this
+      , _      = path._
       , length = arguments.length
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
@@ -128,7 +132,7 @@ function unbind(that){
 // fn(foo, arg1, arg2, ...) => foo.fn(arg1, arg2, ...)
 function methodize(){
   var fn = this;
-  return function(/*args...*/){
+  return function(/*...args*/){
     var length = arguments.length
       , args   = Array(length + 1)
       , i      = 0;
@@ -270,7 +274,7 @@ function $define(type, name, source, forced /* = false */){
     , isStatic = type & STATIC
     , isProto  = type & PROTO
     , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
-    , exports  = isGlobal ? _ : _[name] || (_[name] = {});
+    , exports  = isGlobal ? Export : Export[name] || (Export[name] = {});
   if(isGlobal){
     forced = source;
     source = name;
@@ -278,18 +282,16 @@ function $define(type, name, source, forced /* = false */){
   for(key in source)if(has(source, key)){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
-    // export to `_`
+    // export to `C`
     exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
-    // if build as fremework, extend global objects
+    // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
   }
 }
 function $defineTimer(key, fn){
-  if(framework && global[key] != fn){
-    global[key] = fn;
-    _[key] = fn;
-  } else _[key] = ctx(fn, global);
+  if(framework)global[key] = fn;
+  Export[key] = global[key] != fn ? fn : ctx(fn, global);
 }
 // wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
@@ -301,17 +303,10 @@ function wrapGlobalConstructor(Base){
   F[PROTOTYPE] = Base[PROTOTYPE];
   return F;
 }
-// export `_`
-var isExports = typeof module != 'undefined'
-  , undescore = global._;
-if(isExports)module.exports = _;
-if(!isExports || framework){
-  _.noConflict = function(){
-    global._ = undescore;
-    return _;
-  }
-  global._ = _;
-}
+// export
+var isNode = classof(process) == PROCESS;
+if(isNode)module.exports = Export;
+if(!isNode || framework)global.C = Export;
 
 /*****************************
  * Module : es5
@@ -586,12 +581,12 @@ if(!isExports || framework){
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
-  create              = _[OBJECT].create;
-  getPrototypeOf      = _[OBJECT].getPrototypeOf;
-  keys                = _[OBJECT].keys;
-  getOwnPropertyNames = _[OBJECT].getOwnPropertyNames;
-  $indexOf            = _[ARRAY].indexOf;
-  $forEach            = _[ARRAY].forEach;
+  create              = Export[OBJECT].create;
+  getPrototypeOf      = Export[OBJECT].getPrototypeOf;
+  keys                = Export[OBJECT].keys;
+  getOwnPropertyNames = Export[OBJECT].getOwnPropertyNames;
+  $indexOf            = Export[ARRAY].indexOf;
+  $forEach            = Export[ARRAY].forEach;
 }();
 
 /*****************************
@@ -599,6 +594,52 @@ if(!isExports || framework){
  *****************************/
 
 $define(GLOBAL, {global: global});
+
+/*****************************
+ * Module : es6_symbol
+ *****************************/
+
+/**
+ * ECMAScript 6 Symbol
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
+ * Alternatives:
+ * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
+ * https://github.com/seanmonstar/symbol
+ */
+!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR){
+  // 19.4.1 The Symbol Constructor
+  if(!isNative(Symbol)){
+    Symbol = function(description){
+      if(!(this instanceof Symbol))return new Symbol(description);
+      var tag = symbol(description);
+      defineProperty($Object, tag, {
+        set: function(value){
+          hidden(this, tag, value);
+        }
+      });
+      hidden(this, TAG, tag);
+    }
+    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
+      return this[TAG];
+    }
+  }
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
+  $define(STATIC, SYMBOL, {
+    // 19.4.2.2 Symbol.for(key)
+    'for': function(key){
+      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
+    },
+    // 19.4.2.6 Symbol.iterator
+    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.iterator'),
+    // 19.4.2.7 Symbol.keyFor(sym)
+    keyFor: function(sym){
+      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
+    },
+    // 19.4.2.10 Symbol.toStringTag
+    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol(SYMBOL + '.toStringTag')
+  });
+  setTag(Symbol, SYMBOL);
+}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator');
 
 /*****************************
  * Module : es6
@@ -770,14 +811,16 @@ $define(GLOBAL, {global: global});
       return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
+  // 20.2.1.9 Math [ @@toStringTag ]
+  setTag(Math, 'Math', 1);
   /**
-  $define(STATIC, STRING, {
-    // 21.1.2.2 String.fromCodePoint(...codePoints)
-    // fromCodePoint: function(){ TODO },
-    // 21.1.2.4 String.raw(callSite, ...substitutions)
-    raw: function(){ TODO }
-  });
-  */
+    $define(STATIC, STRING, {
+      // 21.1.2.2 String.fromCodePoint(...codePoints)
+      // fromCodePoint: function(){ TODO },
+      // 21.1.2.4 String.raw(callSite, ...substitutions)
+      raw: function(){ TODO }
+    });
+    */
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
@@ -818,7 +861,7 @@ $define(GLOBAL, {global: global});
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
-    of: function(/*args...*/){
+    of: function(/*...args*/){
       var i = 0, length = arguments.length
         , result = new (isFunction(this) ? this : Array);
       while(i < length)push.call(result, arguments[i++]);
@@ -856,53 +899,9 @@ $define(GLOBAL, {global: global});
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex
   });
+  // 24.3.3 JSON [ @@toStringTag ]
+  setTag(global.JSON, 'JSON', 1);
 }(isFinite);
-
-/*****************************
- * Module : es6_symbol
- *****************************/
-
-/**
- * ECMAScript 6 Symbol
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- * Alternatives:
- * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
- * https://github.com/seanmonstar/symbol
- */
-!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR){
-  // 19.4.1 The Symbol Constructor
-  if(!isNative(Symbol)){
-    Symbol = function(description){
-      if(!(this instanceof Symbol))return new Symbol(description);
-      var tag = symbol(description);
-      defineProperty($Object, tag, {
-        set: function(value){
-          hidden(this, tag, value);
-        }
-      });
-      hidden(this, TAG, tag);
-    }
-    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
-      return this[TAG];
-    }
-  }
-  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
-  $define(STATIC, SYMBOL, {
-    // 19.4.2.2 Symbol.for(key)
-    'for': function(key){
-      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
-    },
-    // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.iterator'),
-    // 19.4.2.7 Symbol.keyFor(sym)
-    keyFor: function(sym){
-      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
-    },
-    // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol(SYMBOL + '.toStringTag')
-  });
-  setTag(Symbol, SYMBOL);
-}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator');
 
 /*****************************
  * Module : immediate
@@ -943,7 +942,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
     run(event.data);
   }
   // Node.js 0.8-
-  if(classof(process) == PROCESS){
+  if(isNode){
     defer = function(id){
       process.nextTick(part.call(run, id));
     }
@@ -1001,8 +1000,9 @@ $defineTimer('clearImmediate', clearImmediate);
     return Promise.resolve(promise) === promise;
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
-    var asap = 
-      classof(process) == PROCESS ? process.nextTick :
+    // microtask or, if not possible, macrotask
+    var asap =
+      isNode ? process.nextTick :
       Promise && isFunction(Promise.resolve) ? function(fn){ $Promise.resolve().then(fn); } :
       setImmediate;
     // 25.4.3 The Promise Constructor
@@ -1073,14 +1073,14 @@ $defineTimer('clearImmediate', clearImmediate);
     }
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
-        , value, error, succeeded, failed;
+        , value, succeeded, failed;
       if(hasCallback){
         try {
           value     = callback(detail);
           succeeded = 1;
         } catch(e){
           failed = 1;
-          error  = e;
+          value  = e;
         }
       } else {
         value = detail;
@@ -1088,7 +1088,7 @@ $defineTimer('clearImmediate', clearImmediate);
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
-      else if(failed)handle(promise, REJECTED, error);
+      else if(failed)handle(promise, REJECTED, value);
       else if(settled == FULFILLED)resolve(promise, value);
       else if(settled == REJECTED)handle(promise, REJECTED, value);
     }
@@ -1597,11 +1597,11 @@ $defineTimer('clearImmediate', clearImmediate);
     /**
      * Object enumumerabe
      * Alternatives:
-     * http://underscorejs.org/ _.{enumerable...}
-     * http://sugarjs.com/api/Object/enumerable Object.{enumerable...}
-     * http://mootools.net/docs/core/Types/Object Object.{enumerable...}
-     * http://api.jquery.com/category/utilities/ $.{enumerable...}
-     * http://docs.angularjs.org/api/ng/function angular.{enumerable...}
+     * http://underscorejs.org/ _.{...enumerable}
+     * http://sugarjs.com/api/Object/enumerable Object.{...enumerable}
+     * http://mootools.net/docs/core/Types/Object Object.{...enumerable}
+     * http://api.jquery.com/category/utilities/ $.{...enumerable}
+     * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
      */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
@@ -1730,7 +1730,7 @@ $defineTimer('clearImmediate', clearImmediate);
  */
 !function(navigator){
   function wrap(set){
-    return function(fn, time /*, args...*/){
+    return function(fn, time /*, ...args*/){
       return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1);
     }
   }
@@ -1749,8 +1749,7 @@ $defineTimer('clearImmediate', clearImmediate);
 
 $define(STATIC, FUNCTION, {
   isFunction: isFunction,
-  isNative: isNative,
-  _: _
+  isNative: isNative
 });
 $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
@@ -1789,7 +1788,7 @@ $define(PROTO, FUNCTION, {
       clear(this[ID]);
       return this;
     }
-    return function(/* args... */){
+    return function(/* ...args */){
       assertFunction(this);
       var args = [this], i = 0;
       while(arguments.length > i)args.push(arguments[i++]);
@@ -1799,17 +1798,7 @@ $define(PROTO, FUNCTION, {
   $define(PROTO, FUNCTION, {
     timeout:   createDeferredFactory(setTimeout, clearTimeout),
     interval:  createDeferredFactory(setInterval, clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate),
-    loop: function(){
-      var fn = this;
-      assertFunction(fn);
-      function next(){
-        var args = [fn, next], i = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        setImmediate.apply(global, args);
-      }
-      next.apply(global, arguments);
-    }
+    immediate: createDeferredFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));
 
@@ -1826,6 +1815,7 @@ $define(PROTO, FUNCTION, {
    */
   function tie(key){
     var that        = this
+      , _           = path._
       , placeholder = false
       , length      = arguments.length
       , i = 1, args;
@@ -1837,16 +1827,17 @@ $define(PROTO, FUNCTION, {
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
     /**
-     * Partial apply.
-     * Alternatives:
-     * http://sugarjs.com/api/Function/fill
-     * http://underscorejs.org/#partial
-     * http://mootools.net/docs/core/Types/Function#Function:pass
-     * http://fitzgen.github.io/wu.js/#wu-partial
-     */
+           * Partial apply.
+           * Alternatives:
+           * http://sugarjs.com/api/Function/fill
+           * http://underscorejs.org/#partial
+           * http://mootools.net/docs/core/Types/Function#Function:pass
+           * http://fitzgen.github.io/wu.js/#wu-partial
+           */
     part: part,
     by: function(that){
       var fn          = this
+        , _           = path._
         , placeholder = false
         , length      = arguments.length
         , i = 1, args;
@@ -1856,10 +1847,10 @@ $define(PROTO, FUNCTION, {
       return createPartialApplication(fn, args, length, placeholder, true, that);
     },
     /**
-     * fn(a, b, c...) -> a.fn(b, c...)
-     * Alternatives:
-     * http://api.prototypejs.org/language/Function/prototype/methodize/
-     */
+           * fn(a, b, c, ...) -> a.fn(b, c, ...)
+           * Alternatives:
+           * http://api.prototypejs.org/language/Function/prototype/methodize/
+           */
     methodize: methodize
   }, $tie));
   $define(PROTO, ARRAY, $tie);
@@ -1867,7 +1858,7 @@ $define(PROTO, FUNCTION, {
   $define(STATIC, OBJECT, {
     tie: unbind(tie)
   });
-  _.useTie = function(){
+  Export.useTie = function(){
     $define(PROTO, OBJECT, $tie);
     return _;
   }

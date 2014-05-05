@@ -54,6 +54,8 @@ test 'Object.classof' !->
   ok classof([]entries!) is 'Array Iterator'
   ok classof(new Set!entries!) is 'Set Iterator'
   ok classof(new Map!entries!) is 'Map Iterator'
+  ok classof(Math) is \Math
+  if JSON? => ok classof(JSON) is \JSON
 test 'Object.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'

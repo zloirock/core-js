@@ -164,14 +164,16 @@
       return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
+  // 20.2.1.9 Math [ @@toStringTag ]
+  setTag(Math, 'Math', 1);
   /**
-  $define(STATIC, STRING, {
-    // 21.1.2.2 String.fromCodePoint(...codePoints)
-    // fromCodePoint: function(){ TODO },
-    // 21.1.2.4 String.raw(callSite, ...substitutions)
-    raw: function(){ TODO }
-  });
-  */
+    $define(STATIC, STRING, {
+      // 21.1.2.2 String.fromCodePoint(...codePoints)
+      // fromCodePoint: function(){ TODO },
+      // 21.1.2.4 String.raw(callSite, ...substitutions)
+      raw: function(){ TODO }
+    });
+    */
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // codePointAt: function(pos /* = 0 * /){ TODO },
@@ -212,7 +214,7 @@
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
-    of: function(/*args...*/){
+    of: function(/*...args*/){
       var i = 0, length = arguments.length
         , result = new (isFunction(this) ? this : Array);
       while(i < length)push.call(result, arguments[i++]);
@@ -250,4 +252,6 @@
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: findIndex
   });
+  // 24.3.3 JSON [ @@toStringTag ]
+  setTag(global.JSON, 'JSON', 1);
 }(isFinite);
