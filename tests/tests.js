@@ -790,6 +790,87 @@
     ok(foo.q === 1);
     ok(foo.w === 2);
   });
+  test('Dict.keys', function(){
+    var iter;
+    ok(typeof Dict.keys === 'function', 'Is function');
+    iter = Dict.keys({
+      a: 'q',
+      s: 'w',
+      d: 'e'
+    });
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'a',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 's',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'd',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Dict.values', function(){
+    var iter;
+    ok(typeof Dict.values === 'function', 'Is function');
+    iter = Dict.values({
+      a: 'q',
+      s: 'w',
+      d: 'e'
+    });
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Dict.entries', function(){
+    var iter;
+    ok(typeof Dict.entries === 'function', 'Is function');
+    iter = Dict.entries({
+      a: 'q',
+      s: 'w',
+      d: 'e'
+    });
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: ['a', 'q'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['s', 'w'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['d', 'e'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
   test('Dict.every', function(){
     var every, obj, ctx;
     every = Dict.every;
@@ -2337,7 +2418,305 @@
 }).call(this);
 
 (function(){
-
+  test('String::@@iterator', function(){
+    var iter;
+    ok(typeof String.prototype[Symbol.iterator] === 'function', 'Is function');
+    iter = 'qwe'[Symbol.iterator]();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Array::keys', function(){
+    var iter;
+    ok(typeof Array.prototype.keys === 'function', 'Is function');
+    iter = ['q', 'w', 'e'].keys();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 0,
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 1,
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 2,
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Array::values', function(){
+    var iter;
+    ok(typeof Array.prototype.values === 'function', 'Is function');
+    iter = ['q', 'w', 'e'].values();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Array::entries', function(){
+    var iter;
+    ok(typeof Array.prototype.entries === 'function', 'Is function');
+    iter = ['q', 'w', 'e'].entries();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: [0, 'q'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: [1, 'w'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: [2, 'e'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Array::@@iterator', function(){
+    var iter;
+    ok(typeof Array.prototype[Symbol.iterator] === 'function', 'Is function');
+    iter = ['q', 'w', 'e'][Symbol.iterator]();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Map::keys', function(){
+    var iter;
+    ok(typeof Map.prototype.keys === 'function', 'Is function');
+    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'a',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 's',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'd',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Map::values', function(){
+    var iter;
+    ok(typeof Map.prototype.values === 'function', 'Is function');
+    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Map::entries', function(){
+    var iter;
+    ok(typeof Map.prototype.entries === 'function', 'Is function');
+    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: ['a', 'q'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['s', 'w'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['d', 'e'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Map::@@iterator', function(){
+    var iter;
+    ok(typeof Map.prototype[Symbol.iterator] === 'function', 'Is function');
+    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[Symbol.iterator]();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: ['a', 'q'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['s', 'w'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['d', 'e'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Set::keys', function(){
+    var iter;
+    ok(typeof Set.prototype.keys === 'function', 'Is function');
+    iter = new Set(['q', 'w', 'e']).keys();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Set::values', function(){
+    var iter;
+    ok(typeof Set.prototype.values === 'function', 'Is function');
+    iter = new Set(['q', 'w', 'e']).values();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Set::entries', function(){
+    var iter;
+    ok(typeof Set.prototype.entries === 'function', 'Is function');
+    iter = new Set(['q', 'w', 'e']).entries();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: ['q', 'q'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['w', 'w'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: ['e', 'e'],
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
+  test('Set::@@iterator', function(){
+    var iter;
+    ok(typeof Set.prototype[Symbol.iterator] === 'function', 'Is function');
+    iter = new Set(['q', 'w', 'e'])[Symbol.iterator]();
+    ok(typeof iter === 'object', 'Iterator is object');
+    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    deepEqual(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
 }).call(this);
 
 (function(){

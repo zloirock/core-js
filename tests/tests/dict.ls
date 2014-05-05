@@ -6,6 +6,33 @@ test 'Dict' !->
   ok foo.toString is void
   ok foo.q is 1
   ok foo.w is 2
+test 'Dict.keys' !->
+  ok typeof Dict.keys is \function, 'Is function'
+  iter = Dict.keys {a: \q, s: \w, d: \e}
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: \a, done: no}
+  deepEqual iter.next!, {value: \s, done: no}
+  deepEqual iter.next!, {value: \d, done: no}
+  deepEqual iter.next!, {value: void, done: on}
+test 'Dict.values' !->
+  ok typeof Dict.values is \function, 'Is function'
+  iter = Dict.values {a: \q, s: \w, d: \e}
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: \q, done: no}
+  deepEqual iter.next!, {value: \w, done: no}
+  deepEqual iter.next!, {value: \e, done: no}
+  deepEqual iter.next!, {value: void, done: on}
+test 'Dict.entries' !->
+  ok typeof Dict.entries is \function, 'Is function'
+  iter = Dict.entries {a: \q, s: \w, d: \e}
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: [\a \q], done: no}
+  deepEqual iter.next!, {value: [\s \w], done: no}
+  deepEqual iter.next!, {value: [\d \e], done: no}
+  deepEqual iter.next!, {value: void, done: on}
 test 'Dict.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'

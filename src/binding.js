@@ -19,13 +19,13 @@
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
     /**
-           * Partial apply.
-           * Alternatives:
-           * http://sugarjs.com/api/Function/fill
-           * http://underscorejs.org/#partial
-           * http://mootools.net/docs/core/Types/Function#Function:pass
-           * http://fitzgen.github.io/wu.js/#wu-partial
-           */
+     * Partial apply.
+     * Alternatives:
+     * http://sugarjs.com/api/Function/fill
+     * http://underscorejs.org/#partial
+     * http://mootools.net/docs/core/Types/Function#Function:pass
+     * http://fitzgen.github.io/wu.js/#wu-partial
+     */
     part: part,
     by: function(that){
       var fn          = this
@@ -39,10 +39,10 @@
       return createPartialApplication(fn, args, length, placeholder, true, that);
     },
     /**
-           * fn(a, b, c, ...) -> a.fn(b, c, ...)
-           * Alternatives:
-           * http://api.prototypejs.org/language/Function/prototype/methodize/
-           */
+     * fn(a, b, c, ...) -> a.fn(b, c, ...)
+     * Alternatives:
+     * http://api.prototypejs.org/language/Function/prototype/methodize/
+     */
     methodize: methodize
   }, $tie));
   $define(PROTO, ARRAY, $tie);
