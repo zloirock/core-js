@@ -43,7 +43,15 @@
      * Alternatives:
      * http://api.prototypejs.org/language/Function/prototype/methodize/
      */
-    methodize: methodize
+    methodize: function(){
+      var fn = this;
+      return function(/*...args*/){
+        var args = [this]
+          , i    = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        return apply.call(fn, undefined, args);
+      }
+    }
   }, $tie));
   $define(PROTO, ARRAY, $tie);
   $define(PROTO, REGEXP, $tie);

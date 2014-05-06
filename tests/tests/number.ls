@@ -34,10 +34,7 @@ test 'Number::{Math}' !->
         acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign
         sinh tanh trunc randomInt]>
     ok isFunction(Number::[..]), "Number::#{..} is function"
+  ok 1.min! is 1, 'context is argument of Number::{Math}'
   ok 3.max(2) is 3, 'context is argument of Number::{Math}'
   ok 3.min(2) is 2, 'Number::{Math} works with first argument'
   ok 1.max(2 3 4 5 6 7) is 7, 'Number::{Math} works with various arguments length'
-test 'Number::randomInt' !->
-  ok 100.times(-> 10.randomInt!)every (in [to 10])
-  ok 100.times(-> 10.randomInt 7)every (in [7 to 10])
-  ok 100.times(-> 7.randomInt 10)every (in [7 to 10])

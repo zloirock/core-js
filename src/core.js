@@ -116,19 +116,6 @@ function unbind(that){
     return call.apply(that, arguments);
   }
 }
-// add `this` as first argument
-// fn(foo, arg1, arg2, ...) => foo.fn(arg1, arg2, ...)
-function methodize(){
-  var fn = this;
-  return function(/*...args*/){
-    var length = arguments.length
-      , args   = Array(length + 1)
-      , i      = 0;
-    args[0] = this;
-    while(length > i)args[i + 1] = arguments[i++];
-    return apply.call(fn, undefined, args);
-  }
-}
 
 // Object:
 var _hasOwn = $Object.hasOwnProperty;

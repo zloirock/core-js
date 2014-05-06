@@ -51,7 +51,7 @@
   slice = Array.prototype.slice;
   test('Array static are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'at', 'transform']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'at', 'transform', 'contains']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -454,79 +454,130 @@
     })) === -1);
   });
   test('Array.keys', function(){
-    var keys, iter;
+    var keys, iter1, iter2;
     keys = Array.keys;
     ok(typeof keys === 'function', 'Is function');
-    iter = keys(function(){
+    iter1 = keys(function(){
       return arguments;
     }('q', 'w', 'e'));
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
-    deepEqual(iter.next(), {
+    ok(typeof iter1 === 'object', 'Iterator is object');
+    ok(typeof iter1.next === 'function', 'Iterator has .next method');
+    deepEqual(iter1.next(), {
       value: 0,
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: 1,
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: 2,
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
+      value: void 8,
+      done: true
+    });
+    iter2 = keys('qwe');
+    deepEqual(iter2.next(), {
+      value: 0,
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: 1,
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: 2,
+      done: false
+    });
+    deepEqual(iter2.next(), {
       value: void 8,
       done: true
     });
   });
   test('Array.values', function(){
-    var values, iter;
+    var values, iter1, iter2;
     values = Array.values;
     ok(typeof values === 'function', 'Is function');
-    iter = values(function(){
+    iter1 = values(function(){
       return arguments;
     }('q', 'w', 'e'));
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
-    deepEqual(iter.next(), {
+    ok(typeof iter1 === 'object', 'Iterator is object');
+    ok(typeof iter1.next === 'function', 'Iterator has .next method');
+    deepEqual(iter1.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
+      value: void 8,
+      done: true
+    });
+    iter2 = values('qwe');
+    deepEqual(iter2.next(), {
+      value: 'q',
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: 'w',
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: 'e',
+      done: false
+    });
+    deepEqual(iter2.next(), {
       value: void 8,
       done: true
     });
   });
   test('Array.entries', function(){
-    var entries, iter;
+    var entries, iter1, iter2;
     entries = Array.entries;
     ok(typeof entries === 'function', 'Is function');
-    iter = entries(function(){
+    iter1 = entries(function(){
       return arguments;
     }('q', 'w', 'e'));
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
-    deepEqual(iter.next(), {
+    ok(typeof iter1 === 'object', 'Iterator is object');
+    ok(typeof iter1.next === 'function', 'Iterator has .next method');
+    deepEqual(iter1.next(), {
       value: [0, 'q'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: [1, 'w'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
       value: [2, 'e'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deepEqual(iter1.next(), {
+      value: void 8,
+      done: true
+    });
+    iter2 = entries('qwe');
+    deepEqual(iter2.next(), {
+      value: [0, 'q'],
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: [1, 'w'],
+      done: false
+    });
+    deepEqual(iter2.next(), {
+      value: [2, 'e'],
+      done: false
+    });
+    deepEqual(iter2.next(), {
       value: void 8,
       done: true
     });
@@ -552,6 +603,12 @@
     ok(at(function(){
       return arguments;
     }(1, 2, 3), -4) === void 8);
+    ok(at('qwe', 0) === 'q');
+    ok(at('qwe', 2) === 'e');
+    ok(at('qwe', 3) === void 8);
+    ok(at('qwe', -1) === 'e');
+    ok(at('qwe', -3) === 'q');
+    ok(at('qwe', -4) === void 8);
   });
   test('Array.transform', function(){
     var transform, al, obj;
@@ -1250,6 +1307,25 @@
       2: 2,
       3: 3
     }));
+  });
+  test('Dict.contains', function(){
+    var contains, dict, o;
+    contains = Dict.contains;
+    ok(isFunction(contains), 'Is function');
+    dict = {
+      q: 1,
+      w: NaN,
+      e: -0,
+      r: o = {}
+    };
+    ok(contains(dict, 1));
+    ok(contains(dict, -0));
+    ok(contains(dict, 0));
+    ok(contains(dict, NaN));
+    ok(contains(dict, o));
+    ok(!contains(dict, 4));
+    ok(!contains(dict, -0.5));
+    ok(!contains(dict, {}));
   });
   test('Dict.has', function(){
     var has;
@@ -2820,6 +2896,33 @@
       done: true
     });
   });
+  test('C.forOf', function(){
+    var forOf, set, counter1, string1, counter2, string2, o;
+    forOf = C.forOf;
+    ok(typeof forOf === 'function', 'Is function');
+    set = new Set([1, 2, 3, 2, 1]);
+    counter1 = 0;
+    string1 = '';
+    forOf(set, function(it){
+      counter1++;
+      string1 += it;
+    });
+    ok(counter1 === 3);
+    ok(string1 === '123');
+    counter2 = 0;
+    string2 = '';
+    forOf(set.entries(), function(it){
+      counter2++;
+      string2 += '' + it[0] + it[1];
+    });
+    ok(counter2 === 3);
+    ok(string2 === '112233');
+    forOf([1].entries(), function(key, val){
+      ok(this === o);
+      ok(key === 0);
+      return ok(val === 1);
+    }, o = {}, true);
+  });
 }).call(this);
 
 (function(){
@@ -3074,26 +3177,10 @@
       x$ = ref$[i$];
       ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function");
     }
+    ok(1 .min() === 1, 'context is argument of Number::{Math}');
     ok(3 .max(2) === 3, 'context is argument of Number::{Math}');
     ok(3 .min(2) === 2, 'Number::{Math} works with first argument');
     ok(1 .max(2, 3, 4, 5, 6, 7) === 7, 'Number::{Math} works with various arguments length');
-  });
-  test('Number::randomInt', function(){
-    ok(100 .times(function(){
-      return 10 .randomInt();
-    }).every((function(it){
-      return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return 10 .randomInt(7);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return 7 .randomInt(10);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
   });
 }).call(this);
 

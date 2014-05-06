@@ -167,6 +167,18 @@ test 'Dict.transform' !->
     ok it   is obj
   , obj = {}
   deepEqual transform({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
+test 'Dict.contains' !->
+  {contains} = Dict
+  ok isFunction(contains), 'Is function'
+  dict = {q:1, w: NaN, e: -0, r: o = {}}
+  ok contains dict, 1
+  ok contains dict, -0
+  ok contains dict, 0
+  ok contains dict, NaN
+  ok contains dict, o
+  ok !contains dict, 4
+  ok !contains dict, -0.5
+  ok !contains dict, {}
 test 'Dict.has' !->
   {has} = Dict
   ok isFunction(has), 'Is function'

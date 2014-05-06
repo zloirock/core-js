@@ -1,7 +1,7 @@
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'Array static are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at transform]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries at transform contains]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
@@ -188,33 +188,48 @@ test 'Array.findIndex' !->
 test 'Array.keys' !->
   {keys} = Array
   ok typeof keys is \function, 'Is function'
-  iter = keys (->&)(\q \w \e)
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: 0, done: no}
-  deepEqual iter.next!, {value: 1, done: no}
-  deepEqual iter.next!, {value: 2, done: no}
-  deepEqual iter.next!, {value: void, done: on}
+  iter1 = keys (->&)(\q \w \e)
+  ok typeof iter1 is \object, 'Iterator is object'
+  ok typeof iter1.next is \function, 'Iterator has .next method'
+  deepEqual iter1.next!, {value: 0, done: no}
+  deepEqual iter1.next!, {value: 1, done: no}
+  deepEqual iter1.next!, {value: 2, done: no}
+  deepEqual iter1.next!, {value: void, done: on}
+  iter2 = keys \qwe
+  deepEqual iter2.next!, {value: 0, done: no}
+  deepEqual iter2.next!, {value: 1, done: no}
+  deepEqual iter2.next!, {value: 2, done: no}
+  deepEqual iter2.next!, {value: void, done: on}
 test 'Array.values' !->
   {values} = Array
   ok typeof values is \function, 'Is function'
-  iter = values (->&)(\q \w \e)
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: \q, done: no}
-  deepEqual iter.next!, {value: \w, done: no}
-  deepEqual iter.next!, {value: \e, done: no}
-  deepEqual iter.next!, {value: void, done: on}
+  iter1 = values (->&)(\q \w \e)
+  ok typeof iter1 is \object, 'Iterator is object'
+  ok typeof iter1.next is \function, 'Iterator has .next method'
+  deepEqual iter1.next!, {value: \q, done: no}
+  deepEqual iter1.next!, {value: \w, done: no}
+  deepEqual iter1.next!, {value: \e, done: no}
+  deepEqual iter1.next!, {value: void, done: on}
+  iter2 = values \qwe
+  deepEqual iter2.next!, {value: \q, done: no}
+  deepEqual iter2.next!, {value: \w, done: no}
+  deepEqual iter2.next!, {value: \e, done: no}
+  deepEqual iter2.next!, {value: void, done: on}
 test 'Array.entries' !->
   {entries} = Array
   ok typeof entries is \function, 'Is function'
-  iter = entries (->&)(\q \w \e)
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: [0 \q], done: no}
-  deepEqual iter.next!, {value: [1 \w], done: no}
-  deepEqual iter.next!, {value: [2 \e], done: no}
-  deepEqual iter.next!, {value: void, done: on}
+  iter1 = entries (->&)(\q \w \e)
+  ok typeof iter1 is \object, 'Iterator is object'
+  ok typeof iter1.next is \function, 'Iterator has .next method'
+  deepEqual iter1.next!, {value: [0 \q], done: no}
+  deepEqual iter1.next!, {value: [1 \w], done: no}
+  deepEqual iter1.next!, {value: [2 \e], done: no}
+  deepEqual iter1.next!, {value: void, done: on}
+  iter2 = entries \qwe
+  deepEqual iter2.next!, {value: [0 \q], done: no}
+  deepEqual iter2.next!, {value: [1 \w], done: no}
+  deepEqual iter2.next!, {value: [2 \e], done: no}
+  deepEqual iter2.next!, {value: void, done: on}
 test 'Array.at' !->
   {at} = Array
   ok at((->&)(1 2 3), 0)  is 1
@@ -223,6 +238,12 @@ test 'Array.at' !->
   ok at((->&)(1 2 3), -1) is 3
   ok at((->&)(1 2 3), -3) is 1
   ok at((->&)(1 2 3), -4) is void
+  ok at(\qwe 0)  is \q
+  ok at(\qwe 2)  is \e
+  ok at(\qwe 3)  is void
+  ok at(\qwe -1) is \e
+  ok at(\qwe -3) is \q
+  ok at(\qwe -4) is void
 test 'Array.transform' !->
   {transform} = Array
   transform (al = (->&)(1)), (memo, val, key, that)->

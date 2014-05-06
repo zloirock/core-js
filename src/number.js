@@ -59,6 +59,14 @@ $define(PROTO, NUMBER, transform.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = methodize.call(Math[key]);
+    if(key in Math)memo[key] = (function(fn){
+      return function(/*...args*/){
+        // ie8- convert `this` to object -> convert it to number
+        var args = [+this]
+          , i    = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        return fn.apply(undefined, args);
+      }
+    })(Math[key])
   }, {}
 ));

@@ -21,6 +21,14 @@
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
+  function keyOf(object, searchElement){
+    var O      = ES5Object(object)
+      , props  = keys(O)
+      , length = props.length
+      , i      = 0
+      , key;
+    while(length > i)if(same0(O[key = props[i++]], searchElement))return key;
+  }
   assign(Dict, objectIterators, {
     /**
      * Object enumumerabe
@@ -71,14 +79,7 @@
       while(length > i)fn.call(that, O[key = props[i++]], key, object);
       return object;
     },
-    keyOf: function(object, searchElement){
-      var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
-        , i      = 0
-        , key;
-      while(length > i)if(same(O[key = props[i++]], searchElement))return key;
-    },
+    keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -132,6 +133,9 @@
         if(mapfn(target, O[key = props[i++]], key, object) === false)break;
       }
       return target;
+    },
+    contains: function(object, value){
+      return keyOf(object, value) !== undefined;
     },
     // Has / get own property
     has: has,

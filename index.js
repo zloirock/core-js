@@ -128,19 +128,6 @@ function unbind(that){
     return call.apply(that, arguments);
   }
 }
-// add `this` as first argument
-// fn(foo, arg1, arg2, ...) => foo.fn(arg1, arg2, ...)
-function methodize(){
-  var fn = this;
-  return function(/*...args*/){
-    var length = arguments.length
-      , args   = Array(length + 1)
-      , i      = 0;
-    args[0] = this;
-    while(length > i)args[i + 1] = arguments[i++];
-    return apply.call(fn, undefined, args);
-  }
-}
 
 // Object:
 var _hasOwn = $Object.hasOwnProperty;
@@ -1306,6 +1293,14 @@ $defineTimer('clearImmediate', clearImmediate);
       if(fn.call(that, O[key = props[i++]], key, object))return key;
     }
   }
+  function keyOf(object, searchElement){
+    var O      = ES5Object(object)
+      , props  = keys(O)
+      , length = props.length
+      , i      = 0
+      , key;
+    while(length > i)if(same0(O[key = props[i++]], searchElement))return key;
+  }
   assign(Dict, objectIterators, {
     /**
      * Object enumumerabe
@@ -1356,14 +1351,7 @@ $defineTimer('clearImmediate', clearImmediate);
       while(length > i)fn.call(that, O[key = props[i++]], key, object);
       return object;
     },
-    keyOf: function(object, searchElement){
-      var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
-        , i      = 0
-        , key;
-      while(length > i)if(same(O[key = props[i++]], searchElement))return key;
-    },
+    keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -1417,6 +1405,9 @@ $defineTimer('clearImmediate', clearImmediate);
         if(mapfn(target, O[key = props[i++]], key, object) === false)break;
       }
       return target;
+    },
+    contains: function(object, value){
+      return keyOf(object, value) !== undefined;
     },
     // Has / get own property
     has: has,
@@ -1538,7 +1529,15 @@ $define(PROTO, FUNCTION, {
      * Alternatives:
      * http://api.prototypejs.org/language/Function/prototype/methodize/
      */
-    methodize: methodize
+    methodize: function(){
+      var fn = this;
+      return function(/*...args*/){
+        var args = [this]
+          , i    = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        return apply.call(fn, undefined, args);
+      }
+    }
   }, $tie));
   $define(PROTO, ARRAY, $tie);
   $define(PROTO, REGEXP, $tie);
@@ -1749,7 +1748,15 @@ $define(PROTO, NUMBER, transform.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = methodize.call(Math[key]);
+    if(key in Math)memo[key] = (function(fn){
+      return function(/*...args*/){
+        // ie8- convert `this` to object -> convert it to number
+        var args = [+this]
+          , i    = 0;
+        while(arguments.length > i)args.push(arguments[i++]);
+        return fn.apply(undefined, args);
+      }
+    })(Math[key])
   }, {}
 ));
 
