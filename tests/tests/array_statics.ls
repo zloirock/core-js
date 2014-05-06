@@ -1,4 +1,5 @@
 isFunction = -> typeof! it is \Function
+{slice} = Array::
 test 'Array static are functions' !->
   for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex at transform]>
     ok isFunction(Array[..]), "Array.#{..} is function"
@@ -14,12 +15,7 @@ test 'Array.push' !->
   {push} = Array
   push args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
-  ok args.length is 5
-  ok args.0 is 1
-  ok args.1 is 2
-  ok args.2 is 3
-  ok args.3 is 4
-  ok args.4 is 5
+  deepEqual slice.call(args), [1 2 3 4 5]
 test 'Array.reverse' !->
   {reverse} = Array
   deepEqual reverse((-> &)(1 2 3)), (-> &)(3 2 1)
@@ -31,12 +27,7 @@ test 'Array.unshift' !->
   {unshift} = Array
   unshift args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
-  ok args.length is 5
-  ok args.0 is 4
-  ok args.1 is 5
-  ok args.2 is 1
-  ok args.3 is 2
-  ok args.4 is 3
+  deepEqual slice.call(args), [4 5 1 2 3]
 test 'Array.slice' !->
   {slice} = Array
   deepEqual slice(\123), <[1 2 3]>
@@ -51,23 +42,11 @@ test 'Array.splice' !->
   {splice} = Array
   splice args = (-> &)(1 2 3), 1 0 4 5
   # don't enum arguments props in ie 8-
-  ok args.length is 5
-  ok args.0 is 1
-  ok args.1 is 4
-  ok args.2 is 5
-  ok args.3 is 2
-  ok args.4 is 3
+  deepEqual slice.call(args), [1 4 5 2 3]
   splice args = (-> &)(1 2 3), 1 1 4
-  # don't enum arguments props in ie 8-
-  ok args.length is 3
-  ok args.0 is 1
-  ok args.1 is 4
-  ok args.2 is 3
+  deepEqual slice.call(args), [1 4 3]
   splice args = (-> &)(1 2 3), 1 1
-  # don't enum arguments props in ie 8-
-  ok args.length is 2
-  ok args.0 is 1
-  ok args.1 is 3
+  deepEqual slice.call(args), [1 3]
 test 'Array.sort' !->
   {sort} = Array
   deepEqual sort((-> &)(2 1 3)), (-> &)(1 2 3)
@@ -206,6 +185,36 @@ test 'Array.findIndex' !->
   ok findIndex((->&)(1 3 NaN, 42 {}), (is 42)) is 3
   ok findIndex(\123 (is \2)) is 1
   ok findIndex(\123 (is \4)) is -1
+test 'Array.keys' !->
+  {keys} = Array
+  ok typeof keys is \function, 'Is function'
+  iter = keys (->&)(\q \w \e)
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: 0, done: no}
+  deepEqual iter.next!, {value: 1, done: no}
+  deepEqual iter.next!, {value: 2, done: no}
+  deepEqual iter.next!, {value: void, done: on}
+test 'Array.values' !->
+  {values} = Array
+  ok typeof values is \function, 'Is function'
+  iter = values (->&)(\q \w \e)
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: \q, done: no}
+  deepEqual iter.next!, {value: \w, done: no}
+  deepEqual iter.next!, {value: \e, done: no}
+  deepEqual iter.next!, {value: void, done: on}
+test 'Array.entries' !->
+  {entries} = Array
+  ok typeof entries is \function, 'Is function'
+  iter = entries (->&)(\q \w \e)
+  ok typeof iter is \object, 'Iterator is object'
+  ok typeof iter.next is \function, 'Iterator has .next method'
+  deepEqual iter.next!, {value: [0 \q], done: no}
+  deepEqual iter.next!, {value: [1 \w], done: no}
+  deepEqual iter.next!, {value: [2 \e], done: no}
+  deepEqual iter.next!, {value: void, done: on}
 test 'Array.at' !->
   {at} = Array
   ok at((->&)(1 2 3), 0)  is 1
@@ -231,3 +240,18 @@ test 'Array.transform' !->
   , obj = {}
   deepEqual [3 2 1], transform (->&)(1 2 3), ((memo, it)-> memo.unshift it)
   deepEqual [\3 \2 \1], transform \123, ((memo, it)-> memo.unshift it)
+test 'Array.contains' !->
+  {contains} = Array
+  ok isFunction(contains), 'Is function'
+  args = (->&)(1 2 3 -0 NaN, o = {})
+  ok contains args, 1
+  ok contains args, -0
+  ok contains args, 0
+  ok contains args, NaN
+  ok contains args, o
+  ok !contains args, 4
+  ok !contains args, -0.5
+  ok !contains args, {}
+  str = \qwe
+  ok contains str, \q
+  ok !contains str, \r

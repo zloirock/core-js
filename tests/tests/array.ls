@@ -18,3 +18,14 @@ test 'Array::transform' !->
     ok memo is obj, 'Can reduce to exist object'
   , obj = {}
   deepEqual [3 2 1] [1 2 3]transform((memo, it)-> memo.unshift it), 'Reduce to object and return it'
+test 'Array::contains' !->
+  ok isFunction(Array::contains), 'Is function'
+  arr = [1 2 3 -0 NaN, o = {}]
+  ok arr.contains 1
+  ok arr.contains -0
+  ok arr.contains 0
+  ok arr.contains NaN
+  ok arr.contains o
+  ok !arr.contains 4
+  ok !arr.contains -0.5
+  ok !arr.contains {}

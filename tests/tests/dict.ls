@@ -1,11 +1,20 @@
 isFunction = -> typeof! it is \Function
+{keys} = Object
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
-  foo = Dict q:1 w:2
-  ok Object.getPrototypeOf(foo) is null
-  ok foo.toString is void
-  ok foo.q is 1
-  ok foo.w is 2
+  dict1 = Dict!
+  ok Object.getPrototypeOf(dict1) is null
+  deepEqual keys(dict1), []
+  dict2 = Dict q:1 w:2
+  ok Object.getPrototypeOf(dict2) is null
+  deepEqual keys(dict2), [\q, \w]
+  ok dict2.q is 1
+  ok dict2.w is 2
+  dict3 = Dict new Set([1 2])entries!
+  ok Object.getPrototypeOf(dict3) is null
+  deepEqual keys(dict3), [\1, \2]
+  ok dict3.1 is 1
+  ok dict3.2 is 2
 test 'Dict.keys' !->
   ok typeof Dict.keys is \function, 'Is function'
   iter = Dict.keys {a: \q, s: \w, d: \e}
@@ -15,6 +24,7 @@ test 'Dict.keys' !->
   deepEqual iter.next!, {value: \s, done: no}
   deepEqual iter.next!, {value: \d, done: no}
   deepEqual iter.next!, {value: void, done: on}
+  ok iter[Symbol.toStringTag] is 'Object Iterator'
 test 'Dict.values' !->
   ok typeof Dict.values is \function, 'Is function'
   iter = Dict.values {a: \q, s: \w, d: \e}
@@ -24,6 +34,7 @@ test 'Dict.values' !->
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
+  ok iter[Symbol.toStringTag] is 'Object Iterator'
 test 'Dict.entries' !->
   ok typeof Dict.entries is \function, 'Is function'
   iter = Dict.entries {a: \q, s: \w, d: \e}
@@ -33,6 +44,7 @@ test 'Dict.entries' !->
   deepEqual iter.next!, {value: [\s \w], done: no}
   deepEqual iter.next!, {value: [\d \e], done: no}
   deepEqual iter.next!, {value: void, done: on}
+  ok iter[Symbol.toStringTag] is 'Object Iterator'
 test 'Dict.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'
