@@ -663,12 +663,28 @@
 }).call(this);
 
 (function(){
-  var isFunction, toString$ = {}.toString;
+  var isFunction, slice, toString$ = {}.toString;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
+  slice = Array.prototype.slice;
   test('Function::by', function(){
+    var $, array, push, foo, bar;
+    $ = _;
     ok(isFunction(Function.prototype.by), 'Is function');
+    array = [1, 2, 3];
+    push = array.push.by(array);
+    ok(isFunction(push));
+    ok(push(4) === 4);
+    deepEqual(array, [1, 2, 3, 4]);
+    foo = {
+      bar: function(a, b, c, d){
+        ok(this === foo);
+        return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
+      }
+    };
+    bar = foo.bar.by(foo, 1, $, 3);
+    bar(2, 4);
   });
   test('Function::part', function(){
     var obj, $, fn, part;
@@ -693,24 +709,55 @@
     ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
     ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
-  test('::tie', function(){
-    ok(isFunction(Function.prototype.tie), 'Function::tie is function');
-    ok(isFunction(Array.prototype.tie), 'Array::tie is function');
-    ok(isFunction(RegExp.prototype.tie), 'RegExp::tie is function');
-    ok(!('tie' in Object.prototype), 'tie not in Object:: before useTie call');
-    C.useTie();
-    ok(isFunction(Object.prototype.tie), 'Object::tie is function');
-    delete Object.prototype.tie;
-  });
   test('Object.tie', function(){
-    var tie, array, push;
+    var tie, $, array, push, foo, bar;
     tie = Object.tie;
+    $ = _;
     ok(isFunction(tie), 'Is function');
     array = [1, 2, 3];
     push = tie(array, 'push');
     ok(isFunction(push));
     ok(push(4) === 4);
-    return deepEqual(array, [1, 2, 3, 4]);
+    deepEqual(array, [1, 2, 3, 4]);
+    foo = {
+      bar: function(a, b, c, d){
+        ok(this === foo);
+        return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
+      }
+    };
+    bar = tie(foo, 'bar', 1, $, 3);
+    return bar(2, 4);
+  });
+  test('::tie', function(){
+    var $, fn, ctx, array, push, foo, bar;
+    $ = _;
+    ok(isFunction(Function.prototype.tie), 'Function::tie is function');
+    fn = function(a, b, c, d){
+      ok(this === ctx);
+      return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
+    }.tie('call', ctx = {}, 1, $, 3);
+    fn(2, 4);
+    ok(isFunction(Array.prototype.tie), 'Array::tie is function');
+    array = [1, 2, 3];
+    push = array.tie('push', 4, $, 6);
+    ok(isFunction(push));
+    push(5, 7);
+    deepEqual(array, [1, 2, 3, 4, 5, 6, 7]);
+    ok(isFunction(RegExp.prototype.tie), 'RegExp::tie is function');
+    ok([1, 2].every(/\d/.tie('test')));
+    ok(![1, 'q'].every(/\d/.tie('test')));
+    ok(!('tie' in Object.prototype), 'tie not in Object:: before useTie call');
+    C.useTie();
+    ok(isFunction(Object.prototype.tie), 'Object::tie is function');
+    foo = {
+      bar: function(a, b, c, d){
+        ok(this === foo);
+        return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
+      }
+    };
+    bar = foo.tie('bar', 1, $, 3);
+    bar(2, 4);
+    delete Object.prototype.tie;
   });
   test('Function::methodize', function(){
     var num;
@@ -2281,6 +2328,8 @@
     ok('has' in Map.prototype, 'has in Map.prototype');
     ok('set' in Map.prototype, 'set in Map.prototype');
     ok(new Map instanceof Map, 'new Map instanceof Map');
+    ok(new Map([1, 2, 3].entries()).size === 3, 'Init from iterator #1');
+    ok(new Map(new Map([1, 2, 3].entries())).size === 3, 'Init from iterator #2');
   });
   test('Map::clear', function(){
     var M;
@@ -2390,7 +2439,8 @@
     ok('forEach' in Set.prototype, 'forEach in Set.prototype');
     ok('has' in Set.prototype, 'has in Set.prototype');
     ok(new Set instanceof Set, 'new Set instanceof Set');
-    ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from array');
+    ok(new Set([1, 2, 3, 2, 1].values()).size === 3, 'Init from iterator #1');
+    ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from iterator #2');
     S = new Set([1, 2, 3, 2, 1]);
     ok(S.size === 3);
     r = {};
@@ -2403,6 +2453,7 @@
       3: 3
     });
     ok(new Set([NaN, NaN, NaN]).size === 1);
+    deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   });
   test('Set::add', function(){
     var a, S, chain;
@@ -2486,6 +2537,7 @@
     }
   });
   test('WeakMap', function(){
+    var a, b;
     ok(isFunction(that.WeakMap), 'Is function');
     ok('clear' in WeakMap.prototype, 'clear in WeakMap.prototype');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
@@ -2493,6 +2545,8 @@
     ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
     ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
     ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
+    ok(new WeakMap([[a = {}, b = {}]].values()).get(a) === b, 'Init WeakMap from iterator #1');
+    ok(new WeakMap(new Map([[a = {}, b = {}]])).get(a) === b, 'Init WeakMap from iterator #2');
   });
   test('WeakMap::clear', function(){
     var M, a, b;
@@ -2552,7 +2606,8 @@
     ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
     ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
     ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
-    ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from array');
+    ok(new WeakSet([a = {}].values()).has(a), 'Init WeakSet from iterator #1');
+    ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2');
   });
   test('WeakSet::add', function(){
     var a, e;
@@ -3317,6 +3372,46 @@
       define(foo, foo2);
       ok(foo.w === 2);
     }
+  });
+  test('Object.values', function(){
+    var values, make;
+    values = Object.values, make = Object.make;
+    ok(isFunction(values), 'Is function');
+    deepEqual(values({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [1, 2, 3]);
+    deepEqual(values(new String('qwe')), ['q', 'w', 'e']);
+    deepEqual(values(make({
+      q: 1,
+      w: 2,
+      e: 3
+    }, {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [4, 5, 6]);
+  });
+  test('Object.entries', function(){
+    var entries, make;
+    entries = Object.entries, make = Object.make;
+    ok(isFunction(entries), 'Is function');
+    deepEqual(entries({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [['q', 1], ['w', 2], ['e', 3]]);
+    deepEqual(entries(new String('qwe')), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
+    deepEqual(entries(make({
+      q: 1,
+      w: 2,
+      e: 3
+    }, {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [['a', 4], ['s', 5], ['d', 6]]);
   });
   test('Object.isObject', function(){
     var isObject;

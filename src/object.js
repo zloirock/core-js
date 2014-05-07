@@ -29,7 +29,7 @@ $define(STATIC, OBJECT, {
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   values: function(object){
-    var O      = Object(object)
+    var O      = ES5Object(object)
       , names  = keys(object)
       , length = names.length
       , i      = 0
@@ -39,7 +39,7 @@ $define(STATIC, OBJECT, {
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   entries: function(object){
-    var O      = Object(object)
+    var O      = ES5Object(object)
       , names  = keys(object)
       , length = names.length
       , i      = 0

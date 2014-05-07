@@ -33,7 +33,6 @@ var OBJECT         = 'Object'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
-  , console        = global.console || {}
   , process        = global[PROCESS]
   , document       = global.document
   , Infinity       = 1 / 0

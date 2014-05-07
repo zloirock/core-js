@@ -45,7 +45,6 @@ var OBJECT         = 'Object'
   , setInterval    = global.setInterval
   , setImmediate   = global.setImmediate
   , clearImmediate = global.clearImmediate
-  , console        = global.console || {}
   , process        = global[PROCESS]
   , document       = global.document
   , Infinity       = 1 / 0
@@ -1898,7 +1897,7 @@ $define(STATIC, OBJECT, {
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   values: function(object){
-    var O      = Object(object)
+    var O      = ES5Object(object)
       , names  = keys(object)
       , length = names.length
       , i      = 0
@@ -1908,7 +1907,7 @@ $define(STATIC, OBJECT, {
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   entries: function(object){
-    var O      = Object(object)
+    var O      = ES5Object(object)
       , names  = keys(object)
       , length = names.length
       , i      = 0
@@ -2226,26 +2225,28 @@ $define(PROTO, NUMBER, transform.call(
  * https://github.com/paulmillr/console-polyfill
  * https://github.com/theshock/console-cap
  */
-var $console = transform.call(
-  array('assert,count,clear,debug,dir,dirxml,error,exception,' +
-    'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
-    'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
-  function(memo, key){
-    memo[key] = function(){
-      if(enabled && console[key])return apply.call(console[key], console, arguments);
-    };
-  },
-  {
-    enable: function(){
-      enabled = true;
+!function(console){
+  var $console = transform.call(
+    array('assert,count,clear,debug,dir,dirxml,error,exception,' +
+      'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
+      'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+    function(memo, key){
+      memo[key] = function(){
+        if(enabled && console[key])return apply.call(console[key], console, arguments);
+      };
     },
-    disable: function(){
-      enabled = false;
+    {
+      enable: function(){
+        enabled = true;
+      },
+      disable: function(){
+        enabled = false;
+      }
     }
-  }
-), enabled = true;
-try {
-  framework && delete global.console;
-} catch(e){}
-$define(GLOBAL, {console: $console = assign($console.log, $console)}, 1);
+  ), enabled = true;
+  try {
+    framework && delete global.console;
+  } catch(e){}
+  $define(GLOBAL, {console: assign($console.log, $console)}, 1);
+}(global.console || {});
 }(typeof window != 'undefined' ? window : global, false);

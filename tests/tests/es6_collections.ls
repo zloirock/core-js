@@ -11,6 +11,8 @@ test 'Map' !->
   ok \has     of Map::, 'has in Map.prototype'
   ok \set     of Map::, 'set in Map.prototype'
   ok new Map instanceof Map, 'new Map instanceof Map'
+  ok new Map([1 2 3]entries!).size is 3, 'Init from iterator #1'
+  ok new Map(new Map [1 2 3]entries!).size is 3, 'Init from iterator #2'
 test 'Map::clear' !->
   ok isFunction(Map::clear), 'Is function'
   M = new Map!set 1 2 .set 2 3 .set 1 4
@@ -98,13 +100,15 @@ test 'Set' !->
   ok \forEach of Set::, 'forEach in Set.prototype'
   ok \has     of Set::, 'has in Set.prototype'
   ok new Set instanceof Set, 'new Set instanceof Set'
-  ok new Set([1 2 3 2 1])size is 3, 'Init Set from array'
+  ok new Set([1 2 3 2 1]values!).size is 3, 'Init from iterator #1'
+  ok new Set([1 2 3 2 1]).size is 3, 'Init Set from iterator #2'
   S = new Set [1 2 3 2 1]
   ok S.size is 3
   r = {}
   S.forEach (v, k)-> r[k] = v
   deepEqual r, {1:1,2:2,3:3}
   ok new Set([NaN, NaN, NaN])size is 1
+  deepEqual Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
 test 'Set::add' !->
   ok isFunction(Set::add), 'Is function'
   a = []
@@ -178,6 +182,8 @@ test 'WeakMap' !->
   ok \has    of WeakMap::, 'has in WeakMap.prototype'
   ok \set    of WeakMap::, 'set in WeakMap.prototype'
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
+  ok new WeakMap([[a = {}, b = {}]].values!).get(a) is b, 'Init WeakMap from iterator #1'
+  ok new WeakMap(new Map([[a = {}, b = {}]])).get(a) is b, 'Init WeakMap from iterator #2'
 test 'WeakMap::clear' !->
   ok isFunction(WeakMap::clear), 'Is function'
   M = new WeakMap!
@@ -222,7 +228,8 @@ test 'WeakSet' !->
   ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   ok \has    of WeakSet::, 'has in WeakSet.prototype'
   ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
-  ok new WeakSet([a = {}]).has(a), 'Init WeakSet from array'
+  ok new WeakSet([a = {}].values!).has(a), 'Init WeakSet from iterator #1'
+  ok new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2'
 test 'WeakSet::add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'

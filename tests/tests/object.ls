@@ -73,6 +73,18 @@ test 'Object.define' !->
     foo2 = defineProperty {}, \w, get: -> @q + 1
     define foo, foo2
     ok foo.w is 2
+test 'Object.values' !->
+  {values, make} = Object
+  ok isFunction(values), 'Is function'
+  deepEqual values({q:1, w:2, e:3}), [1 2 3]
+  deepEqual values(new String \qwe), [\q \w \e]
+  deepEqual values(make {q:1, w:2, e:3}, {a:4, s:5, d:6}), [4 5 6]
+test 'Object.entries' !->
+  {entries, make} = Object
+  ok isFunction(entries), 'Is function'
+  deepEqual entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
+  deepEqual entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
+  deepEqual entries(make {q:1, w:2, e:3}, {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]
 test 'Object.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'
