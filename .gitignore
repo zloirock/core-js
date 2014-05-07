@@ -1,13 +1,9 @@
 node_modules/
-tmp/
 *.tmp
 *.log
 *.bak
 *.swp
 
 Thumbs.db
-ehthumbs.db
 
 Desktop.ini
-
-$RECYCLE.BIN/

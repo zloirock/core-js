@@ -1,5 +1,5 @@
 /**
- * Core.js v0.0.6
+ * Core.js v0.0.7
  * http://core.zloirock.ru
  * © 2014 Denis Pushkarev
  * Available under MIT license
