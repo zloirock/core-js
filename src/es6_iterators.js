@@ -104,18 +104,18 @@
     has(object, ITERATOR) || (object[ITERATOR] = value);
   }
   
-  isIterable = function(it){
+  C.isIterable = isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case String: case Array: case Map: case Set: return true;
       case Object: return classof(it) == ARGUMENTS;
     } return false;
   }
-  getIterator = function(it){
+  C.getIterator = getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case Object : if(classof(it) != ARGUMENTS)break;
       case String :
       case Array  : return new ArrayIterator(it, VALUE);
@@ -123,7 +123,7 @@
       case Set    : return new SetIterator(it, VALUE);
     } throw TypeError(it + ' is not iterable!');
   }
-  forOf = function(it, fn, that, entries){
+  C.forOf = forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
       if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
@@ -181,6 +181,4 @@
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-  
-  $define(GLOBAL, {forOf: forOf});
 }(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));

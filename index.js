@@ -25,6 +25,7 @@ var OBJECT         = 'Object'
   , ARGUMENTS      = 'Arguments'
   , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
+  , CONSTRUCTOR    = 'constructor'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
@@ -98,7 +99,7 @@ function part(/*...args*/){
     , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(this, args, length, placeholder, false);
+  return createPartialApplication(this, args, length, placeholder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -106,11 +107,10 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
+function createPartialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
-      , _      = path._
       , length = arguments.length
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
@@ -1184,18 +1184,18 @@ $defineTimer('clearImmediate', clearImmediate);
     has(object, ITERATOR) || (object[ITERATOR] = value);
   }
   
-  isIterable = function(it){
+  C.isIterable = isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case String: case Array: case Map: case Set: return true;
       case Object: return classof(it) == ARGUMENTS;
     } return false;
   }
-  getIterator = function(it){
+  C.getIterator = getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case Object : if(classof(it) != ARGUMENTS)break;
       case String :
       case Array  : return new ArrayIterator(it, VALUE);
@@ -1203,7 +1203,7 @@ $defineTimer('clearImmediate', clearImmediate);
       case Set    : return new SetIterator(it, VALUE);
     } throw TypeError(it + ' is not iterable!');
   }
-  forOf = function(it, fn, that, entries){
+  C.forOf = forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
       if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
@@ -1261,8 +1261,6 @@ $defineTimer('clearImmediate', clearImmediate);
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-  
-  $define(GLOBAL, {forOf: forOf});
 }(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
 
 /*****************************
@@ -1499,7 +1497,7 @@ $define(PROTO, FUNCTION, {
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(that[key], args, length, placeholder, true, that);
+    return createPartialApplication(that[key], args, length, placeholder, _, true, that);
   }
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
@@ -1521,7 +1519,7 @@ $define(PROTO, FUNCTION, {
       if(length < 2)return ctx(fn, that);
       args = Array(length - 1);
       while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-      return createPartialApplication(fn, args, length, placeholder, true, that);
+      return createPartialApplication(fn, args, length, placeholder, _, true, that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)

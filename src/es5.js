@@ -17,6 +17,7 @@
     , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hiddenNames2       = hiddenNames1.concat(['length'])
     , hiddenNames1Length = hiddenNames1.length
+    , $PROTO             = symbol(PROTOTYPE)
     // Create object with null prototype
     , createDict         = __PROTO__
       ? function(){
@@ -45,7 +46,7 @@
           var i      = 0
             , result = []
             , key;
-          for(key in O)has(O, key) && result.push(key);
+          for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~$indexOf(result, key) && result.push(key);
           return result;
@@ -89,8 +90,11 @@
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: function(O){
-      var constructor
-        , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[PROTOTYPE] : $Object);
+      if(has(O, $PROTO))return O[$PROTO];
+      var proto;
+      if('__proto__' in O)proto = O.__proto__;
+      else if(CONSTRUCTOR in O)proto = O[CONSTRUCTOR][PROTOTYPE];
+      else proto = $Object;
       return O !== proto && 'toString' in O ? proto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -103,7 +107,7 @@
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result.constructor[PROTOTYPE] === O || (result.__proto__ = O);
+      __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
@@ -118,7 +122,7 @@
       assertFunction(fn);
       function bound(/* args... */){
         var _args = args.concat($slice(arguments))
-          , result, that
+          , result, that;
         if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
         return apply.call(fn, scope, _args);
       }

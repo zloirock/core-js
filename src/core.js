@@ -13,6 +13,7 @@ var OBJECT         = 'Object'
   , ARGUMENTS      = 'Arguments'
   , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
+  , CONSTRUCTOR    = 'constructor'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
@@ -86,7 +87,7 @@ function part(/*...args*/){
     , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(this, args, length, placeholder, false);
+  return createPartialApplication(this, args, length, placeholder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -94,11 +95,10 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
+function createPartialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
-      , _      = path._
       , length = arguments.length
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);

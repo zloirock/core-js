@@ -25,6 +25,7 @@ var OBJECT         = 'Object'
   , ARGUMENTS      = 'Arguments'
   , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
+  , CONSTRUCTOR    = 'constructor'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
@@ -98,7 +99,7 @@ function part(/*...args*/){
     , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(this, args, length, placeholder, false);
+  return createPartialApplication(this, args, length, placeholder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -106,11 +107,10 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function createPartialApplication(fn, argsPart, lengthPart, placeholder, bind, context){
+function createPartialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
-      , _      = path._
       , length = arguments.length
       , i = 0, j = 0, args;
     if(!placeholder && length == 0)return fn.apply(that, argsPart);
@@ -317,6 +317,7 @@ if(!isNode || framework)global.C = Export;
     , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
     , hiddenNames2       = hiddenNames1.concat(['length'])
     , hiddenNames1Length = hiddenNames1.length
+    , $PROTO             = symbol(PROTOTYPE)
     // Create object with null prototype
     , createDict         = __PROTO__
       ? function(){
@@ -345,7 +346,7 @@ if(!isNode || framework)global.C = Export;
           var i      = 0
             , result = []
             , key;
-          for(key in O)has(O, key) && result.push(key);
+          for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~$indexOf(result, key) && result.push(key);
           return result;
@@ -389,8 +390,11 @@ if(!isNode || framework)global.C = Export;
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: function(O){
-      var constructor
-        , proto = O.__proto__ || ((constructor = O.constructor) ? constructor[PROTOTYPE] : $Object);
+      if(has(O, $PROTO))return O[$PROTO];
+      var proto;
+      if('__proto__' in O)proto = O.__proto__;
+      else if(CONSTRUCTOR in O)proto = O[CONSTRUCTOR][PROTOTYPE];
+      else proto = $Object;
       return O !== proto && 'toString' in O ? proto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -403,7 +407,7 @@ if(!isNode || framework)global.C = Export;
       var result = new Empty();
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result.constructor[PROTOTYPE] === O || (result.__proto__ = O);
+      __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
@@ -418,7 +422,7 @@ if(!isNode || framework)global.C = Export;
       assertFunction(fn);
       function bound(/* args... */){
         var _args = args.concat($slice(arguments))
-          , result, that
+          , result, that;
         if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
         return apply.call(fn, scope, _args);
       }
@@ -1471,18 +1475,18 @@ $defineTimer('clearImmediate', clearImmediate);
     has(object, ITERATOR) || (object[ITERATOR] = value);
   }
   
-  isIterable = function(it){
+  C.isIterable = isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case String: case Array: case Map: case Set: return true;
       case Object: return classof(it) == ARGUMENTS;
     } return false;
   }
-  getIterator = function(it){
+  C.getIterator = getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
     // plug for library. TODO: correct proto check
-    switch(it && it.constructor){
+    switch(it && it[CONSTRUCTOR]){
       case Object : if(classof(it) != ARGUMENTS)break;
       case String :
       case Array  : return new ArrayIterator(it, VALUE);
@@ -1490,7 +1494,7 @@ $defineTimer('clearImmediate', clearImmediate);
       case Set    : return new SetIterator(it, VALUE);
     } throw TypeError(it + ' is not iterable!');
   }
-  forOf = function(it, fn, that, entries){
+  C.forOf = forOf = function(it, fn, that, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
       if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
@@ -1548,8 +1552,6 @@ $defineTimer('clearImmediate', clearImmediate);
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-  
-  $define(GLOBAL, {forOf: forOf});
 }(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
 
 /*****************************
@@ -1812,7 +1814,7 @@ $define(PROTO, FUNCTION, {
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(that[key], args, length, placeholder, true, that);
+    return createPartialApplication(that[key], args, length, placeholder, _, true, that);
   }
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
@@ -1834,7 +1836,7 @@ $define(PROTO, FUNCTION, {
       if(length < 2)return ctx(fn, that);
       args = Array(length - 1);
       while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-      return createPartialApplication(fn, args, length, placeholder, true, that);
+      return createPartialApplication(fn, args, length, placeholder, _, true, that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
