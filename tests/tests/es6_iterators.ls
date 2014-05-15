@@ -141,3 +141,9 @@ test 'C.forOf' !->
     ok key is 0
     ok val is 1
   , o = {}, on
+test 'C.isIterable' !->
+  {isIterable} = C
+  ok typeof isIterable is \function, 'Is function'
+test 'C.getIterator' !->
+  {getIterator} = C
+  ok typeof getIterator is \function, 'Is function'

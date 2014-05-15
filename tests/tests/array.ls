@@ -1,12 +1,12 @@
 isFunction = -> typeof! it is \Function
-test 'Array::at' !->
-  ok isFunction(Array::at), 'Is function'
-  ok [1 2 3]at(0)  is 1,    '[1, 2, 3].at(0) is 1'
-  ok [1 2 3]at(2)  is 3,    '[1, 2, 3].at(2) is 3'
-  ok [1 2 3]at(3)  is void, '[1, 2, 3].at(3) is undefined'
-  ok [1 2 3]at(-1) is 3,    '[1, 2, 3].at(-1) is 3'
-  ok [1 2 3]at(-3) is 1,    '[1, 2, 3].at(-3) is 1'
-  ok [1 2 3]at(-4) is void, '[1, 2, 3].at(-4) is undefined'
+test 'Array::get' !->
+  ok isFunction(Array::get), 'Is function'
+  ok [1 2 3]get(0)  is 1,    '[1, 2, 3].get(0) is 1'
+  ok [1 2 3]get(2)  is 3,    '[1, 2, 3].get(2) is 3'
+  ok [1 2 3]get(3)  is void, '[1, 2, 3].get(3) is undefined'
+  ok [1 2 3]get(-1) is 3,    '[1, 2, 3].get(-1) is 3'
+  ok [1 2 3]get(-3) is 1,    '[1, 2, 3].get(-3) is 1'
+  ok [1 2 3]get(-4) is void, '[1, 2, 3].get(-4) is undefined'
 test 'Array::transform' !->
   ok isFunction(Array::transform), 'Is function'
   (arr = [1])transform (memo, val, key, that)->

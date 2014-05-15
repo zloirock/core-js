@@ -1,7 +1,7 @@
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'Array static are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries at transform contains]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries get transform contains]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
@@ -230,20 +230,20 @@ test 'Array.entries' !->
   deepEqual iter2.next!, {value: [1 \w], done: no}
   deepEqual iter2.next!, {value: [2 \e], done: no}
   deepEqual iter2.next!, {value: void, done: on}
-test 'Array.at' !->
-  {at} = Array
-  ok at((->&)(1 2 3), 0)  is 1
-  ok at((->&)(1 2 3), 2)  is 3
-  ok at((->&)(1 2 3), 3)  is void
-  ok at((->&)(1 2 3), -1) is 3
-  ok at((->&)(1 2 3), -3) is 1
-  ok at((->&)(1 2 3), -4) is void
-  ok at(\qwe 0)  is \q
-  ok at(\qwe 2)  is \e
-  ok at(\qwe 3)  is void
-  ok at(\qwe -1) is \e
-  ok at(\qwe -3) is \q
-  ok at(\qwe -4) is void
+test 'Array.get' !->
+  {get} = Array
+  ok get((->&)(1 2 3), 0)  is 1
+  ok get((->&)(1 2 3), 2)  is 3
+  ok get((->&)(1 2 3), 3)  is void
+  ok get((->&)(1 2 3), -1) is 3
+  ok get((->&)(1 2 3), -3) is 1
+  ok get((->&)(1 2 3), -4) is void
+  ok get(\qwe 0)  is \q
+  ok get(\qwe 2)  is \e
+  ok get(\qwe 3)  is void
+  ok get(\qwe -1) is \e
+  ok get(\qwe -3) is \q
+  ok get(\qwe -4) is void
 test 'Array.transform' !->
   {transform} = Array
   transform (al = (->&)(1)), (memo, val, key, that)->

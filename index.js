@@ -1630,7 +1630,7 @@ $define(PROTO, ARRAY, {
    * http://sugarjs.com/api/Array/at
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
-  at: function(index){
+  get: function(index){
     index = toInteger(index);
     return ES5Object(this)[0 > index ? this.length + index : index];
   },
@@ -1673,7 +1673,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'at,transform,contains'
+    'get,transform,contains'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);

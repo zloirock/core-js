@@ -3,14 +3,14 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Array::at', function(){
-    ok(isFunction(Array.prototype.at), 'Is function');
-    ok([1, 2, 3].at(0) === 1, '[1, 2, 3].at(0) is 1');
-    ok([1, 2, 3].at(2) === 3, '[1, 2, 3].at(2) is 3');
-    ok([1, 2, 3].at(3) === void 8, '[1, 2, 3].at(3) is undefined');
-    ok([1, 2, 3].at(-1) === 3, '[1, 2, 3].at(-1) is 3');
-    ok([1, 2, 3].at(-3) === 1, '[1, 2, 3].at(-3) is 1');
-    ok([1, 2, 3].at(-4) === void 8, '[1, 2, 3].at(-4) is undefined');
+  test('Array::get', function(){
+    ok(isFunction(Array.prototype.get), 'Is function');
+    ok([1, 2, 3].get(0) === 1, '[1, 2, 3].get(0) is 1');
+    ok([1, 2, 3].get(2) === 3, '[1, 2, 3].get(2) is 3');
+    ok([1, 2, 3].get(3) === void 8, '[1, 2, 3].get(3) is undefined');
+    ok([1, 2, 3].get(-1) === 3, '[1, 2, 3].get(-1) is 3');
+    ok([1, 2, 3].get(-3) === 1, '[1, 2, 3].get(-3) is 1');
+    ok([1, 2, 3].get(-4) === void 8, '[1, 2, 3].get(-4) is undefined');
   });
   test('Array::transform', function(){
     var arr, obj;
@@ -51,7 +51,7 @@
   slice = Array.prototype.slice;
   test('Array static are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'at', 'transform', 'contains']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'transform', 'contains']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -582,33 +582,33 @@
       done: true
     });
   });
-  test('Array.at', function(){
-    var at;
-    at = Array.at;
-    ok(at(function(){
+  test('Array.get', function(){
+    var get;
+    get = Array.get;
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), 0) === 1);
-    ok(at(function(){
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), 2) === 3);
-    ok(at(function(){
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), 3) === void 8);
-    ok(at(function(){
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), -1) === 3);
-    ok(at(function(){
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), -3) === 1);
-    ok(at(function(){
+    ok(get(function(){
       return arguments;
     }(1, 2, 3), -4) === void 8);
-    ok(at('qwe', 0) === 'q');
-    ok(at('qwe', 2) === 'e');
-    ok(at('qwe', 3) === void 8);
-    ok(at('qwe', -1) === 'e');
-    ok(at('qwe', -3) === 'q');
-    ok(at('qwe', -4) === void 8);
+    ok(get('qwe', 0) === 'q');
+    ok(get('qwe', 2) === 'e');
+    ok(get('qwe', 3) === void 8);
+    ok(get('qwe', -1) === 'e');
+    ok(get('qwe', -3) === 'q');
+    ok(get('qwe', -4) === void 8);
   });
   test('Array.transform', function(){
     var transform, al, obj;
@@ -2977,6 +2977,16 @@
       ok(key === 0);
       return ok(val === 1);
     }, o = {}, true);
+  });
+  test('C.isIterable', function(){
+    var isIterable;
+    isIterable = C.isIterable;
+    ok(typeof isIterable === 'function', 'Is function');
+  });
+  test('C.getIterator', function(){
+    var getIterator;
+    getIterator = C.getIterator;
+    ok(typeof getIterator === 'function', 'Is function');
   });
 }).call(this);
 

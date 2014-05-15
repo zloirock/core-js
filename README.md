@@ -14,7 +14,7 @@ Node.js:
 require('core-js');
 ```
 ### API:
-```javascript
+```livescript
 Object
   .create(object || null, descs = {}) -> object             es5
   .getPrototypeOf(object) -> object || null                 es5 sham
@@ -42,7 +42,6 @@ Object
   ::tie(key, ...args) -> fn                                 core
 Function
   ::bind(object, ...args) -> fn                             es5
-  ._ -> object ???                                          core
   .isFunction(var) -> bool                                  core
   .isNative(var) -> bool                                    core
   ::part(...args) -> fn                                     core
@@ -54,9 +53,9 @@ Function
   ::construct(args) -> object                               core
 Array
   .isArray(var) -> bool                                     es5
-  .from(iterable || arrayLike, fn, that) -> array           es6
+  .from(iterable || array-like, fn, that) -> array          es6
   .of(...args) -> array                                     es6
-  .#{...Array::}                                            js1.6
+  .{...Array::}                                             js1.6
   ::slice(start = 0, end = @length) -> array                es5
   ::join(string = ',') -> string                            es5
   ::indexOf(var, from = 0) -> int                           es5
@@ -75,7 +74,7 @@ Array
   ::keys() -> iterator                                      es6
   ::entries() -> iterator                                   es6
   ::@@iterator() -> iterator                                es6
-  ::at(int) -> var                                          core
+  ::get(int) -> var                                         core
   ::transform(fn, memo = []) -> memo                        core
   ::contains(var) -> bool                                   es7
 Number
@@ -91,7 +90,7 @@ Number
   .toInteger(num) -> int                                    core
   ::times(fn, that) -> array                                core
   ::random(num = 0) -> num                                  core
-  ::#{...Math}                                              core
+  ::{...Math}                                               core
 Math
   .acosh(num) -> num                                        es6
   .asinh(num) -> num                                        es6
@@ -120,7 +119,7 @@ String
   ::escapeHTML() -> str                                     core
   ::unescapeHTML() -> str                                   core
 Date
-  ::now() -> int                                            es5
+  .now() -> int                                             es5
   .addLocale(key, object) -> Date                           core
   .locale([key]) -> key                                     core
   ::format(str, key = Date.locale()) -> str                 core
@@ -129,7 +128,7 @@ RegExp
   .escape(str) -> str                                       es7
 Set                                                         es6
   ::add(key) -> @                                           es6
-  ::clear(key) -> void                                      es6
+  ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
   ::forEach(fn, that) -> void                               es6
   ::has(key) -> bool                                        es6
@@ -139,7 +138,7 @@ Set                                                         es6
   ::entries() -> iterator                                   es6
   ::@@iterator() -> iterator                                es6
 Map                                                         es6
-  ::clear(key) -> void                                      es6
+  ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
   ::forEach(fn, that) -> void                               es6
   ::get(key) -> val                                         es6
@@ -152,11 +151,11 @@ Map                                                         es6
   ::@@iterator() -> iterator                                es6
 WeakSet                                                     es6
   ::add(key) -> @                                           es6
-  ::clear(key) -> void                                      es6
+  ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
   ::has(key) -> bool                                        es6
 WeakMap                                                     es6 sham
-  ::clear(key) -> void                                      es6 sham
+  ::clear() -> void                                         es6 sham
   ::delete(key) -> bool                                     es6
   ::get(key) -> val                                         es6
   ::has(key) -> bool                                        es6
@@ -177,7 +176,7 @@ setInterval(fn, time, ...args) -> uint                      w3c / whatwg
 setImmediate(fn, ...args) -> uint                           w3c / whatwg
 clearImmediate(uint) -> void                                w3c / whatwg
 console(...args) -> void                                    core
-  #{...console API}                                         console api
+  .{...console API}                                         console api
   .enable() -> void                                         core
   .disable() -> void                                        core
 global -> object                                            node
