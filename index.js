@@ -1021,7 +1021,7 @@ $defineTimer('clearImmediate', clearImmediate);
   };
   
   // 23.3 WeakMap Objects
-  if(1 || !isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
     WeakMap = createCollectionConstructor(WEAKMAP);
     assign(WeakMap[PROTOTYPE], assign({
       // 23.3.3.4 WeakMap.prototype.get(key)
