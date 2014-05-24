@@ -56,6 +56,9 @@ test 'Object.classof' !->
   ok classof(new Map!entries!) is 'Map Iterator'
   ok classof(Math) is \Math
   if JSON? => ok classof(JSON) is \JSON
+  class Class
+    @::[Symbol.toStringTag] = \Class
+  ok classof(new Class) is \Class
 test 'Object.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'

@@ -41,9 +41,8 @@ Object
   .tie(object, key, ...args) -> fn                          core
   ::tie(key, ...args) -> fn                                 core
 Function
-  ::bind(object, ...args) -> fn                             es5
-  .isFunction(var) -> bool                                  core
   .isNative(var) -> bool                                    core
+  ::bind(object, ...args) -> fn                             es5
   ::part(...args) -> fn                                     core
   ::by(object, ...args) -> fn                               core
   ::methodize() -> fn                                       core
@@ -72,7 +71,7 @@ Array
   ::findIndex(fn, that) -> int                              es6
   ::values() -> iterator                                    es6
   ::keys() -> iterator                                      es6
-  ::entries() -> iterator                                   es6
+  ::entries() -> iterator (entries)                         es6
   ::@@iterator() -> iterator                                es6
   ::get(int) -> var                                         core
   ::transform(fn, memo = []) -> memo                        core
@@ -108,7 +107,7 @@ Math
   .sinh(num) -> num                                         es6
   .tanh(num) -> num                                         es6
   .trunc(num) -> num                                        es6
-  .randomInt(num, num = 0)                                  core
+  .randomInt(num, num = 0) -> int                           core
 String
   ::trim() -> str                                           es5
   ::contains(str, from = 0) -> bool                         es6
@@ -126,7 +125,7 @@ Date
   ::formatUTC(str, key = Date.locale()) -> str              core
 RegExp
   .escape(str) -> str                                       es7
-Set                                                         es6
+new Set([iterable]) -> set                                  es6
   ::add(key) -> @                                           es6
   ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
@@ -135,9 +134,9 @@ Set                                                         es6
   ::size -> uint                                            es6
   ::values() -> iterator                                    es6
   ::keys() -> iterator                                      es6
-  ::entries() -> iterator                                   es6
+  ::entries() -> iterator (entries)                         es6
   ::@@iterator() -> iterator                                es6
-Map                                                         es6
+new Map([iterable]) -> map                                  es6
   ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
   ::forEach(fn, that) -> void                               es6
@@ -147,27 +146,27 @@ Map                                                         es6
   ::size -> uint                                            es6
   ::values() -> iterator                                    es6
   ::keys() -> iterator                                      es6
-  ::entries() -> iterator                                   es6
-  ::@@iterator() -> iterator                                es6
-WeakSet                                                     es6
+  ::entries() -> iterator (entries)                         es6
+  ::@@iterator() -> iterator (entries)                      es6
+new WeakSet([iterable]) -> weakset                          es6
   ::add(key) -> @                                           es6
   ::clear() -> void                                         es6
   ::delete(key) -> bool                                     es6
   ::has(key) -> bool                                        es6
-WeakMap                                                     es6 sham
+new WeakMap([iterable]) -> weakmap                          es6 sham
   ::clear() -> void                                         es6 sham
   ::delete(key) -> bool                                     es6
   ::get(key) -> val                                         es6
   ::has(key) -> bool                                        es6
   ::set(key, val) -> @                                      es6
-Promise                                                     es6
+new Promise(fn) -> promise                                  es6
   ::then(resolved, rejected) -> promise                     es6
   ::catch(rejected) -> promise                              es6
   .resolve(var || promise) -> promise                       es6
   .reject(var) -> promise                                   es6
   .all(iterable) -> promise                                 es6
   .race(iterable) -> promise                                es6
-Symbol                                                      es6 sham
+[new] Symbol([description]) -> symbol                       es6 sham
   .for(key) -> symbol                                       es6
   .keyFor(symbol) -> key                                    es6
   .iterator -> symbol                                       es6
@@ -180,12 +179,12 @@ console(...args) -> void                                    core
   .enable() -> void                                         core
   .disable() -> void                                        core
 global -> object                                            node
-Dict(itarable || object) -> dict                            core
+Dict([itarable (entries) || object]) -> dict                core
   .filter(object, fn, that) -> dict                         core
   .find(object, fn, that) -> val                            core
   .findKey(object, fn, that) -> key                         core
   .keyOf(object, var) -> key                                core
-  .forEach(object, fn, that) -> &0                          core
+  .forEach(object, fn, that) -> void                        core
   .map(object, fn, that) -> dict                            core
   .reduce(object, fn, memo) -> var                          core
   .every(object, fn, that) -> bool                          core
@@ -193,13 +192,14 @@ Dict(itarable || object) -> dict                            core
   .transform(object, fn, memo = Dict()) -> memo             core
   .has(object, key) -> bool                                 core
   .get(object, key) -> val                                  core
+  .set(object, key, value) -> &0                            core
   .isDict(var) -> bool                                      core
   .values(object) -> iterator                               core
   .keys(object) -> iterator                                 core
-  .entries(object) -> iterator                              core
+  .entries(object) -> iterator (entries)                    core
 C                                                           core
   .forOf(iterable, fn, that, entries) -> void               core
   .isIterable(var) -> bool                                  core
-  .getIterator(var) -> iterator                             core
+  .getIterator(iterable) -> iterator                        core
 _ -> object                                                 core
 ```

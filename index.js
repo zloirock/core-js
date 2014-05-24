@@ -852,11 +852,11 @@ $defineTimer('clearImmediate', clearImmediate);
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
-  var STOREID  = symbol('storeid')
+  var STOREID  = symbol('storeId')
     , KEYS     = symbol('keys')
     , VALUES   = symbol('values')
-    , WEAKDATA = symbol('weakdata')
-    , WEAKID   = symbol('weakid')
+    , WEAKDATA = symbol('weakData')
+    , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
     , uid = 0
     , wid = 0
@@ -900,64 +900,70 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   
   function fastKey(it, create){
-    return isObject(it)
-      ? 'O' + (has(it, STOREID)
-        ? it[STOREID]
-        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
-      : (typeof it == 'string' ? 'S' : 'P') + it;
+    // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
+    if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+    // if it hasn't object id - add next
+    if(!has(it, STOREID)){
+      if(create)defineProperty(it, STOREID, {value: ++uid});
+      else return '';
+    }
+    // return object id with 'O' prefix
+    return 'O' + it[STOREID];
   }
-  function createForEach(key){
-    return function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var values = this[VALUES]
-        , keyz   = this[key]
-        , names  = keys(keyz)
-        , length = names.length
-        , i = 0
-        , index;
-      while(length > i){
-        index = names[i++];
-        callbackfn.call(thisArg, values[index], keyz[index], this);
+
+  function collectionMethods($VALUES){
+    return {
+      // 23.1.3.1 Map.prototype.clear()
+      // 23.2.3.2 Set.prototype.clear()
+      clear: function(){
+        hidden(this, KEYS, create(null));
+        if($VALUES == VALUES)hidden(this, VALUES, create(null));
+        hidden(this, SIZE, 0);
+      },
+      // 23.1.3.3 Map.prototype.delete(key)
+      // 23.2.3.4 Set.prototype.delete(value)
+      'delete': function(key){
+        var index    = fastKey(key)
+          , keys     = this[KEYS]
+          , contains = index in keys;
+        if(contains){
+          delete keys[index];
+          if($VALUES == VALUES)delete this[VALUES][index];
+          this[SIZE]--;
+        }
+        return contains;
+      },
+      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
+      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
+      forEach: function(callbackfn, thisArg /* = undefined */){
+        assertFunction(callbackfn);
+        var values = this[$VALUES]
+          , keyz   = this[KEYS]
+          , names  = keys(keyz)
+          , length = names.length
+          , i = 0
+          , index;
+        while(length > i){
+          index = names[i++];
+          callbackfn.call(thisArg, values[index], keyz[index], this);
+        }
+      },
+      // 23.1.3.7 Map.prototype.has(key)
+      // 23.2.3.7 Set.prototype.has(value)
+      has: function(key){
+        return fastKey(key) in this[KEYS];
       }
     }
-  }
-  function collectionHas(key){
-    return fastKey(key) in this[VALUES];
-  }
-  function clearSet(){
-    hidden(this, VALUES, create(null));
-    hidden(this, SIZE, 0);
   }
   
   // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
     Map = createCollectionConstructor(MAP);
-    assign(Map[PROTOTYPE], {
-      // 23.1.3.1 Map.prototype.clear()
-      clear: function(){
-        hidden(this, KEYS, create(null));
-        clearSet.call(this);
-      },
-      // 23.1.3.3 Map.prototype.delete(key)
-      'delete': function(key){
-        var index    = fastKey(key)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete this[KEYS][index];
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(KEYS),
+    assign(Map[PROTOTYPE], collectionMethods(VALUES), {
       // 23.1.3.6 Map.prototype.get(key)
       get: function(key){
         return this[VALUES][fastKey(key)];
       },
-      // 23.1.3.7 Map.prototype.has(key)
-      has: collectionHas,
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
         var index  = fastKey(key, 1)
@@ -977,34 +983,17 @@ $defineTimer('clearImmediate', clearImmediate);
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
     Set = createCollectionConstructor(SET, 1);
-    assign(Set[PROTOTYPE], {
+    assign(Set[PROTOTYPE], collectionMethods(KEYS), {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this[VALUES];
+          , values = this[KEYS];
         if(!(index in values)){
           values[index] = value;
           this[SIZE]++;
         }
         return this;
-      },
-      // 23.2.3.2 Set.prototype.clear()
-      clear: clearSet,
-      // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function(value){
-        var index    = fastKey(value)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(VALUES),
-      // 23.2.3.7 Set.prototype.has(value)
-      has: collectionHas
+      }
     });
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
@@ -1032,7 +1021,7 @@ $defineTimer('clearImmediate', clearImmediate);
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+  if(1 || !isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
     WeakMap = createCollectionConstructor(WEAKMAP);
     assign(WeakMap[PROTOTYPE], assign({
       // 23.3.3.4 WeakMap.prototype.get(key)
@@ -1346,7 +1335,6 @@ $defineTimer('clearImmediate', clearImmediate);
         , i      = 0
         , key;
       while(length > i)fn.call(that, O[key = props[i++]], key, object);
-      return object;
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
@@ -1406,10 +1394,13 @@ $defineTimer('clearImmediate', clearImmediate);
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
-    // Has / get own property
+    // Has / get / set own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
+    },
+    set: function(object, key, value){
+      return defineProperty(object, key, descriptor(7, value));
     },
     isDict: function(it){
       return getPrototypeOf(it) == null;
@@ -1430,8 +1421,9 @@ $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
-    var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, ES5Object(args));
+    var list     = Array.isArray(args) ? args : Array.from(args)
+      , instance = create(this[PROTOTYPE])
+      , result   = this.apply(instance, list);
     return isObject(result) ? result : instance;
   }
 });
@@ -1841,12 +1833,12 @@ $define(PROTO, NUMBER, transform.call(
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 001-999
+          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 000-999
             return ms > 99 ? ms : ms > 9 ? '0' + ms : '00' + ms;
-          case 's'    : return get(SECONDS);                                    // Seconds      : 1-59
-          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 01-59
-          case 'm'    : return get(MINUTES);                                    // Minutes      : 1-59
-          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 01-59
+          case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
+          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
+          case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
+          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 00-59
           case 'h'    : return get(HOURS);                                      // Hours        : 0-23
           case 'hh'   : return lz(get(HOURS));                                  // Hours        : 00-23
           case 'D'    : return get(DATE)                                        // Date         : 1-31
@@ -1856,8 +1848,8 @@ $define(PROTO, NUMBER, transform.call(
           case 'NN'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
           case 'M'    : return dict.M[get(MONTH)];                              // Month        : Январь
           case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
-          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 13
-          case 'YYYY' : return get(YEAR);                                       // Year         : 2013
+          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
+          case 'YYYY' : return get(YEAR);                                       // Year         : 2014
         }
         return part;
       });
@@ -1867,17 +1859,17 @@ $define(PROTO, NUMBER, transform.call(
     return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
+    function split(index){
+      return transform.call(array(locale.months), function(memo, it){
+        memo.push(it.replace(flexioRegExp, '$' + index));
+      });
+    }
     locales[lang] = {
       W : array(locale.weekdays),
-      MM: flexio(locale.months, 1),
-      M : flexio(locale.months, 2)
+      MM: split(1),
+      M : split(2)
     };
     return Date;
-  }
-  function flexio(locale, index){
-    return transform.call(array(locale), function(memo, it){
-      memo.push(it.replace(flexioRegExp, '$' + index));
-    });
   }
   $define(STATIC, DATE, {
     locale: function(locale){

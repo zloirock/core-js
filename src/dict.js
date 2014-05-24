@@ -77,7 +77,6 @@
         , i      = 0
         , key;
       while(length > i)fn.call(that, O[key = props[i++]], key, object);
-      return object;
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
@@ -137,10 +136,13 @@
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
-    // Has / get own property
+    // Has / get / set own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
+    },
+    set: function(object, key, value){
+      return defineProperty(object, key, descriptor(7, value));
     },
     isDict: function(it){
       return getPrototypeOf(it) == null;

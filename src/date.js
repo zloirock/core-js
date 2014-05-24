@@ -16,12 +16,12 @@
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 001-999
+          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 000-999
             return ms > 99 ? ms : ms > 9 ? '0' + ms : '00' + ms;
-          case 's'    : return get(SECONDS);                                    // Seconds      : 1-59
-          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 01-59
-          case 'm'    : return get(MINUTES);                                    // Minutes      : 1-59
-          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 01-59
+          case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
+          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
+          case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
+          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 00-59
           case 'h'    : return get(HOURS);                                      // Hours        : 0-23
           case 'hh'   : return lz(get(HOURS));                                  // Hours        : 00-23
           case 'D'    : return get(DATE)                                        // Date         : 1-31
@@ -31,8 +31,8 @@
           case 'NN'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
           case 'M'    : return dict.M[get(MONTH)];                              // Month        : Январь
           case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
-          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 13
-          case 'YYYY' : return get(YEAR);                                       // Year         : 2013
+          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
+          case 'YYYY' : return get(YEAR);                                       // Year         : 2014
         }
         return part;
       });
@@ -42,17 +42,17 @@
     return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
+    function split(index){
+      return transform.call(array(locale.months), function(memo, it){
+        memo.push(it.replace(flexioRegExp, '$' + index));
+      });
+    }
     locales[lang] = {
       W : array(locale.weekdays),
-      MM: flexio(locale.months, 1),
-      M : flexio(locale.months, 2)
+      MM: split(1),
+      M : split(2)
     };
     return Date;
-  }
-  function flexio(locale, index){
-    return transform.call(array(locale), function(memo, it){
-      memo.push(it.replace(flexioRegExp, '$' + index));
-    });
   }
   $define(STATIC, DATE, {
     locale: function(locale){

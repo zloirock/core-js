@@ -6,8 +6,9 @@ $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
-    var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, ES5Object(args));
+    var list     = Array.isArray(args) ? args : Array.from(args)
+      , instance = create(this[PROTOTYPE])
+      , result   = this.apply(instance, list);
     return isObject(result) ? result : instance;
   }
 });

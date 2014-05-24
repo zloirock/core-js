@@ -3313,7 +3313,7 @@
     ok(!isPrototype({}, clone$(function(){})));
   });
   test('Object.classof', function(){
-    var classof;
+    var classof, Class;
     classof = Object.classof;
     ok(isFunction(classof), 'Is function');
     ok(classof({}) === 'Object');
@@ -3346,6 +3346,14 @@
     if (typeof JSON != 'undefined' && JSON !== null) {
       ok(classof(JSON) === 'JSON');
     }
+    Class = (function(){
+      Class.displayName = 'Class';
+      var prototype = Class.prototype, constructor = Class;
+      Class.prototype[Symbol.toStringTag] = 'Class';
+      function Class(){}
+      return Class;
+    }());
+    ok(classof(new Class) === 'Class');
   });
   test('Object.make', function(){
     var make, object, foo;

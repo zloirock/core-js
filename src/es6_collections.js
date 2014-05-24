@@ -12,11 +12,11 @@
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
-  var STOREID  = symbol('storeid')
+  var STOREID  = symbol('storeId')
     , KEYS     = symbol('keys')
     , VALUES   = symbol('values')
-    , WEAKDATA = symbol('weakdata')
-    , WEAKID   = symbol('weakid')
+    , WEAKDATA = symbol('weakData')
+    , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
     , uid = 0
     , wid = 0
@@ -60,64 +60,70 @@
   }
   
   function fastKey(it, create){
-    return isObject(it)
-      ? 'O' + (has(it, STOREID)
-        ? it[STOREID]
-        : create ? defineProperty(it, STOREID, {value: uid++})[STOREID] : '')
-      : (typeof it == 'string' ? 'S' : 'P') + it;
+    // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
+    if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+    // if it hasn't object id - add next
+    if(!has(it, STOREID)){
+      if(create)defineProperty(it, STOREID, {value: ++uid});
+      else return '';
+    }
+    // return object id with 'O' prefix
+    return 'O' + it[STOREID];
   }
-  function createForEach(key){
-    return function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var values = this[VALUES]
-        , keyz   = this[key]
-        , names  = keys(keyz)
-        , length = names.length
-        , i = 0
-        , index;
-      while(length > i){
-        index = names[i++];
-        callbackfn.call(thisArg, values[index], keyz[index], this);
+
+  function collectionMethods($VALUES){
+    return {
+      // 23.1.3.1 Map.prototype.clear()
+      // 23.2.3.2 Set.prototype.clear()
+      clear: function(){
+        hidden(this, KEYS, create(null));
+        if($VALUES == VALUES)hidden(this, VALUES, create(null));
+        hidden(this, SIZE, 0);
+      },
+      // 23.1.3.3 Map.prototype.delete(key)
+      // 23.2.3.4 Set.prototype.delete(value)
+      'delete': function(key){
+        var index    = fastKey(key)
+          , keys     = this[KEYS]
+          , contains = index in keys;
+        if(contains){
+          delete keys[index];
+          if($VALUES == VALUES)delete this[VALUES][index];
+          this[SIZE]--;
+        }
+        return contains;
+      },
+      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
+      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
+      forEach: function(callbackfn, thisArg /* = undefined */){
+        assertFunction(callbackfn);
+        var values = this[$VALUES]
+          , keyz   = this[KEYS]
+          , names  = keys(keyz)
+          , length = names.length
+          , i = 0
+          , index;
+        while(length > i){
+          index = names[i++];
+          callbackfn.call(thisArg, values[index], keyz[index], this);
+        }
+      },
+      // 23.1.3.7 Map.prototype.has(key)
+      // 23.2.3.7 Set.prototype.has(value)
+      has: function(key){
+        return fastKey(key) in this[KEYS];
       }
     }
-  }
-  function collectionHas(key){
-    return fastKey(key) in this[VALUES];
-  }
-  function clearSet(){
-    hidden(this, VALUES, create(null));
-    hidden(this, SIZE, 0);
   }
   
   // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
     Map = createCollectionConstructor(MAP);
-    assign(Map[PROTOTYPE], {
-      // 23.1.3.1 Map.prototype.clear()
-      clear: function(){
-        hidden(this, KEYS, create(null));
-        clearSet.call(this);
-      },
-      // 23.1.3.3 Map.prototype.delete(key)
-      'delete': function(key){
-        var index    = fastKey(key)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete this[KEYS][index];
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(KEYS),
+    assign(Map[PROTOTYPE], collectionMethods(VALUES), {
       // 23.1.3.6 Map.prototype.get(key)
       get: function(key){
         return this[VALUES][fastKey(key)];
       },
-      // 23.1.3.7 Map.prototype.has(key)
-      has: collectionHas,
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
         var index  = fastKey(key, 1)
@@ -137,34 +143,17 @@
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
     Set = createCollectionConstructor(SET, 1);
-    assign(Set[PROTOTYPE], {
+    assign(Set[PROTOTYPE], collectionMethods(KEYS), {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
         var index  = fastKey(value, 1)
-          , values = this[VALUES];
+          , values = this[KEYS];
         if(!(index in values)){
           values[index] = value;
           this[SIZE]++;
         }
         return this;
-      },
-      // 23.2.3.2 Set.prototype.clear()
-      clear: clearSet,
-      // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function(value){
-        var index    = fastKey(value)
-          , values   = this[VALUES]
-          , contains = index in values;
-        if(contains){
-          delete values[index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: createForEach(VALUES),
-      // 23.2.3.7 Set.prototype.has(value)
-      has: collectionHas
+      }
     });
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
@@ -192,7 +181,7 @@
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
+  if(1 || !isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
     WeakMap = createCollectionConstructor(WEAKMAP);
     assign(WeakMap[PROTOTYPE], assign({
       // 23.3.3.4 WeakMap.prototype.get(key)
