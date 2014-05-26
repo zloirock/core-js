@@ -60,6 +60,6 @@
   });
   Export.useTie = function(){
     $define(PROTO, OBJECT, $tie);
-    return _;
+    return C;
   }
 }();

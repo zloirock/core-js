@@ -8,6 +8,11 @@ $define(PROTO, ARRAY, {
     index = toInteger(index);
     return ES5Object(this)[0 > index ? this.length + index : index];
   },
+  set: function(index, value){
+    index = toInteger(index);
+    this[0 > index ? this.length + index : index] = value;
+    return this;
+  },
   /**
    * Alternatives:
    * http://lodash.com/docs#template

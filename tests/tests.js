@@ -12,6 +12,14 @@
     ok([1, 2, 3].get(-3) === 1, '[1, 2, 3].get(-3) is 1');
     ok([1, 2, 3].get(-4) === void 8, '[1, 2, 3].get(-4) is undefined');
   });
+  test('Array::set', function(){
+    var arr;
+    ok(isFunction(Array.prototype.set), 'Is function');
+    arr = [];
+    ok(arr.set(0, 42) === arr);
+    deepEqual(arr, [42]);
+    deepEqual([1].set(0, 1).set(1, 0).set(2, 3).set(-2, 2), [1, 2, 3]);
+  });
   test('Array::transform', function(){
     var arr, obj;
     ok(isFunction(Array.prototype.transform), 'Is function');

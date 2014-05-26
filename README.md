@@ -73,7 +73,8 @@ Array
   ::keys() -> iterator                                      es6
   ::entries() -> iterator (entries)                         es6
   ::@@iterator() -> iterator                                es6
-  ::get(int) -> var                                         core
+  ::get(index) -> var                                       core
+  ::set(index, value) -> @                                  core
   ::transform(fn, memo = []) -> memo                        core
   ::contains(var) -> bool                                   es7
 Number
@@ -169,7 +170,8 @@ new Promise(fn) -> promise                                  es6
 [new] Symbol([description]) -> symbol                       es6 sham
   .for(key) -> symbol                                       es6
   .keyFor(symbol) -> key                                    es6
-  .iterator -> symbol                                       es6
+  .iterator -> symbol                                       es6 sham
+  .toStringTag -> symbol                                    es6
 setTimeout(fn, time, ...args) -> uint                       w3c / whatwg
 setInterval(fn, time, ...args) -> uint                      w3c / whatwg
 setImmediate(fn, ...args) -> uint                           w3c / whatwg
@@ -201,5 +203,6 @@ C                                                           core
   .forOf(iterable, fn, that, entries) -> void               core
   .isIterable(var) -> bool                                  core
   .getIterator(iterable) -> iterator                        core
-_ -> object                                                 core
+  .{...global}                                              core
+_ -> object                                                 core / undescore / lodash
 ```

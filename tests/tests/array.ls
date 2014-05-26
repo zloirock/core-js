@@ -7,6 +7,12 @@ test 'Array::get' !->
   ok [1 2 3]get(-1) is 3,    '[1, 2, 3].get(-1) is 3'
   ok [1 2 3]get(-3) is 1,    '[1, 2, 3].get(-3) is 1'
   ok [1 2 3]get(-4) is void, '[1, 2, 3].get(-4) is undefined'
+test 'Array::set' !->
+  ok isFunction(Array::set), 'Is function'
+  arr = []
+  ok arr.set(0, 42) is arr
+  deepEqual arr, [42]
+  deepEqual [1].set(0 1).set(1 0).set(2 3).set(-2 2), [1 2 3]
 test 'Array::transform' !->
   ok isFunction(Array::transform), 'Is function'
   (arr = [1])transform (memo, val, key, that)->

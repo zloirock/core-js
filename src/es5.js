@@ -105,6 +105,7 @@
       assertObject(O);
       Empty[PROTOTYPE] = O;
       var result = new Empty();
+      Empty[PROTOTYPE] = null;
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
       __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);

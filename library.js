@@ -405,6 +405,7 @@ if(!isNode || framework)global.C = Export;
       assertObject(O);
       Empty[PROTOTYPE] = O;
       var result = new Empty();
+      Empty[PROTOTYPE] = null;
       if(Properties)defineProperties(result, Properties);
       // add __proto__ for Object.getPrototypeOf shim
       __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
@@ -1852,7 +1853,7 @@ $define(PROTO, FUNCTION, {
   });
   Export.useTie = function(){
     $define(PROTO, OBJECT, $tie);
-    return _;
+    return C;
   }
 }();
 
@@ -1943,6 +1944,11 @@ $define(PROTO, ARRAY, {
     index = toInteger(index);
     return ES5Object(this)[0 > index ? this.length + index : index];
   },
+  set: function(index, value){
+    index = toInteger(index);
+    this[0 > index ? this.length + index : index] = value;
+    return this;
+  },
   /**
    * Alternatives:
    * http://lodash.com/docs#template
@@ -1982,7 +1988,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,transform,contains'
+    'get,set,transform,contains'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);
