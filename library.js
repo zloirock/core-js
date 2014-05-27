@@ -99,7 +99,7 @@ function part(/*...args*/){
     , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(this, args, length, placeholder, _, false);
+  return partialApplication(this, args, length, placeholder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -107,7 +107,7 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function createPartialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
+function partialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
@@ -129,37 +129,31 @@ function unbind(that){
 }
 
 // Object:
-var _hasOwn = $Object.hasOwnProperty;
-function has(object, key){
-  return _hasOwn.call(object, key);
-}
-var create                   = Object.create
-  , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty
-  , defineProperties         = Object.defineProperties
-  , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
-  , keys                     = Object.keys
-  , getOwnPropertyNames      = Object.getOwnPropertyNames
-  , isEnumerable             = $Object.propertyIsEnumerable
-  , __PROTO__ = '__proto__' in $Object
-  , DESCRIPTORS = true
+var create           = Object.create
+  , getPrototypeOf   = Object.getPrototypeOf
+  , defineProperty   = Object.defineProperty
+  , defineProperties = Object.defineProperties
+  , getOwnDescriptor = Object.getOwnPropertyDescriptor
+  , getKeys          = Object.keys
+  , getNames         = Object.getOwnPropertyNames
+  , hasOwnProperty   = $Object.hasOwnProperty
+  , isEnumerable     = $Object.propertyIsEnumerable
+  , __PROTO__        = '__proto__' in $Object
+  , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5.js
-  , ES5Object = Object;
+  , ES5Object                = Object;
+function has(object, key){
+  return hasOwnProperty.call(object, key);
+}
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
-    , names  = getOwnPropertyNames(object)
+    , names  = getNames(object)
     , length = names.length
     , i      = 0
     , key;
-  while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
+  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
   return result;
-}
-// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-function getPropertyDescriptor(object, key){
-  if(key in object)do {
-    if(has(object, key))return getOwnPropertyDescriptor(object, key);
-  } while(object = getPrototypeOf(object));
 }
 // 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
@@ -168,11 +162,11 @@ var assign = Object.assign || function(target, source){
     , i         = 1;
   while(agsLength > i){
     source = ES5Object(arguments[i++]);
-    var props  = keys(source)
-      , length = props.length
+    var keys   = getKeys(source)
+      , length = keys.length
       , j      = 0
       , key;
-    while(length > j)target[key = props[j++]] = source[key];
+    while(length > j)target[key = keys[j++]] = source[key];
   }
   return target;
 }
@@ -357,7 +351,7 @@ if(!isNode || framework)global.C = Export;
     Object.defineProperty({}, 0, $Object);
   } catch(e){
     DESCRIPTORS = false;
-    getOwnPropertyDescriptor = function(O, P){
+    getOwnDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
@@ -367,12 +361,12 @@ if(!isNode || framework)global.C = Export;
     };
     defineProperties = function(O, Properties){
       assertObject(O);
-      var names  = keys(Properties)
-        , length = names.length
+      var keys   = getKeys(Properties)
+        , length = keys.length
         , i = 0
         , P, Attributes;
       while(length > i){
-        P          = names[i++];
+        P          = keys[i++];
         Attributes = Properties[P];
         if('value' in Attributes)O[P] = Attributes.value;
       }
@@ -381,7 +375,7 @@ if(!isNode || framework)global.C = Export;
   }
   $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
-    getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+    getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
@@ -572,12 +566,12 @@ if(!isNode || framework)global.C = Export;
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
-  create              = Export[OBJECT].create;
-  getPrototypeOf      = Export[OBJECT].getPrototypeOf;
-  keys                = Export[OBJECT].keys;
-  getOwnPropertyNames = Export[OBJECT].getOwnPropertyNames;
-  $indexOf            = Export[ARRAY].indexOf;
-  $forEach            = Export[ARRAY].forEach;
+  create         = Export[OBJECT].create;
+  getPrototypeOf = Export[OBJECT].getPrototypeOf;
+  getKeys        = Export[OBJECT].keys;
+  getNames       = Export[OBJECT].getOwnPropertyNames;
+  $indexOf       = Export[ARRAY].indexOf;
+  $forEach       = Export[ARRAY].forEach;
 }();
 
 /*****************************
@@ -671,7 +665,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  })(unbind(getOwnPropertyDescriptor($Object, '__proto__').set));
+  })(unbind(getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -875,11 +869,12 @@ $define(GLOBAL, {global: global});
     // copyWithin: function(target, start, end){ TODO },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
-      var length = toLength(this.length);
-      start = toInteger(start);
-      if(0 > start)start = length + start;
-      end = end == undefined ? length : toInteger(end);
-      while(end > start)this[start++] = value;
+      var length = toLength(this.length)
+        , s      = toInteger(start)
+        , e;
+      if(0 > s)s = length + s;
+      e = end == undefined ? length : toInteger(end);
+      while(e > s)this[s++] = value;
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
@@ -1230,14 +1225,14 @@ $defineTimer('clearImmediate', clearImmediate);
       forEach: function(callbackfn, thisArg /* = undefined */){
         assertFunction(callbackfn);
         var values = this[$VALUES]
-          , keyz   = this[KEYS]
-          , names  = keys(keyz)
+          , keys   = this[KEYS]
+          , names  = getKeys(keys)
           , length = names.length
           , i = 0
           , index;
         while(length > i){
           index = names[i++];
-          callbackfn.call(thisArg, values[index], keyz[index], this);
+          callbackfn.call(thisArg, values[index], keys[index], this);
         }
       },
       // 23.1.3.7 Map.prototype.has(key)
@@ -1433,7 +1428,7 @@ $defineTimer('clearImmediate', clearImmediate);
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
-    this[KEYS]     = keys(iterated);
+    this[KEYS]     = getKeys(iterated);
     this[INDEX]    = 0;
     this[KIND]     = kind;
   }
@@ -1563,21 +1558,21 @@ $defineTimer('clearImmediate', clearImmediate);
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
+      , keys   = getKeys(O)
+      , length = keys.length
       , i      = 0
       , key;
     while(length > i){
-      if(fn.call(that, O[key = props[i++]], key, object))return key;
+      if(fn.call(that, O[key = keys[i++]], key, object))return key;
     }
   }
   function keyOf(object, searchElement){
     var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
+      , keys   = getKeys(O)
+      , length = keys.length
       , i      = 0
       , key;
-    while(length > i)if(same0(O[key = props[i++]], searchElement))return key;
+    while(length > i)if(same0(O[key = keys[i++]], searchElement))return key;
   }
   assign(Dict, objectIterators, {
     /**
@@ -1592,12 +1587,12 @@ $defineTimer('clearImmediate', clearImmediate);
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false;
+        if(!fn.call(that, O[key = keys[i++]], key, object))return false;
       }
       return true;
     },
@@ -1605,12 +1600,12 @@ $defineTimer('clearImmediate', clearImmediate);
       assertFunction(fn);
       var O      = ES5Object(object)
         , result = create(null)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))result[key] = O[key];
+        if(fn.call(that, O[key = keys[i++]], key, object))result[key] = O[key];
       }
       return result;
     },
@@ -1622,51 +1617,51 @@ $defineTimer('clearImmediate', clearImmediate);
     forEach: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
-      while(length > i)fn.call(that, O[key = props[i++]], key, object);
+      while(length > i)fn.call(that, O[key = keys[i++]], key, object);
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
         , result = create(null)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        result[key = props[i++]] = fn.call(that, O[key], key, object);
+        result[key = keys[i++]] = fn.call(that, O[key], key, object);
       }
       return result;
     },
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
+        , keys   = getKeys(O)
         , i      = 0
-        , length = props.length
+        , length = keys.length
         , key;
       if(arguments.length < 3){
         assert(length--, REDUCE_ERROR);
-        result = O[props.shift()];
+        result = O[keys.shift()];
       }
       while(length > i){
-        result = fn.call(that, result, O[key = props[i++]], key, object);
+        result = fn.call(that, result, O[key = keys[i++]], key, object);
       }
       return result;
     },
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))return true;
+        if(fn.call(that, O[key = keys[i++]], key, object))return true;
       }
       return false;
     },
@@ -1674,12 +1669,12 @@ $defineTimer('clearImmediate', clearImmediate);
       assertFunction(mapfn);
       target = target == undefined ? create(null) : Object(target);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(mapfn(target, O[key = props[i++]], key, object) === false)break;
+        if(mapfn(target, O[key = keys[i++]], key, object) === false)break;
       }
       return target;
     },
@@ -1807,7 +1802,7 @@ $define(PROTO, FUNCTION, {
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(that[key], args, length, placeholder, _, true, that);
+    return partialApplication(that[key], args, length, placeholder, _, true, that);
   }
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
@@ -1825,11 +1820,14 @@ $define(PROTO, FUNCTION, {
         , _           = path._
         , placeholder = false
         , length      = arguments.length
-        , i = 1, args;
-      if(length < 2)return ctx(fn, that);
-      args = Array(length - 1);
-      while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-      return createPartialApplication(fn, args, length, placeholder, _, true, that);
+        , woctx       = that === _
+        , i           = woctx ? 0 : 1
+        , indent      = i
+        , args;
+      if(length < 2)return woctx ? unbind(fn) : ctx(fn, that);
+      args = Array(length - indent);
+      while(length > i)if((args[i - indent] = arguments[i++]) === _)placeholder = true;
+      return partialApplication(woctx ? call : fn, args, length, placeholder, _, true, woctx ? fn : that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
@@ -1870,7 +1868,11 @@ $define(STATIC, OBJECT, {
   isEnumerable: unbind(isEnumerable),
   isPrototype: unbind($Object.isPrototypeOf),
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-  getPropertyDescriptor: getPropertyDescriptor,
+  getPropertyDescriptor: function(object, key){
+    if(key in object)do {
+      if(has(object, key))return getOwnDescriptor(object, key);
+    } while(object = getPrototypeOf(object));
+  },
   // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
   // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
@@ -1893,22 +1895,22 @@ $define(STATIC, OBJECT, {
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   values: function(object){
     var O      = ES5Object(object)
-      , names  = keys(object)
-      , length = names.length
+      , keys   = getKeys(object)
+      , length = keys.length
       , i      = 0
       , result = Array(length);
-    while(length > i)result[i] = O[names[i++]];
+    while(length > i)result[i] = O[keys[i++]];
     return result;
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   entries: function(object){
     var O      = ES5Object(object)
-      , names  = keys(object)
-      , length = names.length
+      , keys   = getKeys(object)
+      , length = keys.length
       , i      = 0
       , result = Array(length)
       , key;
-    while(length > i)result[i] = [key = names[i++], O[key]];
+    while(length > i)result[i] = [key = keys[i++], O[key]];
     return result;
   },
   /**
@@ -1941,12 +1943,12 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   get: function(index){
-    index = toInteger(index);
-    return ES5Object(this)[0 > index ? this.length + index : index];
+    var i = toInteger(index);
+    return ES5Object(this)[0 > i ? this.length + i : i];
   },
   set: function(index, value){
-    index = toInteger(index);
-    this[0 > index ? this.length + index : index] = value;
+    var i = toInteger(index);
+    this[0 > i ? this.length + i : i] = value;
     return this;
   },
   /**
@@ -1979,7 +1981,7 @@ $define(PROTO, ARRAY, {
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 $define(STATIC, ARRAY, transform.call(
-  // IE... getOwnPropertyNames($Array),
+  // IE... getNames($Array),
   array(
     // ES3:
     'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
@@ -2050,7 +2052,7 @@ $define(STATIC, 'Math', {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 $define(PROTO, NUMBER, transform.call(
-  // IE... getOwnPropertyNames(Math)
+  // IE... getNames(Math)
   array(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
@@ -2084,7 +2086,7 @@ $define(PROTO, NUMBER, transform.call(
         '"': '&quot;',
         "'": '&apos;'
       }
-    , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
+    , unescapeHTMLDict = transform.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
     , RegExpEscapeHTML   = /[&<>"']/g

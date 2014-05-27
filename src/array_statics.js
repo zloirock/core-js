@@ -9,7 +9,7 @@
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
 $define(STATIC, ARRAY, transform.call(
-  // IE... getOwnPropertyNames($Array),
+  // IE... getNames($Array),
   array(
     // ES3:
     'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +

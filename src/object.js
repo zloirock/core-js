@@ -7,7 +7,11 @@ $define(STATIC, OBJECT, {
   isEnumerable: unbind(isEnumerable),
   isPrototype: unbind($Object.isPrototypeOf),
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-  getPropertyDescriptor: getPropertyDescriptor,
+  getPropertyDescriptor: function(object, key){
+    if(key in object)do {
+      if(has(object, key))return getOwnDescriptor(object, key);
+    } while(object = getPrototypeOf(object));
+  },
   // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
   // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   getOwnPropertyDescriptors: getOwnPropertyDescriptors,
@@ -30,22 +34,22 @@ $define(STATIC, OBJECT, {
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   values: function(object){
     var O      = ES5Object(object)
-      , names  = keys(object)
-      , length = names.length
+      , keys   = getKeys(object)
+      , length = keys.length
       , i      = 0
       , result = Array(length);
-    while(length > i)result[i] = O[names[i++]];
+    while(length > i)result[i] = O[keys[i++]];
     return result;
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   entries: function(object){
     var O      = ES5Object(object)
-      , names  = keys(object)
-      , length = names.length
+      , keys   = getKeys(object)
+      , length = keys.length
       , i      = 0
       , result = Array(length)
       , key;
-    while(length > i)result[i] = [key = names[i++], O[key]];
+    while(length > i)result[i] = [key = keys[i++], O[key]];
     return result;
   },
   /**

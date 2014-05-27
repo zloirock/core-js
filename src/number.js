@@ -49,7 +49,7 @@ $define(STATIC, 'Math', {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 $define(PROTO, NUMBER, transform.call(
-  // IE... getOwnPropertyNames(Math)
+  // IE... getNames(Math)
   array(
     // ES3
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +

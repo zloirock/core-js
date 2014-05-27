@@ -13,6 +13,11 @@ test 'Function::by' !->
     deepEqual slice.call(&), [1 2 3 4]
   bar = foo.bar.by foo, 1, $, 3 
   bar 2 4
+  o = {a: \1}
+  fn = (b, c)-> @a + b + c
+  ok fn.by(o, \2)(\3), \123
+  ok fn.by($)(o, \2, \3), \123
+  ok fn.by($, \2)(o, \3), \123
 test 'Function::part' !->
   ok isFunction(Function::part), 'Is function'
   ok (-> typeof! it is \String)part(\qwe)!

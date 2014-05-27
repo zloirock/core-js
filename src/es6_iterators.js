@@ -72,7 +72,7 @@
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
-    this[KEYS]     = keys(iterated);
+    this[KEYS]     = getKeys(iterated);
     this[INDEX]    = 0;
     this[KIND]     = kind;
   }

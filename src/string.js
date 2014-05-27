@@ -6,7 +6,7 @@
         '"': '&quot;',
         "'": '&apos;'
       }
-    , unescapeHTMLDict = transform.call(keys(escapeHTMLDict), function(memo, key){
+    , unescapeHTMLDict = transform.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
     , RegExpEscapeHTML   = /[&<>"']/g

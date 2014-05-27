@@ -98,14 +98,14 @@
       forEach: function(callbackfn, thisArg /* = undefined */){
         assertFunction(callbackfn);
         var values = this[$VALUES]
-          , keyz   = this[KEYS]
-          , names  = keys(keyz)
+          , keys   = this[KEYS]
+          , names  = getKeys(keys)
           , length = names.length
           , i = 0
           , index;
         while(length > i){
           index = names[i++];
-          callbackfn.call(thisArg, values[index], keyz[index], this);
+          callbackfn.call(thisArg, values[index], keys[index], this);
         }
       },
       // 23.1.3.7 Map.prototype.has(key)

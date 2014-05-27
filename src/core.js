@@ -87,7 +87,7 @@ function part(/*...args*/){
     , _      = path._
     , placeholder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return createPartialApplication(this, args, length, placeholder, _, false);
+  return partialApplication(this, args, length, placeholder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -95,7 +95,7 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function createPartialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
+function partialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
@@ -117,37 +117,31 @@ function unbind(that){
 }
 
 // Object:
-var _hasOwn = $Object.hasOwnProperty;
-function has(object, key){
-  return _hasOwn.call(object, key);
-}
-var create                   = Object.create
-  , getPrototypeOf           = Object.getPrototypeOf
-  , defineProperty           = Object.defineProperty
-  , defineProperties         = Object.defineProperties
-  , getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
-  , keys                     = Object.keys
-  , getOwnPropertyNames      = Object.getOwnPropertyNames
-  , isEnumerable             = $Object.propertyIsEnumerable
-  , __PROTO__ = '__proto__' in $Object
-  , DESCRIPTORS = true
+var create           = Object.create
+  , getPrototypeOf   = Object.getPrototypeOf
+  , defineProperty   = Object.defineProperty
+  , defineProperties = Object.defineProperties
+  , getOwnDescriptor = Object.getOwnPropertyDescriptor
+  , getKeys          = Object.keys
+  , getNames         = Object.getOwnPropertyNames
+  , hasOwnProperty   = $Object.hasOwnProperty
+  , isEnumerable     = $Object.propertyIsEnumerable
+  , __PROTO__        = '__proto__' in $Object
+  , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5.js
-  , ES5Object = Object;
+  , ES5Object                = Object;
+function has(object, key){
+  return hasOwnProperty.call(object, key);
+}
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
 function getOwnPropertyDescriptors(object){
   var result = {}
-    , names  = getOwnPropertyNames(object)
+    , names  = getNames(object)
     , length = names.length
     , i      = 0
     , key;
-  while(length > i)result[key = names[i++]] = getOwnPropertyDescriptor(object, key);
+  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
   return result;
-}
-// http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-function getPropertyDescriptor(object, key){
-  if(key in object)do {
-    if(has(object, key))return getOwnPropertyDescriptor(object, key);
-  } while(object = getPrototypeOf(object));
 }
 // 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
@@ -156,11 +150,11 @@ var assign = Object.assign || function(target, source){
     , i         = 1;
   while(agsLength > i){
     source = ES5Object(arguments[i++]);
-    var props  = keys(source)
-      , length = props.length
+    var keys   = getKeys(source)
+      , length = keys.length
       , j      = 0
       , key;
-    while(length > j)target[key = props[j++]] = source[key];
+    while(length > j)target[key = keys[j++]] = source[key];
   }
   return target;
 }

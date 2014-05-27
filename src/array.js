@@ -5,12 +5,12 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   get: function(index){
-    index = toInteger(index);
-    return ES5Object(this)[0 > index ? this.length + index : index];
+    var i = toInteger(index);
+    return ES5Object(this)[0 > i ? this.length + i : i];
   },
   set: function(index, value){
-    index = toInteger(index);
-    this[0 > index ? this.length + index : index] = value;
+    var i = toInteger(index);
+    this[0 > i ? this.length + i : i] = value;
     return this;
   },
   /**

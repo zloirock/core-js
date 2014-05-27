@@ -33,7 +33,7 @@
         return O;
       }
     });
-  })(unbind(getOwnPropertyDescriptor($Object, '__proto__').set));
+  })(unbind(getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -237,11 +237,12 @@
     // copyWithin: function(target, start, end){ TODO },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
-      var length = toLength(this.length);
-      start = toInteger(start);
-      if(0 > start)start = length + start;
-      end = end == undefined ? length : toInteger(end);
-      while(end > start)this[start++] = value;
+      var length = toLength(this.length)
+        , s      = toInteger(start)
+        , e;
+      if(0 > s)s = length + s;
+      e = end == undefined ? length : toInteger(end);
+      while(e > s)this[s++] = value;
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)

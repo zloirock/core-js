@@ -13,21 +13,21 @@
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
     var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
+      , keys   = getKeys(O)
+      , length = keys.length
       , i      = 0
       , key;
     while(length > i){
-      if(fn.call(that, O[key = props[i++]], key, object))return key;
+      if(fn.call(that, O[key = keys[i++]], key, object))return key;
     }
   }
   function keyOf(object, searchElement){
     var O      = ES5Object(object)
-      , props  = keys(O)
-      , length = props.length
+      , keys   = getKeys(O)
+      , length = keys.length
       , i      = 0
       , key;
-    while(length > i)if(same0(O[key = props[i++]], searchElement))return key;
+    while(length > i)if(same0(O[key = keys[i++]], searchElement))return key;
   }
   assign(Dict, objectIterators, {
     /**
@@ -42,12 +42,12 @@
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(!fn.call(that, O[key = props[i++]], key, object))return false;
+        if(!fn.call(that, O[key = keys[i++]], key, object))return false;
       }
       return true;
     },
@@ -55,12 +55,12 @@
       assertFunction(fn);
       var O      = ES5Object(object)
         , result = create(null)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))result[key] = O[key];
+        if(fn.call(that, O[key = keys[i++]], key, object))result[key] = O[key];
       }
       return result;
     },
@@ -72,51 +72,51 @@
     forEach: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
-      while(length > i)fn.call(that, O[key = props[i++]], key, object);
+      while(length > i)fn.call(that, O[key = keys[i++]], key, object);
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
         , result = create(null)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        result[key = props[i++]] = fn.call(that, O[key], key, object);
+        result[key = keys[i++]] = fn.call(that, O[key], key, object);
       }
       return result;
     },
     reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
+        , keys   = getKeys(O)
         , i      = 0
-        , length = props.length
+        , length = keys.length
         , key;
       if(arguments.length < 3){
         assert(length--, REDUCE_ERROR);
-        result = O[props.shift()];
+        result = O[keys.shift()];
       }
       while(length > i){
-        result = fn.call(that, result, O[key = props[i++]], key, object);
+        result = fn.call(that, result, O[key = keys[i++]], key, object);
       }
       return result;
     },
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = props[i++]], key, object))return true;
+        if(fn.call(that, O[key = keys[i++]], key, object))return true;
       }
       return false;
     },
@@ -124,12 +124,12 @@
       assertFunction(mapfn);
       target = target == undefined ? create(null) : Object(target);
       var O      = ES5Object(object)
-        , props  = keys(O)
-        , length = props.length
+        , keys   = getKeys(O)
+        , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(mapfn(target, O[key = props[i++]], key, object) === false)break;
+        if(mapfn(target, O[key = keys[i++]], key, object) === false)break;
       }
       return target;
     },

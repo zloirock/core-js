@@ -14,7 +14,7 @@
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return createPartialApplication(that[key], args, length, placeholder, _, true, that);
+    return partialApplication(that[key], args, length, placeholder, _, true, that);
   }
   var $tie = {tie: tie};
   $define(PROTO, FUNCTION, assign({
@@ -32,11 +32,14 @@
         , _           = path._
         , placeholder = false
         , length      = arguments.length
-        , i = 1, args;
-      if(length < 2)return ctx(fn, that);
-      args = Array(length - 1);
-      while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-      return createPartialApplication(fn, args, length, placeholder, _, true, that);
+        , woctx       = that === _
+        , i           = woctx ? 0 : 1
+        , indent      = i
+        , args;
+      if(length < 2)return woctx ? unbind(fn) : ctx(fn, that);
+      args = Array(length - indent);
+      while(length > i)if((args[i - indent] = arguments[i++]) === _)placeholder = true;
+      return partialApplication(woctx ? call : fn, args, length, placeholder, _, true, woctx ? fn : that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)

@@ -57,7 +57,7 @@
     Object.defineProperty({}, 0, $Object);
   } catch(e){
     DESCRIPTORS = false;
-    getOwnPropertyDescriptor = function(O, P){
+    getOwnDescriptor = function(O, P){
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
@@ -67,12 +67,12 @@
     };
     defineProperties = function(O, Properties){
       assertObject(O);
-      var names  = keys(Properties)
-        , length = names.length
+      var keys   = getKeys(Properties)
+        , length = keys.length
         , i = 0
         , P, Attributes;
       while(length > i){
-        P          = names[i++];
+        P          = keys[i++];
         Attributes = Properties[P];
         if('value' in Attributes)O[P] = Attributes.value;
       }
@@ -81,7 +81,7 @@
   }
   $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
-    getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+    getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
@@ -272,10 +272,10 @@
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
   
-  create              = Export[OBJECT].create;
-  getPrototypeOf      = Export[OBJECT].getPrototypeOf;
-  keys                = Export[OBJECT].keys;
-  getOwnPropertyNames = Export[OBJECT].getOwnPropertyNames;
-  $indexOf            = Export[ARRAY].indexOf;
-  $forEach            = Export[ARRAY].forEach;
+  create         = Export[OBJECT].create;
+  getPrototypeOf = Export[OBJECT].getPrototypeOf;
+  getKeys        = Export[OBJECT].keys;
+  getNames       = Export[OBJECT].getOwnPropertyNames;
+  $indexOf       = Export[ARRAY].indexOf;
+  $forEach       = Export[ARRAY].forEach;
 }();

@@ -7,9 +7,10 @@
    , setEntries = unbind(Set[PROTOTYPE].entries);
 function extendCollections(Constructor, entries){
   return {
-    reduce: function(fn, memo){
+    reduce: function(fn, init){
       assertFunction(fn);
-      var iter = entries(this)
+      var memo = init
+        , iter = entries(this)
         , step, entry;
       while(!(step = iter.next()).done){
         entry = step.value;
@@ -48,14 +49,14 @@ function extendCollections(Constructor, entries){
     },
     transform: function(mapfn, target /* = new Constructor */){
       assertFunction(mapfn);
-      target = target == undefined ? new Constructor : Object(target);
+      var T = target == undefined ? new Constructor : Object(target);
       var iter = entries(this)
         , step, entry;
       while(!(step = iter.next()).done){
         entry = step.value;
-        if(mapfn(target, entry[1], entry[0], this) === false)break;
+        if(mapfn(T, entry[1], entry[0], this) === false)break;
       }
-      return target;
+      return T;
     }
   };
 }
