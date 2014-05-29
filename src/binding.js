@@ -1,23 +1,5 @@
 !function(){
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   * http://livescript.net/#property-access -> foo~bar
-   * http://lodash.com/docs#bindKey
-   */
-  function tie(key){
-    var that        = this
-      , _           = path._
-      , placeholder = false
-      , length      = arguments.length
-      , i = 1, args;
-    if(length < 2)return ctx(that[key], that);
-    args = Array(length - 1)
-    while(length > i)if((args[i - 1] = arguments[i++]) === _)placeholder = true;
-    return partialApplication(that[key], args, length, placeholder, _, true, that);
-  }
-  var $tie = {tie: tie};
-  $define(PROTO, FUNCTION, assign({
+  $define(PROTO, FUNCTION, {
     /**
      * Partial apply.
      * Alternatives:
@@ -28,18 +10,18 @@
      */
     part: part,
     by: function(that){
-      var fn          = this
-        , _           = path._
-        , placeholder = false
-        , length      = arguments.length
-        , woctx       = that === _
-        , i           = woctx ? 0 : 1
-        , indent      = i
+      var fn     = this
+        , _      = path._
+        , holder = false
+        , length = arguments.length
+        , woctx  = that === _
+        , i      = woctx ? 0 : 1
+        , indent = i
         , args;
       if(length < 2)return woctx ? unbind(fn) : ctx(fn, that);
       args = Array(length - indent);
-      while(length > i)if((args[i - indent] = arguments[i++]) === _)placeholder = true;
-      return partialApplication(woctx ? call : fn, args, length, placeholder, _, true, woctx ? fn : that);
+      while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
+      return partialApplication(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
@@ -55,14 +37,36 @@
         return apply.call(fn, undefined, args);
       }
     }
-  }, $tie));
-  $define(PROTO, ARRAY, $tie);
-  $define(PROTO, REGEXP, $tie);
+  });
+  
+  /**
+   * Alternatives:
+   * http://www.2ality.com/2013/06/auto-binding.html
+   * http://livescript.net/#property-access -> foo~bar
+   * http://lodash.com/docs#bindKey
+   */
+  function tie(key){
+    var that   = this
+      , _      = path._
+      , holder = false
+      , length = arguments.length
+      , i = 1, args;
+    if(length < 2)return ctx(that[key], that);
+    args = Array(length - 1)
+    while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
+    return partialApplication(that[key], args, length, holder, _, true, that);
+  }
+
   $define(STATIC, OBJECT, {
     tie: unbind(tie)
   });
-  Export.useTie = function(){
-    $define(PROTO, OBJECT, $tie);
-    return C;
-  }
+  
+  var _ = symbol('tie');
+  hidden(path._, 'toString', function(){
+    return _;
+  });
+  DESCRIPTORS && hidden($Object, _, tie);
+  hidden($Function, _, tie);
+  hidden($Array, _, tie);
+  hidden(RegExp[PROTOTYPE], _, tie);
 }();

@@ -1,4 +1,5 @@
 isFunction = -> typeof! it  is \Function
+isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
 {slice} = Array::
 test 'Function::by' !->
   $ = _
@@ -47,30 +48,28 @@ test 'Object.tie' ->
   bar 2 4
 test '::tie' !->
   $ = _
-  ok isFunction(Function::tie), 'Function::tie is function'
+  ok isFunction(Function::[_]), 'Function::[_] is function'
   fn = ((a, b, c, d)->
     ok @ is ctx
     deepEqual slice.call(&), [1 2 3 4]
-  ).tie \call ctx = {}, 1, $, 3
+  )[_] \call ctx = {}, 1, $, 3
   fn 2 4
-  ok isFunction(Array::tie), 'Array::tie is function'
+  ok isFunction(Array::[_]), 'Array::[_] is function'
   array = [1 2 3]
-  push = array.tie \push 4, $, 6
+  push = array[_] \push 4, $, 6
   ok isFunction push
   push(5 7)
   deepEqual array, [1 2 3 4 5 6 7]
-  ok isFunction(RegExp::tie), 'RegExp::tie is function'
-  ok [1 2]every /\d/tie \test
-  ok ![1 \q]every /\d/tie \test
-  ok \tie not of Object::, 'tie not in Object:: before useTie call'
-  C.useTie!
-  ok isFunction(Object::tie), 'Object::tie is function'
-  foo = bar : (a, b, c, d)->
-    ok @ is foo
-    deepEqual slice.call(&), [1 2 3 4]
-  bar = foo.tie \bar 1, $, 3 
-  bar 2 4
-  delete Object::tie
+  ok isFunction(RegExp::[_]), 'RegExp::[_] is function'
+  ok [1 2]every /\d/[_] \test
+  ok ![1 \q]every /\d/[_] \test
+  if isNative Object.defineProperties
+    ok isFunction(Object::[_]), 'Object::[_] is function'
+    foo = bar : (a, b, c, d)->
+      ok @ is foo
+      deepEqual slice.call(&), [1 2 3 4]
+    bar = foo[_] \bar 1, $, 3 
+    bar 2 4
 test 'Function::methodize' !->
   ok isFunction(Function::methodize), 'Is function'
   ok {a: 42, fn: (-> it.a)methodize!}fn! is 42

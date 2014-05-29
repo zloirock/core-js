@@ -85,9 +85,9 @@ function part(/*...args*/){
     , args   = Array(length)
     , i      = 0
     , _      = path._
-    , placeholder = false;
-  while(length > i)if((args[i] = arguments[i++]) === _)placeholder = true;
-  return partialApplication(this, args, length, placeholder, _, false);
+    , holder = false;
+  while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
+  return partialApplication(this, args, length, holder, _, false);
 }
 function ctx(fn, that){
   assertFunction(fn);
@@ -95,15 +95,15 @@ function ctx(fn, that){
     return fn.apply(that, arguments);
   }
 }
-function partialApplication(fn, argsPart, lengthPart, placeholder, _, bind, context){
+function partialApplication(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
-    if(!placeholder && length == 0)return fn.apply(that, argsPart);
+    if(!holder && length == 0)return fn.apply(that, argsPart);
     args = argsPart.slice();
-    if(placeholder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
+    if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return fn.apply(that, args);
   }

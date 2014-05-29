@@ -39,7 +39,7 @@ Object
   .symbol(description) -> string                            core
   .hidden(object, key, val) -> object                       core
   .tie(object, key, ...args) -> fn                          core
-  ::tie(key, ...args) -> fn                                 core
+  ::[_](key, ...args) -> fn                                 core
 Function
   .isNative(var) -> bool                                    core
   ::bind(object, ...args) -> fn                             es5

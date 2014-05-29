@@ -671,9 +671,12 @@
 }).call(this);
 
 (function(){
-  var isFunction, slice, toString$ = {}.toString;
+  var isFunction, isNative, slice, toString$ = {}.toString;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  isNative = function(it){
+    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
   };
   slice = Array.prototype.slice;
   test('Function::by', function(){
@@ -748,33 +751,32 @@
   test('::tie', function(){
     var $, fn, ctx, array, push, foo, bar;
     $ = _;
-    ok(isFunction(Function.prototype.tie), 'Function::tie is function');
+    ok(isFunction(Function.prototype[_]), 'Function::[_] is function');
     fn = function(a, b, c, d){
       ok(this === ctx);
       return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
-    }.tie('call', ctx = {}, 1, $, 3);
+    }[_]('call', ctx = {}, 1, $, 3);
     fn(2, 4);
-    ok(isFunction(Array.prototype.tie), 'Array::tie is function');
+    ok(isFunction(Array.prototype[_]), 'Array::[_] is function');
     array = [1, 2, 3];
-    push = array.tie('push', 4, $, 6);
+    push = array[_]('push', 4, $, 6);
     ok(isFunction(push));
     push(5, 7);
     deepEqual(array, [1, 2, 3, 4, 5, 6, 7]);
-    ok(isFunction(RegExp.prototype.tie), 'RegExp::tie is function');
-    ok([1, 2].every(/\d/.tie('test')));
-    ok(![1, 'q'].every(/\d/.tie('test')));
-    ok(!('tie' in Object.prototype), 'tie not in Object:: before useTie call');
-    C.useTie();
-    ok(isFunction(Object.prototype.tie), 'Object::tie is function');
-    foo = {
-      bar: function(a, b, c, d){
-        ok(this === foo);
-        return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
-      }
-    };
-    bar = foo.tie('bar', 1, $, 3);
-    bar(2, 4);
-    delete Object.prototype.tie;
+    ok(isFunction(RegExp.prototype[_]), 'RegExp::[_] is function');
+    ok([1, 2].every(/\d/[_]('test')));
+    ok(![1, 'q'].every(/\d/[_]('test')));
+    if (isNative(Object.defineProperties)) {
+      ok(isFunction(Object.prototype[_]), 'Object::[_] is function');
+      foo = {
+        bar: function(a, b, c, d){
+          ok(this === foo);
+          return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
+        }
+      };
+      bar = foo[_]('bar', 1, $, 3);
+      bar(2, 4);
+    }
   });
   test('Function::methodize', function(){
     var num;
