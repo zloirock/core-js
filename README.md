@@ -15,6 +15,7 @@ require('core-js');
 ```
 ### API:
 ```livescript
+global -> object                                            node
 Object
   .create(object || null, descs = {}) -> object             es5
   .getPrototypeOf(object) -> object || null                 es5 sham
@@ -77,6 +78,69 @@ Array
   ::set(index, value) -> @                                  core
   ::transform(fn, memo = []) -> memo                        core
   ::contains(var) -> bool                                   es7
+[new] Dict([itarable (entries) || object]) -> dict          core
+  .filter(object, fn, that) -> dict                         core
+  .find(object, fn, that) -> val                            core
+  .findKey(object, fn, that) -> key                         core
+  .keyOf(object, var) -> key                                core
+  .forEach(object, fn, that) -> void                        core
+  .map(object, fn, that) -> dict                            core
+  .reduce(object, fn, memo) -> var                          core
+  .every(object, fn, that) -> bool                          core
+  .some(object, fn, that) -> bool                           core
+  .transform(object, fn, memo = Dict()) -> memo             core
+  .has(object, key) -> bool                                 core
+  .get(object, key) -> val                                  core
+  .set(object, key, value) -> &0                            core
+  .isDict(var) -> bool                                      core
+  .values(object) -> iterator                               core
+  .keys(object) -> iterator                                 core
+  .entries(object) -> iterator (entries)                    core
+new Set([iterable]) -> set                                  es6
+  ::add(key) -> @                                           es6
+  ::clear() -> void                                         es6
+  ::delete(key) -> bool                                     es6
+  ::forEach(fn, that) -> void                               es6
+  ::has(key) -> bool                                        es6
+  ::size -> uint                                            es6
+  ::values() -> iterator                                    es6
+  ::keys() -> iterator                                      es6
+  ::entries() -> iterator (entries)                         es6
+  ::@@iterator() -> iterator                                es6
+new Map([iterable (entries)]) -> map                        es6
+  ::clear() -> void                                         es6
+  ::delete(key) -> bool                                     es6
+  ::forEach(fn, that) -> void                               es6
+  ::get(key) -> val                                         es6
+  ::has(key) -> bool                                        es6
+  ::set(key, val) -> @                                      es6
+  ::size -> uint                                            es6
+  ::values() -> iterator                                    es6
+  ::keys() -> iterator                                      es6
+  ::entries() -> iterator (entries)                         es6
+  ::@@iterator() -> iterator (entries)                      es6
+new WeakSet([iterable]) -> weakset                          es6
+  ::add(key) -> @                                           es6
+  ::clear() -> void                                         es6
+  ::delete(key) -> bool                                     es6
+  ::has(key) -> bool                                        es6
+new WeakMap([iterable (entries)]) -> weakmap                es6 sham
+  ::clear() -> void                                         es6 sham
+  ::delete(key) -> bool                                     es6
+  ::get(key) -> val                                         es6
+  ::has(key) -> bool                                        es6
+  ::set(key, val) -> @                                      es6
+String
+  ::trim() -> str                                           es5
+  ::contains(str, from = 0) -> bool                         es6
+  ::startsWith(str, from = 0) -> bool                       es6
+  ::endsWith(str, from = @length) -> bool                   es6
+  ::repeat(num) -> str                                      es6
+  ::@@iterator() -> iterator                                es6 sham (fix later)
+  ::escapeHTML() -> str                                     core
+  ::unescapeHTML() -> str                                   core
+RegExp
+  .escape(str) -> str                                       es7
 Number
   .EPSILON -> num                                           es6
   .isFinite(num) -> bool                                    es6
@@ -109,57 +173,17 @@ Math
   .tanh(num) -> num                                         es6
   .trunc(num) -> num                                        es6
   .randomInt(num, num = 0) -> int                           core
-String
-  ::trim() -> str                                           es5
-  ::contains(str, from = 0) -> bool                         es6
-  ::startsWith(str, from = 0) -> bool                       es6
-  ::endsWith(str, from = @length) -> bool                   es6
-  ::repeat(num) -> str                                      es6
-  ::@@iterator() -> iterator                                es6 sham (fix later)
-  ::escapeHTML() -> str                                     core
-  ::unescapeHTML() -> str                                   core
 Date
   .now() -> int                                             es5
   .addLocale(key, object) -> Date                           core
   .locale([key]) -> key                                     core
   ::format(str, key = Date.locale()) -> str                 core
   ::formatUTC(str, key = Date.locale()) -> str              core
-RegExp
-  .escape(str) -> str                                       es7
-new Set([iterable]) -> set                                  es6
-  ::add(key) -> @                                           es6
-  ::clear() -> void                                         es6
-  ::delete(key) -> bool                                     es6
-  ::forEach(fn, that) -> void                               es6
-  ::has(key) -> bool                                        es6
-  ::size -> uint                                            es6
-  ::values() -> iterator                                    es6
-  ::keys() -> iterator                                      es6
-  ::entries() -> iterator (entries)                         es6
-  ::@@iterator() -> iterator                                es6
-new Map([iterable]) -> map                                  es6
-  ::clear() -> void                                         es6
-  ::delete(key) -> bool                                     es6
-  ::forEach(fn, that) -> void                               es6
-  ::get(key) -> val                                         es6
-  ::has(key) -> bool                                        es6
-  ::set(key, val) -> @                                      es6
-  ::size -> uint                                            es6
-  ::values() -> iterator                                    es6
-  ::keys() -> iterator                                      es6
-  ::entries() -> iterator (entries)                         es6
-  ::@@iterator() -> iterator (entries)                      es6
-new WeakSet([iterable]) -> weakset                          es6
-  ::add(key) -> @                                           es6
-  ::clear() -> void                                         es6
-  ::delete(key) -> bool                                     es6
-  ::has(key) -> bool                                        es6
-new WeakMap([iterable]) -> weakmap                          es6 sham
-  ::clear() -> void                                         es6 sham
-  ::delete(key) -> bool                                     es6
-  ::get(key) -> val                                         es6
-  ::has(key) -> bool                                        es6
-  ::set(key, val) -> @                                      es6
+[new] Symbol([description]) -> symbol                       es6 sham
+  .for(key) -> symbol                                       es6
+  .keyFor(symbol) -> key                                    es6
+  .iterator -> symbol                                       es6 sham
+  .toStringTag -> symbol                                    es6
 new Promise(fn) -> promise                                  es6
   ::then(resolved, rejected) -> promise                     es6
   ::catch(rejected) -> promise                              es6
@@ -167,11 +191,6 @@ new Promise(fn) -> promise                                  es6
   .reject(var) -> promise                                   es6
   .all(iterable) -> promise                                 es6
   .race(iterable) -> promise                                es6
-[new] Symbol([description]) -> symbol                       es6 sham
-  .for(key) -> symbol                                       es6
-  .keyFor(symbol) -> key                                    es6
-  .iterator -> symbol                                       es6 sham
-  .toStringTag -> symbol                                    es6
 setTimeout(fn, time, ...args) -> uint                       w3c / whatwg
 setInterval(fn, time, ...args) -> uint                      w3c / whatwg
 setImmediate(fn, ...args) -> uint                           w3c / whatwg
@@ -180,25 +199,6 @@ console(...args) -> void                                    core
   .{...console API}                                         console api
   .enable() -> void                                         core
   .disable() -> void                                        core
-global -> object                                            node
-Dict([itarable (entries) || object]) -> dict                core
-  .filter(object, fn, that) -> dict                         core
-  .find(object, fn, that) -> val                            core
-  .findKey(object, fn, that) -> key                         core
-  .keyOf(object, var) -> key                                core
-  .forEach(object, fn, that) -> void                        core
-  .map(object, fn, that) -> dict                            core
-  .reduce(object, fn, memo) -> var                          core
-  .every(object, fn, that) -> bool                          core
-  .some(object, fn, that) -> bool                           core
-  .transform(object, fn, memo = Dict()) -> memo             core
-  .has(object, key) -> bool                                 core
-  .get(object, key) -> val                                  core
-  .set(object, key, value) -> &0                            core
-  .isDict(var) -> bool                                      core
-  .values(object) -> iterator                               core
-  .keys(object) -> iterator                                 core
-  .entries(object) -> iterator (entries)                    core
 C                                                           core
   .forOf(iterable, fn, that, entries) -> void               core
   .isIterable(var) -> bool                                  core
