@@ -36,6 +36,21 @@
       return memo.unshift(it);
     }), 'Reduce to object and return it');
   });
+  test('Array::clone', function(){
+    var arr1, object1, array1, arr2;
+    ok(isFunction(Array.prototype.clone), 'Is function');
+    arr1 = [
+      object1 = {
+        q: 1,
+        w: 2
+      }, array1 = [1, 2], 1, 2, 3
+    ];
+    arr2 = arr1.clone();
+    ok(arr2 !== arr1);
+    ok(arr2['0'] !== object1);
+    ok(arr2['1'] !== array1);
+    deepEqual(arr1, arr2);
+  });
   test('Array::contains', function(){
     var arr, o;
     ok(isFunction(Array.prototype.contains), 'Is function');
@@ -59,7 +74,7 @@
   slice = Array.prototype.slice;
   test('Array static are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'transform', 'contains']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'transform', 'clone', 'contains']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -649,6 +664,22 @@
       return memo.unshift(it);
     }));
   });
+  test('Array.clone', function(){
+    var clone, arr1, object1, array1, arr2;
+    clone = Array.clone;
+    ok(isFunction(clone), 'Is function');
+    arr1 = [
+      object1 = {
+        q: 1,
+        w: 2
+      }, array1 = [1, 2], 1, 2, 3
+    ];
+    arr2 = clone(arr1);
+    ok(arr2 !== arr1);
+    ok(arr2['0'] !== object1);
+    ok(arr2['1'] !== array1);
+    deepEqual(arr1, arr2);
+  });
   test('Array.contains', function(){
     var contains, args, o, str;
     contains = Array.contains;
@@ -997,18 +1028,18 @@
     var dict1, dict2, dict3;
     ok(isFunction(global.Dict), 'Is function');
     dict1 = Dict();
-    ok(Object.getPrototypeOf(dict1) === null);
+    ok(!(dict1 instanceof Object));
     deepEqual(keys(dict1), []);
     dict2 = Dict({
       q: 1,
       w: 2
     });
-    ok(Object.getPrototypeOf(dict2) === null);
+    ok(!(dict2 instanceof Object));
     deepEqual(keys(dict2), ['q', 'w']);
     ok(dict2.q === 1);
     ok(dict2.w === 2);
     dict3 = Dict(new Set([1, 2]).entries());
-    ok(Object.getPrototypeOf(dict3) === null);
+    ok(!(dict3 instanceof Object));
     deepEqual(keys(dict3), ['1', '2']);
     ok(dict3[1] === 1);
     ok(dict3[2] === 2);
@@ -1373,6 +1404,68 @@
       2: 2,
       3: 3
     }));
+  });
+  test('Dict.clone', function(){
+    var clone, getPrototypeOf, create, array1, array2, object1, object2, dict1, ref$, dict2, object3, object4, array3, array4, a, b, c, e, d;
+    clone = Dict.clone;
+    getPrototypeOf = Object.getPrototypeOf, create = Object.create;
+    ok(isFunction(clone), 'Is function');
+    array1 = [1, 2, 3];
+    array2 = clone(array1);
+    ok(array1 !== array2);
+    deepEqual(array1, array2);
+    object1 = {
+      q: 1,
+      w: 2,
+      e: 3
+    };
+    object2 = clone(object1);
+    ok(object1 !== object2);
+    deepEqual(object1, object2);
+    ok(getPrototypeOf(object2) === Object.prototype);
+    dict1 = (ref$ = create(null), ref$.q = 1, ref$.w = 2, ref$.e = 3, ref$);
+    dict2 = clone(dict1);
+    ok(dict1 !== dict2);
+    deepEqual(dict1, dict2);
+    ok(getPrototypeOf(dict2) === null);
+    object3 = {
+      a: object1,
+      b: array1
+    };
+    object4 = clone(object3);
+    ok(object4.a !== object1);
+    deepEqual(object4.a, object1);
+    ok(object4.b !== array1);
+    deepEqual(object4.b, array1);
+    array3 = [object1, array1];
+    array4 = clone(array3);
+    ok(array4['0'] !== object1);
+    deepEqual(array4['0'], object1);
+    ok(array4['1'] !== array1);
+    deepEqual(array4['1'], array1);
+    a = [];
+    b = {
+      a: a
+    };
+    a['0'] = b;
+    try {
+      c = clone(b);
+      ok(c.a !== b.a);
+      deepEqual(c.a, b.a);
+      ok(c.a[0].a === c.a);
+    } catch (e$) {
+      e = e$;
+      ok(false, e);
+    }
+    try {
+      d = clone(a);
+      ok(d[0] !== a[0]);
+      deepEqual(d[0], a[0]);
+      ok(d[0].a[0] === d[0]);
+    } catch (e$) {
+      e = e$;
+      ok(false, e);
+    }
   });
   test('Dict.contains', function(){
     var contains, dict, o;
@@ -3356,7 +3449,6 @@
     ok(classof(new WeakSet) === 'WeakSet');
     ok(classof(new WeakMap) === 'WeakMap');
     ok(classof(new Promise(function(){})) === 'Promise');
-    ok(classof(new Symbol) === 'Symbol');
     ok(classof(Symbol()) === 'Symbol');
     ok(classof([].entries()) === 'Array Iterator');
     ok(classof(new Set().entries()) === 'Set Iterator');

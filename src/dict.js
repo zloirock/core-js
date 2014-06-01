@@ -54,7 +54,7 @@
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = create(null)
+        , result = Dict()
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -82,7 +82,7 @@
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = create(null)
+        , result = Dict()
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -122,7 +122,7 @@
     },
     transform: function(object, mapfn, target /* = Dict() */){
       assertFunction(mapfn);
-      target = target == undefined ? create(null) : Object(target);
+      target = target == undefined ? Dict() : Object(target);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -136,6 +136,7 @@
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
+    clone: unbind($clone),
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -145,7 +146,7 @@
       return defineProperty(object, key, descriptor(7, value));
     },
     isDict: function(it){
-      return getPrototypeOf(it) == null;
+      return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
   $define(GLOBAL, {Dict: Dict});

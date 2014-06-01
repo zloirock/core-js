@@ -18,6 +18,7 @@ $define(PROTO, ARRAY, {
    * http://lodash.com/docs#template
    */
   transform: transform,
+  clone: $clone,
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){
     var O      = ES5Object(this)

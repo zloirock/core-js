@@ -65,7 +65,7 @@ function isNative(it){
 var toString = $Object.toString
   , TOSTRINGTAG;
 function setTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)(stat ? constructor : constructor[PROTOTYPE])[TOSTRINGTAG] = tag;
+  if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // object internal [[Class]]
 function classof(it){
@@ -157,6 +157,24 @@ var assign = Object.assign || function(target, source){
     while(length > j)target[key = keys[j++]] = source[key];
   }
   return target;
+}
+function clone(it, stack1, stack2){
+  var cof     = classof(it)
+    , isArray = cof == ARRAY
+    , index, result, i, l, k;
+  if(isArray || cof == OBJECT){
+    index = $indexOf(stack1, it);
+    if(~index)return stack2[index];
+    stack1.push(it);
+    stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
+    if(isArray)for(i = 0; l > i;)result[i] = clone(it[i++], stack1, stack2);
+    else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
+    return result;
+  }
+  return it;
+}
+function $clone(){
+  return clone(this, [], []);
 }
 
 // Array:
@@ -251,7 +269,7 @@ function $define(type, name, source, forced /* = false */){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
-    exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));

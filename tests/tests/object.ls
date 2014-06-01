@@ -49,7 +49,6 @@ test 'Object.classof' !->
   ok classof(new WeakSet) is \WeakSet
   ok classof(new WeakMap) is \WeakMap
   ok classof(new Promise ->) is \Promise
-  ok classof(new Symbol) is \Symbol
   ok classof(Symbol!) is \Symbol
   ok classof([]entries!) is 'Array Iterator'
   ok classof(new Set!entries!) is 'Set Iterator'

@@ -77,7 +77,7 @@ function isNative(it){
 var toString = $Object.toString
   , TOSTRINGTAG;
 function setTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)(stat ? constructor : constructor[PROTOTYPE])[TOSTRINGTAG] = tag;
+  if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // object internal [[Class]]
 function classof(it){
@@ -169,6 +169,24 @@ var assign = Object.assign || function(target, source){
     while(length > j)target[key = keys[j++]] = source[key];
   }
   return target;
+}
+function clone(it, stack1, stack2){
+  var cof     = classof(it)
+    , isArray = cof == ARRAY
+    , index, result, i, l, k;
+  if(isArray || cof == OBJECT){
+    index = $indexOf(stack1, it);
+    if(~index)return stack2[index];
+    stack1.push(it);
+    stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
+    if(isArray)for(i = 0; l > i;)result[i] = clone(it[i++], stack1, stack2);
+    else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
+    return result;
+  }
+  return it;
+}
+function $clone(){
+  return clone(this, [], []);
 }
 
 // Array:
@@ -263,7 +281,7 @@ function $define(type, name, source, forced /* = false */){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
-    exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
@@ -591,7 +609,7 @@ $define(GLOBAL, {global: global});
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR){
+!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR, $ITERATOR, $TOSTRINGTAG){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -615,16 +633,16 @@ $define(GLOBAL, {global: global});
       return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = Symbol.iterator || FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.iterator'),
+    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.' + $ITERATOR),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG = Symbol.toStringTag || Symbol(SYMBOL + '.toStringTag')
+    toStringTag: TOSTRINGTAG = $TOSTRINGTAG in Symbol ? Symbol[$TOSTRINGTAG] : Symbol(SYMBOL + '.' + $TOSTRINGTAG)
   });
   setTag(Symbol, SYMBOL);
-}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator');
+}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator', 'iterator', 'toStringTag');
 
 /*****************************
  * Module : es6
@@ -1599,7 +1617,7 @@ $defineTimer('clearImmediate', clearImmediate);
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = create(null)
+        , result = Dict()
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -1627,7 +1645,7 @@ $defineTimer('clearImmediate', clearImmediate);
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = create(null)
+        , result = Dict()
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -1667,7 +1685,7 @@ $defineTimer('clearImmediate', clearImmediate);
     },
     transform: function(object, mapfn, target /* = Dict() */){
       assertFunction(mapfn);
-      target = target == undefined ? create(null) : Object(target);
+      target = target == undefined ? Dict() : Object(target);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -1681,6 +1699,7 @@ $defineTimer('clearImmediate', clearImmediate);
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
+    clone: unbind($clone),
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -1690,7 +1709,7 @@ $defineTimer('clearImmediate', clearImmediate);
       return defineProperty(object, key, descriptor(7, value));
     },
     isDict: function(it){
-      return getPrototypeOf(it) == null;
+      return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
   $define(GLOBAL, {Dict: Dict});
@@ -1960,6 +1979,7 @@ $define(PROTO, ARRAY, {
    * http://lodash.com/docs#template
    */
   transform: transform,
+  clone: $clone,
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){
     var O      = ES5Object(this)
@@ -1994,7 +2014,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,set,transform,contains'
+    'get,set,transform,clone,contains'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = unbind($Array[key]);

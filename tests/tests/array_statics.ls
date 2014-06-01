@@ -1,7 +1,7 @@
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'Array static are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries get transform contains]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries get transform clone contains]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test 'Array.join' !->
   {join} = Array
@@ -261,6 +261,15 @@ test 'Array.transform' !->
   , obj = {}
   deepEqual [3 2 1], transform (->&)(1 2 3), ((memo, it)-> memo.unshift it)
   deepEqual [\3 \2 \1], transform \123, ((memo, it)-> memo.unshift it)
+test 'Array.clone' !->
+  {clone} = Array
+  ok isFunction(clone), 'Is function'
+  arr1 = [object1 = {q:1, w:2}, array1 = [1 2], 1 2 3]
+  arr2 = clone arr1
+  ok arr2 isnt arr1
+  ok arr2\0 isnt object1
+  ok arr2\1 isnt array1
+  deepEqual arr1, arr2
 test 'Array.contains' !->
   {contains} = Array
   ok isFunction(contains), 'Is function'
