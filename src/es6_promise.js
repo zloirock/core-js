@@ -57,7 +57,7 @@
         forOf(iterable, push, values);
         var remaining = values.length
           , results   = Array(remaining);
-        if(remaining)$forEach(values, function(promise, index){
+        if(remaining)forEach.call(values, function(promise, index){
           C.resolve(promise).then(function(value){
             results[index] = value;
             --remaining || resolve(results);

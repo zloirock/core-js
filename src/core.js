@@ -79,7 +79,7 @@ var apply = $Function.apply
   , call  = $Function.call
   , path  = framework ? global : Export;
 Export._ = path._ = path._ || {};
-// partial apply
+// Partial apply
 function part(/*...args*/){
   var length = arguments.length
     , args   = Array(length)
@@ -87,15 +87,17 @@ function part(/*...args*/){
     , _      = path._
     , holder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
-  return partialApplication(this, args, length, holder, _, false);
+  return partial(this, args, length, holder, _, false);
 }
+// Simple context binding
 function ctx(fn, that){
   assertFunction(fn);
   return function(/*...args*/){
     return fn.apply(that, arguments);
   }
 }
-function partialApplication(fn, argsPart, lengthPart, holder, _, bind, context){
+// Internal partial application & context binding
+function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
@@ -106,13 +108,6 @@ function partialApplication(fn, argsPart, lengthPart, holder, _, bind, context){
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return fn.apply(that, args);
-  }
-}
-// unbind method from context
-// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
-function unbind(that){
-  return function(){
-    return call.apply(that, arguments);
   }
 }
 
@@ -129,7 +124,7 @@ var create           = Object.create
   , __PROTO__        = '__proto__' in $Object
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5.js
-  , ES5Object                = Object;
+  , ES5Object        = Object;
 function has(object, key){
   return hasOwnProperty.call(object, key);
 }
@@ -145,25 +140,26 @@ function getOwnPropertyDescriptors(object){
 }
 // 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
-  target = Object(target);
-  var agsLength = arguments.length
-    , i         = 1;
-  while(agsLength > i){
-    source = ES5Object(arguments[i++]);
-    var keys   = getKeys(source)
+  var T = Object(target)
+    , l = arguments.length
+    , i = 1;
+  while(l > i){
+    var S      = ES5Object(arguments[i++])
+      , keys   = getKeys(S)
       , length = keys.length
       , j      = 0
       , key;
-    while(length > j)target[key = keys[j++]] = source[key];
+    while(length > j)T[key = keys[j++]] = S[key];
   }
-  return target;
+  return T;
 }
+// Simple structured cloning
 function clone(it, stack1, stack2){
   var cof     = classof(it)
     , isArray = cof == ARRAY
     , index, result, i, l, k;
   if(isArray || cof == OBJECT){
-    index = $indexOf(stack1, it);
+    index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
     stack1.push(it);
     stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
@@ -185,20 +181,20 @@ function array(it){
 var push     = $Array.push
   , unshift  = $Array.unshift
   , slice    = $Array.slice
-  , $indexOf = Array.indexOf || unbind($Array.indexOf)
-  , $forEach = Array.forEach || unbind($Array.forEach)
-  , $slice   = Array.slice || function(arrayLike, from){
-      return slice.call(arrayLike, from);
-    }
-// simple reduce to object
+  , indexOf  = $Array.indexOf
+  , forEach  = $Array.forEach;
+// Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
-  target = target == undefined ? [] : Object(target);
-  var self   = ES5Object(this)
-    , length = toLength(self.length)
-    , i      = 0;
-  for(;length > i; i++)if(i in self && mapfn(target, self[i], i, this) === false)break;
-  return target;
+  var T    = target == undefined ? [] : Object(target)
+    , self = ES5Object(this)
+    , l    = toLength(self.length)
+    , i    = 0;
+  for(;l > i; i++)if(i in self && mapfn(T, self[i], i, this) === false)break;
+  return T;
+}
+function newGeneric(A, B){
+  return new (isFunction(A) ? A : B);
 }
 
 // Math:
@@ -208,10 +204,11 @@ var ceil   = Math.ceil
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , MAX_SAFE_INTEGER = pow(2, 53) - 1; // 0x1fffffffffffff == 9007199254740991
+  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
-  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
+  var n = +it;
+  return n != n ? 0 : n != 0 && n != Infinity && n != -Infinity ? (n > 0 ? floor : ceil)(n) : n;
 }
 // 7.1.15 ToLength
 function toLength(it){
@@ -220,14 +217,19 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
-function assert(condition){
-  if(!condition)throw TypeError($slice(arguments, 1).join(' '));
+function assert(condition, _msg){
+  if(!condition){
+    var msg = _msg
+      , i   = 2;
+    while(arguments.length > i)msg += ' ' + arguments[i++];
+    throw TypeError(msg);
+  }
 }
 function assertFunction(it){
-  if(!isFunction(it))throw TypeError(it + 'is not a function!');
+  assert(isFunction(it), it, 'is not a function!');
 }
 function assertObject(it){
-  if(!isObject(it))throw TypeError(it + 'is not an object!');
+  assert(isObject(it), it, 'is not an object!');
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
@@ -269,7 +271,7 @@ function $define(type, name, source, forced /* = false */){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
-    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));

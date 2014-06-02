@@ -3,8 +3,8 @@
  * Alternatives:
  * https://github.com/calvinmetcalf/set.up (Firefox only)
  */
- var mapEntries = unbind(Map[PROTOTYPE].entries)
-   , setEntries = unbind(Set[PROTOTYPE].entries);
+ var mapEntries = ctx(call, Map[PROTOTYPE].entries)
+   , setEntries = ctx(call, Set[PROTOTYPE].entries);
 function extendCollections(Constructor, entries){
   return {
     reduce: function(fn, init){

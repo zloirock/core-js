@@ -91,7 +91,7 @@ var apply = $Function.apply
   , call  = $Function.call
   , path  = framework ? global : Export;
 Export._ = path._ = path._ || {};
-// partial apply
+// Partial apply
 function part(/*...args*/){
   var length = arguments.length
     , args   = Array(length)
@@ -99,15 +99,17 @@ function part(/*...args*/){
     , _      = path._
     , holder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
-  return partialApplication(this, args, length, holder, _, false);
+  return partial(this, args, length, holder, _, false);
 }
+// Simple context binding
 function ctx(fn, that){
   assertFunction(fn);
   return function(/*...args*/){
     return fn.apply(that, arguments);
   }
 }
-function partialApplication(fn, argsPart, lengthPart, holder, _, bind, context){
+// Internal partial application & context binding
+function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
   return function(/*...args*/){
     var that   = bind ? context : this
@@ -118,13 +120,6 @@ function partialApplication(fn, argsPart, lengthPart, holder, _, bind, context){
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return fn.apply(that, args);
-  }
-}
-// unbind method from context
-// foo.fn(arg1, arg2, ...) => fn(foo, arg1, arg2, ...)
-function unbind(that){
-  return function(){
-    return call.apply(that, arguments);
   }
 }
 
@@ -141,7 +136,7 @@ var create           = Object.create
   , __PROTO__        = '__proto__' in $Object
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5.js
-  , ES5Object                = Object;
+  , ES5Object        = Object;
 function has(object, key){
   return hasOwnProperty.call(object, key);
 }
@@ -157,25 +152,26 @@ function getOwnPropertyDescriptors(object){
 }
 // 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
-  target = Object(target);
-  var agsLength = arguments.length
-    , i         = 1;
-  while(agsLength > i){
-    source = ES5Object(arguments[i++]);
-    var keys   = getKeys(source)
+  var T = Object(target)
+    , l = arguments.length
+    , i = 1;
+  while(l > i){
+    var S      = ES5Object(arguments[i++])
+      , keys   = getKeys(S)
       , length = keys.length
       , j      = 0
       , key;
-    while(length > j)target[key = keys[j++]] = source[key];
+    while(length > j)T[key = keys[j++]] = S[key];
   }
-  return target;
+  return T;
 }
+// Simple structured cloning
 function clone(it, stack1, stack2){
   var cof     = classof(it)
     , isArray = cof == ARRAY
     , index, result, i, l, k;
   if(isArray || cof == OBJECT){
-    index = $indexOf(stack1, it);
+    index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
     stack1.push(it);
     stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
@@ -197,20 +193,20 @@ function array(it){
 var push     = $Array.push
   , unshift  = $Array.unshift
   , slice    = $Array.slice
-  , $indexOf = Array.indexOf || unbind($Array.indexOf)
-  , $forEach = Array.forEach || unbind($Array.forEach)
-  , $slice   = Array.slice || function(arrayLike, from){
-      return slice.call(arrayLike, from);
-    }
-// simple reduce to object
+  , indexOf  = $Array.indexOf
+  , forEach  = $Array.forEach;
+// Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
-  target = target == undefined ? [] : Object(target);
-  var self   = ES5Object(this)
-    , length = toLength(self.length)
-    , i      = 0;
-  for(;length > i; i++)if(i in self && mapfn(target, self[i], i, this) === false)break;
-  return target;
+  var T    = target == undefined ? [] : Object(target)
+    , self = ES5Object(this)
+    , l    = toLength(self.length)
+    , i    = 0;
+  for(;l > i; i++)if(i in self && mapfn(T, self[i], i, this) === false)break;
+  return T;
+}
+function newGeneric(A, B){
+  return new (isFunction(A) ? A : B);
 }
 
 // Math:
@@ -220,10 +216,11 @@ var ceil   = Math.ceil
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , MAX_SAFE_INTEGER = pow(2, 53) - 1; // 0x1fffffffffffff == 9007199254740991
+  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
-  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
+  var n = +it;
+  return n != n ? 0 : n != 0 && n != Infinity && n != -Infinity ? (n > 0 ? floor : ceil)(n) : n;
 }
 // 7.1.15 ToLength
 function toLength(it){
@@ -232,14 +229,19 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
-function assert(condition){
-  if(!condition)throw TypeError($slice(arguments, 1).join(' '));
+function assert(condition, _msg){
+  if(!condition){
+    var msg = _msg
+      , i   = 2;
+    while(arguments.length > i)msg += ' ' + arguments[i++];
+    throw TypeError(msg);
+  }
 }
 function assertFunction(it){
-  if(!isFunction(it))throw TypeError(it + 'is not a function!');
+  assert(isFunction(it), it, 'is not a function!');
 }
 function assertObject(it){
-  if(!isObject(it))throw TypeError(it + 'is not an object!');
+  assert(isObject(it), it, 'is not an object!');
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
@@ -281,7 +283,7 @@ function $define(type, name, source, forced /* = false */){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
-    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? unbind(prop) : prop;
+    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
       && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
@@ -360,7 +362,7 @@ if(!isNode || framework)global.C = Export;
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~$indexOf(result, key) && result.push(key);
+          while(length > i)has(O, key = names[i++]) && !~indexOf.call(result, key) && result.push(key);
           return result;
         }
       };
@@ -398,10 +400,10 @@ if(!isNode || framework)global.C = Export;
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
-  }, 1);
+  }, !DESCRIPTORS);
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
-    getPrototypeOf: function(O){
+    getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
       if(has(O, $PROTO))return O[$PROTO];
       var proto;
       if('__proto__' in O)proto = O.__proto__;
@@ -410,9 +412,9 @@ if(!isNode || framework)global.C = Export;
       return O !== proto && 'toString' in O ? proto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(hiddenNames2, hiddenNames2.length),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-    create: function(O, /*?*/Properties){
+    create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
       assertObject(O);
       Empty[PROTOTYPE] = O;
@@ -424,17 +426,17 @@ if(!isNode || framework)global.C = Export;
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: createGetKeys(hiddenNames1, hiddenNames1Length)
+    keys: getKeys = getKeys || createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
     bind: function(scope /*, args... */){
       var fn   = this
-        , args = $slice(arguments, 1);
+        , args = slice.call(arguments, 1);
       assertFunction(fn);
       function bound(/* args... */){
-        var _args = args.concat($slice(arguments))
+        var _args = args.concat(slice.call(arguments))
           , result, that;
         if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
         return apply.call(fn, scope, _args);
@@ -467,7 +469,7 @@ if(!isNode || framework)global.C = Export;
   }});
   $define(PROTO, ARRAY, {
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-    indexOf: function(searchElement, fromIndex /* = 0 */){
+    indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = fromIndex | 0;
@@ -508,7 +510,7 @@ if(!isNode || framework)global.C = Export;
       return false;
     },
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-    forEach: function(callbackfn, thisArg /* = undefined */){
+    forEach: forEach = forEach || function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -519,7 +521,7 @@ if(!isNode || framework)global.C = Export;
     map: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = Array(toLength(this.length));
-      $forEach(this, function(val, key, that){
+      forEach.call(this, function(val, key, that){
         result[key] = callbackfn.call(thisArg, val, key, that);
       });
       return result;
@@ -528,7 +530,7 @@ if(!isNode || framework)global.C = Export;
     filter: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = [];
-      $forEach(this, function(val){
+      forEach.call(this, function(val){
         callbackfn.apply(thisArg, arguments) && result.push(val);
       });
       return result;
@@ -583,13 +585,6 @@ if(!isNode || framework)global.C = Export;
     var cof = _classof(it);
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
-  
-  create         = Export[OBJECT].create;
-  getPrototypeOf = Export[OBJECT].getPrototypeOf;
-  getKeys        = Export[OBJECT].keys;
-  getNames       = Export[OBJECT].getOwnPropertyNames;
-  $indexOf       = Export[ARRAY].indexOf;
-  $forEach       = Export[ARRAY].forEach;
 }();
 
 /*****************************
@@ -659,7 +654,8 @@ $define(GLOBAL, {global: global});
  */
 !function(isFinite){
   function sign(it){
-    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
+    var n = +it;
+    return n == 0 || n != n ? n : n < 0 ? -1 : 1;
   }
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
@@ -671,7 +667,8 @@ $define(GLOBAL, {global: global});
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && (function(set, buggy){
+  __PROTO__ && (function(set){
+    var buggy;
     try { set({}, $Array) }
     catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
@@ -683,7 +680,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  })(unbind(getOwnDescriptor($Object, '__proto__').set));
+  })(ctx(call, getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -718,7 +715,8 @@ $define(GLOBAL, {global: global});
     , log       = Math.log
     , sqrt      = Math.sqrt;
   function asinh(x){
-    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+    var n = +x;
+    return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
   }
   $define(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
@@ -741,8 +739,8 @@ $define(GLOBAL, {global: global});
     },
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
-      x = x >>> 0;
-      return x ? 32 - x.toString(2).length : 32;
+      var n = x >>> 0;
+      return n ? 32 - n.toString(2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
@@ -800,7 +798,8 @@ $define(GLOBAL, {global: global});
     // 20.2.2.30 Math.sinh(x)
     // Returns an implementation-dependent approximation to the hyperbolic sine of x.
     sinh: function(x){
-      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
+      var n = +x;
+      return n == -Infinity || n == 0 ? n : (exp(n) - exp(-n)) / 2;
     },
     // 20.2.2.33 Math.tanh(x)
     // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
@@ -811,7 +810,8 @@ $define(GLOBAL, {global: global});
     // Returns the integral part of the number x, removing any fractional digits.
     // If x is already an integer, the result is x.
     trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
+      var n = +x;
+      return n == 0 ? n : (n > 0 ? floor : ceil)(n);
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
@@ -833,21 +833,22 @@ $define(GLOBAL, {global: global});
     },
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
-      var length = this.length;
-      searchString += '';
+      var length = this.length
+        , search = '' + searchString;
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
+      return String(this).slice(endPosition - search.length, endPosition) === search;
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      assert(0 <= (count |= 0), "Count can't be negative");
-      return Array(count + 1).join(this);
+      var n = toInteger(count);
+      assert(0 <= n, "Count can't be negative");
+      return Array(n + 1).join(this);
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
-      searchString += '';
-      position = toLength(min(position, this.length));
-      return String(this).slice(position, position + searchString.length) === searchString;
+      var search = '' + searchString
+        , pos    = toLength(min(position, this.length));
+      return String(this).slice(pos, pos + search.length) === search;
     }
   });
   $define(STATIC, ARRAY, {
@@ -855,7 +856,7 @@ $define(GLOBAL, {global: global});
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
-        , result = new (isFunction(this) ? this : Array)
+        , result = newGeneric(this, Array)
         , i = 0, length, iter, step;
       if(isIterable && isIterable(O)){
         iter = getIterator(O);
@@ -866,7 +867,7 @@ $define(GLOBAL, {global: global});
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
       var i = 0, length = arguments.length
-        , result = new (isFunction(this) ? this : Array);
+        , result = newGeneric(this, Array);
       while(i < length)push.call(result, arguments[i++]);
       return result;
     }
@@ -1045,7 +1046,7 @@ $defineTimer('clearImmediate', clearImmediate);
         forOf(iterable, push, values);
         var remaining = values.length
           , results   = Array(remaining);
-        if(remaining)$forEach(values, function(promise, index){
+        if(remaining)forEach.call(values, function(promise, index){
           C.resolve(promise).then(function(value){
             results[index] = value;
             --remaining || resolve(results);
@@ -1617,7 +1618,7 @@ $defineTimer('clearImmediate', clearImmediate);
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = Dict()
+        , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -1645,7 +1646,7 @@ $defineTimer('clearImmediate', clearImmediate);
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = Dict()
+        , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -1683,23 +1684,21 @@ $defineTimer('clearImmediate', clearImmediate);
       }
       return false;
     },
-    transform: function(object, mapfn, target /* = Dict() */){
+    transform: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
-      target = target == undefined ? Dict() : Object(target);
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
+      var T    = target == undefined ? newGeneric(this, Dict) : Object(target)
+        , O    = ES5Object(object)
+        , keys = getKeys(O)
+        , l    = keys.length
+        , i    = 0
         , key;
-      while(length > i){
-        if(mapfn(target, O[key = keys[i++]], key, object) === false)break;
-      }
-      return target;
+      while(l > i)if(mapfn(T, O[key = keys[i++]], key, object) === false)break;
+      return T;
     },
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
-    clone: unbind($clone),
+    clone: ctx(call, $clone),
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -1729,7 +1728,7 @@ $defineTimer('clearImmediate', clearImmediate);
 !function(navigator){
   function wrap(set){
     return function(fn, time /*, ...args*/){
-      return set(part.apply(isFunction(fn) ? fn : Function(fn), $slice(arguments, 2)), time || 1);
+      return set(part.apply(isFunction(fn) ? fn : Function(fn), slice.call(arguments, 2)), time || 1);
     }
   }
   // ie9- dirty check
@@ -1825,10 +1824,10 @@ $define(PROTO, FUNCTION, {
         , i      = woctx ? 0 : 1
         , indent = i
         , args;
-      if(length < 2)return woctx ? unbind(fn) : ctx(fn, that);
+      if(length < 2)return woctx ? ctx(call, fn) : ctx(fn, that);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partialApplication(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
+      return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
@@ -1861,12 +1860,10 @@ $define(PROTO, FUNCTION, {
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
-    return partialApplication(that[key], args, length, holder, _, true, that);
+    return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {
-    tie: unbind(tie)
-  });
+  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
   
   var _ = symbol('tie');
   hidden(path._, 'toString', function(){
@@ -1888,8 +1885,8 @@ $define(STATIC, OBJECT, {
    * http://underscorejs.org/#has
    * http://sugarjs.com/api/Object/has
    */
-  isEnumerable: unbind(isEnumerable),
-  isPrototype: unbind($Object.isPrototypeOf),
+  isEnumerable: ctx(call, isEnumerable),
+  isPrototype: ctx(call, $Object.isPrototypeOf),
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
@@ -2017,7 +2014,7 @@ $define(STATIC, ARRAY, transform.call(
     'get,set,transform,clone,contains'
   ),
   function(memo, key){
-    if(key in $Array)memo[key] = unbind($Array[key]);
+    if(key in $Array)memo[key] = ctx(call, $Array[key]);
   }, {}
 ));
 
@@ -2062,10 +2059,10 @@ $define(STATIC, 'Math', {
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  randomInt: function(a /* = 0 */, b /* = 0 */){
-    a = toInteger(a);
-    b = toInteger(b);
-    var m = min(a, b);
+  randomInt: function(_a /* = 0 */, _b /* = 0 */){
+    var a = toInteger(_a)
+      , b = toInteger(_b)
+      , m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });

@@ -65,8 +65,8 @@ Array
   ::forEach(fn, that) -> void                               es5
   ::map(fn, that) -> array                                  es5
   ::filter(fn, that) -> array                               es5
-  ::reduce(fn, memo) -> var                                 es5
-  ::reduceRight(fn, memo) -> var                            es5
+  ::reduce(fn[, memo]) -> var                               es5
+  ::reduceRight(fn[, memo]) -> var                          es5
   ::fill(var, start = 0, end = -1) -> @                     es5
   ::find(fn, that) -> var                                   es6
   ::findIndex(fn, that) -> int                              es6
@@ -77,18 +77,20 @@ Array
   ::get(index) -> var                                       core
   ::set(index, value) -> @                                  core
   ::transform(fn, memo = []) -> memo                        core
+  ::clone() -> var                                          core
   ::contains(var) -> bool                                   es7
 [new] Dict([itarable (entries) || object]) -> dict          core
-  .filter(object, fn, that) -> dict                         core
+  .filter(object, fn, that) -> new @                        core
   .find(object, fn, that) -> val                            core
   .findKey(object, fn, that) -> key                         core
   .keyOf(object, var) -> key                                core
   .forEach(object, fn, that) -> void                        core
-  .map(object, fn, that) -> dict                            core
-  .reduce(object, fn, memo) -> var                          core
+  .map(object, fn, that) -> new @                           core
+  .reduce(object, fn[, memo]) -> var                        core
   .every(object, fn, that) -> bool                          core
   .some(object, fn, that) -> bool                           core
-  .transform(object, fn, memo = Dict()) -> memo             core
+  .transform(object, fn, memo = new @) -> memo              core
+  .clone() -> var                                           core
   .has(object, key) -> bool                                 core
   .get(object, key) -> val                                  core
   .set(object, key, value) -> &0                            core

@@ -54,7 +54,7 @@
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = Dict()
+        , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -82,7 +82,7 @@
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
-        , result = Dict()
+        , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
@@ -120,23 +120,21 @@
       }
       return false;
     },
-    transform: function(object, mapfn, target /* = Dict() */){
+    transform: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
-      target = target == undefined ? Dict() : Object(target);
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
+      var T    = target == undefined ? newGeneric(this, Dict) : Object(target)
+        , O    = ES5Object(object)
+        , keys = getKeys(O)
+        , l    = keys.length
+        , i    = 0
         , key;
-      while(length > i){
-        if(mapfn(target, O[key = keys[i++]], key, object) === false)break;
-      }
-      return target;
+      while(l > i)if(mapfn(T, O[key = keys[i++]], key, object) === false)break;
+      return T;
     },
     contains: function(object, value){
       return keyOf(object, value) !== undefined;
     },
-    clone: unbind($clone),
+    clone: ctx(call, $clone),
     // Has / get / set own property
     has: has,
     get: function(object, key){

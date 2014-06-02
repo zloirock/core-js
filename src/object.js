@@ -4,8 +4,8 @@ $define(STATIC, OBJECT, {
    * http://underscorejs.org/#has
    * http://sugarjs.com/api/Object/has
    */
-  isEnumerable: unbind(isEnumerable),
-  isPrototype: unbind($Object.isPrototypeOf),
+  isEnumerable: ctx(call, isEnumerable),
+  isPrototype: ctx(call, $Object.isPrototypeOf),
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: function(object, key){
     if(key in object)do {

@@ -21,6 +21,6 @@ $define(STATIC, ARRAY, transform.call(
     'get,set,transform,clone,contains'
   ),
   function(memo, key){
-    if(key in $Array)memo[key] = unbind($Array[key]);
+    if(key in $Array)memo[key] = ctx(call, $Array[key]);
   }, {}
 ));

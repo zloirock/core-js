@@ -18,10 +18,10 @@
         , i      = woctx ? 0 : 1
         , indent = i
         , args;
-      if(length < 2)return woctx ? unbind(fn) : ctx(fn, that);
+      if(length < 2)return woctx ? ctx(call, fn) : ctx(fn, that);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partialApplication(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
+      return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
     },
     /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
@@ -54,12 +54,10 @@
     if(length < 2)return ctx(that[key], that);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
-    return partialApplication(that[key], args, length, holder, _, true, that);
+    return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {
-    tie: unbind(tie)
-  });
+  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
   
   var _ = symbol('tie');
   hidden(path._, 'toString', function(){

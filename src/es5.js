@@ -48,7 +48,7 @@
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~$indexOf(result, key) && result.push(key);
+          while(length > i)has(O, key = names[i++]) && !~indexOf.call(result, key) && result.push(key);
           return result;
         }
       };
@@ -86,10 +86,10 @@
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
-  }, 1);
+  }, !DESCRIPTORS);
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
-    getPrototypeOf: function(O){
+    getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
       if(has(O, $PROTO))return O[$PROTO];
       var proto;
       if('__proto__' in O)proto = O.__proto__;
@@ -98,9 +98,9 @@
       return O !== proto && 'toString' in O ? proto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: createGetKeys(hiddenNames2, hiddenNames2.length),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(hiddenNames2, hiddenNames2.length),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-    create: function(O, /*?*/Properties){
+    create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
       assertObject(O);
       Empty[PROTOTYPE] = O;
@@ -112,17 +112,17 @@
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: createGetKeys(hiddenNames1, hiddenNames1Length)
+    keys: getKeys = getKeys || createGetKeys(hiddenNames1, hiddenNames1Length)
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
     bind: function(scope /*, args... */){
       var fn   = this
-        , args = $slice(arguments, 1);
+        , args = slice.call(arguments, 1);
       assertFunction(fn);
       function bound(/* args... */){
-        var _args = args.concat($slice(arguments))
+        var _args = args.concat(slice.call(arguments))
           , result, that;
         if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
         return apply.call(fn, scope, _args);
@@ -155,7 +155,7 @@
   }});
   $define(PROTO, ARRAY, {
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-    indexOf: function(searchElement, fromIndex /* = 0 */){
+    indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
       var self   = ES5Object(this)
         , length = toLength(self.length)
         , i      = fromIndex | 0;
@@ -196,7 +196,7 @@
       return false;
     },
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-    forEach: function(callbackfn, thisArg /* = undefined */){
+    forEach: forEach = forEach || function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var self   = ES5Object(this)
         , length = toLength(self.length)
@@ -207,7 +207,7 @@
     map: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = Array(toLength(this.length));
-      $forEach(this, function(val, key, that){
+      forEach.call(this, function(val, key, that){
         result[key] = callbackfn.call(thisArg, val, key, that);
       });
       return result;
@@ -216,7 +216,7 @@
     filter: function(callbackfn, thisArg /* = undefined */){
       assertFunction(callbackfn);
       var result = [];
-      $forEach(this, function(val){
+      forEach.call(this, function(val){
         callbackfn.apply(thisArg, arguments) && result.push(val);
       });
       return result;
@@ -271,11 +271,4 @@
     var cof = _classof(it);
     return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
   }
-  
-  create         = Export[OBJECT].create;
-  getPrototypeOf = Export[OBJECT].getPrototypeOf;
-  getKeys        = Export[OBJECT].keys;
-  getNames       = Export[OBJECT].getOwnPropertyNames;
-  $indexOf       = Export[ARRAY].indexOf;
-  $forEach       = Export[ARRAY].forEach;
 }();

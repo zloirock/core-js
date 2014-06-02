@@ -9,7 +9,8 @@
  */
 !function(isFinite){
   function sign(it){
-    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
+    var n = +it;
+    return n == 0 || n != n ? n : n < 0 ? -1 : 1;
   }
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
@@ -21,7 +22,8 @@
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && (function(set, buggy){
+  __PROTO__ && (function(set){
+    var buggy;
     try { set({}, $Array) }
     catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
@@ -33,7 +35,7 @@
         return O;
       }
     });
-  })(unbind(getOwnDescriptor($Object, '__proto__').set));
+  })(ctx(call, getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -68,7 +70,8 @@
     , log       = Math.log
     , sqrt      = Math.sqrt;
   function asinh(x){
-    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+    var n = +x;
+    return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
   }
   $define(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
@@ -91,8 +94,8 @@
     },
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
-      x = x >>> 0;
-      return x ? 32 - x.toString(2).length : 32;
+      var n = x >>> 0;
+      return n ? 32 - n.toString(2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
@@ -150,7 +153,8 @@
     // 20.2.2.30 Math.sinh(x)
     // Returns an implementation-dependent approximation to the hyperbolic sine of x.
     sinh: function(x){
-      return ((x = +x) == -Infinity) || x == 0 ? x : (exp(x) - exp(-x)) / 2;
+      var n = +x;
+      return n == -Infinity || n == 0 ? n : (exp(n) - exp(-n)) / 2;
     },
     // 20.2.2.33 Math.tanh(x)
     // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
@@ -161,7 +165,8 @@
     // Returns the integral part of the number x, removing any fractional digits.
     // If x is already an integer, the result is x.
     trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
+      var n = +x;
+      return n == 0 ? n : (n > 0 ? floor : ceil)(n);
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
@@ -183,21 +188,22 @@
     },
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
-      var length = this.length;
-      searchString += '';
+      var length = this.length
+        , search = '' + searchString;
       endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - searchString.length, endPosition) === searchString;
+      return String(this).slice(endPosition - search.length, endPosition) === search;
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      assert(0 <= (count |= 0), "Count can't be negative");
-      return Array(count + 1).join(this);
+      var n = toInteger(count);
+      assert(0 <= n, "Count can't be negative");
+      return Array(n + 1).join(this);
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
-      searchString += '';
-      position = toLength(min(position, this.length));
-      return String(this).slice(position, position + searchString.length) === searchString;
+      var search = '' + searchString
+        , pos    = toLength(min(position, this.length));
+      return String(this).slice(pos, pos + search.length) === search;
     }
   });
   $define(STATIC, ARRAY, {
@@ -205,7 +211,7 @@
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
-        , result = new (isFunction(this) ? this : Array)
+        , result = newGeneric(this, Array)
         , i = 0, length, iter, step;
       if(isIterable && isIterable(O)){
         iter = getIterator(O);
@@ -216,7 +222,7 @@
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
       var i = 0, length = arguments.length
-        , result = new (isFunction(this) ? this : Array);
+        , result = newGeneric(this, Array);
       while(i < length)push.call(result, arguments[i++]);
       return result;
     }

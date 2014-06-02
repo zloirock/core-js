@@ -35,10 +35,10 @@ $define(STATIC, 'Math', {
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  randomInt: function(a /* = 0 */, b /* = 0 */){
-    a = toInteger(a);
-    b = toInteger(b);
-    var m = min(a, b);
+  randomInt: function(_a /* = 0 */, _b /* = 0 */){
+    var a = toInteger(_a)
+      , b = toInteger(_b)
+      , m = min(a, b);
     return floor((random() * (max(a, b) + 1 - m)) + m);
   }
 });
