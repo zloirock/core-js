@@ -72,7 +72,7 @@ function isNative(it){
 }
 var toString = $Object.toString
   , TOSTRINGTAG;
-function setTag(constructor, tag, stat){
+function setToStringTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // Object internal [[Class]]
@@ -229,6 +229,7 @@ function assertFunction(it){
 }
 function assertObject(it){
   assert(isObject(it), it, 'is not an object!');
+  return it;
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
@@ -362,8 +363,7 @@ if(!isNode || framework)global.C = Export;
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
-      assertObject(O);
-      if('value' in Attributes)O[P] = Attributes.value;
+      if('value' in Attributes)assertObject(O)[P] = Attributes.value;
       return O;
     };
     defineProperties = function(O, Properties){
@@ -403,8 +403,7 @@ if(!isNode || framework)global.C = Export;
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
-      assertObject(O);
-      Empty[PROTOTYPE] = O;
+      Empty[PROTOTYPE] = assertObject(O);
       var result = new Empty();
       Empty[PROTOTYPE] = null;
       if(Properties)defineProperties(result, Properties);
@@ -605,7 +604,7 @@ $define(GLOBAL, {global: global});
       });
       hidden(this, TAG, tag);
     }
-    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
+    Symbol[PROTOTYPE].toString = function(){
       return this[TAG];
     }
   }
@@ -617,7 +616,7 @@ $define(GLOBAL, {global: global});
       return has(SymbolRegistry, k) ? SymbolRegistry[k] : SymbolRegistry[k] = Symbol(k);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.' + $ITERATOR),
+    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : symbol(SYMBOL + '.' + $ITERATOR),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
@@ -625,7 +624,7 @@ $define(GLOBAL, {global: global});
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: TOSTRINGTAG = $TOSTRINGTAG in Symbol ? Symbol[$TOSTRINGTAG] : Symbol(SYMBOL + '.' + $TOSTRINGTAG)
   });
-  setTag(Symbol, SYMBOL);
+  setToStringTag(Symbol, SYMBOL);
 }(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator', 'iterator', 'toStringTag');
 
 /*****************************
@@ -805,7 +804,7 @@ $define(GLOBAL, {global: global});
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
-  setTag(Math, 'Math', 1);
+  setToStringTag(Math, 'Math', 1);
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
@@ -891,7 +890,7 @@ $define(GLOBAL, {global: global});
     findIndex: findIndex
   });
   // 24.3.3 JSON [ @@toStringTag ]
-  setTag(global.JSON, 'JSON', 1);
+  setToStringTag(global.JSON, 'JSON', 1);
 }(isFinite);
 
 /*****************************
@@ -1122,7 +1121,7 @@ $defineTimer('clearImmediate', clearImmediate);
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
-  setTag(Promise, PROMISE)
+  setToStringTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise, Promise);
 
@@ -1322,8 +1321,7 @@ $defineTimer('clearImmediate', clearImmediate);
       },
       // 23.3.3.6 WeakMap.prototype.set(key, value)
       set: function(key, value){
-        assertObject(key);
-        getWeakData(key)[this[WEAKID]] = value;
+        getWeakData(assertObject(key))[this[WEAKID]] = value;
         return this;
       }
     }, weakCollectionMethods));
@@ -1335,17 +1333,16 @@ $defineTimer('clearImmediate', clearImmediate);
     assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
-        assertObject(value);
-        getWeakData(value)[this[WEAKID]] = true;
+        getWeakData(assertObject(value))[this[WEAKID]] = true;
         return this;
       }
     }, weakCollectionMethods));
   } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
   
-  setTag(Map, MAP);
-  setTag(Set, SET);
-  setTag(WeakMap, WEAKMAP);
-  setTag(WeakSet, WEAKSET);
+  setToStringTag(Map, MAP);
+  setToStringTag(Set, SET);
+  setToStringTag(WeakMap, WEAKMAP);
+  setToStringTag(WeakSet, WEAKSET);
     
   $define(GLOBAL, {
     Map: Map,
@@ -1359,34 +1356,79 @@ $defineTimer('clearImmediate', clearImmediate);
  * Module : es6_iterators
  *****************************/
 
-!function($ITERATOR, KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis, Iterators){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
-  function createIteratorFactory(constructor, kind){
-    return function(){
-      return new constructor(this, kind);
+  function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
+    Constructor[PROTOTYPE] = {};
+    // 22.1.5.2.1 %ArrayIteratorPrototype%.next( )
+    // 23.1.5.2.1 %MapIteratorPrototype%.next ( )
+    // 23.2.5.2.1 %SetIteratorPrototype%.next ( )
+    hidden(Constructor[PROTOTYPE], 'next', next);
+    // 22.1.5.2.2 %ArrayIteratorPrototype% [ @@iterator ] ( )
+    // 23.1.5.2.2 %MapIteratorPrototype% [ @@iterator ] ( )
+    // 23.2.5.2.2 %SetIteratorPrototype% [ @@iterator ] ( )
+    hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
+    // 22.1.5.2.3 %ArrayIteratorPrototype% [ @@toStringTag ]
+    // 23.1.5.2.3 %MapIteratorPrototype% [ @@toStringTag ]
+    // 23.2.5.2.3 %SetIteratorPrototype% [ @@toStringTag ]
+    setToStringTag(Constructor, NAME + ' Iterator');
+    if(NAME != OBJECT){
+      $define(PROTO, NAME, {
+        // 22.1.3.4 Array.prototype.entries()
+        // 23.1.3.4 Map.prototype.entries()
+        // 23.2.3.5 Set.prototype.entries()
+        entries: createIteratorFactory(Constructor, KEY+VALUE),
+        // 22.1.3.13 Array.prototype.keys()
+        // 23.1.3.8 Map.prototype.keys()
+        // 23.2.3.8 Set.prototype.keys()
+        keys:    createIteratorFactory(Constructor, KEY),
+        // 22.1.3.29 Array.prototype.values()
+        // 23.1.3.11 Map.prototype.values()
+        // 23.2.3.10 Set.prototype.values()
+        values:  createIteratorFactory(Constructor, VALUE)
+      });
+      // 22.1.3.30 Array.prototype[@@iterator]()
+      // 23.1.3.12 Map.prototype[@@iterator]()
+      // 23.2.3.11 Set.prototype[@@iterator]()
+      Iterators[NAME] = createIteratorFactory(Constructor, DEFAULT);
+      if(framework)defineIterator(Base[PROTOTYPE], Iterators[NAME]);
     }
   }
+  function createIteratorFactory(Constructor, kind){
+    return function(){
+      return new Constructor(this, kind);
+    }
+  }
+  function defineIterator(object, value){
+    has(object, ITERATOR) || hidden(object, ITERATOR, value);
+  }
   
+  // 22.1.5.1 CreateArrayIterator Abstract Operation
   function ArrayIterator(iterated, kind){
     this[ITERATED] = ES5Object(iterated);
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
-  ArrayIterator[PROTOTYPE] = {
-    next: function(){
-      var that     = this
-        , iterated = that[ITERATED]
-        , index    = that[INDEX]++;
-      if(index >= iterated.length)return createIterResultObject(undefined, 1);
-      switch(that[KIND]){
-        case KEY   : return createIterResultObject(index, 0);
-        case VALUE : return createIterResultObject(iterated[index], 0);
-      } return createIterResultObject([index, iterated[index]], 0);
-    }
-  };
+  // 22.1.5.2.1 %ArrayIteratorPrototype%.next( )
+  createIteratorClass(ArrayIterator, ARRAY, Array, function(){
+    var iterated = this[ITERATED]
+      , index    = this[INDEX]++
+      , kind     = this[KIND];
+    if(index >= iterated.length)return createIterResultObject(undefined, 1);
+    if(kind == KEY)             return createIterResultObject(index, 0);
+    if(kind == VALUE)           return createIterResultObject(iterated[index], 0);
+                                return createIterResultObject([index, iterated[index]], 0);
+  }, VALUE);
   
+  // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
+  if(framework)defineIterator(String[PROTOTYPE], Iterators[ARRAY]);
+  Iterators[ARGUMENTS] = Iterators[STRING] = Iterators[ARRAY];
+  // Old v8 fix
+  Iterators[ARRAY + ' Iterator'] = returnThis;
+  
+  // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
     this[KIND]     = kind;
@@ -1395,21 +1437,22 @@ $defineTimer('clearImmediate', clearImmediate);
       this.push(key);
     }, this[KEYS] = []);
   }
-  MapIterator[PROTOTYPE] = {
-    next: function(){
-      var iterated = this[ITERATED]
-        , keys     = this[KEYS]
-        , index    = this[INDEX]++
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      switch(this[KIND]){
-        case KEY   : return createIterResultObject(key, 0);
-        case VALUE : return createIterResultObject(iterated.get(key), 0);
-      } return createIterResultObject([key, iterated.get(key)], 0);
-    }
-  };
+  // 23.1.5.2.1 %MapIteratorPrototype%.next ( )
+  createIteratorClass(MapIterator, MAP, Map, function(){
+    var that     = this
+      , iterated = that[ITERATED]
+      , keys     = that[KEYS]
+      , index    = that[INDEX]++
+      , kind     = that[KIND]
+      , key;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(kind == KEY)         return createIterResultObject(key, 0);
+    if(kind == VALUE)       return createIterResultObject(iterated.get(key), 0);
+                            return createIterResultObject([key, iterated.get(key)], 0);
+  }, KEY+VALUE);
   
+  // 23.2.5.1 CreateSetIterator Abstract Operation
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
     this[INDEX] = 0;
@@ -1417,17 +1460,16 @@ $defineTimer('clearImmediate', clearImmediate);
       this.push(val);
     }, this[KEYS] = []);
   }
-  SetIterator[PROTOTYPE] = {
-    next: function(){
-      var keys  = this[KEYS]
-        , index = this[INDEX]++
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      if(this[KIND] == VALUE)return createIterResultObject(key, 0);
-      return createIterResultObject([key, key], 0);
-    }
-  };
+  // 23.2.5.2.1 %SetIteratorPrototype%.next ( )
+  createIteratorClass(SetIterator, SET, Set, function(){
+    var keys  = this[KEYS]
+      , index = this[INDEX]++
+      , key;
+    if(index >= keys.length)   return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
+                               return createIterResultObject([key, key], 0);
+  }, VALUE);
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -1435,94 +1477,19 @@ $defineTimer('clearImmediate', clearImmediate);
     this[INDEX]    = 0;
     this[KIND]     = kind;
   }
-  ObjectIterator[PROTOTYPE] = {
-    next: function(){
-      var index  = this[INDEX]++
-        , object = this[ITERATED]
-        , keys   = this[KEYS]
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      switch(this[KIND]){
-        case KEY   : return createIterResultObject(key, 0);
-        case VALUE : return createIterResultObject(object[key], 0);
-      } return createIterResultObject([key, object[key]], 0);
-    }
-  }
-  
-  setTag(ArrayIterator, ARRAY + $ITERATOR);
-  setTag(MapIterator, MAP + $ITERATOR);
-  setTag(SetIterator, SET + $ITERATOR);
-  setTag(ObjectIterator, OBJECT + $ITERATOR);
-  
-  ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
-    SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
-  
-  function defineIterator(object, value){
-    has(object, ITERATOR) || (object[ITERATOR] = value);
-  }
-  
-  C.isIterable = isIterable = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return true;
-    switch(classof(it)){
-      case ARGUMENTS: case STRING: case ARRAY: case MAP: case SET: return true;
-    } return false;
-  }
-  C.getIterator = getIterator = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    switch(classof(it)){
-      case ARGUMENTS :
-      case STRING    :
-      case ARRAY     : return new ArrayIterator(it, VALUE);
-      case MAP       : return new MapIterator(it, KEY+VALUE);
-      case SET       : return new SetIterator(it, VALUE);
-    } throw TypeError(it + ' is not iterable!');
-  }
-  C.forOf = forOf = function(it, fn, entries){
-    var iterator = getIterator(it), step, value;
-    while(!(step = iterator.next()).done){
-      if((entries ? fn.apply(this, ES5Object(step.value)) : fn.call(this, step.value)) === false)return;
-    }
-  }
-  
-  // v8 fix
-  isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  
-  $define(PROTO, ARRAY, {
-    // 22.1.3.4 Array.prototype.entries()
-    entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    // 22.1.3.13 Array.prototype.keys()
-    keys:    createIteratorFactory(ArrayIterator, KEY),
-    // 22.1.3.29 Array.prototype.values()
-    values:  createIteratorFactory(ArrayIterator, VALUE)
+  createIteratorClass(ObjectIterator, OBJECT, Object, function(){
+    var that   = this
+      , index  = that[INDEX]++
+      , object = that[ITERATED]
+      , keys   = that[KEYS]
+      , kind   = that[KIND]
+      , key;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(kind == KEY)         return createIterResultObject(key, 0);
+    if(kind == VALUE)       return createIterResultObject(object[key], 0);
+                            return createIterResultObject([key, object[key]], 0);
   });
-  $define(PROTO, MAP, {
-    // 23.1.3.4 Map.prototype.entries()
-    entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    // 23.1.3.8 Map.prototype.keys()
-    keys:    createIteratorFactory(MapIterator, KEY),
-    // 23.1.3.11 Map.prototype.values()
-    values:  createIteratorFactory(MapIterator, VALUE)
-  });
-  $define(PROTO, SET, {
-    // 23.2.3.5 Set.prototype.entries()
-    entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    // 23.2.3.8 Set.prototype.keys()
-    keys:    createIteratorFactory(SetIterator, VALUE),
-    // 23.2.3.10 Set.prototype.values()
-    values:  createIteratorFactory(SetIterator, VALUE)
-  });
-  
-  if(framework){
-    // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[PROTOTYPE], createIteratorFactory(ArrayIterator, VALUE));
-    // 22.1.3.30 Array.prototype[@@iterator]()
-    defineIterator($Array, $Array.values || createIteratorFactory(ArrayIterator, VALUE));
-    // 23.1.3.12 Map.prototype[@@iterator]()
-    defineIterator(Map[PROTOTYPE], createIteratorFactory(MapIterator, KEY+VALUE));
-    // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Set[PROTOTYPE], createIteratorFactory(SetIterator, VALUE));
-  }
   
   function createObjectIteratorFactory(kind){
     return function(it){
@@ -1534,7 +1501,22 @@ $defineTimer('clearImmediate', clearImmediate);
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-}(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
+  
+  C.isIterable = isIterable = function(it){
+    return it != undefined && ITERATOR in it ? true : has(Iterators, classof(it));
+  }
+  C.getIterator = getIterator = function(it){
+    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
+  }
+  C.forOf = forOf = function(it, fn, entries){
+    var that     = this === Export ? undefined : this
+      , iterator = getIterator(it)
+      , step;
+    while(!(step = iterator.next()).done){
+      if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
+    }
+  }
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'), {});
 
 /*****************************
  * Module : dict

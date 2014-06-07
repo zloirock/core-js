@@ -171,7 +171,7 @@
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
-  setTag(Math, 'Math', 1);
+  setToStringTag(Math, 'Math', 1);
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
@@ -257,5 +257,5 @@
     findIndex: findIndex
   });
   // 24.3.3 JSON [ @@toStringTag ]
-  setTag(global.JSON, 'JSON', 1);
+  setToStringTag(global.JSON, 'JSON', 1);
 }(isFinite);

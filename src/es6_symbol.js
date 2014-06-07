@@ -19,7 +19,7 @@
       });
       hidden(this, TAG, tag);
     }
-    Symbol[PROTOTYPE].toString = Symbol[PROTOTYPE].valueOf = function(){
+    Symbol[PROTOTYPE].toString = function(){
       return this[TAG];
     }
   }
@@ -31,7 +31,7 @@
       return has(SymbolRegistry, k) ? SymbolRegistry[k] : SymbolRegistry[k] = Symbol(k);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.' + $ITERATOR),
+    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : symbol(SYMBOL + '.' + $ITERATOR),
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
@@ -39,5 +39,5 @@
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: TOSTRINGTAG = $TOSTRINGTAG in Symbol ? Symbol[$TOSTRINGTAG] : Symbol(SYMBOL + '.' + $TOSTRINGTAG)
   });
-  setTag(Symbol, SYMBOL);
+  setToStringTag(Symbol, SYMBOL);
 }(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator', 'iterator', 'toStringTag');

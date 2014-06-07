@@ -1,31 +1,76 @@
-!function($ITERATOR, KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, returnThis, Iterators){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
-  function createIteratorFactory(constructor, kind){
-    return function(){
-      return new constructor(this, kind);
+  function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
+    Constructor[PROTOTYPE] = {};
+    // 22.1.5.2.1 %ArrayIteratorPrototype%.next( )
+    // 23.1.5.2.1 %MapIteratorPrototype%.next ( )
+    // 23.2.5.2.1 %SetIteratorPrototype%.next ( )
+    hidden(Constructor[PROTOTYPE], 'next', next);
+    // 22.1.5.2.2 %ArrayIteratorPrototype% [ @@iterator ] ( )
+    // 23.1.5.2.2 %MapIteratorPrototype% [ @@iterator ] ( )
+    // 23.2.5.2.2 %SetIteratorPrototype% [ @@iterator ] ( )
+    hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
+    // 22.1.5.2.3 %ArrayIteratorPrototype% [ @@toStringTag ]
+    // 23.1.5.2.3 %MapIteratorPrototype% [ @@toStringTag ]
+    // 23.2.5.2.3 %SetIteratorPrototype% [ @@toStringTag ]
+    setToStringTag(Constructor, NAME + ' Iterator');
+    if(NAME != OBJECT){
+      $define(PROTO, NAME, {
+        // 22.1.3.4 Array.prototype.entries()
+        // 23.1.3.4 Map.prototype.entries()
+        // 23.2.3.5 Set.prototype.entries()
+        entries: createIteratorFactory(Constructor, KEY+VALUE),
+        // 22.1.3.13 Array.prototype.keys()
+        // 23.1.3.8 Map.prototype.keys()
+        // 23.2.3.8 Set.prototype.keys()
+        keys:    createIteratorFactory(Constructor, KEY),
+        // 22.1.3.29 Array.prototype.values()
+        // 23.1.3.11 Map.prototype.values()
+        // 23.2.3.10 Set.prototype.values()
+        values:  createIteratorFactory(Constructor, VALUE)
+      });
+      // 22.1.3.30 Array.prototype[@@iterator]()
+      // 23.1.3.12 Map.prototype[@@iterator]()
+      // 23.2.3.11 Set.prototype[@@iterator]()
+      Iterators[NAME] = createIteratorFactory(Constructor, DEFAULT);
+      if(framework)defineIterator(Base[PROTOTYPE], Iterators[NAME]);
     }
   }
+  function createIteratorFactory(Constructor, kind){
+    return function(){
+      return new Constructor(this, kind);
+    }
+  }
+  function defineIterator(object, value){
+    has(object, ITERATOR) || hidden(object, ITERATOR, value);
+  }
   
+  // 22.1.5.1 CreateArrayIterator Abstract Operation
   function ArrayIterator(iterated, kind){
     this[ITERATED] = ES5Object(iterated);
     this[KIND]     = kind;
     this[INDEX]    = 0;
   }
-  ArrayIterator[PROTOTYPE] = {
-    next: function(){
-      var that     = this
-        , iterated = that[ITERATED]
-        , index    = that[INDEX]++;
-      if(index >= iterated.length)return createIterResultObject(undefined, 1);
-      switch(that[KIND]){
-        case KEY   : return createIterResultObject(index, 0);
-        case VALUE : return createIterResultObject(iterated[index], 0);
-      } return createIterResultObject([index, iterated[index]], 0);
-    }
-  };
+  // 22.1.5.2.1 %ArrayIteratorPrototype%.next( )
+  createIteratorClass(ArrayIterator, ARRAY, Array, function(){
+    var iterated = this[ITERATED]
+      , index    = this[INDEX]++
+      , kind     = this[KIND];
+    if(index >= iterated.length)return createIterResultObject(undefined, 1);
+    if(kind == KEY)             return createIterResultObject(index, 0);
+    if(kind == VALUE)           return createIterResultObject(iterated[index], 0);
+                                return createIterResultObject([index, iterated[index]], 0);
+  }, VALUE);
   
+  // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
+  if(framework)defineIterator(String[PROTOTYPE], Iterators[ARRAY]);
+  Iterators[ARGUMENTS] = Iterators[STRING] = Iterators[ARRAY];
+  // Old v8 fix
+  Iterators[ARRAY + ' Iterator'] = returnThis;
+  
+  // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
     this[ITERATED] = iterated;
     this[KIND]     = kind;
@@ -34,21 +79,22 @@
       this.push(key);
     }, this[KEYS] = []);
   }
-  MapIterator[PROTOTYPE] = {
-    next: function(){
-      var iterated = this[ITERATED]
-        , keys     = this[KEYS]
-        , index    = this[INDEX]++
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      switch(this[KIND]){
-        case KEY   : return createIterResultObject(key, 0);
-        case VALUE : return createIterResultObject(iterated.get(key), 0);
-      } return createIterResultObject([key, iterated.get(key)], 0);
-    }
-  };
+  // 23.1.5.2.1 %MapIteratorPrototype%.next ( )
+  createIteratorClass(MapIterator, MAP, Map, function(){
+    var that     = this
+      , iterated = that[ITERATED]
+      , keys     = that[KEYS]
+      , index    = that[INDEX]++
+      , kind     = that[KIND]
+      , key;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(kind == KEY)         return createIterResultObject(key, 0);
+    if(kind == VALUE)       return createIterResultObject(iterated.get(key), 0);
+                            return createIterResultObject([key, iterated.get(key)], 0);
+  }, KEY+VALUE);
   
+  // 23.2.5.1 CreateSetIterator Abstract Operation
   function SetIterator(iterated, kind){
     this[KIND]  = kind;
     this[INDEX] = 0;
@@ -56,17 +102,16 @@
       this.push(val);
     }, this[KEYS] = []);
   }
-  SetIterator[PROTOTYPE] = {
-    next: function(){
-      var keys  = this[KEYS]
-        , index = this[INDEX]++
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      if(this[KIND] == VALUE)return createIterResultObject(key, 0);
-      return createIterResultObject([key, key], 0);
-    }
-  };
+  // 23.2.5.2.1 %SetIteratorPrototype%.next ( )
+  createIteratorClass(SetIterator, SET, Set, function(){
+    var keys  = this[KEYS]
+      , index = this[INDEX]++
+      , key;
+    if(index >= keys.length)   return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
+                               return createIterResultObject([key, key], 0);
+  }, VALUE);
   
   function ObjectIterator(iterated, kind){
     this[ITERATED] = iterated;
@@ -74,94 +119,19 @@
     this[INDEX]    = 0;
     this[KIND]     = kind;
   }
-  ObjectIterator[PROTOTYPE] = {
-    next: function(){
-      var index  = this[INDEX]++
-        , object = this[ITERATED]
-        , keys   = this[KEYS]
-        , key;
-      if(index >= keys.length)return createIterResultObject(undefined, 1);
-      key = keys[index];
-      switch(this[KIND]){
-        case KEY   : return createIterResultObject(key, 0);
-        case VALUE : return createIterResultObject(object[key], 0);
-      } return createIterResultObject([key, object[key]], 0);
-    }
-  }
-  
-  setTag(ArrayIterator, ARRAY + $ITERATOR);
-  setTag(MapIterator, MAP + $ITERATOR);
-  setTag(SetIterator, SET + $ITERATOR);
-  setTag(ObjectIterator, OBJECT + $ITERATOR);
-  
-  ArrayIterator[PROTOTYPE][ITERATOR] = MapIterator[PROTOTYPE][ITERATOR] =
-    SetIterator[PROTOTYPE][ITERATOR] = ObjectIterator[PROTOTYPE][ITERATOR] = returnThis;
-  
-  function defineIterator(object, value){
-    has(object, ITERATOR) || (object[ITERATOR] = value);
-  }
-  
-  C.isIterable = isIterable = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return true;
-    switch(classof(it)){
-      case ARGUMENTS: case STRING: case ARRAY: case MAP: case SET: return true;
-    } return false;
-  }
-  C.getIterator = getIterator = function(it){
-    if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    switch(classof(it)){
-      case ARGUMENTS :
-      case STRING    :
-      case ARRAY     : return new ArrayIterator(it, VALUE);
-      case MAP       : return new MapIterator(it, KEY+VALUE);
-      case SET       : return new SetIterator(it, VALUE);
-    } throw TypeError(it + ' is not iterable!');
-  }
-  C.forOf = forOf = function(it, fn, entries){
-    var iterator = getIterator(it), step, value;
-    while(!(step = iterator.next()).done){
-      if((entries ? fn.apply(this, ES5Object(step.value)) : fn.call(this, step.value)) === false)return;
-    }
-  }
-  
-  // v8 fix
-  isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  
-  $define(PROTO, ARRAY, {
-    // 22.1.3.4 Array.prototype.entries()
-    entries: createIteratorFactory(ArrayIterator, KEY+VALUE),
-    // 22.1.3.13 Array.prototype.keys()
-    keys:    createIteratorFactory(ArrayIterator, KEY),
-    // 22.1.3.29 Array.prototype.values()
-    values:  createIteratorFactory(ArrayIterator, VALUE)
+  createIteratorClass(ObjectIterator, OBJECT, Object, function(){
+    var that   = this
+      , index  = that[INDEX]++
+      , object = that[ITERATED]
+      , keys   = that[KEYS]
+      , kind   = that[KIND]
+      , key;
+    if(index >= keys.length)return createIterResultObject(undefined, 1);
+    key = keys[index];
+    if(kind == KEY)         return createIterResultObject(key, 0);
+    if(kind == VALUE)       return createIterResultObject(object[key], 0);
+                            return createIterResultObject([key, object[key]], 0);
   });
-  $define(PROTO, MAP, {
-    // 23.1.3.4 Map.prototype.entries()
-    entries: createIteratorFactory(MapIterator, KEY+VALUE),
-    // 23.1.3.8 Map.prototype.keys()
-    keys:    createIteratorFactory(MapIterator, KEY),
-    // 23.1.3.11 Map.prototype.values()
-    values:  createIteratorFactory(MapIterator, VALUE)
-  });
-  $define(PROTO, SET, {
-    // 23.2.3.5 Set.prototype.entries()
-    entries: createIteratorFactory(SetIterator, KEY+VALUE),
-    // 23.2.3.8 Set.prototype.keys()
-    keys:    createIteratorFactory(SetIterator, VALUE),
-    // 23.2.3.10 Set.prototype.values()
-    values:  createIteratorFactory(SetIterator, VALUE)
-  });
-  
-  if(framework){
-    // 21.1.3.27 String.prototype[@@iterator]()
-    defineIterator(String[PROTOTYPE], createIteratorFactory(ArrayIterator, VALUE));
-    // 22.1.3.30 Array.prototype[@@iterator]()
-    defineIterator($Array, $Array.values || createIteratorFactory(ArrayIterator, VALUE));
-    // 23.1.3.12 Map.prototype[@@iterator]()
-    defineIterator(Map[PROTOTYPE], createIteratorFactory(MapIterator, KEY+VALUE));
-    // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Set[PROTOTYPE], createIteratorFactory(SetIterator, VALUE));
-  }
   
   function createObjectIteratorFactory(kind){
     return function(it){
@@ -173,4 +143,19 @@
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-}(' Iterator', 1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'));
+  
+  C.isIterable = isIterable = function(it){
+    return it != undefined && ITERATOR in it ? true : has(Iterators, classof(it));
+  }
+  C.getIterator = getIterator = function(it){
+    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
+  }
+  C.forOf = forOf = function(it, fn, entries){
+    var that     = this === Export ? undefined : this
+      , iterator = getIterator(it)
+      , step;
+    while(!(step = iterator.next()).done){
+      if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
+    }
+  }
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), Function('return this'), {});

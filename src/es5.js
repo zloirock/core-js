@@ -61,8 +61,7 @@
       if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
-      assertObject(O);
-      if('value' in Attributes)O[P] = Attributes.value;
+      if('value' in Attributes)assertObject(O)[P] = Attributes.value;
       return O;
     };
     defineProperties = function(O, Properties){
@@ -102,8 +101,7 @@
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
-      assertObject(O);
-      Empty[PROTOTYPE] = O;
+      Empty[PROTOTYPE] = assertObject(O);
       var result = new Empty();
       Empty[PROTOTYPE] = null;
       if(Properties)defineProperties(result, Properties);

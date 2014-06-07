@@ -147,6 +147,6 @@
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
-  setTag(Promise, PROMISE)
+  setToStringTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise, Promise);

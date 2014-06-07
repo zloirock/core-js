@@ -190,8 +190,7 @@
       },
       // 23.3.3.6 WeakMap.prototype.set(key, value)
       set: function(key, value){
-        assertObject(key);
-        getWeakData(key)[this[WEAKID]] = value;
+        getWeakData(assertObject(key))[this[WEAKID]] = value;
         return this;
       }
     }, weakCollectionMethods));
@@ -203,17 +202,16 @@
     assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
-        assertObject(value);
-        getWeakData(value)[this[WEAKID]] = true;
+        getWeakData(assertObject(value))[this[WEAKID]] = true;
         return this;
       }
     }, weakCollectionMethods));
   } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
   
-  setTag(Map, MAP);
-  setTag(Set, SET);
-  setTag(WeakMap, WEAKMAP);
-  setTag(WeakSet, WEAKSET);
+  setToStringTag(Map, MAP);
+  setToStringTag(Set, SET);
+  setToStringTag(WeakMap, WEAKMAP);
+  setToStringTag(WeakSet, WEAKSET);
     
   $define(GLOBAL, {
     Map: Map,

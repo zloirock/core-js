@@ -60,7 +60,7 @@ function isNative(it){
 }
 var toString = $Object.toString
   , TOSTRINGTAG;
-function setTag(constructor, tag, stat){
+function setToStringTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // Object internal [[Class]]
@@ -217,6 +217,7 @@ function assertFunction(it){
 }
 function assertObject(it){
   assert(isObject(it), it, 'is not an object!');
+  return it;
 }
 function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
