@@ -115,7 +115,7 @@ test 'Dict.keyOf' !->
   ok isFunction(keyOf), 'Is function'
   ok keyOf({q:1 w:2 e:3} 2)     is \w
   ok keyOf({q:1 w:2 e:3} 4)     is void
-  ok keyOf({q:1 w:2 e:NaN} NaN) is \e
+  ok keyOf({q:1 w:2 e:NaN} NaN) is void
 test 'Dict.map' !->
   {map} = Dict
   ok isFunction(map), 'Is function'
@@ -218,7 +218,7 @@ test 'Dict.contains' !->
   dict = {q:1, w: NaN, e: -0, r: o = {}}
   ok contains dict, 1
   ok contains dict, -0
-  ok contains dict, 0
+  ok !contains dict, 0
   ok contains dict, NaN
   ok contains dict, o
   ok !contains dict, 4

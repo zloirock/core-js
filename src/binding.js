@@ -57,7 +57,7 @@
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
+  $define(STATIC, OBJECT, {tie: Export.tie = ctx(call, tie)});
   
   var _ = symbol('tie');
   hidden(path._, 'toString', function(){

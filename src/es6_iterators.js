@@ -22,8 +22,7 @@
       switch(that[KIND]){
         case KEY   : return createIterResultObject(index, 0);
         case VALUE : return createIterResultObject(iterated[index], 0);
-      }
-      return createIterResultObject([index, iterated[index]], 0);
+      } return createIterResultObject([index, iterated[index]], 0);
     }
   };
   
@@ -46,8 +45,7 @@
       switch(this[KIND]){
         case KEY   : return createIterResultObject(key, 0);
         case VALUE : return createIterResultObject(iterated.get(key), 0);
-      }
-      return createIterResultObject([key, iterated.get(key)], 0);
+      } return createIterResultObject([key, iterated.get(key)], 0);
     }
   };
   
@@ -87,8 +85,7 @@
       switch(this[KIND]){
         case KEY   : return createIterResultObject(key, 0);
         case VALUE : return createIterResultObject(object[key], 0);
-      }
-      return createIterResultObject([key, object[key]], 0);
+      } return createIterResultObject([key, object[key]], 0);
     }
   }
   
@@ -106,34 +103,29 @@
   
   C.isIterable = isIterable = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return true;
-    // plug for library. TODO: correct proto check
-    switch(it && it[CONSTRUCTOR]){
-      case String: case Array: case Map: case Set: return true;
-      case Object: return classof(it) == ARGUMENTS;
+    switch(classof(it)){
+      case ARGUMENTS: case STRING: case ARRAY: case MAP: case SET: return true;
     } return false;
   }
   C.getIterator = getIterator = function(it){
     if(it != undefined && isFunction(it[ITERATOR]))return it[ITERATOR]();
-    // plug for library. TODO: correct proto check
-    switch(it && it[CONSTRUCTOR]){
-      case Object : if(classof(it) != ARGUMENTS)break;
-      case String :
-      case Array  : return new ArrayIterator(it, VALUE);
-      case Map    : return new MapIterator(it, KEY+VALUE);
-      case Set    : return new SetIterator(it, VALUE);
+    switch(classof(it)){
+      case ARGUMENTS :
+      case STRING    :
+      case ARRAY     : return new ArrayIterator(it, VALUE);
+      case MAP       : return new MapIterator(it, KEY+VALUE);
+      case SET       : return new SetIterator(it, VALUE);
     } throw TypeError(it + ' is not iterable!');
   }
-  C.forOf = forOf = function(it, fn, that, entries){
+  C.forOf = forOf = function(it, fn, entries){
     var iterator = getIterator(it), step, value;
     while(!(step = iterator.next()).done){
-      if((entries ? fn.apply(that, ES5Object(step.value)) : fn.call(that, step.value)) === false)return;
+      if((entries ? fn.apply(this, ES5Object(step.value)) : fn.call(this, step.value)) === false)return;
     }
   }
   
-  // v8 & FF fix
+  // v8 fix
   isFunction($Array.keys) && defineIterator(getPrototypeOf([].keys()), returnThis);
-  //isFunction(Set[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Set().keys()), returnThis);
-  //isFunction(Map[PROTOTYPE].keys) && defineIterator(getPrototypeOf(new Map().keys()), returnThis);
   
   $define(PROTO, ARRAY, {
     // 22.1.3.4 Array.prototype.entries()
@@ -164,7 +156,7 @@
     // 21.1.3.27 String.prototype[@@iterator]()
     defineIterator(String[PROTOTYPE], createIteratorFactory(ArrayIterator, VALUE));
     // 22.1.3.30 Array.prototype[@@iterator]()
-    defineIterator($Array, $Array.values);
+    defineIterator($Array, $Array.values || createIteratorFactory(ArrayIterator, VALUE));
     // 23.1.3.12 Map.prototype[@@iterator]()
     defineIterator(Map[PROTOTYPE], createIteratorFactory(MapIterator, KEY+VALUE));
     // 23.2.3.11 Set.prototype[@@iterator]()

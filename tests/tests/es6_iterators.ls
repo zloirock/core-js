@@ -118,7 +118,7 @@ test 'Set::@@iterator' !->
 test 'C.forOf' !->
   {for-of} = C
   ok typeof for-of is \function, 'Is function'
-  set = new Set [1 2 3 2 1]
+  set = new Set <[1 2 3 2 1]>
   counter1 = 0
   string1  = ''
   # get iterator from iterable object
@@ -132,15 +132,15 @@ test 'C.forOf' !->
   # use iterator
   for-of set.entries!, !->
     counter2++
-    string2 += '' + it[0] + it[1]
+    string2 += it[0] + it[1]
   ok counter2 is 3
   ok string2 is \112233
   # additional args
-  for-of [1]entries!, (key, val)->
+  for-of.call o = {}, [1]entries!, (key, val)->
     ok @ is o
     ok key is 0
     ok val is 1
-  , o = {}, on
+  , on
 test 'C.isIterable' !->
   {isIterable} = C
   ok typeof isIterable is \function, 'Is function'

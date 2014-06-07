@@ -54,7 +54,7 @@
       var C      = this
         , values = [];
       return new C(function(resolve, reject){
-        forOf(iterable, push, values);
+        forOf.call(values, iterable, push);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){

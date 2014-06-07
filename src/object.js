@@ -1,3 +1,13 @@
+// http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+function getOwnPropertyDescriptors(object){
+  var result = create(null)
+    , names  = getNames(object)
+    , length = names.length
+    , i      = 0
+    , key;
+  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
+  return result;
+}
 $define(STATIC, OBJECT, {
   /**
    * Alternatives:

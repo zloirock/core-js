@@ -4,7 +4,7 @@
     if(iterable != undefined){
       if(isIterable(iterable))forOf(iterable, function(key, value){
         dict[key] = value;
-      }, undefined, 1);
+      }, 1);
       else assign(dict, iterable);
     }
     return dict;
@@ -20,14 +20,6 @@
     while(length > i){
       if(fn.call(that, O[key = keys[i++]], key, object))return key;
     }
-  }
-  function keyOf(object, searchElement){
-    var O      = ES5Object(object)
-      , keys   = getKeys(O)
-      , length = keys.length
-      , i      = 0
-      , key;
-    while(length > i)if(same0(O[key = keys[i++]], searchElement))return key;
   }
   assign(Dict, objectIterators, {
     /**
@@ -78,7 +70,14 @@
         , key;
       while(length > i)fn.call(that, O[key = keys[i++]], key, object);
     },
-    keyOf: keyOf,
+    keyOf: function(object, searchElement){
+      var O      = ES5Object(object)
+        , keys   = getKeys(O)
+        , length = keys.length
+        , i      = 0
+        , key;
+      while(length > i)if(O[key = keys[i++]] === searchElement)return key;
+    },
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
@@ -92,21 +91,22 @@
       }
       return result;
     },
-    reduce: function(object, fn, result /* = undefined */, that /* = undefined */){
+    reduce: function(object, fn, init /* = undefined */, that /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , i      = 0
         , length = keys.length
+        , memo   = init
         , key;
       if(arguments.length < 3){
-        assert(length--, REDUCE_ERROR);
-        result = O[keys.shift()];
+        assert(length > i, REDUCE_ERROR);
+        memo = O[keys[i++]];
       }
       while(length > i){
-        result = fn.call(that, result, O[key = keys[i++]], key, object);
+        memo = fn.call(that, memo, O[key = keys[i++]], key, object);
       }
-      return result;
+      return memo;
     },
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
@@ -122,17 +122,23 @@
     },
     transform: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
-      var T    = target == undefined ? newGeneric(this, Dict) : Object(target)
+      var memo = target == undefined ? newGeneric(this, Dict) : Object(target)
         , O    = ES5Object(object)
         , keys = getKeys(O)
         , l    = keys.length
         , i    = 0
         , key;
-      while(l > i)if(mapfn(T, O[key = keys[i++]], key, object) === false)break;
-      return T;
+      while(l > i)if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+      return memo;
     },
-    contains: function(object, value){
-      return keyOf(object, value) !== undefined;
+    contains: function(object, searchElement){
+      var O      = ES5Object(object)
+        , keys   = getKeys(O)
+        , length = keys.length
+        , i      = 0
+        , key;
+      while(length > i)if(same(O[key = keys[i++]], searchElement))return true;
+      return false;
     },
     clone: ctx(call, $clone),
     // Has / get / set own property

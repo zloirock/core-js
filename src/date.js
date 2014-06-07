@@ -17,7 +17,7 @@
       return String(template).replace(formatRegExp, function(part){
         switch(part){
           case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 000-999
-            return ms > 99 ? ms : ms > 9 ? '0' + ms : '00' + ms;
+            return ms > 99 ? ms : '0' + lz(ms);
           case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
           case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
           case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
@@ -33,8 +33,7 @@
           case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
           case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
           case 'YYYY' : return get(YEAR);                                       // Year         : 2014
-        }
-        return part;
+        } return part;
       });
     }
   }

@@ -49,8 +49,8 @@ function extendCollections(Constructor, entries){
     },
     transform: function(mapfn, target /* = new Constructor */){
       assertFunction(mapfn);
-      var T = target == undefined ? new Constructor : Object(target);
-      var iter = entries(this)
+      var T = target == undefined ? new Constructor : Object(target)
+        , iter = entries(this)
         , step, entry;
       while(!(step = iter.next()).done){
         entry = step.value;

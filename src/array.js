@@ -24,7 +24,7 @@ $define(PROTO, ARRAY, {
     var O      = ES5Object(this)
       , length = O.length
       , i      = 0;
-    while(length > i)if(same0(value, O[i++]))return true;
+    while(length > i)if(i in O && same(value, O[i++]))return true;
     return false;
   }
 });

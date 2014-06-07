@@ -5,9 +5,10 @@
  * Alternatives:
  * https://github.com/paulmillr/es6-shim
  * https://github.com/monolithed/ECMAScript-6
- * https://github.com/inexorabletash/polyfill/blob/master/harmony.js
+ * https://github.com/inexorabletash/polyfill/blob/master/es6.md
  */
 !function(isFinite){
+  // 20.2.2.28 Math.sign(x)
   function sign(it){
     var n = +it;
     return n == 0 || n != n ? n : n < 0 ? -1 : 1;
@@ -108,7 +109,7 @@
       return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
     },
     // 20.2.2.16 Math.fround(x)
-    // fround: function(x){ TODO },
+    // TODO
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
     // Returns an implementation-dependent approximation of the square root
     // of the sum of squares of its arguments.
@@ -171,17 +172,13 @@
   });
   // 20.2.1.9 Math [ @@toStringTag ]
   setTag(Math, 'Math', 1);
-  /**
-    $define(STATIC, STRING, {
-      // 21.1.2.2 String.fromCodePoint(...codePoints)
-      // fromCodePoint: function(){ TODO },
-      // 21.1.2.4 String.raw(callSite, ...substitutions)
-      raw: function(){ TODO }
-    });
-    */
+  // 21.1.2.2 String.fromCodePoint(...codePoints)
+  // TODO
+  // 21.1.2.4 String.raw(callSite, ...substitutions)
+  // TODO
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
-    // codePointAt: function(pos /* = 0 * /){ TODO },
+    // TODO
     // 21.1.3.6 String.prototype.contains(searchString, position = 0)
     contains: function(searchString, position /* = 0 */){
       return !!~String(this).indexOf(searchString, position);
@@ -212,11 +209,11 @@
       if(mapfn !== undefined)assertFunction(mapfn);
       var O      = ES5Object(arrayLike)
         , result = newGeneric(this, Array)
-        , i = 0, length, iter, step;
-      if(isIterable && isIterable(O)){
-        iter = getIterator(O);
-        while(!(step = iter.next()).done)push.call(result, mapfn ? mapfn.call(thisArg, step.value, i++) : step.value);
-      } else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+        , i = 0, length;
+      if(forOf && isIterable(O))forOf(O, function(value){
+        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+      });
+      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
@@ -240,7 +237,7 @@
   }
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
-    // copyWithin: function(target, start, end){ TODO },
+    // TODO
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length)

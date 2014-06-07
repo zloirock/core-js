@@ -37,7 +37,7 @@ test 'Array::contains' !->
   arr = [1 2 3 -0 NaN, o = {}]
   ok arr.contains 1
   ok arr.contains -0
-  ok arr.contains 0
+  ok !arr.contains 0
   ok arr.contains NaN
   ok arr.contains o
   ok !arr.contains 4

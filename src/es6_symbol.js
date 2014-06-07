@@ -12,6 +12,7 @@
       if(!(this instanceof Symbol))return new Symbol(description);
       var tag = symbol(description);
       defineProperty($Object, tag, {
+        configurable: true,
         set: function(value){
           hidden(this, tag, value);
         }
@@ -26,7 +27,8 @@
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
-      return has(SymbolRegistry, key) ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
+      var k = '' + key;
+      return has(SymbolRegistry, k) ? SymbolRegistry[k] : SymbolRegistry[k] = Symbol(k);
     },
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : Symbol(SYMBOL + '.' + $ITERATOR),

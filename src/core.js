@@ -46,10 +46,6 @@ var OBJECT         = 'Object'
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
 }
-// 7.2.4 SameValueZero(x, y)
-function same0(x, y){
-  return x === y || (x !== x && y !== y);
-}
 // http://jsperf.com/core-js-isobject
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
@@ -57,7 +53,7 @@ function isObject(it){
 function isFunction(it){
   return typeof it == 'function';
 }
-// native function?
+// Native function?
 var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
 function isNative(it){
   return nativeRegExp.test(it);
@@ -67,7 +63,7 @@ var toString = $Object.toString
 function setTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
-// object internal [[Class]]
+// Object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
   var cof = toString.call(it).slice(8, -1);
@@ -128,16 +124,6 @@ var create           = Object.create
 function has(object, key){
   return hasOwnProperty.call(object, key);
 }
-// http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-function getOwnPropertyDescriptors(object){
-  var result = {}
-    , names  = getNames(object)
-    , length = names.length
-    , i      = 0
-    , key;
-  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
-  return result;
-}
 // 19.1.2.1 Object.assign ( target, source, ... )
 var assign = Object.assign || function(target, source){
   var T = Object(target)
@@ -163,8 +149,9 @@ function clone(it, stack1, stack2){
     if(~index)return stack2[index];
     stack1.push(it);
     stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
-    if(isArray)for(i = 0; l > i;)result[i] = clone(it[i++], stack1, stack2);
-    else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
+    if(isArray){
+      for(i = 0; l > i;)if(has(it, i))result[i] = clone(it[i++], stack1, stack2);
+    } else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
     return result;
   }
   return it;
@@ -178,20 +165,20 @@ function $clone(){
 function array(it){
   return String(it).split(',');
 }
-var push     = $Array.push
-  , unshift  = $Array.unshift
-  , slice    = $Array.slice
-  , indexOf  = $Array.indexOf
-  , forEach  = $Array.forEach;
+var push    = $Array.push
+  , unshift = $Array.unshift
+  , slice   = $Array.slice
+  , indexOf = $Array.indexOf
+  , forEach = $Array.forEach;
 // Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
-  var T    = target == undefined ? [] : Object(target)
+  var memo = target == undefined ? [] : Object(target)
     , self = ES5Object(this)
     , l    = toLength(self.length)
     , i    = 0;
-  for(;l > i; i++)if(i in self && mapfn(T, self[i], i, this) === false)break;
-  return T;
+  for(;l > i; i++)if(i in self && mapfn(memo, self[i], i, this) === false)break;
+  return memo;
 }
 function newGeneric(A, B){
   return new (isFunction(A) ? A : B);
@@ -281,7 +268,7 @@ function $defineTimer(key, fn){
   if(framework)global[key] = fn;
   Export[key] = global[key] != fn ? fn : ctx(fn, global);
 }
-// wrap to prevent obstruction of the global constructors, when build as library
+// Wrap to prevent obstruction of the global constructors, when build as library
 function wrapGlobalConstructor(Base){
   if(framework || !isNative(Base))return Base;
   function F(param){
@@ -291,7 +278,7 @@ function wrapGlobalConstructor(Base){
   F[PROTOTYPE] = Base[PROTOTYPE];
   return F;
 }
-// export
+// Export
 var isNode = classof(process) == PROCESS;
 if(isNode)module.exports = Export;
 if(!isNode || framework)global.C = Export;

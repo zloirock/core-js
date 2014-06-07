@@ -57,7 +57,7 @@
     arr = [1, 2, 3, -0, NaN, o = {}];
     ok(arr.contains(1));
     ok(arr.contains(-0));
-    ok(arr.contains(0));
+    ok(!arr.contains(0));
     ok(arr.contains(NaN));
     ok(arr.contains(o));
     ok(!arr.contains(4));
@@ -689,7 +689,7 @@
     }(1, 2, 3, -0, NaN, o = {});
     ok(contains(args, 1));
     ok(contains(args, -0));
-    ok(contains(args, 0));
+    ok(!contains(args, 0));
     ok(contains(args, NaN));
     ok(contains(args, o));
     ok(!contains(args, 4));
@@ -1289,7 +1289,7 @@
       q: 1,
       w: 2,
       e: NaN
-    }, NaN) === 'e');
+    }, NaN) === void 8);
   });
   test('Dict.map', function(){
     var map, obj, ctx;
@@ -1479,7 +1479,7 @@
     };
     ok(contains(dict, 1));
     ok(contains(dict, -0));
-    ok(contains(dict, 0));
+    ok(!contains(dict, 0));
     ok(contains(dict, NaN));
     ok(contains(dict, o));
     ok(!contains(dict, 4));
@@ -3067,7 +3067,7 @@
     var forOf, set, counter1, string1, counter2, string2, o;
     forOf = C.forOf;
     ok(typeof forOf === 'function', 'Is function');
-    set = new Set([1, 2, 3, 2, 1]);
+    set = new Set(['1', '2', '3', '2', '1']);
     counter1 = 0;
     string1 = '';
     forOf(set, function(it){
@@ -3080,15 +3080,15 @@
     string2 = '';
     forOf(set.entries(), function(it){
       counter2++;
-      string2 += '' + it[0] + it[1];
+      string2 += it[0] + it[1];
     });
     ok(counter2 === 3);
     ok(string2 === '112233');
-    forOf([1].entries(), function(key, val){
+    forOf.call(o = {}, [1].entries(), function(key, val){
       ok(this === o);
       ok(key === 0);
       return ok(val === 1);
-    }, o = {}, true);
+    }, true);
   });
   test('C.isIterable', function(){
     var isIterable;

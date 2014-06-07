@@ -41,9 +41,9 @@
           return createDict();
         }
     , createGetKeys = function(names, length){
-        return function(O){
-          O = ES5Object(O);
-          var i      = 0
+        return function(_O){
+          var O      = ES5Object(_O)
+            , i      = 0
             , result = []
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
@@ -54,7 +54,7 @@
       };
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
-    Object.defineProperty({}, 0, $Object);
+    defineProperty({}, 0, $Object);
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
