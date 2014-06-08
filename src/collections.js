@@ -64,7 +64,7 @@ $define(PROTO, MAP, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Map;
-    this.forEach(function(val, key){
+    this[FOR_EACH](function(val, key){
       result.set(key, fn.apply(that, arguments));
     });
     return result;
@@ -72,7 +72,7 @@ $define(PROTO, MAP, assign({
   filter: function(fn, that){
     assertFunction(fn);
     var result = new Map;
-    this.forEach(function(val, key){
+    this[FOR_EACH](function(val, key){
       if(fn.apply(that, arguments))result.set(key, val);
     });
     return result;
@@ -82,7 +82,7 @@ $define(PROTO, SET, assign({
   map: function(fn, that){
     assertFunction(fn);
     var result = new Set;
-    this.forEach(function(){
+    this[FOR_EACH](function(){
       result.add(fn.apply(that, arguments));
     });
     return result;
@@ -90,7 +90,7 @@ $define(PROTO, SET, assign({
   filter: function(fn, that){
     assertFunction(fn);
     var result = new Set;
-    this.forEach(function(val){
+    this[FOR_EACH](function(val){
       if(fn.apply(that, arguments))result.add(val);
     });
     return result;

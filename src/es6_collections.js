@@ -12,9 +12,9 @@
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
-  var STOREID  = symbol('storeId')
-    , KEYS     = symbol('keys')
+  var KEYS     = COLLECTION_KEYS = symbol('keys')
     , VALUES   = symbol('values')
+    , STOREID  = symbol('storeId')
     , WEAKDATA = symbol('weakData')
     , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
@@ -118,6 +118,7 @@
   
   // 23.1 Map Objects
   if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+    SHIM_MAP = true;
     Map = createCollectionConstructor(MAP);
     assign(Map[PROTOTYPE], collectionMethods(VALUES), {
       // 23.1.3.6 Map.prototype.get(key)
@@ -142,6 +143,7 @@
   
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+    SHIM_SET = true;
     Set = createCollectionConstructor(SET, 1);
     assign(Set[PROTOTYPE], collectionMethods(KEYS), {
       // 23.2.3.1 Set.prototype.add(value)
@@ -162,6 +164,9 @@
   function getWeakData(it){
     return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
   }
+  function weakCollectionHas(key){
+    return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
+  }
   var weakCollectionMethods = {
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
@@ -171,13 +176,11 @@
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)
     'delete': function(key){
-      return this.has(key) && delete key[WEAKDATA][this[WEAKID]];
+      return weakCollectionHas.call(this, key) && delete key[WEAKDATA][this[WEAKID]];
     },
     // 23.3.3.5 WeakMap.prototype.has(key)
     // 23.4.3.5 WeakSet.prototype.has(value)
-    has: function(key){
-      return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
-    }
+    has: weakCollectionHas
   };
   
   // 23.3 WeakMap Objects

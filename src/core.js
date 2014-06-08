@@ -14,6 +14,7 @@ var OBJECT         = 'Object'
   , PROCESS        = 'process'
   , PROTOTYPE      = 'prototype'
   , CONSTRUCTOR    = 'constructor'
+  , FOR_EACH       = 'forEach'
   , CREATE_ELEMENT = 'createElement'
   // Aliases global objects and prototypes
   , Function       = global[FUNCTION]
@@ -139,6 +140,15 @@ var assign = Object.assign || function(target, source){
   }
   return T;
 }
+function getValues(object){
+  var O      = ES5Object(object)
+    , keys   = getKeys(object)
+    , length = keys.length
+    , i      = 0
+    , result = Array(length);
+  while(length > i)result[i] = O[keys[i++]];
+  return result;
+}
 // Simple structured cloning
 function clone(it, stack1, stack2){
   var cof     = classof(it)
@@ -169,7 +179,7 @@ var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
   , indexOf = $Array.indexOf
-  , forEach = $Array.forEach;
+  , forEach = $Array[FOR_EACH];
 // Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -239,7 +249,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var ITERATOR, forOf, isIterable, getIterator, objectIterators; // define in symbol & iterators modules
+var ITERATOR, forOf, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
 
 var GLOBAL = 1
   , STATIC = 2

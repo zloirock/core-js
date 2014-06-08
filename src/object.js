@@ -42,15 +42,7 @@ $define(STATIC, OBJECT, {
     return defineProperties(target, getOwnPropertyDescriptors(source));
   },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-  values: function(object){
-    var O      = ES5Object(object)
-      , keys   = getKeys(object)
-      , length = keys.length
-      , i      = 0
-      , result = Array(length);
-    while(length > i)result[i] = O[keys[i++]];
-    return result;
-  },
+  values: getValues,
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   entries: function(object){
     var O      = ES5Object(object)
