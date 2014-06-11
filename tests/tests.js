@@ -3063,14 +3063,13 @@
       done: true
     });
   });
-  test('C.forOf', function(){
-    var forOf, set, counter1, string1, counter2, string2, o;
-    forOf = C.forOf;
-    ok(typeof forOf === 'function', 'Is function');
+  test('$for(iterable).of(fn)', function(){
+    var set, counter1, string1, counter2, string2, o;
+    ok(typeof $for === 'function', 'Is function');
     set = new Set(['1', '2', '3', '2', '1']);
     counter1 = 0;
     string1 = '';
-    forOf(set, function(it){
+    $for(set).of(function(it){
       counter1++;
       string1 += it;
     });
@@ -3078,17 +3077,17 @@
     ok(string1 === '123');
     counter2 = 0;
     string2 = '';
-    forOf(set.entries(), function(it){
+    $for(set.entries()).of(function(it){
       counter2++;
       string2 += it[0] + it[1];
     });
     ok(counter2 === 3);
     ok(string2 === '112233');
-    forOf.call(o = {}, [1].entries(), function(key, val){
+    $for([1].entries(), true).of(function(key, val){
       ok(this === o);
       ok(key === 0);
       return ok(val === 1);
-    }, true);
+    }, o = {});
   });
   test('C.isIterable', function(){
     var isIterable;

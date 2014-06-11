@@ -1,4 +1,4 @@
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, Iterators, returnThis, mapForEach, setForEach){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -44,7 +44,7 @@
   }
   function defineIterator(object, NAME, value){
     Iterators[NAME] = value;
-    if(framework && !has(object, ITERATOR))hidden(object, ITERATOR, value);
+    framework && !has(object, ITERATOR) && hidden(object, ITERATOR, value);
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
@@ -68,7 +68,7 @@
   defineIterator(String[PROTOTYPE], STRING, Iterators[ARRAY]);
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-  // Old v8 fix
+  // v8 fix
   Iterators[ARRAY + ' Iterator'] = returnThis;
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
@@ -105,17 +105,15 @@
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);
-    hidden(this, KIND,  kind);
-    hidden(this, INDEX, 0);
-    hidden(this, KEYS,  keys);
+    hidden(this, KIND, kind);
+    hidden(this, KEYS, keys.reverse());
   }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   createIteratorClass(SetIterator, SET, Set, function(){
-    var keys  = this[KEYS]
-      , index = this[INDEX]++
+    var keys = this[KEYS]
       , key;
-    if(index >= keys.length)   return createIterResultObject(undefined, 1);
-    key = keys[index];
+    if(!keys.length)           return createIterResultObject(undefined, 1);
+    key = keys.pop();
     if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
                                return createIterResultObject([key, key], 0);
   }, VALUE);
@@ -152,18 +150,25 @@
   }
   
   C.isIterable = isIterable = function(it){
-    return it != undefined && ITERATOR in it ? true : has(Iterators, classof(it));
+    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
   }
   C.getIterator = getIterator = function(it){
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
-  C.forOf = forOf = function(it, fn, entries){
-    var that     = this === Export ? undefined : this
-      , iterator = getIterator(it)
+  
+  $for = function(iterable, entries){
+    if(!(this instanceof $for))return new $for(iterable, entries);
+    hidden(this, ITERATED, iterable);
+    hidden(this, ENTRIES,  entries);
+  }
+  $for[PROTOTYPE].of = function(fn, that){
+    var iterator = getIterator(this[ITERATED])
+      , entries  = this[ENTRIES]
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
       if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
     }
   }
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
+  $define(GLOBAL, {$for: $for});
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);

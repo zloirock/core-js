@@ -191,7 +191,18 @@ var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
   , indexOf = $Array.indexOf
-  , forEach = $Array[FOR_EACH];
+  , forEach = $Array[FOR_EACH]
+  , from    = Array.from || function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
+      if(mapfn !== undefined)assertFunction(mapfn);
+      var O      = ES5Object(arrayLike)
+        , result = newGeneric(this, Array)
+        , i = 0, length;
+      if($for && isIterable(O))$for(O).of(function(value){
+        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+      });
+      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+      return result;
+    };
 // Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -261,7 +272,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var ITERATOR, forOf, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
+var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
 
 var GLOBAL = 1
   , STATIC = 2
@@ -284,7 +295,7 @@ function $define(type, name, source, forced /* = false */){
     if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
+      && defineProperty(target, key, descriptor(6, source[key]));
   }
 }
 function $defineTimer(key, fn){
@@ -848,17 +859,7 @@ $define(GLOBAL, {global: global});
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      if(mapfn !== undefined)assertFunction(mapfn);
-      var O      = ES5Object(arrayLike)
-        , result = newGeneric(this, Array)
-        , i = 0, length;
-      if(forOf && isIterable(O))forOf(O, function(value){
-        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
-      });
-      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
-      return result;
-    },
+    from: from,
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
       var i = 0, length = arguments.length
@@ -1038,7 +1039,7 @@ $defineTimer('clearImmediate', clearImmediate);
       var C      = this
         , values = [];
       return new C(function(resolve, reject){
-        forOf.call(values, iterable, push);
+        $for(iterable).of(push, values);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){
@@ -1054,7 +1055,7 @@ $defineTimer('clearImmediate', clearImmediate);
     Promise.race = function(iterable){
       var C = this;
       return new C(function(resolve, reject){
-        forOf(iterable, function(promise){
+        $for(iterable).of(function(promise){
           C.resolve(promise).then(resolve, reject)
         });
       });
@@ -1166,7 +1167,7 @@ $defineTimer('clearImmediate', clearImmediate);
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    if(iterable != undefined)forOf && forOf.call(that, iterable, isSet ? that.add : that.set, !isSet);
+    iterable != undefined && $for && $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
     return that;
   }
   function createCollectionConstructor(name, isSet){
@@ -1369,7 +1370,7 @@ $defineTimer('clearImmediate', clearImmediate);
  * Module : es6_iterators
  *****************************/
 
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, Iterators, returnThis, mapForEach, setForEach){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach){
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1415,7 +1416,7 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   function defineIterator(object, NAME, value){
     Iterators[NAME] = value;
-    if(framework && !has(object, ITERATOR))hidden(object, ITERATOR, value);
+    framework && !has(object, ITERATOR) && hidden(object, ITERATOR, value);
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
@@ -1439,7 +1440,7 @@ $defineTimer('clearImmediate', clearImmediate);
   defineIterator(String[PROTOTYPE], STRING, Iterators[ARRAY]);
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-  // Old v8 fix
+  // v8 fix
   Iterators[ARRAY + ' Iterator'] = returnThis;
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
@@ -1476,17 +1477,15 @@ $defineTimer('clearImmediate', clearImmediate);
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);
-    hidden(this, KIND,  kind);
-    hidden(this, INDEX, 0);
-    hidden(this, KEYS,  keys);
+    hidden(this, KIND, kind);
+    hidden(this, KEYS, keys.reverse());
   }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   createIteratorClass(SetIterator, SET, Set, function(){
-    var keys  = this[KEYS]
-      , index = this[INDEX]++
+    var keys = this[KEYS]
       , key;
-    if(index >= keys.length)   return createIterResultObject(undefined, 1);
-    key = keys[index];
+    if(!keys.length)           return createIterResultObject(undefined, 1);
+    key = keys.pop();
     if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
                                return createIterResultObject([key, key], 0);
   }, VALUE);
@@ -1523,21 +1522,28 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   
   C.isIterable = isIterable = function(it){
-    return it != undefined && ITERATOR in it ? true : has(Iterators, classof(it));
+    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
   }
   C.getIterator = getIterator = function(it){
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
-  C.forOf = forOf = function(it, fn, entries){
-    var that     = this === Export ? undefined : this
-      , iterator = getIterator(it)
+  
+  $for = function(iterable, entries){
+    if(!(this instanceof $for))return new $for(iterable, entries);
+    hidden(this, ITERATED, iterable);
+    hidden(this, ENTRIES,  entries);
+  }
+  $for[PROTOTYPE].of = function(fn, that){
+    var iterator = getIterator(this[ITERATED])
+      , entries  = this[ENTRIES]
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
       if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
     }
   }
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
+  $define(GLOBAL, {$for: $for});
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
 
 /*****************************
  * Module : dict
@@ -1547,9 +1553,9 @@ $defineTimer('clearImmediate', clearImmediate);
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))forOf(iterable, function(key, value){
+      if(isIterable(iterable))$for(iterable, 1).of(function(key, value){
         dict[key] = value;
-      }, 1);
+      });
       else assign(dict, iterable);
     }
     return dict;
@@ -1739,7 +1745,7 @@ $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
-    var list     = Array.isArray(args) ? args : Array.from(args)
+    var list     = Array.isArray(args) ? args : from(args)
       , instance = create(this[PROTOTYPE])
       , result   = this.apply(instance, list);
     return isObject(result) ? result : instance;

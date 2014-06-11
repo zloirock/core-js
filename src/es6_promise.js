@@ -54,7 +54,7 @@
       var C      = this
         , values = [];
       return new C(function(resolve, reject){
-        forOf.call(values, iterable, push);
+        $for(iterable).of(push, values);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){
@@ -70,7 +70,7 @@
     Promise.race = function(iterable){
       var C = this;
       return new C(function(resolve, reject){
-        forOf(iterable, function(promise){
+        $for(iterable).of(function(promise){
           C.resolve(promise).then(resolve, reject)
         });
       });

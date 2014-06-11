@@ -205,17 +205,7 @@
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      if(mapfn !== undefined)assertFunction(mapfn);
-      var O      = ES5Object(arrayLike)
-        , result = newGeneric(this, Array)
-        , i = 0, length;
-      if(forOf && isIterable(O))forOf(O, function(value){
-        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
-      });
-      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
-      return result;
-    },
+    from: from,
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
       var i = 0, length = arguments.length

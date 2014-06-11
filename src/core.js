@@ -179,7 +179,18 @@ var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
   , indexOf = $Array.indexOf
-  , forEach = $Array[FOR_EACH];
+  , forEach = $Array[FOR_EACH]
+  , from    = Array.from || function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
+      if(mapfn !== undefined)assertFunction(mapfn);
+      var O      = ES5Object(arrayLike)
+        , result = newGeneric(this, Array)
+        , i = 0, length;
+      if($for && isIterable(O))$for(O).of(function(value){
+        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+      });
+      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+      return result;
+    };
 // Simple reduce to object
 function transform(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -249,7 +260,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 
-var ITERATOR, forOf, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
+var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
 
 var GLOBAL = 1
   , STATIC = 2
@@ -272,7 +283,7 @@ function $define(type, name, source, forced /* = false */){
     if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
     framework && target && !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6 + !isProto, source[key]));
+      && defineProperty(target, key, descriptor(6, source[key]));
   }
 }
 function $defineTimer(key, fn){

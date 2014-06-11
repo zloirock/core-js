@@ -201,8 +201,8 @@ console(...args) -> void                                              core
   .{...console API}                                                   console api
   .enable() -> void                                                   core
   .disable() -> void                                                  core
+$for(iterable, entries).of(fn(value [, key]), that) -> void           core
 C                                                                     core
-  .forOf(iterable, fn(...args), that, entries) -> void                core
   .isIterable(var) -> bool                                            core
   .getIterator(iterable) -> iterator                                  core
   .{...global}                                                        core

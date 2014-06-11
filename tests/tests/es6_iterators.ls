@@ -115,14 +115,13 @@ test 'Set::@@iterator' !->
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
-test 'C.forOf' !->
-  {for-of} = C
-  ok typeof for-of is \function, 'Is function'
+test '$for(iterable).of(fn)' !->
+  ok typeof $for is \function, 'Is function'
   set = new Set <[1 2 3 2 1]>
   counter1 = 0
   string1  = ''
   # get iterator from iterable object
-  for-of set, !->
+  $for set .of !->
     counter1++
     string1 += it
   ok counter1 is 3
@@ -130,17 +129,17 @@ test 'C.forOf' !->
   counter2 = 0
   string2  = ''
   # use iterator
-  for-of set.entries!, !->
+  $for set.entries! .of !->
     counter2++
     string2 += it[0] + it[1]
   ok counter2 is 3
   ok string2 is \112233
   # additional args
-  for-of.call o = {}, [1]entries!, (key, val)->
+  $for [1]entries!, on  .of (key, val)->
     ok @ is o
     ok key is 0
     ok val is 1
-  , on
+  , o = {}
 test 'C.isIterable' !->
   {isIterable} = C
   ok typeof isIterable is \function, 'Is function'
