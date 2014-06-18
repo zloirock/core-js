@@ -1,8 +1,9 @@
+isIterator = ->
+  return typeof it is \object  && typeof it.next is \function
 test 'String::@@iterator' !->
   ok typeof String::[Symbol.iterator] is \function, 'Is function'
   iter = 'qwe'[Symbol.iterator]!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -10,8 +11,7 @@ test 'String::@@iterator' !->
 test 'Array::keys' !->
   ok typeof Array::keys is \function, 'Is function'
   iter = <[q w e]>keys!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: 0, done: no}
   deepEqual iter.next!, {value: 1, done: no}
   deepEqual iter.next!, {value: 2, done: no}
@@ -19,8 +19,7 @@ test 'Array::keys' !->
 test 'Array::values' !->
   ok typeof Array::values is \function, 'Is function'
   iter = <[q w e]>values!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -28,8 +27,7 @@ test 'Array::values' !->
 test 'Array::entries' !->
   ok typeof Array::entries is \function, 'Is function'
   iter = <[q w e]>entries!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: [0 \q], done: no}
   deepEqual iter.next!, {value: [1 \w], done: no}
   deepEqual iter.next!, {value: [2 \e], done: no}
@@ -37,8 +35,7 @@ test 'Array::entries' !->
 test 'Array::@@iterator' !->
   ok typeof Array::[Symbol.iterator] is \function, 'Is function'
   iter = <[q w e]>[Symbol.iterator]!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -46,8 +43,7 @@ test 'Array::@@iterator' !->
 test 'Map::keys' !->
   ok typeof Map::keys is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \a, done: no}
   deepEqual iter.next!, {value: \s, done: no}
   deepEqual iter.next!, {value: \d, done: no}
@@ -55,8 +51,7 @@ test 'Map::keys' !->
 test 'Map::values' !->
   ok typeof Map::values is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -64,8 +59,7 @@ test 'Map::values' !->
 test 'Map::entries' !->
   ok typeof Map::entries is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: [\a \q], done: no}
   deepEqual iter.next!, {value: [\s \w], done: no}
   deepEqual iter.next!, {value: [\d \e], done: no}
@@ -73,8 +67,7 @@ test 'Map::entries' !->
 test 'Map::@@iterator' !->
   ok typeof Map::[Symbol.iterator] is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol.iterator]!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: [\a \q], done: no}
   deepEqual iter.next!, {value: [\s \w], done: no}
   deepEqual iter.next!, {value: [\d \e], done: no}
@@ -82,8 +75,7 @@ test 'Map::@@iterator' !->
 test 'Set::keys' !->
   ok typeof Set::keys is \function, 'Is function'
   iter = new Set(<[q w e]>)keys!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -91,8 +83,7 @@ test 'Set::keys' !->
 test 'Set::values' !->
   ok typeof Set::values is \function, 'Is function'
   iter = new Set(<[q w e]>)values!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -100,8 +91,7 @@ test 'Set::values' !->
 test 'Set::entries' !->
   ok typeof Set::entries is \function, 'Is function'
   iter = new Set(<[q w e]>)entries!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: [\q \q], done: no}
   deepEqual iter.next!, {value: [\w \w], done: no}
   deepEqual iter.next!, {value: [\e \e], done: no}
@@ -109,8 +99,7 @@ test 'Set::entries' !->
 test 'Set::@@iterator' !->
   ok typeof Set::[Symbol.iterator] is \function, 'Is function'
   iter = new Set(<[q w e]>)[Symbol.iterator]!
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
+  ok isIterator(iter), 'Return iterator'
   deepEqual iter.next!, {value: \q, done: no}
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
@@ -141,8 +130,8 @@ test '$for(iterable).of(fn)' !->
     ok val is 1
   , o = {}
 test 'C.isIterable' !->
-  {isIterable} = C
+  {isIterable} = $for
   ok typeof isIterable is \function, 'Is function'
 test 'C.getIterator' !->
-  {getIterator} = C
+  {getIterator} = $for
   ok typeof getIterator is \function, 'Is function'

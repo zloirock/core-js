@@ -20,19 +20,19 @@
     deepEqual(arr, [42]);
     deepEqual([1].set(0, 1).set(1, 0).set(2, 3).set(-2, 2), [1, 2, 3]);
   });
-  test('Array::transform', function(){
+  test('Array::turn', function(){
     var arr, obj;
-    ok(isFunction(Array.prototype.transform), 'Is function');
-    (arr = [1]).transform(function(memo, val, key, that){
+    ok(isFunction(Array.prototype.turn), 'Is function');
+    (arr = [1]).turn(function(memo, val, key, that){
       deepEqual([], memo, 'Default memo is array');
       ok(val === 1, 'First argumert is value');
       ok(key === 0, 'Second argumert is index');
       return ok(that === arr, 'Third argumert is array');
     });
-    [1].transform(function(memo){
+    [1].turn(function(memo){
       return ok(memo === obj, 'Can reduce to exist object');
     }, obj = {});
-    deepEqual([3, 2, 1], [1, 2, 3].transform(function(memo, it){
+    deepEqual([3, 2, 1], [1, 2, 3].turn(function(memo, it){
       return memo.unshift(it);
     }), 'Reduce to object and return it');
   });
@@ -74,7 +74,7 @@
   slice = Array.prototype.slice;
   test('Array static are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'transform', 'clone', 'contains']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'turn', 'clone', 'contains']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -633,10 +633,10 @@
     ok(get('qwe', -3) === 'q');
     ok(get('qwe', -4) === void 8);
   });
-  test('Array.transform', function(){
-    var transform, al, obj;
-    transform = Array.transform;
-    transform(al = function(){
+  test('Array.turn', function(){
+    var turn, al, obj;
+    turn = Array.turn;
+    turn(al = function(){
       return arguments;
     }(1), function(memo, val, key, that){
       deepEqual([], memo);
@@ -644,23 +644,23 @@
       ok(key === 0);
       return ok(that === al);
     });
-    transform(al = '1', function(memo, val, key, that){
+    turn(al = '1', function(memo, val, key, that){
       deepEqual([], memo);
       ok(val === '1');
       ok(key === 0);
       return ok(that == al);
     });
-    transform(function(){
+    turn(function(){
       return arguments;
     }(1), function(it){
       return ok(it === obj);
     }, obj = {});
-    deepEqual([3, 2, 1], transform(function(){
+    deepEqual([3, 2, 1], turn(function(){
       return arguments;
     }(1, 2, 3), function(memo, it){
       return memo.unshift(it);
     }));
-    deepEqual(['3', '2', '1'], transform('123', function(memo, it){
+    deepEqual(['3', '2', '1'], turn('123', function(memo, it){
       return memo.unshift(it);
     }));
   });
@@ -1376,11 +1376,11 @@
       return toString$.call(it).slice(8, -1) === 'String';
     }));
   });
-  test('Dict.transform', function(){
-    var transform, obj;
-    transform = Dict.transform;
-    ok(isFunction(transform), 'Is function');
-    transform(obj = {
+  test('Dict.turn', function(){
+    var turn, obj;
+    turn = Dict.turn;
+    ok(isFunction(turn), 'Is function');
+    turn(obj = {
       q: 1
     }, function(memo, val, key, that){
       deepEqual(memo, Dict());
@@ -1388,12 +1388,12 @@
       ok(key === 'q');
       return ok(that === obj);
     });
-    transform({
+    turn({
       q: 1
     }, function(it){
       return ok(it === obj);
     }, obj = {});
-    deepEqual(transform({
+    deepEqual(turn({
       q: 1,
       w: 2,
       e: 3
@@ -2764,12 +2764,15 @@
 }).call(this);
 
 (function(){
+  var isIterator;
+  isIterator = function(it){
+    return typeof it === 'object' && typeof it.next === 'function';
+  };
   test('String::@@iterator', function(){
     var iter;
     ok(typeof String.prototype[Symbol.iterator] === 'function', 'Is function');
     iter = 'qwe'[Symbol.iterator]();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -2791,8 +2794,7 @@
     var iter;
     ok(typeof Array.prototype.keys === 'function', 'Is function');
     iter = ['q', 'w', 'e'].keys();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 0,
       done: false
@@ -2814,8 +2816,7 @@
     var iter;
     ok(typeof Array.prototype.values === 'function', 'Is function');
     iter = ['q', 'w', 'e'].values();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -2837,8 +2838,7 @@
     var iter;
     ok(typeof Array.prototype.entries === 'function', 'Is function');
     iter = ['q', 'w', 'e'].entries();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: [0, 'q'],
       done: false
@@ -2860,8 +2860,7 @@
     var iter;
     ok(typeof Array.prototype[Symbol.iterator] === 'function', 'Is function');
     iter = ['q', 'w', 'e'][Symbol.iterator]();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -2883,8 +2882,7 @@
     var iter;
     ok(typeof Map.prototype.keys === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'a',
       done: false
@@ -2906,8 +2904,7 @@
     var iter;
     ok(typeof Map.prototype.values === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -2929,8 +2926,7 @@
     var iter;
     ok(typeof Map.prototype.entries === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: ['a', 'q'],
       done: false
@@ -2952,8 +2948,7 @@
     var iter;
     ok(typeof Map.prototype[Symbol.iterator] === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[Symbol.iterator]();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: ['a', 'q'],
       done: false
@@ -2975,8 +2970,7 @@
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).keys();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -2998,8 +2992,7 @@
     var iter;
     ok(typeof Set.prototype.values === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).values();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -3021,8 +3014,7 @@
     var iter;
     ok(typeof Set.prototype.entries === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).entries();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: ['q', 'q'],
       done: false
@@ -3044,8 +3036,7 @@
     var iter;
     ok(typeof Set.prototype[Symbol.iterator] === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e'])[Symbol.iterator]();
-    ok(typeof iter === 'object', 'Iterator is object');
-    ok(typeof iter.next === 'function', 'Iterator has .next method');
+    ok(isIterator(iter), 'Return iterator');
     deepEqual(iter.next(), {
       value: 'q',
       done: false
@@ -3091,12 +3082,12 @@
   });
   test('C.isIterable', function(){
     var isIterable;
-    isIterable = C.isIterable;
+    isIterable = $for.isIterable;
     ok(typeof isIterable === 'function', 'Is function');
   });
   test('C.getIterator', function(){
     var getIterator;
-    getIterator = C.getIterator;
+    getIterator = $for.getIterator;
     ok(typeof getIterator === 'function', 'Is function');
   });
 }).call(this);

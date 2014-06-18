@@ -155,18 +155,18 @@ test 'Dict.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test 'Dict.transform' !->
-  {transform} = Dict
-  ok isFunction(transform), 'Is function'
-  transform (obj = q: 1), (memo, val, key, that)->
+test 'Dict.turn' !->
+  {turn} = Dict
+  ok isFunction(turn), 'Is function'
+  turn (obj = q: 1), (memo, val, key, that)->
     deepEqual memo, Dict!
     ok val  is 1
     ok key  is \q
     ok that is obj
-  transform {q:1} ->
+  turn {q:1} ->
     ok it   is obj
   , obj = {}
-  deepEqual transform({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
+  deepEqual turn({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
 test 'Dict.clone' !->
   {clone} = Dict
   {getPrototypeOf, create} = Object

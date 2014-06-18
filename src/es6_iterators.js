@@ -148,14 +148,7 @@
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-  
-  C.isIterable = isIterable = function(it){
-    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
-  }
-  C.getIterator = getIterator = function(it){
-    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
-  }
-  
+    
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
     hidden(this, ITERATED, iterable);
@@ -170,5 +163,13 @@
       if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
     }
   }
+  
+  $for.isIterable = isIterable = function(it){
+    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
+  }
+  $for.getIterator = getIterator = function(it){
+    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
+  }
+  
   $define(GLOBAL, {$for: $for});
 }(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);

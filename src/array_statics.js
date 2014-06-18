@@ -8,7 +8,7 @@
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, ARRAY, transform.call(
+$define(STATIC, ARRAY, turn.call(
   // IE... getNames($Array),
   array(
     // ES3:
@@ -18,7 +18,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,set,transform,clone,contains'
+    'get,set,turn,clone,contains'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = ctx(call, $Array[key]);

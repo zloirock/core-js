@@ -6,7 +6,7 @@
  * https://github.com/theshock/console-cap
  */
 !function(console){
-  var $console = transform.call(
+  var $console = turn.call(
     array('assert,count,clear,debug,dir,dirxml,error,exception,' +
       'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
       'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),

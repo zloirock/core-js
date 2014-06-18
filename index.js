@@ -191,20 +191,9 @@ var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
   , indexOf = $Array.indexOf
-  , forEach = $Array[FOR_EACH]
-  , from    = Array.from || function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      if(mapfn !== undefined)assertFunction(mapfn);
-      var O      = ES5Object(arrayLike)
-        , result = newGeneric(this, Array)
-        , i = 0, length;
-      if($for && isIterable(O))$for(O).of(function(value){
-        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
-      });
-      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
-      return result;
-    };
+  , forEach = $Array[FOR_EACH];
 // Simple reduce to object
-function transform(mapfn, target /* = [] */){
+function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
   var memo = target == undefined ? [] : Object(target)
     , self = ES5Object(this)
@@ -576,7 +565,17 @@ if(!isNode || framework)global.C = Export;
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: from,
+    from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
+      if(mapfn !== undefined)assertFunction(mapfn);
+      var O      = ES5Object(arrayLike)
+        , result = newGeneric(this, Array)
+        , i = 0, length;
+      if($for && isIterable(O))$for(O).of(function(value){
+        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+      });
+      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+      return result;
+    },
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
       var i = 0, length = arguments.length
@@ -1237,14 +1236,7 @@ $defineTimer('clearImmediate', clearImmediate);
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-  
-  C.isIterable = isIterable = function(it){
-    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
-  }
-  C.getIterator = getIterator = function(it){
-    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
-  }
-  
+    
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
     hidden(this, ITERATED, iterable);
@@ -1259,6 +1251,14 @@ $defineTimer('clearImmediate', clearImmediate);
       if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
     }
   }
+  
+  $for.isIterable = isIterable = function(it){
+    return (it != undefined && ITERATOR in it) || has(Iterators, classof(it));
+  }
+  $for.getIterator = getIterator = function(it){
+    return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
+  }
+  
   $define(GLOBAL, {$for: $for});
 }(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
 
@@ -1388,7 +1388,7 @@ $defineTimer('clearImmediate', clearImmediate);
       }
       return false;
     },
-    transform: function(object, mapfn, target /* = new @ */){
+    turn: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
       var memo = target == undefined ? newGeneric(this, Dict) : Object(target)
         , O    = ES5Object(object)
@@ -1436,9 +1436,8 @@ $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
     assertFunction(this);
-    var list     = Array.isArray(args) ? args : from(args)
-      , instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, list);
+    var instance = create(this[PROTOTYPE])
+      , result   = this.apply(instance, args);
     return isObject(result) ? result : instance;
   }
 });
@@ -1659,9 +1658,9 @@ $define(PROTO, ARRAY, {
   },
   /**
    * Alternatives:
-   * http://lodash.com/docs#template
+   * http://lodash.com/docs#transform
    */
-  transform: transform,
+  turn: turn,
   clone: $clone,
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){
@@ -1687,7 +1686,7 @@ $define(PROTO, ARRAY, {
  * https://github.com/plusdude/array-generics
  * http://mootools.net/docs/core/Core/Core#Type:generics
  */
-$define(STATIC, ARRAY, transform.call(
+$define(STATIC, ARRAY, turn.call(
   // IE... getNames($Array),
   array(
     // ES3:
@@ -1697,7 +1696,7 @@ $define(STATIC, ARRAY, transform.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,set,transform,clone,contains'
+    'get,set,turn,clone,contains'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = ctx(call, $Array[key]);
@@ -1758,7 +1757,7 @@ $define(STATIC, 'Math', {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, NUMBER, transform.call(
+$define(PROTO, NUMBER, turn.call(
   // IE... getNames(Math)
   array(
     // ES3
@@ -1793,7 +1792,7 @@ $define(PROTO, NUMBER, transform.call(
         '"': '&quot;',
         "'": '&apos;'
       }
-    , unescapeHTMLDict = transform.call(getKeys(escapeHTMLDict), function(memo, key){
+    , unescapeHTMLDict = turn.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
     , RegExpEscapeHTML   = /[&<>"']/g
@@ -1891,7 +1890,7 @@ $define(PROTO, NUMBER, transform.call(
   }
   function addLocale(lang, locale){
     function split(index){
-      return transform.call(array(locale.months), function(memo, it){
+      return turn.call(array(locale.months), function(memo, it){
         memo.push(it.replace(flexioRegExp, '$' + index));
       });
     }
@@ -1934,7 +1933,7 @@ $define(PROTO, NUMBER, transform.call(
  * https://github.com/theshock/console-cap
  */
 !function(console){
-  var $console = transform.call(
+  var $console = turn.call(
     array('assert,count,clear,debug,dir,dirxml,error,exception,' +
       'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
       'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),

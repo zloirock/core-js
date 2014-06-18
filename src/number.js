@@ -48,7 +48,7 @@ $define(STATIC, 'Math', {
  * http://sugarjs.com/api/Number/math
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
-$define(PROTO, NUMBER, transform.call(
+$define(PROTO, NUMBER, turn.call(
   // IE... getNames(Math)
   array(
     // ES3

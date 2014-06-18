@@ -15,9 +15,9 @@ $define(PROTO, ARRAY, {
   },
   /**
    * Alternatives:
-   * http://lodash.com/docs#template
+   * http://lodash.com/docs#transform
    */
-  transform: transform,
+  turn: turn,
   clone: $clone,
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){

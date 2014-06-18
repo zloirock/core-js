@@ -17,7 +17,7 @@ require('core-js');
 ```livescript
 global -> object                                                      node
 Object
-  .create(proto | null, descs = {}) -> object                         es5
+  .create(proto | null, descs?) -> object                             es5
   .getPrototypeOf(object) -> proto | null                             es5 sham
   .setPrototypeOf(object, proto | null) -> &0                         es6 sham
   .defineProperty(object, key, desc) -> &0                            es5 sham
@@ -33,7 +33,7 @@ Object
   .isPrototype(proto, object) -> bool                                 core
   .getPropertyDescriptor(object, key) -> desc                         core
   .getOwnPropertyDescriptors(object) -> descs                         core
-  .make(proto | null, props = {}) -> object                           core
+  .make(proto | null, props?) -> object                               core
   .define(object, props) -> &0                                        core
   .isObject(var) -> bool                                              core
   .classof(var) -> string                                             core
@@ -56,18 +56,18 @@ Array
   .from(iterable | array-like, fn(val, key, @), that) -> array        es6
   .of(...args) -> array                                               es6
   .{...Array::}                                                       js1.6
-  ::slice(start = 0, end = @length) -> array                          es5
+  ::slice(start?, end?) -> array                                      es5
   ::join(string = ',') -> string                                      es5
-  ::indexOf(var, from = 0) -> int                                     es5
-  ::lastIndexOf(var, from = -1) -> int                                es5
+  ::indexOf(var, from?) -> int                                        es5
+  ::lastIndexOf(var, from?) -> int                                    es5
   ::every(fn(val, key, @), that) -> bool                              es5
   ::some(fn(val, key, @), that) -> bool                               es5
   ::forEach(fn(val, key, @), that) -> void                            es5
   ::map(fn(val, key, @), that) -> array                               es5
   ::filter(fn(val, key, @), that) -> array                            es5
-  ::reduce(fn(memo, val, key, @) [, memo]) -> var                     es5
-  ::reduceRight(fn(memo, val, key, @) [, memo]) -> var                es5
-  ::fill(var, start = 0, end = -1) -> @                               es5
+  ::reduce(fn(memo, val, key, @), memo?) -> var                       es5
+  ::reduceRight(fn(memo, val, key, @), memo?) -> var                  es5
+  ::fill(var, start?, end?) -> @                                      es5
   ::find(fn(val, key, @), that) -> var                                es6
   ::findIndex(fn(val, key, @), that) -> int                           es6
   ::values() -> iterator                                              es6
@@ -76,21 +76,21 @@ Array
   ::@@iterator() -> iterator                                          es6
   ::get(index) -> var                                                 core
   ::set(index, value) -> @                                            core
-  ::transform(fn(memo, val, key, @), memo = []) -> memo               core
+  ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
   ::clone() -> var                                                    core
   ::contains(var) -> bool                                             es7
-[new] Dict([itarable (entries) | object]) -> dict                     core
+[new] Dict(itarable (entries) | object ?) -> dict                     core
   .filter(object, fn(val, key, @), that) -> new @                     core
   .find(object, fn(val, key, @), that) -> val                         core
   .findKey(object, fn(val, key, @), that) -> key                      core
   .keyOf(object, var) -> key                                          core
   .forEach(object, fn(val, key, @), that) -> void                     core
   .map(object, fn(val, key, @), that) -> new @                        core
-  .reduce(object, fn(memo, val, key, @) [, memo]) -> var              core
+  .reduce(object, fn(memo, val, key, @), memo?) -> var                core
   .every(object, fn(val, key, @), that) -> bool                       core
   .some(object, fn(val, key, @), that) -> bool                        core
-  .transform(object, fn(memo, val, key, @), memo = new @) -> memo     core
-  .clone() -> var                                                     core
+  .turn(object, fn(memo, val, key, @), memo = new @) -> memo          core
+  .clone(foo) -> var                                                  core
   .has(object, key) -> bool                                           core
   .get(object, key) -> val                                            core
   .set(object, key, value) -> &0                                      core
@@ -98,7 +98,7 @@ Array
   .values(object) -> iterator                                         core
   .keys(object) -> iterator                                           core
   .entries(object) -> iterator (entries)                              core
-new Set([iterable]) -> set                                            es6
+new Set(iterable?) -> set                                             es6
   ::add(key) -> @                                                     es6
   ::clear() -> void                                                   es6
   ::delete(key) -> bool                                               es6
@@ -109,7 +109,7 @@ new Set([iterable]) -> set                                            es6
   ::keys() -> iterator                                                es6
   ::entries() -> iterator (entries)                                   es6
   ::@@iterator() -> iterator                                          es6
-new Map([iterable (entries)]) -> map                                  es6
+new Map(iterable (entries) ?) -> map                                  es6
   ::clear() -> void                                                   es6
   ::delete(key) -> bool                                               es6
   ::forEach(fn(val, key, @), that) -> void                            es6
@@ -121,12 +121,12 @@ new Map([iterable (entries)]) -> map                                  es6
   ::keys() -> iterator                                                es6
   ::entries() -> iterator (entries)                                   es6
   ::@@iterator() -> iterator (entries)                                es6
-new WeakSet([iterable]) -> weakset                                    es6
+new WeakSet(iterable?) -> weakset                                     es6
   ::add(key) -> @                                                     es6
   ::clear() -> void                                                   es6
   ::delete(key) -> bool                                               es6
   ::has(key) -> bool                                                  es6
-new WeakMap([iterable (entries)]) -> weakmap                          es6 sham
+new WeakMap(iterable (entries) ?) -> weakmap                          es6 sham
   ::clear() -> void                                                   es6 sham
   ::delete(key) -> bool                                               es6
   ::get(key) -> val                                                   es6
@@ -134,9 +134,9 @@ new WeakMap([iterable (entries)]) -> weakmap                          es6 sham
   ::set(key, val) -> @                                                es6
 String
   ::trim() -> str                                                     es5
-  ::contains(str, from = 0) -> bool                                   es6
-  ::startsWith(str, from = 0) -> bool                                 es6
-  ::endsWith(str, from = @length) -> bool                             es6
+  ::contains(str, from?) -> bool                                      es6
+  ::startsWith(str, from?) -> bool                                    es6
+  ::endsWith(str, from?) -> bool                                      es6
   ::repeat(num) -> str                                                es6
   ::@@iterator() -> iterator                                          es6 sham (fix later)
   ::escapeHTML() -> str                                               core
@@ -178,10 +178,10 @@ Math
 Date
   .now() -> int                                                       es5
   .addLocale(key, object) -> Date                                     core
-  .locale([key]) -> key                                               core
-  ::format(str, key = Date.locale()) -> str                           core
-  ::formatUTC(str, key = Date.locale()) -> str                        core
-[new] Symbol([description]) -> symbol                                 es6 sham
+  .locale(key?) -> key                                                core
+  ::format(str, key?) -> str                                          core
+  ::formatUTC(str, key?) -> str                                       core
+[new] Symbol(description?) -> symbol                                  es6 sham
   .for(key) -> symbol                                                 es6
   .keyFor(symbol) -> key                                              es6
   .iterator -> symbol                                                 es6 sham
@@ -201,10 +201,10 @@ console(...args) -> void                                              core
   .{...console API}                                                   console api
   .enable() -> void                                                   core
   .disable() -> void                                                  core
-$for(iterable, entries).of(fn(value [, key]), that) -> void           core
-C                                                                     core
+$for(iterable, entries).of(fn(value, key?), that) -> void             core
   .isIterable(var) -> bool                                            core
   .getIterator(iterable) -> iterator                                  core
+C                                                                     core
   .{...global}                                                        core
 _ -> object                                                           core / undescore
 ```

@@ -120,7 +120,7 @@
       }
       return false;
     },
-    transform: function(object, mapfn, target /* = new @ */){
+    turn: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
       var memo = target == undefined ? newGeneric(this, Dict) : Object(target)
         , O    = ES5Object(object)

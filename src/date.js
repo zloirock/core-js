@@ -42,7 +42,7 @@
   }
   function addLocale(lang, locale){
     function split(index){
-      return transform.call(array(locale.months), function(memo, it){
+      return turn.call(array(locale.months), function(memo, it){
         memo.push(it.replace(flexioRegExp, '$' + index));
       });
     }

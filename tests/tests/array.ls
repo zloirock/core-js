@@ -13,17 +13,17 @@ test 'Array::set' !->
   ok arr.set(0, 42) is arr
   deepEqual arr, [42]
   deepEqual [1].set(0 1).set(1 0).set(2 3).set(-2 2), [1 2 3]
-test 'Array::transform' !->
-  ok isFunction(Array::transform), 'Is function'
-  (arr = [1])transform (memo, val, key, that)->
+test 'Array::turn' !->
+  ok isFunction(Array::turn), 'Is function'
+  (arr = [1])turn (memo, val, key, that)->
     deepEqual [] memo, 'Default memo is array'
     ok val  is 1, 'First argumert is value'
     ok key  is 0, 'Second argumert is index'
     ok that is arr, 'Third argumert is array' 
-  [1]transform (memo)->
+  [1]turn (memo)->
     ok memo is obj, 'Can reduce to exist object'
   , obj = {}
-  deepEqual [3 2 1] [1 2 3]transform((memo, it)-> memo.unshift it), 'Reduce to object and return it'
+  deepEqual [3 2 1] [1 2 3]turn((memo, it)-> memo.unshift it), 'Reduce to object and return it'
 test 'Array::clone' !->
   ok isFunction(Array::clone), 'Is function'
   arr1 = [object1 = {q:1, w:2}, array1 = [1 2], 1 2 3]
