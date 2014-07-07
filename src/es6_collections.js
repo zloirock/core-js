@@ -97,7 +97,8 @@
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
         assertFunction(callbackfn);
-        var values = this[$VALUES]
+        var f      = optionalBind(callbackfn, thisArg)
+          , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)
           , length = names.length
@@ -105,7 +106,7 @@
           , index;
         while(length > i){
           index = names[i++];
-          callbackfn.call(thisArg, values[index], keys[index], this);
+          f(values[index], keys[index], this);
         }
       },
       // 23.1.3.7 Map.prototype.has(key)

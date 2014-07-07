@@ -14,7 +14,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
       , args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
+      invoke(isFunction(fn) ? fn : Function(fn), args)
     }
     defer(id);
     return counter;

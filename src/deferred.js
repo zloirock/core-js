@@ -10,11 +10,11 @@
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ID] = set.apply(global, this[ARGUMENTS] = args)
+      this[ID] = invoke(set, this[ARGUMENTS] = args)
     }
     Deferred[PROTOTYPE].set = function(){
       clear(this[ID]);
-      this[ID] = set.apply(global, this[ARGUMENTS]);
+      this[ID] = invoke(set, this[ARGUMENTS])
       return this;
     }
     Deferred[PROTOTYPE].clear = function(){

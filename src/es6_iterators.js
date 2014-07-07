@@ -156,11 +156,12 @@
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
+      , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
-      if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
+      if((entries ? f(value[0], value[1]) : f(value)) === false)return;
     }
   }
   

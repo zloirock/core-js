@@ -7,7 +7,10 @@ $define(PROTO, FUNCTION, {
   construct: function(args){
     assertFunction(this);
     var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, args);
+      , result   = invoke(this, args, instance);
     return isObject(result) ? result : instance;
+  },
+  invoke: function(args, that){
+    return invoke(this, args, that);
   }
 });

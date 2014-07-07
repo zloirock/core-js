@@ -27,7 +27,7 @@
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
-      promise[SUBSCRIBERS] = [];
+      hidden(promise, SUBSCRIBERS, []);
       try {
         executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -35,11 +35,11 @@
       }
     }
     // 25.4.5.1 Promise.prototype.catch(onRejected)
-    Promise[PROTOTYPE]['catch'] = function(onRejected){
+    hidden(Promise[PROTOTYPE], 'catch', function(onRejected){
       return this.then(undefined, onRejected);
-    },
+    });
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    Promise[PROTOTYPE].then = function(onFulfilled, onRejected){
+    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
       var promise     = this
         , thenPromise = new Promise(Function())
         , args        = [onFulfilled, onRejected]; 
@@ -48,9 +48,9 @@
       });
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
-    }
+    });
     // 25.4.4.1 Promise.all(iterable)
-    Promise.all = function(iterable){
+    hidden(Promise, 'all', function(iterable){
       var C      = this
         , values = [];
       return new C(function(resolve, reject){
@@ -65,28 +65,28 @@
         });
         else resolve(results);
       });
-    }
+    });
     // 25.4.4.4 Promise.race(iterable)
-    Promise.race = function(iterable){
+    hidden(Promise, 'race', function(iterable){
       var C = this;
       return new C(function(resolve, reject){
         $for(iterable).of(function(promise){
           C.resolve(promise).then(resolve, reject)
         });
       });
-    }
+    });
     // 25.4.4.5 Promise.reject(r)
-    Promise.reject = function(r){
+    hidden(Promise, 'reject', function(r){
       return new this(function(resolve, reject){
         reject(r);
       });
-    }
+    });
     // 25.4.4.6 Promise.resolve(x)
-    Promise.resolve = function(x){
+    hidden(Promise, 'resolve', function(x){
       return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
         resolve(x);
       });
-    }
+    });
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, succeeded, failed;
@@ -135,8 +135,8 @@
     }
     function handle(promise, state, reason){
       if(promise[STATE] === PENDING){
-        promise[STATE]  = SEALED;
-        promise[DETAIL] = reason;
+        hidden(promise, STATE, SEALED);
+        hidden(promise, DETAIL, reason);
         asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
@@ -146,7 +146,7 @@
         });
       }
     }
-  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
+  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise, Promise);

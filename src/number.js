@@ -35,11 +35,11 @@ $define(STATIC, 'Math', {
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  randomInt: function(_a /* = 0 */, _b /* = 0 */){
-    var a = toInteger(_a)
-      , b = toInteger(_b)
-      , m = min(a, b);
-    return floor((random() * (max(a, b) + 1 - m)) + m);
+  randomInt: function(a /* = 0 */, b /* = 0 */){
+    var x = toInteger(a)
+      , y = toInteger(b)
+      , m = min(x, y);
+    return floor((random() * (max(x, y) + 1 - m)) + m);
   }
 });
 /**
@@ -65,7 +65,7 @@ $define(PROTO, NUMBER, turn.call(
         var args = [+this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
-        return fn.apply(undefined, args);
+        return invoke(fn, args);
       }
     })(Math[key])
   }, {}

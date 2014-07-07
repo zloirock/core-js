@@ -10,7 +10,7 @@
  * Module : core
  *****************************/
 
-// Shortcuts for property names
+// Shortcuts for [[Class]] & property names
 var OBJECT         = 'Object'
   , FUNCTION       = 'Function'
   , ARRAY          = 'Array'
@@ -87,7 +87,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call
   , path  = framework ? global : Export;
-Export._ = path._ = path._ || {};
+Export._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/*...args*/){
   var length = arguments.length
@@ -112,11 +112,34 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
-    if(!holder && length == 0)return fn.apply(that, argsPart);
+    if(!holder && length == 0)return invoke(fn, argsPart, that);
     args = argsPart.slice();
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(that, args);
+    return invoke(fn, args, that);
+  }
+}
+// http://jsperf.lnkit.com/fast-apply
+function invoke(fn, args, that){
+  if(that === undefined)switch(args.length){
+    case 0: return fn();
+    case 1: return fn(args[0]);
+    case 2: return fn(args[0], args[1]);
+    case 3: return fn(args[0], args[1], args[2]);
+    case 4: return fn(args[0], args[1], args[2], args[3]);
+    case 5: return fn(args[0], args[1], args[2], args[3], args[4]);
+  } else switch(args.length){
+    case 0: return fn.call(that);
+    case 1: return fn.call(that, args[0]);
+    case 2: return fn.call(that, args[0], args[1]);
+    case 3: return fn.call(that, args[0], args[1], args[2]);
+    case 4: return fn.call(that, args[0], args[1], args[2], args[3]);
+    case 5: return fn.call(that, args[0], args[1], args[2], args[3], args[4]);
+  } return fn.apply(that, args);
+}
+function optionalBind(fn, that){
+  return that === undefined ? fn : function(a, b, c){
+    return fn.call(that, a, b, c);
   }
 }
 
@@ -190,6 +213,7 @@ function array(it){
 var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
+  , splice  = $Array.splice
   , indexOf = $Array.indexOf
   , forEach = $Array[FOR_EACH];
 // Simple reduce to object
@@ -434,7 +458,7 @@ if(!isNode || framework)global.C = Export;
       function bound(/* args... */){
         var _args = args.concat(slice.call(arguments))
           , result, that;
-        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
+        if(this instanceof fn)return isObject(result = invoke(that = create(fn[PROTOTYPE]), _args, scope)) ? result : that;
         return apply.call(fn, scope, _args);
       }
       bound[PROTOTYPE] = undefined;
@@ -869,12 +893,13 @@ $define(GLOBAL, {global: global});
   });
   function findIndex(predicate, thisArg /* = undefind */){
     assertFunction(predicate);
-    var O      = Object(this)
+    var f      = optionalBind(predicate, thisArg)
+      , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
     for(; i < length; i++){
-      if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+      if(i in self && f(self[i], i, O))return i;
     }
     return -1;
   }
@@ -923,7 +948,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
       , args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[id] = function(){
-      (isFunction(fn) ? fn : Function(fn)).apply(undefined, args);
+      invoke(isFunction(fn) ? fn : Function(fn), args)
     }
     defer(id);
     return counter;
@@ -1011,7 +1036,7 @@ $defineTimer('clearImmediate', clearImmediate);
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
-      promise[SUBSCRIBERS] = [];
+      hidden(promise, SUBSCRIBERS, []);
       try {
         executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -1019,11 +1044,11 @@ $defineTimer('clearImmediate', clearImmediate);
       }
     }
     // 25.4.5.1 Promise.prototype.catch(onRejected)
-    Promise[PROTOTYPE]['catch'] = function(onRejected){
+    hidden(Promise[PROTOTYPE], 'catch', function(onRejected){
       return this.then(undefined, onRejected);
-    },
+    });
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    Promise[PROTOTYPE].then = function(onFulfilled, onRejected){
+    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
       var promise     = this
         , thenPromise = new Promise(Function())
         , args        = [onFulfilled, onRejected]; 
@@ -1032,9 +1057,9 @@ $defineTimer('clearImmediate', clearImmediate);
       });
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
-    }
+    });
     // 25.4.4.1 Promise.all(iterable)
-    Promise.all = function(iterable){
+    hidden(Promise, 'all', function(iterable){
       var C      = this
         , values = [];
       return new C(function(resolve, reject){
@@ -1049,28 +1074,28 @@ $defineTimer('clearImmediate', clearImmediate);
         });
         else resolve(results);
       });
-    }
+    });
     // 25.4.4.4 Promise.race(iterable)
-    Promise.race = function(iterable){
+    hidden(Promise, 'race', function(iterable){
       var C = this;
       return new C(function(resolve, reject){
         $for(iterable).of(function(promise){
           C.resolve(promise).then(resolve, reject)
         });
       });
-    }
+    });
     // 25.4.4.5 Promise.reject(r)
-    Promise.reject = function(r){
+    hidden(Promise, 'reject', function(r){
       return new this(function(resolve, reject){
         reject(r);
       });
-    }
+    });
     // 25.4.4.6 Promise.resolve(x)
-    Promise.resolve = function(x){
+    hidden(Promise, 'resolve', function(x){
       return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
         resolve(x);
       });
-    }
+    });
     function invokeCallback(settled, promise, callback, detail){
       var hasCallback = isFunction(callback)
         , value, succeeded, failed;
@@ -1119,8 +1144,8 @@ $defineTimer('clearImmediate', clearImmediate);
     }
     function handle(promise, state, reason){
       if(promise[STATE] === PENDING){
-        promise[STATE]  = SEALED;
-        promise[DETAIL] = reason;
+        hidden(promise, STATE, SEALED);
+        hidden(promise, DETAIL, reason);
         asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
@@ -1130,7 +1155,7 @@ $defineTimer('clearImmediate', clearImmediate);
         });
       }
     }
-  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2);
+  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE)
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise, Promise);
@@ -1238,7 +1263,8 @@ $defineTimer('clearImmediate', clearImmediate);
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
         assertFunction(callbackfn);
-        var values = this[$VALUES]
+        var f      = optionalBind(callbackfn, thisArg)
+          , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)
           , length = names.length
@@ -1246,7 +1272,7 @@ $defineTimer('clearImmediate', clearImmediate);
           , index;
         while(length > i){
           index = names[i++];
-          callbackfn.call(thisArg, values[index], keys[index], this);
+          f(values[index], keys[index], this);
         }
       },
       // 23.1.3.7 Map.prototype.has(key)
@@ -1527,11 +1553,12 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
+      , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
-      if((entries ? fn.call(that, value[0], value[1]) : fn.call(that, value)) === false)return;
+      if((entries ? f(value[0], value[1]) : f(value)) === false)return;
     }
   }
   
@@ -1563,14 +1590,13 @@ $defineTimer('clearImmediate', clearImmediate);
   Dict[PROTOTYPE] = null;
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
-    var O      = ES5Object(object)
+    var f      = optionalBind(fn, that)
+      , O      = ES5Object(object)
       , keys   = getKeys(O)
       , length = keys.length
       , i      = 0
       , key;
-    while(length > i){
-      if(fn.call(that, O[key = keys[i++]], key, object))return key;
-    }
+    while(length > i)if(f(O[key = keys[i++]], key, object))return key;
   }
   assign(Dict, objectIterators, {
     /**
@@ -1584,26 +1610,26 @@ $defineTimer('clearImmediate', clearImmediate);
      */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        if(!fn.call(that, O[key = keys[i++]], key, object))return false;
-      }
+      while(length > i)if(!f(O[key = keys[i++]], key, object))return false;
       return true;
     },
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = keys[i++]], key, object))result[key] = O[key];
+        if(f(O[key = keys[i++]], key, object))result[key] = O[key];
       }
       return result;
     },
@@ -1614,12 +1640,13 @@ $defineTimer('clearImmediate', clearImmediate);
     findKey: findKey,
     forEach: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i)fn.call(that, O[key = keys[i++]], key, object);
+      while(length > i)f(O[key = keys[i++]], key, object);
     },
     keyOf: function(object, searchElement){
       var O      = ES5Object(object)
@@ -1631,18 +1658,17 @@ $defineTimer('clearImmediate', clearImmediate);
     },
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        result[key = keys[i++]] = fn.call(that, O[key], key, object);
-      }
+      while(length > i)result[key = keys[i++]] = f(O[key], key, object);
       return result;
     },
-    reduce: function(object, fn, init /* = undefined */, that /* = undefined */){
+    reduce: function(object, fn, init /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -1654,21 +1680,18 @@ $defineTimer('clearImmediate', clearImmediate);
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];
       }
-      while(length > i){
-        memo = fn.call(that, memo, O[key = keys[i++]], key, object);
-      }
+      while(length > i)memo = fn(memo, O[key = keys[i++]], key, object);
       return memo;
     },
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        if(fn.call(that, O[key = keys[i++]], key, object))return true;
-      }
+      while(length > i)if(f(O[key = keys[i++]], key, object))return true;
       return false;
     },
     turn: function(object, mapfn, target /* = new @ */){
@@ -1721,7 +1744,7 @@ $defineTimer('clearImmediate', clearImmediate);
 !function(navigator){
   function wrap(set){
     return function(fn, time /*, ...args*/){
-      return set(part.apply(isFunction(fn) ? fn : Function(fn), slice.call(arguments, 2)), time || 1);
+      return set(invoke(part, isFunction(fn) ? fn : Function(fn), slice.call(arguments, 2)), time || 1);
     }
   }
   // ie9- dirty check
@@ -1746,8 +1769,11 @@ $define(PROTO, FUNCTION, {
   construct: function(args){
     assertFunction(this);
     var instance = create(this[PROTOTYPE])
-      , result   = this.apply(instance, args);
+      , result   = invoke(this, args, instance);
     return isObject(result) ? result : instance;
+  },
+  invoke: function(args, that){
+    return invoke(this, args, that);
   }
 });
 
@@ -1767,11 +1793,11 @@ $define(PROTO, FUNCTION, {
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ID] = set.apply(global, this[ARGUMENTS] = args)
+      this[ID] = invoke(set, this[ARGUMENTS] = args)
     }
     Deferred[PROTOTYPE].set = function(){
       clear(this[ID]);
-      this[ID] = set.apply(global, this[ARGUMENTS]);
+      this[ID] = invoke(set, this[ARGUMENTS])
       return this;
     }
     Deferred[PROTOTYPE].clear = function(){
@@ -1804,7 +1830,6 @@ $define(PROTO, FUNCTION, {
      * http://sugarjs.com/api/Function/fill
      * http://underscorejs.org/#partial
      * http://mootools.net/docs/core/Types/Function#Function:pass
-     * http://fitzgen.github.io/wu.js/#wu-partial
      */
     part: part,
     by: function(that){
@@ -1832,7 +1857,7 @@ $define(PROTO, FUNCTION, {
         var args = [this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
-        return apply.call(fn, undefined, args);
+        return invoke(fn, args);
       }
     }
   });
@@ -1965,12 +1990,14 @@ $define(PROTO, ARRAY, {
     this[0 > i ? this.length + i : i] = value;
     return this;
   },
-  /**
-   * Alternatives:
-   * http://lodash.com/docs#transform
-   */
-  turn: turn,
-  clone: $clone,
+  'delete': function(index){
+    var n = toInteger(index)
+      , l = this.length
+      , i = 0 > n ? l + n : n;
+    if(i >= l || i < 0)return false;
+    splice.call(this, i, 1);
+    return true;
+  },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){
     var O      = ES5Object(this)
@@ -1978,7 +2005,13 @@ $define(PROTO, ARRAY, {
       , i      = 0;
     while(length > i)if(i in O && same(value, O[i++]))return true;
     return false;
-  }
+  },
+  clone: $clone,
+  /**
+   * Alternatives:
+   * http://lodash.com/docs#transform
+   */
+  turn: turn
 });
 
 /*****************************
@@ -1987,13 +2020,8 @@ $define(PROTO, ARRAY, {
 
 /**
  * Array static methods
- * http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
- * JavaScript 1.6
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
- * Alternatives:
- * https://github.com/plusdude/array-generics
- * http://mootools.net/docs/core/Core/Core#Type:generics
+ * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
+ * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
  */
 $define(STATIC, ARRAY, turn.call(
   // IE... getNames($Array),
@@ -2005,7 +2033,7 @@ $define(STATIC, ARRAY, turn.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,set,turn,clone,contains'
+    'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = ctx(call, $Array[key]);
@@ -2053,11 +2081,11 @@ $define(STATIC, 'Math', {
    * http://underscorejs.org/#random
    * http://mootools.net/docs/core/Types/Number#Number:Number-random
    */
-  randomInt: function(_a /* = 0 */, _b /* = 0 */){
-    var a = toInteger(_a)
-      , b = toInteger(_b)
-      , m = min(a, b);
-    return floor((random() * (max(a, b) + 1 - m)) + m);
+  randomInt: function(a /* = 0 */, b /* = 0 */){
+    var x = toInteger(a)
+      , y = toInteger(b)
+      , m = min(x, y);
+    return floor((random() * (max(x, y) + 1 - m)) + m);
   }
 });
 /**
@@ -2083,7 +2111,7 @@ $define(PROTO, NUMBER, turn.call(
         var args = [+this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
-        return fn.apply(undefined, args);
+        return invoke(fn, args);
       }
     })(Math[key])
   }, {}

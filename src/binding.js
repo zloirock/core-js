@@ -6,7 +6,6 @@
      * http://sugarjs.com/api/Function/fill
      * http://underscorejs.org/#partial
      * http://mootools.net/docs/core/Types/Function#Function:pass
-     * http://fitzgen.github.io/wu.js/#wu-partial
      */
     part: part,
     by: function(that){
@@ -34,7 +33,7 @@
         var args = [this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
-        return apply.call(fn, undefined, args);
+        return invoke(fn, args);
       }
     }
   });

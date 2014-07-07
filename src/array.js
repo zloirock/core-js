@@ -13,12 +13,14 @@ $define(PROTO, ARRAY, {
     this[0 > i ? this.length + i : i] = value;
     return this;
   },
-  /**
-   * Alternatives:
-   * http://lodash.com/docs#transform
-   */
-  turn: turn,
-  clone: $clone,
+  'delete': function(index){
+    var n = toInteger(index)
+      , l = this.length
+      , i = 0 > n ? l + n : n;
+    if(i >= l || i < 0)return false;
+    splice.call(this, i, 1);
+    return true;
+  },
   // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
   contains: function(value){
     var O      = ES5Object(this)
@@ -26,5 +28,11 @@ $define(PROTO, ARRAY, {
       , i      = 0;
     while(length > i)if(i in O && same(value, O[i++]))return true;
     return false;
-  }
+  },
+  clone: $clone,
+  /**
+   * Alternatives:
+   * http://lodash.com/docs#transform
+   */
+  turn: turn
 });

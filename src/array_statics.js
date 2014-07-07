@@ -1,12 +1,7 @@
 /**
  * Array static methods
- * http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
- * JavaScript 1.6
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
- * Alternatives:
- * https://github.com/plusdude/array-generics
- * http://mootools.net/docs/core/Core/Core#Type:generics
+ * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
+ * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
  */
 $define(STATIC, ARRAY, turn.call(
   // IE... getNames($Array),
@@ -18,7 +13,7 @@ $define(STATIC, ARRAY, turn.call(
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
     // Core.js:
-    'get,set,turn,clone,contains'
+    'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){
     if(key in $Array)memo[key] = ctx(call, $Array[key]);

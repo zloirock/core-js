@@ -12,14 +12,13 @@
   Dict[PROTOTYPE] = null;
   function findKey(object, fn, that /* = undefined */){
     assertFunction(fn);
-    var O      = ES5Object(object)
+    var f      = optionalBind(fn, that)
+      , O      = ES5Object(object)
       , keys   = getKeys(O)
       , length = keys.length
       , i      = 0
       , key;
-    while(length > i){
-      if(fn.call(that, O[key = keys[i++]], key, object))return key;
-    }
+    while(length > i)if(f(O[key = keys[i++]], key, object))return key;
   }
   assign(Dict, objectIterators, {
     /**
@@ -33,26 +32,26 @@
      */
     every: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        if(!fn.call(that, O[key = keys[i++]], key, object))return false;
-      }
+      while(length > i)if(!f(O[key = keys[i++]], key, object))return false;
       return true;
     },
     filter: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
       while(length > i){
-        if(fn.call(that, O[key = keys[i++]], key, object))result[key] = O[key];
+        if(f(O[key = keys[i++]], key, object))result[key] = O[key];
       }
       return result;
     },
@@ -63,12 +62,13 @@
     findKey: findKey,
     forEach: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i)fn.call(that, O[key = keys[i++]], key, object);
+      while(length > i)f(O[key = keys[i++]], key, object);
     },
     keyOf: function(object, searchElement){
       var O      = ES5Object(object)
@@ -80,18 +80,17 @@
     },
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        result[key = keys[i++]] = fn.call(that, O[key], key, object);
-      }
+      while(length > i)result[key = keys[i++]] = f(O[key], key, object);
       return result;
     },
-    reduce: function(object, fn, init /* = undefined */, that /* = undefined */){
+    reduce: function(object, fn, init /* = undefined */){
       assertFunction(fn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -103,21 +102,18 @@
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];
       }
-      while(length > i){
-        memo = fn.call(that, memo, O[key = keys[i++]], key, object);
-      }
+      while(length > i)memo = fn(memo, O[key = keys[i++]], key, object);
       return memo;
     },
     some: function(object, fn, that /* = undefined */){
       assertFunction(fn);
-      var O      = ES5Object(object)
+      var f      = optionalBind(fn, that)
+        , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
         , key;
-      while(length > i){
-        if(fn.call(that, O[key = keys[i++]], key, object))return true;
-      }
+      while(length > i)if(f(O[key = keys[i++]], key, object))return true;
       return false;
     },
     turn: function(object, mapfn, target /* = new @ */){

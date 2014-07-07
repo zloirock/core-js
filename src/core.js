@@ -1,4 +1,4 @@
-// Shortcuts for property names
+// Shortcuts for [[Class]] & property names
 var OBJECT         = 'Object'
   , FUNCTION       = 'Function'
   , ARRAY          = 'Array'
@@ -75,7 +75,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call
   , path  = framework ? global : Export;
-Export._ = path._ = path._ || {};
+Export._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/*...args*/){
   var length = arguments.length
@@ -100,11 +100,34 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
-    if(!holder && length == 0)return fn.apply(that, argsPart);
+    if(!holder && length == 0)return invoke(fn, argsPart, that);
     args = argsPart.slice();
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
-    return fn.apply(that, args);
+    return invoke(fn, args, that);
+  }
+}
+// http://jsperf.lnkit.com/fast-apply
+function invoke(fn, args, that){
+  if(that === undefined)switch(args.length){
+    case 0: return fn();
+    case 1: return fn(args[0]);
+    case 2: return fn(args[0], args[1]);
+    case 3: return fn(args[0], args[1], args[2]);
+    case 4: return fn(args[0], args[1], args[2], args[3]);
+    case 5: return fn(args[0], args[1], args[2], args[3], args[4]);
+  } else switch(args.length){
+    case 0: return fn.call(that);
+    case 1: return fn.call(that, args[0]);
+    case 2: return fn.call(that, args[0], args[1]);
+    case 3: return fn.call(that, args[0], args[1], args[2]);
+    case 4: return fn.call(that, args[0], args[1], args[2], args[3]);
+    case 5: return fn.call(that, args[0], args[1], args[2], args[3], args[4]);
+  } return fn.apply(that, args);
+}
+function optionalBind(fn, that){
+  return that === undefined ? fn : function(a, b, c){
+    return fn.call(that, a, b, c);
   }
 }
 
@@ -178,6 +201,7 @@ function array(it){
 var push    = $Array.push
   , unshift = $Array.unshift
   , slice   = $Array.slice
+  , splice  = $Array.splice
   , indexOf = $Array.indexOf
   , forEach = $Array[FOR_EACH];
 // Simple reduce to object

@@ -226,12 +226,13 @@
   });
   function findIndex(predicate, thisArg /* = undefind */){
     assertFunction(predicate);
-    var O      = Object(this)
+    var f      = optionalBind(predicate, thisArg)
+      , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
     for(; i < length; i++){
-      if(i in self && predicate.call(thisArg, self[i], i, O))return i;
+      if(i in self && f(self[i], i, O))return i;
     }
     return -1;
   }

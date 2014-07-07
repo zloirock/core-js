@@ -47,6 +47,7 @@ Function
   ::part(...args | _) -> fn(...args)                                  core
   ::by(object | _, ...args | _) -> fn(...args)                        core
   ::methodize() -> fn(that, ...args)                                  core
+  ::invoke(args, that) -> var                                         core
   ::construct(args) -> object                                         core
   ::timeout(time, ...args) -> deferred                                core
   ::interval(time, ...args) -> deferred                               core
@@ -76,9 +77,10 @@ Array
   ::@@iterator() -> iterator                                          es6
   ::get(index) -> var                                                 core
   ::set(index, value) -> @                                            core
-  ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
-  ::clone() -> var                                                    core
+  ::delete(index) -> bool                                             core
   ::contains(var) -> bool                                             es7
+  ::clone() -> var                                                    core
+  ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
   .filter(object, fn(val, key, @), that) -> new @                     core
   .find(object, fn(val, key, @), that) -> val                         core

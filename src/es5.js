@@ -122,7 +122,7 @@
       function bound(/* args... */){
         var _args = args.concat(slice.call(arguments))
           , result, that;
-        if(this instanceof fn)return isObject(result = apply.call(that = create(fn[PROTOTYPE]), scope, _args)) ? result : that;
+        if(this instanceof fn)return isObject(result = invoke(that = create(fn[PROTOTYPE]), _args, scope)) ? result : that;
         return apply.call(fn, scope, _args);
       }
       bound[PROTOTYPE] = undefined;
