@@ -743,10 +743,11 @@ $defineTimer('clearImmediate', clearImmediate);
   })(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // microtask or, if not possible, macrotask
-    var asap =
-      isNode ? process.nextTick :
-      Promise && isFunction(Promise.resolve) ? function(fn){ $Promise.resolve().then(fn); } :
-      setImmediate;
+    var asap = isNode
+      ? process.nextTick
+      : Promise && isFunction(Promise.resolve)
+        ? function(fn){ $Promise.resolve().then(fn); }
+        : setImmediate;
     // 25.4.3 The Promise Constructor
     Promise = function(executor){
       var promise       = this
@@ -873,7 +874,7 @@ $defineTimer('clearImmediate', clearImmediate);
       }
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
-  setToStringTag(Promise, PROMISE)
+  setToStringTag(Promise, PROMISE);
   $define(GLOBAL, {Promise: Promise}, 1);
 }(Promise, Promise);
 
