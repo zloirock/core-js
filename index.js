@@ -341,7 +341,7 @@ if(!isNode || framework)global.C = Export;
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, SYMBOL, TAG, SymbolRegistry, FFITERATOR, $ITERATOR, $TOSTRINGTAG){
+!function(Symbol, SYMBOL, TAG, SymbolRegistry, $ITERATOR, $TOSTRINGTAG){
   // 19.4.1 The Symbol Constructor
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -359,6 +359,12 @@ if(!isNode || framework)global.C = Export;
       return this[TAG];
     }
   }
+  ITERATOR = $ITERATOR in Symbol
+    ? Symbol[$ITERATOR]
+    : symbol(SYMBOL + '.' + $ITERATOR);
+  TOSTRINGTAG = $TOSTRINGTAG in Symbol
+    ? Symbol[$TOSTRINGTAG]
+    : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
   $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
@@ -367,16 +373,16 @@ if(!isNode || framework)global.C = Export;
       return has(SymbolRegistry, k) ? SymbolRegistry[k] : SymbolRegistry[k] = Symbol(k);
     },
     // 19.4.2.6 Symbol.iterator
-    iterator: ITERATOR = $ITERATOR in Symbol ? Symbol[$ITERATOR] : FFITERATOR in $Array ? FFITERATOR : symbol(SYMBOL + '.' + $ITERATOR),
+    iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
       for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG = $TOSTRINGTAG in Symbol ? Symbol[$TOSTRINGTAG] : Symbol(SYMBOL + '.' + $TOSTRINGTAG)
+    toStringTag: TOSTRINGTAG
   });
   setToStringTag(Symbol, SYMBOL);
-}(global.Symbol, 'Symbol', symbol('tag'), {}, '@@iterator', 'iterator', 'toStringTag');
+}(global.Symbol, 'Symbol', symbol('tag'), {}, 'iterator', 'toStringTag');
 
 /*****************************
  * Module : es6
@@ -1113,7 +1119,8 @@ $defineTimer('clearImmediate', clearImmediate);
  * Module : es6_iterators
  *****************************/
 
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach, FFITERATOR){
+  var USE_FFITERATOR = FFITERATOR in $Array;
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1127,6 +1134,8 @@ $defineTimer('clearImmediate', clearImmediate);
     // 23.1.5.2.2 %MapIteratorPrototype%[@@iterator]()
     // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
     hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
+    // Add iterator for FF iterator protocol
+    USE_FFITERATOR && hidden(Constructor[PROTOTYPE], FFITERATOR, returnThis);
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -1149,7 +1158,7 @@ $defineTimer('clearImmediate', clearImmediate);
       // 22.1.3.30 Array.prototype[@@iterator]()
       // 23.1.3.12 Map.prototype[@@iterator]()
       // 23.2.3.11 Set.prototype[@@iterator]()
-      defineIterator(Base[PROTOTYPE], NAME, createIteratorFactory(Constructor, DEFAULT));
+      defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
     }
   }
   function createIteratorFactory(Constructor, kind){
@@ -1157,9 +1166,26 @@ $defineTimer('clearImmediate', clearImmediate);
       return new Constructor(this, kind);
     }
   }
-  function defineIterator(object, NAME, value){
-    Iterators[NAME] = value;
-    framework && !has(object, ITERATOR) && hidden(object, ITERATOR, value);
+  function defineIterator(Constr, NAME, value){
+    var proto     = Constr[PROTOTYPE]
+      , hasFFIter = has(proto, FFITERATOR);
+    var iter = has(proto, ITERATOR)
+      ? proto[ITERATOR]
+      : hasFFIter
+        ? proto[FFITERATOR]
+        : value;
+    if(framework){
+      // Define iterator
+      !has(proto, ITERATOR) && hidden(proto, ITERATOR, iter);
+      // FF fix
+      if(hasFFIter)hidden(getPrototypeOf(iter.call(new Constr)), ITERATOR, returnThis);
+      // Add iterator for FF iterator protocol
+      else USE_FFITERATOR && hidden(proto, FFITERATOR, iter);
+    }
+    // Plug for library
+    Iterators[NAME] = iter;
+    // FF & v8 fix
+    Iterators[NAME + ' Iterator'] = returnThis;
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
@@ -1180,11 +1206,9 @@ $defineTimer('clearImmediate', clearImmediate);
   }, VALUE);
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
-  defineIterator(String[PROTOTYPE], STRING, Iterators[ARRAY]);
+  defineIterator(String, STRING, Iterators[ARRAY]);
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-  // v8 fix
-  Iterators[ARRAY + ' Iterator'] = returnThis;
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
@@ -1288,7 +1312,7 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   
   $define(GLOBAL, {$for: $for});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH], '@@iterator');
 
 /*****************************
  * Module : dict
@@ -1957,9 +1981,6 @@ $define(PROTO, NUMBER, turn.call(
 /**
  * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
  * https://developer.mozilla.org/en-US/docs/Web/API/console
- * Alternatives:
- * https://github.com/paulmillr/console-polyfill
- * https://github.com/theshock/console-cap
  */
 !function(console){
   var $console = turn.call(

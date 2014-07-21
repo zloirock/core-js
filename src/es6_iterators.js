@@ -1,4 +1,5 @@
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach){
+!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach, FFITERATOR){
+  var USE_FFITERATOR = FFITERATOR in $Array;
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -12,6 +13,8 @@
     // 23.1.5.2.2 %MapIteratorPrototype%[@@iterator]()
     // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
     hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
+    // Add iterator for FF iterator protocol
+    USE_FFITERATOR && hidden(Constructor[PROTOTYPE], FFITERATOR, returnThis);
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -34,7 +37,7 @@
       // 22.1.3.30 Array.prototype[@@iterator]()
       // 23.1.3.12 Map.prototype[@@iterator]()
       // 23.2.3.11 Set.prototype[@@iterator]()
-      defineIterator(Base[PROTOTYPE], NAME, createIteratorFactory(Constructor, DEFAULT));
+      defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
     }
   }
   function createIteratorFactory(Constructor, kind){
@@ -42,9 +45,26 @@
       return new Constructor(this, kind);
     }
   }
-  function defineIterator(object, NAME, value){
-    Iterators[NAME] = value;
-    framework && !has(object, ITERATOR) && hidden(object, ITERATOR, value);
+  function defineIterator(Constr, NAME, value){
+    var proto     = Constr[PROTOTYPE]
+      , hasFFIter = has(proto, FFITERATOR);
+    var iter = has(proto, ITERATOR)
+      ? proto[ITERATOR]
+      : hasFFIter
+        ? proto[FFITERATOR]
+        : value;
+    if(framework){
+      // Define iterator
+      !has(proto, ITERATOR) && hidden(proto, ITERATOR, iter);
+      // FF fix
+      if(hasFFIter)hidden(getPrototypeOf(iter.call(new Constr)), ITERATOR, returnThis);
+      // Add iterator for FF iterator protocol
+      else USE_FFITERATOR && hidden(proto, FFITERATOR, iter);
+    }
+    // Plug for library
+    Iterators[NAME] = iter;
+    // FF & v8 fix
+    Iterators[NAME + ' Iterator'] = returnThis;
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
@@ -65,11 +85,9 @@
   }, VALUE);
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
-  defineIterator(String[PROTOTYPE], STRING, Iterators[ARRAY]);
+  defineIterator(String, STRING, Iterators[ARRAY]);
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-  // v8 fix
-  Iterators[ARRAY + ' Iterator'] = returnThis;
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
@@ -173,4 +191,4 @@
   }
   
   $define(GLOBAL, {$for: $for});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH]);
+}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH], '@@iterator');
