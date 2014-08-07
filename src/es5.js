@@ -12,10 +12,10 @@
     , _classof           = classof
     , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
     , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
-    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
+    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
     // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
-    , hiddenNames2       = hiddenNames1.concat(['length'])
+    , hiddenNames1       = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
+    , hiddenNames2       = hiddenNames1.concat(PROTOTYPE, 'length')
     , hiddenNames1Length = hiddenNames1.length
     , $PROTO             = symbol(PROTOTYPE)
     // Create object with null prototype
@@ -76,7 +76,7 @@
         if('value' in Attributes)O[P] = Attributes.value;
       }
       return O;
-    }
+    };
   }
   $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
@@ -89,12 +89,12 @@
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
+      assertObject(O);
       if(has(O, $PROTO))return O[$PROTO];
-      var proto;
-      if('__proto__' in O)proto = O.__proto__;
-      else if(CONSTRUCTOR in O)proto = O[CONSTRUCTOR][PROTOTYPE];
-      else proto = $Object;
-      return O !== proto && 'toString' in O ? proto : null;
+      if(__PROTO__ && '__proto__' in O)return O.__proto__;
+      if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
+      if(O instanceof Object)return $Object;
+      return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: getNames = getNames || createGetKeys(hiddenNames2, hiddenNames2.length),

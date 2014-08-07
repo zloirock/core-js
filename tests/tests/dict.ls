@@ -218,7 +218,7 @@ test 'Dict.contains' !->
   dict = {q:1, w: NaN, e: -0, r: o = {}}
   ok contains dict, 1
   ok contains dict, -0
-  ok !contains dict, 0
+  ok contains dict, 0
   ok contains dict, NaN
   ok contains dict, o
   ok !contains dict, 4

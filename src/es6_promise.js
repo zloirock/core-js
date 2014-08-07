@@ -12,9 +12,9 @@
 !function(Promise, $Promise){
   isFunction(Promise)
   && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
-  && (function(promise){
+  && function(promise){
     return Promise.resolve(promise) === promise;
-  })(new Promise(Function()))
+  }(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // microtask or, if not possible, macrotask
     var asap = isNode
@@ -28,7 +28,7 @@
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
-      hidden(promise, SUBSCRIBERS, []);
+      set(promise, SUBSCRIBERS, []);
       try {
         executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -50,6 +50,7 @@
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     });
+    hidden(Promise[PROTOTYPE], TO_STRING, ES6ToString);
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
       var C      = this
@@ -136,8 +137,8 @@
     }
     function handle(promise, state, reason){
       if(promise[STATE] === PENDING){
-        hidden(promise, STATE, SEALED);
-        hidden(promise, DETAIL, reason);
+        set(promise, STATE, SEALED);
+        set(promise, DETAIL, reason);
         asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){

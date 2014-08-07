@@ -1,31 +1,29 @@
 /**
  * ECMAScript 6 Symbol
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- * Alternatives:
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
- * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, SYMBOL, TAG, SymbolRegistry, $ITERATOR, $TOSTRINGTAG){
-  // 19.4.1 The Symbol Constructor
+!function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
+  // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(!(this instanceof Symbol))return new Symbol(description);
-      var tag = symbol(description);
+      if(this instanceof Symbol)throw new TypeError('Symbol is not a constructor');
+      var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
         }
       });
-      hidden(this, TAG, tag);
+      return hidden(create(Symbol[PROTOTYPE]), TAG, tag);
     }
-    Symbol[PROTOTYPE].toString = function(){
+    hidden(Symbol[PROTOTYPE], TO_STRING, function(){
       return this[TAG];
-    }
+    });
   }
   ITERATOR = $ITERATOR in Symbol
     ? Symbol[$ITERATOR]
-    : symbol(SYMBOL + '.' + $ITERATOR);
+    : uid(SYMBOL + '.' + $ITERATOR);
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
@@ -40,10 +38,12 @@
     iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
-      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
+      return keyOf(SymbolRegistry, sym);
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG
+    toStringTag: TOSTRINGTAG,
+    pure: symbol,
+    set: set
   });
   setToStringTag(Symbol, SYMBOL);
-}(global.Symbol, 'Symbol', symbol('tag'), {}, 'iterator', 'toStringTag');
+}(symbol('tag'), 'iterator', TO_STRING + 'Tag', {});

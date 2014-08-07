@@ -18,9 +18,8 @@
     , WEAKDATA = symbol('weakData')
     , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
-    , uid = 0
-    , wid = 0
-    , tmp = {}
+    , uid      = 0
+    , wid      = 0
     , sizeGetter = {size: {get: function(){
         return this[SIZE];
       }}};
@@ -34,10 +33,12 @@
       this.clear();
       initCollection(this, iterable, isSet);
     }
+    hidden(F[PROTOTYPE], TO_STRING, ES6ToString);
     return F;
   }
   function fixCollection(Base, name, isSet){
-    var collection   = new Base([isSet ? tmp : [tmp, 1]])
+    var tmp          = {}
+      , collection   = new Base([isSet ? tmp : [tmp, 1]])
       , initFromIter = collection.has(tmp)
       , key = isSet ? 'add' : 'set'
       , fn;
@@ -64,7 +65,7 @@
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // if it hasn't object id - add next
     if(!has(it, STOREID)){
-      if(create)defineProperty(it, STOREID, {value: ++uid});
+      if(create)set(it, STOREID, ++uid);
       else return '';
     }
     // return object id with 'O' prefix
@@ -76,9 +77,9 @@
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function(){
-        hidden(this, KEYS, create(null));
-        if($VALUES == VALUES)hidden(this, VALUES, create(null));
-        hidden(this, SIZE, 0);
+        set(this, KEYS, create(null));
+        if($VALUES == VALUES)set(this, VALUES, create(null));
+        set(this, SIZE, 0);
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
@@ -118,7 +119,7 @@
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+  if(!isFunction(Map) || !has(Map[PROTOTYPE], FOR_EACH)){
     SHIM_MAP = true;
     Map = createCollectionConstructor(MAP);
     assign(Map[PROTOTYPE], collectionMethods(VALUES), {
@@ -143,7 +144,7 @@
   } else Map = fixCollection(Map, MAP);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+  if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
     SHIM_SET = true;
     Set = createCollectionConstructor(SET, 1);
     assign(Set[PROTOTYPE], collectionMethods(KEYS), {
@@ -163,7 +164,8 @@
   } else Set = fixCollection(Set, SET, 1);
   
   function getWeakData(it){
-    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
+    has(it, WEAKDATA) || set(it, WEAKDATA, {});
+    return it[WEAKDATA];
   }
   function weakCollectionHas(key){
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
@@ -172,7 +174,7 @@
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
-      hidden(this, WEAKID, wid++);
+      set(this, WEAKID, wid++);
     },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)

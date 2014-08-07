@@ -1,5 +1,17 @@
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach, FFITERATOR){
-  var USE_FFITERATOR = FFITERATOR in $Array;
+!function($$ITERATOR){
+  var FFITERATOR = $$ITERATOR in $Array
+    , KEY        = 1
+    , VALUE      = 2
+    , ITERATED   = symbol('iterated')
+    , KIND       = symbol('kind')
+    , INDEX      = symbol('index')
+    , KEYS       = symbol('keys')
+    , ENTRIES    = symbol('entries')
+    , returnThis = Function('return this')
+    , mapForEach = Map[PROTOTYPE][FOR_EACH]
+    , setForEach = Set[PROTOTYPE][FOR_EACH]
+    , Iterators  = {};
+  
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -14,7 +26,7 @@
     // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
     hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
     // Add iterator for FF iterator protocol
-    USE_FFITERATOR && hidden(Constructor[PROTOTYPE], FFITERATOR, returnThis);
+    FFITERATOR && hidden(Constructor[PROTOTYPE], $$ITERATOR, returnThis);
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -45,21 +57,21 @@
       return new Constructor(this, kind);
     }
   }
-  function defineIterator(Constr, NAME, value){
-    var proto     = Constr[PROTOTYPE]
-      , hasFFIter = has(proto, FFITERATOR);
+  function defineIterator(Constructor, NAME, value){
+    var proto         = Constructor[PROTOTYPE]
+      , has$$ITERATOR = has(proto, $$ITERATOR);
     var iter = has(proto, ITERATOR)
       ? proto[ITERATOR]
-      : hasFFIter
-        ? proto[FFITERATOR]
+      : has$$ITERATOR
+        ? proto[$$ITERATOR]
         : value;
     if(framework){
       // Define iterator
       !has(proto, ITERATOR) && hidden(proto, ITERATOR, iter);
       // FF fix
-      if(hasFFIter)hidden(getPrototypeOf(iter.call(new Constr)), ITERATOR, returnThis);
+      if(has$$ITERATOR)hidden(getPrototypeOf(iter.call(new Constructor)), ITERATOR, returnThis);
       // Add iterator for FF iterator protocol
-      else USE_FFITERATOR && hidden(proto, FFITERATOR, iter);
+      else FFITERATOR && hidden(proto, $$ITERATOR, iter);
     }
     // Plug for library
     Iterators[NAME] = iter;
@@ -69,9 +81,9 @@
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
   function ArrayIterator(iterated, kind){
-    hidden(this, ITERATED, ES5Object(iterated));
-    hidden(this, KIND,     kind);
-    hidden(this, INDEX,    0);
+    set(this, ITERATED, ES5Object(iterated));
+    set(this, KIND,     kind);
+    set(this, INDEX,    0);
   }
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
   createIteratorClass(ArrayIterator, ARRAY, Array, function(){
@@ -96,10 +108,10 @@
     else mapForEach.call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
-    hidden(that, ITERATED, iterated);
-    hidden(that, KIND,     kind);
-    hidden(that, INDEX,    0);
-    hidden(that, KEYS,     keys);
+    set(that, ITERATED, iterated);
+    set(that, KIND,     kind);
+    set(that, INDEX,    0);
+    set(that, KEYS,     keys);
   }
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
   createIteratorClass(MapIterator, MAP, Map, function(){
@@ -123,8 +135,8 @@
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);
-    hidden(this, KIND, kind);
-    hidden(this, KEYS, keys.reverse());
+    set(this, KIND, kind);
+    set(this, KEYS, keys.reverse());
   }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   createIteratorClass(SetIterator, SET, Set, function(){
@@ -137,10 +149,10 @@
   }, VALUE);
   
   function ObjectIterator(iterated, kind){
-    hidden(this, ITERATED, iterated);
-    hidden(this, KEYS,     getKeys(iterated));
-    hidden(this, INDEX,    0);
-    hidden(this, KIND,     kind);
+    set(this, ITERATED, iterated);
+    set(this, KEYS,     getKeys(iterated));
+    set(this, INDEX,    0);
+    set(this, KIND,     kind);
   }
   createIteratorClass(ObjectIterator, OBJECT, Object, function(){
     var that   = this
@@ -169,8 +181,8 @@
     
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
-    hidden(this, ITERATED, iterable);
-    hidden(this, ENTRIES,  entries);
+    set(this, ITERATED, iterable);
+    set(this, ENTRIES,  entries);
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
@@ -179,7 +191,7 @@
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
-      if((entries ? f(value[0], value[1]) : f(value)) === false)return;
+      if((entries ? invoke(f, value) : f(value)) === false)return;
     }
   }
   
@@ -191,4 +203,4 @@
   }
   
   $define(GLOBAL, {$for: $for});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH], '@@iterator');
+}('@@iterator');

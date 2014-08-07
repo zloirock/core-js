@@ -21,12 +21,12 @@ $define(PROTO, ARRAY, {
     splice.call(this, i, 1);
     return true;
   },
-  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
   contains: function(value){
     var O      = ES5Object(this)
       , length = O.length
       , i      = 0;
-    while(length > i)if(i in O && same(value, O[i++]))return true;
+    while(length > i)if(i in O && sameValueZero(value, O[i++]))return true;
     return false;
   },
   clone: $clone,

@@ -57,7 +57,7 @@
     arr = [1, 2, 3, -0, NaN, o = {}];
     ok(arr.contains(1));
     ok(arr.contains(-0));
-    ok(!arr.contains(0));
+    ok(arr.contains(0));
     ok(arr.contains(NaN));
     ok(arr.contains(o));
     ok(!arr.contains(4));
@@ -689,7 +689,7 @@
     }(1, 2, 3, -0, NaN, o = {});
     ok(contains(args, 1));
     ok(contains(args, -0));
-    ok(!contains(args, 0));
+    ok(contains(args, 0));
     ok(contains(args, NaN));
     ok(contains(args, o));
     ok(!contains(args, 4));
@@ -1479,7 +1479,7 @@
     };
     ok(contains(dict, 1));
     ok(contains(dict, -0));
-    ok(!contains(dict, 0));
+    ok(contains(dict, 0));
     ok(contains(dict, NaN));
     ok(contains(dict, o));
     ok(!contains(dict, 4));
@@ -3390,18 +3390,6 @@
       value: 2
     });
   });
-  test('Object.isEnumerable', function(){
-    var isEnumerable;
-    isEnumerable = Object.isEnumerable;
-    ok(isFunction(isEnumerable), 'Is function');
-    ok(isEnumerable({
-      q: 1
-    }, 'q'));
-    ok(!isEnumerable({}, 'toString'));
-    ok(!isEnumerable(clone$({
-      q: 1
-    }), 'q'));
-  });
   test('Object.isPrototype', function(){
     var isPrototype, proto;
     isPrototype = Object.isPrototype;
@@ -3548,29 +3536,6 @@
     ok(isObject([]));
     ok(isObject(/./));
     ok(isObject(new function(){}));
-  });
-  test('Object.symbol', function(){
-    var symbol;
-    symbol = Object.symbol;
-    ok(isFunction(symbol), 'Is function');
-    ok(typeof symbol('foo') === 'string', "symbol('foo') return string");
-    ok(symbol('foo') !== symbol('foo'), "symbol('foo') !== symbol('foo')");
-    ok(symbol('foo').slice(0, 6) === '@@foo_', "symbol('foo') begin from @@foo_");
-    ok(symbol('foo').length > 15, "symbol('foo')length > 15");
-  });
-  test('Object.hidden', function(){
-    var hidden, o, desc;
-    hidden = Object.hidden;
-    ok(isFunction(hidden), 'Is function');
-    o = {};
-    ok(hidden(o, 'key', 42) === o, 'return target');
-    ok(o.key === 42, 'hidden define property');
-    if (isNative(getOwnPropertyDescriptor)) {
-      desc = getOwnPropertyDescriptor(o, 'key');
-      ok(!desc.enumerable, 'hidden define not enumerable property');
-      ok(desc.writable, 'hidden define writable property');
-      ok(desc.configurable, 'hidden define configurable property');
-    }
   });
   function clone$(it){
     function fun(){} fun.prototype = it;

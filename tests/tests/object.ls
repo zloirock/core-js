@@ -11,12 +11,6 @@ test 'Object.getOwnPropertyDescriptors' !->
   descs = getOwnPropertyDescriptors(make({q: 1}, w:2), \q)
   ok descs.q is void
   deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-test 'Object.isEnumerable' !->
-  {isEnumerable} = Object
-  ok isFunction(isEnumerable), 'Is function'
-  ok isEnumerable q:1, \q
-  ok not isEnumerable {} \toString
-  ok not isEnumerable ^^{q:1}, \q
 test 'Object.isPrototype' !->
   {isPrototype} = Object
   ok isFunction(isPrototype), 'Is function'
@@ -102,21 +96,3 @@ test 'Object.isObject' !->
   ok isObject []
   ok isObject /./
   ok isObject new ->
-test 'Object.symbol' !->
-  {symbol} = Object
-  ok isFunction(symbol), 'Is function'
-  ok typeof symbol('foo') is 'string', "symbol('foo') return string"
-  ok symbol('foo') isnt symbol('foo'), "symbol('foo') !== symbol('foo')"
-  ok symbol('foo')slice(0 6) is '@@foo_', "symbol('foo') begin from @@foo_"
-  ok symbol('foo')length > 15, "symbol('foo')length > 15"
-test 'Object.hidden' !->
-  {hidden} = Object
-  ok isFunction(hidden), 'Is function'
-  o = {}
-  ok hidden(o, \key 42) is o, 'return target'
-  ok o.key is 42, 'hidden define property'
-  if isNative getOwnPropertyDescriptor
-    desc = getOwnPropertyDescriptor o, \key
-    ok not desc.enumerable, 'hidden define not enumerable property'
-    ok desc.writable, 'hidden define writable property'
-    ok desc.configurable, 'hidden define configurable property'

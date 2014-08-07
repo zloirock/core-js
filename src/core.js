@@ -1,51 +1,62 @@
 // Shortcuts for [[Class]] & property names
-var OBJECT         = 'Object'
-  , FUNCTION       = 'Function'
-  , ARRAY          = 'Array'
-  , STRING         = 'String'
-  , NUMBER         = 'Number'
-  , REGEXP         = 'RegExp'
-  , MAP            = 'Map'
-  , SET            = 'Set'
-  , WEAKMAP        = 'WeakMap'
-  , WEAKSET        = 'WeakSet'
-  , PROMISE        = 'Promise'
-  , ARGUMENTS      = 'Arguments'
-  , PROCESS        = 'process'
-  , PROTOTYPE      = 'prototype'
-  , CONSTRUCTOR    = 'constructor'
-  , FOR_EACH       = 'forEach'
-  , CREATE_ELEMENT = 'createElement'
+var OBJECT          = 'Object'
+  , FUNCTION        = 'Function'
+  , ARRAY           = 'Array'
+  , STRING          = 'String'
+  , NUMBER          = 'Number'
+  , REGEXP          = 'RegExp'
+  , MAP             = 'Map'
+  , SET             = 'Set'
+  , WEAKMAP         = 'WeakMap'
+  , WEAKSET         = 'WeakSet'
+  , SYMBOL          = 'Symbol'
+  , PROMISE         = 'Promise'
+  , ARGUMENTS       = 'Arguments'
+  , PROTOTYPE       = 'prototype'
+  , CONSTRUCTOR     = 'constructor'
+  , TO_STRING       = 'toString'
+  , FOR_EACH        = 'forEach'
+  , PROCESS         = 'process'
+  , CREATE_ELEMENT  = 'createElement'
+  , SET_TIMEOUT     = 'setTimeout'
+  , SET_INTERVAL    = 'setInterval'
+  , SET_IMMEDIATE   = 'setImmediate'
+  , CLEAR_IMMEDIATE = 'clearImmediate'
   // Aliases global objects and prototypes
-  , Function       = global[FUNCTION]
-  , Object         = global[OBJECT]
-  , Array          = global[ARRAY]
-  , String         = global[STRING]
-  , Number         = global[NUMBER]
-  , RegExp         = global[REGEXP]
-  , Map            = global[MAP]
-  , Set            = global[SET]
-  , WeakMap        = global[WEAKMAP]
-  , WeakSet        = global[WEAKSET]
-  , Promise        = global[PROMISE]
-  , Math           = global.Math
-  , TypeError      = global.TypeError
-  , setTimeout     = global.setTimeout
-  , clearTimeout   = global.clearTimeout
-  , setInterval    = global.setInterval
-  , setImmediate   = global.setImmediate
-  , clearImmediate = global.clearImmediate
-  , process        = global[PROCESS]
-  , document       = global.document
-  , Infinity       = 1 / 0
-  , $Array         = Array[PROTOTYPE]
-  , $Object        = Object[PROTOTYPE]
-  , $Function      = Function[PROTOTYPE]
-  , Export         = {};
+  , Function        = global[FUNCTION]
+  , Object          = global[OBJECT]
+  , Array           = global[ARRAY]
+  , String          = global[STRING]
+  , Number          = global[NUMBER]
+  , RegExp          = global[REGEXP]
+  , Map             = global[MAP]
+  , Set             = global[SET]
+  , WeakMap         = global[WEAKMAP]
+  , WeakSet         = global[WEAKSET]
+  , Symbol          = global[SYMBOL]
+  , Promise         = global[PROMISE]
+  , Math            = global.Math
+  , TypeError       = global.TypeError
+  , setTimeout      = global[SET_TIMEOUT]
+  , clearTimeout    = global.clearTimeout
+  , setInterval     = global[SET_INTERVAL]
+  , setImmediate    = global[SET_IMMEDIATE]
+  , clearImmediate  = global[CLEAR_IMMEDIATE]
+  , process         = global[PROCESS]
+  , document        = global.document
+  , Infinity        = 1 / 0
+  , $Array          = Array[PROTOTYPE]
+  , $Object         = Object[PROTOTYPE]
+  , $Function       = Function[PROTOTYPE]
+  , Export          = {};
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+}
+// 7.2.4 SameValueZero(x, y)
+function sameValueZero(x, y){
+  return x === y ? true : x !== x && y !== y;
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -59,16 +70,19 @@ var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
 function isNative(it){
   return nativeRegExp.test(it);
 }
-var toString = $Object.toString
+var toString = $Object[TO_STRING]
   , TOSTRINGTAG;
 function setToStringTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // Object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
   var cof = toString.call(it).slice(8, -1);
   return TOSTRINGTAG && cof == OBJECT && it[TOSTRINGTAG] ? it[TOSTRINGTAG] : cof;
+}
+function ES6ToString(){
+  return '[object ' + classof(this) + ']';
 }
 
 // Function:
@@ -139,6 +153,7 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
+  , getSymbols       = Object.getOwnPropertySymbols
   , hasOwnProperty   = $Object.hasOwnProperty
   , isEnumerable     = $Object.propertyIsEnumerable
   , __PROTO__        = '__proto__' in $Object
@@ -176,7 +191,7 @@ function getValues(object){
 function clone(it, stack1, stack2){
   var cof     = classof(it)
     , isArray = cof == ARRAY
-    , index, result, i, l, k;
+    , index, result, i, l, keys, key;
   if(isArray || cof == OBJECT){
     index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
@@ -184,7 +199,11 @@ function clone(it, stack1, stack2){
     stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
     if(isArray){
       for(i = 0; l > i;)if(has(it, i))result[i] = clone(it[i++], stack1, stack2);
-    } else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
+    } else {
+      keys = getKeys(it);
+      l    = keys.length;
+      for(i = 0; l > i;)result[key = keys[i++]] = clone(it[key], stack1, stack2);
+    }
     return result;
   }
   return it;
@@ -214,8 +233,16 @@ function turn(mapfn, target /* = [] */){
   for(;l > i; i++)if(i in self && mapfn(memo, self[i], i, this) === false)break;
   return memo;
 }
+function keyOf(object, searchElement){
+  var O      = ES5Object(object)
+    , keys   = getKeys(O)
+    , length = keys.length
+    , i      = 0
+    , key;
+  while(length > i)if(O[key = keys[i++]] === searchElement)return key;
+}
 function newGeneric(A, B){
-  return new (isFunction(A) ? A : B);
+  return new (typeof A == 'function' ? A : B);
 }
 
 // Math:
@@ -257,10 +284,6 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var symbolUniq = 0;
-function symbol(key){
-  return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
-}
 function descriptor(bitmap, value){
   return {
     enumerable  : !!(bitmap & 1),
@@ -269,9 +292,20 @@ function descriptor(bitmap, value){
     value       : value
   }
 }
+function uid(key){
+  return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
+}
 function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
+var sid    = 0
+  , symbol = Symbol ? Symbol : uid
+  , set    = Symbol
+    ? function(object, key, value){
+        object[key] = value;
+        return object;
+      }
+    : hidden;
 
 var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
 
@@ -289,14 +323,13 @@ function $define(type, name, source, forced /* = false */){
     forced = source;
     source = name;
   }
-  for(key in source)if(has(source, key)){
+  for(key in source){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
     if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
-    framework && target && !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6, source[key]));
+    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, source[key]);
   }
 }
 function $defineTimer(key, fn){

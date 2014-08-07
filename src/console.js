@@ -8,8 +8,9 @@
       'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
       'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
     function(memo, key){
+      var fn = console[key];
       memo[key] = function(){
-        if(enabled && console[key])return apply.call(console[key], console, arguments);
+        if(enabled && fn)return apply.call(fn, console, arguments);
       };
     },
     {

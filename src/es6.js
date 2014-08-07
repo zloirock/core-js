@@ -96,7 +96,7 @@
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
       var n = x >>> 0;
-      return n ? 32 - n.toString(2).length : 32;
+      return n ? 32 - n[TO_STRING](2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.

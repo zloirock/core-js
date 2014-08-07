@@ -12,15 +12,15 @@
     function Deferred(args){
       this[ID] = invoke(set, this[ARGUMENTS] = args)
     }
-    Deferred[PROTOTYPE].set = function(){
+    hidden(Deferred[PROTOTYPE], 'set', function(){
       clear(this[ID]);
       this[ID] = invoke(set, this[ARGUMENTS])
       return this;
-    }
-    Deferred[PROTOTYPE].clear = function(){
+    });
+    hidden(Deferred[PROTOTYPE], 'clear', function(){
       clear(this[ID]);
       return this;
-    }
+    });
     return function(/* ...args */){
       assertFunction(this);
       var args = [this], i = 0;

@@ -1,10 +1,4 @@
-$define(STATIC, NUMBER, {
-  /**
-   * Alternatives:
-   * http://mootools.net/docs/core/Types/Number#Number:toInt
-   */
-  toInteger: toInteger
-});
+$define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
   /**
    * Invoke function @ times and return array of results
@@ -39,7 +33,7 @@ $define(STATIC, 'Math', {
     var x = toInteger(a)
       , y = toInteger(b)
       , m = min(x, y);
-    return floor((random() * (max(x, y) + 1 - m)) + m);
+    return floor(random() * (max(x, y) + 1 - m) + m);
   }
 });
 /**
@@ -59,7 +53,7 @@ $define(PROTO, NUMBER, turn.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = (function(fn){
+    if(key in Math)memo[key] = function(fn){
       return function(/*...args*/){
         // ie8- convert `this` to object -> convert it to number
         var args = [+this]
@@ -67,6 +61,6 @@ $define(PROTO, NUMBER, turn.call(
         while(arguments.length > i)args.push(arguments[i++]);
         return invoke(fn, args);
       }
-    })(Math[key])
+    }(Math[key])
   }, {}
 ));

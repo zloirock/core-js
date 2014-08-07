@@ -7,20 +7,24 @@
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage, MessageChannel,
-    ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
+isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
+  var postMessage        = global.postMessage
+    , addEventListener   = global.addEventListener
+    , MessageChannel     = global.MessageChannel
+    , counter            = 0
+    , queue              = {}
+    , defer, channel;
   setImmediate = function(fn){
-    var id   = IMMEDIATE_PREFIX + ++counter
-      , args = [], i = 1;
+    var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
-    queue[id] = function(){
-      invoke(isFunction(fn) ? fn : Function(fn), args)
+    queue[++counter] = function(){
+      invoke(isFunction(fn) ? fn : Function(fn), args);
     }
-    defer(id);
+    defer(counter);
     return counter;
   }
   clearImmediate = function(id){
-    delete queue[IMMEDIATE_PREFIX + id];
+    delete queue[id];
   }
   function run(id){
     if(has(queue, id)){
@@ -39,7 +43,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(isFunction(postMessage) && !global.importScripts){
+  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
     defer = function(id){
       postMessage(id, '*');
     }
@@ -60,11 +64,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
       document.documentElement.appendChild(el);
     }
   // Rest old browsers
-  } else {
-    defer = function(id){
-      setTimeout(part.call(run, id), 0);
-    }
+  } else defer = function(id){
+    setTimeout(part.call(run, id), 0);
   }
-}(global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
-$defineTimer('setImmediate', setImmediate);
-$defineTimer('clearImmediate', clearImmediate);
+}('onreadystatechange');
+$defineTimer(SET_IMMEDIATE, setImmediate);
+$defineTimer(CLEAR_IMMEDIATE, clearImmediate);

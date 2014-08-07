@@ -16,6 +16,6 @@
     setTimeout  = wrap(setTimeout);
     setInterval = wrap(setInterval);
   }
-  $defineTimer('setTimeout', setTimeout);
-  $defineTimer('setInterval', setInterval);
+  $defineTimer(SET_TIMEOUT, setTimeout);
+  $defineTimer(SET_INTERVAL, setInterval);
 }(global.navigator);

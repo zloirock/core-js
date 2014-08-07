@@ -70,14 +70,7 @@
         , key;
       while(length > i)f(O[key = keys[i++]], key, object);
     },
-    keyOf: function(object, searchElement){
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(O[key = keys[i++]] === searchElement)return key;
-    },
+    keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var f      = optionalBind(fn, that)
@@ -131,19 +124,21 @@
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(same(O[key = keys[i++]], searchElement))return true;
+        , i      = 0;
+      while(length > i)if(sameValueZero(O[keys[i++]], searchElement))return true;
       return false;
     },
     clone: ctx(call, $clone),
-    // Has / get / set own property
+    // Has / get / set / delete own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
       return defineProperty(object, key, descriptor(7, value));
+    },
+    'delete': function(object, key){
+      return has(object, key) && delete object[key];
     },
     isDict: function(it){
       return getPrototypeOf(it) == Dict[PROTOTYPE];

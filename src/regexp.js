@@ -1,6 +1,6 @@
 !function(escape){
   /**
-   * https://gist.github.com/kangax/9698100
+   * ~ES7 : https://gist.github.com/kangax/9698100
    * Alternatives:
    * http://sugarjs.com/api/String/escapeRegExp
    * http://api.prototypejs.org/language/RegExp/escape/

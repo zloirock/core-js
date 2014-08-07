@@ -1,4 +1,4 @@
-!function(){
+!function(_){
   $define(PROTO, FUNCTION, {
     /**
      * Partial apply.
@@ -58,12 +58,11 @@
 
   $define(STATIC, OBJECT, {tie: Export.tie = ctx(call, tie)});
   
-  var _ = symbol('tie');
-  hidden(path._, 'toString', function(){
+  hidden(path._, TO_STRING, function(){
     return _;
   });
   DESCRIPTORS && hidden($Object, _, tie);
   hidden($Function, _, tie);
   hidden($Array, _, tie);
   hidden(RegExp[PROTOTYPE], _, tie);
-}();
+}(uid('tie'));

@@ -276,7 +276,7 @@ test 'Array.contains' !->
   args = (->&)(1 2 3 -0 NaN, o = {})
   ok contains args, 1
   ok contains args, -0
-  ok !contains args, 0
+  ok contains args, 0
   ok contains args, NaN
   ok contains args, o
   ok !contains args, 4

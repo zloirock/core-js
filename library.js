@@ -11,53 +11,64 @@
  *****************************/
 
 // Shortcuts for [[Class]] & property names
-var OBJECT         = 'Object'
-  , FUNCTION       = 'Function'
-  , ARRAY          = 'Array'
-  , STRING         = 'String'
-  , NUMBER         = 'Number'
-  , REGEXP         = 'RegExp'
-  , MAP            = 'Map'
-  , SET            = 'Set'
-  , WEAKMAP        = 'WeakMap'
-  , WEAKSET        = 'WeakSet'
-  , PROMISE        = 'Promise'
-  , ARGUMENTS      = 'Arguments'
-  , PROCESS        = 'process'
-  , PROTOTYPE      = 'prototype'
-  , CONSTRUCTOR    = 'constructor'
-  , FOR_EACH       = 'forEach'
-  , CREATE_ELEMENT = 'createElement'
+var OBJECT          = 'Object'
+  , FUNCTION        = 'Function'
+  , ARRAY           = 'Array'
+  , STRING          = 'String'
+  , NUMBER          = 'Number'
+  , REGEXP          = 'RegExp'
+  , MAP             = 'Map'
+  , SET             = 'Set'
+  , WEAKMAP         = 'WeakMap'
+  , WEAKSET         = 'WeakSet'
+  , SYMBOL          = 'Symbol'
+  , PROMISE         = 'Promise'
+  , ARGUMENTS       = 'Arguments'
+  , PROTOTYPE       = 'prototype'
+  , CONSTRUCTOR     = 'constructor'
+  , TO_STRING       = 'toString'
+  , FOR_EACH        = 'forEach'
+  , PROCESS         = 'process'
+  , CREATE_ELEMENT  = 'createElement'
+  , SET_TIMEOUT     = 'setTimeout'
+  , SET_INTERVAL    = 'setInterval'
+  , SET_IMMEDIATE   = 'setImmediate'
+  , CLEAR_IMMEDIATE = 'clearImmediate'
   // Aliases global objects and prototypes
-  , Function       = global[FUNCTION]
-  , Object         = global[OBJECT]
-  , Array          = global[ARRAY]
-  , String         = global[STRING]
-  , Number         = global[NUMBER]
-  , RegExp         = global[REGEXP]
-  , Map            = global[MAP]
-  , Set            = global[SET]
-  , WeakMap        = global[WEAKMAP]
-  , WeakSet        = global[WEAKSET]
-  , Promise        = global[PROMISE]
-  , Math           = global.Math
-  , TypeError      = global.TypeError
-  , setTimeout     = global.setTimeout
-  , clearTimeout   = global.clearTimeout
-  , setInterval    = global.setInterval
-  , setImmediate   = global.setImmediate
-  , clearImmediate = global.clearImmediate
-  , process        = global[PROCESS]
-  , document       = global.document
-  , Infinity       = 1 / 0
-  , $Array         = Array[PROTOTYPE]
-  , $Object        = Object[PROTOTYPE]
-  , $Function      = Function[PROTOTYPE]
-  , Export         = {};
+  , Function        = global[FUNCTION]
+  , Object          = global[OBJECT]
+  , Array           = global[ARRAY]
+  , String          = global[STRING]
+  , Number          = global[NUMBER]
+  , RegExp          = global[REGEXP]
+  , Map             = global[MAP]
+  , Set             = global[SET]
+  , WeakMap         = global[WEAKMAP]
+  , WeakSet         = global[WEAKSET]
+  , Symbol          = global[SYMBOL]
+  , Promise         = global[PROMISE]
+  , Math            = global.Math
+  , TypeError       = global.TypeError
+  , setTimeout      = global[SET_TIMEOUT]
+  , clearTimeout    = global.clearTimeout
+  , setInterval     = global[SET_INTERVAL]
+  , setImmediate    = global[SET_IMMEDIATE]
+  , clearImmediate  = global[CLEAR_IMMEDIATE]
+  , process         = global[PROCESS]
+  , document        = global.document
+  , Infinity        = 1 / 0
+  , $Array          = Array[PROTOTYPE]
+  , $Object         = Object[PROTOTYPE]
+  , $Function       = Function[PROTOTYPE]
+  , Export          = {};
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+}
+// 7.2.4 SameValueZero(x, y)
+function sameValueZero(x, y){
+  return x === y ? true : x !== x && y !== y;
 }
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -71,16 +82,19 @@ var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
 function isNative(it){
   return nativeRegExp.test(it);
 }
-var toString = $Object.toString
+var toString = $Object[TO_STRING]
   , TOSTRINGTAG;
 function setToStringTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)hidden(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
 // Object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
   var cof = toString.call(it).slice(8, -1);
   return TOSTRINGTAG && cof == OBJECT && it[TOSTRINGTAG] ? it[TOSTRINGTAG] : cof;
+}
+function ES6ToString(){
+  return '[object ' + classof(this) + ']';
 }
 
 // Function:
@@ -151,6 +165,7 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
+  , getSymbols       = Object.getOwnPropertySymbols
   , hasOwnProperty   = $Object.hasOwnProperty
   , isEnumerable     = $Object.propertyIsEnumerable
   , __PROTO__        = '__proto__' in $Object
@@ -188,7 +203,7 @@ function getValues(object){
 function clone(it, stack1, stack2){
   var cof     = classof(it)
     , isArray = cof == ARRAY
-    , index, result, i, l, k;
+    , index, result, i, l, keys, key;
   if(isArray || cof == OBJECT){
     index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
@@ -196,7 +211,11 @@ function clone(it, stack1, stack2){
     stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
     if(isArray){
       for(i = 0; l > i;)if(has(it, i))result[i] = clone(it[i++], stack1, stack2);
-    } else for(k in it)if(has(it, k))result[k] = clone(it[k], stack1, stack2);
+    } else {
+      keys = getKeys(it);
+      l    = keys.length;
+      for(i = 0; l > i;)result[key = keys[i++]] = clone(it[key], stack1, stack2);
+    }
     return result;
   }
   return it;
@@ -226,8 +245,16 @@ function turn(mapfn, target /* = [] */){
   for(;l > i; i++)if(i in self && mapfn(memo, self[i], i, this) === false)break;
   return memo;
 }
+function keyOf(object, searchElement){
+  var O      = ES5Object(object)
+    , keys   = getKeys(O)
+    , length = keys.length
+    , i      = 0
+    , key;
+  while(length > i)if(O[key = keys[i++]] === searchElement)return key;
+}
 function newGeneric(A, B){
-  return new (isFunction(A) ? A : B);
+  return new (typeof A == 'function' ? A : B);
 }
 
 // Math:
@@ -269,10 +296,6 @@ function assertInstance(it, constructor, name){
   assert(it instanceof constructor, name, ": please use the 'new' operator!");
 }
 
-var symbolUniq = 0;
-function symbol(key){
-  return '@@' + key + '_' + (++symbolUniq + random()).toString(36);
-}
 function descriptor(bitmap, value){
   return {
     enumerable  : !!(bitmap & 1),
@@ -281,9 +304,20 @@ function descriptor(bitmap, value){
     value       : value
   }
 }
+function uid(key){
+  return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
+}
 function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
+var sid    = 0
+  , symbol = Symbol ? Symbol : uid
+  , set    = Symbol
+    ? function(object, key, value){
+        object[key] = value;
+        return object;
+      }
+    : hidden;
 
 var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
 
@@ -301,14 +335,13 @@ function $define(type, name, source, forced /* = false */){
     forced = source;
     source = name;
   }
-  for(key in source)if(has(source, key)){
+  for(key in source){
     own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
     prop = own ? target[key] : source[key];
     // export to `C`
     if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
-    framework && target && !own && (isGlobal || delete target[key])
-      && defineProperty(target, key, descriptor(6, source[key]));
+    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, source[key]);
   }
 }
 function $defineTimer(key, fn){
@@ -348,10 +381,10 @@ if(!isNode || framework)global.C = Export;
     , _classof           = classof
     , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
     , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
-    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute
+    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
     // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hiddenNames1       = array('toString,toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,constructor')
-    , hiddenNames2       = hiddenNames1.concat(['length'])
+    , hiddenNames1       = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
+    , hiddenNames2       = hiddenNames1.concat(PROTOTYPE, 'length')
     , hiddenNames1Length = hiddenNames1.length
     , $PROTO             = symbol(PROTOTYPE)
     // Create object with null prototype
@@ -412,7 +445,7 @@ if(!isNode || framework)global.C = Export;
         if('value' in Attributes)O[P] = Attributes.value;
       }
       return O;
-    }
+    };
   }
   $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
@@ -425,12 +458,12 @@ if(!isNode || framework)global.C = Export;
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
+      assertObject(O);
       if(has(O, $PROTO))return O[$PROTO];
-      var proto;
-      if('__proto__' in O)proto = O.__proto__;
-      else if(CONSTRUCTOR in O)proto = O[CONSTRUCTOR][PROTOTYPE];
-      else proto = $Object;
-      return O !== proto && 'toString' in O ? proto : null;
+      if(__PROTO__ && '__proto__' in O)return O.__proto__;
+      if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
+      if(O instanceof Object)return $Object;
+      return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: getNames = getNames || createGetKeys(hiddenNames2, hiddenNames2.length),
@@ -620,31 +653,29 @@ $define(GLOBAL, {global: global});
 /**
  * ECMAScript 6 Symbol
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- * Alternatives:
  * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
- * https://github.com/seanmonstar/symbol
  */
-!function(Symbol, SYMBOL, TAG, SymbolRegistry, $ITERATOR, $TOSTRINGTAG){
-  // 19.4.1 The Symbol Constructor
+!function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
+  // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(!(this instanceof Symbol))return new Symbol(description);
-      var tag = symbol(description);
+      if(this instanceof Symbol)throw new TypeError('Symbol is not a constructor');
+      var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
         }
       });
-      hidden(this, TAG, tag);
+      return hidden(create(Symbol[PROTOTYPE]), TAG, tag);
     }
-    Symbol[PROTOTYPE].toString = function(){
+    hidden(Symbol[PROTOTYPE], TO_STRING, function(){
       return this[TAG];
-    }
+    });
   }
   ITERATOR = $ITERATOR in Symbol
     ? Symbol[$ITERATOR]
-    : symbol(SYMBOL + '.' + $ITERATOR);
+    : uid(SYMBOL + '.' + $ITERATOR);
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
@@ -659,13 +690,15 @@ $define(GLOBAL, {global: global});
     iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: function(sym){
-      for(var key in SymbolRegistry)if(SymbolRegistry[key] === sym)return key;
+      return keyOf(SymbolRegistry, sym);
     },
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG
+    toStringTag: TOSTRINGTAG,
+    pure: symbol,
+    set: set
   });
   setToStringTag(Symbol, SYMBOL);
-}(global.Symbol, 'Symbol', symbol('tag'), {}, 'iterator', 'toStringTag');
+}(symbol('tag'), 'iterator', TO_STRING + 'Tag', {});
 
 /*****************************
  * Module : es6
@@ -769,7 +802,7 @@ $define(GLOBAL, {global: global});
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
       var n = x >>> 0;
-      return n ? 32 - n.toString(2).length : 32;
+      return n ? 32 - n[TO_STRING](2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
@@ -947,20 +980,24 @@ $define(GLOBAL, {global: global});
  * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage, MessageChannel,
-    ONREADYSTATECHANGE, IMMEDIATE_PREFIX, counter, queue, defer, channel){
+isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
+  var postMessage        = global.postMessage
+    , addEventListener   = global.addEventListener
+    , MessageChannel     = global.MessageChannel
+    , counter            = 0
+    , queue              = {}
+    , defer, channel;
   setImmediate = function(fn){
-    var id   = IMMEDIATE_PREFIX + ++counter
-      , args = [], i = 1;
+    var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
-    queue[id] = function(){
-      invoke(isFunction(fn) ? fn : Function(fn), args)
+    queue[++counter] = function(){
+      invoke(isFunction(fn) ? fn : Function(fn), args);
     }
-    defer(id);
+    defer(counter);
     return counter;
   }
   clearImmediate = function(id){
-    delete queue[IMMEDIATE_PREFIX + id];
+    delete queue[id];
   }
   function run(id){
     if(has(queue, id)){
@@ -979,7 +1016,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(isFunction(postMessage) && !global.importScripts){
+  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
     defer = function(id){
       postMessage(id, '*');
     }
@@ -1000,14 +1037,12 @@ isFunction(setImmediate) && isFunction(clearImmediate) || !function(postMessage,
       document.documentElement.appendChild(el);
     }
   // Rest old browsers
-  } else {
-    defer = function(id){
-      setTimeout(part.call(run, id), 0);
-    }
+  } else defer = function(id){
+    setTimeout(part.call(run, id), 0);
   }
-}(global.postMessage, global.MessageChannel, 'onreadystatechange', symbol('immediate'), 0, {});
-$defineTimer('setImmediate', setImmediate);
-$defineTimer('clearImmediate', clearImmediate);
+}('onreadystatechange');
+$defineTimer(SET_IMMEDIATE, setImmediate);
+$defineTimer(CLEAR_IMMEDIATE, clearImmediate);
 
 /*****************************
  * Module : es6_promise
@@ -1027,9 +1062,9 @@ $defineTimer('clearImmediate', clearImmediate);
 !function(Promise, $Promise){
   isFunction(Promise)
   && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
-  && (function(promise){
+  && function(promise){
     return Promise.resolve(promise) === promise;
-  })(new Promise(Function()))
+  }(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // microtask or, if not possible, macrotask
     var asap = isNode
@@ -1043,7 +1078,7 @@ $defineTimer('clearImmediate', clearImmediate);
         , rejectPromise = part.call(handle, promise, REJECTED);
       assertInstance(promise, Promise, PROMISE);
       assertFunction(executor);
-      hidden(promise, SUBSCRIBERS, []);
+      set(promise, SUBSCRIBERS, []);
       try {
         executor(part.call(resolve, promise), rejectPromise);
       } catch(e){
@@ -1065,6 +1100,7 @@ $defineTimer('clearImmediate', clearImmediate);
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     });
+    hidden(Promise[PROTOTYPE], TO_STRING, ES6ToString);
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
       var C      = this
@@ -1151,8 +1187,8 @@ $defineTimer('clearImmediate', clearImmediate);
     }
     function handle(promise, state, reason){
       if(promise[STATE] === PENDING){
-        hidden(promise, STATE, SEALED);
-        hidden(promise, DETAIL, reason);
+        set(promise, STATE, SEALED);
+        set(promise, DETAIL, reason);
         asap(function(){
           promise[STATE] = state;
           for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
@@ -1191,9 +1227,8 @@ $defineTimer('clearImmediate', clearImmediate);
     , WEAKDATA = symbol('weakData')
     , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
-    , uid = 0
-    , wid = 0
-    , tmp = {}
+    , uid      = 0
+    , wid      = 0
     , sizeGetter = {size: {get: function(){
         return this[SIZE];
       }}};
@@ -1207,10 +1242,12 @@ $defineTimer('clearImmediate', clearImmediate);
       this.clear();
       initCollection(this, iterable, isSet);
     }
+    hidden(F[PROTOTYPE], TO_STRING, ES6ToString);
     return F;
   }
   function fixCollection(Base, name, isSet){
-    var collection   = new Base([isSet ? tmp : [tmp, 1]])
+    var tmp          = {}
+      , collection   = new Base([isSet ? tmp : [tmp, 1]])
       , initFromIter = collection.has(tmp)
       , key = isSet ? 'add' : 'set'
       , fn;
@@ -1237,7 +1274,7 @@ $defineTimer('clearImmediate', clearImmediate);
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // if it hasn't object id - add next
     if(!has(it, STOREID)){
-      if(create)defineProperty(it, STOREID, {value: ++uid});
+      if(create)set(it, STOREID, ++uid);
       else return '';
     }
     // return object id with 'O' prefix
@@ -1249,9 +1286,9 @@ $defineTimer('clearImmediate', clearImmediate);
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function(){
-        hidden(this, KEYS, create(null));
-        if($VALUES == VALUES)hidden(this, VALUES, create(null));
-        hidden(this, SIZE, 0);
+        set(this, KEYS, create(null));
+        if($VALUES == VALUES)set(this, VALUES, create(null));
+        set(this, SIZE, 0);
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
@@ -1291,7 +1328,7 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[PROTOTYPE], 'forEach')){
+  if(!isFunction(Map) || !has(Map[PROTOTYPE], FOR_EACH)){
     SHIM_MAP = true;
     Map = createCollectionConstructor(MAP);
     assign(Map[PROTOTYPE], collectionMethods(VALUES), {
@@ -1316,7 +1353,7 @@ $defineTimer('clearImmediate', clearImmediate);
   } else Map = fixCollection(Map, MAP);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[PROTOTYPE], 'forEach')){
+  if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
     SHIM_SET = true;
     Set = createCollectionConstructor(SET, 1);
     assign(Set[PROTOTYPE], collectionMethods(KEYS), {
@@ -1336,7 +1373,8 @@ $defineTimer('clearImmediate', clearImmediate);
   } else Set = fixCollection(Set, SET, 1);
   
   function getWeakData(it){
-    return (has(it, WEAKDATA) ? it : defineProperty(it, WEAKDATA, {value: {}}))[WEAKDATA];
+    has(it, WEAKDATA) || set(it, WEAKDATA, {});
+    return it[WEAKDATA];
   }
   function weakCollectionHas(key){
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
@@ -1345,7 +1383,7 @@ $defineTimer('clearImmediate', clearImmediate);
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
-      hidden(this, WEAKID, wid++);
+      set(this, WEAKID, wid++);
     },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)
@@ -1402,8 +1440,20 @@ $defineTimer('clearImmediate', clearImmediate);
  * Module : es6_iterators
  *****************************/
 
-!function(KEY, VALUE, ITERATED, KIND, INDEX, KEYS, ENTRIES, Iterators, returnThis, mapForEach, setForEach, FFITERATOR){
-  var USE_FFITERATOR = FFITERATOR in $Array;
+!function($$ITERATOR){
+  var FFITERATOR = $$ITERATOR in $Array
+    , KEY        = 1
+    , VALUE      = 2
+    , ITERATED   = symbol('iterated')
+    , KIND       = symbol('kind')
+    , INDEX      = symbol('index')
+    , KEYS       = symbol('keys')
+    , ENTRIES    = symbol('entries')
+    , returnThis = Function('return this')
+    , mapForEach = Map[PROTOTYPE][FOR_EACH]
+    , setForEach = Set[PROTOTYPE][FOR_EACH]
+    , Iterators  = {};
+  
   function createIterResultObject(value, done){
     return {value: value, done: !!done};
   }
@@ -1418,7 +1468,7 @@ $defineTimer('clearImmediate', clearImmediate);
     // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
     hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
     // Add iterator for FF iterator protocol
-    USE_FFITERATOR && hidden(Constructor[PROTOTYPE], FFITERATOR, returnThis);
+    FFITERATOR && hidden(Constructor[PROTOTYPE], $$ITERATOR, returnThis);
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -1449,21 +1499,21 @@ $defineTimer('clearImmediate', clearImmediate);
       return new Constructor(this, kind);
     }
   }
-  function defineIterator(Constr, NAME, value){
-    var proto     = Constr[PROTOTYPE]
-      , hasFFIter = has(proto, FFITERATOR);
+  function defineIterator(Constructor, NAME, value){
+    var proto         = Constructor[PROTOTYPE]
+      , has$$ITERATOR = has(proto, $$ITERATOR);
     var iter = has(proto, ITERATOR)
       ? proto[ITERATOR]
-      : hasFFIter
-        ? proto[FFITERATOR]
+      : has$$ITERATOR
+        ? proto[$$ITERATOR]
         : value;
     if(framework){
       // Define iterator
       !has(proto, ITERATOR) && hidden(proto, ITERATOR, iter);
       // FF fix
-      if(hasFFIter)hidden(getPrototypeOf(iter.call(new Constr)), ITERATOR, returnThis);
+      if(has$$ITERATOR)hidden(getPrototypeOf(iter.call(new Constructor)), ITERATOR, returnThis);
       // Add iterator for FF iterator protocol
-      else USE_FFITERATOR && hidden(proto, FFITERATOR, iter);
+      else FFITERATOR && hidden(proto, $$ITERATOR, iter);
     }
     // Plug for library
     Iterators[NAME] = iter;
@@ -1473,9 +1523,9 @@ $defineTimer('clearImmediate', clearImmediate);
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
   function ArrayIterator(iterated, kind){
-    hidden(this, ITERATED, ES5Object(iterated));
-    hidden(this, KIND,     kind);
-    hidden(this, INDEX,    0);
+    set(this, ITERATED, ES5Object(iterated));
+    set(this, KIND,     kind);
+    set(this, INDEX,    0);
   }
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
   createIteratorClass(ArrayIterator, ARRAY, Array, function(){
@@ -1500,10 +1550,10 @@ $defineTimer('clearImmediate', clearImmediate);
     else mapForEach.call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
-    hidden(that, ITERATED, iterated);
-    hidden(that, KIND,     kind);
-    hidden(that, INDEX,    0);
-    hidden(that, KEYS,     keys);
+    set(that, ITERATED, iterated);
+    set(that, KIND,     kind);
+    set(that, INDEX,    0);
+    set(that, KEYS,     keys);
   }
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
   createIteratorClass(MapIterator, MAP, Map, function(){
@@ -1527,8 +1577,8 @@ $defineTimer('clearImmediate', clearImmediate);
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);
-    hidden(this, KIND, kind);
-    hidden(this, KEYS, keys.reverse());
+    set(this, KIND, kind);
+    set(this, KEYS, keys.reverse());
   }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   createIteratorClass(SetIterator, SET, Set, function(){
@@ -1541,10 +1591,10 @@ $defineTimer('clearImmediate', clearImmediate);
   }, VALUE);
   
   function ObjectIterator(iterated, kind){
-    hidden(this, ITERATED, iterated);
-    hidden(this, KEYS,     getKeys(iterated));
-    hidden(this, INDEX,    0);
-    hidden(this, KIND,     kind);
+    set(this, ITERATED, iterated);
+    set(this, KEYS,     getKeys(iterated));
+    set(this, INDEX,    0);
+    set(this, KIND,     kind);
   }
   createIteratorClass(ObjectIterator, OBJECT, Object, function(){
     var that   = this
@@ -1573,8 +1623,8 @@ $defineTimer('clearImmediate', clearImmediate);
     
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
-    hidden(this, ITERATED, iterable);
-    hidden(this, ENTRIES,  entries);
+    set(this, ITERATED, iterable);
+    set(this, ENTRIES,  entries);
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
@@ -1583,7 +1633,7 @@ $defineTimer('clearImmediate', clearImmediate);
       , step, value;
     while(!(step = iterator.next()).done){
       value = step.value;
-      if((entries ? f(value[0], value[1]) : f(value)) === false)return;
+      if((entries ? invoke(f, value) : f(value)) === false)return;
     }
   }
   
@@ -1595,7 +1645,7 @@ $defineTimer('clearImmediate', clearImmediate);
   }
   
   $define(GLOBAL, {$for: $for});
-}(1, 2, symbol('iterated'), symbol('kind'), symbol('index'), symbol('keys'), symbol('entries'), {}, Function('return this'), Map[PROTOTYPE][FOR_EACH], Set[PROTOTYPE][FOR_EACH], '@@iterator');
+}('@@iterator');
 
 /*****************************
  * Module : dict
@@ -1673,14 +1723,7 @@ $defineTimer('clearImmediate', clearImmediate);
         , key;
       while(length > i)f(O[key = keys[i++]], key, object);
     },
-    keyOf: function(object, searchElement){
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(O[key = keys[i++]] === searchElement)return key;
-    },
+    keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
       assertFunction(fn);
       var f      = optionalBind(fn, that)
@@ -1734,19 +1777,21 @@ $defineTimer('clearImmediate', clearImmediate);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(same(O[key = keys[i++]], searchElement))return true;
+        , i      = 0;
+      while(length > i)if(sameValueZero(O[keys[i++]], searchElement))return true;
       return false;
     },
     clone: ctx(call, $clone),
-    // Has / get / set own property
+    // Has / get / set / delete own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
       return defineProperty(object, key, descriptor(7, value));
+    },
+    'delete': function(object, key){
+      return has(object, key) && delete object[key];
     },
     isDict: function(it){
       return getPrototypeOf(it) == Dict[PROTOTYPE];
@@ -1777,8 +1822,8 @@ $defineTimer('clearImmediate', clearImmediate);
     setTimeout  = wrap(setTimeout);
     setInterval = wrap(setInterval);
   }
-  $defineTimer('setTimeout', setTimeout);
-  $defineTimer('setInterval', setInterval);
+  $defineTimer(SET_TIMEOUT, setTimeout);
+  $defineTimer(SET_INTERVAL, setInterval);
 }(global.navigator);
 
 /*****************************
@@ -1820,15 +1865,15 @@ $define(PROTO, FUNCTION, {
     function Deferred(args){
       this[ID] = invoke(set, this[ARGUMENTS] = args)
     }
-    Deferred[PROTOTYPE].set = function(){
+    hidden(Deferred[PROTOTYPE], 'set', function(){
       clear(this[ID]);
       this[ID] = invoke(set, this[ARGUMENTS])
       return this;
-    }
-    Deferred[PROTOTYPE].clear = function(){
+    });
+    hidden(Deferred[PROTOTYPE], 'clear', function(){
       clear(this[ID]);
       return this;
-    }
+    });
     return function(/* ...args */){
       assertFunction(this);
       var args = [this], i = 0;
@@ -1847,7 +1892,7 @@ $define(PROTO, FUNCTION, {
  * Module : binding
  *****************************/
 
-!function(){
+!function(_){
   $define(PROTO, FUNCTION, {
     /**
      * Partial apply.
@@ -1907,38 +1952,38 @@ $define(PROTO, FUNCTION, {
 
   $define(STATIC, OBJECT, {tie: Export.tie = ctx(call, tie)});
   
-  var _ = symbol('tie');
-  hidden(path._, 'toString', function(){
+  hidden(path._, TO_STRING, function(){
     return _;
   });
   DESCRIPTORS && hidden($Object, _, tie);
   hidden($Function, _, tie);
   hidden($Array, _, tie);
   hidden(RegExp[PROTOTYPE], _, tie);
-}();
+}(uid('tie'));
 
 /*****************************
  * Module : object
  *****************************/
 
+var getPropertyKeys = getSymbols
+  ? function(it){
+      return getNames(it).concat(getSymbols(it));
+    }
+  : getNames
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+// https://gist.github.com/WebReflection/9353781
 function getOwnPropertyDescriptors(object){
-  var result = create(null)
-    , names  = getNames(object)
-    , length = names.length
+  var result = {}
+    , keys   = getPropertyKeys(object)
+    , length = keys.length
     , i      = 0
     , key;
-  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
+  while(length > i)result[key = keys[i++]] = getOwnDescriptor(object, key);
   return result;
 }
 $define(STATIC, OBJECT, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#has
-   * http://sugarjs.com/api/Object/has
-   */
-  isEnumerable: ctx(call, isEnumerable),
   isPrototype: ctx(call, $Object.isPrototypeOf),
+  getOwnPropertyKeys: getPropertyKeys,
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
@@ -1954,7 +1999,7 @@ $define(STATIC, OBJECT, {
    * http://lodash.com/docs#create
    */
   make: function(proto, props){
-    return props == undefined ? create(proto) : create(proto, getOwnPropertyDescriptors(props));
+    return assign(create(proto), props);
   },
   /**
    * 19.1.3.15 Object.mixin ( target, source )
@@ -1990,10 +2035,7 @@ $define(STATIC, OBJECT, {
    * http://mootools.net/docs/core/Core/Core#Core:typeOf
    * http://api.jquery.com/jQuery.type/
    */
-  classof: classof,
-  // Simple symbol API
-  symbol: symbol,
-  hidden: hidden
+  classof: classof
 });
 
 /*****************************
@@ -2023,12 +2065,12 @@ $define(PROTO, ARRAY, {
     splice.call(this, i, 1);
     return true;
   },
-  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
   contains: function(value){
     var O      = ES5Object(this)
       , length = O.length
       , i      = 0;
-    while(length > i)if(i in O && same(value, O[i++]))return true;
+    while(length > i)if(i in O && sameValueZero(value, O[i++]))return true;
     return false;
   },
   clone: $clone,
@@ -2069,13 +2111,7 @@ $define(STATIC, ARRAY, turn.call(
  * Module : number
  *****************************/
 
-$define(STATIC, NUMBER, {
-  /**
-   * Alternatives:
-   * http://mootools.net/docs/core/Types/Number#Number:toInt
-   */
-  toInteger: toInteger
-});
+$define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
   /**
    * Invoke function @ times and return array of results
@@ -2110,7 +2146,7 @@ $define(STATIC, 'Math', {
     var x = toInteger(a)
       , y = toInteger(b)
       , m = min(x, y);
-    return floor((random() * (max(x, y) + 1 - m)) + m);
+    return floor(random() * (max(x, y) + 1 - m) + m);
   }
 });
 /**
@@ -2130,7 +2166,7 @@ $define(PROTO, NUMBER, turn.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = (function(fn){
+    if(key in Math)memo[key] = function(fn){
       return function(/*...args*/){
         // ie8- convert `this` to object -> convert it to number
         var args = [+this]
@@ -2138,7 +2174,7 @@ $define(PROTO, NUMBER, turn.call(
         while(arguments.length > i)args.push(arguments[i++]);
         return invoke(fn, args);
       }
-    })(Math[key])
+    }(Math[key])
   }, {}
 ));
 
@@ -2191,7 +2227,7 @@ $define(PROTO, NUMBER, turn.call(
 
 !function(escape){
   /**
-   * https://gist.github.com/kangax/9698100
+   * ~ES7 : https://gist.github.com/kangax/9698100
    * Alternatives:
    * http://sugarjs.com/api/String/escapeRegExp
    * http://api.prototypejs.org/language/RegExp/escape/
@@ -2297,8 +2333,9 @@ $define(PROTO, NUMBER, turn.call(
       'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
       'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
     function(memo, key){
+      var fn = console[key];
       memo[key] = function(){
-        if(enabled && console[key])return apply.call(console[key], console, arguments);
+        if(enabled && fn)return apply.call(fn, console, arguments);
       };
     },
     {

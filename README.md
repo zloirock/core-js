@@ -37,8 +37,6 @@ Object
   .define(object, props) -> &0                                        core
   .isObject(var) -> bool                                              core
   .classof(var) -> string                                             core
-  .symbol(description) -> string                                      core
-  .hidden(object, key, val) -> object                                 core
   .tie(object, key, ...args | _) -> fn(...args)                       core
   ::[_](key, ...args | _) -> fn(...args)                              core
 Function
@@ -188,6 +186,8 @@ Date
   .keyFor(symbol) -> key                                              es6
   .iterator -> symbol                                                 es6 sham
   .toStringTag -> symbol                                              es6
+  .pure() -> symbol || string                                         core
+  .set(object, key, val) -> object                                    core
 new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   ::then(resolved(var), rejected(var)) -> promise                     es6
   ::catch(rejected(var)) -> promise                                   es6

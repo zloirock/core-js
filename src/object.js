@@ -1,21 +1,22 @@
+var getPropertyKeys = getSymbols
+  ? function(it){
+      return getNames(it).concat(getSymbols(it));
+    }
+  : getNames
 // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+// https://gist.github.com/WebReflection/9353781
 function getOwnPropertyDescriptors(object){
-  var result = create(null)
-    , names  = getNames(object)
-    , length = names.length
+  var result = {}
+    , keys   = getPropertyKeys(object)
+    , length = keys.length
     , i      = 0
     , key;
-  while(length > i)result[key = names[i++]] = getOwnDescriptor(object, key);
+  while(length > i)result[key = keys[i++]] = getOwnDescriptor(object, key);
   return result;
 }
 $define(STATIC, OBJECT, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#has
-   * http://sugarjs.com/api/Object/has
-   */
-  isEnumerable: ctx(call, isEnumerable),
   isPrototype: ctx(call, $Object.isPrototypeOf),
+  getOwnPropertyKeys: getPropertyKeys,
   // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
   getPropertyDescriptor: function(object, key){
     if(key in object)do {
@@ -31,7 +32,7 @@ $define(STATIC, OBJECT, {
    * http://lodash.com/docs#create
    */
   make: function(proto, props){
-    return props == undefined ? create(proto) : create(proto, getOwnPropertyDescriptors(props));
+    return assign(create(proto), props);
   },
   /**
    * 19.1.3.15 Object.mixin ( target, source )
@@ -67,8 +68,5 @@ $define(STATIC, OBJECT, {
    * http://mootools.net/docs/core/Core/Core#Core:typeOf
    * http://api.jquery.com/jQuery.type/
    */
-  classof: classof,
-  // Simple symbol API
-  symbol: symbol,
-  hidden: hidden
+  classof: classof
 });
