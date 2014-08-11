@@ -230,7 +230,7 @@ function turn(mapfn, target /* = [] */){
     , self = ES5Object(this)
     , l    = toLength(self.length)
     , i    = 0;
-  for(;l > i; i++)if(i in self && mapfn(memo, self[i], i, this) === false)break;
+  for(;l > i; i++)if(mapfn(memo, self[i], i, this) === false)break;
   return memo;
 }
 function keyOf(object, searchElement){

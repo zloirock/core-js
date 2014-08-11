@@ -242,7 +242,7 @@ function turn(mapfn, target /* = [] */){
     , self = ES5Object(this)
     , l    = toLength(self.length)
     , i    = 0;
-  for(;l > i; i++)if(i in self && mapfn(memo, self[i], i, this) === false)break;
+  for(;l > i; i++)if(mapfn(memo, self[i], i, this) === false)break;
   return memo;
 }
 function keyOf(object, searchElement){
@@ -937,9 +937,7 @@ $define(GLOBAL, {global: global});
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
-    for(; i < length; i++){
-      if(i in self && f(self[i], i, O))return i;
-    }
+    for(; i < length; i++)if(f(self[i], i, O))return i;
     return -1;
   }
   $define(PROTO, ARRAY, {
@@ -2070,7 +2068,7 @@ $define(PROTO, ARRAY, {
     var O      = ES5Object(this)
       , length = O.length
       , i      = 0;
-    while(length > i)if(i in O && sameValueZero(value, O[i++]))return true;
+    while(length > i)if(sameValueZero(value, O[i++]))return true;
     return false;
   },
   clone: $clone,

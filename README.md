@@ -29,8 +29,8 @@ Object
   .entries(object) -> array                                           es7
   .assign(target, ...src) -> &0                                       es6
   .is(a, b) -> bool                                                   es6
-  .isEnumerable(object, key) -> bool                                  core
   .isPrototype(proto, object) -> bool                                 core
+  .getOwnPropertyKeys(object) -> array                                core
   .getPropertyDescriptor(object, key) -> desc                         core
   .getOwnPropertyDescriptors(object) -> descs                         core
   .make(proto | null, props?) -> object                               core
@@ -52,7 +52,7 @@ Function
   ::immediate(...args) -> deferred                                    core
 Array
   .isArray(var) -> bool                                               es5
-  .from(iterable | array-like, fn(val, key, @), that) -> array        es6
+  .from(iterable | array-like, fn(val, key, @)?, that) -> array       es6
   .of(...args) -> array                                               es6
   .{...Array::}                                                       js1.6
   ::slice(start?, end?) -> array                                      es5
@@ -80,6 +80,11 @@ Array
   ::clone() -> var                                                    core
   ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
+  .isDict(var) -> bool                                                core
+  .has(object, key) -> bool                                           core
+  .get(object, key) -> val                                            core
+  .set(object, key, value) -> &0                                      core
+  .delete(object, key) -> bool                                        core
   .filter(object, fn(val, key, @), that) -> new @                     core
   .find(object, fn(val, key, @), that) -> val                         core
   .findKey(object, fn(val, key, @), that) -> key                      core
@@ -91,10 +96,6 @@ Array
   .some(object, fn(val, key, @), that) -> bool                        core
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo          core
   .clone(foo) -> var                                                  core
-  .has(object, key) -> bool                                           core
-  .get(object, key) -> val                                            core
-  .set(object, key, value) -> &0                                      core
-  .isDict(var) -> bool                                                core
   .values(object) -> iterator                                         core
   .keys(object) -> iterator                                           core
   .entries(object) -> iterator (entries)                              core
@@ -138,7 +139,7 @@ String
   ::startsWith(str, from?) -> bool                                    es6
   ::endsWith(str, from?) -> bool                                      es6
   ::repeat(num) -> str                                                es6
-  ::@@iterator() -> iterator                                          es6 sham (fix later)
+  ::@@iterator() -> iterator                                          es6 sham
   ::escapeHTML() -> str                                               core
   ::unescapeHTML() -> str                                             core
 RegExp
@@ -181,13 +182,13 @@ Date
   .locale(key?) -> key                                                core
   ::format(str, key?) -> str                                          core
   ::formatUTC(str, key?) -> str                                       core
-[new] Symbol(description?) -> symbol                                  es6 sham
+Symbol(description?) -> symbol                                        es6 sham
   .for(key) -> symbol                                                 es6
   .keyFor(symbol) -> key                                              es6
   .iterator -> symbol                                                 es6 sham
   .toStringTag -> symbol                                              es6
   .pure() -> symbol || string                                         core
-  .set(object, key, val) -> object                                    core
+  .set(object, key, val) -> &0                                       core
 new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   ::then(resolved(var), rejected(var)) -> promise                     es6
   ::catch(rejected(var)) -> promise                                   es6

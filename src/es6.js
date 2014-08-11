@@ -231,9 +231,7 @@
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , i = 0;
-    for(; i < length; i++){
-      if(i in self && f(self[i], i, O))return i;
-    }
+    for(; i < length; i++)if(f(self[i], i, O))return i;
     return -1;
   }
   $define(PROTO, ARRAY, {

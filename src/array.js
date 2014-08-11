@@ -26,7 +26,7 @@ $define(PROTO, ARRAY, {
     var O      = ES5Object(this)
       , length = O.length
       , i      = 0;
-    while(length > i)if(i in O && sameValueZero(value, O[i++]))return true;
+    while(length > i)if(sameValueZero(value, O[i++]))return true;
     return false;
   },
   clone: $clone,
