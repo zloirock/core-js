@@ -11,7 +11,6 @@
   }
   Dict[PROTOTYPE] = null;
   function findKey(object, fn, that /* = undefined */){
-    assertFunction(fn);
     var f      = optionalBind(fn, that)
       , O      = ES5Object(object)
       , keys   = getKeys(O)
@@ -31,7 +30,6 @@
      * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
      */
     every: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -42,7 +40,6 @@
       return true;
     },
     filter: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
@@ -61,7 +58,6 @@
     },
     findKey: findKey,
     forEach: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -72,7 +68,6 @@
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
@@ -87,8 +82,8 @@
       assertFunction(fn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
-        , i      = 0
         , length = keys.length
+        , i      = 0
         , memo   = init
         , key;
       if(arguments.length < 3){
@@ -99,7 +94,6 @@
       return memo;
     },
     some: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -111,13 +105,15 @@
     },
     turn: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
-      var memo = target == undefined ? newGeneric(this, Dict) : Object(target)
-        , O    = ES5Object(object)
-        , keys = getKeys(O)
-        , l    = keys.length
-        , i    = 0
+      var memo   = target == undefined ? newGeneric(this, Dict) : Object(target)
+        , O      = ES5Object(object)
+        , keys   = getKeys(O)
+        , length = keys.length
+        , i      = 0
         , key;
-      while(l > i)if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+      while(length > i){
+        if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+      }
       return memo;
     },
     contains: function(object, searchElement){
@@ -125,7 +121,9 @@
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0;
-      while(length > i)if(sameValueZero(O[keys[i++]], searchElement))return true;
+      while(length > i){
+        if(sameValueZero(O[keys[i++]], searchElement))return true;
+      }
       return false;
     },
     clone: ctx(call, $clone),
@@ -144,5 +142,5 @@
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL, {Dict: Dict}, true);
 }();

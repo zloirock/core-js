@@ -7,7 +7,7 @@
  * Based on:
  * https://github.com/jakearchibald/ES6-Promises
  * Alternatives:
- * https://github.com/paulmillr/es6-shim
+ * https://github.com/getify/native-promise-only
  */
 !function(Promise, $Promise){
   isFunction(Promise)

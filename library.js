@@ -23,6 +23,7 @@ var OBJECT          = 'Object'
   , WEAKSET         = 'WeakSet'
   , SYMBOL          = 'Symbol'
   , PROMISE         = 'Promise'
+  , MATH            = 'Math'
   , ARGUMENTS       = 'Arguments'
   , PROTOTYPE       = 'prototype'
   , CONSTRUCTOR     = 'constructor'
@@ -47,7 +48,7 @@ var OBJECT          = 'Object'
   , WeakSet         = global[WEAKSET]
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
-  , Math            = global.Math
+  , Math            = global[MATH]
   , TypeError       = global.TypeError
   , setTimeout      = global[SET_TIMEOUT]
   , clearTimeout    = global.clearTimeout
@@ -152,6 +153,7 @@ function invoke(fn, args, that){
   } return fn.apply(that, args);
 }
 function optionalBind(fn, that){
+  assertFunction(fn);
   return that === undefined ? fn : function(a, b, c){
     return fn.call(that, a, b, c);
   }
@@ -238,20 +240,22 @@ var push    = $Array.push
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
-  var memo = target == undefined ? [] : Object(target)
-    , self = ES5Object(this)
-    , l    = toLength(self.length)
-    , i    = 0;
-  for(;l > i; i++)if(mapfn(memo, self[i], i, this) === false)break;
+  var memo   = target == undefined ? [] : Object(target)
+    , O      = ES5Object(this)
+    , length = toLength(O.length)
+    , index  = 0;
+  for(;length > index; index++){
+    if(mapfn(memo, O[index], index, this) === false)break;
+  }
   return memo;
 }
 function keyOf(object, searchElement){
   var O      = ES5Object(object)
     , keys   = getKeys(O)
     , length = keys.length
-    , i      = 0
+    , index  = 0
     , key;
-  while(length > i)if(O[key = keys[i++]] === searchElement)return key;
+  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
 }
 function newGeneric(A, B){
   return new (typeof A == 'function' ? A : B);
@@ -286,10 +290,10 @@ function assert(condition, _msg){
   }
 }
 function assertFunction(it){
-  assert(isFunction(it), it, 'is not a function!');
+  if(!isFunction(it))throw TypeError(it + ' is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object!');
+  if(!isObject(it))throw TypeError(it + ' is not an object!');
   return it;
 }
 function assertInstance(it, constructor, name){
@@ -517,106 +521,116 @@ if(!isNode || framework)global.C = Export;
   }, ES5Object != Object);
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-  $define(STATIC, ARRAY, {isArray: function(arg){
-    return _classof(arg) == ARRAY
-  }});
+  $define(STATIC, ARRAY, {
+    isArray: function(arg){
+      return _classof(arg) == ARRAY
+    }
+  });
   $define(PROTO, ARRAY, {
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
     indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = fromIndex | 0;
-      if(0 > i)i = toLength(length + i);
-      for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = toInteger(fromIndex);
+      if(index < 0)index += length;
+      for(;length > index; index++)if(index in O){
+        if(O[index] === searchElement)return index;
+      }
       return -1;
     },
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = length - 1;
-      if(arguments.length > 1)i = min(i, fromIndex | 0);
-      if(0 > i)i = toLength(length + i);
-      for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = length - 1;
+      if(arguments.length > 1)index = min(index, toInteger(fromIndex));
+      if(index < 0)index = toLength(length + index);
+      for(;index >= 0; index--)if(index in O){
+        if(O[index] === searchElement)return index;
+      }
       return -1;
     },
     // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
     every: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && !callbackfn.call(thisArg, self[i], i, this))return false;
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)if(index in O){
+        if(!f(O[index], index, this))return false;
       }
       return true;
     },
     // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
     some: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && callbackfn.call(thisArg, self[i], i, this))return true;
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)if(index in O){
+        if(f(O[index], index, this))return true;
       }
       return false;
     },
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach = forEach || function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)index in O && f(O[index], index, this);
     },
     // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
     map: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = Array(toLength(this.length));
+      var f      = optionalBind(callbackfn, thisArg)
+        , result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
-        result[key] = callbackfn.call(thisArg, val, key, that);
+        result[key] = f(val, key, that);
       });
       return result;
     },
     // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
     filter: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = [];
-      forEach.call(this, function(val){
-        callbackfn.apply(thisArg, arguments) && result.push(val);
+      var f      = optionalBind(callbackfn, thisArg)
+        , result = [];
+      forEach.call(this, function(val, key, that){
+        f(val, key, that) && result.push(val);
       });
       return result;
     },
     // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
     reduce: function(callbackfn, memo /* = @.0 */){
       assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
       if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i++];
+        if(index in O){
+          memo = O[index++];
           break;
         }
-        assert(length > ++i, REDUCE_ERROR);
+        assert(length > ++index, REDUCE_ERROR);
       }
-      for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
+      for(;length > index; index++)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
       return memo;
     },
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       assertFunction(callbackfn);
-      var self = ES5Object(this)
-        , i    = toLength(self.length) - 1;
+      var O     = ES5Object(this)
+        , index = toLength(O.length) - 1;
       if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i--];
+        if(index in O){
+          memo = O[index--];
           break;
         }
-        assert(0 <= --i, REDUCE_ERROR);
+        assert(0 <= --index, REDUCE_ERROR);
       }
-      for(;i >= 0; i--)if(i in self)memo = callbackfn(memo, self[i], i, this);
+      for(;index >= 0; index--)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
       return memo;
     }
   });
@@ -652,8 +666,8 @@ $define(GLOBAL, {global: global});
 
 /**
  * ECMAScript 6 Symbol
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  */
 !function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
@@ -689,9 +703,7 @@ $define(GLOBAL, {global: global});
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
-    keyFor: function(sym){
-      return keyOf(SymbolRegistry, sym);
-    },
+    keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: TOSTRINGTAG,
     pure: symbol,
@@ -780,7 +792,7 @@ $define(GLOBAL, {global: global});
     var n = +x;
     return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
   }
-  $define(STATIC, 'Math', {
+  $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
     acosh: function(x){
@@ -792,12 +804,12 @@ $define(GLOBAL, {global: global});
     // 20.2.2.7 Math.atanh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
-      return x === 0 ? x : 0.5 * log((1 + x) / (1 - x));
+      return x === 0 ? x : .5 * log((1 + x) / (1 - x));
     },
     // 20.2.2.9 Math.cbrt(x)
     // Returns an implementation-dependent approximation to the cube root of x.
     cbrt: function(x){
-      return sign(x) * pow(abs(x), 1/3);
+      return sign(x) * pow(abs(x), 1 / 3);
     },
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
@@ -866,7 +878,8 @@ $define(GLOBAL, {global: global});
     // 20.2.2.33 Math.tanh(x)
     // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
+      var n = +x;
+      return isFinite(n) ? n == 0 ? n : (exp(n) - exp(-n)) / (exp(n) + exp(-n)) : sign(n);
     },
     // 20.2.2.34 Math.trunc(x)
     // Returns the integral part of the number x, removing any fractional digits.
@@ -877,7 +890,7 @@ $define(GLOBAL, {global: global});
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
-  setToStringTag(Math, 'Math', 1);
+  setToStringTag(Math, MATH, true);
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
@@ -892,9 +905,9 @@ $define(GLOBAL, {global: global});
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
-        , search = '' + searchString;
-      endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - search.length, endPosition) === search;
+        , search = '' + searchString
+        , end    = toLength(min(endPosition === undefined ? length : endPosition, length));
+      return String(this).slice(end - search.length, end) === search;
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
@@ -905,39 +918,43 @@ $define(GLOBAL, {global: global});
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       var search = '' + searchString
-        , pos    = toLength(min(position, this.length));
-      return String(this).slice(pos, pos + search.length) === search;
+        , index  = toLength(min(position, this.length));
+      return String(this).slice(index, index + search.length) === search;
     }
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      if(mapfn !== undefined)assertFunction(mapfn);
-      var O      = ES5Object(arrayLike)
-        , result = newGeneric(this, Array)
-        , i = 0, length;
+      var O       = ES5Object(arrayLike)
+        , result  = newGeneric(this, Array)
+        , mapping = mapfn !== undefined
+        , index   = 0
+        , length, f;
+      if(mapping)f = optionalBind(mapfn, thisArg);
       if($for && isIterable(O))$for(O).of(function(value){
-        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+        push.call(result, mapping ? f(value, index++) : value);
       });
-      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+      else for(length = toLength(O.length); length > index; index++){
+        push.call(result, mapping ? f(O[index], index) : O[index]);
+      }
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
-      var i = 0, length = arguments.length
+      var index  = 0
+        , length = arguments.length
         , result = newGeneric(this, Array);
-      while(i < length)push.call(result, arguments[i++]);
+      while(length > index)push.call(result, arguments[index++]);
       return result;
     }
   });
   function findIndex(predicate, thisArg /* = undefind */){
-    assertFunction(predicate);
     var f      = optionalBind(predicate, thisArg)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
-      , i = 0;
-    for(; i < length; i++)if(f(self[i], i, O))return i;
+      , index  = 0;
+    for(; length > index; index++)if(f(self[index], index, O))return index;
     return -1;
   }
   $define(PROTO, ARRAY, {
@@ -946,11 +963,16 @@ $define(GLOBAL, {global: global});
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length)
-        , s      = toInteger(start)
-        , e;
-      if(0 > s)s = length + s;
-      e = end == undefined ? length : toInteger(end);
-      while(e > s)this[s++] = value;
+        , index  = toInteger(start)
+        , endPos;
+      if(index < 0)index = max(index + length, 0);
+      if(end === undefined)endPos = length;
+      else {
+        endPos = toInteger(end);
+        if(endPos < 0)endPos += length;
+        endPos = min(endPos, length);
+      }
+      while(endPos > index)this[index++] = value;
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
@@ -962,7 +984,7 @@ $define(GLOBAL, {global: global});
     findIndex: findIndex
   });
   // 24.3.3 JSON [ @@toStringTag ]
-  setToStringTag(global.JSON, 'JSON', 1);
+  setToStringTag(global.JSON, 'JSON', true);
 }(isFinite);
 
 /*****************************
@@ -1055,7 +1077,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
  * Based on:
  * https://github.com/jakearchibald/ES6-Promises
  * Alternatives:
- * https://github.com/paulmillr/es6-shim
+ * https://github.com/getify/native-promise-only
  */
 !function(Promise, $Promise){
   isFunction(Promise)
@@ -1210,8 +1232,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
  * http://people.mozilla.org/~jorendorff/es6-draft.html
  * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
  * Alternatives:
- * https://github.com/paulmillr/es6-shim
- * https://github.com/monolithed/ECMAScript-6
  * https://github.com/Benvie/harmony-collections
  * https://github.com/eriwen/es6-map-shim
  * https://github.com/EliSnow/Blitz-Collections
@@ -1231,7 +1251,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    iterable != undefined && $for && $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+    if(iterable != undefined && $for){
+      $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+    }
     return that;
   }
   function createCollectionConstructor(name, isSet){
@@ -1304,7 +1326,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
-        assertFunction(callbackfn);
         var f      = optionalBind(callbackfn, thisArg)
           , values = this[$VALUES]
           , keys   = this[KEYS]
@@ -1336,7 +1357,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       },
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
-        var index  = fastKey(key, 1)
+        var index  = fastKey(key, true)
           , values = this[VALUES];
         if(!(index in values)){
           this[KEYS][index] = key;
@@ -1353,11 +1374,11 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
     SHIM_SET = true;
-    Set = createCollectionConstructor(SET, 1);
+    Set = createCollectionConstructor(SET, true);
     assign(Set[PROTOTYPE], collectionMethods(KEYS), {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
-        var index  = fastKey(value, 1)
+        var index  = fastKey(value, true)
           , values = this[KEYS];
         if(!(index in values)){
           values[index] = value;
@@ -1368,7 +1389,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     });
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
-  } else Set = fixCollection(Set, SET, 1);
+  } else Set = fixCollection(Set, SET, true);
   
   function getWeakData(it){
     has(it, WEAKDATA) || set(it, WEAKDATA, {});
@@ -1411,7 +1432,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor(WEAKSET, 1);
+    WeakSet = createCollectionConstructor(WEAKSET, true);
     assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
@@ -1419,19 +1440,19 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
+  } else WeakSet = fixCollection(WeakSet, WEAKSET, true);
   
   setToStringTag(Map, MAP);
   setToStringTag(Set, SET);
   setToStringTag(WeakMap, WEAKMAP);
   setToStringTag(WeakSet, WEAKSET);
-    
+  
   $define(GLOBAL, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
-  }, 1);
+  }, true);
 }();
 
 /*****************************
@@ -1662,7 +1683,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   }
   Dict[PROTOTYPE] = null;
   function findKey(object, fn, that /* = undefined */){
-    assertFunction(fn);
     var f      = optionalBind(fn, that)
       , O      = ES5Object(object)
       , keys   = getKeys(O)
@@ -1682,7 +1702,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
      * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
      */
     every: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -1693,7 +1712,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       return true;
     },
     filter: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
@@ -1712,7 +1730,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     },
     findKey: findKey,
     forEach: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -1723,7 +1740,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     },
     keyOf: keyOf,
     map: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , result = newGeneric(this, Dict)
@@ -1738,8 +1754,8 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       assertFunction(fn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
-        , i      = 0
         , length = keys.length
+        , i      = 0
         , memo   = init
         , key;
       if(arguments.length < 3){
@@ -1750,7 +1766,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       return memo;
     },
     some: function(object, fn, that /* = undefined */){
-      assertFunction(fn);
       var f      = optionalBind(fn, that)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -1762,13 +1777,15 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     },
     turn: function(object, mapfn, target /* = new @ */){
       assertFunction(mapfn);
-      var memo = target == undefined ? newGeneric(this, Dict) : Object(target)
-        , O    = ES5Object(object)
-        , keys = getKeys(O)
-        , l    = keys.length
-        , i    = 0
+      var memo   = target == undefined ? newGeneric(this, Dict) : Object(target)
+        , O      = ES5Object(object)
+        , keys   = getKeys(O)
+        , length = keys.length
+        , i      = 0
         , key;
-      while(l > i)if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+      while(length > i){
+        if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+      }
       return memo;
     },
     contains: function(object, searchElement){
@@ -1776,7 +1793,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0;
-      while(length > i)if(sameValueZero(O[keys[i++]], searchElement))return true;
+      while(length > i){
+        if(sameValueZero(O[keys[i++]], searchElement))return true;
+      }
       return false;
     },
     clone: ctx(call, $clone),
@@ -1795,7 +1814,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL, {Dict: Dict}, true);
 }();
 
 /*****************************
@@ -2047,28 +2066,34 @@ $define(PROTO, ARRAY, {
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   get: function(index){
-    var i = toInteger(index);
-    return ES5Object(this)[0 > i ? this.length + i : i];
+    var O      = ES5Object(this)
+      , length = toLength(this.length)
+      , index  = toInteger(index);
+    if(index < 0)index += length;
+    return O[index];
   },
   set: function(index, value){
-    var i = toInteger(index);
-    this[0 > i ? this.length + i : i] = value;
+    var length = toLength(this.length)
+      , index  = toInteger(index);
+    if(index < 0)index += length;
+    this[index] = value;
     return this;
   },
   'delete': function(index){
-    var n = toInteger(index)
-      , l = this.length
-      , i = 0 > n ? l + n : n;
-    if(i >= l || i < 0)return false;
-    splice.call(this, i, 1);
+    var length = toLength(this.length)
+      , index  = toInteger(index);
+    if(index < 0)index += length;
+    if(index >= length || index < 0)return false;
+    splice.call(this, index, 1);
     return true;
   },
   // ~ ES7 : https://github.com/domenic/Array.prototype.contains
-  contains: function(value){
+  contains: function(searchElement, fromIndex){
     var O      = ES5Object(this)
-      , length = O.length
-      , i      = 0;
-    while(length > i)if(sameValueZero(value, O[i++]))return true;
+      , length = toLength(O.length)
+      , index  = toInteger(fromIndex);
+    if(index < 0)index += length;
+    while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
     return false;
   },
   clone: $clone,
@@ -2119,12 +2144,16 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(fn /* = -> it */, that /* = undefined */){
-    var number = toLength(this)
-      , result = Array(number)
-      , i      = 0;
-    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
-    else while(number > i)result[i] = i++;
+  times: function(mapfn /* = -> it */, thisArg /* = undefined */){
+    var number = +this
+      , length = toLength(number)
+      , result = Array(length)
+      , i      = 0
+      , f;
+    if(isFunction(mapfn)){
+      f = optionalBind(mapfn, thisArg);
+      while(length > i)result[i] = f(i, i++, number);
+    } else while(length > i)result[i] = i++;
     return result;
   },
   random: function(number /* = 0 */){
@@ -2134,7 +2163,7 @@ $define(PROTO, NUMBER, {
     return random() * (max(a, b) - m) + m;
   }
 });
-$define(STATIC, 'Math', {
+$define(STATIC, MATH, {
   /**
    * Alternatives:
    * http://underscorejs.org/#random
@@ -2191,8 +2220,8 @@ $define(PROTO, NUMBER, turn.call(
     , unescapeHTMLDict = turn.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
-    , RegExpEscapeHTML   = /[&<>"']/g
-    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|apos);/g;
+    , escapeHTMLRegExp   = /[&<>"']/g
+    , unescapeHTMLRegExp = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -2201,7 +2230,7 @@ $define(PROTO, NUMBER, turn.call(
      * http://api.prototypejs.org/language/String/prototype/escapeHTML/
      */
     escapeHTML: function(){
-      return String(this).replace(RegExpEscapeHTML, function(part){
+      return String(this).replace(escapeHTMLRegExp, function(part){
         return escapeHTMLDict[part];
       });
     },
@@ -2212,7 +2241,7 @@ $define(PROTO, NUMBER, turn.call(
      * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
      */
     unescapeHTML: function(){
-      return String(this).replace(RegExpUnescapeHTML, function(part){
+      return String(this).replace(unescapeHTMLRegExp, function(part){
         return unescapeHTMLDict[part];
       });
     }
@@ -2223,7 +2252,7 @@ $define(PROTO, NUMBER, turn.call(
  * Module : regexp
  *****************************/
 
-!function(escape){
+!function(escapeRegExp){
   /**
    * ~ES7 : https://gist.github.com/kangax/9698100
    * Alternatives:
@@ -2233,7 +2262,7 @@ $define(PROTO, NUMBER, turn.call(
    */
   $define(STATIC, REGEXP, {
     escape: function(it){
-      return String(it).replace(escape, '\\$1');
+      return String(it).replace(escapeRegExp, '\\$1');
     }
   });
 }(/([\\\-[\]{}()*+?.,^$|])/g);
@@ -2242,14 +2271,6 @@ $define(PROTO, NUMBER, turn.call(
  * Module : date
  *****************************/
 
-/**
- * Alternatives:
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
- * https://github.com/andyearnshaw/Intl.js
- * http://momentjs.com/
- * http://sugarjs.com/api/Date/format
- * http://mootools.net/docs/more/Types/Date#Date:format
- */
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
   function createFormat(UTC){
     return function(template, locale /* = current */){
@@ -2304,8 +2325,8 @@ $define(PROTO, NUMBER, turn.call(
     addLocale: addLocale
   });
   $define(PROTO, DATE, {
-    format:    createFormat(0),
-    formatUTC: createFormat(1)
+    format:    createFormat(false),
+    formatUTC: createFormat(true)
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
@@ -2348,6 +2369,6 @@ $define(PROTO, NUMBER, turn.call(
   try {
     framework && delete global.console;
   } catch(e){}
-  $define(GLOBAL, {console: assign($console.log, $console)}, 1);
+  $define(GLOBAL, {console: assign($console.log, $console)}, true);
 }(global.console || {});
 }(typeof window != 'undefined' ? window : global, false);

@@ -74,7 +74,7 @@
     var n = +x;
     return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
   }
-  $define(STATIC, 'Math', {
+  $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
     acosh: function(x){
@@ -86,12 +86,12 @@
     // 20.2.2.7 Math.atanh(x)
     // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
-      return x === 0 ? x : 0.5 * log((1 + x) / (1 - x));
+      return x === 0 ? x : .5 * log((1 + x) / (1 - x));
     },
     // 20.2.2.9 Math.cbrt(x)
     // Returns an implementation-dependent approximation to the cube root of x.
     cbrt: function(x){
-      return sign(x) * pow(abs(x), 1/3);
+      return sign(x) * pow(abs(x), 1 / 3);
     },
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
@@ -160,7 +160,8 @@
     // 20.2.2.33 Math.tanh(x)
     // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
+      var n = +x;
+      return isFinite(n) ? n == 0 ? n : (exp(n) - exp(-n)) / (exp(n) + exp(-n)) : sign(n);
     },
     // 20.2.2.34 Math.trunc(x)
     // Returns the integral part of the number x, removing any fractional digits.
@@ -171,7 +172,7 @@
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
-  setToStringTag(Math, 'Math', 1);
+  setToStringTag(Math, MATH, true);
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
@@ -186,9 +187,9 @@
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
-        , search = '' + searchString;
-      endPosition = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(endPosition - search.length, endPosition) === search;
+        , search = '' + searchString
+        , end    = toLength(min(endPosition === undefined ? length : endPosition, length));
+      return String(this).slice(end - search.length, end) === search;
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
@@ -199,39 +200,43 @@
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       var search = '' + searchString
-        , pos    = toLength(min(position, this.length));
-      return String(this).slice(pos, pos + search.length) === search;
+        , index  = toLength(min(position, this.length));
+      return String(this).slice(index, index + search.length) === search;
     }
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
-      if(mapfn !== undefined)assertFunction(mapfn);
-      var O      = ES5Object(arrayLike)
-        , result = newGeneric(this, Array)
-        , i = 0, length;
+      var O       = ES5Object(arrayLike)
+        , result  = newGeneric(this, Array)
+        , mapping = mapfn !== undefined
+        , index   = 0
+        , length, f;
+      if(mapping)f = optionalBind(mapfn, thisArg);
       if($for && isIterable(O))$for(O).of(function(value){
-        push.call(result, mapfn ? mapfn.call(thisArg, value, i++) : value);
+        push.call(result, mapping ? f(value, index++) : value);
       });
-      else for(length = toLength(O.length); i < length; i++)push.call(result, mapfn ? mapfn.call(thisArg, O[i], i) : O[i]);
+      else for(length = toLength(O.length); length > index; index++){
+        push.call(result, mapping ? f(O[index], index) : O[index]);
+      }
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/*...args*/){
-      var i = 0, length = arguments.length
+      var index  = 0
+        , length = arguments.length
         , result = newGeneric(this, Array);
-      while(i < length)push.call(result, arguments[i++]);
+      while(length > index)push.call(result, arguments[index++]);
       return result;
     }
   });
   function findIndex(predicate, thisArg /* = undefind */){
-    assertFunction(predicate);
     var f      = optionalBind(predicate, thisArg)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
-      , i = 0;
-    for(; i < length; i++)if(f(self[i], i, O))return i;
+      , index  = 0;
+    for(; length > index; index++)if(f(self[index], index, O))return index;
     return -1;
   }
   $define(PROTO, ARRAY, {
@@ -240,11 +245,16 @@
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length)
-        , s      = toInteger(start)
-        , e;
-      if(0 > s)s = length + s;
-      e = end == undefined ? length : toInteger(end);
-      while(e > s)this[s++] = value;
+        , index  = toInteger(start)
+        , endPos;
+      if(index < 0)index = max(index + length, 0);
+      if(end === undefined)endPos = length;
+      else {
+        endPos = toInteger(end);
+        if(endPos < 0)endPos += length;
+        endPos = min(endPos, length);
+      }
+      while(endPos > index)this[index++] = value;
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
@@ -256,5 +266,5 @@
     findIndex: findIndex
   });
   // 24.3.3 JSON [ @@toStringTag ]
-  setToStringTag(global.JSON, 'JSON', 1);
+  setToStringTag(global.JSON, 'JSON', true);
 }(isFinite);

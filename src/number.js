@@ -8,12 +8,16 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(fn /* = -> it */, that /* = undefined */){
-    var number = toLength(this)
-      , result = Array(number)
-      , i      = 0;
-    if(isFunction(fn))while(number > i)result[i] = fn.call(that, i, i++, this);
-    else while(number > i)result[i] = i++;
+  times: function(mapfn /* = -> it */, thisArg /* = undefined */){
+    var number = +this
+      , length = toLength(number)
+      , result = Array(length)
+      , i      = 0
+      , f;
+    if(isFunction(mapfn)){
+      f = optionalBind(mapfn, thisArg);
+      while(length > i)result[i] = f(i, i++, number);
+    } else while(length > i)result[i] = i++;
     return result;
   },
   random: function(number /* = 0 */){
@@ -23,7 +27,7 @@ $define(PROTO, NUMBER, {
     return random() * (max(a, b) - m) + m;
   }
 });
-$define(STATIC, 'Math', {
+$define(STATIC, MATH, {
   /**
    * Alternatives:
    * http://underscorejs.org/#random

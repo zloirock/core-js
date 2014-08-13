@@ -1,11 +1,3 @@
-/**
- * Alternatives:
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl
- * https://github.com/andyearnshaw/Intl.js
- * http://momentjs.com/
- * http://sugarjs.com/api/Date/format
- * http://mootools.net/docs/more/Types/Date#Date:format
- */
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
   function createFormat(UTC){
     return function(template, locale /* = current */){
@@ -60,8 +52,8 @@
     addLocale: addLocale
   });
   $define(PROTO, DATE, {
-    format:    createFormat(0),
-    formatUTC: createFormat(1)
+    format:    createFormat(false),
+    formatUTC: createFormat(true)
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',

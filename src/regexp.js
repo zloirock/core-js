@@ -1,4 +1,4 @@
-!function(escape){
+!function(escapeRegExp){
   /**
    * ~ES7 : https://gist.github.com/kangax/9698100
    * Alternatives:
@@ -8,7 +8,7 @@
    */
   $define(STATIC, REGEXP, {
     escape: function(it){
-      return String(it).replace(escape, '\\$1');
+      return String(it).replace(escapeRegExp, '\\$1');
     }
   });
 }(/([\\\-[\]{}()*+?.,^$|])/g);

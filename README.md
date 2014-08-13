@@ -188,7 +188,7 @@ Symbol(description?) -> symbol                                        es6 sham
   .iterator -> symbol                                                 es6 sham
   .toStringTag -> symbol                                              es6
   .pure() -> symbol || string                                         core
-  .set(object, key, val) -> &0                                       core
+  .set(object, key, val) -> &0                                        core
 new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   ::then(resolved(var), rejected(var)) -> promise                     es6
   ::catch(rejected(var)) -> promise                                   es6

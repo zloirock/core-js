@@ -1,7 +1,7 @@
 /**
  * ECMAScript 6 Symbol
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- * http://webreflection.blogspot.com.au/2013/03/simulating-es6-symbols-in-es5.html
  */
 !function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
@@ -37,9 +37,7 @@
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,
     // 19.4.2.7 Symbol.keyFor(sym)
-    keyFor: function(sym){
-      return keyOf(SymbolRegistry, sym);
-    },
+    keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: TOSTRINGTAG,
     pure: symbol,

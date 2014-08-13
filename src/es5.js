@@ -148,106 +148,116 @@
   }, ES5Object != Object);
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-  $define(STATIC, ARRAY, {isArray: function(arg){
-    return _classof(arg) == ARRAY
-  }});
+  $define(STATIC, ARRAY, {
+    isArray: function(arg){
+      return _classof(arg) == ARRAY
+    }
+  });
   $define(PROTO, ARRAY, {
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
     indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = fromIndex | 0;
-      if(0 > i)i = toLength(length + i);
-      for(;length > i; i++)if(i in self && self[i] === searchElement)return i;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = toInteger(fromIndex);
+      if(index < 0)index += length;
+      for(;length > index; index++)if(index in O){
+        if(O[index] === searchElement)return index;
+      }
       return -1;
     },
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = length - 1;
-      if(arguments.length > 1)i = min(i, fromIndex | 0);
-      if(0 > i)i = toLength(length + i);
-      for(;i >= 0; i--)if(i in self && self[i] === searchElement)return i;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = length - 1;
+      if(arguments.length > 1)index = min(index, toInteger(fromIndex));
+      if(index < 0)index = toLength(length + index);
+      for(;index >= 0; index--)if(index in O){
+        if(O[index] === searchElement)return index;
+      }
       return -1;
     },
     // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
     every: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && !callbackfn.call(thisArg, self[i], i, this))return false;
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)if(index in O){
+        if(!f(O[index], index, this))return false;
       }
       return true;
     },
     // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
     some: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++){
-        if(i in self && callbackfn.call(thisArg, self[i], i, this))return true;
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)if(index in O){
+        if(f(O[index], index, this))return true;
       }
       return false;
     },
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach = forEach || function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
-      for(;length > i; i++)i in self && callbackfn.call(thisArg, self[i], i, this);
+      var f      = optionalBind(callbackfn, thisArg)
+        , O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
+      for(;length > index; index++)index in O && f(O[index], index, this);
     },
     // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
     map: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = Array(toLength(this.length));
+      var f      = optionalBind(callbackfn, thisArg)
+        , result = Array(toLength(this.length));
       forEach.call(this, function(val, key, that){
-        result[key] = callbackfn.call(thisArg, val, key, that);
+        result[key] = f(val, key, that);
       });
       return result;
     },
     // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
     filter: function(callbackfn, thisArg /* = undefined */){
-      assertFunction(callbackfn);
-      var result = [];
-      forEach.call(this, function(val){
-        callbackfn.apply(thisArg, arguments) && result.push(val);
+      var f      = optionalBind(callbackfn, thisArg)
+        , result = [];
+      forEach.call(this, function(val, key, that){
+        f(val, key, that) && result.push(val);
       });
       return result;
     },
     // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
     reduce: function(callbackfn, memo /* = @.0 */){
       assertFunction(callbackfn);
-      var self   = ES5Object(this)
-        , length = toLength(self.length)
-        , i      = 0;
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = 0;
       if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i++];
+        if(index in O){
+          memo = O[index++];
           break;
         }
-        assert(length > ++i, REDUCE_ERROR);
+        assert(length > ++index, REDUCE_ERROR);
       }
-      for(;length > i; i++)if(i in self)memo = callbackfn(memo, self[i], i, this);
+      for(;length > index; index++)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
       return memo;
     },
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: function(callbackfn, memo /* = @[*-1] */){
       assertFunction(callbackfn);
-      var self = ES5Object(this)
-        , i    = toLength(self.length) - 1;
+      var O     = ES5Object(this)
+        , index = toLength(O.length) - 1;
       if(2 > arguments.length)for(;;){
-        if(i in self){
-          memo = self[i--];
+        if(index in O){
+          memo = O[index--];
           break;
         }
-        assert(0 <= --i, REDUCE_ERROR);
+        assert(0 <= --index, REDUCE_ERROR);
       }
-      for(;i >= 0; i--)if(i in self)memo = callbackfn(memo, self[i], i, this);
+      for(;index >= 0; index--)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
       return memo;
     }
   });

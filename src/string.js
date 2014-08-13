@@ -9,8 +9,8 @@
     , unescapeHTMLDict = turn.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
       }, {})
-    , RegExpEscapeHTML   = /[&<>"']/g
-    , RegExpUnescapeHTML = /&(?:amp|lt|gt|quot|apos);/g;
+    , escapeHTMLRegExp   = /[&<>"']/g
+    , unescapeHTMLRegExp = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
     /**
      * Alternatives:
@@ -19,7 +19,7 @@
      * http://api.prototypejs.org/language/String/prototype/escapeHTML/
      */
     escapeHTML: function(){
-      return String(this).replace(RegExpEscapeHTML, function(part){
+      return String(this).replace(escapeHTMLRegExp, function(part){
         return escapeHTMLDict[part];
       });
     },
@@ -30,7 +30,7 @@
      * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
      */
     unescapeHTML: function(){
-      return String(this).replace(RegExpUnescapeHTML, function(part){
+      return String(this).replace(unescapeHTMLRegExp, function(part){
         return unescapeHTMLDict[part];
       });
     }

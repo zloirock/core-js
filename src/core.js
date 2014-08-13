@@ -11,6 +11,7 @@ var OBJECT          = 'Object'
   , WEAKSET         = 'WeakSet'
   , SYMBOL          = 'Symbol'
   , PROMISE         = 'Promise'
+  , MATH            = 'Math'
   , ARGUMENTS       = 'Arguments'
   , PROTOTYPE       = 'prototype'
   , CONSTRUCTOR     = 'constructor'
@@ -35,7 +36,7 @@ var OBJECT          = 'Object'
   , WeakSet         = global[WEAKSET]
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
-  , Math            = global.Math
+  , Math            = global[MATH]
   , TypeError       = global.TypeError
   , setTimeout      = global[SET_TIMEOUT]
   , clearTimeout    = global.clearTimeout
@@ -140,6 +141,7 @@ function invoke(fn, args, that){
   } return fn.apply(that, args);
 }
 function optionalBind(fn, that){
+  assertFunction(fn);
   return that === undefined ? fn : function(a, b, c){
     return fn.call(that, a, b, c);
   }
@@ -226,20 +228,22 @@ var push    = $Array.push
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
-  var memo = target == undefined ? [] : Object(target)
-    , self = ES5Object(this)
-    , l    = toLength(self.length)
-    , i    = 0;
-  for(;l > i; i++)if(mapfn(memo, self[i], i, this) === false)break;
+  var memo   = target == undefined ? [] : Object(target)
+    , O      = ES5Object(this)
+    , length = toLength(O.length)
+    , index  = 0;
+  for(;length > index; index++){
+    if(mapfn(memo, O[index], index, this) === false)break;
+  }
   return memo;
 }
 function keyOf(object, searchElement){
   var O      = ES5Object(object)
     , keys   = getKeys(O)
     , length = keys.length
-    , i      = 0
+    , index  = 0
     , key;
-  while(length > i)if(O[key = keys[i++]] === searchElement)return key;
+  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
 }
 function newGeneric(A, B){
   return new (typeof A == 'function' ? A : B);
@@ -274,10 +278,10 @@ function assert(condition, _msg){
   }
 }
 function assertFunction(it){
-  assert(isFunction(it), it, 'is not a function!');
+  if(!isFunction(it))throw TypeError(it + ' is not a function!');
 }
 function assertObject(it){
-  assert(isObject(it), it, 'is not an object!');
+  if(!isObject(it))throw TypeError(it + ' is not an object!');
   return it;
 }
 function assertInstance(it, constructor, name){

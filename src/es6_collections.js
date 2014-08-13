@@ -3,8 +3,6 @@
  * http://people.mozilla.org/~jorendorff/es6-draft.html
  * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
  * Alternatives:
- * https://github.com/paulmillr/es6-shim
- * https://github.com/monolithed/ECMAScript-6
  * https://github.com/Benvie/harmony-collections
  * https://github.com/eriwen/es6-map-shim
  * https://github.com/EliSnow/Blitz-Collections
@@ -24,7 +22,9 @@
         return this[SIZE];
       }}};
   function initCollection(that, iterable, isSet){
-    iterable != undefined && $for && $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+    if(iterable != undefined && $for){
+      $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+    }
     return that;
   }
   function createCollectionConstructor(name, isSet){
@@ -97,7 +97,6 @@
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
-        assertFunction(callbackfn);
         var f      = optionalBind(callbackfn, thisArg)
           , values = this[$VALUES]
           , keys   = this[KEYS]
@@ -129,7 +128,7 @@
       },
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function(key, value){
-        var index  = fastKey(key, 1)
+        var index  = fastKey(key, true)
           , values = this[VALUES];
         if(!(index in values)){
           this[KEYS][index] = key;
@@ -146,11 +145,11 @@
   // 23.2 Set Objects
   if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
     SHIM_SET = true;
-    Set = createCollectionConstructor(SET, 1);
+    Set = createCollectionConstructor(SET, true);
     assign(Set[PROTOTYPE], collectionMethods(KEYS), {
       // 23.2.3.1 Set.prototype.add(value)
       add: function(value){
-        var index  = fastKey(value, 1)
+        var index  = fastKey(value, true)
           , values = this[KEYS];
         if(!(index in values)){
           values[index] = value;
@@ -161,7 +160,7 @@
     });
     // 23.2.3.9 get Set.prototype.size
     defineProperties(Set[PROTOTYPE], sizeGetter);
-  } else Set = fixCollection(Set, SET, 1);
+  } else Set = fixCollection(Set, SET, true);
   
   function getWeakData(it){
     has(it, WEAKDATA) || set(it, WEAKDATA, {});
@@ -204,7 +203,7 @@
   
   // 23.4 WeakSet Objects
   if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor(WEAKSET, 1);
+    WeakSet = createCollectionConstructor(WEAKSET, true);
     assign(WeakSet[PROTOTYPE], assign({
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function(value){
@@ -212,17 +211,17 @@
         return this;
       }
     }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, WEAKSET, 1);
+  } else WeakSet = fixCollection(WeakSet, WEAKSET, true);
   
   setToStringTag(Map, MAP);
   setToStringTag(Set, SET);
   setToStringTag(WeakMap, WEAKMAP);
   setToStringTag(WeakSet, WEAKSET);
-    
+  
   $define(GLOBAL, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
-  }, 1);
+  }, true);
 }();
