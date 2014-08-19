@@ -30,7 +30,7 @@
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
         assertObject(O);
-        assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
+        assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
         if(buggy)O.__proto__ = proto;
         else set(O, proto);
         return O;
@@ -69,7 +69,8 @@
     , abs       = Math.abs
     , exp       = Math.exp
     , log       = Math.log
-    , sqrt      = Math.sqrt;
+    , sqrt      = Math.sqrt
+    , Oxffff    = 0xffff;
   function asinh(x){
     var n = +x;
     return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
@@ -126,11 +127,11 @@
     },
     // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
-      var xh = (x >>> 0x10) & 0xffff
-        , xl = x & 0xffff
-        , yh = (y >>> 0x10) & 0xffff
-        , yl = y & 0xffff;
-      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
+      var xh = Oxffff & x >>> 0x10
+        , xl = Oxffff & x
+        , yh = Oxffff & y >>> 0x10
+        , yl = Oxffff & y;
+      return 0 | xl * yl + (xh * yl + xl * yh << 0x10 >>> 0);
     },
     // 20.2.2.20 Math.log1p(x)
     // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.

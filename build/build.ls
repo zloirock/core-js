@@ -28,8 +28,8 @@ module.exports = (opt, next)-> let @ = opt
     """
   next """
     #banner
-    !function(global, framework, undefined){
+    !function(returnThis, framework, undefined){
     'use strict';
     #{scripts * '\n\n'}
-    }(typeof window != 'undefined' ? window : global, #{!@library});
+    }(Function('return this'), #{!@library});
     """

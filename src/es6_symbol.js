@@ -7,7 +7,7 @@
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(this instanceof Symbol)throw new TypeError('Symbol is not a constructor');
+      if(this instanceof Symbol)throw new TypeError(SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,
@@ -27,7 +27,7 @@
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
-  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, true);
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){

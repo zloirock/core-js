@@ -8,11 +8,11 @@
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
-  var postMessage        = global.postMessage
-    , addEventListener   = global.addEventListener
-    , MessageChannel     = global.MessageChannel
-    , counter            = 0
-    , queue              = {}
+  var postMessage      = global.postMessage
+    , addEventListener = global.addEventListener
+    , MessageChannel   = global.MessageChannel
+    , counter          = 0
+    , queue            = {}
     , defer, channel;
   setImmediate = function(fn){
     var args = [], i = 1;

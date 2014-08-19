@@ -7,7 +7,6 @@
     , INDEX      = symbol('index')
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
-    , returnThis = Function('return this')
     , mapForEach = Map[PROTOTYPE][FOR_EACH]
     , setForEach = Set[PROTOTYPE][FOR_EACH]
     , Iterators  = {};
@@ -178,7 +177,7 @@
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-    
+  
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
     set(this, ITERATED, iterable);
@@ -188,10 +187,9 @@
     var iterator = getIterator(this[ITERATED])
       , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
-      , step, value;
+      , step;
     while(!(step = iterator.next()).done){
-      value = step.value;
-      if((entries ? invoke(f, value) : f(value)) === false)return;
+      if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
     }
   }
   
@@ -202,5 +200,5 @@
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
   
-  $define(GLOBAL, {$for: $for});
+  $define(GLOBAL, {$for: $for}, true);
 }('@@iterator');

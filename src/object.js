@@ -55,18 +55,6 @@ $define(STATIC, OBJECT, {
     while(length > i)result[i] = [key = keys[i++], O[key]];
     return result;
   },
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#isObject
-   * http://sugarjs.com/api/Object/isType
-   * http://docs.angularjs.org/api/angular.isObject
-   */
   isObject: isObject,
-  /**
-   * Alternatives:
-   * http://livescript.net/#operators -> typeof!
-   * http://mootools.net/docs/core/Core/Core#Core:typeOf
-   * http://api.jquery.com/jQuery.type/
-   */
   classof: classof
 });

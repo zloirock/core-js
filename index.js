@@ -1,17 +1,18 @@
 /**
- * Core.js v0.0.7
- * http://core.zloirock.ru
+ * Core.js 0.0.7
+ * https://github.com/zloirock/core-js
+ * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
- * Available under MIT license
  */
-!function(global, framework, undefined){
+!function(returnThis, framework, undefined){
 'use strict';
 /*****************************
  * Module : core
  *****************************/
 
-// Shortcuts for [[Class]] & property names
-var OBJECT          = 'Object'
+var global          = returnThis()
+  // Shortcuts for [[Class]] & property names
+  , OBJECT          = 'Object'
   , FUNCTION        = 'Function'
   , ARRAY           = 'Array'
   , STRING          = 'String'
@@ -281,23 +282,18 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
-function assert(condition, _msg){
-  if(!condition){
-    var msg = _msg
-      , i   = 2;
-    while(arguments.length > i)msg += ' ' + arguments[i++];
-    throw TypeError(msg);
-  }
+function assert(condition, msg1, msg2){
+  if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
 }
 function assertFunction(it){
-  if(!isFunction(it))throw TypeError(it + ' is not a function!');
+  assert(isFunction(it), it, ' is not a function!');
 }
 function assertObject(it){
-  if(!isObject(it))throw TypeError(it + ' is not an object!');
+  assert(isObject(it), it, ' is not an object!');
   return it;
 }
-function assertInstance(it, constructor, name){
-  assert(it instanceof constructor, name, ": please use the 'new' operator!");
+function assertInstance(it, Constructor, name){
+  assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
 
 function descriptor(bitmap, value){
@@ -380,7 +376,7 @@ if(!isNode || framework)global.C = Export;
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(this instanceof Symbol)throw new TypeError('Symbol is not a constructor');
+      if(this instanceof Symbol)throw new TypeError(SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,
@@ -400,7 +396,7 @@ if(!isNode || framework)global.C = Export;
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
-  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, 1);
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, true);
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
@@ -455,7 +451,7 @@ if(!isNode || framework)global.C = Export;
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
         assertObject(O);
-        assert(isObject(proto) || proto === null, "Can't set", proto, 'as prototype');
+        assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
         if(buggy)O.__proto__ = proto;
         else set(O, proto);
         return O;
@@ -494,7 +490,8 @@ if(!isNode || framework)global.C = Export;
     , abs       = Math.abs
     , exp       = Math.exp
     , log       = Math.log
-    , sqrt      = Math.sqrt;
+    , sqrt      = Math.sqrt
+    , Oxffff    = 0xffff;
   function asinh(x){
     var n = +x;
     return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
@@ -551,11 +548,11 @@ if(!isNode || framework)global.C = Export;
     },
     // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
-      var xh = (x >>> 0x10) & 0xffff
-        , xl = x & 0xffff
-        , yh = (y >>> 0x10) & 0xffff
-        , yl = y & 0xffff;
-      return xl * yl + (((xh * yl + xl * yh) << 0x10) >>> 0) | 0;
+      var xh = Oxffff & x >>> 0x10
+        , xl = Oxffff & x
+        , yh = Oxffff & y >>> 0x10
+        , yl = Oxffff & y;
+      return 0 | xl * yl + (xh * yl + xl * yh << 0x10 >>> 0);
     },
     // 20.2.2.20 Math.log1p(x)
     // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
@@ -708,11 +705,11 @@ if(!isNode || framework)global.C = Export;
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
-  var postMessage        = global.postMessage
-    , addEventListener   = global.addEventListener
-    , MessageChannel     = global.MessageChannel
-    , counter            = 0
-    , queue              = {}
+  var postMessage      = global.postMessage
+    , addEventListener = global.addEventListener
+    , MessageChannel   = global.MessageChannel
+    , counter          = 0
+    , queue            = {}
     , defer, channel;
   setImmediate = function(fn){
     var args = [], i = 1;
@@ -872,14 +869,14 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       if(hasCallback){
         try {
           value     = callback(detail);
-          succeeded = 1;
+          succeeded = true;
         } catch(e){
-          failed = 1;
+          failed = true;
           value  = e;
         }
       } else {
-        value = detail;
-        succeeded = 1;
+        value     = detail;
+        succeeded = true;
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
@@ -927,7 +924,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL, {Promise: Promise}, 1);
+  $define(GLOBAL, {Promise: Promise}, true);
 }(Promise, Promise);
 
 /*****************************
@@ -1175,7 +1172,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     , INDEX      = symbol('index')
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
-    , returnThis = Function('return this')
     , mapForEach = Map[PROTOTYPE][FOR_EACH]
     , setForEach = Set[PROTOTYPE][FOR_EACH]
     , Iterators  = {};
@@ -1346,7 +1342,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     values:  createObjectIteratorFactory(VALUE),
     entries: createObjectIteratorFactory(KEY+VALUE)
   }
-    
+  
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
     set(this, ITERATED, iterable);
@@ -1356,10 +1352,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     var iterator = getIterator(this[ITERATED])
       , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
-      , step, value;
+      , step;
     while(!(step = iterator.next()).done){
-      value = step.value;
-      if((entries ? invoke(f, value) : f(value)) === false)return;
+      if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
     }
   }
   
@@ -1370,7 +1365,7 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
   
-  $define(GLOBAL, {$for: $for});
+  $define(GLOBAL, {$for: $for}, true);
 }('@@iterator');
 
 /*****************************
@@ -1720,19 +1715,7 @@ $define(STATIC, OBJECT, {
     while(length > i)result[i] = [key = keys[i++], O[key]];
     return result;
   },
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#isObject
-   * http://sugarjs.com/api/Object/isType
-   * http://docs.angularjs.org/api/angular.isObject
-   */
   isObject: isObject,
-  /**
-   * Alternatives:
-   * http://livescript.net/#operators -> typeof!
-   * http://mootools.net/docs/core/Core/Core#Core:typeOf
-   * http://api.jquery.com/jQuery.type/
-   */
   classof: classof
 });
 
@@ -1837,24 +1820,19 @@ $define(PROTO, NUMBER, {
     } else while(length > i)result[i] = i++;
     return result;
   },
-  random: function(number /* = 0 */){
-    var a = +this   || 0
-      , b = +number || 0
+  random: function(lim /* = 0 */){
+    var a = +this
+      , b = lim == undefined ? 0 : +lim
       , m = min(a, b);
     return random() * (max(a, b) - m) + m;
   }
 });
 $define(STATIC, MATH, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#random
-   * http://mootools.net/docs/core/Types/Number#Number:Number-random
-   */
-  randomInt: function(a /* = 0 */, b /* = 0 */){
-    var x = toInteger(a)
-      , y = toInteger(b)
-      , m = min(x, y);
-    return floor(random() * (max(x, y) + 1 - m) + m);
+  randomInt: function(lim1 /* = 0 */, lim2 /* = 0 */){
+    var a = toInteger(lim1)
+      , b = toInteger(lim2)
+      , m = min(a, b);
+    return floor(random() * (max(a, b) + 1 - m) + m);
   }
 });
 /**
@@ -1874,15 +1852,14 @@ $define(PROTO, NUMBER, turn.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = function(fn){
-      return function(/*...args*/){
-        // ie8- convert `this` to object -> convert it to number
-        var args = [+this]
-          , i    = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        return invoke(fn, args);
-      }
-    }(Math[key])
+    var fn = Math[key];
+    if(fn)memo[key] = function(/*...args*/){
+      // ie8- convert `this` to object -> convert it to number
+      var args = [+this]
+        , i    = 0;
+      while(arguments.length > i)args.push(arguments[i++]);
+      return invoke(fn, args);
+    }
   }, {}
 ));
 
@@ -2023,12 +2000,13 @@ $define(PROTO, NUMBER, turn.call(
  * Module : console
  *****************************/
 
-/**
- * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
- * https://developer.mozilla.org/en-US/docs/Web/API/console
- */
 !function(console){
   var $console = turn.call(
+    /**
+     * Methods from:
+     * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+     * https://developer.mozilla.org/en-US/docs/Web/API/console
+     */
     array('assert,count,clear,debug,dir,dirxml,error,exception,' +
       'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
       'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
@@ -2052,4 +2030,4 @@ $define(PROTO, NUMBER, turn.call(
   } catch(e){}
   $define(GLOBAL, {console: assign($console.log, $console)}, true);
 }(global.console || {});
-}(typeof window != 'undefined' ? window : global, true);
+}(Function('return this'), true);

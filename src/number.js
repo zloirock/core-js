@@ -20,24 +20,19 @@ $define(PROTO, NUMBER, {
     } else while(length > i)result[i] = i++;
     return result;
   },
-  random: function(number /* = 0 */){
-    var a = +this   || 0
-      , b = +number || 0
+  random: function(lim /* = 0 */){
+    var a = +this
+      , b = lim == undefined ? 0 : +lim
       , m = min(a, b);
     return random() * (max(a, b) - m) + m;
   }
 });
 $define(STATIC, MATH, {
-  /**
-   * Alternatives:
-   * http://underscorejs.org/#random
-   * http://mootools.net/docs/core/Types/Number#Number:Number-random
-   */
-  randomInt: function(a /* = 0 */, b /* = 0 */){
-    var x = toInteger(a)
-      , y = toInteger(b)
-      , m = min(x, y);
-    return floor(random() * (max(x, y) + 1 - m) + m);
+  randomInt: function(lim1 /* = 0 */, lim2 /* = 0 */){
+    var a = toInteger(lim1)
+      , b = toInteger(lim2)
+      , m = min(a, b);
+    return floor(random() * (max(a, b) + 1 - m) + m);
   }
 });
 /**
@@ -57,14 +52,13 @@ $define(PROTO, NUMBER, turn.call(
     'randomInt'
   ),
   function(memo, key){
-    if(key in Math)memo[key] = function(fn){
-      return function(/*...args*/){
-        // ie8- convert `this` to object -> convert it to number
-        var args = [+this]
-          , i    = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        return invoke(fn, args);
-      }
-    }(Math[key])
+    var fn = Math[key];
+    if(fn)memo[key] = function(/*...args*/){
+      // ie8- convert `this` to object -> convert it to number
+      var args = [+this]
+        , i    = 0;
+      while(arguments.length > i)args.push(arguments[i++]);
+      return invoke(fn, args);
+    }
   }, {}
 ));

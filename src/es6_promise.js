@@ -95,14 +95,14 @@
       if(hasCallback){
         try {
           value     = callback(detail);
-          succeeded = 1;
+          succeeded = true;
         } catch(e){
-          failed = 1;
+          failed = true;
           value  = e;
         }
       } else {
-        value = detail;
-        succeeded = 1;
+        value     = detail;
+        succeeded = true;
       }
       if(handleThenable(promise, value))return;
       else if(hasCallback && succeeded)resolve(promise, value);
@@ -150,5 +150,5 @@
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL, {Promise: Promise}, 1);
+  $define(GLOBAL, {Promise: Promise}, true);
 }(Promise, Promise);

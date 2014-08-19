@@ -1,5 +1,6 @@
-// Shortcuts for [[Class]] & property names
-var OBJECT          = 'Object'
+var global          = returnThis()
+  // Shortcuts for [[Class]] & property names
+  , OBJECT          = 'Object'
   , FUNCTION        = 'Function'
   , ARRAY           = 'Array'
   , STRING          = 'String'
@@ -269,23 +270,18 @@ function toLength(it){
 
 // Assertion & errors:
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
-function assert(condition, _msg){
-  if(!condition){
-    var msg = _msg
-      , i   = 2;
-    while(arguments.length > i)msg += ' ' + arguments[i++];
-    throw TypeError(msg);
-  }
+function assert(condition, msg1, msg2){
+  if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
 }
 function assertFunction(it){
-  if(!isFunction(it))throw TypeError(it + ' is not a function!');
+  assert(isFunction(it), it, ' is not a function!');
 }
 function assertObject(it){
-  if(!isObject(it))throw TypeError(it + ' is not an object!');
+  assert(isObject(it), it, ' is not an object!');
   return it;
 }
-function assertInstance(it, constructor, name){
-  assert(it instanceof constructor, name, ": please use the 'new' operator!");
+function assertInstance(it, Constructor, name){
+  assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
 
 function descriptor(bitmap, value){
