@@ -50,7 +50,6 @@
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     });
-    hidden(Promise[PROTOTYPE], TO_STRING, ES6ToString);
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
       var C      = this

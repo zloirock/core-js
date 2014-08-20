@@ -12,7 +12,7 @@ $define(STATIC, ARRAY, turn.call(
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
-    // Core.js:
+    // Core:
     'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){

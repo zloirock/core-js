@@ -76,7 +76,7 @@ Array
   ::get(index) -> var                                                 core
   ::set(index, value) -> @                                            core
   ::delete(index) -> bool                                             core
-  ::contains(var) -> bool                                             es7
+  ::contains(var, from?) -> bool                                      es7
   ::clone() -> var                                                    core
   ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
@@ -196,10 +196,10 @@ new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   .reject(var) -> promise                                             es6
   .all(iterable) -> promise                                           es6
   .race(iterable) -> promise                                          es6
-setTimeout(fn(...args), time, ...args) -> uint                        w3c / whatwg
-setInterval(fn(...args), time, ...args) -> uint                       w3c / whatwg
-setImmediate(fn(...args), ...args) -> uint                            w3c / whatwg
-clearImmediate(uint) -> void                                          w3c / whatwg
+setTimeout(fn(...args), time, ...args) -> id                          w3c / whatwg
+setInterval(fn(...args), time, ...args) -> id                         w3c / whatwg
+setImmediate(fn(...args), ...args) -> id                              w3c / whatwg
+clearImmediate(id) -> void                                            w3c / whatwg
 console(...args) -> void                                              core
   .{...console API}                                                   console api
   .enable() -> void                                                   core

@@ -31,7 +31,7 @@ $define(PROTO, ARRAY, {
     var O      = ES5Object(this)
       , length = toLength(O.length)
       , index  = toInteger(fromIndex);
-    if(index < 0)index += length;
+    if(index < 0)index = max(index + length, 0);
     while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
     return false;
   },

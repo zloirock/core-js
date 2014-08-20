@@ -18,6 +18,7 @@ var global          = returnThis()
   , STRING          = 'String'
   , NUMBER          = 'Number'
   , REGEXP          = 'RegExp'
+  , DATE            = 'Date'
   , MAP             = 'Map'
   , SET             = 'Set'
   , WEAKMAP         = 'WeakMap'
@@ -43,6 +44,7 @@ var global          = returnThis()
   , String          = global[STRING]
   , Number          = global[NUMBER]
   , RegExp          = global[REGEXP]
+  , Date            = global[DATE]
   , Map             = global[MAP]
   , Set             = global[SET]
   , WeakMap         = global[WEAKMAP]
@@ -58,11 +60,15 @@ var global          = returnThis()
   , clearImmediate  = global[CLEAR_IMMEDIATE]
   , process         = global[PROCESS]
   , document        = global.document
-  , Infinity        = 1 / 0
   , $Array          = Array[PROTOTYPE]
   , $Object         = Object[PROTOTYPE]
   , $Function       = Function[PROTOTYPE]
-  , Export          = {};
+  , Infinity        = 1 / 0;
+
+var Export = {}
+  , path   = framework ? global : Export;
+// Placeholder
+Export._ = path._ = framework ? path._ || {} : {};
   
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -72,6 +78,7 @@ var same = Object.is || function(x, y){
 function sameValueZero(x, y){
   return x === y ? true : x !== x && y !== y;
 }
+
 // http://jsperf.com/core-js-isobject
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
@@ -80,30 +87,28 @@ function isFunction(it){
   return typeof it == 'function';
 }
 // Native function?
-var nativeRegExp = /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/;
-function isNative(it){
-  return nativeRegExp.test(it);
-}
+var isNative = ctx(/./.test, /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/);
+
+// Object internal [[Class]] or toStringTag
+// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
 var toString = $Object[TO_STRING]
-  , TOSTRINGTAG;
+  , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
+  , TOSTRINGTAG; // define in es6_symbol module
 function setToStringTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
-// Object internal [[Class]]
 function classof(it){
   if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
-  var cof = toString.call(it).slice(8, -1);
-  return TOSTRINGTAG && cof == OBJECT && it[TOSTRINGTAG] ? it[TOSTRINGTAG] : cof;
-}
-function ES6ToString(){
-  return '[object ' + classof(this) + ']';
+  var cof = toString.call(it).slice(8, -1)
+    , tag;
+  if(cof != OBJECT)return cof;
+  if(TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
+  return cof;
 }
 
-// Function:
+// Function
 var apply = $Function.apply
-  , call  = $Function.call
-  , path  = framework ? global : Export;
-Export._ = path._ = framework ? path._ || {} : {};
+  , call  = $Function.call;
 // Partial apply
 function part(/*...args*/){
   var length = arguments.length
@@ -135,23 +140,24 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     return invoke(fn, args, that);
   }
 }
-// http://jsperf.lnkit.com/fast-apply
+// Fast apply
+// http://jsperf.lnkit.com/fast-apply/5
 function invoke(fn, args, that){
-  if(that === undefined)switch(args.length){
-    case 0: return fn();
-    case 1: return fn(args[0]);
-    case 2: return fn(args[0], args[1]);
-    case 3: return fn(args[0], args[1], args[2]);
-    case 4: return fn(args[0], args[1], args[2], args[3]);
-    case 5: return fn(args[0], args[1], args[2], args[3], args[4]);
-  } else switch(args.length){
-    case 0: return fn.call(that);
-    case 1: return fn.call(that, args[0]);
-    case 2: return fn.call(that, args[0], args[1]);
-    case 3: return fn.call(that, args[0], args[1], args[2]);
-    case 4: return fn.call(that, args[0], args[1], args[2], args[3]);
-    case 5: return fn.call(that, args[0], args[1], args[2], args[3], args[4]);
-  } return fn.apply(that, args);
+  var un = that === undefined;
+  switch(args.length){
+    case 0: return un ? fn()
+                      : fn.call(that);
+    case 1: return un ? fn(args[0])
+                      : fn.call(that, args[0]);
+    case 2: return un ? fn(args[0], args[1])
+                      : fn.call(that, args[0], args[1]);
+    case 3: return un ? fn(args[0], args[1], args[2])
+                      : fn.call(that, args[0], args[1], args[2]);
+    case 4: return un ? fn(args[0], args[1], args[2], args[3])
+                      : fn.call(that, args[0], args[1], args[2], args[3]);
+    case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
+                      : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
+  } return              fn.apply(that, args);
 }
 function optionalBind(fn, that){
   assertFunction(fn);
@@ -173,12 +179,12 @@ var create           = Object.create
   , isEnumerable     = $Object.propertyIsEnumerable
   , __PROTO__        = '__proto__' in $Object
   , DESCRIPTORS      = true
-  // Dummy, fix for not array-like ES3 string in es5.js
+  // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 function has(object, key){
   return hasOwnProperty.call(object, key);
 }
-// 19.1.2.1 Object.assign ( target, source, ... )
+// 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)
     , l = arguments.length
@@ -201,6 +207,14 @@ function getValues(object){
     , result = Array(length);
   while(length > i)result[i] = O[keys[i++]];
   return result;
+}
+function keyOf(object, searchElement){
+  var O      = ES5Object(object)
+    , keys   = getKeys(O)
+    , length = keys.length
+    , index  = 0
+    , key;
+  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
 }
 // Simple structured cloning
 function clone(it, stack1, stack2){
@@ -227,7 +241,7 @@ function $clone(){
   return clone(this, [], []);
 }
 
-// Array:
+// Array
 // array('str1,str2,str3') => ['str1', 'str2', 'str3']
 function array(it){
   return String(it).split(',');
@@ -250,19 +264,11 @@ function turn(mapfn, target /* = [] */){
   }
   return memo;
 }
-function keyOf(object, searchElement){
-  var O      = ES5Object(object)
-    , keys   = getKeys(O)
-    , length = keys.length
-    , index  = 0
-    , key;
-  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
-}
 function newGeneric(A, B){
   return new (typeof A == 'function' ? A : B);
 }
 
-// Math:
+// Math
 var ceil   = Math.ceil
   , floor  = Math.floor
   , max    = Math.max
@@ -280,7 +286,7 @@ function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
 
-// Assertion & errors:
+// Assertion & errors
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition, msg1, msg2){
   if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
@@ -296,6 +302,7 @@ function assertInstance(it, Constructor, name){
   assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
 
+// Property descriptors & Symbol
 function descriptor(bitmap, value){
   return {
     enumerable  : !!(bitmap & 1),
@@ -319,8 +326,10 @@ var sid    = 0
       }
     : hidden;
 
-var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET; // define in over modules
+// Collections & iterators variables, define in over modules
+var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET;
 
+// Export
 var GLOBAL = 1
   , STATIC = 2
   , PROTO  = 4;
@@ -358,7 +367,6 @@ function wrapGlobalConstructor(Base){
   F[PROTOTYPE] = Base[PROTOTYPE];
   return F;
 }
-// Export
 var isNode = classof(process) == PROCESS;
 if(isNode)module.exports = Export;
 if(!isNode || framework)global.C = Export;
@@ -824,7 +832,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
       return thenPromise;
     });
-    hidden(Promise[PROTOTYPE], TO_STRING, ES6ToString);
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
       var C      = this
@@ -966,7 +973,6 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
       this.clear();
       initCollection(this, iterable, isSet);
     }
-    hidden(F[PROTOTYPE], TO_STRING, ES6ToString);
     return F;
   }
   function fixCollection(Base, name, isSet){
@@ -1756,7 +1762,7 @@ $define(PROTO, ARRAY, {
     var O      = ES5Object(this)
       , length = toLength(O.length)
       , index  = toInteger(fromIndex);
-    if(index < 0)index += length;
+    if(index < 0)index = max(index + length, 0);
     while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
     return false;
   },
@@ -1786,7 +1792,7 @@ $define(STATIC, ARRAY, turn.call(
     'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
     // ES6:
     'fill,find,findIndex,keys,values,entries,' +
-    // Core.js:
+    // Core:
     'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){
@@ -1844,11 +1850,11 @@ $define(STATIC, MATH, {
 $define(PROTO, NUMBER, turn.call(
   // IE... getNames(Math)
   array(
-    // ES3
+    // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-    // ES6
+    // ES6:
     'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc,' +
-    // Core.js
+    // Core:
     'randomInt'
   ),
   function(memo, key){
@@ -1929,7 +1935,7 @@ $define(PROTO, NUMBER, turn.call(
  * Module : date
  *****************************/
 
-!function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
+!function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, MONTH, YEAR){
   function createFormat(UTC){
     return function(template, locale /* = current */){
       var that = this
@@ -1994,7 +2000,7 @@ $define(PROTO, NUMBER, turn.call(
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
-}(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');
+}(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
 
 /*****************************
  * Module : console

@@ -33,7 +33,6 @@
       this.clear();
       initCollection(this, iterable, isSet);
     }
-    hidden(F[PROTOTYPE], TO_STRING, ES6ToString);
     return F;
   }
   function fixCollection(Base, name, isSet){

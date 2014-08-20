@@ -44,11 +44,11 @@ $define(STATIC, MATH, {
 $define(PROTO, NUMBER, turn.call(
   // IE... getNames(Math)
   array(
-    // ES3
+    // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-    // ES6
+    // ES6:
     'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc,' +
-    // Core.js
+    // Core:
     'randomInt'
   ),
   function(memo, key){

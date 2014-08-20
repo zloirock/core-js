@@ -268,15 +268,15 @@
   }});
   
   // 20.3.3.1 / 15.9.4.4 Date.now()
-  $define(STATIC, 'Date', {now: function(){
+  $define(STATIC, DATE, {now: function(){
     return +new Date;
   }});
   
   if(isFunction(trimRegExp))isFunction = function(it){
     return _classof(it) == FUNCTION;
   }
-  if(_classof(function(){return arguments}()) == OBJECT)classof =  function(it){
+  if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
     var cof = _classof(it);
-    return cof != OBJECT || !isFunction(it.callee) ? cof : ARGUMENTS;
+    return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
 }();
