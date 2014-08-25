@@ -56,12 +56,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // IE8-
   } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){
-      var el = document[CREATE_ELEMENT]('script');
-      el[ONREADYSTATECHANGE] = function(){
-        el.parentNode.removeChild(el);
+      html.appendChild(document[CREATE_ELEMENT]('script'))[ONREADYSTATECHANGE] = function(){
+        html.removeChild(this);
         run(id);
       }
-      document.documentElement.appendChild(el);
     }
   // Rest old browsers
   } else defer = function(id){

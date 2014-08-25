@@ -40,7 +40,6 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
   , Math            = global[MATH]
-  , TypeError       = global.TypeError
   , setTimeout      = global[SET_TIMEOUT]
   , clearTimeout    = global.clearTimeout
   , setInterval     = global[SET_INTERVAL]
@@ -64,7 +63,7 @@ var same = Object.is || function(x, y){
 }
 // 7.2.4 SameValueZero(x, y)
 function sameValueZero(x, y){
-  return x === y ? true : x !== x && y !== y;
+  return x === y || x !== x && y !== y;
 }
 
 // http://jsperf.com/core-js-isobject
@@ -75,7 +74,7 @@ function isFunction(it){
   return typeof it == 'function';
 }
 // Native function?
-var isNative = ctx(/./.test, /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/);
+var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
@@ -306,7 +305,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 var sid    = 0
-  , symbol = Symbol ? Symbol : uid
+  , symbol = Symbol || uid
   , set    = Symbol
     ? function(object, key, value){
         object[key] = value;
@@ -316,6 +315,9 @@ var sid    = 0
 
 // Collections & iterators variables, define in over modules
 var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET;
+
+// DOM
+var html = document && document.documentElement;
 
 // Export
 var GLOBAL = 1

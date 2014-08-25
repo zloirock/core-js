@@ -8,36 +8,34 @@
  * https://github.com/inexorabletash/polyfill/blob/master/es5.js
  */
 !function(){
-  var Empty              = Function()
-    , _classof           = classof
-    , whitespace         = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , trimRegExp         = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
-    // for fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
-    // http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
-    , hiddenNames1       = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
-    , hiddenNames2       = hiddenNames1.concat(PROTOTYPE, 'length')
-    , hiddenNames1Length = hiddenNames1.length
-    , $PROTO             = symbol(PROTOTYPE)
+  var Empty       = Function()
+    , _classof    = classof
+    , whitespace  = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    , trimRegExp  = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
+    // For fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
+    , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
+    , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
+    , slyKeysLen1 = slyKeys1.length
+    , $PROTO      = symbol(PROTOTYPE)
     // Create object with null prototype
-    , createDict         = __PROTO__
+    , createDict  = __PROTO__
       ? function(){
           return {__proto__: null};
         }
       : function(){
           // Thrash, waste and sodomy
           var iframe = document[CREATE_ELEMENT]('iframe')
-            , i      = hiddenNames1Length
-            , body   = document.body || document.documentElement
+            , i      = slyKeysLen1
             , iframeDocument;
           iframe.style.display = 'none';
-          body.appendChild(iframe);
+          html.appendChild(iframe);
           iframe.src = 'javascript:';
-          iframeDocument = iframe.contentWindow.document || iframe.contentDocument || iframe.document;
+          iframeDocument = iframe.contentWindow.document;
           iframeDocument.open();
           iframeDocument.write('<script>document.F=Object</script>');
           iframeDocument.close();
           createDict = iframeDocument.F;
-          while(i--)delete createDict[PROTOTYPE][hiddenNames1[i]];
+          while(i--)delete createDict[PROTOTYPE][slyKeys1[i]];
           return createDict();
         }
     , createGetKeys = function(names, length){
@@ -47,7 +45,7 @@
             , result = []
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
-          // hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+          // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
           while(length > i)has(O, key = names[i++]) && !~indexOf.call(result, key) && result.push(key);
           return result;
         }
@@ -97,7 +95,7 @@
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || createGetKeys(hiddenNames2, hiddenNames2.length),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
@@ -110,7 +108,7 @@
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(hiddenNames1, hiddenNames1Length)
+    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1)
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
@@ -130,7 +128,7 @@
     }
   });
   
-  // fix for not array-like ES3 string
+  // Fix for not array-like ES3 string
   function arrayMethodFix(fn){
     return function(){
       return fn.apply(ES5Object(this), arguments);

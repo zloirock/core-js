@@ -20,16 +20,19 @@ module.exports = (opt, next)-> let @ = opt
     error, file <- readFile "src/#module.js"
     if error => reject error else resolve file
   .then _, console.error
-  scripts .= map (script, key)-> """
-    /*****************************
-     * Module : #{include[key]}
-     *****************************/\n
+  scripts .= map (script, key)->
+    name = include[key]
+    x78  = \* .repeat 78
+    """
+    \n/#x78
+     * Module : #name #{' 'repeat 65 - name.length}*
+     #x78/\n
     #script
     """
   next """
     #banner
     !function(returnThis, framework, undefined){
     'use strict';
-    #{scripts * '\n\n'}
+    #{scripts * '\n'}
     }(Function('return this'), #{!@library});
     """

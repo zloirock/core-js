@@ -6,9 +6,10 @@
  */
 !function(returnThis, framework, undefined){
 'use strict';
-/*****************************
- * Module : core
- *****************************/
+
+/******************************************************************************
+ * Module : core                                                              *
+ ******************************************************************************/
 
 var global          = returnThis()
   // Shortcuts for [[Class]] & property names
@@ -52,7 +53,6 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
   , Math            = global[MATH]
-  , TypeError       = global.TypeError
   , setTimeout      = global[SET_TIMEOUT]
   , clearTimeout    = global.clearTimeout
   , setInterval     = global[SET_INTERVAL]
@@ -76,7 +76,7 @@ var same = Object.is || function(x, y){
 }
 // 7.2.4 SameValueZero(x, y)
 function sameValueZero(x, y){
-  return x === y ? true : x !== x && y !== y;
+  return x === y || x !== x && y !== y;
 }
 
 // http://jsperf.com/core-js-isobject
@@ -87,7 +87,7 @@ function isFunction(it){
   return typeof it == 'function';
 }
 // Native function?
-var isNative = ctx(/./.test, /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/);
+var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
@@ -318,7 +318,7 @@ function hidden(object, key, value){
   return defineProperty(object, key, descriptor(6, value));
 }
 var sid    = 0
-  , symbol = Symbol ? Symbol : uid
+  , symbol = Symbol || uid
   , set    = Symbol
     ? function(object, key, value){
         object[key] = value;
@@ -328,6 +328,9 @@ var sid    = 0
 
 // Collections & iterators variables, define in over modules
 var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET;
+
+// DOM
+var html = document && document.documentElement;
 
 // Export
 var GLOBAL = 1
@@ -371,9 +374,9 @@ var isNode = classof(process) == PROCESS;
 if(isNode)module.exports = Export;
 if(!isNode || framework)global.C = Export;
 
-/*****************************
- * Module : es6_symbol
- *****************************/
+/******************************************************************************
+ * Module : es6_symbol                                                        *
+ ******************************************************************************/
 
 /**
  * ECMAScript 6 Symbol
@@ -384,7 +387,7 @@ if(!isNode || framework)global.C = Export;
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(this instanceof Symbol)throw new TypeError(SYMBOL + ' is not a ' + CONSTRUCTOR);
+      assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,
@@ -423,9 +426,9 @@ if(!isNode || framework)global.C = Export;
   setToStringTag(Symbol, SYMBOL);
 }(symbol('tag'), 'iterator', TO_STRING + 'Tag', {});
 
-/*****************************
- * Module : es6
- *****************************/
+/******************************************************************************
+ * Module : es6                                                               *
+ ******************************************************************************/
 
 /**
  * ECMAScript 6 shim
@@ -699,9 +702,9 @@ if(!isNode || framework)global.C = Export;
   setToStringTag(global.JSON, 'JSON', true);
 }(isFinite);
 
-/*****************************
- * Module : immediate
- *****************************/
+/******************************************************************************
+ * Module : immediate                                                         *
+ ******************************************************************************/
 
 /**
  * setImmediate
@@ -761,12 +764,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // IE8-
   } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){
-      var el = document[CREATE_ELEMENT]('script');
-      el[ONREADYSTATECHANGE] = function(){
-        el.parentNode.removeChild(el);
+      html.appendChild(document[CREATE_ELEMENT]('script'))[ONREADYSTATECHANGE] = function(){
+        html.removeChild(this);
         run(id);
       }
-      document.documentElement.appendChild(el);
     }
   // Rest old browsers
   } else defer = function(id){
@@ -776,9 +777,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
 $defineTimer(SET_IMMEDIATE, setImmediate);
 $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
 
-/*****************************
- * Module : es6_promise
- *****************************/
+/******************************************************************************
+ * Module : es6_promise                                                       *
+ ******************************************************************************/
 
 /**
  * ES6 Promises
@@ -934,9 +935,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   $define(GLOBAL, {Promise: Promise}, true);
 }(Promise, Promise);
 
-/*****************************
- * Module : es6_collections
- *****************************/
+/******************************************************************************
+ * Module : es6_collections                                                   *
+ ******************************************************************************/
 
 /**
  * ECMAScript 6 collection polyfill
@@ -1165,9 +1166,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   }, true);
 }();
 
-/*****************************
- * Module : es6_iterators
- *****************************/
+/******************************************************************************
+ * Module : es6_iterators                                                     *
+ ******************************************************************************/
 
 !function($$ITERATOR){
   var FFITERATOR = $$ITERATOR in $Array
@@ -1374,9 +1375,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   $define(GLOBAL, {$for: $for}, true);
 }('@@iterator');
 
-/*****************************
- * Module : dict
- *****************************/
+/******************************************************************************
+ * Module : dict                                                              *
+ ******************************************************************************/
 
 !function(){
   function Dict(iterable){
@@ -1525,9 +1526,9 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
   $define(GLOBAL, {Dict: Dict}, true);
 }();
 
-/*****************************
- * Module : function
- *****************************/
+/******************************************************************************
+ * Module : function                                                          *
+ ******************************************************************************/
 
 $define(STATIC, FUNCTION, {
   isFunction: isFunction,
@@ -1546,9 +1547,9 @@ $define(PROTO, FUNCTION, {
   }
 });
 
-/*****************************
- * Module : deferred
- *****************************/
+/******************************************************************************
+ * Module : deferred                                                          *
+ ******************************************************************************/
 
 /**
  * Alternatives:
@@ -1587,9 +1588,9 @@ $define(PROTO, FUNCTION, {
   });
 }(symbol('arguments'), symbol('id'));
 
-/*****************************
- * Module : binding
- *****************************/
+/******************************************************************************
+ * Module : binding                                                           *
+ ******************************************************************************/
 
 !function(_){
   $define(PROTO, FUNCTION, {
@@ -1660,9 +1661,9 @@ $define(PROTO, FUNCTION, {
   hidden(RegExp[PROTOTYPE], _, tie);
 }(uid('tie'));
 
-/*****************************
- * Module : object
- *****************************/
+/******************************************************************************
+ * Module : object                                                            *
+ ******************************************************************************/
 
 var getPropertyKeys = getSymbols
   ? function(it){
@@ -1725,9 +1726,9 @@ $define(STATIC, OBJECT, {
   classof: classof
 });
 
-/*****************************
- * Module : array
- *****************************/
+/******************************************************************************
+ * Module : array                                                             *
+ ******************************************************************************/
 
 $define(PROTO, ARRAY, {
   /**
@@ -1774,9 +1775,9 @@ $define(PROTO, ARRAY, {
   turn: turn
 });
 
-/*****************************
- * Module : array_statics
- *****************************/
+/******************************************************************************
+ * Module : array_statics                                                     *
+ ******************************************************************************/
 
 /**
  * Array static methods
@@ -1800,10 +1801,11 @@ $define(STATIC, ARRAY, turn.call(
   }, {}
 ));
 
-/*****************************
- * Module : number
- *****************************/
+/******************************************************************************
+ * Module : number                                                            *
+ ******************************************************************************/
 
+// Number.toInteger was part of the draft ECMAScript 6 specification, but has been removed
 $define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
   /**
@@ -1869,9 +1871,9 @@ $define(PROTO, NUMBER, turn.call(
   }, {}
 ));
 
-/*****************************
- * Module : string
- *****************************/
+/******************************************************************************
+ * Module : string                                                            *
+ ******************************************************************************/
 
 !function(){
   var escapeHTMLDict = {
@@ -1887,23 +1889,11 @@ $define(PROTO, NUMBER, turn.call(
     , escapeHTMLRegExp   = /[&<>"']/g
     , unescapeHTMLRegExp = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#escape
-     * http://sugarjs.com/api/String/escapeHTML
-     * http://api.prototypejs.org/language/String/prototype/escapeHTML/
-     */
     escapeHTML: function(){
       return String(this).replace(escapeHTMLRegExp, function(part){
         return escapeHTMLDict[part];
       });
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#unescape
-     * http://sugarjs.com/api/String/unescapeHTML
-     * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
-     */
     unescapeHTML: function(){
       return String(this).replace(unescapeHTMLRegExp, function(part){
         return unescapeHTMLDict[part];
@@ -1912,18 +1902,12 @@ $define(PROTO, NUMBER, turn.call(
   });
 }();
 
-/*****************************
- * Module : regexp
- *****************************/
+/******************************************************************************
+ * Module : regexp                                                            *
+ ******************************************************************************/
 
 !function(escapeRegExp){
-  /**
-   * ~ES7 : https://gist.github.com/kangax/9698100
-   * Alternatives:
-   * http://sugarjs.com/api/String/escapeRegExp
-   * http://api.prototypejs.org/language/RegExp/escape/
-   * http://mootools.net/docs/core/Types/String#String:escapeRegExp
-   */
+  // ~ES7 : https://gist.github.com/kangax/9698100
   $define(STATIC, REGEXP, {
     escape: function(it){
       return String(it).replace(escapeRegExp, '\\$1');
@@ -1931,9 +1915,9 @@ $define(PROTO, NUMBER, turn.call(
   });
 }(/([\\\-[\]{}()*+?.,^$|])/g);
 
-/*****************************
- * Module : date
- *****************************/
+/******************************************************************************
+ * Module : date                                                              *
+ ******************************************************************************/
 
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, MONTH, YEAR){
   function createFormat(UTC){
@@ -2002,9 +1986,9 @@ $define(PROTO, NUMBER, turn.call(
   });
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
 
-/*****************************
- * Module : console
- *****************************/
+/******************************************************************************
+ * Module : console                                                           *
+ ******************************************************************************/
 
 !function(console){
   var $console = turn.call(

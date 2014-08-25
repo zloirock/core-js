@@ -12,23 +12,11 @@
     , escapeHTMLRegExp   = /[&<>"']/g
     , unescapeHTMLRegExp = /&(?:amp|lt|gt|quot|apos);/g;
   $define(PROTO, STRING, {
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#escape
-     * http://sugarjs.com/api/String/escapeHTML
-     * http://api.prototypejs.org/language/String/prototype/escapeHTML/
-     */
     escapeHTML: function(){
       return String(this).replace(escapeHTMLRegExp, function(part){
         return escapeHTMLDict[part];
       });
     },
-    /**
-     * Alternatives:
-     * http://underscorejs.org/#unescape
-     * http://sugarjs.com/api/String/unescapeHTML
-     * http://api.prototypejs.org/language/String/prototype/unescapeHTML/
-     */
     unescapeHTML: function(){
       return String(this).replace(unescapeHTMLRegExp, function(part){
         return unescapeHTMLDict[part];

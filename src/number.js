@@ -1,3 +1,4 @@
+// Number.toInteger was part of the draft ECMAScript 6 specification, but has been removed
 $define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
   /**

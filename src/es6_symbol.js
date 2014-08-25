@@ -7,7 +7,7 @@
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      if(this instanceof Symbol)throw new TypeError(SYMBOL + ' is not a ' + CONSTRUCTOR);
+      assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
       defineProperty($Object, tag, {
         configurable: true,

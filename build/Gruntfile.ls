@@ -20,7 +20,7 @@ module.exports = (grunt)->
         files: './tests/tests/*'
         tasks: \livescript
   grunt.registerTask \build (options = 'all')->
-    options .= split \, .reduceTo -> @[it] = on
+    options .= split \, .turn ((memo, it)-> memo[it] = on), {}
     grunt.option(\path) || grunt.option \path './core'
     done = @async!
     js <- build options
