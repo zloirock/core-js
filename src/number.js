@@ -54,7 +54,7 @@ $define(PROTO, NUMBER, turn.call(
   ),
   function(memo, key){
     var fn = Math[key];
-    if(fn)memo[key] = function(/*...args*/){
+    if(fn)memo[key] = function(/* ...args */){
       // ie8- convert `this` to object -> convert it to number
       var args = [+this]
         , i    = 0;

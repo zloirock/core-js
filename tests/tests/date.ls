@@ -8,11 +8,11 @@ test 'Date.locale' !->
   ok locale! is \ru, 'Date.locale() is "ru"'
   ok locale(\xx) is \ru, 'Date.locale("xx") is "ru"'
 test 'Date.addLocale' !->
-  {addLocale, locale} = Date
-  ok isFunction(addLocale), 'Is function'
+  {locale} = Date
+  ok isFunction(Date.addLocale), 'Is function'
   ok locale(\en) is \en
   ok locale(\zz) is \en
-  ok addLocale(\zz, {
+  ok Date.addLocale(\zz, {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   }) is Date

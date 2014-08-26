@@ -23,7 +23,7 @@
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && (function(set){
+  __PROTO__ && function(set){
     var buggy;
     try { set({}, $Array) }
     catch(e){ buggy = true }
@@ -36,7 +36,7 @@
         return O;
       }
     });
-  })(ctx(call, getOwnDescriptor($Object, '__proto__').set));
+  }(ctx(call, getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -194,9 +194,12 @@
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var n = toInteger(count);
+      var str    = '' + this
+        , result = ''
+        , n      = toInteger(count);
       assert(0 <= n, "Count can't be negative");
-      return Array(n + 1).join(this);
+      for(;n > 0; (n >>= 1) && (str += str))if(n & 1)result += str;
+      return result;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
@@ -223,7 +226,7 @@
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
-    of: function(/*...args*/){
+    of: function(/* ...args */){
       var index  = 0
         , length = arguments.length
         , result = newGeneric(this, Array);
@@ -237,7 +240,7 @@
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , index  = 0;
-    for(; length > index; index++)if(f(self[index], index, O))return index;
+    for(;length > index; index++)if(f(self[index], index, O))return index;
     return -1;
   }
   $define(PROTO, ARRAY, {

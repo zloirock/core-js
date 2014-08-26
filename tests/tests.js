@@ -922,12 +922,12 @@
     ok(locale('xx') === 'ru', 'Date.locale("xx") is "ru"');
   });
   test('Date.addLocale', function(){
-    var addLocale, locale;
-    addLocale = Date.addLocale, locale = Date.locale;
-    ok(isFunction(addLocale), 'Is function');
+    var locale;
+    locale = Date.locale;
+    ok(isFunction(Date.addLocale), 'Is function');
     ok(locale('en') === 'en');
     ok(locale('zz') === 'en');
-    ok(addLocale('zz', {
+    ok(Date.addLocale('zz', {
       weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
       months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
     }) === Date);

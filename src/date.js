@@ -43,7 +43,7 @@
       MM: split(1),
       M : split(2)
     };
-    return Date;
+    return this;
   }
   $define(STATIC, DATE, {
     locale: function(locale){

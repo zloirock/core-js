@@ -29,7 +29,7 @@
      */
     methodize: function(){
       var fn = this;
-      return function(/*...args*/){
+      return function(/* ...args */){
         var args = [this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);

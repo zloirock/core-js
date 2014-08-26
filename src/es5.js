@@ -56,7 +56,7 @@
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(6 + $Object.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -114,9 +114,8 @@
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
     bind: function(scope /*, args... */){
-      var fn   = this
+      var fn   = assertFunction(this)
         , args = slice.call(arguments, 1);
-      assertFunction(fn);
       function bound(/* args... */){
         var _args = args.concat(slice.call(arguments))
           , result, that;
@@ -157,7 +156,7 @@
       var O      = ES5Object(this)
         , length = toLength(O.length)
         , index  = toInteger(fromIndex);
-      if(index < 0)index += length;
+      if(index < 0)index = max(length + index, 0);
       for(;length > index; index++)if(index in O){
         if(O[index] === searchElement)return index;
       }

@@ -97,7 +97,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call;
 // Partial apply
-function part(/*...args*/){
+function part(/* ...args */){
   var length = arguments.length
     , args   = Array(length)
     , i      = 0
@@ -109,14 +109,14 @@ function part(/*...args*/){
 // Simple context binding
 function ctx(fn, that){
   assertFunction(fn);
-  return function(/*...args*/){
+  return function(/* ...args */){
     return fn.apply(that, arguments);
   }
 }
 // Internal partial application & context binding
 function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
-  return function(/*...args*/){
+  return function(/* ...args */){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
@@ -161,9 +161,7 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , getSymbols       = Object.getOwnPropertySymbols
   , hasOwnProperty   = $Object.hasOwnProperty
-  , isEnumerable     = $Object.propertyIsEnumerable
   , __PROTO__        = '__proto__' in $Object
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
@@ -280,6 +278,7 @@ function assert(condition, msg1, msg2){
 }
 function assertFunction(it){
   assert(isFunction(it), it, ' is not a function!');
+  return it;
 }
 function assertObject(it){
   assert(isObject(it), it, ' is not an object!');

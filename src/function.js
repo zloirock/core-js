@@ -5,8 +5,7 @@ $define(STATIC, FUNCTION, {
 $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
-    assertFunction(this);
-    var instance = create(this[PROTOTYPE])
+    var instance = create(assertFunction(this)[PROTOTYPE])
       , result   = invoke(this, args, instance);
     return isObject(result) ? result : instance;
   },

@@ -110,7 +110,7 @@ function classof(it){
 var apply = $Function.apply
   , call  = $Function.call;
 // Partial apply
-function part(/*...args*/){
+function part(/* ...args */){
   var length = arguments.length
     , args   = Array(length)
     , i      = 0
@@ -122,14 +122,14 @@ function part(/*...args*/){
 // Simple context binding
 function ctx(fn, that){
   assertFunction(fn);
-  return function(/*...args*/){
+  return function(/* ...args */){
     return fn.apply(that, arguments);
   }
 }
 // Internal partial application & context binding
 function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
-  return function(/*...args*/){
+  return function(/* ...args */){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
@@ -174,9 +174,7 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , getSymbols       = Object.getOwnPropertySymbols
   , hasOwnProperty   = $Object.hasOwnProperty
-  , isEnumerable     = $Object.propertyIsEnumerable
   , __PROTO__        = '__proto__' in $Object
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
@@ -293,6 +291,7 @@ function assert(condition, msg1, msg2){
 }
 function assertFunction(it){
   assert(isFunction(it), it, ' is not a function!');
+  return it;
 }
 function assertObject(it){
   assert(isObject(it), it, ' is not an object!');
@@ -436,7 +435,7 @@ if(!isNode || framework)global.C = Export;
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(6 + isEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(6 + $Object.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -494,9 +493,8 @@ if(!isNode || framework)global.C = Export;
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
     bind: function(scope /*, args... */){
-      var fn   = this
+      var fn   = assertFunction(this)
         , args = slice.call(arguments, 1);
-      assertFunction(fn);
       function bound(/* args... */){
         var _args = args.concat(slice.call(arguments))
           , result, that;
@@ -537,7 +535,7 @@ if(!isNode || framework)global.C = Export;
       var O      = ES5Object(this)
         , length = toLength(O.length)
         , index  = toInteger(fromIndex);
-      if(index < 0)index += length;
+      if(index < 0)index = max(length + index, 0);
       for(;length > index; index++)if(index in O){
         if(O[index] === searchElement)return index;
       }
@@ -746,7 +744,7 @@ $define(GLOBAL, {global: global});
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && (function(set){
+  __PROTO__ && function(set){
     var buggy;
     try { set({}, $Array) }
     catch(e){ buggy = true }
@@ -759,7 +757,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  })(ctx(call, getOwnDescriptor($Object, '__proto__').set));
+  }(ctx(call, getOwnDescriptor($Object, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -917,9 +915,12 @@ $define(GLOBAL, {global: global});
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var n = toInteger(count);
+      var str    = '' + this
+        , result = ''
+        , n      = toInteger(count);
       assert(0 <= n, "Count can't be negative");
-      return Array(n + 1).join(this);
+      for(;n > 0; (n >>= 1) && (str += str))if(n & 1)result += str;
+      return result;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
@@ -946,7 +947,7 @@ $define(GLOBAL, {global: global});
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
-    of: function(/*...args*/){
+    of: function(/* ...args */){
       var index  = 0
         , length = arguments.length
         , result = newGeneric(this, Array);
@@ -960,7 +961,7 @@ $define(GLOBAL, {global: global});
       , self   = ES5Object(O)
       , length = toLength(self.length)
       , index  = 0;
-    for(; length > index; index++)if(f(self[index], index, O))return index;
+    for(;length > index; index++)if(f(self[index], index, O))return index;
     return -1;
   }
   $define(PROTO, ARRAY, {
@@ -1825,12 +1826,10 @@ $defineTimer(CLEAR_IMMEDIATE, clearImmediate);
  * ie9- setTimeout & setInterval additional parameters fix
  * http://www.w3.org/TR/html5/webappapis.html#timers
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
- * Alternatives:
- * https://developer.mozilla.org/ru/docs/Web/API/Window.setTimeout#IE_Only_Fix
  */
 !function(navigator){
   function wrap(set){
-    return function(fn, time /*, ...args*/){
+    return function(fn, time /*, ...args */){
       return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time || 1);
     }
   }
@@ -1854,8 +1853,7 @@ $define(STATIC, FUNCTION, {
 $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
-    assertFunction(this);
-    var instance = create(this[PROTOTYPE])
+    var instance = create(assertFunction(this)[PROTOTYPE])
       , result   = invoke(this, args, instance);
     return isObject(result) ? result : instance;
   },
@@ -1880,11 +1878,11 @@ $define(PROTO, FUNCTION, {
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ID] = invoke(set, this[ARGUMENTS] = args)
+      this[ID] = invoke(set, this[ARGUMENTS] = args);
     }
     hidden(Deferred[PROTOTYPE], 'set', function(){
       clear(this[ID]);
-      this[ID] = invoke(set, this[ARGUMENTS])
+      this[ID] = invoke(set, this[ARGUMENTS]);
       return this;
     });
     hidden(Deferred[PROTOTYPE], 'clear', function(){
@@ -1892,15 +1890,15 @@ $define(PROTO, FUNCTION, {
       return this;
     });
     return function(/* ...args */){
-      assertFunction(this);
-      var args = [this], i = 0;
+      var args = [assertFunction(this)]
+        , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
       return new Deferred(args);
     }
   }
   $define(PROTO, FUNCTION, {
-    timeout:   createDeferredFactory(setTimeout, clearTimeout),
-    interval:  createDeferredFactory(setInterval, clearInterval),
+    timeout:   createDeferredFactory(setTimeout,   clearTimeout),
+    interval:  createDeferredFactory(setInterval,  clearInterval),
     immediate: createDeferredFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));
@@ -1940,7 +1938,7 @@ $define(PROTO, FUNCTION, {
      */
     methodize: function(){
       var fn = this;
-      return function(/*...args*/){
+      return function(/* ...args */){
         var args = [this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
@@ -1982,66 +1980,70 @@ $define(PROTO, FUNCTION, {
  * Module : object                                                            *
  ******************************************************************************/
 
-var getPropertyKeys = getSymbols
-  ? function(it){
-      return getNames(it).concat(getSymbols(it));
-    }
-  : getNames
-// http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-// https://gist.github.com/WebReflection/9353781
-function getOwnPropertyDescriptors(object){
-  var result = {}
-    , keys   = getPropertyKeys(object)
-    , length = keys.length
-    , i      = 0
-    , key;
-  while(length > i)result[key = keys[i++]] = getOwnDescriptor(object, key);
-  return result;
-}
-$define(STATIC, OBJECT, {
-  isPrototype: ctx(call, $Object.isPrototypeOf),
-  getOwnPropertyKeys: getPropertyKeys,
-  // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-  getPropertyDescriptor: function(object, key){
-    if(key in object)do {
-      if(has(object, key))return getOwnDescriptor(object, key);
-    } while(object = getPrototypeOf(object));
-  },
+!function(){
+  var getSymbols      = Object.getOwnPropertySymbols
+    , getPropertyKeys = getSymbols
+      ? function(it){
+          return getNames(it).concat(getSymbols(it));
+        }
+      : getNames;
   // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-  // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-  getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-  /**
-   * Shugar for Object.create
-   * Alternatives:
-   * http://lodash.com/docs#create
-   */
-  make: function(proto, props){
-    return assign(create(proto), props);
-  },
-  /**
-   * 19.1.3.15 Object.mixin ( target, source )
-   * Removed in Draft Rev 22, January 20, 2014
-   * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
-   */
-  define: function(target, source){
-    return defineProperties(target, getOwnPropertyDescriptors(source));
-  },
-  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-  values: getValues,
-  // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-  entries: function(object){
-    var O      = ES5Object(object)
-      , keys   = getKeys(object)
+  // https://gist.github.com/WebReflection/9353781
+  function getOwnPropertyDescriptors(object){
+    var result = {}
+      , keys   = getPropertyKeys(object)
       , length = keys.length
       , i      = 0
-      , result = Array(length)
       , key;
-    while(length > i)result[i] = [key = keys[i++], O[key]];
+    while(length > i)result[key = keys[i++]] = getOwnDescriptor(object, key);
     return result;
-  },
-  isObject: isObject,
-  classof: classof
-});
+  }
+  $define(STATIC, OBJECT, {
+    isPrototype: ctx(call, $Object.isPrototypeOf),
+    getOwnPropertyKeys: getPropertyKeys,
+    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
+    getPropertyDescriptor: function(object, key){
+      var O = object;
+      if(key in O)do {
+        if(has(O, key))return getOwnDescriptor(O, key);
+      } while(O = getPrototypeOf(O));
+    },
+    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
+    // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
+    /**
+     * Shugar for Object.create
+     * Alternatives:
+     * http://lodash.com/docs#create
+     */
+    make: function(proto, props){
+      return assign(create(proto), props);
+    },
+    /**
+     * 19.1.3.15 Object.mixin ( target, source )
+     * Removed in Draft Rev 22, January 20, 2014
+     * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
+     */
+    define: function(target, source){
+      return defineProperties(target, getOwnPropertyDescriptors(source));
+    },
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    values: getValues,
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    entries: function(object){
+      var O      = ES5Object(object)
+        , keys   = getKeys(object)
+        , length = keys.length
+        , i      = 0
+        , result = Array(length)
+        , key;
+      while(length > i)result[i] = [key = keys[i++], O[key]];
+      return result;
+    },
+    isObject: isObject,
+    classof: classof
+  });
+}();
 
 /******************************************************************************
  * Module : array                                                             *
@@ -2178,7 +2180,7 @@ $define(PROTO, NUMBER, turn.call(
   ),
   function(memo, key){
     var fn = Math[key];
-    if(fn)memo[key] = function(/*...args*/){
+    if(fn)memo[key] = function(/* ...args */){
       // ie8- convert `this` to object -> convert it to number
       var args = [+this]
         , i    = 0;
@@ -2281,7 +2283,7 @@ $define(PROTO, NUMBER, turn.call(
       MM: split(1),
       M : split(2)
     };
-    return Date;
+    return this;
   }
   $define(STATIC, DATE, {
     locale: function(locale){

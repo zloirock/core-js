@@ -10,11 +10,11 @@
 !function(ARGUMENTS, ID){
   function createDeferredFactory(set, clear){
     function Deferred(args){
-      this[ID] = invoke(set, this[ARGUMENTS] = args)
+      this[ID] = invoke(set, this[ARGUMENTS] = args);
     }
     hidden(Deferred[PROTOTYPE], 'set', function(){
       clear(this[ID]);
-      this[ID] = invoke(set, this[ARGUMENTS])
+      this[ID] = invoke(set, this[ARGUMENTS]);
       return this;
     });
     hidden(Deferred[PROTOTYPE], 'clear', function(){
@@ -22,15 +22,15 @@
       return this;
     });
     return function(/* ...args */){
-      assertFunction(this);
-      var args = [this], i = 0;
+      var args = [assertFunction(this)]
+        , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
       return new Deferred(args);
     }
   }
   $define(PROTO, FUNCTION, {
-    timeout:   createDeferredFactory(setTimeout, clearTimeout),
-    interval:  createDeferredFactory(setInterval, clearInterval),
+    timeout:   createDeferredFactory(setTimeout,   clearTimeout),
+    interval:  createDeferredFactory(setInterval,  clearInterval),
     immediate: createDeferredFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));
