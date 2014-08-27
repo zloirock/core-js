@@ -23,12 +23,11 @@ asyncTest 'setImmediate / clearImmediate' 6 !->
     ok tmp4 is void, 'clearImmediate works'
   setTimeout start, 100
 
-req = ->
-  setTimeout _, 5e3 <| ->
-    x = 0
-    now = Date.now!
-    do inc = -> setImmediate ->
-      x := x + 1
-      if Date.now! - now < 1000 => inc!
-      else console "setImmediate: #x per second"
-if window? => window.onload = req else req!
+bzzzzz = ->
+  x = 0
+  now = Date.now!
+  do inc = -> setImmediate ->
+    x := x + 1
+    if Date.now! - now < 1000 => inc!
+    else console "setImmediate: #x per second"
+if window? => window.onload = bzzzzz else bzzzzz!

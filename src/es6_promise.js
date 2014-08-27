@@ -17,7 +17,7 @@
   }(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // microtask or, if not possible, macrotask
-    var asap = NODE
+    var asap = isNode
       ? process.nextTick
       : Promise && isFunction(Promise.resolve)
         ? function(fn){ $Promise.resolve().then(fn); }
@@ -52,14 +52,14 @@
     });
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
-      var Promise = this
-        , values  = [];
-      return new Promise(function(resolve, reject){
+      var C      = this
+        , values = [];
+      return new C(function(resolve, reject){
         $for(iterable).of(push, values);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){
-          Promise.resolve(promise).then(function(value){
+          C.resolve(promise).then(function(value){
             results[index] = value;
             --remaining || resolve(results);
           }, reject);
@@ -69,10 +69,10 @@
     });
     // 25.4.4.4 Promise.race(iterable)
     hidden(Promise, 'race', function(iterable){
-      var Promise = this;
-      return new Promise(function(resolve, reject){
+      var C = this;
+      return new C(function(resolve, reject){
         $for(iterable).of(function(promise){
-          Promise.resolve(promise).then(resolve, reject)
+          C.resolve(promise).then(resolve, reject)
         });
       });
     });
@@ -149,5 +149,5 @@
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL + FORCED, {Promise: Promise});
+  $define(GLOBAL, {Promise: Promise}, true);
 }(Promise, Promise);

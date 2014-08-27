@@ -44,7 +44,6 @@ Function
   ::bind(object, ...args | _) -> fn(...args)                          es5
   ::part(...args | _) -> fn(...args)                                  core
   ::by(object | _, ...args | _) -> fn(...args)                        core
-  ::only(numberArguments, that /* = @ */) -> fn(...args)              core
   ::methodize() -> fn(that, ...args)                                  core
   ::invoke(args, that) -> var                                         core
   ::construct(args) -> object                                         core
@@ -157,7 +156,7 @@ Number
   .parseInt(str) -> int                                               es6
   .toInteger(num) -> int                                              core
   ::times(fn(i, i, @), that) -> array                                 core
-  ::random(lim = 0) -> num                                            core
+  ::random(num = 0) -> num                                            core
   ::{...Math}                                                         core
 Math
   .acosh(num) -> num                                                  es6
@@ -176,10 +175,10 @@ Math
   .sinh(num) -> num                                                   es6
   .tanh(num) -> num                                                   es6
   .trunc(num) -> num                                                  es6
-  .randomInt(lim1, lim2 = 0) -> int                                   core
+  .randomInt(num, num = 0) -> int                                     core
 Date
   .now() -> int                                                       es5
-  .addLocale(key, object) -> @                                        core
+  .addLocale(key, object) -> Date                                     core
   .locale(key?) -> key                                                core
   ::format(str, key?) -> str                                          core
   ::formatUTC(str, key?) -> str                                       core
@@ -208,7 +207,7 @@ console(...args) -> void                                              core
 $for(iterable, entries).of(fn(value, key?), that) -> void             core
   .isIterable(var) -> bool                                            core
   .getIterator(iterable) -> iterator                                  core
-core                                                                  core
+C                                                                     core
   .{...global}                                                        core
 _ -> object                                                           core / undescore
 ```

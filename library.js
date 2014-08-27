@@ -34,6 +34,10 @@ var global          = returnThis()
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
+  , SET_TIMEOUT     = 'setTimeout'
+  , SET_INTERVAL    = 'setInterval'
+  , SET_IMMEDIATE   = 'setImmediate'
+  , CLEAR_IMMEDIATE = 'clearImmediate'
   // Aliases global objects and prototypes
   , Function        = global[FUNCTION]
   , Object          = global[OBJECT]
@@ -49,11 +53,11 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
   , Math            = global[MATH]
-  , setTimeout      = global.setTimeout
+  , setTimeout      = global[SET_TIMEOUT]
   , clearTimeout    = global.clearTimeout
-  , setInterval     = global.setInterval
-  , setImmediate    = global.setImmediate
-  , clearImmediate  = global.clearImmediate
+  , setInterval     = global[SET_INTERVAL]
+  , setImmediate    = global[SET_IMMEDIATE]
+  , clearImmediate  = global[CLEAR_IMMEDIATE]
   , process         = global[PROCESS]
   , document        = global.document
   , $Array          = Array[PROTOTYPE]
@@ -61,6 +65,11 @@ var global          = returnThis()
   , $Function       = Function[PROTOTYPE]
   , Infinity        = 1 / 0;
 
+var Export = {}
+  , path   = framework ? global : Export;
+// Placeholder
+Export._ = path._ = framework ? path._ || {} : {};
+  
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
@@ -295,9 +304,9 @@ function assertInstance(it, Constructor, name){
 // Property descriptors & Symbol
 function descriptor(bitmap, value){
   return {
-    enumerable  : !(bitmap & 1),
-    configurable: !(bitmap & 2),
-    writable    : !(bitmap & 4),
+    enumerable  : !!(bitmap & 1),
+    configurable: !!(bitmap & 2),
+    writable    : !!(bitmap & 4),
     value       : value
   }
 }
@@ -305,7 +314,7 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(1, value));
+  return defineProperty(object, key, descriptor(6, value));
 }
 var sid    = 0
   , symbol = Symbol || uid
@@ -322,47 +331,47 @@ var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, S
 // DOM
 var html = document && document.documentElement;
 
-// core
-var core = {}
-  , path   = framework ? global : core
-  , NODE   = classof(process) == PROCESS
-  // type bitmap
-  , FORCED = 1
-  , GLOBAL = 2
-  , STATIC = 4
-  , PROTO  = 8
-  , BIND   = 16
-  , WRAP   = 32;
-function $define(type, name, source){
-  var key, own, out, exp
+// Export
+var GLOBAL = 1
+  , STATIC = 2
+  , PROTO  = 4;
+function $define(type, name, source, forced /* = false */){
+  var key, own, prop
     , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || $Object)[PROTOTYPE]
-    , exports  = isGlobal ? core : core[name] || (core[name] = {});
-  if(isGlobal)source = name;
+    , isStatic = type & STATIC
+    , isProto  = type & PROTO
+    , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , exports  = isGlobal ? Export : Export[name] || (Export[name] = {});
+  if(isGlobal){
+    forced = source;
+    source = name;
+  }
   for(key in source){
-    // there is a similar native
-    own = !(type & FORCED) && target && key in target && (!isFunction(target[key]) || isNative(target[key]));
-    // export native or passed
-    out = (own ? target : source)[key];
-    // bind timers to global for call from export context
-    if(type & BIND && own)exp = ctx(out, global);
-    // wrap global constructors for prevent change them in library
-    else if(type & WRAP && !framework && target[key] == out){
-      exp = function(param){
-        return this instanceof out ? new out(param) : out(param);
-      }
-      exp[PROTOTYPE] = out[PROTOTYPE];
-    } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
-    // .CORE mark
-    if(!own && out != global)out.CORE = exp.CORE = true;
-    // export to `core`
-    if(exports[key] != out)exports[key] = exp;
+    own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
+    prop = own ? target[key] : source[key];
+    // export to `C`
+    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
     // if build as framework, extend global objects
-    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
+    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, source[key]);
   }
 }
-// Placeholder
-core._ = path._ = framework ? path._ || {} : {};
+function $defineTimer(key, fn){
+  if(framework)global[key] = fn;
+  Export[key] = global[key] != fn ? fn : ctx(fn, global);
+}
+// Wrap to prevent obstruction of the global constructors, when build as library
+function wrapGlobalConstructor(Base){
+  if(framework || !isNative(Base))return Base;
+  function F(param){
+    // used on constructors that takes 1 argument
+    return this instanceof Base ? new Base(param) : Base(param);
+  }
+  F[PROTOTYPE] = Base[PROTOTYPE];
+  return F;
+}
+var isNode = classof(process) == PROCESS;
+if(isNode)module.exports = Export;
+if(!isNode || framework)global.C = Export;
 
 /******************************************************************************
  * Module : es5                                                               *
@@ -426,7 +435,7 @@ core._ = path._ = framework ? path._ || {} : {};
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!$Object.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(6 + $Object.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -446,14 +455,14 @@ core._ = path._ = framework ? path._ || {} : {};
       return O;
     };
   }
-  $define(STATIC + !DESCRIPTORS, OBJECT, {
+  $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
-  });
+  }, !DESCRIPTORS);
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
@@ -509,10 +518,10 @@ core._ = path._ = framework ? path._ || {} : {};
     }
     slice = arrayMethodFix(slice);
   }
-  $define(PROTO + (ES5Object != Object), ARRAY, {
+  $define(PROTO, ARRAY, {
     slice: slice,
     join: arrayMethodFix($Array.join)
-  });
+  }, ES5Object != Object);
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
   $define(STATIC, ARRAY, {
@@ -687,7 +696,7 @@ $define(GLOBAL, {global: global});
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
-  $define(GLOBAL + WRAP, {Symbol: Symbol});
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, true);
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
@@ -1028,7 +1037,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     run(event.data);
   }
   // Node.js 0.8-
-  if(NODE){
+  if(isNode){
     defer = function(id){
       process.nextTick(part.call(run, id));
     }
@@ -1057,10 +1066,8 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     setTimeout(part.call(run, id), 0);
   }
 }('onreadystatechange');
-$define(GLOBAL + BIND, {
-  setImmediate:   setImmediate,
-  clearImmediate: clearImmediate
-});
+$defineTimer(SET_IMMEDIATE, setImmediate);
+$defineTimer(CLEAR_IMMEDIATE, clearImmediate);
 
 /******************************************************************************
  * Module : es6_promise                                                       *
@@ -1085,7 +1092,7 @@ $define(GLOBAL + BIND, {
   }(new Promise(Function()))
   || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
     // microtask or, if not possible, macrotask
-    var asap = NODE
+    var asap = isNode
       ? process.nextTick
       : Promise && isFunction(Promise.resolve)
         ? function(fn){ $Promise.resolve().then(fn); }
@@ -1120,14 +1127,14 @@ $define(GLOBAL + BIND, {
     });
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
-      var Promise = this
-        , values  = [];
-      return new Promise(function(resolve, reject){
+      var C      = this
+        , values = [];
+      return new C(function(resolve, reject){
         $for(iterable).of(push, values);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){
-          Promise.resolve(promise).then(function(value){
+          C.resolve(promise).then(function(value){
             results[index] = value;
             --remaining || resolve(results);
           }, reject);
@@ -1137,10 +1144,10 @@ $define(GLOBAL + BIND, {
     });
     // 25.4.4.4 Promise.race(iterable)
     hidden(Promise, 'race', function(iterable){
-      var Promise = this;
-      return new Promise(function(resolve, reject){
+      var C = this;
+      return new C(function(resolve, reject){
         $for(iterable).of(function(promise){
-          Promise.resolve(promise).then(resolve, reject)
+          C.resolve(promise).then(resolve, reject)
         });
       });
     });
@@ -1217,7 +1224,7 @@ $define(GLOBAL + BIND, {
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL + FORCED, {Promise: Promise});
+  $define(GLOBAL, {Promise: Promise}, true);
 }(Promise, Promise);
 
 /******************************************************************************
@@ -1275,7 +1282,7 @@ $define(GLOBAL + BIND, {
         return this;
       });
     }
-    if(initFromIter)return Base;
+    if(initFromIter)return wrapGlobalConstructor(Base);
     // wrap to init collections from iterable
     function F(iterable){
       assertInstance(this, F, name);
@@ -1443,12 +1450,12 @@ $define(GLOBAL + BIND, {
   setToStringTag(WeakMap, WEAKMAP);
   setToStringTag(WeakSet, WEAKSET);
   
-  $define(GLOBAL + FORCED + WRAP, {
+  $define(GLOBAL, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
-  });
+  }, true);
 }();
 
 /******************************************************************************
@@ -1657,7 +1664,7 @@ $define(GLOBAL + BIND, {
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
   
-  $define(GLOBAL, {$for: $for});
+  $define(GLOBAL, {$for: $for}, true);
 }('@@iterator');
 
 /******************************************************************************
@@ -1799,7 +1806,7 @@ $define(GLOBAL + BIND, {
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
-      return defineProperty(object, key, descriptor(0, value));
+      return defineProperty(object, key, descriptor(7, value));
     },
     'delete': function(object, key){
       return has(object, key) && delete object[key];
@@ -1808,7 +1815,7 @@ $define(GLOBAL + BIND, {
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL, {Dict: Dict}, true);
 }();
 
 /******************************************************************************
@@ -1821,7 +1828,6 @@ $define(GLOBAL + BIND, {
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  */
 !function(navigator){
-  var forced = !FORCED;
   function wrap(set){
     return function(fn, time /*, ...args */){
       return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time || 1);
@@ -1829,20 +1835,21 @@ $define(GLOBAL + BIND, {
   }
   // ie9- dirty check
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    forced = FORCED
     setTimeout  = wrap(setTimeout);
     setInterval = wrap(setInterval);
   }
-  $define(GLOBAL + BIND + forced, {
-    setTimeout:  setTimeout,
-    setInterval: setInterval
-  });
+  $defineTimer(SET_TIMEOUT, setTimeout);
+  $defineTimer(SET_INTERVAL, setInterval);
 }(global.navigator);
 
 /******************************************************************************
  * Module : function                                                          *
  ******************************************************************************/
 
+$define(STATIC, FUNCTION, {
+  isFunction: isFunction,
+  isNative: isNative
+});
 $define(PROTO, FUNCTION, {
   // 7.3.18 Construct (F, argumentsList)
   construct: function(args){
@@ -1925,22 +1932,6 @@ $define(PROTO, FUNCTION, {
       return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
     },
     /**
-     * http://www.wirfs-brock.com/allen/posts/166
-     * http://habrahabr.ru/post/114737/
-     */
-    only: function(numberArguments, that /* = undefined */){
-      var fn     = assertFunction(this)
-        , n      = toLength(numberArguments)
-        , isThat = arguments.length > 1;
-      return function(/* ...args */){
-        var length = min(n, arguments.length)
-          , args   = Array(length)
-          , i      = 0;
-        while(length > i)args[i] = arguments[i++];
-        return invoke(fn, args, isThat ? that : this);
-      }
-    },
-    /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
      * Alternatives:
      * http://api.prototypejs.org/language/Function/prototype/methodize/
@@ -1974,7 +1965,7 @@ $define(PROTO, FUNCTION, {
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: core.tie = ctx(call, tie)});
+  $define(STATIC, OBJECT, {tie: Export.tie = ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;
@@ -2346,8 +2337,6 @@ $define(PROTO, NUMBER, turn.call(
   try {
     framework && delete global.console;
   } catch(e){}
-  $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
+  $define(GLOBAL, {console: assign($console.log, $console)}, true);
 }(global.console || {});
-if(NODE)module.exports = core;
-if(!NODE || framework)$define(GLOBAL, {core: core})
 }(Function('return this'), false);

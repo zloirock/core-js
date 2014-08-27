@@ -133,7 +133,7 @@
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
-      return defineProperty(object, key, descriptor(0, value));
+      return defineProperty(object, key, descriptor(7, value));
     },
     'delete': function(object, key){
       return has(object, key) && delete object[key];
@@ -142,5 +142,5 @@
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL, {Dict: Dict}, true);
 }();

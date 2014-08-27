@@ -3150,6 +3150,33 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
+  test('Function.isFunction', function(){
+    var isFunction, i$, x$, ref$, len$;
+    isFunction = Function.isFunction;
+    ok(typeof isFunction === 'function', 'Is function');
+    ok(isFunction(function(){}), 'isFunction function');
+    for (i$ = 0, len$ = (ref$ = [void 8, null, 1, '', false, {}, fn$(), [], /./]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(!isFunction(x$), "not isFunction " + toString$.call(x$).slice(8, -1));
+    }
+    function fn$(){
+      return arguments;
+    }
+  });
+  test('Function.isNative', function(){
+    var isNative, i$, x$, ref$, len$;
+    isNative = Function.isNative;
+    ok(isFunction(isNative), 'Is function');
+    ok(isNative(Object.prototype.hasOwnProperty), 'isNative native function');
+    for (i$ = 0, len$ = (ref$ = [fn$, void 8, null, 1, '', false, {}, fn1$(), [], /./]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(!isNative(x$), "not isNative " + toString$.call(x$).slice(8, -1));
+    }
+    function fn$(){}
+    function fn1$(){
+      return arguments;
+    }
+  });
   test('Function::construct', function(){
     var C;
     ok(isFunction(Function.prototype.construct), 'Is function');
@@ -3177,7 +3204,7 @@
 }).call(this);
 
 (function(){
-  var isFunction, that, req, toString$ = {}.toString;
+  var isFunction, that, bzzzzz, toString$ = {}.toString;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -3210,27 +3237,25 @@
     }, 90);
     setTimeout(start, 100);
   });
-  req = function(){
-    return setTimeout(function(){
-      var x, now, inc;
-      x = 0;
-      now = Date.now();
-      return (inc = function(){
-        return setImmediate(function(){
-          x = x + 1;
-          if (Date.now() - now < 1000) {
-            return inc();
-          } else {
-            return console("setImmediate: " + x + " per second");
-          }
-        });
-      })();
-    }, 5e3);
+  bzzzzz = function(){
+    var x, now, inc;
+    x = 0;
+    now = Date.now();
+    return (inc = function(){
+      return setImmediate(function(){
+        x = x + 1;
+        if (Date.now() - now < 1000) {
+          return inc();
+        } else {
+          return console("setImmediate: " + x + " per second");
+        }
+      });
+    })();
   };
   if (typeof window != 'undefined' && window !== null) {
-    window.onload = req;
+    window.onload = bzzzzz;
   } else {
-    req();
+    bzzzzz();
   }
 }).call(this);
 

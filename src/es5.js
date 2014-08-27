@@ -56,7 +56,7 @@
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!$Object.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(6 + $Object.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -76,14 +76,14 @@
       return O;
     };
   }
-  $define(STATIC + !DESCRIPTORS, OBJECT, {
+  $define(STATIC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
     defineProperty: defineProperty,
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
-  });
+  }, !DESCRIPTORS);
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
@@ -139,10 +139,10 @@
     }
     slice = arrayMethodFix(slice);
   }
-  $define(PROTO + (ES5Object != Object), ARRAY, {
+  $define(PROTO, ARRAY, {
     slice: slice,
     join: arrayMethodFix($Array.join)
-  });
+  }, ES5Object != Object);
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
   $define(STATIC, ARRAY, {

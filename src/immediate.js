@@ -37,7 +37,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     run(event.data);
   }
   // Node.js 0.8-
-  if(NODE){
+  if(isNode){
     defer = function(id){
       process.nextTick(part.call(run, id));
     }
@@ -66,7 +66,5 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     setTimeout(part.call(run, id), 0);
   }
 }('onreadystatechange');
-$define(GLOBAL + BIND, {
-  setImmediate:   setImmediate,
-  clearImmediate: clearImmediate
-});
+$defineTimer(SET_IMMEDIATE, setImmediate);
+$defineTimer(CLEAR_IMMEDIATE, clearImmediate);

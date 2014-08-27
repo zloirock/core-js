@@ -27,7 +27,7 @@
   TOSTRINGTAG = $TOSTRINGTAG in Symbol
     ? Symbol[$TOSTRINGTAG]
     : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
-  $define(GLOBAL + WRAP, {Symbol: Symbol});
+  $define(GLOBAL, {Symbol: wrapGlobalConstructor(Symbol)}, true);
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){

@@ -26,5 +26,5 @@
   try {
     framework && delete global.console;
   } catch(e){}
-  $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
+  $define(GLOBAL, {console: assign($console.log, $console)}, true);
 }(global.console || {});
