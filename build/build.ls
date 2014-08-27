@@ -34,5 +34,7 @@ module.exports = (opt, next)-> let @ = opt
     !function(returnThis, framework, undefined){
     'use strict';
     #{scripts * '\n'}
+    if(NODE)module.exports = core;
+    if(!NODE || framework)$define(GLOBAL, {core: core})
     }(Function('return this'), #{!@library});
     """

@@ -49,7 +49,7 @@
         return this;
       });
     }
-    if(initFromIter)return wrapGlobalConstructor(Base);
+    if(initFromIter)return Base;
     // wrap to init collections from iterable
     function F(iterable){
       assertInstance(this, F, name);
@@ -217,10 +217,10 @@
   setToStringTag(WeakMap, WEAKMAP);
   setToStringTag(WeakSet, WEAKSET);
   
-  $define(GLOBAL, {
+  $define(GLOBAL + FORCED + WRAP, {
     Map: Map,
     Set: Set,
     WeakMap: WeakMap,
     WeakSet: WeakSet
-  }, true);
+  });
 }();
