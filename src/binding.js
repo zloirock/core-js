@@ -23,6 +23,22 @@
       return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
     },
     /**
+     * http://www.wirfs-brock.com/allen/posts/166
+     * http://habrahabr.ru/post/114737/
+     */
+    only: function(numberArguments, that /* = undefined */){
+      var fn     = assertFunction(this)
+        , n      = toLength(numberArguments)
+        , isThat = arguments.length > 1;
+      return function(/* ...args */){
+        var length = min(n, arguments.length)
+          , args   = Array(length)
+          , i      = 0;
+        while(length > i)args[i] = arguments[i++];
+        return invoke(fn, args, isThat ? that : this);
+      }
+    },
+    /**
      * fn(a, b, c, ...) -> a.fn(b, c, ...)
      * Alternatives:
      * http://api.prototypejs.org/language/Function/prototype/methodize/
@@ -56,7 +72,7 @@
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: Export.tie = ctx(call, tie)});
+  $define(STATIC, OBJECT, {tie: core.tie = ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;

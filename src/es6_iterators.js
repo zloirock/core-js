@@ -200,5 +200,5 @@
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
   
-  $define(GLOBAL, {$for: $for}, true);
+  $define(GLOBAL, {$for: $for});
 }('@@iterator');

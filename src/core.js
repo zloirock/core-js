@@ -21,10 +21,6 @@ var global          = returnThis()
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
-  , SET_TIMEOUT     = 'setTimeout'
-  , SET_INTERVAL    = 'setInterval'
-  , SET_IMMEDIATE   = 'setImmediate'
-  , CLEAR_IMMEDIATE = 'clearImmediate'
   // Aliases global objects and prototypes
   , Function        = global[FUNCTION]
   , Object          = global[OBJECT]
@@ -40,11 +36,11 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Promise         = global[PROMISE]
   , Math            = global[MATH]
-  , setTimeout      = global[SET_TIMEOUT]
+  , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
-  , setInterval     = global[SET_INTERVAL]
-  , setImmediate    = global[SET_IMMEDIATE]
-  , clearImmediate  = global[CLEAR_IMMEDIATE]
+  , setInterval     = global.setInterval
+  , setImmediate    = global.setImmediate
+  , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , document        = global.document
   , $Array          = Array[PROTOTYPE]
@@ -52,11 +48,6 @@ var global          = returnThis()
   , $Function       = Function[PROTOTYPE]
   , Infinity        = 1 / 0;
 
-var Export = {}
-  , path   = framework ? global : Export;
-// Placeholder
-Export._ = path._ = framework ? path._ || {} : {};
-  
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
   return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
@@ -291,9 +282,9 @@ function assertInstance(it, Constructor, name){
 // Property descriptors & Symbol
 function descriptor(bitmap, value){
   return {
-    enumerable  : !!(bitmap & 1),
-    configurable: !!(bitmap & 2),
-    writable    : !!(bitmap & 4),
+    enumerable  : !(bitmap & 1),
+    configurable: !(bitmap & 2),
+    writable    : !(bitmap & 4),
     value       : value
   }
 }
@@ -301,7 +292,7 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(6, value));
+  return defineProperty(object, key, descriptor(1, value));
 }
 var sid    = 0
   , symbol = Symbol || uid
@@ -318,44 +309,44 @@ var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, S
 // DOM
 var html = document && document.documentElement;
 
-// Export
-var GLOBAL = 1
-  , STATIC = 2
-  , PROTO  = 4;
-function $define(type, name, source, forced /* = false */){
-  var key, own, prop
+// core
+var core = {}
+  , path   = framework ? global : core
+  , NODE   = classof(process) == PROCESS
+  // type bitmap
+  , FORCED = 1
+  , GLOBAL = 2
+  , STATIC = 4
+  , PROTO  = 8
+  , BIND   = 16
+  , WRAP   = 32;
+function $define(type, name, source){
+  var key, own, out, exp
     , isGlobal = type & GLOBAL
-    , isStatic = type & STATIC
-    , isProto  = type & PROTO
-    , target   = isGlobal ? global : isStatic ? global[name] : (global[name] || $Object)[PROTOTYPE]
-    , exports  = isGlobal ? Export : Export[name] || (Export[name] = {});
-  if(isGlobal){
-    forced = source;
-    source = name;
-  }
+    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , exports  = isGlobal ? core : core[name] || (core[name] = {});
+  if(isGlobal)source = name;
   for(key in source){
-    own  = !forced && target && has(target, key) && (!isFunction(target[key]) || isNative(target[key]));
-    prop = own ? target[key] : source[key];
-    // export to `C`
-    if(exports[key] != prop)exports[key] = isProto && isFunction(prop) ? ctx(call, prop) : prop;
+    // there is a similar native
+    own = !(type & FORCED) && target && key in target && (!isFunction(target[key]) || isNative(target[key]));
+    // export native or passed
+    out = (own ? target : source)[key];
+    // bind timers to global for call from export context
+    if(type & BIND && own)exp = ctx(out, global);
+    // wrap global constructors for prevent change them in library
+    else if(type & WRAP && !framework && target[key] == out){
+      exp = function(param){
+        return this instanceof out ? new out(param) : out(param);
+      }
+      exp[PROTOTYPE] = out[PROTOTYPE];
+    } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
+    // .CORE mark
+    if(!own && out != global)out.CORE = exp.CORE = true;
+    // export to `core`
+    if(exports[key] != out)exports[key] = exp;
     // if build as framework, extend global objects
-    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, source[key]);
+    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
 }
-function $defineTimer(key, fn){
-  if(framework)global[key] = fn;
-  Export[key] = global[key] != fn ? fn : ctx(fn, global);
-}
-// Wrap to prevent obstruction of the global constructors, when build as library
-function wrapGlobalConstructor(Base){
-  if(framework || !isNative(Base))return Base;
-  function F(param){
-    // used on constructors that takes 1 argument
-    return this instanceof Base ? new Base(param) : Base(param);
-  }
-  F[PROTOTYPE] = Base[PROTOTYPE];
-  return F;
-}
-var isNode = classof(process) == PROCESS;
-if(isNode)module.exports = Export;
-if(!isNode || framework)global.C = Export;
+// Placeholder
+core._ = path._ = framework ? path._ || {} : {};
