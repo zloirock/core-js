@@ -1,5 +1,6 @@
+module \Array
 isFunction = -> typeof! it is \Function
-test 'Array::get' !->
+test '::get' !->
   ok isFunction(Array::get), 'Is function'
   ok [1 2 3]get(0)  is 1,    '[1, 2, 3].get(0) is 1'
   ok [1 2 3]get(2)  is 3,    '[1, 2, 3].get(2) is 3'
@@ -7,13 +8,13 @@ test 'Array::get' !->
   ok [1 2 3]get(-1) is 3,    '[1, 2, 3].get(-1) is 3'
   ok [1 2 3]get(-3) is 1,    '[1, 2, 3].get(-3) is 1'
   ok [1 2 3]get(-4) is void, '[1, 2, 3].get(-4) is undefined'
-test 'Array::set' !->
+test '::set' !->
   ok isFunction(Array::set), 'Is function'
   arr = []
   ok arr.set(0, 42) is arr
   deepEqual arr, [42]
   deepEqual [1].set(0 1).set(1 0).set(2 3).set(-2 2), [1 2 3]
-test 'Array::turn' !->
+test '::turn' !->
   ok isFunction(Array::turn), 'Is function'
   (arr = [1])turn (memo, val, key, that)->
     deepEqual [] memo, 'Default memo is array'
@@ -24,7 +25,7 @@ test 'Array::turn' !->
     ok memo is obj, 'Can reduce to exist object'
   , obj = {}
   deepEqual [3 2 1] [1 2 3]turn((memo, it)-> memo.unshift it), 'Reduce to object and return it'
-test 'Array::clone' !->
+test '::clone' !->
   ok isFunction(Array::clone), 'Is function'
   arr1 = [object1 = {q:1, w:2}, array1 = [1 2], 1 2 3]
   arr2 = arr1.clone!
@@ -32,7 +33,7 @@ test 'Array::clone' !->
   ok arr2\0 isnt object1
   ok arr2\1 isnt array1
   deepEqual arr1, arr2
-test 'Array::contains' !->
+test '::contains' !->
   ok isFunction(Array::contains), 'Is function'
   arr = [1 2 3 -0 NaN, o = {}]
   ok arr.contains 1

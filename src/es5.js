@@ -52,11 +52,11 @@
       };
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
-    defineProperty({}, 0, $Object);
+    defineProperty({}, 0, ObjectProto);
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!$Object.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(NOT_ENUM * !ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -76,7 +76,7 @@
       return O;
     };
   }
-  $define(STATIC + !DESCRIPTORS, OBJECT, {
+  $define(STATIC + FORCED * !DESCRIPTORS, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -91,7 +91,7 @@
       if(has(O, $PROTO))return O[$PROTO];
       if(__PROTO__ && '__proto__' in O)return O.__proto__;
       if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
-      if(O instanceof Object)return $Object;
+      if(O instanceof Object)return ObjectProto;
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -135,19 +135,19 @@
   }
   if(!(0 in Object('q') && 'q'[0] == 'q')){
     ES5Object = function(it){
-      return _classof(it) == STRING ? it.split('') : Object(it);
+      return cof(it) == STRING ? it.split('') : Object(it);
     }
     slice = arrayMethodFix(slice);
   }
-  $define(PROTO + (ES5Object != Object), ARRAY, {
+  $define(PROTO + FORCED * (ES5Object != Object), ARRAY, {
     slice: slice,
-    join: arrayMethodFix($Array.join)
+    join: arrayMethodFix(ArrayProto.join)
   });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
   $define(STATIC, ARRAY, {
     isArray: function(arg){
-      return _classof(arg) == ARRAY
+      return cof(arg) == ARRAY
     }
   });
   $define(PROTO, ARRAY, {
@@ -270,7 +270,7 @@
   }});
   
   if(isFunction(trimRegExp))isFunction = function(it){
-    return _classof(it) == FUNCTION;
+    return cof(it) == FUNCTION;
   }
   if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
     var cof = _classof(it);

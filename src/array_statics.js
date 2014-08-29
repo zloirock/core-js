@@ -4,7 +4,7 @@
  * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
  */
 $define(STATIC, ARRAY, turn.call(
-  // IE... getNames($Array),
+  // IE... getNames(ArrayProto),
   array(
     // ES3:
     'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
@@ -16,6 +16,6 @@ $define(STATIC, ARRAY, turn.call(
     'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){
-    if(key in $Array)memo[key] = ctx(call, $Array[key]);
+    if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key]);
   }, {}
 ));

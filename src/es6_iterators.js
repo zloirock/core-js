@@ -1,5 +1,5 @@
 !function($$ITERATOR){
-  var FFITERATOR = $$ITERATOR in $Array
+  var FFITERATOR = $$ITERATOR in ArrayProto
     , KEY        = 1
     , VALUE      = 2
     , ITERATED   = symbol('iterated')
@@ -103,7 +103,7 @@
   // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
     var that = this, keys;
-    if(SHIM_MAP)keys = getValues(iterated[COLLECTION_KEYS]);
+    if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else mapForEach.call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
@@ -130,7 +130,7 @@
   // 23.2.5.1 CreateSetIterator Abstract Operation
   function SetIterator(iterated, kind){
     var keys;
-    if(SHIM_SET)keys = getValues(iterated[COLLECTION_KEYS]);
+    if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);

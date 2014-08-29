@@ -1,5 +1,6 @@
+module \Function
 isFunction = -> typeof! it  is \Function
-test 'Function::construct' !->
+test '::construct' !->
   ok isFunction(Function::construct), 'Is function'
   class C
     (@a, @b)->

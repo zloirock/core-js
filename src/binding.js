@@ -77,8 +77,8 @@
   hidden(path._, TO_STRING, function(){
     return _;
   });
-  DESCRIPTORS && hidden($Object, _, tie);
-  hidden($Function, _, tie);
-  hidden($Array, _, tie);
+  DESCRIPTORS && hidden(ObjectProto, _, tie);
+  hidden(FunctionProto, _, tie);
+  hidden(ArrayProto, _, tie);
   hidden(RegExp[PROTOTYPE], _, tie);
 }(uid('tie'));

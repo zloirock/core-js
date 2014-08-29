@@ -126,14 +126,16 @@
       }
       return false;
     },
-    clone: ctx(call, $clone),
+    clone: function(it){
+      return clone(it, [], []);
+    },
     // Has / get / set / delete own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
-      return defineProperty(object, key, descriptor(0, value));
+      return defineProperty(object, key, descriptor(SIMPLE, value));
     },
     'delete': function(object, key){
       return has(object, key) && delete object[key];

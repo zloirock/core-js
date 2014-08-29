@@ -1,13 +1,14 @@
+module 'ES6 Promise'
 isFunction = -> typeof! it is \Function
 test 'Promise' !->
   ok isFunction((global? && global || window)Promise), 'Is function'
   ok isFunction(Promise::then), 'Promise::then is function'
   ok isFunction(Promise::catch), 'Promise::catch is function'
-test 'Promise.all' !->
+test '.all' !->
   ok isFunction(Promise.all), 'Is function'
-test 'Promise.race' !->
+test '.race' !->
   ok isFunction(Promise.race), 'Is function'
-test 'Promise.resolve' !->
+test '.resolve' !->
   ok isFunction(Promise.resolve), 'Is function'
-test 'Promise.reject' !->
+test '.reject' !->
   ok isFunction(Promise.reject), 'Is function'

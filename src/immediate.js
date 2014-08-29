@@ -62,8 +62,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
       }
     }
   // Rest old browsers
-  } else defer = function(id){
-    setTimeout(part.call(run, id), 0);
+  } else {
+    defer = function(id){
+      setTimeout(part.call(run, id), 0);
+    }
   }
 }('onreadystatechange');
 $define(GLOBAL + BIND, {

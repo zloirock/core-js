@@ -1,5 +1,6 @@
+module \Binding
 isFunction = -> typeof! it  is \Function
-isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
+isNative = -> /\[native code\]\s*\}\s*$/.test it
 {slice} = Array::
 test 'Function::by' !->
   $ = _

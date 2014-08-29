@@ -1,5 +1,6 @@
+module \Date
 isFunction = -> typeof! it is \Function
-test 'Date.locale' !->
+test '.locale' !->
   {locale} = Date
   ok isFunction(locale), 'Is function'
   locale \en
@@ -7,7 +8,7 @@ test 'Date.locale' !->
   ok locale(\ru) is \ru, 'Date.locale("ru") is "ru"'
   ok locale! is \ru, 'Date.locale() is "ru"'
   ok locale(\xx) is \ru, 'Date.locale("xx") is "ru"'
-test 'Date.addLocale' !->
+test '.addLocale' !->
   {locale} = Date
   ok isFunction(Date.addLocale), 'Is function'
   ok locale(\en) is \en
@@ -18,7 +19,7 @@ test 'Date.addLocale' !->
   }) is Date
   ok locale(\zz) is \zz
   ok new Date(1 2 3 4 5 6 7)format('W, D MM YYYY') is 'Воскресенье, 3 Марта 1901'
-test 'Date::format' !->
+test '::format' !->
   {locale} = Date
   ok isFunction(Date::format), 'Is function'
   date = new Date 1 2 3 4 5 6 7
@@ -27,7 +28,7 @@ test 'Date::format' !->
   ok date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') is '007 6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale'
   locale \ru
   ok date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') is '007 6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale'
-test 'Date::formatUTC' !->
+test '::formatUTC' !->
   ok isFunction(Date::formatUTC), 'Is function'
   date = new Date 1 2 3 4 5 6 7
   ok date.formatUTC(\h) is '' + date.getUTCHours!, 'Works'

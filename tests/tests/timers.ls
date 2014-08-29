@@ -1,3 +1,4 @@
+module \Timers
 that = global? && global || window
 asyncTest 'setTimeout / clearTimeout' 2 !->
   that.setTimeout _, 1 \b \c <| (b, c)!->

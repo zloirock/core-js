@@ -1,3 +1,4 @@
+module \Dict
 isFunction = -> typeof! it is \Function
 {keys} = Object
 test 'Dict' !->
@@ -15,7 +16,7 @@ test 'Dict' !->
   deepEqual keys(dict3), [\1, \2]
   ok dict3.1 is 1
   ok dict3.2 is 2
-test 'Dict.keys' !->
+test '.keys' !->
   ok typeof Dict.keys is \function, 'Is function'
   iter = Dict.keys {a: \q, s: \w, d: \e}
   ok typeof iter is \object, 'Iterator is object'
@@ -25,7 +26,7 @@ test 'Dict.keys' !->
   deepEqual iter.next!, {value: \d, done: no}
   deepEqual iter.next!, {value: void, done: on}
   ok iter[Symbol.toStringTag] is 'Object Iterator'
-test 'Dict.values' !->
+test '.values' !->
   ok typeof Dict.values is \function, 'Is function'
   iter = Dict.values {a: \q, s: \w, d: \e}
   ok typeof iter is \object, 'Iterator is object'
@@ -35,7 +36,7 @@ test 'Dict.values' !->
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
   ok iter[Symbol.toStringTag] is 'Object Iterator'
-test 'Dict.entries' !->
+test '.entries' !->
   ok typeof Dict.entries is \function, 'Is function'
   iter = Dict.entries {a: \q, s: \w, d: \e}
   ok typeof iter is \object, 'Iterator is object'
@@ -45,7 +46,7 @@ test 'Dict.entries' !->
   deepEqual iter.next!, {value: [\d \e], done: no}
   deepEqual iter.next!, {value: void, done: on}
   ok iter[Symbol.toStringTag] is 'Object Iterator'
-test 'Dict.every' !->
+test '.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'
   every obj = {q: 1} (val, key, that)->
@@ -56,7 +57,7 @@ test 'Dict.every' !->
   , ctx = {}
   ok every {q:1 w:2 e:3} -> typeof! it is \Number
   ok not every {q:1 w:\2 e:3} -> typeof! it is \Number
-test 'Dict.filter' !->
+test '.filter' !->
   {filter} = Dict
   ok isFunction(filter), 'Is function'
   filter obj = {q: 1}, (val, key, that)->
@@ -66,7 +67,7 @@ test 'Dict.filter' !->
     ok @    is ctx
   , ctx = {}
   deepEqual filter({q:1 w:2 e:3} -> it % 2), Dict q:1 e:3
-test 'Dict.find' !->
+test '.find' !->
   {find} = Dict
   ok isFunction(find), 'Is function'
   find obj = {q: 1}, (val, key, that)->
@@ -76,7 +77,7 @@ test 'Dict.find' !->
     ok @    is ctx
   , ctx = {}
   ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
-test 'Dict.findKey' !->
+test '.findKey' !->
   {findKey} = Dict
   ok isFunction(findKey), 'Is function'
   findKey obj = {q: 1}, (val, key, that)->
@@ -86,7 +87,7 @@ test 'Dict.findKey' !->
     ok @    is ctx
   , ctx = {}
   ok findKey({q:1 w:2 e:3} -> it is 2) is \w
-test 'Dict.forEach' !->
+test '.forEach' !->
   {forEach} = Dict
   ok isFunction(forEach), 'Is function'
   forEach obj = {q: 1}, (val, key, that)!->
@@ -110,13 +111,13 @@ test 'Dict.forEach' !->
   rez = {}
   forEach \123 !-> rez[&1] = &0
   ok \2 of rez
-test 'Dict.keyOf' !->
+test '.keyOf' !->
   {keyOf} = Dict
   ok isFunction(keyOf), 'Is function'
   ok keyOf({q:1 w:2 e:3} 2)     is \w
   ok keyOf({q:1 w:2 e:3} 4)     is void
   ok keyOf({q:1 w:2 e:NaN} NaN) is void
-test 'Dict.map' !->
+test '.map' !->
   {map} = Dict
   ok isFunction(map), 'Is function'
   map obj = {q: 1}, (val, key, that)->
@@ -126,7 +127,7 @@ test 'Dict.map' !->
     ok @    is ctx
   , ctx = {}
   deepEqual map({q:1 w:2 e:3} (^2)), Dict q:1 w:4 e:9
-test 'Dict.reduce' !->
+test '.reduce' !->
   {reduce} = Dict
   ok isFunction(reduce), 'Is function'
   reduce (obj = a:1), (memo, val, key, that)->
@@ -144,7 +145,7 @@ test 'Dict.reduce' !->
     that
   , memo = {}
   deepEqual memo, 1:1 2:2 3:3
-test 'Dict.some' !->
+test '.some' !->
   {some} = Dict
   ok isFunction(some), 'Is function'
   some obj = {q: 1}, (val, key, that)->
@@ -155,7 +156,7 @@ test 'Dict.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test 'Dict.turn' !->
+test '.turn' !->
   {turn} = Dict
   ok isFunction(turn), 'Is function'
   turn (obj = q: 1), (memo, val, key, that)->
@@ -167,7 +168,7 @@ test 'Dict.turn' !->
     ok it   is obj
   , obj = {}
   deepEqual turn({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
-test 'Dict.clone' !->
+test '.clone' !->
   {clone} = Dict
   {getPrototypeOf, create} = Object
   ok isFunction(clone), 'Is function'
@@ -212,7 +213,7 @@ test 'Dict.clone' !->
     deepEqual d[0], a[0]
     ok d[0]a[0] is d[0]
   catch => ok no e
-test 'Dict.contains' !->
+test '.contains' !->
   {contains} = Dict
   ok isFunction(contains), 'Is function'
   dict = {q:1, w: NaN, e: -0, r: o = {}}
@@ -224,7 +225,7 @@ test 'Dict.contains' !->
   ok !contains dict, 4
   ok !contains dict, -0.5
   ok !contains dict, {}
-test 'Dict.has' !->
+test '.has' !->
   {has} = Dict
   ok isFunction(has), 'Is function'
   ok has q:1, \q
@@ -233,7 +234,7 @@ test 'Dict.has' !->
   ok not has [] 0
   ok not has ^^{q:1} \q
   ok not has {} \toString
-test 'Dict.get' !->
+test '.get' !->
   {get} = Dict
   ok isFunction(get), 'Is function'
   ok get(q:1, \q) is 1

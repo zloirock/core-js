@@ -56,9 +56,9 @@ var global          = returnThis()
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , document        = global.document
-  , $Array          = Array[PROTOTYPE]
-  , $Object         = Object[PROTOTYPE]
-  , $Function       = Function[PROTOTYPE]
+  , ArrayProto      = Array[PROTOTYPE]
+  , ObjectProto     = Object[PROTOTYPE]
+  , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0;
 
 // 7.2.3 SameValue(x, y)
@@ -82,24 +82,26 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = $Object[TO_STRING]
+var toString = ObjectProto[TO_STRING]
   , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
-  , TOSTRINGTAG; // define in es6_symbol module
+    // define in es6_symbol module
+  , TOSTRINGTAG;
 function setToStringTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
+function cof(it){
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+}
 function classof(it){
-  if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
-  var cof = toString.call(it).slice(8, -1)
+  var klass = cof(it)
     , tag;
-  if(cof != OBJECT)return cof;
-  if(TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
-  return cof;
+  if(klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
+  return klass;
 }
 
 // Function
-var apply = $Function.apply
-  , call  = $Function.call;
+var apply = FunctionProto.apply
+  , call  = FunctionProto.call;
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -165,8 +167,8 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , hasOwnProperty   = $Object.hasOwnProperty
-  , __PROTO__        = '__proto__' in $Object
+  , hasOwnProperty   = ObjectProto.hasOwnProperty
+  , __PROTO__        = '__proto__' in ObjectProto
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
@@ -207,10 +209,10 @@ function keyOf(object, searchElement){
 }
 // Simple structured cloning
 function clone(it, stack1, stack2){
-  var cof     = classof(it)
-    , isArray = cof == ARRAY
+  var klass   = cof(it)
+    , isArray = klass == ARRAY
     , index, result, i, l, keys, key;
-  if(isArray || cof == OBJECT){
+  if(isArray || klass == OBJECT){
     index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
     stack1.push(it);
@@ -226,21 +228,18 @@ function clone(it, stack1, stack2){
   }
   return it;
 }
-function $clone(){
-  return clone(this, [], []);
-}
 
 // Array
 // array('str1,str2,str3') => ['str1', 'str2', 'str3']
 function array(it){
   return String(it).split(',');
 }
-var push    = $Array.push
-  , unshift = $Array.unshift
-  , slice   = $Array.slice
-  , splice  = $Array.splice
-  , indexOf = $Array.indexOf
-  , forEach = $Array[FOR_EACH];
+var push    = ArrayProto.push
+  , unshift = ArrayProto.unshift
+  , slice   = ArrayProto.slice
+  , splice  = ArrayProto.splice
+  , indexOf = ArrayProto.indexOf
+  , forEach = ArrayProto[FOR_EACH];
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -293,6 +292,10 @@ function assertInstance(it, Constructor, name){
 }
 
 // Property descriptors & Symbol
+var SIMPLE   = 0
+  , NOT_ENUM = 1
+  , NOT_CONF = 2
+  , NOT_WRIT = 4;
 function descriptor(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -305,7 +308,7 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(1, value));
+  return defineProperty(object, key, descriptor(NOT_ENUM, value));
 }
 var sid    = 0
   , symbol = Symbol || uid
@@ -317,7 +320,13 @@ var sid    = 0
     : hidden;
 
 // Collections & iterators variables, define in over modules
-var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET;
+var ITERATOR
+  , $for
+  , isIterable
+  , getIterator
+  , objectIterators
+  , COLLECTION_KEYS
+  , SHIM;
 
 // DOM
 var html = document && document.documentElement;
@@ -325,7 +334,7 @@ var html = document && document.documentElement;
 // core
 var core = {}
   , path   = framework ? global : core
-  , NODE   = classof(process) == PROCESS
+  , NODE   = cof(process) == PROCESS
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -336,7 +345,7 @@ var core = {}
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
@@ -422,11 +431,11 @@ core._ = path._ = framework ? path._ || {} : {};
       };
   // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
   try {
-    defineProperty({}, 0, $Object);
+    defineProperty({}, 0, ObjectProto);
   } catch(e){
     DESCRIPTORS = false;
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!$Object.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(NOT_ENUM * !ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -446,7 +455,7 @@ core._ = path._ = framework ? path._ || {} : {};
       return O;
     };
   }
-  $define(STATIC + !DESCRIPTORS, OBJECT, {
+  $define(STATIC + FORCED * !DESCRIPTORS, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -461,7 +470,7 @@ core._ = path._ = framework ? path._ || {} : {};
       if(has(O, $PROTO))return O[$PROTO];
       if(__PROTO__ && '__proto__' in O)return O.__proto__;
       if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
-      if(O instanceof Object)return $Object;
+      if(O instanceof Object)return ObjectProto;
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -505,19 +514,19 @@ core._ = path._ = framework ? path._ || {} : {};
   }
   if(!(0 in Object('q') && 'q'[0] == 'q')){
     ES5Object = function(it){
-      return _classof(it) == STRING ? it.split('') : Object(it);
+      return cof(it) == STRING ? it.split('') : Object(it);
     }
     slice = arrayMethodFix(slice);
   }
-  $define(PROTO + (ES5Object != Object), ARRAY, {
+  $define(PROTO + FORCED * (ES5Object != Object), ARRAY, {
     slice: slice,
-    join: arrayMethodFix($Array.join)
+    join: arrayMethodFix(ArrayProto.join)
   });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
   $define(STATIC, ARRAY, {
     isArray: function(arg){
-      return _classof(arg) == ARRAY
+      return cof(arg) == ARRAY
     }
   });
   $define(PROTO, ARRAY, {
@@ -640,7 +649,7 @@ core._ = path._ = framework ? path._ || {} : {};
   }});
   
   if(isFunction(trimRegExp))isFunction = function(it){
-    return _classof(it) == FUNCTION;
+    return cof(it) == FUNCTION;
   }
   if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
     var cof = _classof(it);
@@ -669,7 +678,7 @@ $define(GLOBAL, {global: global});
     Symbol = function(description){
       assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
-      defineProperty($Object, tag, {
+      defineProperty(ObjectProto, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
@@ -737,7 +746,7 @@ $define(GLOBAL, {global: global});
   // Works with __proto__ only. Old v8 can't works with null proto objects.
   __PROTO__ && function(set){
     var buggy;
-    try { set({}, $Array) }
+    try { set({}, ArrayProto) }
     catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
@@ -748,7 +757,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor($Object, '__proto__').set));
+  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -1053,8 +1062,10 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
       }
     }
   // Rest old browsers
-  } else defer = function(id){
-    setTimeout(part.call(run, id), 0);
+  } else {
+    defer = function(id){
+      setTimeout(part.call(run, id), 0);
+    }
   }
 }('onreadystatechange');
 $define(GLOBAL + BIND, {
@@ -1236,6 +1247,7 @@ $define(GLOBAL + BIND, {
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
+  SHIM = symbol('shim');
   var KEYS     = COLLECTION_KEYS = symbol('keys')
     , VALUES   = symbol('values')
     , STOREID  = symbol('storeId')
@@ -1243,46 +1255,55 @@ $define(GLOBAL + BIND, {
     , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
     , uid      = 0
-    , wid      = 0
-    , sizeGetter = {size: {get: function(){
+    , wid      = 0;
+  
+  function getCollection(C, NAME, test, methods, commonMethods, isMap, isWeak){
+    var ADDER_KEY = isMap ? 'set' : 'add'
+      , init      = commonMethods.clear;
+    function initFromIterable(that, iterable){
+      if(iterable != undefined && $for){
+        $for(iterable, isMap).of(that[ADDER_KEY], that);
+      }
+      return that;
+    }
+    if(!test){
+      // create collection constructor
+      C = function(iterable){
+        assertInstance(this, C, name);
+        init.call(this);
+        initFromIterable(this, iterable);
+      }
+      set(C, SHIM, true);
+      assign(C[PROTOTYPE], methods, commonMethods);
+      isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return this[SIZE];
-      }}};
-  function initCollection(that, iterable, isSet){
-    if(iterable != undefined && $for){
-      $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+      }});
+    } else {
+      var Native     = C
+        , test_key   = {}
+        , collection = new C([isMap ? [test_key, 1] : test_key])
+        , adder      = collection[ADDER_KEY];
+      // wrap to init collections from iterable
+      if(!(ITERATOR in ArrayProto && collection.has(test_key))){
+        C = function(iterable){
+          assertInstance(this, C, NAME);
+          return initFromIterable(new Native, iterable);
+        }
+        C[PROTOTYPE] = Native[PROTOTYPE];
+      }
+      // fix .add & .set for chaining
+      if(framework && collection[ADDER_KEY](test_key, 1) !== collection){
+        hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
+          adder.call(this, a, b);
+          return this;
+        });
+      }
     }
-    return that;
-  }
-  function createCollectionConstructor(name, isSet){
-    function F(iterable){
-      assertInstance(this, F, name);
-      this.clear();
-      initCollection(this, iterable, isSet);
-    }
-    return F;
-  }
-  function fixCollection(Base, name, isSet){
-    var tmp          = {}
-      , collection   = new Base([isSet ? tmp : [tmp, 1]])
-      , initFromIter = collection.has(tmp)
-      , key = isSet ? 'add' : 'set'
-      , fn;
-    // fix .add & .set for chaining
-    if(framework && collection[key](tmp, 1) !== collection){
-      fn = collection[key];
-      hidden(Base[PROTOTYPE], key, function(){
-        fn.apply(this, arguments);
-        return this;
-      });
-    }
-    if(initFromIter)return Base;
-    // wrap to init collections from iterable
-    function F(iterable){
-      assertInstance(this, F, name);
-      return initCollection(new Base, iterable, isSet);
-    }
-    F[PROTOTYPE] = Base[PROTOTYPE];
-    return F;
+    setToStringTag(C, NAME);
+    var O = {};
+    O[NAME] = C;
+    $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
+    return C;
   }
   
   function fastKey(it, create){
@@ -1343,49 +1364,37 @@ $define(GLOBAL + BIND, {
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[PROTOTYPE], FOR_EACH)){
-    SHIM_MAP = true;
-    Map = createCollectionConstructor(MAP);
-    assign(Map[PROTOTYPE], collectionMethods(VALUES), {
-      // 23.1.3.6 Map.prototype.get(key)
-      get: function(key){
-        return this[VALUES][fastKey(key)];
-      },
-      // 23.1.3.9 Map.prototype.set(key, value)
-      set: function(key, value){
-        var index  = fastKey(key, true)
-          , values = this[VALUES];
-        if(!(index in values)){
-          this[KEYS][index] = key;
-          this[SIZE]++;
-        }
-        values[index] = value;
-        return this;
+  Map = getCollection(Map, MAP, isNative(Map) && has(Map[PROTOTYPE], FOR_EACH), {
+    // 23.1.3.6 Map.prototype.get(key)
+    get: function(key){
+      return this[VALUES][fastKey(key)];
+    },
+    // 23.1.3.9 Map.prototype.set(key, value)
+    set: function(key, value){
+      var index  = fastKey(key, true)
+        , values = this[VALUES];
+      if(!(index in values)){
+        this[KEYS][index] = key;
+        this[SIZE]++;
       }
-    });
-    // 23.1.3.10 get Map.prototype.size
-    defineProperties(Map[PROTOTYPE], sizeGetter);
-  } else Map = fixCollection(Map, MAP);
+      values[index] = value;
+      return this;
+    }
+  }, collectionMethods(VALUES), true);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
-    SHIM_SET = true;
-    Set = createCollectionConstructor(SET, true);
-    assign(Set[PROTOTYPE], collectionMethods(KEYS), {
-      // 23.2.3.1 Set.prototype.add(value)
-      add: function(value){
-        var index  = fastKey(value, true)
-          , values = this[KEYS];
-        if(!(index in values)){
-          values[index] = value;
-          this[SIZE]++;
-        }
-        return this;
+  Set = getCollection(Set, SET, isNative(Set) && has(Set[PROTOTYPE], FOR_EACH), {
+    // 23.2.3.1 Set.prototype.add(value)
+    add: function(value){
+      var index  = fastKey(value, true)
+        , values = this[KEYS];
+      if(!(index in values)){
+        values[index] = value;
+        this[SIZE]++;
       }
-    });
-    // 23.2.3.9 get Set.prototype.size
-    defineProperties(Set[PROTOTYPE], sizeGetter);
-  } else Set = fixCollection(Set, SET, true);
+      return this;
+    }
+  }, collectionMethods(KEYS));
   
   function getWeakData(it){
     has(it, WEAKDATA) || set(it, WEAKDATA, {});
@@ -1411,44 +1420,26 @@ $define(GLOBAL + BIND, {
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
-    WeakMap = createCollectionConstructor(WEAKMAP);
-    assign(WeakMap[PROTOTYPE], assign({
-      // 23.3.3.4 WeakMap.prototype.get(key)
-      get: function(key){
-        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
-      },
-      // 23.3.3.6 WeakMap.prototype.set(key, value)
-      set: function(key, value){
-        getWeakData(assertObject(key))[this[WEAKID]] = value;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
+  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap) && has(WeakMap[PROTOTYPE], 'clear'), {
+    // 23.3.3.4 WeakMap.prototype.get(key)
+    get: function(key){
+      if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
+    },
+    // 23.3.3.6 WeakMap.prototype.set(key, value)
+    set: function(key, value){
+      getWeakData(assertObject(key))[this[WEAKID]] = value;
+      return this;
+    }
+  }, weakCollectionMethods, true, true);
   
   // 23.4 WeakSet Objects
-  if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor(WEAKSET, true);
-    assign(WeakSet[PROTOTYPE], assign({
-      // 23.4.3.1 WeakSet.prototype.add(value)
-      add: function(value){
-        getWeakData(assertObject(value))[this[WEAKID]] = true;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, WEAKSET, true);
-  
-  setToStringTag(Map, MAP);
-  setToStringTag(Set, SET);
-  setToStringTag(WeakMap, WEAKMAP);
-  setToStringTag(WeakSet, WEAKSET);
-  
-  $define(GLOBAL + FORCED + WRAP, {
-    Map: Map,
-    Set: Set,
-    WeakMap: WeakMap,
-    WeakSet: WeakSet
-  });
+  WeakSet = getCollection(WeakSet, WEAKSET, isNative(WeakSet), {
+    // 23.4.3.1 WeakSet.prototype.add(value)
+    add: function(value){
+      getWeakData(assertObject(value))[this[WEAKID]] = true;
+      return this;
+    }
+  }, weakCollectionMethods, false, true);
 }();
 
 /******************************************************************************
@@ -1456,7 +1447,7 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 !function($$ITERATOR){
-  var FFITERATOR = $$ITERATOR in $Array
+  var FFITERATOR = $$ITERATOR in ArrayProto
     , KEY        = 1
     , VALUE      = 2
     , ITERATED   = symbol('iterated')
@@ -1560,7 +1551,7 @@ $define(GLOBAL + BIND, {
   // 23.1.5.1 CreateMapIterator Abstract Operation
   function MapIterator(iterated, kind){
     var that = this, keys;
-    if(SHIM_MAP)keys = getValues(iterated[COLLECTION_KEYS]);
+    if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else mapForEach.call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
@@ -1587,7 +1578,7 @@ $define(GLOBAL + BIND, {
   // 23.2.5.1 CreateSetIterator Abstract Operation
   function SetIterator(iterated, kind){
     var keys;
-    if(SHIM_SET)keys = getValues(iterated[COLLECTION_KEYS]);
+    if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else setForEach.call(iterated, function(val){
       this.push(val);
     }, keys = []);
@@ -1792,14 +1783,16 @@ $define(GLOBAL + BIND, {
       }
       return false;
     },
-    clone: ctx(call, $clone),
+    clone: function(it){
+      return clone(it, [], []);
+    },
     // Has / get / set / delete own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: function(object, key, value){
-      return defineProperty(object, key, descriptor(0, value));
+      return defineProperty(object, key, descriptor(SIMPLE, value));
     },
     'delete': function(object, key){
       return has(object, key) && delete object[key];
@@ -1821,7 +1814,6 @@ $define(GLOBAL + BIND, {
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  */
 !function(navigator){
-  var forced = !FORCED;
   function wrap(set){
     return function(fn, time /*, ...args */){
       return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time || 1);
@@ -1829,11 +1821,10 @@ $define(GLOBAL + BIND, {
   }
   // ie9- dirty check
   if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    forced = FORCED
     setTimeout  = wrap(setTimeout);
     setInterval = wrap(setInterval);
   }
-  $define(GLOBAL + BIND + forced, {
+  $define(GLOBAL + BIND + FORCED * !isNative(setTimeout), {
     setTimeout:  setTimeout,
     setInterval: setInterval
   });
@@ -1979,9 +1970,9 @@ $define(PROTO, FUNCTION, {
   hidden(path._, TO_STRING, function(){
     return _;
   });
-  DESCRIPTORS && hidden($Object, _, tie);
-  hidden($Function, _, tie);
-  hidden($Array, _, tie);
+  DESCRIPTORS && hidden(ObjectProto, _, tie);
+  hidden(FunctionProto, _, tie);
+  hidden(ArrayProto, _, tie);
   hidden(RegExp[PROTOTYPE], _, tie);
 }(uid('tie'));
 
@@ -2008,7 +1999,7 @@ $define(PROTO, FUNCTION, {
     return result;
   }
   $define(STATIC, OBJECT, {
-    isPrototype: ctx(call, $Object.isPrototypeOf),
+    isPrototype: ctx(call, ObjectProto.isPrototypeOf),
     getOwnPropertyKeys: getPropertyKeys,
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: function(object, key){
@@ -2095,7 +2086,9 @@ $define(PROTO, ARRAY, {
     while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
     return false;
   },
-  clone: $clone,
+  clone: function(){
+    return clone(this, [], []);
+  },
   /**
    * Alternatives:
    * http://lodash.com/docs#transform
@@ -2113,7 +2106,7 @@ $define(PROTO, ARRAY, {
  * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
  */
 $define(STATIC, ARRAY, turn.call(
-  // IE... getNames($Array),
+  // IE... getNames(ArrayProto),
   array(
     // ES3:
     'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
@@ -2125,7 +2118,7 @@ $define(STATIC, ARRAY, turn.call(
     'get,set,delete,contains,clone,turn'
   ),
   function(memo, key){
-    if(key in $Array)memo[key] = ctx(call, $Array[key]);
+    if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key]);
   }, {}
 ));
 

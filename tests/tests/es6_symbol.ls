@@ -1,5 +1,6 @@
+module 'ES6 Symbol'
 isFunction = -> typeof! it is \Function
-isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
+isNative = -> /\[native code\]\s*\}\s*$/.test it
 that = global? && global || window
 test 'Symbol' !->
   ok isFunction(that.Symbol), 'Is function'

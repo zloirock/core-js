@@ -25,7 +25,7 @@
   // Works with __proto__ only. Old v8 can't works with null proto objects.
   __PROTO__ && function(set){
     var buggy;
-    try { set({}, $Array) }
+    try { set({}, ArrayProto) }
     catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
@@ -36,7 +36,7 @@
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor($Object, '__proto__').set));
+  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),

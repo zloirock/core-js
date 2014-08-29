@@ -1,9 +1,10 @@
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('Array');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Array::get', function(){
+  test('::get', function(){
     ok(isFunction(Array.prototype.get), 'Is function');
     ok([1, 2, 3].get(0) === 1, '[1, 2, 3].get(0) is 1');
     ok([1, 2, 3].get(2) === 3, '[1, 2, 3].get(2) is 3');
@@ -12,7 +13,7 @@
     ok([1, 2, 3].get(-3) === 1, '[1, 2, 3].get(-3) is 1');
     ok([1, 2, 3].get(-4) === void 8, '[1, 2, 3].get(-4) is undefined');
   });
-  test('Array::set', function(){
+  test('::set', function(){
     var arr;
     ok(isFunction(Array.prototype.set), 'Is function');
     arr = [];
@@ -20,7 +21,7 @@
     deepEqual(arr, [42]);
     deepEqual([1].set(0, 1).set(1, 0).set(2, 3).set(-2, 2), [1, 2, 3]);
   });
-  test('Array::turn', function(){
+  test('::turn', function(){
     var arr, obj;
     ok(isFunction(Array.prototype.turn), 'Is function');
     (arr = [1]).turn(function(memo, val, key, that){
@@ -36,7 +37,7 @@
       return memo.unshift(it);
     }), 'Reduce to object and return it');
   });
-  test('Array::clone', function(){
+  test('::clone', function(){
     var arr1, object1, array1, arr2;
     ok(isFunction(Array.prototype.clone), 'Is function');
     arr1 = [
@@ -51,7 +52,7 @@
     ok(arr2['1'] !== array1);
     deepEqual(arr1, arr2);
   });
-  test('Array::contains', function(){
+  test('::contains', function(){
     var arr, o;
     ok(isFunction(Array.prototype.contains), 'Is function');
     arr = [1, 2, 3, -0, NaN, o = {}];
@@ -68,6 +69,7 @@
 
 (function(){
   var isFunction, slice, toString$ = {}.toString;
+  module('Array statics');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -79,7 +81,7 @@
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
   });
-  test('Array.join', function(){
+  test('.join', function(){
     var join;
     join = Array.join;
     ok(join('123', '|') === '1|2|3');
@@ -87,7 +89,7 @@
       return arguments;
     }(3, 2, 1), '|') === '3|2|1');
   });
-  test('Array.pop', function(){
+  test('.pop', function(){
     var pop, args;
     pop = Array.pop;
     ok(pop(args = function(){
@@ -97,7 +99,7 @@
       return arguments;
     }(1, 2));
   });
-  test('Array.push', function(){
+  test('.push', function(){
     var push, args;
     push = Array.push;
     push(args = function(){
@@ -105,7 +107,7 @@
     }(1, 2, 3), 4, 5);
     deepEqual(slice.call(args), [1, 2, 3, 4, 5]);
   });
-  test('Array.reverse', function(){
+  test('.reverse', function(){
     var reverse;
     reverse = Array.reverse;
     deepEqual(reverse(function(){
@@ -114,7 +116,7 @@
       return arguments;
     }(3, 2, 1));
   });
-  test('Array.shift', function(){
+  test('.shift', function(){
     var shift, args;
     shift = Array.shift;
     ok(shift(args = function(){
@@ -124,7 +126,7 @@
       return arguments;
     }(2, 3));
   });
-  test('Array.unshift', function(){
+  test('.unshift', function(){
     var unshift, args;
     unshift = Array.unshift;
     unshift(args = function(){
@@ -132,7 +134,7 @@
     }(1, 2, 3), 4, 5);
     deepEqual(slice.call(args), [4, 5, 1, 2, 3]);
   });
-  test('Array.slice', function(){
+  test('.slice', function(){
     var slice;
     slice = Array.slice;
     deepEqual(slice('123'), ['1', '2', '3']);
@@ -152,7 +154,7 @@
       return arguments;
     }(1, 2, 3), 1, -1), [2]);
   });
-  test('Array.splice', function(){
+  test('.splice', function(){
     var splice, args;
     splice = Array.splice;
     splice(args = function(){
@@ -168,7 +170,7 @@
     }(1, 2, 3), 1, 1);
     deepEqual(slice.call(args), [1, 3]);
   });
-  test('Array.sort', function(){
+  test('.sort', function(){
     var sort;
     sort = Array.sort;
     deepEqual(sort(function(){
@@ -189,7 +191,7 @@
       return arguments;
     }(2, 3, 11));
   });
-  test('Array.indexOf', function(){
+  test('.indexOf', function(){
     var indexOf;
     indexOf = Array.indexOf;
     ok(indexOf('111', '1') === 0);
@@ -205,7 +207,7 @@
       return arguments;
     }(1, 2, 3), 2, 1) === 1);
   });
-  test('Array.lastIndexOf', function(){
+  test('.lastIndexOf', function(){
     var lastIndexOf;
     lastIndexOf = Array.lastIndexOf;
     ok(lastIndexOf('111', '1') === 2);
@@ -221,7 +223,7 @@
       return arguments;
     }(1, 2, 3), 2, 1) === 1);
   });
-  test('Array.every', function(){
+  test('.every', function(){
     var every, al, ctx;
     every = Array.every;
     every(al = function(){
@@ -253,7 +255,7 @@
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
   });
-  test('Array.some', function(){
+  test('.some', function(){
     var some, al, ctx;
     some = Array.some;
     some(al = function(){
@@ -285,7 +287,7 @@
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
   });
-  test('Array.forEach', function(){
+  test('.forEach', function(){
     var forEach, al, ctx, val;
     forEach = Array.forEach;
     forEach(al = function(){
@@ -314,7 +316,7 @@
     }, 1);
     ok(val === '101231211231321231');
   });
-  test('Array.map', function(){
+  test('.map', function(){
     var map, al, ctx;
     map = Array.map;
     map(al = function(){
@@ -334,7 +336,7 @@
       return Math.pow(it, 2);
     })), [1, 4, 9]);
   });
-  test('Array.filter', function(){
+  test('.filter', function(){
     var filter, al, ctx;
     filter = Array.filter;
     filter(al = function(){
@@ -357,7 +359,7 @@
       return arguments[1] !== 1;
     }), ['1', '3']);
   });
-  test('Array.reduce', function(){
+  test('.reduce', function(){
     var reduce, al, ctx;
     reduce = Array.reduce;
     reduce(al = function(){
@@ -389,7 +391,7 @@
       return a + b;
     }, 1) === 7);
   });
-  test('Array.reduceRight', function(){
+  test('.reduceRight', function(){
     var reduceRight, al, ctx;
     reduceRight = Array.reduceRight;
     reduceRight(al = function(){
@@ -421,7 +423,7 @@
       return a + b;
     }, 1) === 7);
   });
-  test('Array.fill', function(){
+  test('.fill', function(){
     var fill;
     fill = Array.fill;
     deepEqual(fill(function(){
@@ -430,7 +432,7 @@
       return arguments;
     }(5, 5, 5));
   });
-  test('Array.find', function(){
+  test('.find', function(){
     var find, al, ctx;
     find = Array.find;
     find(al = function(){
@@ -453,7 +455,7 @@
       return it === '4';
     })) === void 8);
   });
-  test('Array.findIndex', function(){
+  test('.findIndex', function(){
     var findIndex, al, ctx;
     findIndex = Array.findIndex;
     findIndex(al = function(){
@@ -476,7 +478,7 @@
       return it === '4';
     })) === -1);
   });
-  test('Array.keys', function(){
+  test('.keys', function(){
     var keys, iter1, iter2;
     keys = Array.keys;
     ok(typeof keys === 'function', 'Is function');
@@ -519,7 +521,7 @@
       done: true
     });
   });
-  test('Array.values', function(){
+  test('.values', function(){
     var values, iter1, iter2;
     values = Array.values;
     ok(typeof values === 'function', 'Is function');
@@ -562,7 +564,7 @@
       done: true
     });
   });
-  test('Array.entries', function(){
+  test('.entries', function(){
     var entries, iter1, iter2;
     entries = Array.entries;
     ok(typeof entries === 'function', 'Is function');
@@ -605,7 +607,7 @@
       done: true
     });
   });
-  test('Array.get', function(){
+  test('.get', function(){
     var get;
     get = Array.get;
     ok(get(function(){
@@ -633,7 +635,7 @@
     ok(get('qwe', -3) === 'q');
     ok(get('qwe', -4) === void 8);
   });
-  test('Array.turn', function(){
+  test('.turn', function(){
     var turn, al, obj;
     turn = Array.turn;
     turn(al = function(){
@@ -664,7 +666,7 @@
       return memo.unshift(it);
     }));
   });
-  test('Array.clone', function(){
+  test('.clone', function(){
     var clone, arr1, object1, array1, arr2;
     clone = Array.clone;
     ok(isFunction(clone), 'Is function');
@@ -680,7 +682,7 @@
     ok(arr2['1'] !== array1);
     deepEqual(arr1, arr2);
   });
-  test('Array.contains', function(){
+  test('.contains', function(){
     var contains, args, o, str;
     contains = Array.contains;
     ok(isFunction(contains), 'Is function');
@@ -703,11 +705,12 @@
 
 (function(){
   var isFunction, isNative, slice, toString$ = {}.toString;
+  module('Binding');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+    return /\[native code\]\s*\}\s*$/.test(it);
   };
   slice = Array.prototype.slice;
   test('Function::by', function(){
@@ -828,6 +831,7 @@
 
 (function(){
   var isFunction, isObject, methods, toString$ = {}.toString;
+  module('Console');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -835,7 +839,7 @@
     return it === Object(it);
   };
   methods = ['assert', 'count', 'debug', 'dir', 'dirxml', 'error', 'exception', 'group', 'groupEnd', 'groupCollapsed', 'groupEnd', 'info', 'log', 'table', 'trace', 'warn', 'markTimeline', 'profile', 'profileEnd', 'time', 'timeEnd', 'timeStamp'];
-  test('console', function(){
+  test('is object', function(){
     ok(isObject(((typeof global != 'undefined' && global !== null) && global || window).console), 'global.console is object');
   });
   test('console.#{..} are functions', function(){
@@ -908,10 +912,11 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('Date');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Date.locale', function(){
+  test('.locale', function(){
     var locale;
     locale = Date.locale;
     ok(isFunction(locale), 'Is function');
@@ -921,7 +926,7 @@
     ok(locale() === 'ru', 'Date.locale() is "ru"');
     ok(locale('xx') === 'ru', 'Date.locale("xx") is "ru"');
   });
-  test('Date.addLocale', function(){
+  test('.addLocale', function(){
     var locale;
     locale = Date.locale;
     ok(isFunction(Date.addLocale), 'Is function');
@@ -934,7 +939,7 @@
     ok(locale('zz') === 'zz');
     ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MM YYYY') === 'Воскресенье, 3 Марта 1901');
   });
-  test('Date::format', function(){
+  test('::format', function(){
     var locale, date;
     locale = Date.locale;
     ok(isFunction(Date.prototype.format), 'Is function');
@@ -945,7 +950,7 @@
     locale('ru');
     ok(date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
   });
-  test('Date::formatUTC', function(){
+  test('::formatUTC', function(){
     var date;
     ok(isFunction(Date.prototype.formatUTC), 'Is function');
     date = new Date(1, 2, 3, 4, 5, 6, 7);
@@ -955,6 +960,7 @@
 
 (function(){
   var isObject, isFunction, toString$ = {}.toString;
+  module('Deferred');
   isObject = function(it){
     return it === Object(it);
   };
@@ -1020,6 +1026,7 @@
 
 (function(){
   var isFunction, keys, toString$ = {}.toString;
+  module('Dict');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -1044,7 +1051,7 @@
     ok(dict3[1] === 1);
     ok(dict3[2] === 2);
   });
-  test('Dict.keys', function(){
+  test('.keys', function(){
     var iter;
     ok(typeof Dict.keys === 'function', 'Is function');
     iter = Dict.keys({
@@ -1072,7 +1079,7 @@
     });
     ok(iter[Symbol.toStringTag] === 'Object Iterator');
   });
-  test('Dict.values', function(){
+  test('.values', function(){
     var iter;
     ok(typeof Dict.values === 'function', 'Is function');
     iter = Dict.values({
@@ -1100,7 +1107,7 @@
     });
     ok(iter[Symbol.toStringTag] === 'Object Iterator');
   });
-  test('Dict.entries', function(){
+  test('.entries', function(){
     var iter;
     ok(typeof Dict.entries === 'function', 'Is function');
     iter = Dict.entries({
@@ -1128,7 +1135,7 @@
     });
     ok(iter[Symbol.toStringTag] === 'Object Iterator');
   });
-  test('Dict.every', function(){
+  test('.every', function(){
     var every, obj, ctx;
     every = Dict.every;
     ok(isFunction(every), 'Is function');
@@ -1155,7 +1162,7 @@
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
   });
-  test('Dict.filter', function(){
+  test('.filter', function(){
     var filter, obj, ctx;
     filter = Dict.filter;
     ok(isFunction(filter), 'Is function');
@@ -1178,7 +1185,7 @@
       e: 3
     }));
   });
-  test('Dict.find', function(){
+  test('.find', function(){
     var find, obj, ctx;
     find = Dict.find;
     ok(isFunction(find), 'Is function');
@@ -1198,7 +1205,7 @@
       return !(it % 2);
     }) === 2);
   });
-  test('Dict.findKey', function(){
+  test('.findKey', function(){
     var findKey, obj, ctx;
     findKey = Dict.findKey;
     ok(isFunction(findKey), 'Is function');
@@ -1218,7 +1225,7 @@
       return it === 2;
     }) === 'w');
   });
-  test('Dict.forEach', function(){
+  test('.forEach', function(){
     var forEach, obj, ctx, rez;
     forEach = Dict.forEach;
     ok(isFunction(forEach), 'Is function');
@@ -1271,7 +1278,7 @@
     });
     ok('2' in rez);
   });
-  test('Dict.keyOf', function(){
+  test('.keyOf', function(){
     var keyOf;
     keyOf = Dict.keyOf;
     ok(isFunction(keyOf), 'Is function');
@@ -1291,7 +1298,7 @@
       e: NaN
     }, NaN) === void 8);
   });
-  test('Dict.map', function(){
+  test('.map', function(){
     var map, obj, ctx;
     map = Dict.map;
     ok(isFunction(map), 'Is function');
@@ -1315,7 +1322,7 @@
       e: 9
     }));
   });
-  test('Dict.reduce', function(){
+  test('.reduce', function(){
     var reduce, obj, foo, memo;
     reduce = Dict.reduce;
     ok(isFunction(reduce), 'Is function');
@@ -1349,7 +1356,7 @@
       3: 3
     });
   });
-  test('Dict.some', function(){
+  test('.some', function(){
     var some, obj, ctx;
     some = Dict.some;
     ok(isFunction(some), 'Is function');
@@ -1376,7 +1383,7 @@
       return toString$.call(it).slice(8, -1) === 'String';
     }));
   });
-  test('Dict.turn', function(){
+  test('.turn', function(){
     var turn, obj;
     turn = Dict.turn;
     ok(isFunction(turn), 'Is function');
@@ -1405,7 +1412,7 @@
       3: 3
     }));
   });
-  test('Dict.clone', function(){
+  test('.clone', function(){
     var clone, getPrototypeOf, create, array1, array2, object1, object2, dict1, ref$, dict2, object3, object4, array3, array4, a, b, c, e, d;
     clone = Dict.clone;
     getPrototypeOf = Object.getPrototypeOf, create = Object.create;
@@ -1467,7 +1474,7 @@
       ok(false, e);
     }
   });
-  test('Dict.contains', function(){
+  test('.contains', function(){
     var contains, dict, o;
     contains = Dict.contains;
     ok(isFunction(contains), 'Is function');
@@ -1486,7 +1493,7 @@
     ok(!contains(dict, -0.5));
     ok(!contains(dict, {}));
   });
-  test('Dict.has', function(){
+  test('.has', function(){
     var has;
     has = Dict.has;
     ok(isFunction(has), 'Is function');
@@ -1503,7 +1510,7 @@
     }), 'q'));
     ok(!has({}, 'toString'));
   });
-  test('Dict.get', function(){
+  test('.get', function(){
     var get;
     get = Dict.get;
     ok(isFunction(get), 'Is function');
@@ -1528,6 +1535,7 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('ES5');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -1902,11 +1910,12 @@
 
 (function(){
   var isFunction, isNative, getOwnPropertyDescriptor, defineProperty, same, epsilon, toString$ = {}.toString;
+  module('ES6');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+    return /\[native code\]\s*\}\s*$/.test(it);
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
   same = Object.is;
@@ -2423,11 +2432,12 @@
 
 (function(){
   var isFunction, isNative, getOwnPropertyDescriptor, that, toString$ = {}.toString;
+  module('ES6 Collections');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+    return /\[native code\]\s*\}\s*$/.test(it);
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   that = (typeof global != 'undefined' && global !== null) && global || window;
@@ -2765,6 +2775,7 @@
 
 (function(){
   var isIterator;
+  module('ES6 Iterators');
   isIterator = function(it){
     return typeof it === 'object' && typeof it.next === 'function';
   };
@@ -3094,6 +3105,7 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('ES6 Promise');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -3102,27 +3114,28 @@
     ok(isFunction(Promise.prototype.then), 'Promise::then is function');
     ok(isFunction(Promise.prototype['catch']), 'Promise::catch is function');
   });
-  test('Promise.all', function(){
+  test('.all', function(){
     ok(isFunction(Promise.all), 'Is function');
   });
-  test('Promise.race', function(){
+  test('.race', function(){
     ok(isFunction(Promise.race), 'Is function');
   });
-  test('Promise.resolve', function(){
+  test('.resolve', function(){
     ok(isFunction(Promise.resolve), 'Is function');
   });
-  test('Promise.reject', function(){
+  test('.reject', function(){
     ok(isFunction(Promise.reject), 'Is function');
   });
 }).call(this);
 
 (function(){
   var isFunction, isNative, that, toString$ = {}.toString;
+  module('ES6 Symbol');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+    return /\[native code\]\s*\}\s*$/.test(it);
   };
   that = (typeof global != 'undefined' && global !== null) && global || window;
   test('Symbol', function(){
@@ -3147,10 +3160,11 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('Function');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Function::construct', function(){
+  test('::construct', function(){
     var C;
     ok(isFunction(Function.prototype.construct), 'Is function');
     C = (function(){
@@ -3168,6 +3182,7 @@
 }).call(this);
 
 (function(){
+  module('Global');
   test('global', function(){
     ok(typeof global != 'undefined' && global !== null, 'global is define');
     ok(global.global === global, 'global.global is global');
@@ -3178,6 +3193,7 @@
 
 (function(){
   var isFunction, that, req, toString$ = {}.toString;
+  module('Immediate');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -3236,10 +3252,11 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('Number');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('Number.toInteger', function(){
+  test('.toInteger', function(){
     var toInteger;
     toInteger = Number.toInteger;
     ok(isFunction(toInteger), 'Is function');
@@ -3252,7 +3269,7 @@
     ok(toInteger(-Infinity) === -Infinity);
     ok(toInteger(-0x20000000000001) === -0x20000000000001);
   });
-  test('Number::times', function(){
+  test('::times', function(){
     ok(isFunction(Number.prototype.times), 'Is function');
     deepEqual(5 .times(function(it){
       return it;
@@ -3270,7 +3287,7 @@
       return (this | 0) + it + arguments[1] + arguments[2];
     }, 1), [6, 8, 10, 12, 14]);
   });
-  test('Number::random', function(){
+  test('::random', function(){
     ok(isFunction(Number.prototype.random), 'Is function');
     ok(100 .times(function(){
       return 10 .random();
@@ -3313,7 +3330,7 @@
       return it === 7 || it === 8 || it === 9 || it === 10;
     })));
   });
-  test('Number::{Math}', function(){
+  test('::#{...Math}', function(){
     var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2', 'acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc', 'randomInt']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -3328,14 +3345,15 @@
 
 (function(){
   var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
+  module('Object');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
-    return /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test(it);
+    return /\[native code\]\s*\}\s*$/.test(it);
   };
   getPrototypeOf = Object.getPrototypeOf, create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  test('Object.getPropertyDescriptor', function(){
+  test('.getPropertyDescriptor', function(){
     var getPropertyDescriptor, create;
     getPropertyDescriptor = Object.getPropertyDescriptor, create = Object.create;
     ok(isFunction(getPropertyDescriptor), 'Is function');
@@ -3348,7 +3366,7 @@
       value: 1
     });
   });
-  test('Object.getOwnPropertyDescriptors', function(){
+  test('.getOwnPropertyDescriptors', function(){
     var getOwnPropertyDescriptors, make, descs;
     getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors, make = Object.make;
     ok(isFunction(getOwnPropertyDescriptors), 'Is function');
@@ -3365,7 +3383,7 @@
       value: 2
     });
   });
-  test('Object.isPrototype', function(){
+  test('.isPrototype', function(){
     var isPrototype, proto;
     isPrototype = Object.isPrototype;
     ok(isFunction(isPrototype), 'Is function');
@@ -3377,7 +3395,7 @@
     ok(isPrototype(proto = {}, clone$(proto)));
     ok(!isPrototype({}, clone$(function(){})));
   });
-  test('Object.classof', function(){
+  test('.classof', function(){
     var classof, Class;
     classof = Object.classof;
     ok(isFunction(classof), 'Is function');
@@ -3419,7 +3437,7 @@
     }());
     ok(classof(new Class) === 'Class');
   });
-  test('Object.make', function(){
+  test('.make', function(){
     var make, object, foo;
     make = Object.make;
     ok(isFunction(make), 'Is function');
@@ -3431,7 +3449,7 @@
     ok(getPrototypeOf(object) === foo);
     ok(object.w === 2);
   });
-  test('Object.define', function(){
+  test('.define', function(){
     var define, foo, foo2;
     define = Object.define;
     ok(isFunction(define), 'Is function');
@@ -3455,7 +3473,7 @@
       ok(foo.w === 2);
     }
   });
-  test('Object.values', function(){
+  test('.values', function(){
     var values, make;
     values = Object.values, make = Object.make;
     ok(isFunction(values), 'Is function');
@@ -3475,7 +3493,7 @@
       d: 6
     })), [4, 5, 6]);
   });
-  test('Object.entries', function(){
+  test('.entries', function(){
     var entries, make;
     entries = Object.entries, make = Object.make;
     ok(isFunction(entries), 'Is function');
@@ -3495,7 +3513,7 @@
       d: 6
     })), [['a', 4], ['s', 5], ['d', 6]]);
   });
-  test('Object.isObject', function(){
+  test('.isObject', function(){
     var isObject;
     isObject = Object.isObject;
     ok(isFunction(isObject), 'Is function');
@@ -3520,10 +3538,11 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('RegExp');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('RegExp.escape', function(){
+  test('.escape', function(){
     var escape;
     escape = RegExp.escape;
     ok(isFunction(escape), 'Is function');
@@ -3534,16 +3553,17 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  module('String');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('String::escapeHTML', function(){
+  test('::escapeHTML', function(){
     ok(isFunction(String.prototype.escapeHTML), 'Is function');
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');
     ok('<div>qwe</div>'.escapeHTML() === '&lt;div&gt;qwe&lt;/div&gt;');
     ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;');
   });
-  test('String::unescapeHTML', function(){
+  test('::unescapeHTML', function(){
     ok(isFunction(String.prototype.unescapeHTML), 'Is function');
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');
@@ -3553,6 +3573,7 @@
 
 (function(){
   var that, slice$ = [].slice;
+  module('Timers');
   that = (typeof global != 'undefined' && global !== null) && global || window;
   asyncTest('setTimeout / clearTimeout', 2, function(){
     that.setTimeout(function(b, c){

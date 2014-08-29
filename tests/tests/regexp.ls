@@ -1,5 +1,6 @@
+module \RegExp
 isFunction = -> typeof! it is \Function
-test 'RegExp.escape' !->
+test '.escape' !->
   {escape} = RegExp
   ok isFunction(escape), 'Is function'
   ok escape('qwe asd') is 'qwe asd', "Don't change simple string"

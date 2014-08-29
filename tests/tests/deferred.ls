@@ -1,3 +1,4 @@
+module \Deferred
 isObject = -> it is Object it
 isFunction = -> typeof! it is \Function
 asyncTest 'Function::timeout' 7 !->

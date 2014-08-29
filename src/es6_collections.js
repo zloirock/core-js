@@ -10,6 +10,7 @@
  * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
  */
 !function(){
+  SHIM = symbol('shim');
   var KEYS     = COLLECTION_KEYS = symbol('keys')
     , VALUES   = symbol('values')
     , STOREID  = symbol('storeId')
@@ -17,46 +18,55 @@
     , WEAKID   = symbol('weakId')
     , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
     , uid      = 0
-    , wid      = 0
-    , sizeGetter = {size: {get: function(){
+    , wid      = 0;
+  
+  function getCollection(C, NAME, test, methods, commonMethods, isMap, isWeak){
+    var ADDER_KEY = isMap ? 'set' : 'add'
+      , init      = commonMethods.clear;
+    function initFromIterable(that, iterable){
+      if(iterable != undefined && $for){
+        $for(iterable, isMap).of(that[ADDER_KEY], that);
+      }
+      return that;
+    }
+    if(!test){
+      // create collection constructor
+      C = function(iterable){
+        assertInstance(this, C, name);
+        init.call(this);
+        initFromIterable(this, iterable);
+      }
+      set(C, SHIM, true);
+      assign(C[PROTOTYPE], methods, commonMethods);
+      isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return this[SIZE];
-      }}};
-  function initCollection(that, iterable, isSet){
-    if(iterable != undefined && $for){
-      $for(iterable, !isSet).of(isSet ? that.add : that.set, that);
+      }});
+    } else {
+      var Native     = C
+        , test_key   = {}
+        , collection = new C([isMap ? [test_key, 1] : test_key])
+        , adder      = collection[ADDER_KEY];
+      // wrap to init collections from iterable
+      if(!(ITERATOR in ArrayProto && collection.has(test_key))){
+        C = function(iterable){
+          assertInstance(this, C, NAME);
+          return initFromIterable(new Native, iterable);
+        }
+        C[PROTOTYPE] = Native[PROTOTYPE];
+      }
+      // fix .add & .set for chaining
+      if(framework && collection[ADDER_KEY](test_key, 1) !== collection){
+        hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
+          adder.call(this, a, b);
+          return this;
+        });
+      }
     }
-    return that;
-  }
-  function createCollectionConstructor(name, isSet){
-    function F(iterable){
-      assertInstance(this, F, name);
-      this.clear();
-      initCollection(this, iterable, isSet);
-    }
-    return F;
-  }
-  function fixCollection(Base, name, isSet){
-    var tmp          = {}
-      , collection   = new Base([isSet ? tmp : [tmp, 1]])
-      , initFromIter = collection.has(tmp)
-      , key = isSet ? 'add' : 'set'
-      , fn;
-    // fix .add & .set for chaining
-    if(framework && collection[key](tmp, 1) !== collection){
-      fn = collection[key];
-      hidden(Base[PROTOTYPE], key, function(){
-        fn.apply(this, arguments);
-        return this;
-      });
-    }
-    if(initFromIter)return Base;
-    // wrap to init collections from iterable
-    function F(iterable){
-      assertInstance(this, F, name);
-      return initCollection(new Base, iterable, isSet);
-    }
-    F[PROTOTYPE] = Base[PROTOTYPE];
-    return F;
+    setToStringTag(C, NAME);
+    var O = {};
+    O[NAME] = C;
+    $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
+    return C;
   }
   
   function fastKey(it, create){
@@ -117,49 +127,37 @@
   }
   
   // 23.1 Map Objects
-  if(!isFunction(Map) || !has(Map[PROTOTYPE], FOR_EACH)){
-    SHIM_MAP = true;
-    Map = createCollectionConstructor(MAP);
-    assign(Map[PROTOTYPE], collectionMethods(VALUES), {
-      // 23.1.3.6 Map.prototype.get(key)
-      get: function(key){
-        return this[VALUES][fastKey(key)];
-      },
-      // 23.1.3.9 Map.prototype.set(key, value)
-      set: function(key, value){
-        var index  = fastKey(key, true)
-          , values = this[VALUES];
-        if(!(index in values)){
-          this[KEYS][index] = key;
-          this[SIZE]++;
-        }
-        values[index] = value;
-        return this;
+  Map = getCollection(Map, MAP, isNative(Map) && has(Map[PROTOTYPE], FOR_EACH), {
+    // 23.1.3.6 Map.prototype.get(key)
+    get: function(key){
+      return this[VALUES][fastKey(key)];
+    },
+    // 23.1.3.9 Map.prototype.set(key, value)
+    set: function(key, value){
+      var index  = fastKey(key, true)
+        , values = this[VALUES];
+      if(!(index in values)){
+        this[KEYS][index] = key;
+        this[SIZE]++;
       }
-    });
-    // 23.1.3.10 get Map.prototype.size
-    defineProperties(Map[PROTOTYPE], sizeGetter);
-  } else Map = fixCollection(Map, MAP);
+      values[index] = value;
+      return this;
+    }
+  }, collectionMethods(VALUES), true);
   
   // 23.2 Set Objects
-  if(!isFunction(Set) || !has(Set[PROTOTYPE], FOR_EACH)){
-    SHIM_SET = true;
-    Set = createCollectionConstructor(SET, true);
-    assign(Set[PROTOTYPE], collectionMethods(KEYS), {
-      // 23.2.3.1 Set.prototype.add(value)
-      add: function(value){
-        var index  = fastKey(value, true)
-          , values = this[KEYS];
-        if(!(index in values)){
-          values[index] = value;
-          this[SIZE]++;
-        }
-        return this;
+  Set = getCollection(Set, SET, isNative(Set) && has(Set[PROTOTYPE], FOR_EACH), {
+    // 23.2.3.1 Set.prototype.add(value)
+    add: function(value){
+      var index  = fastKey(value, true)
+        , values = this[KEYS];
+      if(!(index in values)){
+        values[index] = value;
+        this[SIZE]++;
       }
-    });
-    // 23.2.3.9 get Set.prototype.size
-    defineProperties(Set[PROTOTYPE], sizeGetter);
-  } else Set = fixCollection(Set, SET, true);
+      return this;
+    }
+  }, collectionMethods(KEYS));
   
   function getWeakData(it){
     has(it, WEAKDATA) || set(it, WEAKDATA, {});
@@ -185,42 +183,24 @@
   };
   
   // 23.3 WeakMap Objects
-  if(!isFunction(WeakMap) || !has(WeakMap[PROTOTYPE], 'clear')){
-    WeakMap = createCollectionConstructor(WEAKMAP);
-    assign(WeakMap[PROTOTYPE], assign({
-      // 23.3.3.4 WeakMap.prototype.get(key)
-      get: function(key){
-        return isObject(key) && has(key, WEAKDATA) ? key[WEAKDATA][this[WEAKID]] : undefined;
-      },
-      // 23.3.3.6 WeakMap.prototype.set(key, value)
-      set: function(key, value){
-        getWeakData(assertObject(key))[this[WEAKID]] = value;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakMap = fixCollection(WeakMap, WEAKMAP);
+  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap) && has(WeakMap[PROTOTYPE], 'clear'), {
+    // 23.3.3.4 WeakMap.prototype.get(key)
+    get: function(key){
+      if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
+    },
+    // 23.3.3.6 WeakMap.prototype.set(key, value)
+    set: function(key, value){
+      getWeakData(assertObject(key))[this[WEAKID]] = value;
+      return this;
+    }
+  }, weakCollectionMethods, true, true);
   
   // 23.4 WeakSet Objects
-  if(!isFunction(WeakSet)){
-    WeakSet = createCollectionConstructor(WEAKSET, true);
-    assign(WeakSet[PROTOTYPE], assign({
-      // 23.4.3.1 WeakSet.prototype.add(value)
-      add: function(value){
-        getWeakData(assertObject(value))[this[WEAKID]] = true;
-        return this;
-      }
-    }, weakCollectionMethods));
-  } else WeakSet = fixCollection(WeakSet, WEAKSET, true);
-  
-  setToStringTag(Map, MAP);
-  setToStringTag(Set, SET);
-  setToStringTag(WeakMap, WEAKMAP);
-  setToStringTag(WeakSet, WEAKSET);
-  
-  $define(GLOBAL + FORCED + WRAP, {
-    Map: Map,
-    Set: Set,
-    WeakMap: WeakMap,
-    WeakSet: WeakSet
-  });
+  WeakSet = getCollection(WeakSet, WEAKSET, isNative(WeakSet), {
+    // 23.4.3.1 WeakSet.prototype.add(value)
+    add: function(value){
+      getWeakData(assertObject(value))[this[WEAKID]] = true;
+      return this;
+    }
+  }, weakCollectionMethods, false, true);
 }();

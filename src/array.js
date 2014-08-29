@@ -35,7 +35,9 @@ $define(PROTO, ARRAY, {
     while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
     return false;
   },
-  clone: $clone,
+  clone: function(){
+    return clone(this, [], []);
+  },
   /**
    * Alternatives:
    * http://lodash.com/docs#transform

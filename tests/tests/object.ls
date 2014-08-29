@@ -1,17 +1,18 @@
+module \Object
 isFunction = -> typeof! it is \Function
-isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
+isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor} = Object
-test 'Object.getPropertyDescriptor' !->
+test '.getPropertyDescriptor' !->
   {getPropertyDescriptor, create} = Object
   ok isFunction(getPropertyDescriptor), 'Is function'
   deepEqual getPropertyDescriptor(create(q: 1), \q), {+enumerable, +configurable, +writable, value: 1}
-test 'Object.getOwnPropertyDescriptors' !->
+test '.getOwnPropertyDescriptors' !->
   {getOwnPropertyDescriptors, make} = Object
   ok isFunction(getOwnPropertyDescriptors), 'Is function'
   descs = getOwnPropertyDescriptors(make({q: 1}, w:2), \q)
   ok descs.q is void
   deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-test 'Object.isPrototype' !->
+test '.isPrototype' !->
   {isPrototype} = Object
   ok isFunction(isPrototype), 'Is function'
   ok isPrototype Object::, {}
@@ -21,7 +22,7 @@ test 'Object.isPrototype' !->
   ok not isPrototype Function::, []
   ok isPrototype proto = {}, ^^proto
   ok not isPrototype {}, ^^->
-test 'Object.classof' !->
+test '.classof' !->
   {classof} = Object
   ok isFunction(classof), 'Is function'
   ok classof({}) is \Object
@@ -52,13 +53,13 @@ test 'Object.classof' !->
   class Class
     @::[Symbol.toStringTag] = \Class
   ok classof(new Class) is \Class
-test 'Object.make' !->
+test '.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'
   object = make foo = {q:1}, {w:2}
   ok getPrototypeOf(object) is foo
   ok object.w is 2
-test 'Object.define' !->
+test '.define' !->
   {define} = Object
   ok isFunction(define), 'Is function'
   foo = q:1
@@ -69,19 +70,19 @@ test 'Object.define' !->
     foo2 = defineProperty {}, \w, get: -> @q + 1
     define foo, foo2
     ok foo.w is 2
-test 'Object.values' !->
+test '.values' !->
   {values, make} = Object
   ok isFunction(values), 'Is function'
   deepEqual values({q:1, w:2, e:3}), [1 2 3]
   deepEqual values(new String \qwe), [\q \w \e]
   deepEqual values(make {q:1, w:2, e:3}, {a:4, s:5, d:6}), [4 5 6]
-test 'Object.entries' !->
+test '.entries' !->
   {entries, make} = Object
   ok isFunction(entries), 'Is function'
   deepEqual entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
   deepEqual entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
   deepEqual entries(make {q:1, w:2, e:3}, {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]
-test 'Object.isObject' !->
+test '.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'
   ok not isObject void

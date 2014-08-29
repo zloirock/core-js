@@ -43,9 +43,9 @@ var global          = returnThis()
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , document        = global.document
-  , $Array          = Array[PROTOTYPE]
-  , $Object         = Object[PROTOTYPE]
-  , $Function       = Function[PROTOTYPE]
+  , ArrayProto      = Array[PROTOTYPE]
+  , ObjectProto     = Object[PROTOTYPE]
+  , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0;
 
 // 7.2.3 SameValue(x, y)
@@ -69,24 +69,26 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = $Object[TO_STRING]
+var toString = ObjectProto[TO_STRING]
   , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
-  , TOSTRINGTAG; // define in es6_symbol module
+    // define in es6_symbol module
+  , TOSTRINGTAG;
 function setToStringTag(constructor, tag, stat){
   if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
 }
+function cof(it){
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+}
 function classof(it){
-  if(it == undefined)return it === undefined ? 'Undefined' : 'Null';
-  var cof = toString.call(it).slice(8, -1)
+  var klass = cof(it)
     , tag;
-  if(cof != OBJECT)return cof;
-  if(TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
-  return cof;
+  if(klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
+  return klass;
 }
 
 // Function
-var apply = $Function.apply
-  , call  = $Function.call;
+var apply = FunctionProto.apply
+  , call  = FunctionProto.call;
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -152,8 +154,8 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , hasOwnProperty   = $Object.hasOwnProperty
-  , __PROTO__        = '__proto__' in $Object
+  , hasOwnProperty   = ObjectProto.hasOwnProperty
+  , __PROTO__        = '__proto__' in ObjectProto
   , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
@@ -194,10 +196,10 @@ function keyOf(object, searchElement){
 }
 // Simple structured cloning
 function clone(it, stack1, stack2){
-  var cof     = classof(it)
-    , isArray = cof == ARRAY
+  var klass   = cof(it)
+    , isArray = klass == ARRAY
     , index, result, i, l, keys, key;
-  if(isArray || cof == OBJECT){
+  if(isArray || klass == OBJECT){
     index = indexOf.call(stack1, it);
     if(~index)return stack2[index];
     stack1.push(it);
@@ -213,21 +215,18 @@ function clone(it, stack1, stack2){
   }
   return it;
 }
-function $clone(){
-  return clone(this, [], []);
-}
 
 // Array
 // array('str1,str2,str3') => ['str1', 'str2', 'str3']
 function array(it){
   return String(it).split(',');
 }
-var push    = $Array.push
-  , unshift = $Array.unshift
-  , slice   = $Array.slice
-  , splice  = $Array.splice
-  , indexOf = $Array.indexOf
-  , forEach = $Array[FOR_EACH];
+var push    = ArrayProto.push
+  , unshift = ArrayProto.unshift
+  , slice   = ArrayProto.slice
+  , splice  = ArrayProto.splice
+  , indexOf = ArrayProto.indexOf
+  , forEach = ArrayProto[FOR_EACH];
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -280,6 +279,10 @@ function assertInstance(it, Constructor, name){
 }
 
 // Property descriptors & Symbol
+var SIMPLE   = 0
+  , NOT_ENUM = 1
+  , NOT_CONF = 2
+  , NOT_WRIT = 4;
 function descriptor(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -292,7 +295,7 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(1, value));
+  return defineProperty(object, key, descriptor(NOT_ENUM, value));
 }
 var sid    = 0
   , symbol = Symbol || uid
@@ -304,7 +307,13 @@ var sid    = 0
     : hidden;
 
 // Collections & iterators variables, define in over modules
-var ITERATOR, $for, isIterable, getIterator, objectIterators, COLLECTION_KEYS, SHIM_MAP, SHIM_SET;
+var ITERATOR
+  , $for
+  , isIterable
+  , getIterator
+  , objectIterators
+  , COLLECTION_KEYS
+  , SHIM;
 
 // DOM
 var html = document && document.documentElement;
@@ -312,7 +321,7 @@ var html = document && document.documentElement;
 // core
 var core = {}
   , path   = framework ? global : core
-  , NODE   = classof(process) == PROCESS
+  , NODE   = cof(process) == PROCESS
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -323,7 +332,7 @@ var core = {}
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || $Object)[PROTOTYPE]
+    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){

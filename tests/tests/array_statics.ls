@@ -1,34 +1,35 @@
+module 'Array statics'
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'Array static are functions' !->
   for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries get turn clone contains]>
     ok isFunction(Array[..]), "Array.#{..} is function"
-test 'Array.join' !->
+test '.join' !->
   {join} = Array
   ok join(\123, \|) is \1|2|3
   ok join((-> &)(3 2 1), \|) is \3|2|1
-test 'Array.pop' !->
+test '.pop' !->
   {pop} = Array
   ok pop(args = (-> &)(1 2 3)) is 3
   deepEqual args, (-> &)(1 2)
-test 'Array.push' !->
+test '.push' !->
   {push} = Array
   push args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
   deepEqual slice.call(args), [1 2 3 4 5]
-test 'Array.reverse' !->
+test '.reverse' !->
   {reverse} = Array
   deepEqual reverse((-> &)(1 2 3)), (-> &)(3 2 1)
-test 'Array.shift' !->
+test '.shift' !->
   {shift} = Array
   ok shift(args = (-> &)(1 2 3)) is 1
   deepEqual args, (-> &)(2 3)
-test 'Array.unshift' !->
+test '.unshift' !->
   {unshift} = Array
   unshift args = (-> &)(1 2 3), 4 5
   # don't enum arguments props in ie 8-
   deepEqual slice.call(args), [4 5 1 2 3]
-test 'Array.slice' !->
+test '.slice' !->
   {slice} = Array
   deepEqual slice(\123), <[1 2 3]>
   deepEqual slice(\123 1), <[2 3]>
@@ -38,7 +39,7 @@ test 'Array.slice' !->
   deepEqual slice((-> &)(1 2 3), 1), [2 3]
   deepEqual slice((-> &)(1 2 3), 1, 2), [2]
   deepEqual slice((-> &)(1 2 3), 1, -1), [2]
-test 'Array.splice' !->
+test '.splice' !->
   {splice} = Array
   splice args = (-> &)(1 2 3), 1 0 4 5
   # don't enum arguments props in ie 8-
@@ -47,12 +48,12 @@ test 'Array.splice' !->
   deepEqual slice.call(args), [1 4 3]
   splice args = (-> &)(1 2 3), 1 1
   deepEqual slice.call(args), [1 3]
-test 'Array.sort' !->
+test '.sort' !->
   {sort} = Array
   deepEqual sort((-> &)(2 1 3)), (-> &)(1 2 3)
   deepEqual sort((-> &)(11 2 3)), (-> &)(11 2 3)
   deepEqual sort((-> &)(11 2 3), (a, b)-> a - b), (-> &)(2 3 11)
-test 'Array.indexOf' !->
+test '.indexOf' !->
   {indexOf} = Array
   ok indexOf(\111 \1) is 0
   ok indexOf(\123 \1 1) is -1
@@ -60,7 +61,7 @@ test 'Array.indexOf' !->
   ok indexOf((-> &)(1 1 1), 1) is 0
   ok indexOf((-> &)(1 2 3), 1 1) is -1
   ok indexOf((-> &)(1 2 3), 2 1) is 1
-test 'Array.lastIndexOf' !->
+test '.lastIndexOf' !->
   {lastIndexOf} = Array
   ok lastIndexOf(\111 \1) is 2
   ok lastIndexOf(\123 \3 1) is -1
@@ -68,7 +69,7 @@ test 'Array.lastIndexOf' !->
   ok lastIndexOf((-> &)(1 1 1), 1) is 2
   ok lastIndexOf((-> &)(1 2 3), 3 1) is -1
   ok lastIndexOf((-> &)(1 2 3), 2 1) is 1
-test 'Array.every' !->
+test '.every' !->
   {every} = Array
   every al = (->&)(1), (val, key, that)->
     ok @ is ctx
@@ -82,7 +83,7 @@ test 'Array.every' !->
   ok not every \123 -> &1 < 2
   ok every  \123 -> &2 ~= \123
   ok every  (->&)(1,2,3), -> typeof! it is \Number
-test 'Array.some' !->
+test '.some' !->
   {some} = Array
   some al = (->&)(1), (val, key, that)->
     ok @ is ctx
@@ -96,7 +97,7 @@ test 'Array.some' !->
   ok not some \123 -> &1 > 3
   ok some  \123 -> &2 ~= \123
   ok some  (-> &)(1 2 3), -> typeof! it is \Number
-test 'Array.forEach' !->
+test '.forEach' !->
   {forEach} = Array
   forEach al = (->&)(1), (val, key, that)!->
     ok @    is ctx
@@ -113,7 +114,7 @@ test 'Array.forEach' !->
   val = ''
   forEach \123 ((v, k, t)!-> val += v + k + t + @), 1
   ok val is \101231211231321231
-test 'Array.map' !->
+test '.map' !->
   {map} = Array
   map al = (->&)(1), (val, key, that)->
     ok @    is ctx
@@ -123,7 +124,7 @@ test 'Array.map' !->
   , ctx = {}
   deepEqual map(\123 (^2)), [1 4 9]
   deepEqual map((-> &)(1 2 3), (^2)), [1 4 9]
-test 'Array.filter' !->
+test '.filter' !->
   {filter} = Array
   filter al = (->&)(1), (val, key, that)->
     ok @    is ctx
@@ -134,7 +135,7 @@ test 'Array.filter' !->
   deepEqual filter(\123, -> it > 1), <[2 3]>
   deepEqual filter((-> &)(1 2 3), -> it < 3), [1,2]
   deepEqual filter(\123 -> &1 != 1), <[1 3]>
-test 'Array.reduce' !->
+test '.reduce' !->
   {reduce} = Array
   reduce al = (->&)(1), (memo, val, key, that)->
     ok memo is ctx
@@ -147,7 +148,7 @@ test 'Array.reduce' !->
   ok reduce(\123 ((+a, +b)-> a + b)) is 6
   ok reduce((-> &)(1 2 3), (a, b)-> '' + b * b + a) is \941
   ok reduce(\123 ((+a, +b)-> a + b), 1) is 7
-test 'Array.reduceRight' !->
+test '.reduceRight' !->
   {reduceRight} = Array
   reduceRight al = (->&)(1), (memo, val, key, that)->
     ok memo is ctx
@@ -160,10 +161,10 @@ test 'Array.reduceRight' !->
   ok reduceRight(\123 ((+a, +b)-> a + b)) is 6
   ok reduceRight((-> &)(1 2 3), (a, b)-> '' + b * b + a) is \143
   ok reduceRight(\123 ((+a, +b)-> a + b), 1) is 7
-test 'Array.fill' !->
+test '.fill' !->
   {fill} = Array
   deepEqual fill((-> &)(null null null), 5), (-> &)(5 5 5)
-test 'Array.find' !->
+test '.find' !->
   {find} = Array
   find al = (->&)(1), (val, key, that)->
     ok @    is ctx
@@ -174,7 +175,7 @@ test 'Array.find' !->
   ok find((->&)(1 3 NaN, 42 {}), (is 42)) is 42
   ok find(\123, (is \2)) is \2
   ok find(\123, (is \4)) is void
-test 'Array.findIndex' !->
+test '.findIndex' !->
   {findIndex} = Array
   findIndex al = (->&)(1), (val, key, that)->
     ok @    is ctx
@@ -185,7 +186,7 @@ test 'Array.findIndex' !->
   ok findIndex((->&)(1 3 NaN, 42 {}), (is 42)) is 3
   ok findIndex(\123 (is \2)) is 1
   ok findIndex(\123 (is \4)) is -1
-test 'Array.keys' !->
+test '.keys' !->
   {keys} = Array
   ok typeof keys is \function, 'Is function'
   iter1 = keys (->&)(\q \w \e)
@@ -200,7 +201,7 @@ test 'Array.keys' !->
   deepEqual iter2.next!, {value: 1, done: no}
   deepEqual iter2.next!, {value: 2, done: no}
   deepEqual iter2.next!, {value: void, done: on}
-test 'Array.values' !->
+test '.values' !->
   {values} = Array
   ok typeof values is \function, 'Is function'
   iter1 = values (->&)(\q \w \e)
@@ -215,7 +216,7 @@ test 'Array.values' !->
   deepEqual iter2.next!, {value: \w, done: no}
   deepEqual iter2.next!, {value: \e, done: no}
   deepEqual iter2.next!, {value: void, done: on}
-test 'Array.entries' !->
+test '.entries' !->
   {entries} = Array
   ok typeof entries is \function, 'Is function'
   iter1 = entries (->&)(\q \w \e)
@@ -230,7 +231,7 @@ test 'Array.entries' !->
   deepEqual iter2.next!, {value: [1 \w], done: no}
   deepEqual iter2.next!, {value: [2 \e], done: no}
   deepEqual iter2.next!, {value: void, done: on}
-test 'Array.get' !->
+test '.get' !->
   {get} = Array
   ok get((->&)(1 2 3), 0)  is 1
   ok get((->&)(1 2 3), 2)  is 3
@@ -244,7 +245,7 @@ test 'Array.get' !->
   ok get(\qwe -1) is \e
   ok get(\qwe -3) is \q
   ok get(\qwe -4) is void
-test 'Array.turn' !->
+test '.turn' !->
   {turn} = Array
   turn (al = (->&)(1)), (memo, val, key, that)->
     deepEqual [] memo
@@ -261,7 +262,7 @@ test 'Array.turn' !->
   , obj = {}
   deepEqual [3 2 1], turn (->&)(1 2 3), ((memo, it)-> memo.unshift it)
   deepEqual [\3 \2 \1], turn \123, ((memo, it)-> memo.unshift it)
-test 'Array.clone' !->
+test '.clone' !->
   {clone} = Array
   ok isFunction(clone), 'Is function'
   arr1 = [object1 = {q:1, w:2}, array1 = [1 2], 1 2 3]
@@ -270,7 +271,7 @@ test 'Array.clone' !->
   ok arr2\0 isnt object1
   ok arr2\1 isnt array1
   deepEqual arr1, arr2
-test 'Array.contains' !->
+test '.contains' !->
   {contains} = Array
   ok isFunction(contains), 'Is function'
   args = (->&)(1 2 3 -0 NaN, o = {})

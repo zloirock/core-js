@@ -1,5 +1,6 @@
+module 'ES6 Collections'
 isFunction = -> typeof! it is \Function
-isNative = -> /^\s*function[^{]+\{\s*\[native code\]\s*\}\s*$/.test it
+isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor} = Object
 that = global? && global || window
 test 'Map' !->

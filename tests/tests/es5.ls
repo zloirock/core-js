@@ -1,3 +1,4 @@
+module \ES5
 isFunction = -> typeof! it is \Function
 test 'Object.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Object
