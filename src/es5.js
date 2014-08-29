@@ -260,9 +260,7 @@
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-  $define(PROTO, STRING, {trim: function(){
-    return String(this).replace(trimRegExp, '');
-  }});
+  $define(PROTO, STRING, {trim: createEscaper(trimRegExp, '')});
   
   // 20.3.3.1 / 15.9.4.4 Date.now()
   $define(STATIC, DATE, {now: function(){

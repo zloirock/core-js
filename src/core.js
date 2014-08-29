@@ -315,6 +315,15 @@ var ITERATOR
   , COLLECTION_KEYS
   , SHIM;
 
+function createEscaper(regExp, replace, isStatic){
+  var replacer = isObject(replace) ? function(part){
+    return replace[part];
+  } : replace;
+  return function(it){
+    return String(isStatic ? it : this).replace(regExp, replacer);
+  }
+}
+
 // DOM
 var html = document && document.documentElement;
 

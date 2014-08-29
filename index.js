@@ -328,6 +328,15 @@ var ITERATOR
   , COLLECTION_KEYS
   , SHIM;
 
+function createEscaper(regExp, replace, isStatic){
+  var replacer = isObject(replace) ? function(part){
+    return replace[part];
+  } : replace;
+  return function(it){
+    return String(isStatic ? it : this).replace(regExp, replacer);
+  }
+}
+
 // DOM
 var html = document && document.documentElement;
 
@@ -1603,7 +1612,7 @@ $define(PROTO, FUNCTION, {
      * http://www.wirfs-brock.com/allen/posts/166
      * http://habrahabr.ru/post/114737/
      */
-    only: function(numberArguments, that /* = undefined */){
+    only: function(numberArguments, that /* = @ */){
       var fn     = assertFunction(this)
         , n      = toLength(numberArguments)
         , isThat = arguments.length > 1;
@@ -1890,20 +1899,10 @@ $define(PROTO, NUMBER, turn.call(
       }
     , unescapeHTMLDict = turn.call(getKeys(escapeHTMLDict), function(memo, key){
         memo[escapeHTMLDict[key]] = key;
-      }, {})
-    , escapeHTMLRegExp   = /[&<>"']/g
-    , unescapeHTMLRegExp = /&(?:amp|lt|gt|quot|apos);/g;
+      }, {});
   $define(PROTO, STRING, {
-    escapeHTML: function(){
-      return String(this).replace(escapeHTMLRegExp, function(part){
-        return escapeHTMLDict[part];
-      });
-    },
-    unescapeHTML: function(){
-      return String(this).replace(unescapeHTMLRegExp, function(part){
-        return unescapeHTMLDict[part];
-      });
-    }
+    escapeHTML:   createEscaper(/[&<>"']/g, escapeHTMLDict),
+    unescapeHTML: createEscaper(/&(?:amp|lt|gt|quot|apos);/g, unescapeHTMLDict)
   });
 }();
 
@@ -1911,14 +1910,8 @@ $define(PROTO, NUMBER, turn.call(
  * Module : regexp                                                            *
  ******************************************************************************/
 
-!function(escapeRegExp){
-  // ~ES7 : https://gist.github.com/kangax/9698100
-  $define(STATIC, REGEXP, {
-    escape: function(it){
-      return String(it).replace(escapeRegExp, '\\$1');
-    }
-  });
-}(/([\\\-[\]{}()*+?.,^$|])/g);
+// ~ES7 : https://gist.github.com/kangax/9698100
+$define(STATIC, REGEXP, {escape: createEscaper(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)});
 
 /******************************************************************************
  * Module : date                                                              *
@@ -2025,6 +2018,9 @@ $define(PROTO, NUMBER, turn.call(
   } catch(e){}
   $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
 }(global.console || {});
+
+// Node.js export
 if(NODE)module.exports = core;
-if(!NODE || framework)$define(GLOBAL, {core: core})
+// Export to global object
+if(!NODE || framework)$define(GLOBAL, {core: core});
 }(Function('return this'), true);

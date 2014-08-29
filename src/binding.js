@@ -26,7 +26,7 @@
      * http://www.wirfs-brock.com/allen/posts/166
      * http://habrahabr.ru/post/114737/
      */
-    only: function(numberArguments, that /* = undefined */){
+    only: function(numberArguments, that /* = @ */){
       var fn     = assertFunction(this)
         , n      = toLength(numberArguments)
         , isThat = arguments.length > 1;
