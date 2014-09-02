@@ -9,6 +9,7 @@
     , ENTRIES    = symbol('entries')
     , mapForEach = Map[PROTOTYPE][FOR_EACH]
     , setForEach = Set[PROTOTYPE][FOR_EACH]
+    , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
   function createIterResultObject(value, done){

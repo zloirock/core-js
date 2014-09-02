@@ -1,17 +1,11 @@
 /**
  * ECMAScript 5 shim
  * http://es5.github.io/
- * Alternatives:
- * https://github.com/es-shims/es5-shim
- * https://github.com/ddrcode/ddr-ecma5
- * http://augmentjs.com/
- * https://github.com/inexorabletash/polyfill/blob/master/es5.js
  */
 !function(){
   var Empty       = Function()
     , _classof    = classof
     , whitespace  = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    , trimRegExp  = RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g')
     // For fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
     , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
     , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
@@ -50,13 +44,9 @@
           return result;
         }
       };
-  // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-  try {
-    defineProperty({}, 0, ObjectProto);
-  } catch(e){
-    DESCRIPTORS = false;
+  if(!DESCRIPTORS){
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(NOT_ENUM * !ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -150,7 +140,43 @@
       return cof(arg) == ARRAY
     }
   });
+  function createArrayReduce(isRight){
+    return function(callbackfn, memo /* = @.0 */){
+      assertFunction(callbackfn);
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = isRight ? length - 1 : 0
+        , inc    = isRight ? -1 : 1;
+      if(2 > arguments.length)for(;;){
+        if(index in O){
+          memo = O[index];
+          index += inc;
+          break;
+        }
+        index += inc;
+        assert(isRight ? index >= 0 : length > index, REDUCE_ERROR);
+      }
+      for(;isRight ? index >= 0 : length > index; index += inc)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
+      return memo;
+    }
+  }
   $define(PROTO, ARRAY, {
+    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
+    forEach: forEach = forEach || createArrayMethod(0),
+    // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
+    map:         createArrayMethod(1),
+    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
+    filter:      createArrayMethod(2),
+    // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
+    some:        createArrayMethod(3),
+    // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
+    every:       createArrayMethod(4),
+    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
+    reduce:      createArrayReduce(false),
+    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
+    reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
     indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
       var O      = ES5Object(this)
@@ -173,101 +199,20 @@
         if(O[index] === searchElement)return index;
       }
       return -1;
-    },
-    // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-    every: function(callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
-        , O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = 0;
-      for(;length > index; index++)if(index in O){
-        if(!f(O[index], index, this))return false;
-      }
-      return true;
-    },
-    // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-    some: function(callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
-        , O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = 0;
-      for(;length > index; index++)if(index in O){
-        if(f(O[index], index, this))return true;
-      }
-      return false;
-    },
-    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-    forEach: forEach = forEach || function(callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
-        , O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = 0;
-      for(;length > index; index++)index in O && f(O[index], index, this);
-    },
-    // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-    map: function(callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
-        , result = Array(toLength(this.length));
-      forEach.call(this, function(val, key, that){
-        result[key] = f(val, key, that);
-      });
-      return result;
-    },
-    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-    filter: function(callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
-        , result = [];
-      forEach.call(this, function(val, key, that){
-        f(val, key, that) && result.push(val);
-      });
-      return result;
-    },
-    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
-    reduce: function(callbackfn, memo /* = @.0 */){
-      assertFunction(callbackfn);
-      var O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = 0;
-      if(2 > arguments.length)for(;;){
-        if(index in O){
-          memo = O[index++];
-          break;
-        }
-        assert(length > ++index, REDUCE_ERROR);
-      }
-      for(;length > index; index++)if(index in O){
-        memo = callbackfn(memo, O[index], index, this);
-      }
-      return memo;
-    },
-    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
-    reduceRight: function(callbackfn, memo /* = @[*-1] */){
-      assertFunction(callbackfn);
-      var O     = ES5Object(this)
-        , index = toLength(O.length) - 1;
-      if(2 > arguments.length)for(;;){
-        if(index in O){
-          memo = O[index--];
-          break;
-        }
-        assert(0 <= --index, REDUCE_ERROR);
-      }
-      for(;index >= 0; index--)if(index in O){
-        memo = callbackfn(memo, O[index], index, this);
-      }
-      return memo;
     }
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-  $define(PROTO, STRING, {trim: createEscaper(trimRegExp, '')});
+  $define(PROTO, STRING, {
+    trim: createEscaper(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
+  });
   
   // 20.3.3.1 / 15.9.4.4 Date.now()
   $define(STATIC, DATE, {now: function(){
     return +new Date;
   }});
   
-  if(isFunction(trimRegExp))isFunction = function(it){
+  if(isFunction(/./))isFunction = function(it){
     return cof(it) == FUNCTION;
   }
   if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){

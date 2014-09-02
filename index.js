@@ -169,7 +169,6 @@ var create           = Object.create
   , getNames         = Object.getOwnPropertyNames
   , hasOwnProperty   = ObjectProto.hasOwnProperty
   , __PROTO__        = '__proto__' in ObjectProto
-  , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 function has(object, key){
@@ -190,14 +189,17 @@ var assign = Object.assign || function(target, source){
   }
   return T;
 }
-function getValues(object){
-  var O      = ES5Object(object)
-    , keys   = getKeys(object)
-    , length = keys.length
-    , i      = 0
-    , result = Array(length);
-  while(length > i)result[i] = O[keys[i++]];
-  return result;
+function createObjectToArray(isEntries){
+  return function(object){
+    var O      = ES5Object(object)
+      , keys   = getKeys(object)
+      , length = keys.length
+      , i      = 0
+      , result = Array(length)
+      , key;
+    while(length > i)result[i] = isEntries ? [key = keys[i++], O[key]] : O[keys[i++]];
+    return result;
+  }
 }
 function keyOf(object, searchElement){
   var O      = ES5Object(object)
@@ -240,6 +242,47 @@ var push    = ArrayProto.push
   , splice  = ArrayProto.splice
   , indexOf = ArrayProto.indexOf
   , forEach = ArrayProto[FOR_EACH];
+  
+/*
+ * 0 -> forEach
+ * 1 -> map
+ * 2 -> filter
+ * 3 -> some
+ * 4 -> every
+ * 5 -> find
+ * 6 -> findIndex
+ */
+function createArrayMethod(type){
+  var isMap       = type == 1
+    , isFilter    = type == 2
+    , isSome      = type == 3
+    , isEvery     = type == 4
+    , isFindIndex = type == 6
+    , noholes     = type == 5 || isFindIndex;
+  return function(callbackfn, thisArg /* = undefined */){
+    var f      = optionalBind(callbackfn, thisArg)
+      , O      = Object(this)
+      , self   = ES5Object(O)
+      , length = toLength(self.length)
+      , index  = 0
+      , result = isMap ? Array(length) : isFilter ? [] : undefined
+      , val, res;
+    for(;length > index; index++)if(noholes || index in self){
+      val = self[index];
+      res = f(val, index, O);
+      if(type){
+        if(isMap)result[index] = res;             // map
+        else if(res)switch(type){
+          case 3: return true;                    // some
+          case 5: return val;                     // find
+          case 6: return index;                   // findIndex
+          case 2: push.call(result, val);         // filter
+        } else if(isEvery)return false;           // every
+      }
+    }
+    return isFindIndex ? -1 : isSome || isEvery ? isEvery : result;
+  }
+}
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -274,6 +317,15 @@ function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
 
+function createEscaper(regExp, replace, isStatic){
+  var replacer = isObject(replace) ? function(part){
+    return replace[part];
+  } : replace;
+  return function(it){
+    return String(isStatic ? it : this).replace(regExp, replacer);
+  }
+}
+
 // Assertion & errors
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition, msg1, msg2){
@@ -292,10 +344,6 @@ function assertInstance(it, Constructor, name){
 }
 
 // Property descriptors & Symbol
-var SIMPLE   = 0
-  , NOT_ENUM = 1
-  , NOT_CONF = 2
-  , NOT_WRIT = 4;
 function descriptor(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -304,20 +352,24 @@ function descriptor(bitmap, value){
     value       : value
   }
 }
+function simpleSet(object, key, value){
+  object[key] = value;
+  return object;
+}
+function createDefiner(bitmap){
+  return DESCRIPTORS ? function(object, key, value){
+    return defineProperty(object, key, descriptor(bitmap, value));
+  } : simpleSet;
+}
 function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
-function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(NOT_ENUM, value));
-}
-var sid    = 0
-  , symbol = Symbol || uid
-  , set    = Symbol
-    ? function(object, key, value){
-        object[key] = value;
-        return object;
-      }
-    : hidden;
+// The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
+var DESCRIPTORS = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
+  , sid         = 0
+  , hidden      = createDefiner(1)
+  , symbol      = Symbol || uid
+  , set         = Symbol ? simpleSet : hidden;
 
 // Collections & iterators variables, define in over modules
 var ITERATOR
@@ -328,20 +380,11 @@ var ITERATOR
   , COLLECTION_KEYS
   , SHIM;
 
-function createEscaper(regExp, replace, isStatic){
-  var replacer = isObject(replace) ? function(part){
-    return replace[part];
-  } : replace;
-  return function(it){
-    return String(isStatic ? it : this).replace(regExp, replacer);
-  }
-}
-
 // DOM
 var html = document && document.documentElement;
 
 // core
-var core = {}
+var core   = {}
   , path   = framework ? global : core
   , NODE   = cof(process) == PROCESS
   // type bitmap
@@ -372,7 +415,7 @@ function $define(type, name, source){
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // .CORE mark
-    if(!own && out != global)out.CORE = exp.CORE = true;
+    if(!own)out.CORE = exp.CORE = true;
     // export to `core`
     if(exports[key] != out)exports[key] = exp;
     // if build as framework, extend global objects
@@ -381,6 +424,10 @@ function $define(type, name, source){
 }
 // Placeholder
 core._ = path._ = framework ? path._ || {} : {};
+// Node.js export
+if(NODE)module.exports = core;
+// Export to global object
+if(!NODE || framework)global.core = core;
 
 /******************************************************************************
  * Module : es6_symbol                                                        *
@@ -419,8 +466,7 @@ core._ = path._ = framework ? path._ || {} : {};
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
-      var k = '' + key;
-      return has(SymbolRegistry, k) ? SymbolRegistry[k] : SymbolRegistry[k] = Symbol(k);
+      return has(SymbolRegistry, key += '') ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,
@@ -490,7 +536,7 @@ core._ = path._ = framework ? path._ || {} : {};
     },
     // 20.1.2.4 Number.isNaN(number)
     isNaN: function(number){
-      return typeof number == 'number' && number != number;
+      return number !== number;
     },
     // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
@@ -674,15 +720,6 @@ core._ = path._ = framework ? path._ || {} : {};
       return result;
     }
   });
-  function findIndex(predicate, thisArg /* = undefind */){
-    var f      = optionalBind(predicate, thisArg)
-      , O      = Object(this)
-      , self   = ES5Object(O)
-      , length = toLength(self.length)
-      , index  = 0;
-    for(;length > index; index++)if(f(self[index], index, O))return index;
-    return -1;
-  }
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // TODO
@@ -702,12 +739,9 @@ core._ = path._ = framework ? path._ || {} : {};
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-    find: function(predicate, thisArg /* = undefind */){
-      var index = findIndex.call(this, predicate, thisArg);
-      if(~index)return ES5Object(this)[index];
-    },
+    find:      createArrayMethod(5),
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
-    findIndex: findIndex
+    findIndex: createArrayMethod(6)
   });
   // 24.3.3 JSON [ @@toStringTag ]
   setToStringTag(global.JSON, 'JSON', true);
@@ -802,10 +836,6 @@ $define(GLOBAL + BIND, {
  * https://github.com/domenic/promises-unwrapping
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
  * http://caniuse.com/promises
- * Based on:
- * https://github.com/jakearchibald/ES6-Promises
- * Alternatives:
- * https://github.com/getify/native-promise-only
  */
 !function(Promise, $Promise){
   isFunction(Promise)
@@ -988,7 +1018,7 @@ $define(GLOBAL + BIND, {
     if(!test){
       // create collection constructor
       C = function(iterable){
-        assertInstance(this, C, name);
+        assertInstance(this, C, NAME);
         init.call(this);
         initFromIterable(this, iterable);
       }
@@ -1176,6 +1206,7 @@ $define(GLOBAL + BIND, {
     , ENTRIES    = symbol('entries')
     , mapForEach = Map[PROTOTYPE][FOR_EACH]
     , setForEach = Set[PROTOTYPE][FOR_EACH]
+    , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
   function createIterResultObject(value, done){
@@ -1386,112 +1417,79 @@ $define(GLOBAL + BIND, {
     return dict;
   }
   Dict[PROTOTYPE] = null;
-  function findKey(object, fn, that /* = undefined */){
-    var f      = optionalBind(fn, that)
-      , O      = ES5Object(object)
-      , keys   = getKeys(O)
-      , length = keys.length
-      , i      = 0
-      , key;
-    while(length > i)if(f(O[key = keys[i++]], key, object))return key;
-  }
-  assign(Dict, objectIterators, {
-    /**
-     * Object enumumerabe
-     * Alternatives:
-     * http://underscorejs.org/ _.{...enumerable}
-     * http://sugarjs.com/api/Object/enumerable Object.{...enumerable}
-     * http://mootools.net/docs/core/Types/Object Object.{...enumerable}
-     * http://api.jquery.com/category/utilities/ $.{...enumerable}
-     * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
-     */
-    every: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
+  
+  /*
+   * 0 -> forEach
+   * 1 -> map
+   * 2 -> filter
+   * 3 -> some
+   * 4 -> every
+   * 5 -> find
+   * 6 -> findKey
+   */
+  function createDictMethod(type){
+    var isMap    = type == 1
+      , isFilter = type == 2
+      , isSome   = type == 3
+      , isEvery  = type == 4;
+    return function(object, callbackfn, thisArg /* = undefined */){
+      var f      = optionalBind(callbackfn, thisArg)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , key;
-      while(length > i)if(!f(O[key = keys[i++]], key, object))return false;
-      return true;
-    },
-    filter: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , result = newGeneric(this, Dict)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
+        , result = isMap || isFilter ? newGeneric(this, Dict) : undefined
+        , key, val, res;
       while(length > i){
-        if(f(O[key = keys[i++]], key, object))result[key] = O[key];
+        key = keys[i++];
+        val = O[key];
+        res = f(val, key, object);
+        if(type){
+          if(isMap)result[key] = res;             // map
+          else if(res)switch(type){
+            case 3: return true;                  // some
+            case 5: return val;                   // find
+            case 6: return key;                   // findKey
+            case 2: result[key] = val;            // filter
+          } else if(isEvery)return false;         // every
+        }
       }
-      return result;
-    },
-    find: function(object, fn, that /* = undefined */){
-      var index = findKey(object, fn, that);
-      return index === undefined ? undefined : ES5Object(object)[index];
-    },
-    findKey: findKey,
-    forEach: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)f(O[key = keys[i++]], key, object);
-    },
-    keyOf: keyOf,
-    map: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , result = newGeneric(this, Dict)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)result[key = keys[i++]] = f(O[key], key, object);
-      return result;
-    },
-    reduce: function(object, fn, init /* = undefined */){
-      assertFunction(fn);
+      return isSome || isEvery ? isEvery : result;
+    }
+  }
+  function createDictReduce(isTurn){
+    return function(object, mapfn, init){
+      assertFunction(mapfn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , memo   = init
-        , key;
-      if(arguments.length < 3){
+        , memo, key, result;
+      if(isTurn)memo = init == undefined ? newGeneric(this, Dict) : Object(init);
+      else if(arguments.length < 3){
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];
-      }
-      while(length > i)memo = fn(memo, O[key = keys[i++]], key, object);
-      return memo;
-    },
-    some: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(f(O[key = keys[i++]], key, object))return true;
-      return false;
-    },
-    turn: function(object, mapfn, target /* = new @ */){
-      assertFunction(mapfn);
-      var memo   = target == undefined ? newGeneric(this, Dict) : Object(target)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
+      } else memo = Object(init);
       while(length > i){
-        if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+        result = mapfn(memo, O[key = keys[i++]], key, object);
+        if(isTurn){
+          if(result === false)break;
+        } else memo = result;
       }
       return memo;
-    },
+    }
+  }
+  assign(Dict, objectIterators, {
+    forEach: createDictMethod(0),
+    map:     createDictMethod(1),
+    filter:  createDictMethod(2),
+    some:    createDictMethod(3),
+    every:   createDictMethod(4),
+    find:    createDictMethod(5),
+    findKey: createDictMethod(6),
+    reduce:  createDictReduce(false),
+    turn:    createDictReduce(true),
+    keyOf:   keyOf,
     contains: function(object, searchElement){
       var O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -1510,9 +1508,7 @@ $define(GLOBAL + BIND, {
     get: function(object, key){
       if(has(object, key))return object[key];
     },
-    set: function(object, key, value){
-      return defineProperty(object, key, descriptor(SIMPLE, value));
-    },
+    set: createDefiner(0),
     'delete': function(object, key){
       return has(object, key) && delete object[key];
     },
@@ -1721,18 +1717,9 @@ $define(PROTO, FUNCTION, {
       return defineProperties(target, getOwnPropertyDescriptors(source));
     },
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: getValues,
+    values: createObjectToArray(false),
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: function(object){
-      var O      = ES5Object(object)
-        , keys   = getKeys(object)
-        , length = keys.length
-        , i      = 0
-        , result = Array(length)
-        , key;
-      while(length > i)result[i] = [key = keys[i++], O[key]];
-      return result;
-    },
+    entries: createObjectToArray(true),
     isObject: isObject,
     classof: classof
   });
@@ -1911,7 +1898,9 @@ $define(PROTO, NUMBER, turn.call(
  ******************************************************************************/
 
 // ~ES7 : https://gist.github.com/kangax/9698100
-$define(STATIC, REGEXP, {escape: createEscaper(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)});
+$define(STATIC, REGEXP, {
+  escape: createEscaper(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
+});
 
 /******************************************************************************
  * Module : date                                                              *
@@ -2018,9 +2007,4 @@ $define(STATIC, REGEXP, {escape: createEscaper(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1
   } catch(e){}
   $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
 }(global.console || {});
-
-// Node.js export
-if(NODE)module.exports = core;
-// Export to global object
-if(!NODE || framework)$define(GLOBAL, {core: core});
 }(Function('return this'), true);

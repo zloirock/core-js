@@ -156,7 +156,6 @@ var create           = Object.create
   , getNames         = Object.getOwnPropertyNames
   , hasOwnProperty   = ObjectProto.hasOwnProperty
   , __PROTO__        = '__proto__' in ObjectProto
-  , DESCRIPTORS      = true
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 function has(object, key){
@@ -177,14 +176,17 @@ var assign = Object.assign || function(target, source){
   }
   return T;
 }
-function getValues(object){
-  var O      = ES5Object(object)
-    , keys   = getKeys(object)
-    , length = keys.length
-    , i      = 0
-    , result = Array(length);
-  while(length > i)result[i] = O[keys[i++]];
-  return result;
+function createObjectToArray(isEntries){
+  return function(object){
+    var O      = ES5Object(object)
+      , keys   = getKeys(object)
+      , length = keys.length
+      , i      = 0
+      , result = Array(length)
+      , key;
+    while(length > i)result[i] = isEntries ? [key = keys[i++], O[key]] : O[keys[i++]];
+    return result;
+  }
 }
 function keyOf(object, searchElement){
   var O      = ES5Object(object)
@@ -227,6 +229,47 @@ var push    = ArrayProto.push
   , splice  = ArrayProto.splice
   , indexOf = ArrayProto.indexOf
   , forEach = ArrayProto[FOR_EACH];
+  
+/*
+ * 0 -> forEach
+ * 1 -> map
+ * 2 -> filter
+ * 3 -> some
+ * 4 -> every
+ * 5 -> find
+ * 6 -> findIndex
+ */
+function createArrayMethod(type){
+  var isMap       = type == 1
+    , isFilter    = type == 2
+    , isSome      = type == 3
+    , isEvery     = type == 4
+    , isFindIndex = type == 6
+    , noholes     = type == 5 || isFindIndex;
+  return function(callbackfn, thisArg /* = undefined */){
+    var f      = optionalBind(callbackfn, thisArg)
+      , O      = Object(this)
+      , self   = ES5Object(O)
+      , length = toLength(self.length)
+      , index  = 0
+      , result = isMap ? Array(length) : isFilter ? [] : undefined
+      , val, res;
+    for(;length > index; index++)if(noholes || index in self){
+      val = self[index];
+      res = f(val, index, O);
+      if(type){
+        if(isMap)result[index] = res;             // map
+        else if(res)switch(type){
+          case 3: return true;                    // some
+          case 5: return val;                     // find
+          case 6: return index;                   // findIndex
+          case 2: push.call(result, val);         // filter
+        } else if(isEvery)return false;           // every
+      }
+    }
+    return isFindIndex ? -1 : isSome || isEvery ? isEvery : result;
+  }
+}
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -261,6 +304,15 @@ function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
 
+function createEscaper(regExp, replace, isStatic){
+  var replacer = isObject(replace) ? function(part){
+    return replace[part];
+  } : replace;
+  return function(it){
+    return String(isStatic ? it : this).replace(regExp, replacer);
+  }
+}
+
 // Assertion & errors
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition, msg1, msg2){
@@ -279,10 +331,6 @@ function assertInstance(it, Constructor, name){
 }
 
 // Property descriptors & Symbol
-var SIMPLE   = 0
-  , NOT_ENUM = 1
-  , NOT_CONF = 2
-  , NOT_WRIT = 4;
 function descriptor(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -291,20 +339,24 @@ function descriptor(bitmap, value){
     value       : value
   }
 }
+function simpleSet(object, key, value){
+  object[key] = value;
+  return object;
+}
+function createDefiner(bitmap){
+  return DESCRIPTORS ? function(object, key, value){
+    return defineProperty(object, key, descriptor(bitmap, value));
+  } : simpleSet;
+}
 function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
-function hidden(object, key, value){
-  return defineProperty(object, key, descriptor(NOT_ENUM, value));
-}
-var sid    = 0
-  , symbol = Symbol || uid
-  , set    = Symbol
-    ? function(object, key, value){
-        object[key] = value;
-        return object;
-      }
-    : hidden;
+// The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
+var DESCRIPTORS = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
+  , sid         = 0
+  , hidden      = createDefiner(1)
+  , symbol      = Symbol || uid
+  , set         = Symbol ? simpleSet : hidden;
 
 // Collections & iterators variables, define in over modules
 var ITERATOR
@@ -315,20 +367,11 @@ var ITERATOR
   , COLLECTION_KEYS
   , SHIM;
 
-function createEscaper(regExp, replace, isStatic){
-  var replacer = isObject(replace) ? function(part){
-    return replace[part];
-  } : replace;
-  return function(it){
-    return String(isStatic ? it : this).replace(regExp, replacer);
-  }
-}
-
 // DOM
 var html = document && document.documentElement;
 
 // core
-var core = {}
+var core   = {}
   , path   = framework ? global : core
   , NODE   = cof(process) == PROCESS
   // type bitmap
@@ -359,7 +402,7 @@ function $define(type, name, source){
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // .CORE mark
-    if(!own && out != global)out.CORE = exp.CORE = true;
+    if(!own)out.CORE = exp.CORE = true;
     // export to `core`
     if(exports[key] != out)exports[key] = exp;
     // if build as framework, extend global objects
@@ -368,3 +411,7 @@ function $define(type, name, source){
 }
 // Placeholder
 core._ = path._ = framework ? path._ || {} : {};
+// Node.js export
+if(NODE)module.exports = core;
+// Export to global object
+if(!NODE || framework)global.core = core;

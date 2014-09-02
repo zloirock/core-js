@@ -46,18 +46,9 @@
       return defineProperties(target, getOwnPropertyDescriptors(source));
     },
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: getValues,
+    values: createObjectToArray(false),
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: function(object){
-      var O      = ES5Object(object)
-        , keys   = getKeys(object)
-        , length = keys.length
-        , i      = 0
-        , result = Array(length)
-        , key;
-      while(length > i)result[i] = [key = keys[i++], O[key]];
-      return result;
-    },
+    entries: createObjectToArray(true),
     isObject: isObject,
     classof: classof
   });

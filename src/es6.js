@@ -50,7 +50,7 @@
     },
     // 20.1.2.4 Number.isNaN(number)
     isNaN: function(number){
-      return typeof number == 'number' && number != number;
+      return number !== number;
     },
     // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
@@ -234,15 +234,6 @@
       return result;
     }
   });
-  function findIndex(predicate, thisArg /* = undefind */){
-    var f      = optionalBind(predicate, thisArg)
-      , O      = Object(this)
-      , self   = ES5Object(O)
-      , length = toLength(self.length)
-      , index  = 0;
-    for(;length > index; index++)if(f(self[index], index, O))return index;
-    return -1;
-  }
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     // TODO
@@ -262,12 +253,9 @@
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-    find: function(predicate, thisArg /* = undefind */){
-      var index = findIndex.call(this, predicate, thisArg);
-      if(~index)return ES5Object(this)[index];
-    },
+    find:      createArrayMethod(5),
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
-    findIndex: findIndex
+    findIndex: createArrayMethod(6)
   });
   // 24.3.3 JSON [ @@toStringTag ]
   setToStringTag(global.JSON, 'JSON', true);

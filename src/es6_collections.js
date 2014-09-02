@@ -32,7 +32,7 @@
     if(!test){
       // create collection constructor
       C = function(iterable){
-        assertInstance(this, C, name);
+        assertInstance(this, C, NAME);
         init.call(this);
         initFromIterable(this, iterable);
       }

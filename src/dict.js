@@ -10,112 +10,79 @@
     return dict;
   }
   Dict[PROTOTYPE] = null;
-  function findKey(object, fn, that /* = undefined */){
-    var f      = optionalBind(fn, that)
-      , O      = ES5Object(object)
-      , keys   = getKeys(O)
-      , length = keys.length
-      , i      = 0
-      , key;
-    while(length > i)if(f(O[key = keys[i++]], key, object))return key;
-  }
-  assign(Dict, objectIterators, {
-    /**
-     * Object enumumerabe
-     * Alternatives:
-     * http://underscorejs.org/ _.{...enumerable}
-     * http://sugarjs.com/api/Object/enumerable Object.{...enumerable}
-     * http://mootools.net/docs/core/Types/Object Object.{...enumerable}
-     * http://api.jquery.com/category/utilities/ $.{...enumerable}
-     * http://docs.angularjs.org/api/ng/function angular.{...enumerable}
-     */
-    every: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
+  
+  /*
+   * 0 -> forEach
+   * 1 -> map
+   * 2 -> filter
+   * 3 -> some
+   * 4 -> every
+   * 5 -> find
+   * 6 -> findKey
+   */
+  function createDictMethod(type){
+    var isMap    = type == 1
+      , isFilter = type == 2
+      , isSome   = type == 3
+      , isEvery  = type == 4;
+    return function(object, callbackfn, thisArg /* = undefined */){
+      var f      = optionalBind(callbackfn, thisArg)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , key;
-      while(length > i)if(!f(O[key = keys[i++]], key, object))return false;
-      return true;
-    },
-    filter: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , result = newGeneric(this, Dict)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
+        , result = isMap || isFilter ? newGeneric(this, Dict) : undefined
+        , key, val, res;
       while(length > i){
-        if(f(O[key = keys[i++]], key, object))result[key] = O[key];
+        key = keys[i++];
+        val = O[key];
+        res = f(val, key, object);
+        if(type){
+          if(isMap)result[key] = res;             // map
+          else if(res)switch(type){
+            case 3: return true;                  // some
+            case 5: return val;                   // find
+            case 6: return key;                   // findKey
+            case 2: result[key] = val;            // filter
+          } else if(isEvery)return false;         // every
+        }
       }
-      return result;
-    },
-    find: function(object, fn, that /* = undefined */){
-      var index = findKey(object, fn, that);
-      return index === undefined ? undefined : ES5Object(object)[index];
-    },
-    findKey: findKey,
-    forEach: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)f(O[key = keys[i++]], key, object);
-    },
-    keyOf: keyOf,
-    map: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , result = newGeneric(this, Dict)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)result[key = keys[i++]] = f(O[key], key, object);
-      return result;
-    },
-    reduce: function(object, fn, init /* = undefined */){
-      assertFunction(fn);
+      return isSome || isEvery ? isEvery : result;
+    }
+  }
+  function createDictReduce(isTurn){
+    return function(object, mapfn, init){
+      assertFunction(mapfn);
       var O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , memo   = init
-        , key;
-      if(arguments.length < 3){
+        , memo, key, result;
+      if(isTurn)memo = init == undefined ? newGeneric(this, Dict) : Object(init);
+      else if(arguments.length < 3){
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];
-      }
-      while(length > i)memo = fn(memo, O[key = keys[i++]], key, object);
-      return memo;
-    },
-    some: function(object, fn, that /* = undefined */){
-      var f      = optionalBind(fn, that)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
-      while(length > i)if(f(O[key = keys[i++]], key, object))return true;
-      return false;
-    },
-    turn: function(object, mapfn, target /* = new @ */){
-      assertFunction(mapfn);
-      var memo   = target == undefined ? newGeneric(this, Dict) : Object(target)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , key;
+      } else memo = Object(init);
       while(length > i){
-        if(mapfn(memo, O[key = keys[i++]], key, object) === false)break;
+        result = mapfn(memo, O[key = keys[i++]], key, object);
+        if(isTurn){
+          if(result === false)break;
+        } else memo = result;
       }
       return memo;
-    },
+    }
+  }
+  assign(Dict, objectIterators, {
+    forEach: createDictMethod(0),
+    map:     createDictMethod(1),
+    filter:  createDictMethod(2),
+    some:    createDictMethod(3),
+    every:   createDictMethod(4),
+    find:    createDictMethod(5),
+    findKey: createDictMethod(6),
+    reduce:  createDictReduce(false),
+    turn:    createDictReduce(true),
+    keyOf:   keyOf,
     contains: function(object, searchElement){
       var O      = ES5Object(object)
         , keys   = getKeys(O)
@@ -134,9 +101,7 @@
     get: function(object, key){
       if(has(object, key))return object[key];
     },
-    set: function(object, key, value){
-      return defineProperty(object, key, descriptor(SIMPLE, value));
-    },
+    set: createDefiner(0),
     'delete': function(object, key){
       return has(object, key) && delete object[key];
     },

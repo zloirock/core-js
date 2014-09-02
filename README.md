@@ -85,15 +85,16 @@ Array
   .get(object, key) -> val                                            core
   .set(object, key, value) -> &0                                      core
   .delete(object, key) -> bool                                        core
+  .forEach(object, fn(val, key, @), that) -> void                     core
+  .map(object, fn(val, key, @), that) -> new @                        core
   .filter(object, fn(val, key, @), that) -> new @                     core
+  .some(object, fn(val, key, @), that) -> bool                        core
+  .every(object, fn(val, key, @), that) -> bool                       core
   .find(object, fn(val, key, @), that) -> val                         core
   .findKey(object, fn(val, key, @), that) -> key                      core
   .keyOf(object, var) -> key                                          core
-  .forEach(object, fn(val, key, @), that) -> void                     core
-  .map(object, fn(val, key, @), that) -> new @                        core
+  .contains(object, var) -> bool                                      core
   .reduce(object, fn(memo, val, key, @), memo?) -> var                core
-  .every(object, fn(val, key, @), that) -> bool                       core
-  .some(object, fn(val, key, @), that) -> bool                        core
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo          core
   .clone(foo) -> var                                                  core
   .values(object) -> iterator                                         core

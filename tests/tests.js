@@ -74,7 +74,7 @@
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   slice = Array.prototype.slice;
-  test('Array static are functions', function(){
+  test('are functions', function(){
     var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'get', 'turn', 'clone', 'contains']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];

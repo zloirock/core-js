@@ -1,7 +1,7 @@
 module 'Array statics'
 isFunction = -> typeof! it is \Function
 {slice} = Array::
-test 'Array static are functions' !->
+test 'are functions' !->
   for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries get turn clone contains]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test '.join' !->
