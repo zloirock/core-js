@@ -191,7 +191,7 @@ var assign = Object.assign || function(target, source){
 }
 function createObjectToArray(isEntries){
   return function(object){
-    var O      = ES5Object(object)
+    var O      = ES5Object(assertObject(object))
       , keys   = getKeys(object)
       , length = keys.length
       , i      = 0
@@ -309,8 +309,7 @@ var ceil   = Math.ceil
   , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
-  var n = +it;
-  return n != n ? 0 : n != 0 && n != Infinity && n != -Infinity ? (n > 0 ? floor : ceil)(n) : n;
+  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // 7.1.15 ToLength
 function toLength(it){
@@ -496,8 +495,7 @@ if(!NODE || framework)global.core = core;
 !function(isFinite){
   // 20.2.2.28 Math.sign(x)
   function sign(it){
-    var n = +it;
-    return n == 0 || n != n ? n : n < 0 ? -1 : 1;
+    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
   }
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
@@ -536,7 +534,7 @@ if(!NODE || framework)global.core = core;
     },
     // 20.1.2.4 Number.isNaN(number)
     isNaN: function(number){
-      return number !== number;
+      return number != number;
     },
     // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
@@ -558,8 +556,7 @@ if(!NODE || framework)global.core = core;
     , sqrt      = Math.sqrt
     , Oxffff    = 0xffff;
   function asinh(x){
-    var n = +x;
-    return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
+    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
   }
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
@@ -582,8 +579,7 @@ if(!NODE || framework)global.core = core;
     },
     // 20.2.2.11 Math.clz32 (x)
     clz32: function(x){
-      var n = x >>> 0;
-      return n ? 32 - n[TO_STRING](2).length : 32;
+      return (x >>>= 0) ? 32 - x[TO_STRING](2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
@@ -641,21 +637,18 @@ if(!NODE || framework)global.core = core;
     // 20.2.2.30 Math.sinh(x)
     // Returns an implementation-dependent approximation to the hyperbolic sine of x.
     sinh: function(x){
-      var n = +x;
-      return n == -Infinity || n == 0 ? n : (exp(n) - exp(-n)) / 2;
+      return (x = +x) == -Infinity || x == 0 ? x : (exp(x) - exp(-x)) / 2;
     },
     // 20.2.2.33 Math.tanh(x)
     // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
     tanh: function(x){
-      var n = +x;
-      return isFinite(n) ? n == 0 ? n : (exp(n) - exp(-n)) / (exp(n) + exp(-n)) : sign(n);
+      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
     // 20.2.2.34 Math.trunc(x)
     // Returns the integral part of the number x, removing any fractional digits.
     // If x is already an integer, the result is x.
     trunc: function(x){
-      var n = +x;
-      return n == 0 ? n : (n > 0 ? floor : ceil)(n);
+      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
     }
   });
   // 20.2.1.9 Math [ @@toStringTag ]
@@ -674,9 +667,9 @@ if(!NODE || framework)global.core = core;
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
-        , search = '' + searchString
         , end    = toLength(min(endPosition === undefined ? length : endPosition, length));
-      return String(this).slice(end - search.length, end) === search;
+      searchString += '';
+      return String(this).slice(end - searchString.length, end) === searchString;
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
@@ -689,9 +682,9 @@ if(!NODE || framework)global.core = core;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
-      var search = '' + searchString
-        , index  = toLength(min(position, this.length));
-      return String(this).slice(index, index + search.length) === search;
+      var index = toLength(min(position, this.length));
+      searchString += '';
+      return String(this).slice(index, index + searchString.length) === searchString;
     }
   });
   $define(STATIC, ARRAY, {
@@ -1209,7 +1202,7 @@ $define(GLOBAL + BIND, {
     , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
-  function createIterResultObject(value, done){
+  function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
   function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
@@ -1286,11 +1279,13 @@ $define(GLOBAL + BIND, {
   createIteratorClass(ArrayIterator, ARRAY, Array, function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++
-      , kind     = this[KIND];
-    if(index >= iterated.length)return createIterResultObject(undefined, 1);
-    if(kind == KEY)             return createIterResultObject(index, 0);
-    if(kind == VALUE)           return createIterResultObject(iterated[index], 0);
-                                return createIterResultObject([index, iterated[index]], 0);
+      , kind     = this[KIND]
+      , value;
+    if(index >= iterated.length)return createIterResultObject(1);
+    if(kind == KEY)       value = index;
+    else if(kind == VALUE)value = iterated[index];
+    else                  value = [index, iterated[index]];
+    return createIterResultObject(0, value);
   }, VALUE);
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
@@ -1317,12 +1312,13 @@ $define(GLOBAL + BIND, {
       , keys     = that[KEYS]
       , index    = that[INDEX]++
       , kind     = that[KIND]
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
+      , key, value;
+    if(index >= keys.length)return createIterResultObject(1);
     key = keys[index];
-    if(kind == KEY)         return createIterResultObject(key, 0);
-    if(kind == VALUE)       return createIterResultObject(iterated.get(key), 0);
-                            return createIterResultObject([key, iterated.get(key)], 0);
+    if(kind == KEY)       value = key;
+    else if(kind == VALUE)value = iterated.get(key);
+    else                  value = [key, iterated.get(key)];
+    return createIterResultObject(0, value);
   }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
@@ -1339,10 +1335,9 @@ $define(GLOBAL + BIND, {
   createIteratorClass(SetIterator, SET, Set, function(){
     var keys = this[KEYS]
       , key;
-    if(!keys.length)           return createIterResultObject(undefined, 1);
+    if(!keys.length)return createIterResultObject(1);
     key = keys.pop();
-    if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
-                               return createIterResultObject([key, key], 0);
+    return createIterResultObject(0, this[KIND] == KEY+VALUE ? [key, key] : key);
   }, VALUE);
   
   function ObjectIterator(iterated, kind){
@@ -1357,12 +1352,13 @@ $define(GLOBAL + BIND, {
       , object = that[ITERATED]
       , keys   = that[KEYS]
       , kind   = that[KIND]
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
+      , key, value;
+    if(index >= keys.length)return createIterResultObject(1);
     key = keys[index];
-    if(kind == KEY)         return createIterResultObject(key, 0);
-    if(kind == VALUE)       return createIterResultObject(object[key], 0);
-                            return createIterResultObject([key, object[key]], 0);
+    if(kind == KEY)       value = key;
+    else if(kind == VALUE)value = object[key];
+    else                  value = [key, object[key]];
+    return createIterResultObject(0, value);
   });
   
   function createObjectIteratorFactory(kind){
@@ -1409,7 +1405,7 @@ $define(GLOBAL + BIND, {
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))$for(iterable, 1).of(function(key, value){
+      if(isIterable(iterable))$for(iterable, true).of(function(key, value){
         dict[key] = value;
       });
       else assign(dict, iterable);

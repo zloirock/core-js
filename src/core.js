@@ -178,7 +178,7 @@ var assign = Object.assign || function(target, source){
 }
 function createObjectToArray(isEntries){
   return function(object){
-    var O      = ES5Object(object)
+    var O      = ES5Object(assertObject(object))
       , keys   = getKeys(object)
       , length = keys.length
       , i      = 0
@@ -296,8 +296,7 @@ var ceil   = Math.ceil
   , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
 // 7.1.4 ToInteger
 var toInteger = Number.toInteger || function(it){
-  var n = +it;
-  return n != n ? 0 : n != 0 && n != Infinity && n != -Infinity ? (n > 0 ? floor : ceil)(n) : n;
+  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
 }
 // 7.1.15 ToLength
 function toLength(it){

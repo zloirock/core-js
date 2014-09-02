@@ -33,8 +33,8 @@
           return createDict();
         }
     , createGetKeys = function(names, length){
-        return function(_O){
-          var O      = ES5Object(_O)
+        return function(object){
+          var O      = ES5Object(assertObject(object))
             , i      = 0
             , result = []
             , key;

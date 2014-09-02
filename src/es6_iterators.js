@@ -12,7 +12,7 @@
     , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
-  function createIterResultObject(value, done){
+  function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
   function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
@@ -89,11 +89,13 @@
   createIteratorClass(ArrayIterator, ARRAY, Array, function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++
-      , kind     = this[KIND];
-    if(index >= iterated.length)return createIterResultObject(undefined, 1);
-    if(kind == KEY)             return createIterResultObject(index, 0);
-    if(kind == VALUE)           return createIterResultObject(iterated[index], 0);
-                                return createIterResultObject([index, iterated[index]], 0);
+      , kind     = this[KIND]
+      , value;
+    if(index >= iterated.length)return createIterResultObject(1);
+    if(kind == KEY)       value = index;
+    else if(kind == VALUE)value = iterated[index];
+    else                  value = [index, iterated[index]];
+    return createIterResultObject(0, value);
   }, VALUE);
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
@@ -120,12 +122,13 @@
       , keys     = that[KEYS]
       , index    = that[INDEX]++
       , kind     = that[KIND]
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
+      , key, value;
+    if(index >= keys.length)return createIterResultObject(1);
     key = keys[index];
-    if(kind == KEY)         return createIterResultObject(key, 0);
-    if(kind == VALUE)       return createIterResultObject(iterated.get(key), 0);
-                            return createIterResultObject([key, iterated.get(key)], 0);
+    if(kind == KEY)       value = key;
+    else if(kind == VALUE)value = iterated.get(key);
+    else                  value = [key, iterated.get(key)];
+    return createIterResultObject(0, value);
   }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
@@ -142,10 +145,9 @@
   createIteratorClass(SetIterator, SET, Set, function(){
     var keys = this[KEYS]
       , key;
-    if(!keys.length)           return createIterResultObject(undefined, 1);
+    if(!keys.length)return createIterResultObject(1);
     key = keys.pop();
-    if(this[KIND] != KEY+VALUE)return createIterResultObject(key, 0);
-                               return createIterResultObject([key, key], 0);
+    return createIterResultObject(0, this[KIND] == KEY+VALUE ? [key, key] : key);
   }, VALUE);
   
   function ObjectIterator(iterated, kind){
@@ -160,12 +162,13 @@
       , object = that[ITERATED]
       , keys   = that[KEYS]
       , kind   = that[KIND]
-      , key;
-    if(index >= keys.length)return createIterResultObject(undefined, 1);
+      , key, value;
+    if(index >= keys.length)return createIterResultObject(1);
     key = keys[index];
-    if(kind == KEY)         return createIterResultObject(key, 0);
-    if(kind == VALUE)       return createIterResultObject(object[key], 0);
-                            return createIterResultObject([key, object[key]], 0);
+    if(kind == KEY)       value = key;
+    else if(kind == VALUE)value = object[key];
+    else                  value = [key, object[key]];
+    return createIterResultObject(0, value);
   });
   
   function createObjectIteratorFactory(kind){
