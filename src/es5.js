@@ -10,6 +10,7 @@
     , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
     , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
     , slyKeysLen1 = slyKeys1.length
+    , dontEnumBug = !isEnumerable.call({toString: undefined}, TO_STRING)
     , $PROTO      = symbol(PROTOTYPE)
     // Create object with null prototype
     , createDict  = __PROTO__
@@ -32,7 +33,7 @@
           while(i--)delete createDict[PROTOTYPE][slyKeys1[i]];
           return createDict();
         }
-    , createGetKeys = function(names, length){
+    , createGetKeys = function(names, length, isNames){
         return function(object){
           var O      = ES5Object(assertObject(object))
             , i      = 0
@@ -40,13 +41,15 @@
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~indexOf.call(result, key) && result.push(key);
+          if(dontEnumBug || isNames)while(length > i)if(has(O, key = names[i++])){
+            ~indexOf.call(result, key) || result.push(key);
+          }
           return result;
         }
       };
   if(!DESCRIPTORS){
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(!isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -85,7 +88,7 @@
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length, true),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
@@ -98,7 +101,7 @@
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1)
+    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1, false)
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 

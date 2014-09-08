@@ -1,11 +1,6 @@
 /**
  * ECMAScript 6 shim
  * http://people.mozilla.org/~jorendorff/es6-draft.html
- * http://wiki.ecmascript.org/doku.php?id=harmony:proposals
- * Alternatives:
- * https://github.com/paulmillr/es6-shim
- * https://github.com/monolithed/ECMAScript-6
- * https://github.com/inexorabletash/polyfill/blob/master/es6.md
  */
 !function(isFinite){
   // 20.2.2.28 Math.sign(x)
@@ -192,7 +187,7 @@
         , result = ''
         , n      = toInteger(count);
       assert(0 <= n, "Count can't be negative");
-      for(;n > 0; (n >>= 1) && (str += str))if(n & 1)result += str;
+      for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)result += str;
       return result;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
@@ -206,25 +201,28 @@
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       var O       = ES5Object(arrayLike)
-        , result  = newGeneric(this, Array)
+        , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = optionalBind(mapfn, thisArg);
+      if(mapping)f = createCallback(mapfn, thisArg, 2);
       if($for && isIterable(O))$for(O).of(function(value){
-        push.call(result, mapping ? f(value, index++) : value);
+        result[index] = mapping ? f(value, index) : value;
+        index++;
       });
       else for(length = toLength(O.length); length > index; index++){
-        push.call(result, mapping ? f(O[index], index) : O[index]);
+        result[index] = mapping ? f(O[index], index) : O[index];
       }
+      result.length = index;
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/* ...args */){
       var index  = 0
         , length = arguments.length
-        , result = newGeneric(this, Array);
-      while(length > index)push.call(result, arguments[index++]);
+        , result = new (generic(this, Array))(length);
+      while(length > index)result[index] = arguments[index++];
+      result.length = length;
       return result;
     }
   });

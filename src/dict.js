@@ -26,12 +26,12 @@
       , isSome   = type == 3
       , isEvery  = type == 4;
     return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
+      var f      = createCallback(callbackfn, thisArg)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , result = isMap || isFilter ? newGeneric(this, Dict) : undefined
+        , result = isMap || isFilter ? new (generic(this, Dict)) : undefined
         , key, val, res;
       while(length > i){
         key = keys[i++];
@@ -58,7 +58,7 @@
         , length = keys.length
         , i      = 0
         , memo, key, result;
-      if(isTurn)memo = init == undefined ? newGeneric(this, Dict) : Object(init);
+      if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
       else if(arguments.length < 3){
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];

@@ -3209,18 +3209,18 @@
     setImmediate(function(){
       tmp2 = true;
     });
-    setTimeout(function(){
-      ok(tmp2, 'setImmediate works');
-    }, 70);
     setImmediate(function(b, c){
       tmp3 = b + c;
     }, 'b', 'c');
-    setTimeout(function(){
-      ok(tmp3 === 'bc', 'setImmediate works with additional params');
-    }, 80);
     clearImmediate(setImmediate(function(){
       tmp4 = 42;
     }));
+    setTimeout(function(){
+      ok(tmp2, 'setImmediate works');
+    }, 70);
+    setTimeout(function(){
+      ok(tmp3 === 'bc', 'setImmediate works with additional params');
+    }, 80);
     setTimeout(function(){
       ok(tmp4 === void 8, 'clearImmediate works');
     }, 90);

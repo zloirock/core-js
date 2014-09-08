@@ -56,10 +56,13 @@ var global          = returnThis()
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , document        = global.document
+  , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
-  , Infinity        = 1 / 0;
+  , Infinity        = 1 / 0
+  , core            = {}
+  , path            = framework ? global : core;
 
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -102,6 +105,8 @@ function classof(it){
 // Function
 var apply = FunctionProto.apply
   , call  = FunctionProto.call;
+// Placeholder
+core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -152,11 +157,18 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-function optionalBind(fn, that){
+function createCallback(fn, that, length){
   assertFunction(fn);
-  return that === undefined ? fn : function(a, b, c){
+  if(that === undefined)return fn;
+  if(length == 1)return function(a){
+    return fn.call(that, a);
+  };
+  if(length == 2)return function(a, b){
+    return fn.call(that, a, b);
+  };
+  return function(a, b, c){
     return fn.call(that, a, b, c);
-  }
+  };
 }
 
 // Object:
@@ -168,6 +180,7 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , hasOwnProperty   = ObjectProto.hasOwnProperty
+  , isEnumerable     = ObjectProto.propertyIsEnumerable
   , __PROTO__        = '__proto__' in ObjectProto
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
@@ -242,7 +255,6 @@ var push    = ArrayProto.push
   , splice  = ArrayProto.splice
   , indexOf = ArrayProto.indexOf
   , forEach = ArrayProto[FOR_EACH];
-  
 /*
  * 0 -> forEach
  * 1 -> map
@@ -260,7 +272,7 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, thisArg /* = undefined */){
-    var f      = optionalBind(callbackfn, thisArg)
+    var f      = createCallback(callbackfn, thisArg)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
@@ -276,7 +288,7 @@ function createArrayMethod(type){
           case 3: return true;                    // some
           case 5: return val;                     // find
           case 6: return index;                   // findIndex
-          case 2: push.call(result, val);         // filter
+          case 2: result.push(val);               // filter
         } else if(isEvery)return false;           // every
       }
     }
@@ -295,8 +307,8 @@ function turn(mapfn, target /* = [] */){
   }
   return memo;
 }
-function newGeneric(A, B){
-  return new (typeof A == 'function' ? A : B);
+function generic(A, B){
+  return typeof A == 'function' ? A : B; // strange IE quirks mode bug -> use typeof vs isFunction
 }
 
 // Math
@@ -383,9 +395,8 @@ var ITERATOR
 var html = document && document.documentElement;
 
 // core
-var core   = {}
-  , path   = framework ? global : core
-  , NODE   = cof(process) == PROCESS
+var NODE   = cof(process) == PROCESS
+  , REQJS  = isFunction(define) && define.amd
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -415,18 +426,19 @@ function $define(type, name, source){
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // .CORE mark
     if(!own)out.CORE = exp.CORE = true;
-    // export to `core`
+    // export
     if(exports[key] != out)exports[key] = exp;
-    // if build as framework, extend global objects
+    // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
 }
-// Placeholder
-core._ = path._ = framework ? path._ || {} : {};
-// Node.js export
+core.CORE = true;
+// CommonJS export
 if(NODE)module.exports = core;
+// RequireJS export
+if(REQJS)define(function(){return core});
 // Export to global object
-if(!NODE || framework)global.core = core;
+if(!NODE && !REQJS || framework)global.core = core;
 
 /******************************************************************************
  * Module : es5                                                               *
@@ -444,6 +456,7 @@ if(!NODE || framework)global.core = core;
     , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
     , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
     , slyKeysLen1 = slyKeys1.length
+    , dontEnumBug = !isEnumerable.call({toString: undefined}, TO_STRING)
     , $PROTO      = symbol(PROTOTYPE)
     // Create object with null prototype
     , createDict  = __PROTO__
@@ -466,7 +479,7 @@ if(!NODE || framework)global.core = core;
           while(i--)delete createDict[PROTOTYPE][slyKeys1[i]];
           return createDict();
         }
-    , createGetKeys = function(names, length){
+    , createGetKeys = function(names, length, isNames){
         return function(object){
           var O      = ES5Object(assertObject(object))
             , i      = 0
@@ -474,13 +487,15 @@ if(!NODE || framework)global.core = core;
             , key;
           for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
           // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          while(length > i)has(O, key = names[i++]) && !~indexOf.call(result, key) && result.push(key);
+          if(dontEnumBug || isNames)while(length > i)if(has(O, key = names[i++])){
+            ~indexOf.call(result, key) || result.push(key);
+          }
           return result;
         }
       };
   if(!DESCRIPTORS){
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(!isEnumerable.call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -519,7 +534,7 @@ if(!NODE || framework)global.core = core;
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length, true),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
@@ -532,7 +547,7 @@ if(!NODE || framework)global.core = core;
       return result;
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1)
+    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1, false)
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
@@ -719,11 +734,6 @@ $define(GLOBAL, {global: global});
 /**
  * ECMAScript 6 shim
  * http://people.mozilla.org/~jorendorff/es6-draft.html
- * http://wiki.ecmascript.org/doku.php?id=harmony:proposals
- * Alternatives:
- * https://github.com/paulmillr/es6-shim
- * https://github.com/monolithed/ECMAScript-6
- * https://github.com/inexorabletash/polyfill/blob/master/es6.md
  */
 !function(isFinite){
   // 20.2.2.28 Math.sign(x)
@@ -910,7 +920,7 @@ $define(GLOBAL, {global: global});
         , result = ''
         , n      = toInteger(count);
       assert(0 <= n, "Count can't be negative");
-      for(;n > 0; (n >>= 1) && (str += str))if(n & 1)result += str;
+      for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)result += str;
       return result;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
@@ -924,25 +934,28 @@ $define(GLOBAL, {global: global});
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
       var O       = ES5Object(arrayLike)
-        , result  = newGeneric(this, Array)
+        , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = optionalBind(mapfn, thisArg);
+      if(mapping)f = createCallback(mapfn, thisArg, 2);
       if($for && isIterable(O))$for(O).of(function(value){
-        push.call(result, mapping ? f(value, index++) : value);
+        result[index] = mapping ? f(value, index) : value;
+        index++;
       });
       else for(length = toLength(O.length); length > index; index++){
-        push.call(result, mapping ? f(O[index], index) : O[index]);
+        result[index] = mapping ? f(O[index], index) : O[index];
       }
+      result.length = index;
       return result;
     },
     // 22.1.2.3 Array.of( ...items)
     of: function(/* ...args */){
       var index  = 0
         , length = arguments.length
-        , result = newGeneric(this, Array);
-      while(length > index)push.call(result, arguments[index++]);
+        , result = new (generic(this, Array))(length);
+      while(length > index)result[index] = arguments[index++];
+      result.length = length;
       return result;
     }
   });
@@ -1203,7 +1216,7 @@ $define(GLOBAL + BIND, {
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL + FORCED, {Promise: Promise});
+  $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(Promise, Promise);
 
 /******************************************************************************
@@ -1318,7 +1331,7 @@ $define(GLOBAL + BIND, {
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
-        var f      = optionalBind(callbackfn, thisArg)
+        var f      = createCallback(callbackfn, thisArg)
           , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)
@@ -1612,8 +1625,8 @@ $define(GLOBAL + BIND, {
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
-      , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
+      , f        = createCallback(fn, that, entries ? 2 : 1)
       , step;
     while(!(step = iterator.next()).done){
       if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
@@ -1662,12 +1675,12 @@ $define(GLOBAL + BIND, {
       , isSome   = type == 3
       , isEvery  = type == 4;
     return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = optionalBind(callbackfn, thisArg)
+      var f      = createCallback(callbackfn, thisArg)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , result = isMap || isFilter ? newGeneric(this, Dict) : undefined
+        , result = isMap || isFilter ? new (generic(this, Dict)) : undefined
         , key, val, res;
       while(length > i){
         key = keys[i++];
@@ -1694,7 +1707,7 @@ $define(GLOBAL + BIND, {
         , length = keys.length
         , i      = 0
         , memo, key, result;
-      if(isTurn)memo = init == undefined ? newGeneric(this, Dict) : Object(init);
+      if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
       else if(arguments.length < 3){
         assert(length > i, REDUCE_ERROR);
         memo = O[keys[i++]];
@@ -2079,7 +2092,7 @@ $define(PROTO, NUMBER, {
       , i      = 0
       , f;
     if(isFunction(mapfn)){
-      f = optionalBind(mapfn, thisArg);
+      f = createCallback(mapfn, thisArg);
       while(length > i)result[i] = f(i, i++, number);
     } else while(length > i)result[i] = i++;
     return result;

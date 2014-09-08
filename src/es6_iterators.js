@@ -189,8 +189,8 @@
   }
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
-      , f        = optionalBind(fn, that)
       , entries  = this[ENTRIES]
+      , f        = createCallback(fn, that, entries ? 2 : 1)
       , step;
     while(!(step = iterator.next()).done){
       if((entries ? invoke(f, step.value) : f(step.value)) === false)return;

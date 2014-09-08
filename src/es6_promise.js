@@ -145,5 +145,5 @@
     }
   }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
   setToStringTag(Promise, PROMISE);
-  $define(GLOBAL + FORCED, {Promise: Promise});
+  $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(Promise, Promise);

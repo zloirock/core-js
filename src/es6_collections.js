@@ -106,7 +106,7 @@
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
-        var f      = optionalBind(callbackfn, thisArg)
+        var f      = createCallback(callbackfn, thisArg)
           , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)

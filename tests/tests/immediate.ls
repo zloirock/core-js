@@ -7,19 +7,18 @@ asyncTest 'setImmediate / clearImmediate' 6 !->
   var tmp1
   id = setImmediate !-> tmp1 := 42
   ok tmp1 is void, 'setImmediate is async'
-  #ok Number.isInteger(id) && id > 0, 'setImmediate return id' # fail in node 0.9+
   var tmp2
   setImmediate !->
     tmp2 := on
-  setTimeout _, 70 <| !->
-    ok tmp2, 'setImmediate works'
   var tmp3
   setImmediate _, \b \c <| (b, c)!->
     tmp3 := b + c
-  setTimeout _, 80 <| !->
-    ok tmp3 is \bc, 'setImmediate works with additional params'
   var tmp4
   clearImmediate setImmediate !-> tmp4 := 42
+  setTimeout _, 70 <| !->
+    ok tmp2, 'setImmediate works'
+  setTimeout _, 80 <| !->
+    ok tmp3 is \bc, 'setImmediate works with additional params'
   setTimeout _, 90 <| !->
     ok tmp4 is void, 'clearImmediate works'
   setTimeout start, 100

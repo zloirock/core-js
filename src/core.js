@@ -43,10 +43,13 @@ var global          = returnThis()
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , document        = global.document
+  , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
-  , Infinity        = 1 / 0;
+  , Infinity        = 1 / 0
+  , core            = {}
+  , path            = framework ? global : core;
 
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
@@ -89,6 +92,8 @@ function classof(it){
 // Function
 var apply = FunctionProto.apply
   , call  = FunctionProto.call;
+// Placeholder
+core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -139,11 +144,18 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-function optionalBind(fn, that){
+function createCallback(fn, that, length){
   assertFunction(fn);
-  return that === undefined ? fn : function(a, b, c){
+  if(that === undefined)return fn;
+  if(length == 1)return function(a){
+    return fn.call(that, a);
+  };
+  if(length == 2)return function(a, b){
+    return fn.call(that, a, b);
+  };
+  return function(a, b, c){
     return fn.call(that, a, b, c);
-  }
+  };
 }
 
 // Object:
@@ -155,6 +167,7 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , hasOwnProperty   = ObjectProto.hasOwnProperty
+  , isEnumerable     = ObjectProto.propertyIsEnumerable
   , __PROTO__        = '__proto__' in ObjectProto
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
@@ -229,7 +242,6 @@ var push    = ArrayProto.push
   , splice  = ArrayProto.splice
   , indexOf = ArrayProto.indexOf
   , forEach = ArrayProto[FOR_EACH];
-  
 /*
  * 0 -> forEach
  * 1 -> map
@@ -247,7 +259,7 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, thisArg /* = undefined */){
-    var f      = optionalBind(callbackfn, thisArg)
+    var f      = createCallback(callbackfn, thisArg)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
@@ -263,7 +275,7 @@ function createArrayMethod(type){
           case 3: return true;                    // some
           case 5: return val;                     // find
           case 6: return index;                   // findIndex
-          case 2: push.call(result, val);         // filter
+          case 2: result.push(val);               // filter
         } else if(isEvery)return false;           // every
       }
     }
@@ -282,8 +294,8 @@ function turn(mapfn, target /* = [] */){
   }
   return memo;
 }
-function newGeneric(A, B){
-  return new (typeof A == 'function' ? A : B);
+function generic(A, B){
+  return typeof A == 'function' ? A : B; // strange IE quirks mode bug -> use typeof vs isFunction
 }
 
 // Math
@@ -370,9 +382,8 @@ var ITERATOR
 var html = document && document.documentElement;
 
 // core
-var core   = {}
-  , path   = framework ? global : core
-  , NODE   = cof(process) == PROCESS
+var NODE   = cof(process) == PROCESS
+  , REQJS  = isFunction(define) && define.amd
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -402,15 +413,16 @@ function $define(type, name, source){
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // .CORE mark
     if(!own)out.CORE = exp.CORE = true;
-    // export to `core`
+    // export
     if(exports[key] != out)exports[key] = exp;
-    // if build as framework, extend global objects
+    // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
 }
-// Placeholder
-core._ = path._ = framework ? path._ || {} : {};
-// Node.js export
+core.CORE = true;
+// CommonJS export
 if(NODE)module.exports = core;
+// RequireJS export
+if(REQJS)define(function(){return core});
 // Export to global object
-if(!NODE || framework)global.core = core;
+if(!NODE && !REQJS || framework)global.core = core;
