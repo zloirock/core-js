@@ -47,14 +47,15 @@ var global          = returnThis()
   , WeakMap         = global[WEAKMAP]
   , WeakSet         = global[WEAKSET]
   , Symbol          = global[SYMBOL]
-  , Promise         = global[PROMISE]
   , Math            = global[MATH]
+  , TypeError       = global.TypeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setInterval     = global.setInterval
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
+  , nextTick        = process && process.nextTick
   , document        = global.document
   , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
@@ -81,7 +82,7 @@ function isFunction(it){
   return typeof it == 'function';
 }
 // Native function?
-var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
+var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
@@ -117,13 +118,6 @@ function part(/* ...args */){
   while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
   return partial(this, args, length, holder, _, false);
 }
-// Simple context binding
-function ctx(fn, that){
-  assertFunction(fn);
-  return function(/* ...args */){
-    return fn.apply(that, arguments);
-  }
-}
 // Internal partial application & context binding
 function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
@@ -136,6 +130,23 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return invoke(fn, args, that);
+  }
+}
+function ctx(fn, that, length){
+  assertFunction(fn);
+  if(~length && that === undefined)return fn;
+  switch(length){
+    case 1: return function(a){
+      return fn.call(that, a);
+    }
+    case 2: return function(a, b){
+      return fn.call(that, a, b);
+    }
+    case 3: return function(a, b, c){
+      return fn.call(that, a, b, c);
+    }
+  } return function(/* ...args */){
+      return fn.apply(that, arguments);
   }
 }
 // Fast apply
@@ -156,19 +167,6 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
-}
-function createCallback(fn, that, length){
-  assertFunction(fn);
-  if(that === undefined)return fn;
-  if(length == 1)return function(a){
-    return fn.call(that, a);
-  };
-  if(length == 2)return function(a, b){
-    return fn.call(that, a, b);
-  };
-  return function(a, b, c){
-    return fn.call(that, a, b, c);
-  };
 }
 
 // Object:
@@ -272,7 +270,7 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, thisArg /* = undefined */){
-    var f      = createCallback(callbackfn, thisArg)
+    var f      = ctx(callbackfn, thisArg, 3)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
@@ -763,7 +761,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set));
+  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -938,7 +936,7 @@ $define(GLOBAL, {global: global});
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = createCallback(mapfn, thisArg, 2);
+      if(mapping)f = ctx(mapfn, thisArg, 2);
       if($for && isIterable(O))$for(O).of(function(value){
         result[index] = mapping ? f(value, index) : value;
         index++;
@@ -1005,7 +1003,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     , MessageChannel   = global.MessageChannel
     , counter          = 0
     , queue            = {}
-    , defer, channel;
+    , defer, channel, port;
   setImmediate = function(fn){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
@@ -1031,7 +1029,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // Node.js 0.8-
   if(NODE){
     defer = function(id){
-      process.nextTick(part.call(run, id));
+      nextTick(part.call(run, id));
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
@@ -1043,8 +1041,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // WebWorkers
   } else if(isFunction(MessageChannel)){
     channel = new MessageChannel();
+    port    = channel.port2;
     channel.port1.onmessage = listner;
-    defer = ctx(channel.port2.postMessage, channel.port2);
+    defer = ctx(port.postMessage, port, 1);
   // IE8-
   } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){
@@ -1073,49 +1072,100 @@ $define(GLOBAL + BIND, {
  * ES6 Promises
  * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
  * https://github.com/domenic/promises-unwrapping
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
- * http://caniuse.com/promises
+ * Based on https://github.com/getify/native-promise-only/
  */
-!function(Promise, $Promise){
-  isFunction(Promise)
-  && isFunction(Promise.resolve) && isFunction(Promise.reject) && isFunction(Promise.all) && isFunction(Promise.race)
+!function(Promise){
+  isFunction(Promise) && isFunction(Promise.resolve)
   && function(promise){
-    return Promise.resolve(promise) === promise;
+    return Promise.resolve(promise) == promise;
   }(new Promise(Function()))
-  || !function(SUBSCRIBERS, STATE, DETAIL, SEALED, FULFILLED, REJECTED, PENDING){
-    // microtask or, if not possible, macrotask
-    var asap = NODE
-      ? process.nextTick
-      : Promise && isFunction(Promise.resolve)
-        ? function(fn){ $Promise.resolve().then(fn); }
-        : setImmediate;
-    // 25.4.3 The Promise Constructor
-    Promise = function(executor){
-      var promise       = this
-        , rejectPromise = part.call(handle, promise, REJECTED);
-      assertInstance(promise, Promise, PROMISE);
-      assertFunction(executor);
-      set(promise, SUBSCRIBERS, []);
+  || !function(asap, DEF){
+    function isThenable(o){
+      var then;
+      if(isObject(o))then = o.then;
+      return isFunction(then) ? then : false;
+    }
+    function notify(def){
+      var chain = def.chain;
+      chain.length && asap(function(){
+        var msg = def.msg
+          , ok  = def.state == 1
+          , i   = 0;
+        while(chain.length > i)!function(react){
+          var cb = ok ? react.ok : react.fail
+            , ret, then;
+          try {
+            if(cb){
+              ret = cb === true ? msg : cb(msg);
+              if(ret === react.P){
+                react.rej(TypeError(PROMISE + '-chain cycle'));
+              } else if(then = isThenable(ret)){
+                then.call(ret, react.res, react.rej);
+              } else react.res(ret);
+            } else react.rej(msg);
+          } catch(err){
+            react.rej(err);
+          }
+        }(chain[i++]);
+        chain.length = 0;
+      });
+    }
+    function resolve(msg){
+      var def = this
+        , then, wrapper;
+      if(def.done)return;
+      def.done = true;
+      if(def.def)def = def.def; // unwrap
       try {
-        executor(part.call(resolve, promise), rejectPromise);
-      } catch(e){
-        rejectPromise(e);
+        if(then = isThenable(msg)){
+          wrapper = {def: def/*, done : false*/}; // wrap
+          then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
+        } else {
+          def.msg = msg;
+          def.state = 1;
+          notify(def);
+        }
+      } catch(err){
+        reject.call(wrapper || {def: def/*, done : false*/}, err); // wrap
       }
     }
+    function reject(msg){
+      var def = this;
+      if(def.done)return;
+      def.done = true;
+      if(def.def)def = def.def; // unwrap
+      def.msg = msg;
+      def.state = 2;
+      notify(def);
+    }
+    // 25.4.3.1 Promise(executor)
+    Promise = function(executor){
+      assertFunction(executor);
+      assertInstance(this, Promise, PROMISE);
+      var def = {chain: []/*, state: 0, done : false, msg: undefined*/};
+      set(this, DEF, def);
+      try {
+        executor(ctx(resolve, def, 1), ctx(reject, def, 1));
+      } catch(err){
+        reject.call(def, err);
+      }
+    }
+    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
+      var react = {
+        ok:   isFunction(onFulfilled) ? onFulfilled : true,
+        fail: isFunction(onRejected)  ? onRejected  : false
+      } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
+        react.res = assertFunction(resolve);
+        react.rej = assertFunction(reject);
+      }), def = this[DEF];
+      def.chain.push(react);
+      def.state && notify(def);
+      return P;
+    });
     // 25.4.5.1 Promise.prototype.catch(onRejected)
     hidden(Promise[PROTOTYPE], 'catch', function(onRejected){
       return this.then(undefined, onRejected);
-    });
-    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
-      var promise     = this
-        , thenPromise = new Promise(Function())
-        , args        = [onFulfilled, onRejected]; 
-      if(promise[STATE])asap(function(){
-        invokeCallback(promise[STATE], thenPromise, args[promise[STATE] - 1], promise[DETAIL]);
-      });
-      else promise[SUBSCRIBERS].push(thenPromise, onFulfilled, onRejected);
-      return thenPromise;
     });
     // 25.4.4.1 Promise.all(iterable)
     hidden(Promise, 'all', function(iterable){
@@ -1155,69 +1205,10 @@ $define(GLOBAL + BIND, {
         resolve(x);
       });
     });
-    function invokeCallback(settled, promise, callback, detail){
-      var hasCallback = isFunction(callback)
-        , value, succeeded, failed;
-      if(hasCallback){
-        try {
-          value     = callback(detail);
-          succeeded = true;
-        } catch(e){
-          failed = true;
-          value  = e;
-        }
-      } else {
-        value     = detail;
-        succeeded = true;
-      }
-      if(handleThenable(promise, value))return;
-      else if(hasCallback && succeeded)resolve(promise, value);
-      else if(failed)handle(promise, REJECTED, value);
-      else if(settled == FULFILLED)resolve(promise, value);
-      else if(settled == REJECTED)handle(promise, REJECTED, value);
-    }
-    function handleThenable(promise, value){
-      var resolved;
-      try {
-        assert(promise !== value, "A promises callback can't return that same promise.");
-        if(value && isFunction(value.then)){
-          value.then(function(val){
-            if(resolved)return true;
-            resolved = true;
-            if(value !== val)resolve(promise, val);
-            else handle(promise, FULFILLED, val);
-          }, function(val){
-            if(resolved)return true;
-            resolved = true;
-            handle(promise, REJECTED, val);
-          });
-          return 1;
-        }
-      } catch(error){
-        if(!resolved)handle(promise, REJECTED, error);
-        return 1;
-      }
-    }
-    function resolve(promise, value){
-      if(promise === value || !handleThenable(promise, value))handle(promise, FULFILLED, value);
-    }
-    function handle(promise, state, reason){
-      if(promise[STATE] === PENDING){
-        set(promise, STATE, SEALED);
-        set(promise, DETAIL, reason);
-        asap(function(){
-          promise[STATE] = state;
-          for(var subscribers = promise[SUBSCRIBERS], i = 0; i < subscribers.length; i += 3){
-            invokeCallback(state, subscribers[i], subscribers[i + state], promise[DETAIL]);
-          }
-          promise[SUBSCRIBERS] = undefined;
-        });
-      }
-    }
-  }(symbol('subscribers'), symbol('state'), symbol('detail'), 0, 1, 2, undefined);
+  }(nextTick || setImmediate, symbol('def'));
   setToStringTag(Promise, PROMISE);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
-}(Promise, Promise);
+}(global[PROMISE]);
 
 /******************************************************************************
  * Module : es6_collections                                                   *
@@ -1331,7 +1322,7 @@ $define(GLOBAL + BIND, {
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function(callbackfn, thisArg /* = undefined */){
-        var f      = createCallback(callbackfn, thisArg)
+        var f      = ctx(callbackfn, thisArg, 3)
           , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)
@@ -1626,7 +1617,7 @@ $define(GLOBAL + BIND, {
   $for[PROTOTYPE].of = function(fn, that){
     var iterator = getIterator(this[ITERATED])
       , entries  = this[ENTRIES]
-      , f        = createCallback(fn, that, entries ? 2 : 1)
+      , f        = ctx(fn, that, entries ? 2 : 1)
       , step;
     while(!(step = iterator.next()).done){
       if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
@@ -1675,7 +1666,7 @@ $define(GLOBAL + BIND, {
       , isSome   = type == 3
       , isEvery  = type == 4;
     return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = createCallback(callbackfn, thisArg)
+      var f      = ctx(callbackfn, thisArg, 3)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -1867,7 +1858,7 @@ $define(PROTO, FUNCTION, {
         , i      = woctx ? 0 : 1
         , indent = i
         , args;
-      if(length < 2)return woctx ? ctx(call, fn) : ctx(fn, that);
+      if(length < 2)return woctx ? ctx(call, fn, -1) : ctx(fn, that, -1);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
       return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
@@ -1916,7 +1907,7 @@ $define(PROTO, FUNCTION, {
       , holder = false
       , length = arguments.length
       , i = 1, args;
-    if(length < 2)return ctx(that[key], that);
+    if(length < 2)return ctx(that[key], that, -1);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
     return partial(that[key], args, length, holder, _, true, that);
@@ -1956,7 +1947,7 @@ $define(PROTO, FUNCTION, {
     return result;
   }
   $define(STATIC, OBJECT, {
-    isPrototype: ctx(call, ObjectProto.isPrototypeOf),
+    isPrototype: ctx(call, ObjectProto.isPrototypeOf, 2),
     getOwnPropertyKeys: getPropertyKeys,
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: function(object, key){
@@ -2092,7 +2083,7 @@ $define(PROTO, NUMBER, {
       , i      = 0
       , f;
     if(isFunction(mapfn)){
-      f = createCallback(mapfn, thisArg);
+      f = ctx(mapfn, thisArg, 3);
       while(length > i)result[i] = f(i, i++, number);
     } else while(length > i)result[i] = i++;
     return result;

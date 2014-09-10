@@ -26,7 +26,7 @@
       , isSome   = type == 3
       , isEvery  = type == 4;
     return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = createCallback(callbackfn, thisArg)
+      var f      = ctx(callbackfn, thisArg, 3)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length

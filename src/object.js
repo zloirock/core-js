@@ -17,7 +17,7 @@
     return result;
   }
   $define(STATIC, OBJECT, {
-    isPrototype: ctx(call, ObjectProto.isPrototypeOf),
+    isPrototype: ctx(call, ObjectProto.isPrototypeOf, 2),
     getOwnPropertyKeys: getPropertyKeys,
     // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
     getPropertyDescriptor: function(object, key){

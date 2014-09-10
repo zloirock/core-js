@@ -16,7 +16,7 @@ $define(PROTO, NUMBER, {
       , i      = 0
       , f;
     if(isFunction(mapfn)){
-      f = createCallback(mapfn, thisArg);
+      f = ctx(mapfn, thisArg, 3);
       while(length > i)result[i] = f(i, i++, number);
     } else while(length > i)result[i] = i++;
     return result;

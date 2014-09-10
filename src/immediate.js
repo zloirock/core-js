@@ -13,7 +13,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     , MessageChannel   = global.MessageChannel
     , counter          = 0
     , queue            = {}
-    , defer, channel;
+    , defer, channel, port;
   setImmediate = function(fn){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
@@ -39,7 +39,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // Node.js 0.8-
   if(NODE){
     defer = function(id){
-      process.nextTick(part.call(run, id));
+      nextTick(part.call(run, id));
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
@@ -51,8 +51,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // WebWorkers
   } else if(isFunction(MessageChannel)){
     channel = new MessageChannel();
+    port    = channel.port2;
     channel.port1.onmessage = listner;
-    defer = ctx(channel.port2.postMessage, channel.port2);
+    defer = ctx(port.postMessage, port, 1);
   // IE8-
   } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
     defer = function(id){

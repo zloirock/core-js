@@ -17,7 +17,7 @@
         , i      = woctx ? 0 : 1
         , indent = i
         , args;
-      if(length < 2)return woctx ? ctx(call, fn) : ctx(fn, that);
+      if(length < 2)return woctx ? ctx(call, fn, -1) : ctx(fn, that, -1);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
       return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
@@ -66,7 +66,7 @@
       , holder = false
       , length = arguments.length
       , i = 1, args;
-    if(length < 2)return ctx(that[key], that);
+    if(length < 2)return ctx(that[key], that, -1);
     args = Array(length - 1)
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
     return partial(that[key], args, length, holder, _, true, that);

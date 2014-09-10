@@ -30,7 +30,7 @@
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set));
+  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2));
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -205,7 +205,7 @@
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = createCallback(mapfn, thisArg, 2);
+      if(mapping)f = ctx(mapfn, thisArg, 2);
       if($for && isIterable(O))$for(O).of(function(value){
         result[index] = mapping ? f(value, index) : value;
         index++;

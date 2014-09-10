@@ -34,14 +34,15 @@ var global          = returnThis()
   , WeakMap         = global[WEAKMAP]
   , WeakSet         = global[WEAKSET]
   , Symbol          = global[SYMBOL]
-  , Promise         = global[PROMISE]
   , Math            = global[MATH]
+  , TypeError       = global.TypeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setInterval     = global.setInterval
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
+  , nextTick        = process && process.nextTick
   , document        = global.document
   , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
@@ -68,7 +69,7 @@ function isFunction(it){
   return typeof it == 'function';
 }
 // Native function?
-var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/);
+var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
@@ -104,13 +105,6 @@ function part(/* ...args */){
   while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
   return partial(this, args, length, holder, _, false);
 }
-// Simple context binding
-function ctx(fn, that){
-  assertFunction(fn);
-  return function(/* ...args */){
-    return fn.apply(that, arguments);
-  }
-}
 // Internal partial application & context binding
 function partial(fn, argsPart, lengthPart, holder, _, bind, context){
   assertFunction(fn);
@@ -123,6 +117,23 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return invoke(fn, args, that);
+  }
+}
+function ctx(fn, that, length){
+  assertFunction(fn);
+  if(~length && that === undefined)return fn;
+  switch(length){
+    case 1: return function(a){
+      return fn.call(that, a);
+    }
+    case 2: return function(a, b){
+      return fn.call(that, a, b);
+    }
+    case 3: return function(a, b, c){
+      return fn.call(that, a, b, c);
+    }
+  } return function(/* ...args */){
+      return fn.apply(that, arguments);
   }
 }
 // Fast apply
@@ -143,19 +154,6 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
-}
-function createCallback(fn, that, length){
-  assertFunction(fn);
-  if(that === undefined)return fn;
-  if(length == 1)return function(a){
-    return fn.call(that, a);
-  };
-  if(length == 2)return function(a, b){
-    return fn.call(that, a, b);
-  };
-  return function(a, b, c){
-    return fn.call(that, a, b, c);
-  };
 }
 
 // Object:
@@ -259,7 +257,7 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, thisArg /* = undefined */){
-    var f      = createCallback(callbackfn, thisArg)
+    var f      = ctx(callbackfn, thisArg, 3)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
