@@ -385,7 +385,6 @@ var ITERATOR
   , $for
   , isIterable
   , getIterator
-  , objectIterators
   , COLLECTION_KEYS
   , SHIM;
 
@@ -879,10 +878,10 @@ $define(GLOBAL + BIND, {
         , then, wrapper;
       if(def.done)return;
       def.done = true;
-      if(def.def)def = def.def; // unwrap
+      def = def.def || def; // unwrap
       try {
         if(then = isThenable(msg)){
-          wrapper = {def: def/*, done : false*/}; // wrap
+          wrapper = {def: def, done : false}; // wrap
           then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
           def.msg = msg;
@@ -890,14 +889,14 @@ $define(GLOBAL + BIND, {
           notify(def);
         }
       } catch(err){
-        reject.call(wrapper || {def: def/*, done : false*/}, err); // wrap
+        reject.call(wrapper || {def: def, done : false}, err); // wrap
       }
     }
     function reject(msg){
       var def = this;
       if(def.done)return;
       def.done = true;
-      if(def.def)def = def.def; // unwrap
+      def = def.def || def; // unwrap
       def.msg = msg;
       def.state = 2;
       notify(def);
@@ -906,7 +905,7 @@ $define(GLOBAL + BIND, {
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: []/*, state: 0, done : false, msg: undefined*/};
+      var def = {chain: [], state: 0, done : false, msg: undefined};
       set(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
@@ -953,7 +952,7 @@ $define(GLOBAL + BIND, {
       var Promise = this;
       return new Promise(function(resolve, reject){
         $for(iterable).of(function(promise){
-          Promise.resolve(promise).then(resolve, reject)
+          Promise.resolve(promise).then(resolve, reject);
         });
       });
     });
@@ -1222,26 +1221,24 @@ $define(GLOBAL + BIND, {
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
     setToStringTag(Constructor, NAME + ' Iterator');
-    if(NAME != OBJECT){
-      $define(PROTO, NAME, {
-        // 22.1.3.4 Array.prototype.entries()
-        // 23.1.3.4 Map.prototype.entries()
-        // 23.2.3.5 Set.prototype.entries()
-        entries: createIteratorFactory(Constructor, KEY+VALUE),
-        // 22.1.3.13 Array.prototype.keys()
-        // 23.1.3.8 Map.prototype.keys()
-        // 23.2.3.8 Set.prototype.keys()
-        keys:    createIteratorFactory(Constructor, KEY),
-        // 22.1.3.29 Array.prototype.values()
-        // 23.1.3.11 Map.prototype.values()
-        // 23.2.3.10 Set.prototype.values()
-        values:  createIteratorFactory(Constructor, VALUE)
-      });
-      // 22.1.3.30 Array.prototype[@@iterator]()
-      // 23.1.3.12 Map.prototype[@@iterator]()
-      // 23.2.3.11 Set.prototype[@@iterator]()
-      defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
-    }
+    $define(PROTO, NAME, {
+      // 22.1.3.4 Array.prototype.entries()
+      // 23.1.3.4 Map.prototype.entries()
+      // 23.2.3.5 Set.prototype.entries()
+      entries: createIteratorFactory(Constructor, KEY+VALUE),
+      // 22.1.3.13 Array.prototype.keys()
+      // 23.1.3.8 Map.prototype.keys()
+      // 23.2.3.8 Set.prototype.keys()
+      keys:    createIteratorFactory(Constructor, KEY),
+      // 22.1.3.29 Array.prototype.values()
+      // 23.1.3.11 Map.prototype.values()
+      // 23.2.3.10 Set.prototype.values()
+      values:  createIteratorFactory(Constructor, VALUE)
+    });
+    // 22.1.3.30 Array.prototype[@@iterator]()
+    // 23.1.3.12 Map.prototype[@@iterator]()
+    // 23.2.3.11 Set.prototype[@@iterator]()
+    defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
   }
   function createIteratorFactory(Constructor, kind){
     return function(){
@@ -1340,38 +1337,6 @@ $define(GLOBAL + BIND, {
     key = keys.pop();
     return createIterResultObject(0, this[KIND] == KEY+VALUE ? [key, key] : key);
   }, VALUE);
-  
-  function ObjectIterator(iterated, kind){
-    set(this, ITERATED, iterated);
-    set(this, KEYS,     getKeys(iterated));
-    set(this, INDEX,    0);
-    set(this, KIND,     kind);
-  }
-  createIteratorClass(ObjectIterator, OBJECT, Object, function(){
-    var that   = this
-      , index  = that[INDEX]++
-      , object = that[ITERATED]
-      , keys   = that[KEYS]
-      , kind   = that[KIND]
-      , key, value;
-    if(index >= keys.length)return createIterResultObject(1);
-    key = keys[index];
-    if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = object[key];
-    else                  value = [key, object[key]];
-    return createIterResultObject(0, value);
-  });
-  
-  function createObjectIteratorFactory(kind){
-    return function(it){
-      return new ObjectIterator(it, kind);
-    }
-  }
-  objectIterators = {
-    keys:    createObjectIteratorFactory(KEY),
-    values:  createObjectIteratorFactory(VALUE),
-    entries: createObjectIteratorFactory(KEY+VALUE)
-  }
   
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
@@ -1476,7 +1441,7 @@ $define(GLOBAL + BIND, {
       return memo;
     }
   }
-  assign(Dict, objectIterators, {
+  assign(Dict, {
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
     filter:  createDictMethod(2),
@@ -1500,15 +1465,12 @@ $define(GLOBAL + BIND, {
     clone: function(it){
       return clone(it, [], []);
     },
-    // Has / get / set / delete own property
+    // Has / get / set own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: createDefiner(0),
-    'delete': function(object, key){
-      return has(object, key) && delete object[key];
-    },
     isDict: function(it){
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }

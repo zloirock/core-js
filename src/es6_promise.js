@@ -45,10 +45,10 @@
         , then, wrapper;
       if(def.done)return;
       def.done = true;
-      if(def.def)def = def.def; // unwrap
+      def = def.def || def; // unwrap
       try {
         if(then = isThenable(msg)){
-          wrapper = {def: def/*, done : false*/}; // wrap
+          wrapper = {def: def, done : false}; // wrap
           then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
           def.msg = msg;
@@ -56,14 +56,14 @@
           notify(def);
         }
       } catch(err){
-        reject.call(wrapper || {def: def/*, done : false*/}, err); // wrap
+        reject.call(wrapper || {def: def, done : false}, err); // wrap
       }
     }
     function reject(msg){
       var def = this;
       if(def.done)return;
       def.done = true;
-      if(def.def)def = def.def; // unwrap
+      def = def.def || def; // unwrap
       def.msg = msg;
       def.state = 2;
       notify(def);
@@ -72,7 +72,7 @@
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: []/*, state: 0, done : false, msg: undefined*/};
+      var def = {chain: [], state: 0, done : false, msg: undefined};
       set(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
@@ -119,7 +119,7 @@
       var Promise = this;
       return new Promise(function(resolve, reject){
         $for(iterable).of(function(promise){
-          Promise.resolve(promise).then(resolve, reject)
+          Promise.resolve(promise).then(resolve, reject);
         });
       });
     });

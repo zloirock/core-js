@@ -372,7 +372,6 @@ var ITERATOR
   , $for
   , isIterable
   , getIterator
-  , objectIterators
   , COLLECTION_KEYS
   , SHIM;
 

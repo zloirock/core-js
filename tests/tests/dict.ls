@@ -16,36 +16,6 @@ test 'Dict' !->
   deepEqual keys(dict3), [\1, \2]
   ok dict3.1 is 1
   ok dict3.2 is 2
-test '.keys' !->
-  ok typeof Dict.keys is \function, 'Is function'
-  iter = Dict.keys {a: \q, s: \w, d: \e}
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: \a, done: no}
-  deepEqual iter.next!, {value: \s, done: no}
-  deepEqual iter.next!, {value: \d, done: no}
-  deepEqual iter.next!, {value: void, done: on}
-  ok iter[Symbol.toStringTag] is 'Object Iterator'
-test '.values' !->
-  ok typeof Dict.values is \function, 'Is function'
-  iter = Dict.values {a: \q, s: \w, d: \e}
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: \q, done: no}
-  deepEqual iter.next!, {value: \w, done: no}
-  deepEqual iter.next!, {value: \e, done: no}
-  deepEqual iter.next!, {value: void, done: on}
-  ok iter[Symbol.toStringTag] is 'Object Iterator'
-test '.entries' !->
-  ok typeof Dict.entries is \function, 'Is function'
-  iter = Dict.entries {a: \q, s: \w, d: \e}
-  ok typeof iter is \object, 'Iterator is object'
-  ok typeof iter.next is \function, 'Iterator has .next method'
-  deepEqual iter.next!, {value: [\a \q], done: no}
-  deepEqual iter.next!, {value: [\s \w], done: no}
-  deepEqual iter.next!, {value: [\d \e], done: no}
-  deepEqual iter.next!, {value: void, done: on}
-  ok iter[Symbol.toStringTag] is 'Object Iterator'
 test '.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'

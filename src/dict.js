@@ -72,7 +72,7 @@
       return memo;
     }
   }
-  assign(Dict, objectIterators, {
+  assign(Dict, {
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
     filter:  createDictMethod(2),
@@ -96,15 +96,12 @@
     clone: function(it){
       return clone(it, [], []);
     },
-    // Has / get / set / delete own property
+    // Has / get / set own property
     has: has,
     get: function(object, key){
       if(has(object, key))return object[key];
     },
     set: createDefiner(0),
-    'delete': function(object, key){
-      return has(object, key) && delete object[key];
-    },
     isDict: function(it){
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
