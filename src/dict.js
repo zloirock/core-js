@@ -2,7 +2,7 @@
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))$for(iterable, true).of(function(key, value){
+      if($for && isIterable(iterable))$for(iterable, true).of(function(key, value){
         dict[key] = value;
       });
       else assign(dict, iterable);

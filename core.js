@@ -202,7 +202,7 @@ var assign = Object.assign || function(target, source){
 }
 function createObjectToArray(isEntries){
   return function(object){
-    var O      = ES5Object(assertObject(object))
+    var O      = ES5Object(object)
       , keys   = getKeys(object)
       , length = keys.length
       , i      = 0
@@ -478,7 +478,7 @@ if(!NODE && !REQJS || framework)global.core = core;
         }
     , createGetKeys = function(names, length, isNames){
         return function(object){
-          var O      = ES5Object(assertObject(object))
+          var O      = ES5Object(object)
             , i      = 0
             , result = []
             , key;
@@ -1433,8 +1433,6 @@ $define(GLOBAL + BIND, {
     , INDEX      = symbol('index')
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
-    , mapForEach = Map[PROTOTYPE][FOR_EACH]
-    , setForEach = Set[PROTOTYPE][FOR_EACH]
     , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
@@ -1474,7 +1472,7 @@ $define(GLOBAL + BIND, {
     // 22.1.3.30 Array.prototype[@@iterator]()
     // 23.1.3.12 Map.prototype[@@iterator]()
     // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
+    Base && defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
   }
   function createIteratorFactory(Constructor, kind){
     return function(){
@@ -1531,7 +1529,7 @@ $define(GLOBAL + BIND, {
   function MapIterator(iterated, kind){
     var that = this, keys;
     if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else mapForEach.call(iterated, function(val, key){
+    else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
     set(that, ITERATED, iterated);
@@ -1559,7 +1557,7 @@ $define(GLOBAL + BIND, {
   function SetIterator(iterated, kind){
     var keys;
     if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else setForEach.call(iterated, function(val){
+    else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
       this.push(val);
     }, keys = []);
     set(this, KIND, kind);
@@ -1607,7 +1605,7 @@ $define(GLOBAL + BIND, {
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))$for(iterable, true).of(function(key, value){
+      if($for && isIterable(iterable))$for(iterable, true).of(function(key, value){
         dict[key] = value;
       });
       else assign(dict, iterable);

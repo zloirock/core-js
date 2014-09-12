@@ -35,7 +35,7 @@
         }
     , createGetKeys = function(names, length, isNames){
         return function(object){
-          var O      = ES5Object(assertObject(object))
+          var O      = ES5Object(object)
             , i      = 0
             , result = []
             , key;

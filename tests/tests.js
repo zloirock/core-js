@@ -2491,7 +2491,9 @@
       3: 3
     });
     ok(new Set([NaN, NaN, NaN]).size === 1);
-    deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
+    if (Array.from) {
+      deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
+    }
   });
   test('Set::add', function(){
     var a, S, chain;

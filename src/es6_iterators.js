@@ -7,8 +7,6 @@
     , INDEX      = symbol('index')
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
-    , mapForEach = Map[PROTOTYPE][FOR_EACH]
-    , setForEach = Set[PROTOTYPE][FOR_EACH]
     , getValues  = createObjectToArray(false)
     , Iterators  = {};
   
@@ -48,7 +46,7 @@
     // 22.1.3.30 Array.prototype[@@iterator]()
     // 23.1.3.12 Map.prototype[@@iterator]()
     // 23.2.3.11 Set.prototype[@@iterator]()
-    defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
+    Base && defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
   }
   function createIteratorFactory(Constructor, kind){
     return function(){
@@ -105,7 +103,7 @@
   function MapIterator(iterated, kind){
     var that = this, keys;
     if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else mapForEach.call(iterated, function(val, key){
+    else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
       this.push(key);
     }, keys = []);
     set(that, ITERATED, iterated);
@@ -133,7 +131,7 @@
   function SetIterator(iterated, kind){
     var keys;
     if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else setForEach.call(iterated, function(val){
+    else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
       this.push(val);
     }, keys = []);
     set(this, KIND, kind);
