@@ -54,16 +54,16 @@ var global          = returnThis()
 
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 }
 // 7.2.4 SameValueZero(x, y)
 function sameValueZero(x, y){
-  return x === y || x !== x && y !== y;
+  return x === y || x != x && y != y;
 }
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it !== null && (typeof it == 'object' || typeof it == 'function');
+  return it != null && (typeof it == 'object' || typeof it == 'function');
 }
 function isFunction(it){
   return typeof it == 'function';
@@ -164,14 +164,11 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , hasOwnProperty   = ObjectProto.hasOwnProperty
   , isEnumerable     = ObjectProto.propertyIsEnumerable
+  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   , __PROTO__        = '__proto__' in ObjectProto
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
-function has(object, key){
-  return hasOwnProperty.call(object, key);
-}
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)

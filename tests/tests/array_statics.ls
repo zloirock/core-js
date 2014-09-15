@@ -6,6 +6,7 @@ test 'are functions' !->
     ok isFunction(Array[..]), "Array.#{..} is function"
 test '.join' !->
   {join} = Array
+  ok join(\123) is '1,2,3'
   ok join(\123, \|) is \1|2|3
   ok join((-> &)(3 2 1), \|) is \3|2|1
 test '.pop' !->

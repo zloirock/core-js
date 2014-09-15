@@ -8,16 +8,17 @@
  * http://mootools.net/docs/core/Types/Function#Function:periodical
  */
 !function(ARGUMENTS, ID){
-  function createDeferredFactory(set, clear){
-    function Deferred(args){
+  function createTaskFactory(set, clear){
+    function Task(args){
       this[ID] = invoke(set, this[ARGUMENTS] = args);
     }
-    hidden(Deferred[PROTOTYPE], 'set', function(){
+    setToStringTag(Task, 'Task');
+    hidden(Task[PROTOTYPE], 'set', function(){
       clear(this[ID]);
       this[ID] = invoke(set, this[ARGUMENTS]);
       return this;
     });
-    hidden(Deferred[PROTOTYPE], 'clear', function(){
+    hidden(Task[PROTOTYPE], 'clear', function(){
       clear(this[ID]);
       return this;
     });
@@ -25,12 +26,12 @@
       var args = [assertFunction(this)]
         , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
-      return new Deferred(args);
+      return new Task(args);
     }
   }
   $define(PROTO, FUNCTION, {
-    timeout:   createDeferredFactory(setTimeout,   clearTimeout),
-    interval:  createDeferredFactory(setInterval,  clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate)
+    timeout:   createTaskFactory(setTimeout,   clearTimeout),
+    interval:  createTaskFactory(setInterval,  clearInterval),
+    immediate: createTaskFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));

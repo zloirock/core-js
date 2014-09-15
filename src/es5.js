@@ -25,6 +25,8 @@
           iframe.style.display = 'none';
           html.appendChild(iframe);
           iframe.src = 'javascript:';
+          // createDict = iframe.contentWindow.Object;
+          // html.removeChild(iframe);
           iframeDocument = iframe.contentWindow.document;
           iframeDocument.open();
           iframeDocument.write('<script>document.F=Object</script>');

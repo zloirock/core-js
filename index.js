@@ -1,5 +1,5 @@
 /**
- * Core.js 0.0.7
+ * Core.js 0.0.8
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -67,16 +67,16 @@ var global          = returnThis()
 
 // 7.2.3 SameValue(x, y)
 var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x !== x && y !== y;
+  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 }
 // 7.2.4 SameValueZero(x, y)
 function sameValueZero(x, y){
-  return x === y || x !== x && y !== y;
+  return x === y || x != x && y != y;
 }
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it !== null && (typeof it == 'object' || typeof it == 'function');
+  return it != null && (typeof it == 'object' || typeof it == 'function');
 }
 function isFunction(it){
   return typeof it == 'function';
@@ -177,14 +177,11 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
-  , hasOwnProperty   = ObjectProto.hasOwnProperty
   , isEnumerable     = ObjectProto.propertyIsEnumerable
+  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   , __PROTO__        = '__proto__' in ObjectProto
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
-function has(object, key){
-  return hasOwnProperty.call(object, key);
-}
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)
@@ -979,14 +976,7 @@ $define(GLOBAL + BIND, {
 
 /**
  * ECMAScript 6 collection polyfill
- * http://people.mozilla.org/~jorendorff/es6-draft.html
- * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
- * Alternatives:
- * https://github.com/Benvie/harmony-collections
- * https://github.com/eriwen/es6-map-shim
- * https://github.com/EliSnow/Blitz-Collections
- * https://github.com/montagejs/collections
- * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-keyed-collection
  */
 !function(){
   SHIM = symbol('shim');
@@ -1506,16 +1496,17 @@ $define(PROTO, FUNCTION, {
  * http://mootools.net/docs/core/Types/Function#Function:periodical
  */
 !function(ARGUMENTS, ID){
-  function createDeferredFactory(set, clear){
-    function Deferred(args){
+  function createTaskFactory(set, clear){
+    function Task(args){
       this[ID] = invoke(set, this[ARGUMENTS] = args);
     }
-    hidden(Deferred[PROTOTYPE], 'set', function(){
+    setToStringTag(Task, 'Task');
+    hidden(Task[PROTOTYPE], 'set', function(){
       clear(this[ID]);
       this[ID] = invoke(set, this[ARGUMENTS]);
       return this;
     });
-    hidden(Deferred[PROTOTYPE], 'clear', function(){
+    hidden(Task[PROTOTYPE], 'clear', function(){
       clear(this[ID]);
       return this;
     });
@@ -1523,13 +1514,13 @@ $define(PROTO, FUNCTION, {
       var args = [assertFunction(this)]
         , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
-      return new Deferred(args);
+      return new Task(args);
     }
   }
   $define(PROTO, FUNCTION, {
-    timeout:   createDeferredFactory(setTimeout,   clearTimeout),
-    interval:  createDeferredFactory(setInterval,  clearInterval),
-    immediate: createDeferredFactory(setImmediate, clearImmediate)
+    timeout:   createTaskFactory(setTimeout,   clearTimeout),
+    interval:  createTaskFactory(setInterval,  clearInterval),
+    immediate: createTaskFactory(setImmediate, clearImmediate)
   });
 }(symbol('arguments'), symbol('id'));
 
@@ -1740,24 +1731,22 @@ $define(PROTO, ARRAY, {
 /**
  * Array static methods
  * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
- * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
+ * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
  */
-$define(STATIC, ARRAY, turn.call(
-  // IE... getNames(ArrayProto),
-  array(
-    // ES3:
-    'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
-    // ES5:
-    'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
-    // ES6:
-    'fill,find,findIndex,keys,values,entries,' +
-    // Core:
-    'get,set,delete,contains,clone,turn'
-  ),
-  function(memo, key){
-    if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key]);
-  }, {}
-));
+!function(){
+  function setArrayStatics(keys, length){
+    $define(STATIC, ARRAY, turn.call(
+      array(keys),
+      function(memo, key){
+        if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key], length);
+      }, {}
+    ));
+  }
+  setArrayStatics('pop,reverse,shift,keys,values,entries,clone', 1);
+  setArrayStatics('get,delete', 2);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
+  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,reduce,reduceRight,fill,turn');
+}();
 
 /******************************************************************************
  * Module : number                                                            *

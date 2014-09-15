@@ -1,21 +1,19 @@
 /**
  * Array static methods
  * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
- * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/New_in_JavaScript/1.6#Array_and_String_generics
+ * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
  */
-$define(STATIC, ARRAY, turn.call(
-  // IE... getNames(ArrayProto),
-  array(
-    // ES3:
-    'concat,join,pop,push,reverse,shift,slice,sort,splice,unshift,' +
-    // ES5:
-    'indexOf,lastIndexOf,every,some,forEach,map,filter,reduce,reduceRight,' +
-    // ES6:
-    'fill,find,findIndex,keys,values,entries,' +
-    // Core:
-    'get,set,delete,contains,clone,turn'
-  ),
-  function(memo, key){
-    if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key]);
-  }, {}
-));
+!function(){
+  function setArrayStatics(keys, length){
+    $define(STATIC, ARRAY, turn.call(
+      array(keys),
+      function(memo, key){
+        if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key], length);
+      }, {}
+    ));
+  }
+  setArrayStatics('pop,reverse,shift,keys,values,entries,clone', 1);
+  setArrayStatics('get,delete', 2);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
+  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,reduce,reduceRight,fill,turn');
+}();

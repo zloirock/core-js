@@ -1,13 +1,6 @@
 /**
  * ECMAScript 6 collection polyfill
- * http://people.mozilla.org/~jorendorff/es6-draft.html
- * http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
- * Alternatives:
- * https://github.com/Benvie/harmony-collections
- * https://github.com/eriwen/es6-map-shim
- * https://github.com/EliSnow/Blitz-Collections
- * https://github.com/montagejs/collections
- * https://github.com/Polymer/WeakMap/blob/master/weakmap.js
+ * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-keyed-collection
  */
 !function(){
   SHIM = symbol('shim');

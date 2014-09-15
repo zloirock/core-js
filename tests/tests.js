@@ -84,6 +84,7 @@
   test('.join', function(){
     var join;
     join = Array.join;
+    ok(join('123') === '1,2,3');
     ok(join('123', '|') === '1|2|3');
     ok(join(function(){
       return arguments;
