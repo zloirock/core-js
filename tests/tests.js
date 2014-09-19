@@ -813,21 +813,6 @@
       bar(2, 4);
     }
   });
-  test('Function::methodize', function(){
-    var num;
-    ok(isFunction(Function.prototype.methodize), 'Is function');
-    ok({
-      a: 42,
-      fn: function(it){
-        return it.a;
-      }.methodize()
-    }.fn() === 42);
-    num = new Number(42);
-    num.fn = function(a, b){
-      return a + b;
-    }.methodize();
-    ok(num.fn(21) === 63);
-  });
 }).call(this);
 
 (function(){
@@ -1593,11 +1578,12 @@
   test('Function.prototype.bind', function(){
     var obj;
     ok(isFunction(Function.prototype.bind), 'Is function');
+    obj = {
+      a: 42
+    };
     ok(42 === function(){
       return this.a;
-    }.bind(obj = {
-      a: 42
-    })());
+    }.bind(obj)());
     ok(void 8 === new (function(){}.bind(obj))().a);
     ok(42 === function(it){
       return it;

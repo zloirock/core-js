@@ -108,16 +108,15 @@
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
-    bind: function(scope /*, args... */){
-      var fn   = assertFunction(this)
-        , args = slice.call(arguments, 1);
+    bind: function(that /*, args... */){
+      var fn       = assertFunction(this)
+        , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
-        var _args = args.concat(slice.call(arguments))
-          , result, that;
-        if(this instanceof fn)return isObject(result = invoke(that = create(fn[PROTOTYPE]), _args, scope)) ? result : that;
-        return apply.call(fn, scope, _args);
+        var args = partArgs.concat(slice.call(arguments));
+        return this instanceof bound
+          ? construct.call(fn, args)
+          : invoke(fn, args, that);
       }
-      bound[PROTOTYPE] = undefined;
       return bound;
     }
   });

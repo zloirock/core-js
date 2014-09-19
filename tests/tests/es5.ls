@@ -70,7 +70,8 @@ test 'Object.keys' !->
   ok \push not in keys Array::
 test 'Function.prototype.bind' !->
   ok isFunction(Function::bind), 'Is function'
-  ok 42   is (-> @a)bind(obj = a: 42)!
+  obj = a: 42
+  ok 42   is (-> @a)bind(obj)!
   ok void is new ((->)bind obj)!a
   ok 42   is (-> it)bind(null 42)!
 test 'Array.isArray' !->

@@ -13,19 +13,19 @@
         , _      = path._
         , holder = false
         , length = arguments.length
-        , woctx  = that === _
-        , i      = woctx ? 0 : 1
+        , isThat = that === _
+        , i      = +!isThat
         , indent = i
-        , args;
-      if(length < 2)return woctx ? ctx(call, fn, -1) : ctx(fn, that, -1);
+        , it, args;
+      if(isThat){
+        it = fn;
+        fn = call;
+      } else it = that;
+      if(length < 2)return ctx(fn, it, -1);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
+      return partial(fn, args, length, holder, _, true, it);
     },
-    /**
-     * http://www.wirfs-brock.com/allen/posts/166
-     * http://habrahabr.ru/post/114737/
-     */
     only: function(numberArguments, that /* = @ */){
       var fn     = assertFunction(this)
         , n      = toLength(numberArguments)
@@ -37,29 +37,9 @@
         while(length > i)args[i] = arguments[i++];
         return invoke(fn, args, isThat ? that : this);
       }
-    },
-    /**
-     * fn(a, b, c, ...) -> a.fn(b, c, ...)
-     * Alternatives:
-     * http://api.prototypejs.org/language/Function/prototype/methodize/
-     */
-    methodize: function(){
-      var fn = this;
-      return function(/* ...args */){
-        var args = [this]
-          , i    = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        return invoke(fn, args);
-      }
     }
   });
   
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   * http://livescript.net/#property-access -> foo~bar
-   * http://lodash.com/docs#bindKey
-   */
   function tie(key){
     var that   = this
       , _      = path._
@@ -67,12 +47,12 @@
       , length = arguments.length
       , i = 1, args;
     if(length < 2)return ctx(that[key], that, -1);
-    args = Array(length - 1)
+    args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: core.tie = ctx(call, tie)});
+  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;

@@ -44,7 +44,6 @@ Function
   ::part(...args | _) -> fn(...args)                                  core
   ::by(object | _, ...args | _) -> fn(...args)                        core
   ::only(numberArguments, that /* = @ */) -> fn(...args)              core
-  ::methodize() -> fn(that, ...args)                                  core
   ::invoke(args, that) -> var                                         core
   ::construct(args) -> object                                         core
   ::timeout(time, ...args) -> deferred                                core

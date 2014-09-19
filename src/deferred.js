@@ -1,12 +1,3 @@
-/**
- * Alternatives:
- * http://sugarjs.com/api/Function/delay
- * http://sugarjs.com/api/Function/every
- * http://api.prototypejs.org/language/Function/prototype/delay/
- * http://api.prototypejs.org/language/Function/prototype/defer/
- * http://mootools.net/docs/core/Types/Function#Function:delay
- * http://mootools.net/docs/core/Types/Function#Function:periodical
- */
 !function(ARGUMENTS, ID){
   function createTaskFactory(set, clear){
     function Task(args){

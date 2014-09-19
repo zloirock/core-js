@@ -25,8 +25,8 @@
       , isFilter = type == 2
       , isSome   = type == 3
       , isEvery  = type == 4;
-    return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = ctx(callbackfn, thisArg, 3)
+    return function(object, callbackfn, that /* = undefined */){
+      var f      = ctx(callbackfn, that, 3)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -105,6 +105,12 @@
     isDict: function(it){
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
+  });
+  $define(STATIC, OBJECT, {
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    values: createObjectToArray(false),
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    entries: createObjectToArray(true)
   });
   $define(GLOBAL, {Dict: Dict});
 }();

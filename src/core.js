@@ -84,10 +84,8 @@ function cof(it){
   return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 function classof(it){
-  var klass = cof(it)
-    , tag;
-  if(klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
-  return klass;
+  var klass = cof(it), tag;
+  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag) ? tag : klass;
 }
 
 // Function
@@ -154,6 +152,12 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
+}
+// 7.3.18 Construct (F, argumentsList)
+function construct(args){
+  var instance = create(assertFunction(this)[PROTOTYPE])
+    , result   = invoke(this, args, instance);
+  return isObject(result) ? result : instance;
 }
 
 // Object:
@@ -253,8 +257,8 @@ function createArrayMethod(type){
     , isEvery     = type == 4
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
-  return function(callbackfn, thisArg /* = undefined */){
-    var f      = ctx(callbackfn, thisArg, 3)
+  return function(callbackfn, that /* = undefined */){
+    var f      = ctx(callbackfn, that, 3)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)

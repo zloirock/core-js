@@ -98,8 +98,8 @@
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: function(callbackfn, thisArg /* = undefined */){
-        var f      = ctx(callbackfn, thisArg, 3)
+      forEach: function(callbackfn, that /* = undefined */){
+        var f      = ctx(callbackfn, that, 3)
           , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)

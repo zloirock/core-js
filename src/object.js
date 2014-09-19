@@ -45,10 +45,6 @@
     define: function(target, source){
       return defineProperties(target, getOwnPropertyDescriptors(source));
     },
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: createObjectToArray(false),
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: createObjectToArray(true),
     isObject: isObject,
     classof: classof
   });

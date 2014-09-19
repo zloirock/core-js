@@ -9,14 +9,14 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(mapfn /* = -> it */, thisArg /* = undefined */){
+  times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this
       , length = toLength(number)
       , result = Array(length)
       , i      = 0
       , f;
     if(isFunction(mapfn)){
-      f = ctx(mapfn, thisArg, 3);
+      f = ctx(mapfn, that, 3);
       while(length > i)result[i] = f(i, i++, number);
     } else while(length > i)result[i] = i++;
     return result;

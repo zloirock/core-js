@@ -31,7 +31,9 @@
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
-      return has(SymbolRegistry, key += '') ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
+      return has(SymbolRegistry, key += '')
+        ? SymbolRegistry[key]
+        : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,

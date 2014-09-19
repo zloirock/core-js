@@ -71,9 +71,3 @@ test '::tie' !->
       deepEqual slice.call(&), [1 2 3 4]
     bar = foo[_] \bar 1, $, 3 
     bar 2 4
-test 'Function::methodize' !->
-  ok isFunction(Function::methodize), 'Is function'
-  ok {a: 42, fn: (-> it.a)methodize!}fn! is 42
-  num = new Number 42
-  num.fn = ((a, b)-> a + b)methodize!
-  ok num.fn(21) is 63

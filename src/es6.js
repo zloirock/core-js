@@ -199,13 +199,13 @@
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
+    from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
       var O       = ES5Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = ctx(mapfn, thisArg, 2);
+      if(mapping)f = ctx(mapfn, that, 2);
       if($for && isIterable(O))$for(O).of(function(value){
         result[index] = mapping ? f(value, index) : value;
         index++;

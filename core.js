@@ -97,10 +97,8 @@ function cof(it){
   return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 function classof(it){
-  var klass = cof(it)
-    , tag;
-  if(klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag))return tag;
-  return klass;
+  var klass = cof(it), tag;
+  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag) ? tag : klass;
 }
 
 // Function
@@ -167,6 +165,12 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
+}
+// 7.3.18 Construct (F, argumentsList)
+function construct(args){
+  var instance = create(assertFunction(this)[PROTOTYPE])
+    , result   = invoke(this, args, instance);
+  return isObject(result) ? result : instance;
 }
 
 // Object:
@@ -266,8 +270,8 @@ function createArrayMethod(type){
     , isEvery     = type == 4
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
-  return function(callbackfn, thisArg /* = undefined */){
-    var f      = ctx(callbackfn, thisArg, 3)
+  return function(callbackfn, that /* = undefined */){
+    var f      = ctx(callbackfn, that, 3)
       , O      = Object(this)
       , self   = ES5Object(O)
       , length = toLength(self.length)
@@ -548,16 +552,15 @@ if(!NODE && !REQJS || framework)global.core = core;
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
   $define(PROTO, FUNCTION, {
-    bind: function(scope /*, args... */){
-      var fn   = assertFunction(this)
-        , args = slice.call(arguments, 1);
+    bind: function(that /*, args... */){
+      var fn       = assertFunction(this)
+        , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
-        var _args = args.concat(slice.call(arguments))
-          , result, that;
-        if(this instanceof fn)return isObject(result = invoke(that = create(fn[PROTOTYPE]), _args, scope)) ? result : that;
-        return apply.call(fn, scope, _args);
+        var args = partArgs.concat(slice.call(arguments));
+        return this instanceof bound
+          ? construct.call(fn, args)
+          : invoke(fn, args, that);
       }
-      bound[PROTOTYPE] = undefined;
       return bound;
     }
   });
@@ -709,7 +712,9 @@ $define(GLOBAL, {global: global});
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
     'for': function(key){
-      return has(SymbolRegistry, key += '') ? SymbolRegistry[key] : SymbolRegistry[key] = Symbol(key);
+      return has(SymbolRegistry, key += '')
+        ? SymbolRegistry[key]
+        : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.6 Symbol.iterator
     iterator: ITERATOR,
@@ -928,13 +933,13 @@ $define(GLOBAL, {global: global});
   });
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: function(arrayLike, mapfn /* -> it */, thisArg /* = undefind */){
+    from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
       var O       = ES5Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , index   = 0
         , length, f;
-      if(mapping)f = ctx(mapfn, thisArg, 2);
+      if(mapping)f = ctx(mapfn, that, 2);
       if($for && isIterable(O))$for(O).of(function(value){
         result[index] = mapping ? f(value, index) : value;
         index++;
@@ -990,9 +995,6 @@ $define(GLOBAL, {global: global});
  * setImmediate
  * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
  * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
- * Alternatives:
- * https://github.com/NobleJS/setImmediate
- * https://github.com/calvinmetcalf/immediate
  */
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
@@ -1312,8 +1314,8 @@ $define(GLOBAL + BIND, {
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: function(callbackfn, thisArg /* = undefined */){
-        var f      = ctx(callbackfn, thisArg, 3)
+      forEach: function(callbackfn, that /* = undefined */){
+        var f      = ctx(callbackfn, that, 3)
           , values = this[$VALUES]
           , keys   = this[KEYS]
           , names  = getKeys(keys)
@@ -1620,8 +1622,8 @@ $define(GLOBAL + BIND, {
       , isFilter = type == 2
       , isSome   = type == 3
       , isEvery  = type == 4;
-    return function(object, callbackfn, thisArg /* = undefined */){
-      var f      = ctx(callbackfn, thisArg, 3)
+    return function(object, callbackfn, that /* = undefined */){
+      var f      = ctx(callbackfn, that, 3)
         , O      = ES5Object(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -1701,6 +1703,12 @@ $define(GLOBAL + BIND, {
       return getPrototypeOf(it) == Dict[PROTOTYPE];
     }
   });
+  $define(STATIC, OBJECT, {
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    values: createObjectToArray(false),
+    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
+    entries: createObjectToArray(true)
+  });
   $define(GLOBAL, {Dict: Dict});
 }();
 
@@ -1735,12 +1743,7 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 $define(PROTO, FUNCTION, {
-  // 7.3.18 Construct (F, argumentsList)
-  construct: function(args){
-    var instance = create(assertFunction(this)[PROTOTYPE])
-      , result   = invoke(this, args, instance);
-    return isObject(result) ? result : instance;
-  },
+  construct: construct,
   invoke: function(args, that){
     return invoke(this, args, that);
   }
@@ -1750,15 +1753,6 @@ $define(PROTO, FUNCTION, {
  * Module : deferred                                                          *
  ******************************************************************************/
 
-/**
- * Alternatives:
- * http://sugarjs.com/api/Function/delay
- * http://sugarjs.com/api/Function/every
- * http://api.prototypejs.org/language/Function/prototype/delay/
- * http://api.prototypejs.org/language/Function/prototype/defer/
- * http://mootools.net/docs/core/Types/Function#Function:delay
- * http://mootools.net/docs/core/Types/Function#Function:periodical
- */
 !function(ARGUMENTS, ID){
   function createTaskFactory(set, clear){
     function Task(args){
@@ -1807,19 +1801,19 @@ $define(PROTO, FUNCTION, {
         , _      = path._
         , holder = false
         , length = arguments.length
-        , woctx  = that === _
-        , i      = woctx ? 0 : 1
+        , isThat = that === _
+        , i      = +!isThat
         , indent = i
-        , args;
-      if(length < 2)return woctx ? ctx(call, fn, -1) : ctx(fn, that, -1);
+        , it, args;
+      if(isThat){
+        it = fn;
+        fn = call;
+      } else it = that;
+      if(length < 2)return ctx(fn, it, -1);
       args = Array(length - indent);
       while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partial(woctx ? call : fn, args, length, holder, _, true, woctx ? fn : that);
+      return partial(fn, args, length, holder, _, true, it);
     },
-    /**
-     * http://www.wirfs-brock.com/allen/posts/166
-     * http://habrahabr.ru/post/114737/
-     */
     only: function(numberArguments, that /* = @ */){
       var fn     = assertFunction(this)
         , n      = toLength(numberArguments)
@@ -1831,29 +1825,9 @@ $define(PROTO, FUNCTION, {
         while(length > i)args[i] = arguments[i++];
         return invoke(fn, args, isThat ? that : this);
       }
-    },
-    /**
-     * fn(a, b, c, ...) -> a.fn(b, c, ...)
-     * Alternatives:
-     * http://api.prototypejs.org/language/Function/prototype/methodize/
-     */
-    methodize: function(){
-      var fn = this;
-      return function(/* ...args */){
-        var args = [this]
-          , i    = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        return invoke(fn, args);
-      }
     }
   });
   
-  /**
-   * Alternatives:
-   * http://www.2ality.com/2013/06/auto-binding.html
-   * http://livescript.net/#property-access -> foo~bar
-   * http://lodash.com/docs#bindKey
-   */
   function tie(key){
     var that   = this
       , _      = path._
@@ -1861,12 +1835,12 @@ $define(PROTO, FUNCTION, {
       , length = arguments.length
       , i = 1, args;
     if(length < 2)return ctx(that[key], that, -1);
-    args = Array(length - 1)
+    args = Array(length - 1);
     while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: core.tie = ctx(call, tie)});
+  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;
@@ -1928,10 +1902,6 @@ $define(PROTO, FUNCTION, {
     define: function(target, source){
       return defineProperties(target, getOwnPropertyDescriptors(source));
     },
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: createObjectToArray(false),
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: createObjectToArray(true),
     isObject: isObject,
     classof: classof
   });
@@ -2027,14 +1997,14 @@ $define(PROTO, NUMBER, {
    * http://api.prototypejs.org/language/Number/prototype/times/
    * http://mootools.net/docs/core/Types/Number#Number:times
    */
-  times: function(mapfn /* = -> it */, thisArg /* = undefined */){
+  times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this
       , length = toLength(number)
       , result = Array(length)
       , i      = 0
       , f;
     if(isFunction(mapfn)){
-      f = ctx(mapfn, thisArg, 3);
+      f = ctx(mapfn, that, 3);
       while(length > i)result[i] = f(i, i++, number);
     } else while(length > i)result[i] = i++;
     return result;
@@ -2088,15 +2058,13 @@ $define(PROTO, NUMBER, turn.call(
 
 !function(){
   var escapeHTMLDict = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&apos;'
-      }
-    , unescapeHTMLDict = turn.call(getKeys(escapeHTMLDict), function(memo, key){
-        memo[escapeHTMLDict[key]] = key;
-      }, {});
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&apos;'
+  }, unescapeHTMLDict = {}, key;
+  for(key in escapeHTMLDict)unescapeHTMLDict[escapeHTMLDict[key]] = key;
   $define(PROTO, STRING, {
     escapeHTML:   createEscaper(/[&<>"']/g, escapeHTMLDict),
     unescapeHTML: createEscaper(/&(?:amp|lt|gt|quot|apos);/g, unescapeHTMLDict)
