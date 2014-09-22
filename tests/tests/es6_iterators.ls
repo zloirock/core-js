@@ -1,6 +1,7 @@
 module 'ES6 Iterators'
 isIterator = ->
   return typeof it is \object  && typeof it.next is \function
+
 test 'String::@@iterator' !->
   ok typeof String::[Symbol.iterator] is \function, 'Is function'
   iter = 'qwe'[Symbol.iterator]!
@@ -9,6 +10,7 @@ test 'String::@@iterator' !->
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
+
 test 'Array::keys' !->
   ok typeof Array::keys is \function, 'Is function'
   iter = <[q w e]>keys!
@@ -41,6 +43,7 @@ test 'Array::@@iterator' !->
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
+
 test 'Map::keys' !->
   ok typeof Map::keys is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
@@ -73,6 +76,7 @@ test 'Map::@@iterator' !->
   deepEqual iter.next!, {value: [\s \w], done: no}
   deepEqual iter.next!, {value: [\d \e], done: no}
   deepEqual iter.next!, {value: void, done: on}
+
 test 'Set::keys' !->
   ok typeof Set::keys is \function, 'Is function'
   iter = new Set(<[q w e]>)keys!
@@ -105,6 +109,7 @@ test 'Set::@@iterator' !->
   deepEqual iter.next!, {value: \w, done: no}
   deepEqual iter.next!, {value: \e, done: no}
   deepEqual iter.next!, {value: void, done: on}
+
 test '$for(iterable).of(fn)' !->
   ok typeof $for is \function, 'Is function'
   set = new Set <[1 2 3 2 1]>

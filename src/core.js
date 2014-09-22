@@ -77,8 +77,8 @@ var toString = ObjectProto[TO_STRING]
   , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
     // define in es6_symbol module
   , TOSTRINGTAG;
-function setToStringTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
+function setToStringTag(it, tag, stat){
+  if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
@@ -153,12 +153,6 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-// 7.3.18 Construct (F, argumentsList)
-function construct(args){
-  var instance = create(assertFunction(this)[PROTOTYPE])
-    , result   = invoke(this, args, instance);
-  return isObject(result) ? result : instance;
-}
 
 // Object:
 var create           = Object.create
@@ -168,6 +162,10 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
+  , getSymbols       = Object.getOwnPropertySymbols
+  , ownKeys          = getSymbols ? function(it){
+      return getNames(it).concat(getSymbols(it));
+    } : getNames
   , isEnumerable     = ObjectProto.propertyIsEnumerable
   , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   , __PROTO__        = '__proto__' in ObjectProto
@@ -409,15 +407,12 @@ function $define(type, name, source){
       }
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
-    // .CORE mark
-    if(!own)out.CORE = exp.CORE = true;
     // export
     if(exports[key] != out)exports[key] = exp;
     // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
 }
-core.CORE = true;
 // CommonJS export
 if(NODE)module.exports = core;
 // RequireJS export

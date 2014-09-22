@@ -92,6 +92,8 @@ test 'Map::size' !->
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+test 'Map::@@toStringTag' !->
+  ok Map::[Symbol.toStringTag] is \Map, 'Map::@@toStringTag is `Map`'
 
 test 'Set' !->
   ok isFunction(that.Set), 'Is function'
@@ -174,6 +176,8 @@ test 'Set::size' !->
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+test 'Set::@@toStringTag' !->
+  ok Set::[Symbol.toStringTag] is \Set, 'Set::@@toStringTag is `Set`'
 
 test 'WeakMap' !->
   ok isFunction(that.WeakMap), 'Is function'
@@ -221,6 +225,8 @@ test 'WeakMap::set' !->
   ok isFunction(WeakMap::set), 'Is function'
   ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
   ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
+test 'WeakMap::@@toStringTag' !->
+  ok WeakMap::[Symbol.toStringTag] is \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'
 
 test 'WeakSet' !->
   ok isFunction(that.WeakSet), 'Is function'
@@ -259,3 +265,5 @@ test 'WeakSet::has' !->
   ok M.has(a), 'WeakSet has value after .add()'
   M.delete a
   ok not M.has(a), 'WeakSet has`nt value after .delete()'
+test 'WeakSet::@@toStringTag' !->
+  ok WeakSet::[Symbol.toStringTag] is \WeakSet, 'WeakSet::@@toStringTag is `WeakSet`'

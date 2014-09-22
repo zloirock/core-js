@@ -90,8 +90,8 @@ var toString = ObjectProto[TO_STRING]
   , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
     // define in es6_symbol module
   , TOSTRINGTAG;
-function setToStringTag(constructor, tag, stat){
-  if(TOSTRINGTAG && constructor)set(stat ? constructor : constructor[PROTOTYPE], TOSTRINGTAG, tag);
+function setToStringTag(it, tag, stat){
+  if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
@@ -166,12 +166,6 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-// 7.3.18 Construct (F, argumentsList)
-function construct(args){
-  var instance = create(assertFunction(this)[PROTOTYPE])
-    , result   = invoke(this, args, instance);
-  return isObject(result) ? result : instance;
-}
 
 // Object:
 var create           = Object.create
@@ -181,6 +175,10 @@ var create           = Object.create
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
+  , getSymbols       = Object.getOwnPropertySymbols
+  , ownKeys          = getSymbols ? function(it){
+      return getNames(it).concat(getSymbols(it));
+    } : getNames
   , isEnumerable     = ObjectProto.propertyIsEnumerable
   , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   , __PROTO__        = '__proto__' in ObjectProto
@@ -422,15 +420,12 @@ function $define(type, name, source){
       }
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
-    // .CORE mark
-    if(!own)out.CORE = exp.CORE = true;
     // export
     if(exports[key] != out)exports[key] = exp;
     // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
 }
-core.CORE = true;
 // CommonJS export
 if(NODE)module.exports = core;
 // RequireJS export
@@ -489,6 +484,8 @@ if(!NODE && !REQJS || framework)global.core = core;
     set: set
   });
   setToStringTag(Symbol, SYMBOL);
+  // 26.1.11 Reflect.ownKeys (target)
+  $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
 }(symbol('tag'), 'iterator', TO_STRING + 'Tag', {});
 
 /******************************************************************************
@@ -1196,7 +1193,7 @@ $define(GLOBAL + BIND, {
   function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
-  function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
+  function createIteratorClass(Base, NAME, DEFAULT, Constructor, next){
     Constructor[PROTOTYPE] = {};
     // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
     // 23.1.5.2.1 %MapIteratorPrototype%.next()
@@ -1212,29 +1209,29 @@ $define(GLOBAL + BIND, {
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
     setToStringTag(Constructor, NAME + ' Iterator');
+    function createIteratorFactory(kind){
+      return function(){
+        return new Constructor(this, kind);
+      }
+    }
     $define(PROTO, NAME, {
       // 22.1.3.4 Array.prototype.entries()
       // 23.1.3.4 Map.prototype.entries()
       // 23.2.3.5 Set.prototype.entries()
-      entries: createIteratorFactory(Constructor, KEY+VALUE),
+      entries: createIteratorFactory(KEY+VALUE),
       // 22.1.3.13 Array.prototype.keys()
       // 23.1.3.8 Map.prototype.keys()
       // 23.2.3.8 Set.prototype.keys()
-      keys:    createIteratorFactory(Constructor, KEY),
+      keys:    createIteratorFactory(KEY),
       // 22.1.3.29 Array.prototype.values()
       // 23.1.3.11 Map.prototype.values()
       // 23.2.3.10 Set.prototype.values()
-      values:  createIteratorFactory(Constructor, VALUE)
+      values:  createIteratorFactory(VALUE)
     });
     // 22.1.3.30 Array.prototype[@@iterator]()
     // 23.1.3.12 Map.prototype[@@iterator]()
     // 23.2.3.11 Set.prototype[@@iterator]()
-    Base && defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
-  }
-  function createIteratorFactory(Constructor, kind){
-    return function(){
-      return new Constructor(this, kind);
-    }
+    Base && defineIterator(Base, NAME, createIteratorFactory(DEFAULT));
   }
   function defineIterator(Constructor, NAME, value){
     var proto         = Constructor[PROTOTYPE]
@@ -1259,13 +1256,12 @@ $define(GLOBAL + BIND, {
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
-  function ArrayIterator(iterated, kind){
+  createIteratorClass(Array, ARRAY, VALUE, function(iterated, kind){
     set(this, ITERATED, ES5Object(iterated));
     set(this, KIND,     kind);
     set(this, INDEX,    0);
-  }
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
-  createIteratorClass(ArrayIterator, ARRAY, Array, function(){
+  }, function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++
       , kind     = this[KIND]
@@ -1275,7 +1271,7 @@ $define(GLOBAL + BIND, {
     else if(kind == VALUE)value = iterated[index];
     else                  value = [index, iterated[index]];
     return createIterResultObject(0, value);
-  }, VALUE);
+  });
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
   defineIterator(String, STRING, Iterators[ARRAY]);
@@ -1283,7 +1279,7 @@ $define(GLOBAL + BIND, {
   Iterators[ARGUMENTS] = Iterators[ARRAY];
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
-  function MapIterator(iterated, kind){
+  createIteratorClass(Map, MAP, KEY+VALUE, function(iterated, kind){
     var that = this, keys;
     if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
@@ -1293,9 +1289,8 @@ $define(GLOBAL + BIND, {
     set(that, KIND,     kind);
     set(that, INDEX,    0);
     set(that, KEYS,     keys);
-  }
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
-  createIteratorClass(MapIterator, MAP, Map, function(){
+  }, function(){
     var that     = this
       , iterated = that[ITERATED]
       , keys     = that[KEYS]
@@ -1308,10 +1303,10 @@ $define(GLOBAL + BIND, {
     else if(kind == VALUE)value = iterated.get(key);
     else                  value = [key, iterated.get(key)];
     return createIterResultObject(0, value);
-  }, KEY+VALUE);
+  });
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
-  function SetIterator(iterated, kind){
+  createIteratorClass(Set, SET, VALUE, function(iterated, kind){
     var keys;
     if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
@@ -1319,15 +1314,14 @@ $define(GLOBAL + BIND, {
     }, keys = []);
     set(this, KIND, kind);
     set(this, KEYS, keys.reverse());
-  }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
-  createIteratorClass(SetIterator, SET, Set, function(){
+  }, function(){
     var keys = this[KEYS]
       , key;
     if(!keys.length)return createIterResultObject(1);
     key = keys.pop();
     return createIterResultObject(0, this[KIND] == KEY+VALUE ? [key, key] : key);
-  }, VALUE);
+  });
   
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
@@ -1476,17 +1470,6 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
- * Module : function                                                          *
- ******************************************************************************/
-
-$define(PROTO, FUNCTION, {
-  construct: construct,
-  invoke: function(args, that){
-    return invoke(this, args, that);
-  }
-});
-
-/******************************************************************************
  * Module : deferred                                                          *
  ******************************************************************************/
 
@@ -1593,54 +1576,20 @@ $define(PROTO, FUNCTION, {
  ******************************************************************************/
 
 !function(){
-  var getSymbols      = Object.getOwnPropertySymbols
-    , getPropertyKeys = getSymbols
-      ? function(it){
-          return getNames(it).concat(getSymbols(it));
-        }
-      : getNames;
-  // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-  // https://gist.github.com/WebReflection/9353781
-  function getOwnPropertyDescriptors(object){
-    var result = {}
-      , keys   = getPropertyKeys(object)
+  function define(target, mixin){
+    var keys   = ownKeys(ES5Object(mixin))
       , length = keys.length
-      , i      = 0
-      , key;
-    while(length > i)result[key = keys[i++]] = getOwnDescriptor(object, key);
-    return result;
-  }
+      , i = 0, key;
+    while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));
+    return target;
+  };
   $define(STATIC, OBJECT, {
-    isPrototype: ctx(call, ObjectProto.isPrototypeOf, 2),
-    getOwnPropertyKeys: getPropertyKeys,
-    // http://wiki.ecmascript.org/doku.php?id=harmony:extended_object_api
-    getPropertyDescriptor: function(object, key){
-      var O = object;
-      if(key in O)do {
-        if(has(O, key))return getOwnDescriptor(O, key);
-      } while(O = getPrototypeOf(O));
-    },
-    // http://wiki.ecmascript.org/doku.php?id=strawman:extended_object_api
-    // ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    getOwnPropertyDescriptors: getOwnPropertyDescriptors,
-    /**
-     * Shugar for Object.create
-     * Alternatives:
-     * http://lodash.com/docs#create
-     */
-    make: function(proto, props){
-      return assign(create(proto), props);
-    },
-    /**
-     * 19.1.3.15 Object.mixin ( target, source )
-     * Removed in Draft Rev 22, January 20, 2014
-     * http://esdiscuss.org/topic/november-19-2013-meeting-notes#content-1
-     */
-    define: function(target, source){
-      return defineProperties(target, getOwnPropertyDescriptors(source));
-    },
     isObject: isObject,
-    classof: classof
+    classof: classof,
+    define: define,
+    make: function(proto, mixin, withDescriptors){
+      return (withDescriptors ? define : assign)(create(proto), mixin);
+    }
   });
 }();
 
@@ -1726,14 +1675,6 @@ $define(PROTO, ARRAY, {
 // Number.toInteger was part of the draft ECMAScript 6 specification, but has been removed
 $define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
-  /**
-   * Invoke function @ times and return array of results
-   * Alternatives:
-   * http://underscorejs.org/#times
-   * http://sugarjs.com/api/Number/times
-   * http://api.prototypejs.org/language/Number/prototype/times/
-   * http://mootools.net/docs/core/Types/Number#Number:times
-   */
   times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this
       , length = toLength(number)
@@ -1753,14 +1694,6 @@ $define(PROTO, NUMBER, {
     return random() * (max(a, b) - m) + m;
   }
 });
-$define(STATIC, MATH, {
-  randomInt: function(lim1 /* = 0 */, lim2 /* = 0 */){
-    var a = toInteger(lim1)
-      , b = toInteger(lim2)
-      , m = min(a, b);
-    return floor(random() * (max(a, b) + 1 - m) + m);
-  }
-});
 /**
  * Math functions in Number.prototype
  * Alternatives:
@@ -1768,14 +1701,11 @@ $define(STATIC, MATH, {
  * http://mootools.net/docs/core/Types/Number#Number-Math
  */
 $define(PROTO, NUMBER, turn.call(
-  // IE... getNames(Math)
   array(
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6:
-    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc,' +
-    // Core:
-    'randomInt'
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
   ),
   function(memo, key){
     var fn = Math[key];

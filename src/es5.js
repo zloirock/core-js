@@ -90,7 +90,7 @@
       return null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || createGetKeys(slyKeys2, slyKeys2.length, true),
+    getOwnPropertyNames: getNames = getNames || (ownKeys = createGetKeys(slyKeys2, slyKeys2.length, true)),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
       if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
@@ -113,9 +113,11 @@
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        return this instanceof bound
-          ? construct.call(fn, args)
-          : invoke(fn, args, that);
+        if(this instanceof bound){
+          var instance = create(fn[PROTOTYPE])
+            , result   = invoke(fn, args, instance);
+          return isObject(result) ? result : instance;
+        } return invoke(fn, args, that);
       }
       return bound;
     }
@@ -145,22 +147,22 @@
     }
   });
   function createArrayReduce(isRight){
-    return function(callbackfn, memo /* = @.0 */){
+    return function(callbackfn, memo){
       assertFunction(callbackfn);
       var O      = ES5Object(this)
         , length = toLength(O.length)
         , index  = isRight ? length - 1 : 0
-        , inc    = isRight ? -1 : 1;
+        , i      = isRight ? -1 : 1;
       if(2 > arguments.length)for(;;){
         if(index in O){
           memo = O[index];
-          index += inc;
+          index += i;
           break;
         }
-        index += inc;
+        index += i;
         assert(isRight ? index >= 0 : length > index, REDUCE_ERROR);
       }
-      for(;isRight ? index >= 0 : length > index; index += inc)if(index in O){
+      for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
         memo = callbackfn(memo, O[index], index, this);
       }
       return memo;

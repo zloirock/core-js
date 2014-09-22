@@ -17,11 +17,11 @@ require('core-js');
 ```livescript
 global -> object                                                      node
 Object
-  .create(proto | null, descs?) -> object                             es5
+  .create(proto | null, descriptors?) -> object                       es5
   .getPrototypeOf(object) -> proto | null                             es5 sham
   .setPrototypeOf(object, proto | null) -> &0                         es6 sham
   .defineProperty(object, key, desc) -> &0                            es5 sham
-  .defineProperties(object, descs) -> &0                              es5 sham
+  .defineProperties(object, descriptors) -> &0                        es5 sham
   .getOwnPropertyNames(object) -> array                               es5 sham
   .getOwnPropertyDescriptor(object, key) -> desc                      es5
   .keys(object) -> array                                              es5
@@ -29,14 +29,10 @@ Object
   .entries(object) -> array                                           es7
   .assign(target, ...src) -> &0                                       es6
   .is(a, b) -> bool                                                   es6
-  .isPrototype(proto, object) -> bool                                 core
-  .getOwnPropertyKeys(object) -> array                                core
-  .getPropertyDescriptor(object, key) -> desc                         core
-  .getOwnPropertyDescriptors(object) -> descs                         core
-  .make(proto | null, props?) -> object                               core
-  .define(object, props) -> &0                                        core
   .isObject(var) -> bool                                              core
   .classof(var) -> string                                             core
+  .define(target, mixin) -> &0                                        core
+  .make(proto | null, mixin?, withDescriptors = false) -> object      core
   .tie(object, key, ...args | _) -> fn(...args)                       core
   ::[_](key, ...args | _) -> fn(...args)                              core
 Function
@@ -44,8 +40,6 @@ Function
   ::part(...args | _) -> fn(...args)                                  core
   ::by(object | _, ...args | _) -> fn(...args)                        core
   ::only(numberArguments, that /* = @ */) -> fn(...args)              core
-  ::invoke(args, that) -> var                                         core
-  ::construct(args) -> object                                         core
   ::timeout(time, ...args) -> deferred                                core
   ::interval(time, ...args) -> deferred                               core
   ::immediate(...args) -> deferred                                    core
@@ -72,10 +66,10 @@ Array
   ::keys() -> iterator                                                es6
   ::entries() -> iterator (entries)                                   es6
   ::@@iterator() -> iterator                                          es6
+  ::contains(var, from?) -> bool                                      es7
   ::get(index) -> var                                                 core
   ::set(index, value) -> @                                            core
   ::delete(index) -> bool                                             core
-  ::contains(var, from?) -> bool                                      es7
   ::clone() -> var                                                    core
   ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
@@ -171,7 +165,6 @@ Math
   .sinh(num) -> num                                                   es6
   .tanh(num) -> num                                                   es6
   .trunc(num) -> num                                                  es6
-  .randomInt(lim1, lim2 = 0) -> int                                   core
 Date
   .now() -> int                                                       es5
   .addLocale(key, object) -> @                                        core
@@ -185,6 +178,8 @@ Symbol(description?) -> symbol                                        es6 sham
   .toStringTag -> symbol                                              es6
   .pure() -> symbol || string                                         core
   .set(object, key, val) -> &0                                        core
+Reflect -> object                                                     es6
+  .ownKeys(object) -> array                                           es6
 new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   ::then(resolved(var), rejected(var)) -> promise                     es6
   ::catch(rejected(var)) -> promise                                   es6

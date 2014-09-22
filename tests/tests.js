@@ -1011,12 +1011,12 @@
 }).call(this);
 
 (function(){
-  var isFunction, keys, toString$ = {}.toString;
+  var isFunction, keys, create, assign, toString$ = {}.toString;
   module('Dict');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  keys = Object.keys;
+  keys = Object.keys, create = Object.create, assign = Object.assign;
   test('Dict', function(){
     var dict1, dict2, dict3;
     ok(isFunction(global.Dict), 'Is function');
@@ -1428,6 +1428,46 @@
       q: 1
     }), 'q') === void 8);
     ok(get({}, 'toString') === void 8);
+  });
+  test('Object.values', function(){
+    var values;
+    values = Object.values;
+    ok(isFunction(values), 'Is function');
+    deepEqual(values({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [1, 2, 3]);
+    deepEqual(values(new String('qwe')), ['q', 'w', 'e']);
+    deepEqual(values(assign(create({
+      q: 1,
+      w: 2,
+      e: 3
+    }), {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [4, 5, 6]);
+  });
+  test('Object.entries', function(){
+    var entries;
+    entries = Object.entries;
+    ok(isFunction(entries), 'Is function');
+    deepEqual(entries({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [['q', 1], ['w', 2], ['e', 3]]);
+    deepEqual(entries(new String('qwe')), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
+    deepEqual(entries(assign(create({
+      q: 1,
+      w: 2,
+      e: 3
+    }), {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [['a', 4], ['s', 5], ['d', 6]]);
   });
   function clone$(it){
     function fun(){} fun.prototype = it;
@@ -2455,6 +2495,9 @@
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
   });
+  test('Map::@@toStringTag', function(){
+    ok(Map.prototype[Symbol.toStringTag] === 'Map', 'Map::@@toStringTag is `Map`');
+  });
   test('Set', function(){
     var S, r;
     ok(isFunction(that.Set), 'Is function');
@@ -2563,6 +2606,9 @@
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
   });
+  test('Set::@@toStringTag', function(){
+    ok(Set.prototype[Symbol.toStringTag] === 'Set', 'Set::@@toStringTag is `Set`');
+  });
   test('WeakMap', function(){
     var a, b;
     ok(isFunction(that.WeakMap), 'Is function');
@@ -2625,6 +2671,9 @@
       }
     }()), 'WeakMap.prototype.set throw with primitive keys');
   });
+  test('WeakMap::@@toStringTag', function(){
+    ok(WeakMap.prototype[Symbol.toStringTag] === 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
+  });
   test('WeakSet', function(){
     var a;
     ok(isFunction(that.WeakSet), 'Is function');
@@ -2675,6 +2724,9 @@
     ok(M.has(a), 'WeakSet has value after .add()');
     M['delete'](a);
     ok(!M.has(a), 'WeakSet has`nt value after .delete()');
+  });
+  test('WeakSet::@@toStringTag', function(){
+    ok(WeakSet.prototype[Symbol.toStringTag] === 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
   });
 }).call(this);
 
@@ -3016,8 +3068,18 @@
   };
   test('Promise', function(){
     ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
-    ok(isFunction(Promise.prototype.then), 'Promise::then is function');
-    ok(isFunction(Promise.prototype['catch']), 'Promise::catch is function');
+  });
+  test('::then', function(){
+    ok(isFunction(Promise.prototype.then), 'Is function');
+  });
+  test('::catch', function(){
+    ok(isFunction(Promise.prototype['catch']), 'Is function');
+  });
+  test('Promise', function(){
+    ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
+  });
+  test('::@@toStringTag', function(){
+    ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('.all', function(){
     ok(isFunction(Promise.all), 'Is function');
@@ -3034,8 +3096,9 @@
 }).call(this);
 
 (function(){
-  var isFunction, isNative, that, toString$ = {}.toString;
+  var defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, that, toString$ = {}.toString;
   module('ES6 Symbol');
+  defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, create = Object.create;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -3044,45 +3107,75 @@
   };
   that = (typeof global != 'undefined' && global !== null) && global || window;
   test('Symbol', function(){
-    var s1, s2, o, count, i;
+    var s1, s2, O, count, i;
     ok(isFunction(that.Symbol), 'Is function');
     s1 = Symbol('foo');
     s2 = Symbol('foo');
     ok(s1 !== s2, 'Symbol("foo") !== Symbol("foo")');
-    o = {};
-    o[s1] = 42;
-    ok(o[s1] === 42, 'Symbol() work as key');
-    ok(o[s2] !== 42, 'Various symbols from one description are various keys');
-    if (isNative(Object.defineProperty)) {
+    O = {};
+    O[s1] = 42;
+    ok(O[s1] === 42, 'Symbol() work as key');
+    ok(O[s2] !== 42, 'Various symbols from one description are various keys');
+    if (isNative(defineProperty)) {
       count = 0;
-      for (i in o) {
+      for (i in O) {
         count++;
       }
       ok(count === 0, 'object[Symbol()] is not enumerable');
     }
   });
-}).call(this);
-
-(function(){
-  var isFunction, toString$ = {}.toString;
-  module('Function');
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  test('::construct', function(){
-    var C;
-    ok(isFunction(Function.prototype.construct), 'Is function');
-    C = (function(){
-      C.displayName = 'C';
-      var prototype = C.prototype, constructor = C;
-      function C(a, b){
-        this.a = a;
-        this.b = b;
-      }
-      return C;
-    }());
-    ok(C.construct([]) instanceof C);
-    deepEqual(C.construct([1, 2]), new C(1, 2));
+  test('.iterator', function(){
+    ok('iterator' in Symbol, 'iterator in Symbol');
+  });
+  test('.toStringTag', function(){
+    ok('toStringTag' in Symbol, 'toStringTag in Symbol');
+  });
+  test('::@@toStringTag', function(){
+    ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
+  });
+  test('.pure', function(){
+    var pure;
+    pure = Symbol.pure;
+    ok(isFunction(pure), 'Is function');
+    if (isNative(Symbol)) {
+      ok(typeof pure() === 'symbol', 'Symbol.pure() return symbol');
+    } else {
+      ok(typeof pure() === 'string', 'Symbol.pure() return string');
+    }
+    ok(pure('S') !== pure('S'), 'Symbol.pure(key) != Symbol.pure(key)');
+  });
+  test('.set', function(){
+    var set, O, sym;
+    set = Symbol.set;
+    ok(isFunction(set), 'Is function');
+    O = {};
+    sym = Symbol();
+    ok(set(O, sym, 42) === O, 'Symbol.set return object');
+    ok(O[sym] === 42, 'Symbol.set set value');
+    if (!isNative(Symbol) && isNative(defineProperty)) {
+      ok(getOwnPropertyDescriptor(O, sym).enumerable === false, 'Symbol.set set enumerable: false value');
+    }
+  });
+  test('Reflect.ownKeys', function(){
+    var O1, sym, keys, O2;
+    ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
+    ok(isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function');
+    O1 = {
+      a: 1
+    };
+    defineProperty(O1, 'b', {
+      value: 2
+    });
+    sym = Symbol('c');
+    O1[sym] = 3;
+    keys = Reflect.ownKeys(O1);
+    ok(keys.length === 3, 'ownKeys return all own keys');
+    ok(O1[keys[0]] === 1, 'ownKeys return all own keys: simple');
+    ok(O1[keys[1]] === 2, 'ownKeys return all own keys: hidden');
+    ok(O1[keys[2]] === 3, 'ownKeys return all own keys: symbol');
+    O2 = create(O1);
+    keys = Reflect.ownKeys(O2);
+    ok(keys.length === 0, 'ownKeys return only own keys');
   });
 }).call(this);
 
@@ -3210,34 +3303,9 @@
       return 7 <= it && it <= 10;
     }));
   });
-  test('Math.randomInt', function(){
-    var randomInt;
-    randomInt = Math.randomInt;
-    ok(isFunction(randomInt), 'Is function');
-    ok(100 .times(function(){
-      return randomInt();
-    }).every((function(it){
-      return it === 0;
-    })));
-    ok(100 .times(function(){
-      return randomInt(10);
-    }).every((function(it){
-      return it === 0 || it === 1 || it === 2 || it === 3 || it === 4 || it === 5 || it === 6 || it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return randomInt(10, 7);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-    ok(100 .times(function(){
-      return randomInt(7, 10);
-    }).every((function(it){
-      return it === 7 || it === 8 || it === 9 || it === 10;
-    })));
-  });
   test('::#{...Math}', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2', 'acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc', 'randomInt']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2', 'acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function");
     }
@@ -3249,7 +3317,7 @@
 }).call(this);
 
 (function(){
-  var isFunction, isNative, getPrototypeOf, create, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
+  var isFunction, isNative, getPrototypeOf, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
   module('Object');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
@@ -3257,81 +3325,57 @@
   isNative = function(it){
     return /\[native code\]\s*\}\s*$/.test(it);
   };
-  getPrototypeOf = Object.getPrototypeOf, create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  test('.getPropertyDescriptor', function(){
-    var getPropertyDescriptor, create;
-    getPropertyDescriptor = Object.getPropertyDescriptor, create = Object.create;
-    ok(isFunction(getPropertyDescriptor), 'Is function');
-    deepEqual(getPropertyDescriptor(create({
-      q: 1
-    }), 'q'), {
-      enumerable: true,
-      configurable: true,
-      writable: true,
-      value: 1
-    });
-  });
-  test('.getOwnPropertyDescriptors', function(){
-    var getOwnPropertyDescriptors, make, descs;
-    getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors, make = Object.make;
-    ok(isFunction(getOwnPropertyDescriptors), 'Is function');
-    descs = getOwnPropertyDescriptors(make({
-      q: 1
-    }, {
-      w: 2
-    }), 'q');
-    ok(descs.q === void 8);
-    deepEqual(descs.w, {
-      enumerable: true,
-      configurable: true,
-      writable: true,
-      value: 2
-    });
-  });
-  test('.isPrototype', function(){
-    var isPrototype, proto;
-    isPrototype = Object.isPrototype;
-    ok(isFunction(isPrototype), 'Is function');
-    ok(isPrototype(Object.prototype, {}));
-    ok(isPrototype(Object.prototype, []));
-    ok(!isPrototype(Array.prototype, {}));
-    ok(isPrototype(Array.prototype, []));
-    ok(!isPrototype(Function.prototype, []));
-    ok(isPrototype(proto = {}, clone$(proto)));
-    ok(!isPrototype({}, clone$(function(){})));
+  getPrototypeOf = Object.getPrototypeOf, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  test('.isObject', function(){
+    var isObject;
+    isObject = Object.isObject;
+    ok(isFunction(isObject), 'Is function');
+    ok(!isObject(void 8), 'isObject undefined return false');
+    ok(!isObject(null), 'isObject null return false');
+    ok(!isObject(1), 'isObject number return false');
+    ok(!isObject(true), 'isObject bool return false');
+    ok(!isObject('string'), 'isObject string return false');
+    ok(isObject(new Number(1)), 'isObject new Number return true');
+    ok(isObject(new Boolean(false)), 'isObject new Boolean return true');
+    ok(isObject(new String(1)), 'isObject new String return true');
+    ok(isObject({}), 'isObject object return true');
+    ok(isObject([]), 'isObject array return true');
+    ok(isObject(/./), 'isObject regexp return true');
+    ok(isObject(function(){}), 'isObject function return true');
+    ok(isObject(new function(){}), 'isObject constructor instance return true');
   });
   test('.classof', function(){
-    var classof, Class;
+    var classof, Class, BadClass;
     classof = Object.classof;
     ok(isFunction(classof), 'Is function');
-    ok(classof({}) === 'Object');
-    ok(classof(void 8) === 'Undefined');
-    ok(classof(null) === 'Null');
-    ok(classof(false) === 'Boolean');
-    ok(classof(new Boolean(false)) === 'Boolean');
-    ok(classof('') === 'String');
-    ok(classof(new String('')) === 'String');
-    ok(classof(7) === 'Number');
-    ok(classof(new Number(7)) === 'Number');
-    ok(classof([]) === 'Array');
-    ok(classof(function(){}) === 'Function');
-    ok(classof(/./) === 'RegExp');
-    ok(classof(TypeError()) === 'Error');
+    ok(classof(void 8) === 'Undefined', 'classof undefined is `Undefined`');
+    ok(classof(null) === 'Null', 'classof null is `Null`');
+    ok(classof(true) === 'Boolean', 'classof bool is `Boolean`');
+    ok(classof('string') === 'String', 'classof string is `String`');
+    ok(classof(7) === 'Number', 'classof number is `Number`');
+    ok(classof(Symbol()) === 'Symbol', 'classof symbol is `Symbol`');
+    ok(classof(new Boolean(false)) === 'Boolean', 'classof new Boolean is `Boolean`');
+    ok(classof(new String('')) === 'String', 'classof new String is `String`');
+    ok(classof(new Number(7)) === 'Number', 'classof new Number is `Number`');
+    ok(classof({}) === 'Object', 'classof {} is `Object`');
+    ok(classof([]) === 'Array', 'classof array is `Array`');
+    ok(classof(function(){}) === 'Function', 'classof function is `Function`');
+    ok(classof(/./) === 'RegExp', 'classof regexp is `Undefined`');
+    ok(classof(TypeError()) === 'Error', 'classof new TypeError is `RegExp`');
     ok(classof(function(){
       return arguments;
-    }()) === 'Arguments');
-    ok(classof(new Set) === 'Set');
-    ok(classof(new Map) === 'Map');
-    ok(classof(new WeakSet) === 'WeakSet');
-    ok(classof(new WeakMap) === 'WeakMap');
-    ok(classof(new Promise(function(){})) === 'Promise');
-    ok(classof(Symbol()) === 'Symbol');
-    ok(classof([].entries()) === 'Array Iterator');
-    ok(classof(new Set().entries()) === 'Set Iterator');
-    ok(classof(new Map().entries()) === 'Map Iterator');
-    ok(classof(Math) === 'Math');
+    }()) === 'Arguments', 'classof arguments list is `Arguments`');
+    ok(classof(new Set) === 'Set', 'classof undefined is `Map`');
+    ok(classof(new Map) === 'Map', 'classof map is `Undefined`');
+    ok(classof(new WeakSet) === 'WeakSet', 'classof weakset is `WeakSet`');
+    ok(classof(new WeakMap) === 'WeakMap', 'classof weakmap is `WeakMap`');
+    ok(classof(new Promise(function(){})) === 'Promise', 'classof promise is `Promise`');
+    ok(classof([].entries()) === 'Array Iterator', 'classof Array Iterator is `Array Iterator`');
+    ok(classof(new Set().entries()) === 'Set Iterator', 'classof Set Iterator is `Set Iterator`');
+    ok(classof(new Map().entries()) === 'Map Iterator', 'classof Map Iterator is `Map Iterator`');
+    ok(classof(Math) === 'Math', 'classof Math is `Math`');
     if (typeof JSON != 'undefined' && JSON !== null) {
-      ok(classof(JSON) === 'JSON');
+      ok(classof(JSON) === 'JSON', 'classof JSON is `JSON`');
     }
     Class = (function(){
       Class.displayName = 'Class';
@@ -3340,7 +3384,15 @@
       function Class(){}
       return Class;
     }());
-    ok(classof(new Class) === 'Class');
+    ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
+    BadClass = (function(){
+      BadClass.displayName = 'BadClass';
+      var prototype = BadClass.prototype, constructor = BadClass;
+      BadClass.prototype[Symbol.toStringTag] = 'Array';
+      function BadClass(){}
+      return BadClass;
+    }());
+    ok(classof(new BadClass) === 'Object', 'safe [[Class]]');
   });
   test('.make', function(){
     var make, object, foo;
@@ -3378,67 +3430,6 @@
       ok(foo.w === 2);
     }
   });
-  test('.values', function(){
-    var values, make;
-    values = Object.values, make = Object.make;
-    ok(isFunction(values), 'Is function');
-    deepEqual(values({
-      q: 1,
-      w: 2,
-      e: 3
-    }), [1, 2, 3]);
-    deepEqual(values(new String('qwe')), ['q', 'w', 'e']);
-    deepEqual(values(make({
-      q: 1,
-      w: 2,
-      e: 3
-    }, {
-      a: 4,
-      s: 5,
-      d: 6
-    })), [4, 5, 6]);
-  });
-  test('.entries', function(){
-    var entries, make;
-    entries = Object.entries, make = Object.make;
-    ok(isFunction(entries), 'Is function');
-    deepEqual(entries({
-      q: 1,
-      w: 2,
-      e: 3
-    }), [['q', 1], ['w', 2], ['e', 3]]);
-    deepEqual(entries(new String('qwe')), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
-    deepEqual(entries(make({
-      q: 1,
-      w: 2,
-      e: 3
-    }, {
-      a: 4,
-      s: 5,
-      d: 6
-    })), [['a', 4], ['s', 5], ['d', 6]]);
-  });
-  test('.isObject', function(){
-    var isObject;
-    isObject = Object.isObject;
-    ok(isFunction(isObject), 'Is function');
-    ok(!isObject(void 8));
-    ok(!isObject(null));
-    ok(!isObject(1));
-    ok(!isObject(false));
-    ok(!isObject(''));
-    ok(isObject(new Number(1)));
-    ok(isObject(new Boolean(false)));
-    ok(isObject(new String(1)));
-    ok(isObject({}));
-    ok(isObject([]));
-    ok(isObject(/./));
-    ok(isObject(new function(){}));
-  });
-  function clone$(it){
-    function fun(){} fun.prototype = it;
-    return new fun;
-  }
 }).call(this);
 
 (function(){

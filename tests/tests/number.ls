@@ -23,17 +23,10 @@ test '::random' !->
   ok 100.times(-> 10.random!)every -> 0 <= it <= 10
   ok 100.times(-> 10.random 7)every -> 7 <= it <= 10
   ok 100.times(-> 7.random 10)every -> 7 <= it <= 10
-test 'Math.randomInt' !->
-  {randomInt} = Math
-  ok isFunction(randomInt), 'Is function'
-  ok 100.times(-> randomInt!)every (is 0)
-  ok 100.times(-> randomInt 10)every (in [to 10])
-  ok 100.times(-> randomInt 10 7)every (in [7 to 10])
-  ok 100.times(-> randomInt 7 10)every (in [7 to 10])
 test '::#{...Math}' !->
   for <[round floor ceil abs sin asin cos acos tan atan exp sqrt max min pow atan2
         acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign
-        sinh tanh trunc randomInt]>
+        sinh tanh trunc]>
     ok isFunction(Number::[..]), "Number::#{..} is function"
   ok 1.min! is 1, 'context is argument of Number::{Math}'
   ok 3.max(2) is 3, 'context is argument of Number::{Math}'

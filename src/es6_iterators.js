@@ -13,7 +13,7 @@
   function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
-  function createIteratorClass(Constructor, NAME, Base, next, DEFAULT){
+  function createIteratorClass(Base, NAME, DEFAULT, Constructor, next){
     Constructor[PROTOTYPE] = {};
     // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
     // 23.1.5.2.1 %MapIteratorPrototype%.next()
@@ -29,29 +29,29 @@
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
     setToStringTag(Constructor, NAME + ' Iterator');
+    function createIteratorFactory(kind){
+      return function(){
+        return new Constructor(this, kind);
+      }
+    }
     $define(PROTO, NAME, {
       // 22.1.3.4 Array.prototype.entries()
       // 23.1.3.4 Map.prototype.entries()
       // 23.2.3.5 Set.prototype.entries()
-      entries: createIteratorFactory(Constructor, KEY+VALUE),
+      entries: createIteratorFactory(KEY+VALUE),
       // 22.1.3.13 Array.prototype.keys()
       // 23.1.3.8 Map.prototype.keys()
       // 23.2.3.8 Set.prototype.keys()
-      keys:    createIteratorFactory(Constructor, KEY),
+      keys:    createIteratorFactory(KEY),
       // 22.1.3.29 Array.prototype.values()
       // 23.1.3.11 Map.prototype.values()
       // 23.2.3.10 Set.prototype.values()
-      values:  createIteratorFactory(Constructor, VALUE)
+      values:  createIteratorFactory(VALUE)
     });
     // 22.1.3.30 Array.prototype[@@iterator]()
     // 23.1.3.12 Map.prototype[@@iterator]()
     // 23.2.3.11 Set.prototype[@@iterator]()
-    Base && defineIterator(Base, NAME, createIteratorFactory(Constructor, DEFAULT));
-  }
-  function createIteratorFactory(Constructor, kind){
-    return function(){
-      return new Constructor(this, kind);
-    }
+    Base && defineIterator(Base, NAME, createIteratorFactory(DEFAULT));
   }
   function defineIterator(Constructor, NAME, value){
     var proto         = Constructor[PROTOTYPE]
@@ -76,13 +76,12 @@
   }
   
   // 22.1.5.1 CreateArrayIterator Abstract Operation
-  function ArrayIterator(iterated, kind){
+  createIteratorClass(Array, ARRAY, VALUE, function(iterated, kind){
     set(this, ITERATED, ES5Object(iterated));
     set(this, KIND,     kind);
     set(this, INDEX,    0);
-  }
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
-  createIteratorClass(ArrayIterator, ARRAY, Array, function(){
+  }, function(){
     var iterated = this[ITERATED]
       , index    = this[INDEX]++
       , kind     = this[KIND]
@@ -92,7 +91,7 @@
     else if(kind == VALUE)value = iterated[index];
     else                  value = [index, iterated[index]];
     return createIterResultObject(0, value);
-  }, VALUE);
+  });
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
   defineIterator(String, STRING, Iterators[ARRAY]);
@@ -100,7 +99,7 @@
   Iterators[ARGUMENTS] = Iterators[ARRAY];
   
   // 23.1.5.1 CreateMapIterator Abstract Operation
-  function MapIterator(iterated, kind){
+  createIteratorClass(Map, MAP, KEY+VALUE, function(iterated, kind){
     var that = this, keys;
     if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
@@ -110,9 +109,8 @@
     set(that, KIND,     kind);
     set(that, INDEX,    0);
     set(that, KEYS,     keys);
-  }
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
-  createIteratorClass(MapIterator, MAP, Map, function(){
+  }, function(){
     var that     = this
       , iterated = that[ITERATED]
       , keys     = that[KEYS]
@@ -125,10 +123,10 @@
     else if(kind == VALUE)value = iterated.get(key);
     else                  value = [key, iterated.get(key)];
     return createIterResultObject(0, value);
-  }, KEY+VALUE);
+  });
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
-  function SetIterator(iterated, kind){
+  createIteratorClass(Set, SET, VALUE, function(iterated, kind){
     var keys;
     if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
@@ -136,15 +134,14 @@
     }, keys = []);
     set(this, KIND, kind);
     set(this, KEYS, keys.reverse());
-  }
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
-  createIteratorClass(SetIterator, SET, Set, function(){
+  }, function(){
     var keys = this[KEYS]
       , key;
     if(!keys.length)return createIterResultObject(1);
     key = keys.pop();
     return createIterResultObject(0, this[KIND] == KEY+VALUE ? [key, key] : key);
-  }, VALUE);
+  });
   
   $for = function(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);

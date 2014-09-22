@@ -45,4 +45,6 @@
     set: set
   });
   setToStringTag(Symbol, SYMBOL);
+  // 26.1.11 Reflect.ownKeys (target)
+  $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
 }(symbol('tag'), 'iterator', TO_STRING + 'Tag', {});

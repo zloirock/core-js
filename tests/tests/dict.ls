@@ -1,6 +1,6 @@
 module \Dict
 isFunction = -> typeof! it is \Function
-{keys} = Object
+{keys, create, assign} = Object
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
   dict1 = Dict!
@@ -213,3 +213,15 @@ test '.get' !->
   ok get([] 0) is void
   ok get(^^{q:1} \q) is void
   ok get({} \toString) is void
+test 'Object.values' !->
+  {values} = Object
+  ok isFunction(values), 'Is function'
+  deepEqual values({q:1, w:2, e:3}), [1 2 3]
+  deepEqual values(new String \qwe), [\q \w \e]
+  deepEqual values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]
+test 'Object.entries' !->
+  {entries} = Object
+  ok isFunction(entries), 'Is function'
+  deepEqual entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
+  deepEqual entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
+  deepEqual entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]
