@@ -157,9 +157,7 @@
     // 20.2.2.34 Math.trunc(x)
     // Returns the integral part of the number x, removing any fractional digits.
     // If x is already an integer, the result is x.
-    trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
-    }
+    trunc: trunc
   });
   // 20.2.1.9 Math [ @@toStringTag ]
   setToStringTag(Math, MATH, true);

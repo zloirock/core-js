@@ -69,12 +69,10 @@ test 'Number.parseFloat' !->
   ok isFunction(Number.parseFloat), 'Is function'
 test 'Number.parseInt' !->
   ok isFunction(Number.parseInt), 'Is function'
-test 'ES6 Math methods are functions' !->
-  for <[acosh asinh atanh cbrt clz32 cosh expm1 hypot imul log1p log10 log2 sign sinh tanh trunc]>
-    ok isFunction(Math[..]), "Math.#{..} is function"
 test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
   {acosh} = Math
+  ok isFunction(acosh), 'Is function'
   ok same acosh(NaN), NaN
   ok same acosh(0.5), NaN
   ok same acosh(-1), NaN
@@ -85,6 +83,7 @@ test 'Math.acosh' !->
 test 'Math.asinh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
   {asinh} = Math
+  ok isFunction(asinh), 'Is function'
   ok same asinh(NaN), NaN
   ok same asinh(0), 0
   ok same asinh(-0), -0
@@ -98,6 +97,7 @@ test 'Math.asinh' !->
 test 'Math.atanh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
   {atanh} = Math
+  ok isFunction(atanh), 'Is function'
   ok same atanh(NaN), NaN
   ok same atanh(-2), NaN
   ok same atanh(-1.5), NaN
@@ -115,6 +115,7 @@ test 'Math.atanh' !->
 test 'Math.cbrt' !->
   # Returns an implementation-dependent approximation to the cube root of x.
   {cbrt} = Math
+  ok isFunction(cbrt), 'Is function'
   ok same cbrt(NaN), NaN
   ok same cbrt(0), 0
   ok same cbrt(-0), -0
@@ -126,6 +127,7 @@ test 'Math.cbrt' !->
   ok epsilon cbrt(1000), 10   # O_o
 test 'Math.clz32' !->
   {clz32} = Math
+  ok isFunction(clz32), 'Is function'
   ok clz32(0) is 32
   ok clz32(1) is 31
   ok clz32(-1) is 0
@@ -135,6 +137,7 @@ test 'Math.clz32' !->
 test 'Math.cosh' !->
   # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
   {cosh} = Math
+  ok isFunction(cosh), 'Is function'
   ok same cosh(NaN), NaN
   ok same cosh(0), 1
   ok same cosh(-0), 1
@@ -147,6 +150,7 @@ test 'Math.cosh' !->
 test 'Math.expm1' !->
   # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
   {expm1} = Math
+  ok isFunction(expm1), 'Is function'
   ok same expm1(NaN), NaN
   ok same expm1(0), 0
   ok same expm1(-0), -0
@@ -157,6 +161,7 @@ test 'Math.expm1' !->
 test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
   {hypot, sqrt} = Math
+  ok isFunction(hypot), 'Is function'
   ok same hypot('', 0), 0
   ok same hypot(0, ''), 0
   ok same hypot(Infinity, 0), Infinity
@@ -187,6 +192,7 @@ test 'Math.hypot' !->
   ok epsilon hypot(0.1 100), 100.0000499999875
 test 'Math.imul' !->
   {imul} = Math
+  ok isFunction(imul), 'Is function'
   ok same imul(0, 0), 0
   ok imul(123, 456) is 56088
   ok imul(-123, 456) is -56088
@@ -226,6 +232,7 @@ test 'Math.log1p' !->
   # Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
   # The result is computed in a way that is accurate even when the value of x is close to zero.
   {log1p} = Math
+  ok isFunction(log1p), 'Is function'
   ok same log1p(''), log1p 0
   ok same log1p(NaN), NaN
   ok same log1p(-2), NaN
@@ -238,6 +245,7 @@ test 'Math.log1p' !->
 test 'Math.log10' !->
   # Returns an implementation-dependent approximation to the base 10 logarithm of x.
   {log10} = Math
+  ok isFunction(log10), 'Is function'
   ok same log10(''), log10 0
   ok same log10(NaN), NaN
   ok same log10(-1), NaN
@@ -253,6 +261,7 @@ test 'Math.log10' !->
 test 'Math.log2' !->
   # Returns an implementation-dependent approximation to the base 2 logarithm of x.
   {log2} = Math
+  ok isFunction(log2), 'Is function'
   ok same log2(''), log2 0
   ok same log2(NaN), NaN
   ok same log2(-1), NaN
@@ -266,6 +275,7 @@ test 'Math.log2' !->
 test 'Math.sign' !->
   # Returns the sign of the x, indicating whether x is positive, negative or zero.
   {sign} = Math
+  ok isFunction(sign), 'Is function'
   ok same sign(NaN), NaN
   ok same sign!, NaN
   ok same sign(-0), -0
@@ -279,6 +289,7 @@ test 'Math.sign' !->
 test 'Math.sinh' !->
   # Returns an implementation-dependent approximation to the hyperbolic sine of x.
   {sinh} = Math
+  ok isFunction(sinh), 'Is function'
   ok same sinh(NaN), NaN
   ok same sinh(0), 0
   ok same sinh(-0), -0 
@@ -289,6 +300,7 @@ test 'Math.sinh' !->
 test 'Math.tanh' !->
   # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
   {tanh} = Math
+  ok isFunction(tanh), 'Is function'
   ok same tanh(NaN), NaN
   ok same tanh(0), 0
   ok same tanh(-0), -0
@@ -298,16 +310,22 @@ test 'Math.tanh' !->
 test 'Math.trunc' !->
   # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
   {trunc} = Math
-  ok same trunc(NaN), NaN
-  ok same trunc(-0), -0
-  ok same trunc(0), 0
-  ok same trunc(Infinity), Infinity
-  ok same trunc(-Infinity), -Infinity
-  ok trunc([]) is 0
-  ok trunc(1.01) is 1
-  ok trunc(1.99) is 1
-  ok trunc(-555.555) is -555
-  ok trunc(-1.99) is -1
+  ok isFunction(trunc), 'Is function'
+  ok same(trunc(NaN), NaN), 'NaN -> NaN'
+  ok same(trunc(-0), -0), '-0 -> -0'
+  ok same(trunc(0), 0), '0 -> 0'
+  ok same(trunc(Infinity), Infinity), 'Infinity -> Infinity'
+  ok same(trunc(-Infinity), -Infinity), '-Infinity -> -Infinity'
+  ok same(trunc(null), 0), 'null -> 0'
+  ok same(trunc({}), NaN), '{} -> NaN'
+  ok trunc([]) is 0, '[] -> 0'
+  ok trunc(1.01) is 1, '1.01 -> 0'
+  ok trunc(1.99) is 1, '1.99 -> 0'
+  ok trunc(-1) is -1, '-1 -> -1'
+  ok trunc(-1.99) is -1, '-1.99 -> -1'
+  ok trunc(-555.555) is -555, '-555.555 -> -555'
+  ok trunc(0x20000000000001) is 0x20000000000001, '0x20000000000001 -> 0x20000000000001'
+  ok trunc(-0x20000000000001) is -0x20000000000001, '-0x20000000000001 -> -0x20000000000001'
 test 'String::contains' !->
   ok isFunction(String::contains), 'Is function'
   ok not 'abc'contains!

@@ -1987,16 +1987,10 @@
   test('Number.parseInt', function(){
     ok(isFunction(Number.parseInt), 'Is function');
   });
-  test('ES6 Math methods are functions', function(){
-    var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      ok(isFunction(Math[x$]), "Math." + x$ + " is function");
-    }
-  });
   test('Math.acosh', function(){
     var acosh;
     acosh = Math.acosh;
+    ok(isFunction(acosh), 'Is function');
     ok(same(acosh(NaN), NaN));
     ok(same(acosh(0.5), NaN));
     ok(same(acosh(-1), NaN));
@@ -2008,6 +2002,7 @@
   test('Math.asinh', function(){
     var asinh;
     asinh = Math.asinh;
+    ok(isFunction(asinh), 'Is function');
     ok(same(asinh(NaN), NaN));
     ok(same(asinh(0), 0));
     ok(same(asinh(-0), -0));
@@ -2022,6 +2017,7 @@
   test('Math.atanh', function(){
     var atanh;
     atanh = Math.atanh;
+    ok(isFunction(atanh), 'Is function');
     ok(same(atanh(NaN), NaN));
     ok(same(atanh(-2), NaN));
     ok(same(atanh(-1.5), NaN));
@@ -2040,6 +2036,7 @@
   test('Math.cbrt', function(){
     var cbrt;
     cbrt = Math.cbrt;
+    ok(isFunction(cbrt), 'Is function');
     ok(same(cbrt(NaN), NaN));
     ok(same(cbrt(0), 0));
     ok(same(cbrt(-0), -0));
@@ -2053,6 +2050,7 @@
   test('Math.clz32', function(){
     var clz32;
     clz32 = Math.clz32;
+    ok(isFunction(clz32), 'Is function');
     ok(clz32(0) === 32);
     ok(clz32(1) === 31);
     ok(clz32(-1) === 0);
@@ -2063,6 +2061,7 @@
   test('Math.cosh', function(){
     var cosh;
     cosh = Math.cosh;
+    ok(isFunction(cosh), 'Is function');
     ok(same(cosh(NaN), NaN));
     ok(same(cosh(0), 1));
     ok(same(cosh(-0), 1));
@@ -2075,6 +2074,7 @@
   test('Math.expm1', function(){
     var expm1;
     expm1 = Math.expm1;
+    ok(isFunction(expm1), 'Is function');
     ok(same(expm1(NaN), NaN));
     ok(same(expm1(0), 0));
     ok(same(expm1(-0), -0));
@@ -2085,6 +2085,7 @@
   test('Math.hypot', function(){
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
+    ok(isFunction(hypot), 'Is function');
     ok(same(hypot('', 0), 0));
     ok(same(hypot(0, ''), 0));
     ok(same(hypot(Infinity, 0), Infinity));
@@ -2117,6 +2118,7 @@
   test('Math.imul', function(){
     var imul;
     imul = Math.imul;
+    ok(isFunction(imul), 'Is function');
     ok(same(imul(0, 0), 0));
     ok(imul(123, 456) === 56088);
     ok(imul(-123, 456) === -56088);
@@ -2156,6 +2158,7 @@
   test('Math.log1p', function(){
     var log1p;
     log1p = Math.log1p;
+    ok(isFunction(log1p), 'Is function');
     ok(same(log1p(''), log1p(0)));
     ok(same(log1p(NaN), NaN));
     ok(same(log1p(-2), NaN));
@@ -2169,6 +2172,7 @@
   test('Math.log10', function(){
     var log10;
     log10 = Math.log10;
+    ok(isFunction(log10), 'Is function');
     ok(same(log10(''), log10(0)));
     ok(same(log10(NaN), NaN));
     ok(same(log10(-1), NaN));
@@ -2185,6 +2189,7 @@
   test('Math.log2', function(){
     var log2;
     log2 = Math.log2;
+    ok(isFunction(log2), 'Is function');
     ok(same(log2(''), log2(0)));
     ok(same(log2(NaN), NaN));
     ok(same(log2(-1), NaN));
@@ -2199,6 +2204,7 @@
   test('Math.sign', function(){
     var sign;
     sign = Math.sign;
+    ok(isFunction(sign), 'Is function');
     ok(same(sign(NaN), NaN));
     ok(same(sign(), NaN));
     ok(same(sign(-0), -0));
@@ -2213,6 +2219,7 @@
   test('Math.sinh', function(){
     var sinh;
     sinh = Math.sinh;
+    ok(isFunction(sinh), 'Is function');
     ok(same(sinh(NaN), NaN));
     ok(same(sinh(0), 0));
     ok(same(sinh(-0), -0));
@@ -2224,6 +2231,7 @@
   test('Math.tanh', function(){
     var tanh;
     tanh = Math.tanh;
+    ok(isFunction(tanh), 'Is function');
     ok(same(tanh(NaN), NaN));
     ok(same(tanh(0), 0));
     ok(same(tanh(-0), -0));
@@ -2234,16 +2242,22 @@
   test('Math.trunc', function(){
     var trunc;
     trunc = Math.trunc;
-    ok(same(trunc(NaN), NaN));
-    ok(same(trunc(-0), -0));
-    ok(same(trunc(0), 0));
-    ok(same(trunc(Infinity), Infinity));
-    ok(same(trunc(-Infinity), -Infinity));
-    ok(trunc([]) === 0);
-    ok(trunc(1.01) === 1);
-    ok(trunc(1.99) === 1);
-    ok(trunc(-555.555) === -555);
-    ok(trunc(-1.99) === -1);
+    ok(isFunction(trunc), 'Is function');
+    ok(same(trunc(NaN), NaN), 'NaN -> NaN');
+    ok(same(trunc(-0), -0), '-0 -> -0');
+    ok(same(trunc(0), 0), '0 -> 0');
+    ok(same(trunc(Infinity), Infinity), 'Infinity -> Infinity');
+    ok(same(trunc(-Infinity), -Infinity), '-Infinity -> -Infinity');
+    ok(same(trunc(null), 0), 'null -> 0');
+    ok(same(trunc({}), NaN), '{} -> NaN');
+    ok(trunc([]) === 0, '[] -> 0');
+    ok(trunc(1.01) === 1, '1.01 -> 0');
+    ok(trunc(1.99) === 1, '1.99 -> 0');
+    ok(trunc(-1) === -1, '-1 -> -1');
+    ok(trunc(-1.99) === -1, '-1.99 -> -1');
+    ok(trunc(-555.555) === -555, '-555.555 -> -555');
+    ok(trunc(0x20000000000001) === 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
+    ok(trunc(-0x20000000000001) === -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
   });
   test('String::contains', function(){
     ok(isFunction(String.prototype.contains), 'Is function');
@@ -3254,19 +3268,6 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('.toInteger', function(){
-    var toInteger;
-    toInteger = Number.toInteger;
-    ok(isFunction(toInteger), 'Is function');
-    ok(toInteger(null) === 0);
-    ok(toInteger({}) === 0);
-    ok(toInteger(NaN) === 0);
-    ok(toInteger(-1) === -1);
-    ok(Object.is(-0, toInteger(-0)));
-    ok(toInteger(-1.9) === -1);
-    ok(toInteger(-Infinity) === -Infinity);
-    ok(toInteger(-0x20000000000001) === -0x20000000000001);
-  });
   test('::times', function(){
     ok(isFunction(Number.prototype.times), 'Is function');
     deepEqual(5 .times(function(it){

@@ -309,16 +309,19 @@ function generic(A, B){
 }
 
 // Math
-var ceil   = Math.ceil
+var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
+  , ceil   = Math.ceil
   , floor  = Math.floor
   , max    = Math.max
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
+  , trunc  = Math.trunc || function(x){
+      return  ((x = +x) > 0 ? floor : ceil)(x);
+    }
 // 7.1.4 ToInteger
-var toInteger = Number.toInteger || function(it){
-  return (it = +it) != it ? 0 : it != 0 && it != Infinity && it != -Infinity ? (it > 0 ? floor : ceil)(it) : it;
+function toInteger(it){
+  return isNaN(it) ? 0 : trunc(it);
 }
 // 7.1.15 ToLength
 function toLength(it){
@@ -651,9 +654,7 @@ if(!NODE && !REQJS || framework)global.core = core;
     // 20.2.2.34 Math.trunc(x)
     // Returns the integral part of the number x, removing any fractional digits.
     // If x is already an integer, the result is x.
-    trunc: function(x){
-      return (x = +x) == 0 ? x : (x > 0 ? floor : ceil)(x);
-    }
+    trunc: trunc
   });
   // 20.2.1.9 Math [ @@toStringTag ]
   setToStringTag(Math, MATH, true);
@@ -1672,8 +1673,6 @@ $define(PROTO, ARRAY, {
  * Module : number                                                            *
  ******************************************************************************/
 
-// Number.toInteger was part of the draft ECMAScript 6 specification, but has been removed
-$define(STATIC, NUMBER, {toInteger: toInteger});
 $define(PROTO, NUMBER, {
   times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this

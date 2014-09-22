@@ -1,16 +1,5 @@
 module \Number
 isFunction = -> typeof! it is \Function
-test '.toInteger' !->
-  {toInteger} = Number
-  ok isFunction(toInteger), 'Is function'
-  ok toInteger(null) is 0
-  ok toInteger({}) is 0
-  ok toInteger(NaN) is 0
-  ok toInteger(-1) is -1
-  ok Object.is -0, toInteger -0
-  ok toInteger(-1.9) is -1
-  ok toInteger(-Infinity) is -Infinity
-  ok toInteger(-0x20000000000001) is -0x20000000000001
 test '::times' !->
   ok isFunction(Number::times), 'Is function'
   deepEqual 5.times(-> it), [0 1 2 3 4]

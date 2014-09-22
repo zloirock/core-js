@@ -144,7 +144,6 @@ Number
   .MIN_SAFE_INTEGER -> int                                            es6
   .parseFloat(str) -> num                                             es6
   .parseInt(str) -> int                                               es6
-  .toInteger(num) -> int                                              core
   ::times(fn(i, i, @), that) -> array                                 core
   ::random(lim = 0) -> num                                            core
   ::{...Math}                                                         core
