@@ -60,7 +60,7 @@
         , memo, key, result;
       if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
       else if(arguments.length < 3){
-        assert(length > i, REDUCE_ERROR);
+        assert(length, REDUCE_ERROR);
         memo = O[keys[i++]];
       } else memo = Object(init);
       while(length > i){
@@ -72,6 +72,7 @@
       return memo;
     }
   }
+  var findKey = createDictMethod(6);
   assign(Dict, {
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
@@ -79,19 +80,12 @@
     some:    createDictMethod(3),
     every:   createDictMethod(4),
     find:    createDictMethod(5),
-    findKey: createDictMethod(6),
+    findKey: findKey,
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,
-    contains: function(object, searchElement){
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0;
-      while(length > i){
-        if(sameValueZero(O[keys[i++]], searchElement))return true;
-      }
-      return false;
+    contains: function(object, el){
+      return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
     },
     clone: function(it){
       return clone(it, [], []);
@@ -103,7 +97,7 @@
     },
     set: createDefiner(0),
     isDict: function(it){
-      return getPrototypeOf(it) == Dict[PROTOTYPE];
+      return getPrototypeOf(it) === Dict[PROTOTYPE];
     }
   });
   $define(STATIC, OBJECT, {
@@ -112,5 +106,5 @@
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     entries: createObjectToArray(true)
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL + FORCED, {Dict: Dict});
 }();

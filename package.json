@@ -24,5 +24,19 @@
   },
   "scripts": {
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter"
-  }
+  },
+  "keywords": [
+    "ES6",
+    "ECMAScript 6",
+    "ES7",
+    "ECMAScript 7",
+    "Map",
+    "Set",
+    "WeakMap",
+    "WeakSet",
+    "Dict",
+    "Promise",
+    "Symbol",
+    "console"
+  ]
 }

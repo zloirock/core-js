@@ -44,3 +44,4 @@ test '::contains' !->
   ok !arr.contains 4
   ok !arr.contains -0.5
   ok !arr.contains {}
+  ok Array(1)contains void

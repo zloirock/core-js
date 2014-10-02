@@ -38,12 +38,12 @@ var global          = returnThis()
   , TypeError       = global.TypeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
-  , setInterval     = global.setInterval
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
   , document        = global.document
+  , navigator       = global.navigator
   , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
@@ -51,15 +51,6 @@ var global          = returnThis()
   , Infinity        = 1 / 0
   , core            = {}
   , path            = framework ? global : core;
-
-// 7.2.3 SameValue(x, y)
-var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
-}
-// 7.2.4 SameValueZero(x, y)
-function sameValueZero(x, y){
-  return x === y || x != x && y != y;
-}
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -74,7 +65,7 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
 var toString = ObjectProto[TO_STRING]
-  , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
+  , buildIn  = {Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1, Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1}
     // define in es6_symbol module
   , TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
@@ -85,7 +76,8 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag) ? tag : klass;
+  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG])
+    ? has(buildIn, tag) ? '~' : tag : klass;
 }
 
 // Function
@@ -198,13 +190,13 @@ function createObjectToArray(isEntries){
     return result;
   }
 }
-function keyOf(object, searchElement){
+function keyOf(object, el){
   var O      = ES5Object(object)
     , keys   = getKeys(O)
     , length = keys.length
     , index  = 0
     , key;
-  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
+  while(length > index)if(O[key = keys[index++]] === el)return key;
 }
 // Simple structured cloning
 function clone(it, stack1, stack2){
@@ -279,6 +271,18 @@ function createArrayMethod(type){
     return isFindIndex ? -1 : isSome || isEvery ? isEvery : result;
   }
 }
+function createArrayContains(isContains){
+  return function(el, fromIndex /* = 0 */){
+    var O      = ES5Object(this)
+      , length = toLength(O.length)
+      , index  = max(getPositiveIndex(O, fromIndex), 0);
+    if(isContains && el != el){
+      for(;length > index; index++)if(sameNaN(O[index]))return index;
+    } else for(;length > index; index++)if(isContains || index in O){
+      if(O[index] === el)return isContains ? true : index;
+    } return isContains ? false : -1;
+  }
+}
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -303,9 +307,13 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , trunc  = Math.trunc || function(x){
-      return  ((x = +x) > 0 ? floor : ceil)(x);
+  , trunc  = Math.trunc || function(it){
+      return (it > 0 ? floor : ceil)(it);
     }
+// 20.1.2.4 Number.isNaN(number)
+function sameNaN(number){
+  return number != number;
+}
 // 7.1.4 ToInteger
 function toInteger(it){
   return isNaN(it) ? 0 : trunc(it);
@@ -314,8 +322,13 @@ function toInteger(it){
 function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
+function getPositiveIndex(O, index){
+  var index = toInteger(index);
+  if(index < 0)index += toLength(O.length);
+  return index;
+}
 
-function createEscaper(regExp, replace, isStatic){
+function createReplacer(regExp, replace, isStatic){
   var replacer = isObject(replace) ? function(part){
     return replace[part];
   } : replace;
@@ -383,6 +396,7 @@ var html = document && document.documentElement;
 // core
 var NODE   = cof(process) == PROCESS
   , REQJS  = isFunction(define) && define.amd
+  , old
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -421,4 +435,11 @@ if(NODE)module.exports = core;
 // RequireJS export
 if(REQJS)define(function(){return core});
 // Export to global object
-if(!NODE && !REQJS || framework)global.core = core;
+if(!NODE && !REQJS || framework){
+  old = global.core;
+  core.noConflict = function(){
+    global.core = old;
+    return core;
+  }
+  global.core = core;
+}

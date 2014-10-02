@@ -8,8 +8,6 @@
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 000-999
-            return ms > 99 ? ms : '0' + lz(ms);
           case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
           case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
           case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
@@ -19,10 +17,10 @@
           case 'D'    : return get(DATE)                                        // Date         : 1-31
           case 'DD'   : return lz(get(DATE));                                   // Date         : 01-31
           case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
-          case 'N'    : return get(MONTH) + 1;                                  // Month        : 1-12
-          case 'NN'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
-          case 'M'    : return dict.M[get(MONTH)];                              // Month        : Январь
-          case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
+          case 'M'    : return get(MONTH) + 1;                                  // Month        : 1-12
+          case 'MM'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
+          case 'MMM'  : return dict.M[get(MONTH)];                              // Month        : Январь
+          case 'MMMM' : return dict.MM[get(MONTH)];                             // Month        : Января
           case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
           case 'YYYY' : return get(YEAR);                                       // Year         : 2014
         } return part;
@@ -45,13 +43,13 @@
     };
     return this;
   }
-  $define(STATIC, DATE, {
+  $define(STATIC + FORCED, DATE, {
     locale: function(locale){
       return has(locales, locale) ? current = locale : current;
     },
     addLocale: addLocale
   });
-  $define(PROTO, DATE, {
+  $define(PROTO + FORCED, DATE, {
     format:    createFormat(false),
     formatUTC: createFormat(true)
   });

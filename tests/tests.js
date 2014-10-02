@@ -64,6 +64,7 @@
     ok(!arr.contains(4));
     ok(!arr.contains(-0.5));
     ok(!arr.contains({}));
+    ok(Array(1).contains(void 8));
   });
 }).call(this);
 
@@ -923,90 +924,24 @@
       months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
     }) === Date);
     ok(locale('zz') === 'zz');
-    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MM YYYY') === 'Воскресенье, 3 Марта 1901');
+    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MMMM YYYY') === 'Воскресенье, 3 Марта 1901');
   });
   test('::format', function(){
     var locale, date;
     locale = Date.locale;
     ok(isFunction(Date.prototype.format), 'Is function');
     date = new Date(1, 2, 3, 4, 5, 6, 7);
-    ok(date.format('DD.NN.YYYY') === '03.03.1901', 'Works basic');
+    ok(date.format('DD.MM.YYYY') === '03.03.1901', 'Works basic');
     locale('en');
-    ok(date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
+    ok(date.format('s ss m mm h hh D DD W M MM MMM MMMM YY foo YYYY') === '6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
     locale('ru');
-    ok(date.format('ms s ss m mm h hh D DD W N NN M MM YY foo YYYY') === '007 6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
+    ok(date.format('s ss m mm h hh D DD W M MM MMM MMMM YY foo YYYY') === '6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
   });
   test('::formatUTC', function(){
     var date;
     ok(isFunction(Date.prototype.formatUTC), 'Is function');
     date = new Date(1, 2, 3, 4, 5, 6, 7);
     ok(date.formatUTC('h') === '' + date.getUTCHours(), 'Works');
-  });
-}).call(this);
-
-(function(){
-  var isObject, isFunction, toString$ = {}.toString;
-  module('Deferred');
-  isObject = function(it){
-    return it === Object(it);
-  };
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  asyncTest('Function::timeout', 7, function(){
-    var timeout, val;
-    ok(isFunction(Function.prototype.timeout), 'Is function');
-    timeout = function(it){
-      ok(val === 1);
-      return ok(it === 42);
-    }.timeout(1, 42);
-    ok(isObject(timeout));
-    ok(isFunction(timeout.set));
-    ok(isFunction(timeout.clear));
-    val = 1;
-    (function(){
-      return ok(false);
-    }).timeout(1).clear().set().clear();
-    setTimeout(function(){
-      ok(true);
-      return start();
-    }, 20);
-  });
-  asyncTest('Function::interval', 10, function(){
-    var i, interval;
-    ok(isFunction(Function.prototype.interval), 'Is function');
-    interval = function(it){
-      ok(i < 4);
-      ok(it === 42);
-      if (i === 3) {
-        interval.clear();
-        start();
-      }
-      return i = i + 1;
-    }.interval(1, 42);
-    ok(isObject(interval));
-    ok(isFunction(interval.set));
-    ok(isFunction(interval.clear));
-    i = 1;
-  });
-  asyncTest('Function::immediate', 7, function(){
-    var immediate, val;
-    ok(isFunction(Function.prototype.immediate), 'Is function');
-    immediate = function(it){
-      ok(val === 1);
-      return ok(it === 42);
-    }.immediate(42);
-    ok(isObject(immediate));
-    ok(isFunction(immediate.set));
-    ok(isFunction(immediate.clear));
-    val = 1;
-    (function(){
-      return ok(false);
-    }).immediate().clear().set().clear();
-    setTimeout(function(){
-      ok(true);
-      return start();
-    }, 20);
   });
 }).call(this);
 
@@ -1652,6 +1587,7 @@
     ok(1 === [1, 2, 3].indexOf(2, 1));
     ok(-1 === [NaN].indexOf(NaN));
     ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
+    ok(-1 === Array(1).indexOf(void 8));
   });
   test('Array::lastIndexOf', function(){
     ok(2 === [1, 1, 1].lastIndexOf(1));
@@ -3270,21 +3206,13 @@
   };
   test('::times', function(){
     ok(isFunction(Number.prototype.times), 'Is function');
+    deepEqual(5 .times(), [0, 1, 2, 3, 4]);
     deepEqual(5 .times(function(it){
-      return it;
-    }), [0, 1, 2, 3, 4]);
+      return it * it;
+    }), [0, 1, 4, 9, 16]);
     deepEqual(5 .times(function(it){
-      return it + arguments[1];
-    }), [0, 2, 4, 6, 8]);
-    deepEqual(5 .times(function(it){
-      return it + arguments[1] + arguments[2];
-    }), [5, 7, 9, 11, 13]);
-    deepEqual(5 .times(function(it){
-      return (this | 0) + it + arguments[1] + arguments[2];
-    }), [5, 7, 9, 11, 13]);
-    deepEqual(5 .times(function(it){
-      return (this | 0) + it + arguments[1] + arguments[2];
-    }, 1), [6, 8, 10, 12, 14]);
+      return this + it * it;
+    }, 1), [1, 2, 5, 10, 17]);
   });
   test('::random', function(){
     ok(isFunction(Number.prototype.random), 'Is function');
@@ -3393,7 +3321,7 @@
       function BadClass(){}
       return BadClass;
     }());
-    ok(classof(new BadClass) === 'Object', 'safe [[Class]]');
+    ok(classof(new BadClass) === '~', 'safe [[Class]]');
   });
   test('.make', function(){
     var make, object, foo;

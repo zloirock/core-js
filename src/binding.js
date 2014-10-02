@@ -1,12 +1,5 @@
 !function(_){
-  $define(PROTO, FUNCTION, {
-    /**
-     * Partial apply.
-     * Alternatives:
-     * http://sugarjs.com/api/Function/fill
-     * http://underscorejs.org/#partial
-     * http://mootools.net/docs/core/Types/Function#Function:pass
-     */
+  $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
       var fn     = this
@@ -52,7 +45,7 @@
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
+  $define(STATIC + FORCED, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;

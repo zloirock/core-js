@@ -40,9 +40,6 @@ Function
   ::part(...args | _) -> fn(...args)                                  core
   ::by(object | _, ...args | _) -> fn(...args)                        core
   ::only(numberArguments, that /* = @ */) -> fn(...args)              core
-  ::timeout(time, ...args) -> deferred                                core
-  ::interval(time, ...args) -> deferred                               core
-  ::immediate(...args) -> deferred                                    core
 Array
   .isArray(var) -> bool                                               es5
   .from(iterable | array-like, fn(val, key, @)?, that) -> array       es6
@@ -144,7 +141,7 @@ Number
   .MIN_SAFE_INTEGER -> int                                            es6
   .parseFloat(str) -> num                                             es6
   .parseInt(str) -> int                                               es6
-  ::times(fn(i, i, @), that) -> array                                 core
+  ::times(fn(i)?, that) -> array                                      core
   ::random(lim = 0) -> num                                            core
   ::{...Math}                                                         core
 Math

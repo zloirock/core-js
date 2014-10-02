@@ -51,12 +51,12 @@ var global          = returnThis()
   , TypeError       = global.TypeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
-  , setInterval     = global.setInterval
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
   , document        = global.document
+  , navigator       = global.navigator
   , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
@@ -64,15 +64,6 @@ var global          = returnThis()
   , Infinity        = 1 / 0
   , core            = {}
   , path            = framework ? global : core;
-
-// 7.2.3 SameValue(x, y)
-var same = Object.is || function(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
-}
-// 7.2.4 SameValueZero(x, y)
-function sameValueZero(x, y){
-  return x === y || x != x && y != y;
-}
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -87,7 +78,7 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
 var toString = ObjectProto[TO_STRING]
-  , classes  = [ARGUMENTS, ARRAY, 'Boolean', DATE, 'Error', FUNCTION, NUMBER, REGEXP, STRING]
+  , buildIn  = {Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1, Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1}
     // define in es6_symbol module
   , TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
@@ -98,7 +89,8 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG]) && !~indexOf.call(classes, tag) ? tag : klass;
+  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG])
+    ? has(buildIn, tag) ? '~' : tag : klass;
 }
 
 // Function
@@ -211,13 +203,13 @@ function createObjectToArray(isEntries){
     return result;
   }
 }
-function keyOf(object, searchElement){
+function keyOf(object, el){
   var O      = ES5Object(object)
     , keys   = getKeys(O)
     , length = keys.length
     , index  = 0
     , key;
-  while(length > index)if(O[key = keys[index++]] === searchElement)return key;
+  while(length > index)if(O[key = keys[index++]] === el)return key;
 }
 // Simple structured cloning
 function clone(it, stack1, stack2){
@@ -292,6 +284,18 @@ function createArrayMethod(type){
     return isFindIndex ? -1 : isSome || isEvery ? isEvery : result;
   }
 }
+function createArrayContains(isContains){
+  return function(el, fromIndex /* = 0 */){
+    var O      = ES5Object(this)
+      , length = toLength(O.length)
+      , index  = max(getPositiveIndex(O, fromIndex), 0);
+    if(isContains && el != el){
+      for(;length > index; index++)if(sameNaN(O[index]))return index;
+    } else for(;length > index; index++)if(isContains || index in O){
+      if(O[index] === el)return isContains ? true : index;
+    } return isContains ? false : -1;
+  }
+}
 // Simple reduce to object
 function turn(mapfn, target /* = [] */){
   assertFunction(mapfn);
@@ -316,9 +320,13 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , min    = Math.min
   , pow    = Math.pow
   , random = Math.random
-  , trunc  = Math.trunc || function(x){
-      return  ((x = +x) > 0 ? floor : ceil)(x);
+  , trunc  = Math.trunc || function(it){
+      return (it > 0 ? floor : ceil)(it);
     }
+// 20.1.2.4 Number.isNaN(number)
+function sameNaN(number){
+  return number != number;
+}
 // 7.1.4 ToInteger
 function toInteger(it){
   return isNaN(it) ? 0 : trunc(it);
@@ -327,8 +335,13 @@ function toInteger(it){
 function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
+function getPositiveIndex(O, index){
+  var index = toInteger(index);
+  if(index < 0)index += toLength(O.length);
+  return index;
+}
 
-function createEscaper(regExp, replace, isStatic){
+function createReplacer(regExp, replace, isStatic){
   var replacer = isObject(replace) ? function(part){
     return replace[part];
   } : replace;
@@ -396,6 +409,7 @@ var html = document && document.documentElement;
 // core
 var NODE   = cof(process) == PROCESS
   , REQJS  = isFunction(define) && define.amd
+  , old
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -434,7 +448,14 @@ if(NODE)module.exports = core;
 // RequireJS export
 if(REQJS)define(function(){return core});
 // Export to global object
-if(!NODE && !REQJS || framework)global.core = core;
+if(!NODE && !REQJS || framework){
+  old = global.core;
+  core.noConflict = function(){
+    global.core = old;
+    return core;
+  }
+  global.core = core;
+}
 
 /******************************************************************************
  * Module : es5                                                               *
@@ -626,33 +647,22 @@ if(!NODE && !REQJS || framework)global.core = core;
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-    indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
-      var O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = toInteger(fromIndex);
-      if(index < 0)index = max(length + index, 0);
-      for(;length > index; index++)if(index in O){
-        if(O[index] === searchElement)return index;
-      }
-      return -1;
-    },
+    indexOf: indexOf = indexOf || createArrayContains(false),
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-    lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
+    lastIndexOf: function(el, fromIndex /* = @[*-1] */){
       var O      = ES5Object(this)
         , length = toLength(O.length)
         , index  = length - 1;
       if(arguments.length > 1)index = min(index, toInteger(fromIndex));
       if(index < 0)index = toLength(length + index);
-      for(;index >= 0; index--)if(index in O){
-        if(O[index] === searchElement)return index;
-      }
+      for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
       return -1;
     }
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
   $define(PROTO, STRING, {
-    trim: createEscaper(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
+    trim: createReplacer(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
   });
   
   // 20.3.3.1 / 15.9.4.4 Date.now()
@@ -739,17 +749,15 @@ $define(GLOBAL, {global: global});
  * http://people.mozilla.org/~jorendorff/es6-draft.html
  */
 !function(isFinite){
-  // 20.2.2.28 Math.sign(x)
-  function sign(it){
-    return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
-  }
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
     // The assign function is used to copy the values of all of the enumerable
     // own properties from a source object to a target object.
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
-    is: same
+    is: function(x, y){
+      return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
+    }
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
@@ -767,6 +775,23 @@ $define(GLOBAL, {global: global});
       }
     });
   }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2));
+  
+      // 20.1.2.3 Number.isInteger(number)
+  var isInteger = Number.isInteger || function(it){
+        return isFinite(it) && floor(it) === it;
+      }
+      // 20.2.2.28 Math.sign(x)
+    , sign = Math.sign || function sign(it){
+        return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
+      }
+    , abs  = Math.abs
+    , exp  = Math.exp
+    , log  = Math.log
+    , sqrt = Math.sqrt;
+  // 20.2.2.5 Math.asinh(x)
+  function asinh(x){
+    return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+  }
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -775,13 +800,9 @@ $define(GLOBAL, {global: global});
       return typeof it == 'number' && isFinite(it);
     },
     // 20.1.2.3 Number.isInteger(number)
-    isInteger: function(it){
-      return isFinite(it) && floor(it) === it;
-    },
+    isInteger: isInteger,
     // 20.1.2.4 Number.isNaN(number)
-    isNaN: function(number){
-      return number != number;
-    },
+    isNaN: sameNaN,
     // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;
@@ -795,31 +816,18 @@ $define(GLOBAL, {global: global});
     // 20.1.2.13 Number.parseInt(string, radix)
     parseInt: parseInt
   });
-  var isInteger = Number.isInteger
-    , abs       = Math.abs
-    , exp       = Math.exp
-    , log       = Math.log
-    , sqrt      = Math.sqrt
-    , Oxffff    = 0xffff;
-  function asinh(x){
-    return !isFinite(x = +x) || x === 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
-  }
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
-    // Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
     acosh: function(x){
       return log(x + sqrt(x * x - 1));
     },
     // 20.2.2.5 Math.asinh(x)
-    // Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
     asinh: asinh,
     // 20.2.2.7 Math.atanh(x)
-    // Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
     atanh: function(x){
-      return x === 0 ? x : .5 * log((1 + x) / (1 - x));
+      return x == 0 ? +x : log((1 + +x) / (1 - x)) / 2;
     },
     // 20.2.2.9 Math.cbrt(x)
-    // Returns an implementation-dependent approximation to the cube root of x.
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1 / 3);
     },
@@ -828,20 +836,16 @@ $define(GLOBAL, {global: global});
       return (x >>>= 0) ? 32 - x[TO_STRING](2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
-    // Returns an implementation-dependent approximation to the hyperbolic cosine of x.
     cosh: function(x){
       return (exp(x) + exp(-x)) / 2;
     },
     // 20.2.2.14 Math.expm1(x)
-    // Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
     expm1: function(x){
-      return same(x, -0) ? -0 : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
+      return x == 0 ? +x : x > -1e-6 && x < 1e-6 ? +x + x * x / 2 : exp(x) - 1;
     },
     // 20.2.2.16 Math.fround(x)
     // TODO
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-    // Returns an implementation-dependent approximation of the square root
-    // of the sum of squares of its arguments.
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
@@ -855,47 +859,39 @@ $define(GLOBAL, {global: global});
     },
     // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
-      var xh = Oxffff & x >>> 0x10
-        , xl = Oxffff & x
-        , yh = Oxffff & y >>> 0x10
-        , yl = Oxffff & y;
-      return 0 | xl * yl + (xh * yl + xl * yh << 0x10 >>> 0);
+      var UInt16 = 0xffff
+        , xh = UInt16 & x >>> 16
+        , xl = UInt16 & x
+        , yh = UInt16 & y >>> 16
+        , yl = UInt16 & y;
+      return 0 | xl * yl + (xh * yl + xl * yh << 16 >>> 0);
     },
     // 20.2.2.20 Math.log1p(x)
-    // Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
-    // The result is computed in a way that is accurate even when the value of x is close to zero.
     log1p: function(x){
-      return (x > -1e-8 && x < 1e-8) ? (x - x * x / 2) : log(1 + x);
+      return x > -1e-8 && x < 1e-8 ? x - x * x / 2 : log(1 + +x);
     },
     // 20.2.2.21 Math.log10(x)
-    // Returns an implementation-dependent approximation to the base 10 logarithm of x.
     log10: function(x){
       return log(x) / Math.LN10;
     },
     // 20.2.2.22 Math.log2(x)
-    // Returns an implementation-dependent approximation to the base 2 logarithm of x.
     log2: function(x){
       return log(x) / Math.LN2;
     },
     // 20.2.2.28 Math.sign(x)
-    // Returns the sign of the x, indicating whether x is positive, negative or zero.
     sign: sign,
     // 20.2.2.30 Math.sinh(x)
-    // Returns an implementation-dependent approximation to the hyperbolic sine of x.
     sinh: function(x){
-      return (x = +x) == -Infinity || x == 0 ? x : (exp(x) - exp(-x)) / 2;
+      return x == 0 ? +x : (exp(x) - exp(-x)) / 2;
     },
     // 20.2.2.33 Math.tanh(x)
-    // Returns an implementation-dependent approximation to the hyperbolic tangent of x.
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
+      return isFinite(x) ? x == 0 ? +x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
     },
     // 20.2.2.34 Math.trunc(x)
-    // Returns the integral part of the number x, removing any fractional digits.
-    // If x is already an integer, the result is x.
     trunc: trunc
   });
-  // 20.2.1.9 Math [ @@toStringTag ]
+  // 20.2.1.9 Math[@@toStringTag]
   setToStringTag(Math, MATH, true);
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   // TODO
@@ -966,9 +962,8 @@ $define(GLOBAL, {global: global});
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
       var length = toLength(this.length)
-        , index  = toInteger(start)
+        , index  = max(getPositiveIndex(this, start), 0)
         , endPos;
-      if(index < 0)index = max(index + length, 0);
       if(end === undefined)endPos = length;
       else {
         endPos = toInteger(end);
@@ -983,7 +978,7 @@ $define(GLOBAL, {global: global});
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });
-  // 24.3.3 JSON [ @@toStringTag ]
+  // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
 }(isFinite);
 
@@ -1074,11 +1069,9 @@ $define(GLOBAL + BIND, {
  * https://github.com/domenic/promises-unwrapping
  * Based on https://github.com/getify/native-promise-only/
  */
-!function(Promise){
+!function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && function(promise){
-    return Promise.resolve(promise) == promise;
-  }(new Promise(Function()))
+  && (Promise.resolve(test = new Promise(Function())) == test)
   || !function(asap, DEF){
     function isThenable(o){
       var then;
@@ -1118,7 +1111,7 @@ $define(GLOBAL + BIND, {
       def = def.def || def; // unwrap
       try {
         if(then = isThenable(msg)){
-          wrapper = {def: def, done : false}; // wrap
+          wrapper = {def: def, done: false}; // wrap
           then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
           def.msg = msg;
@@ -1126,7 +1119,7 @@ $define(GLOBAL + BIND, {
           notify(def);
         }
       } catch(err){
-        reject.call(wrapper || {def: def, done : false}, err); // wrap
+        reject.call(wrapper || {def: def, done: false}, err); // wrap
       }
     }
     function reject(msg){
@@ -1142,7 +1135,7 @@ $define(GLOBAL + BIND, {
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: [], state: 0, done : false, msg: undefined};
+      var def = {chain: [], state: 0, done: false, msg: undefined};
       set(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
@@ -1585,7 +1578,7 @@ $define(GLOBAL + BIND, {
     return assertObject((it[ITERATOR] || Iterators[classof(it)]).call(it));
   }
   
-  $define(GLOBAL, {$for: $for});
+  $define(GLOBAL + FORCED, {$for: $for});
 }('@@iterator');
 
 /******************************************************************************
@@ -1654,7 +1647,7 @@ $define(GLOBAL + BIND, {
         , memo, key, result;
       if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
       else if(arguments.length < 3){
-        assert(length > i, REDUCE_ERROR);
+        assert(length, REDUCE_ERROR);
         memo = O[keys[i++]];
       } else memo = Object(init);
       while(length > i){
@@ -1666,6 +1659,7 @@ $define(GLOBAL + BIND, {
       return memo;
     }
   }
+  var findKey = createDictMethod(6);
   assign(Dict, {
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
@@ -1673,19 +1667,12 @@ $define(GLOBAL + BIND, {
     some:    createDictMethod(3),
     every:   createDictMethod(4),
     find:    createDictMethod(5),
-    findKey: createDictMethod(6),
+    findKey: findKey,
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,
-    contains: function(object, searchElement){
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0;
-      while(length > i){
-        if(sameValueZero(O[keys[i++]], searchElement))return true;
-      }
-      return false;
+    contains: function(object, el){
+      return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
     },
     clone: function(it){
       return clone(it, [], []);
@@ -1697,7 +1684,7 @@ $define(GLOBAL + BIND, {
     },
     set: createDefiner(0),
     isDict: function(it){
-      return getPrototypeOf(it) == Dict[PROTOTYPE];
+      return getPrototypeOf(it) === Dict[PROTOTYPE];
     }
   });
   $define(STATIC, OBJECT, {
@@ -1706,7 +1693,7 @@ $define(GLOBAL + BIND, {
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     entries: createObjectToArray(true)
   });
-  $define(GLOBAL, {Dict: Dict});
+  $define(GLOBAL + FORCED, {Dict: Dict});
 }();
 
 /******************************************************************************
@@ -1718,69 +1705,25 @@ $define(GLOBAL + BIND, {
  * http://www.w3.org/TR/html5/webappapis.html#timers
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
  */
-!function(navigator){
+!function(MSIE){
   function wrap(set){
-    return function(fn, time /*, ...args */){
+    return MSIE ? function(fn, time /*, ...args */){
       return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time || 1);
-    }
+    } : set;
   }
+  $define(GLOBAL + BIND + FORCED * MSIE, {
+    setTimeout: setTimeout = wrap(setTimeout),
+    setInterval: wrap(setInterval)
+  });
   // ie9- dirty check
-  if(navigator && /MSIE .\./.test(navigator.userAgent)){
-    setTimeout  = wrap(setTimeout);
-    setInterval = wrap(setInterval);
-  }
-  $define(GLOBAL + BIND + FORCED * !isNative(setTimeout), {
-    setTimeout:  setTimeout,
-    setInterval: setInterval
-  });
-}(global.navigator);
-
-/******************************************************************************
- * Module : deferred                                                          *
- ******************************************************************************/
-
-!function(ARGUMENTS, ID){
-  function createTaskFactory(set, clear){
-    function Task(args){
-      this[ID] = invoke(set, this[ARGUMENTS] = args);
-    }
-    setToStringTag(Task, 'Task');
-    hidden(Task[PROTOTYPE], 'set', function(){
-      clear(this[ID]);
-      this[ID] = invoke(set, this[ARGUMENTS]);
-      return this;
-    });
-    hidden(Task[PROTOTYPE], 'clear', function(){
-      clear(this[ID]);
-      return this;
-    });
-    return function(/* ...args */){
-      var args = [assertFunction(this)]
-        , i    = 0;
-      while(arguments.length > i)args.push(arguments[i++]);
-      return new Task(args);
-    }
-  }
-  $define(PROTO, FUNCTION, {
-    timeout:   createTaskFactory(setTimeout,   clearTimeout),
-    interval:  createTaskFactory(setInterval,  clearInterval),
-    immediate: createTaskFactory(setImmediate, clearImmediate)
-  });
-}(symbol('arguments'), symbol('id'));
+}(!!navigator && /MSIE .\./.test(navigator.userAgent));
 
 /******************************************************************************
  * Module : binding                                                           *
  ******************************************************************************/
 
 !function(_){
-  $define(PROTO, FUNCTION, {
-    /**
-     * Partial apply.
-     * Alternatives:
-     * http://sugarjs.com/api/Function/fill
-     * http://underscorejs.org/#partial
-     * http://mootools.net/docs/core/Types/Function#Function:pass
-     */
+  $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
       var fn     = this
@@ -1826,7 +1769,7 @@ $define(GLOBAL + BIND, {
     return partial(that[key], args, length, holder, _, true, that);
   }
 
-  $define(STATIC, OBJECT, {tie: ctx(call, tie)});
+  $define(STATIC + FORCED, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;
@@ -1849,7 +1792,7 @@ $define(GLOBAL + BIND, {
     while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));
     return target;
   };
-  $define(STATIC, OBJECT, {
+  $define(STATIC + FORCED, OBJECT, {
     isObject: isObject,
     classof: classof,
     define: define,
@@ -1864,50 +1807,33 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 $define(PROTO, ARRAY, {
+  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
+  contains: createArrayContains(true)
+});
+$define(PROTO + FORCED, ARRAY, {
   /**
    * Alternatives:
    * http://sugarjs.com/api/Array/at
    * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
    */
   get: function(index){
-    var O      = ES5Object(this)
-      , length = toLength(this.length)
-      , index  = toInteger(index);
-    if(index < 0)index += length;
-    return O[index];
+    var O = ES5Object(this);
+    return O[getPositiveIndex(O, index)];
   },
   set: function(index, value){
-    var length = toLength(this.length)
-      , index  = toInteger(index);
-    if(index < 0)index += length;
-    this[index] = value;
+    this[getPositiveIndex(this, index)] = value;
     return this;
   },
   'delete': function(index){
-    var length = toLength(this.length)
-      , index  = toInteger(index);
-    if(index < 0)index += length;
-    if(index >= length || index < 0)return false;
+    var index = getPositiveIndex(this, index);
+    if(index >= this.length || index < 0)return false;
     splice.call(this, index, 1);
     return true;
   },
-  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
-  contains: function(searchElement, fromIndex){
-    var O      = ES5Object(this)
-      , length = toLength(O.length)
-      , index  = toInteger(fromIndex);
-    if(index < 0)index = max(index + length, 0);
-    while(length > index)if(sameValueZero(searchElement, O[index++]))return true;
-    return false;
-  },
+  turn: turn,
   clone: function(){
     return clone(this, [], []);
-  },
-  /**
-   * Alternatives:
-   * http://lodash.com/docs#transform
-   */
-  turn: turn
+  }
 });
 
 /******************************************************************************
@@ -1915,7 +1841,6 @@ $define(PROTO, ARRAY, {
  ******************************************************************************/
 
 /**
- * Array static methods
  * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
  * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
  */
@@ -1938,16 +1863,16 @@ $define(PROTO, ARRAY, {
  * Module : number                                                            *
  ******************************************************************************/
 
-$define(PROTO, NUMBER, {
+$define(PROTO + FORCED, NUMBER, {
   times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this
       , length = toLength(number)
       , result = Array(length)
       , i      = 0
       , f;
-    if(isFunction(mapfn)){
-      f = ctx(mapfn, that, 3);
-      while(length > i)result[i] = f(i, i++, number);
+    if(mapfn != undefined){
+      f = ctx(mapfn, that, 1);
+      while(length > i)result[i] = f(i++);
     } else while(length > i)result[i] = i++;
     return result;
   },
@@ -1958,13 +1883,7 @@ $define(PROTO, NUMBER, {
     return random() * (max(a, b) - m) + m;
   }
 });
-/**
- * Math functions in Number.prototype
- * Alternatives:
- * http://sugarjs.com/api/Number/math
- * http://mootools.net/docs/core/Types/Number#Number-Math
- */
-$define(PROTO, NUMBER, turn.call(
+$define(PROTO + FORCED, NUMBER, turn.call(
   array(
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
@@ -1996,9 +1915,9 @@ $define(PROTO, NUMBER, turn.call(
     "'": '&apos;'
   }, unescapeHTMLDict = {}, key;
   for(key in escapeHTMLDict)unescapeHTMLDict[escapeHTMLDict[key]] = key;
-  $define(PROTO, STRING, {
-    escapeHTML:   createEscaper(/[&<>"']/g, escapeHTMLDict),
-    unescapeHTML: createEscaper(/&(?:amp|lt|gt|quot|apos);/g, unescapeHTMLDict)
+  $define(PROTO + FORCED, STRING, {
+    escapeHTML:   createReplacer(/[&<>"']/g, escapeHTMLDict),
+    unescapeHTML: createReplacer(/&(?:amp|lt|gt|quot|apos);/g, unescapeHTMLDict)
   });
 }();
 
@@ -2008,7 +1927,7 @@ $define(PROTO, NUMBER, turn.call(
 
 // ~ES7 : https://gist.github.com/kangax/9698100
 $define(STATIC, REGEXP, {
-  escape: createEscaper(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
+  escape: createReplacer(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
 });
 
 /******************************************************************************
@@ -2025,8 +1944,6 @@ $define(STATIC, REGEXP, {
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 'ms'   : var ms = get('Milliseconds');                           // Milliseconds : 000-999
-            return ms > 99 ? ms : '0' + lz(ms);
           case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
           case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
           case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
@@ -2036,10 +1953,10 @@ $define(STATIC, REGEXP, {
           case 'D'    : return get(DATE)                                        // Date         : 1-31
           case 'DD'   : return lz(get(DATE));                                   // Date         : 01-31
           case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
-          case 'N'    : return get(MONTH) + 1;                                  // Month        : 1-12
-          case 'NN'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
-          case 'M'    : return dict.M[get(MONTH)];                              // Month        : Январь
-          case 'MM'   : return dict.MM[get(MONTH)];                             // Month        : Января
+          case 'M'    : return get(MONTH) + 1;                                  // Month        : 1-12
+          case 'MM'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
+          case 'MMM'  : return dict.M[get(MONTH)];                              // Month        : Январь
+          case 'MMMM' : return dict.MM[get(MONTH)];                             // Month        : Января
           case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
           case 'YYYY' : return get(YEAR);                                       // Year         : 2014
         } return part;
@@ -2062,13 +1979,13 @@ $define(STATIC, REGEXP, {
     };
     return this;
   }
-  $define(STATIC, DATE, {
+  $define(STATIC + FORCED, DATE, {
     locale: function(locale){
       return has(locales, locale) ? current = locale : current;
     },
     addLocale: addLocale
   });
-  $define(PROTO, DATE, {
+  $define(PROTO + FORCED, DATE, {
     format:    createFormat(false),
     formatUTC: createFormat(true)
   });

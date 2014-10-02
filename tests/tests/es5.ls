@@ -89,6 +89,7 @@ test 'Array::indexOf' !->
   ok 1  is [1 2 3]indexOf 2 1
   ok -1 is [NaN]indexOf NaN
   ok 3  is Array(2)concat([1 2 3])indexOf 2
+  ok -1 is Array(1)indexOf void
 test 'Array::lastIndexOf' !->
   ok 2  is [1 1 1]lastIndexOf 1
   ok -1 is [1 2 3]lastIndexOf 3 1

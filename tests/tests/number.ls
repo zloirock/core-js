@@ -2,11 +2,9 @@ module \Number
 isFunction = -> typeof! it is \Function
 test '::times' !->
   ok isFunction(Number::times), 'Is function'
-  deepEqual 5.times(-> it), [0 1 2 3 4]
-  deepEqual 5.times(-> it + &1), [0 2 4 6 8]
-  deepEqual 5.times(-> it + &1 + &2), [5 7 9 11 13]
-  deepEqual 5.times(-> (@ .|. 0) + it + &1 + &2), [5 7 9 11 13]
-  deepEqual 5.times((->(@ .|. 0) + it + &1 + &2), 1), [6 8 10 12 14]
+  deepEqual 5.times!, [to 4]
+  deepEqual 5.times(-> it * it), [0 1 4 9 16]
+  deepEqual 5.times((-> @ + it * it), 1), [1 2 5 10 17]
 test '::random' !->
   ok isFunction(Number::random), 'Is function'
   ok 100.times(-> 10.random!)every -> 0 <= it <= 10

@@ -184,33 +184,22 @@
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-    indexOf: indexOf = indexOf || function(searchElement, fromIndex /* = 0 */){
-      var O      = ES5Object(this)
-        , length = toLength(O.length)
-        , index  = toInteger(fromIndex);
-      if(index < 0)index = max(length + index, 0);
-      for(;length > index; index++)if(index in O){
-        if(O[index] === searchElement)return index;
-      }
-      return -1;
-    },
+    indexOf: indexOf = indexOf || createArrayContains(false),
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-    lastIndexOf: function(searchElement, fromIndex /* = @[*-1] */){
+    lastIndexOf: function(el, fromIndex /* = @[*-1] */){
       var O      = ES5Object(this)
         , length = toLength(O.length)
         , index  = length - 1;
       if(arguments.length > 1)index = min(index, toInteger(fromIndex));
       if(index < 0)index = toLength(length + index);
-      for(;index >= 0; index--)if(index in O){
-        if(O[index] === searchElement)return index;
-      }
+      for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
       return -1;
     }
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
   $define(PROTO, STRING, {
-    trim: createEscaper(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
+    trim: createReplacer(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
   });
   
   // 20.3.3.1 / 15.9.4.4 Date.now()

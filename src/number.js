@@ -1,13 +1,13 @@
-$define(PROTO, NUMBER, {
+$define(PROTO + FORCED, NUMBER, {
   times: function(mapfn /* = -> it */, that /* = undefined */){
     var number = +this
       , length = toLength(number)
       , result = Array(length)
       , i      = 0
       , f;
-    if(isFunction(mapfn)){
-      f = ctx(mapfn, that, 3);
-      while(length > i)result[i] = f(i, i++, number);
+    if(mapfn != undefined){
+      f = ctx(mapfn, that, 1);
+      while(length > i)result[i] = f(i++);
     } else while(length > i)result[i] = i++;
     return result;
   },
@@ -18,13 +18,7 @@ $define(PROTO, NUMBER, {
     return random() * (max(a, b) - m) + m;
   }
 });
-/**
- * Math functions in Number.prototype
- * Alternatives:
- * http://sugarjs.com/api/Number/math
- * http://mootools.net/docs/core/Types/Number#Number-Math
- */
-$define(PROTO, NUMBER, turn.call(
+$define(PROTO + FORCED, NUMBER, turn.call(
   array(
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +

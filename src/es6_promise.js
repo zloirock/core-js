@@ -4,11 +4,9 @@
  * https://github.com/domenic/promises-unwrapping
  * Based on https://github.com/getify/native-promise-only/
  */
-!function(Promise){
+!function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && function(promise){
-    return Promise.resolve(promise) == promise;
-  }(new Promise(Function()))
+  && (Promise.resolve(test = new Promise(Function())) == test)
   || !function(asap, DEF){
     function isThenable(o){
       var then;
@@ -48,7 +46,7 @@
       def = def.def || def; // unwrap
       try {
         if(then = isThenable(msg)){
-          wrapper = {def: def, done : false}; // wrap
+          wrapper = {def: def, done: false}; // wrap
           then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
           def.msg = msg;
@@ -56,7 +54,7 @@
           notify(def);
         }
       } catch(err){
-        reject.call(wrapper || {def: def, done : false}, err); // wrap
+        reject.call(wrapper || {def: def, done: false}, err); // wrap
       }
     }
     function reject(msg){
@@ -72,7 +70,7 @@
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: [], state: 0, done : false, msg: undefined};
+      var def = {chain: [], state: 0, done: false, msg: undefined};
       set(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
