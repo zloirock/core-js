@@ -15,7 +15,7 @@
           hidden(this, tag, value);
         }
       });
-      return hidden(create(Symbol[PROTOTYPE]), TAG, tag);
+      return set(create(Symbol[PROTOTYPE]), TAG, tag);
     }
     hidden(Symbol[PROTOTYPE], TO_STRING, function(){
       return this[TAG];

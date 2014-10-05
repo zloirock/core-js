@@ -1,4 +1,4 @@
-!function(_){
+!function(_, BOUND, toLocaleString){
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
@@ -34,24 +34,17 @@
   });
   
   function tie(key){
-    var that   = this
-      , _      = path._
-      , holder = false
-      , length = arguments.length
-      , i = 1, args;
-    if(length < 2)return ctx(that[key], that, -1);
-    args = Array(length - 1);
-    while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
-    return partial(that[key], args, length, holder, _, true, that);
+    var that = this, bound;
+    if(key === undefined)return toLocaleString.call(that);
+    if(!has(that, BOUND))hidden(that, BOUND, {});
+    bound = that[BOUND];
+    return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
   }
-
-  $define(STATIC + FORCED, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;
   });
-  DESCRIPTORS && hidden(ObjectProto, _, tie);
-  hidden(FunctionProto, _, tie);
-  hidden(ArrayProto, _, tie);
-  hidden(RegExp[PROTOTYPE], _, tie);
-}(uid('tie'));
+  
+  hidden(ObjectProto, _, tie);
+  DESCRIPTORS || hidden(ArrayProto, _, tie);
+}(DESCRIPTORS ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);

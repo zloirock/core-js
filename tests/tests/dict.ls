@@ -138,51 +138,6 @@ test '.turn' !->
     ok it   is obj
   , obj = {}
   deepEqual turn({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
-test '.clone' !->
-  {clone} = Dict
-  {getPrototypeOf, create} = Object
-  ok isFunction(clone), 'Is function'
-  array1 = [1 2 3]
-  array2 = clone array1
-  ok array1 isnt array2
-  deepEqual array1, array2
-  object1 = {q:1, w: 2, e:3}
-  object2 = clone object1
-  ok object1 isnt object2
-  deepEqual object1, object2
-  ok getPrototypeOf(object2) is Object::
-  dict1 = create(null) <<< {q:1, w: 2, e:3}
-  dict2 = clone dict1
-  ok dict1 isnt dict2
-  deepEqual dict1, dict2
-  ok getPrototypeOf(dict2) is null
-  object3 = {a: object1, b: array1}
-  object4 = clone object3
-  ok object4.a isnt object1
-  deepEqual object4.a, object1
-  ok object4.b isnt array1
-  deepEqual object4.b, array1
-  array3 = [object1, array1]
-  array4 = clone array3
-  ok array4\0 isnt object1
-  deepEqual array4\0, object1
-  ok array4\1 isnt array1
-  deepEqual array4\1, array1
-  a = []
-  b = {a}
-  a\0 = b
-  try
-    c = clone b
-    ok c.a isnt b.a
-    deepEqual c.a, b.a
-    ok c.a[0]a is c.a
-  catch => ok no e
-  try
-    d = clone a
-    ok d[0] isnt a[0]
-    deepEqual d[0], a[0]
-    ok d[0]a[0] is d[0]
-  catch => ok no e
 test '.contains' !->
   {contains} = Dict
   ok isFunction(contains), 'Is function'

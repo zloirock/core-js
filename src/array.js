@@ -22,8 +22,5 @@ $define(PROTO + FORCED, ARRAY, {
     splice.call(this, index, 1);
     return true;
   },
-  turn: turn,
-  clone: function(){
-    return clone(this, [], []);
-  }
+  turn: turn
 });

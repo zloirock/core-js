@@ -1,6 +1,6 @@
 module \Binding
 isFunction = -> typeof! it  is \Function
-isNative = -> /\[native code\]\s*\}\s*$/.test it
+DESC = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 {slice} = Array::
 test 'Function::by' !->
   $ = _
@@ -33,41 +33,23 @@ test 'Function::part' !->
   ok part(\Шла \по) is 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders'
   ok part(\Шла \по \и) is 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders'
   ok part(\Шла \по \и \сушку) is 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders'
-test 'Object.tie' ->
-  {tie} = Object
+test '::[_]' !->
   $ = _
-  ok isFunction(tie), 'Is function'
-  array = [1 2 3]
-  push = tie array, \push
-  ok isFunction push
-  ok push(4) is 4
-  deepEqual array, [1 2 3 4]
-  foo = bar : (a, b, c, d)->
-    ok @ is foo
-    deepEqual slice.call(&), [1 2 3 4]
-  bar = tie foo, \bar 1, $, 3 
-  bar 2 4
-test '::tie' !->
-  $ = _
-  ok isFunction(Function::[_]), 'Function::[_] is function'
-  fn = ((a, b, c, d)->
+  ok isFunction(Object::[_]), 'Object::[_] is function'
+  fn = (->
     ok @ is ctx
-    deepEqual slice.call(&), [1 2 3 4]
-  )[_] \call ctx = {}, 1, $, 3
-  fn 2 4
-  ok isFunction(Array::[_]), 'Array::[_] is function'
+    ok it is 1
+  )[_] \call
+  fn ctx = {}, 1
   array = [1 2 3]
-  push = array[_] \push 4, $, 6
+  push = array[_] \push
   ok isFunction push
-  push(5 7)
-  deepEqual array, [1 2 3 4 5 6 7]
-  ok isFunction(RegExp::[_]), 'RegExp::[_] is function'
+  push(4 5)
+  deepEqual array, [1 2 3 4 5]
   ok [1 2]every /\d/[_] \test
   ok ![1 \q]every /\d/[_] \test
-  if isNative Object.defineProperties
-    ok isFunction(Object::[_]), 'Object::[_] is function'
-    foo = bar : (a, b, c, d)->
-      ok @ is foo
-      deepEqual slice.call(&), [1 2 3 4]
-    bar = foo[_] \bar 1, $, 3 
-    bar 2 4
+  foo = bar : (a, b)->
+    ok @ is foo
+    deepEqual slice.call(&), [1 2]
+  bar = foo[_] \bar
+  bar 1 2 

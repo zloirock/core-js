@@ -6,8 +6,8 @@
  */
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && (Promise.resolve(test = new Promise(Function())) == test)
-  || !function(asap, DEF){
+  && Promise.resolve(test = new Promise(Function())) == test
+  || function(asap, DEF){
     function isThenable(o){
       var then;
       if(isObject(o))then = o.then;
@@ -71,7 +71,7 @@
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
       var def = {chain: [], state: 0, done: false, msg: undefined};
-      set(this, DEF, def);
+      hidden(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
       } catch(err){

@@ -33,13 +33,12 @@ Object
   .classof(var) -> string                                             core
   .define(target, mixin) -> &0                                        core
   .make(proto | null, mixin?, withDescriptors = false) -> object      core
-  .tie(object, key, ...args | _) -> fn(...args)                       core
-  ::[_](key, ...args | _) -> fn(...args)                              core
+  ::[_](key) -> boundFn                                               core
 Function
-  ::bind(object, ...args | _) -> fn(...args)                          es5
+  ::bind(object, ...args | _) -> boundFn(...args)                     es5
   ::part(...args | _) -> fn(...args)                                  core
-  ::by(object | _, ...args | _) -> fn(...args)                        core
-  ::only(numberArguments, that /* = @ */) -> fn(...args)              core
+  ::by(object | _, ...args | _) -> boundFn(...args)                   core
+  ::only(numberArguments, that /* = @ */) -> (fn | boundFn)(...args)  core
 Array
   .isArray(var) -> bool                                               es5
   .from(iterable | array-like, fn(val, key, @)?, that) -> array       es6
@@ -67,7 +66,6 @@ Array
   ::get(index) -> var                                                 core
   ::set(index, value) -> @                                            core
   ::delete(index) -> bool                                             core
-  ::clone() -> var                                                    core
   ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
   .isDict(var) -> bool                                                core
@@ -85,7 +83,6 @@ Array
   .contains(object, var) -> bool                                      core
   .reduce(object, fn(memo, val, key, @), memo?) -> var                core
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo          core
-  .clone(foo) -> var                                                  core
 new Set(iterable?) -> set                                             es6
   ::add(key) -> @                                                     es6
   ::clear() -> void                                                   es6
@@ -163,8 +160,6 @@ Math
   .trunc(num) -> num                                                  es6
 Date
   .now() -> int                                                       es5
-  .addLocale(key, object) -> @                                        core
-  .locale(key?) -> key                                                core
   ::format(str, key?) -> str                                          core
   ::formatUTC(str, key?) -> str                                       core
 Symbol(description?) -> symbol                                        es6 sham
@@ -196,5 +191,8 @@ $for(iterable, entries).of(fn(value, key?), that) -> void             core
   .getIterator(iterable) -> iterator                                  core
 core                                                                  core
   .{...global}                                                        core
+  .addLocale(key, object) -> @                                        core
+  .locale(key?) -> key                                                core
+  .noConflict() -> core                                               core
 _ -> object                                                           core / undescore
 ```

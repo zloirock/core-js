@@ -18,6 +18,7 @@ var global          = returnThis()
   , PROTOTYPE       = 'prototype'
   , CONSTRUCTOR     = 'constructor'
   , TO_STRING       = 'toString'
+  , TO_LOCALE       = 'toLocaleString'
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
@@ -72,7 +73,8 @@ function setToStringTag(it, tag, stat){
   if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+  return it == undefined ? it === undefined
+    ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 function classof(it){
   var klass = cof(it), tag;
@@ -102,13 +104,14 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
-    if(!holder && length == 0)return invoke(fn, argsPart, that);
+    if(!holder && !length)return invoke(fn, argsPart, that);
     args = argsPart.slice();
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return invoke(fn, args, that);
   }
 }
+// Optional / simple context binding
 function ctx(fn, that, length){
   assertFunction(fn);
   if(~length && that === undefined)return fn;
@@ -197,27 +200,6 @@ function keyOf(object, el){
     , index  = 0
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
-}
-// Simple structured cloning
-function clone(it, stack1, stack2){
-  var klass   = cof(it)
-    , isArray = klass == ARRAY
-    , index, result, i, l, keys, key;
-  if(isArray || klass == OBJECT){
-    index = indexOf.call(stack1, it);
-    if(~index)return stack2[index];
-    stack1.push(it);
-    stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
-    if(isArray){
-      for(i = 0; l > i;)if(has(it, i))result[i] = clone(it[i++], stack1, stack2);
-    } else {
-      keys = getKeys(it);
-      l    = keys.length;
-      for(i = 0; l > i;)result[key = keys[i++]] = clone(it[key], stack1, stack2);
-    }
-    return result;
-  }
-  return it;
 }
 
 // Array

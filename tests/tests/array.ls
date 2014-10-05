@@ -25,14 +25,6 @@ test '::turn' !->
     ok memo is obj, 'Can reduce to exist object'
   , obj = {}
   deepEqual [3 2 1] [1 2 3]turn((memo, it)-> memo.unshift it), 'Reduce to object and return it'
-test '::clone' !->
-  ok isFunction(Array::clone), 'Is function'
-  arr1 = [object1 = {q:1, w:2}, array1 = [1 2], 1 2 3]
-  arr2 = arr1.clone!
-  ok arr2 isnt arr1
-  ok arr2\0 isnt object1
-  ok arr2\1 isnt array1
-  deepEqual arr1, arr2
 test '::contains' !->
   ok isFunction(Array::contains), 'Is function'
   arr = [1 2 3 -0 NaN, o = {}]

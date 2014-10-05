@@ -67,7 +67,7 @@
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // if it hasn't object id - add next
     if(!has(it, STOREID)){
-      if(create)set(it, STOREID, ++uid);
+      if(create)hidden(it, STOREID, ++uid);
       else return '';
     }
     // return object id with 'O' prefix
@@ -79,9 +79,9 @@
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function(){
-        set(this, KEYS, create(null));
-        if($VALUES == VALUES)set(this, VALUES, create(null));
-        set(this, SIZE, 0);
+        hidden(this, SIZE, 0);
+        hidden(this, KEYS, create(null));
+        if($VALUES == VALUES)hidden(this, VALUES, create(null));
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
@@ -153,7 +153,7 @@
   }, collectionMethods(KEYS));
   
   function getWeakData(it){
-    has(it, WEAKDATA) || set(it, WEAKDATA, {});
+    has(it, WEAKDATA) || hidden(it, WEAKDATA, {});
     return it[WEAKDATA];
   }
   function weakCollectionHas(key){
@@ -163,7 +163,7 @@
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
-      set(this, WEAKID, wid++);
+      hidden(this, WEAKID, wid++);
     },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)

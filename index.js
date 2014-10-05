@@ -31,6 +31,7 @@ var global          = returnThis()
   , PROTOTYPE       = 'prototype'
   , CONSTRUCTOR     = 'constructor'
   , TO_STRING       = 'toString'
+  , TO_LOCALE       = 'toLocaleString'
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
@@ -85,7 +86,8 @@ function setToStringTag(it, tag, stat){
   if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
-  return it == undefined ? it === undefined ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+  return it == undefined ? it === undefined
+    ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
 }
 function classof(it){
   var klass = cof(it), tag;
@@ -115,13 +117,14 @@ function partial(fn, argsPart, lengthPart, holder, _, bind, context){
     var that   = bind ? context : this
       , length = arguments.length
       , i = 0, j = 0, args;
-    if(!holder && length == 0)return invoke(fn, argsPart, that);
+    if(!holder && !length)return invoke(fn, argsPart, that);
     args = argsPart.slice();
     if(holder)for(;lengthPart > i; i++)if(args[i] === _)args[i] = arguments[j++];
     while(length > j)args.push(arguments[j++]);
     return invoke(fn, args, that);
   }
 }
+// Optional / simple context binding
 function ctx(fn, that, length){
   assertFunction(fn);
   if(~length && that === undefined)return fn;
@@ -210,27 +213,6 @@ function keyOf(object, el){
     , index  = 0
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
-}
-// Simple structured cloning
-function clone(it, stack1, stack2){
-  var klass   = cof(it)
-    , isArray = klass == ARRAY
-    , index, result, i, l, keys, key;
-  if(isArray || klass == OBJECT){
-    index = indexOf.call(stack1, it);
-    if(~index)return stack2[index];
-    stack1.push(it);
-    stack2.push(result = isArray ? Array(l = it.length) : create(getPrototypeOf(it)));
-    if(isArray){
-      for(i = 0; l > i;)if(has(it, i))result[i] = clone(it[i++], stack1, stack2);
-    } else {
-      keys = getKeys(it);
-      l    = keys.length;
-      for(i = 0; l > i;)result[key = keys[i++]] = clone(it[key], stack1, stack2);
-    }
-    return result;
-  }
-  return it;
 }
 
 // Array
@@ -478,7 +460,7 @@ if(!NODE && !REQJS || framework){
           hidden(this, tag, value);
         }
       });
-      return hidden(create(Symbol[PROTOTYPE]), TAG, tag);
+      return set(create(Symbol[PROTOTYPE]), TAG, tag);
     }
     hidden(Symbol[PROTOTYPE], TO_STRING, function(){
       return this[TAG];
@@ -843,8 +825,8 @@ $define(GLOBAL + BIND, {
  */
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && (Promise.resolve(test = new Promise(Function())) == test)
-  || !function(asap, DEF){
+  && Promise.resolve(test = new Promise(Function())) == test
+  || function(asap, DEF){
     function isThenable(o){
       var then;
       if(isObject(o))then = o.then;
@@ -908,7 +890,7 @@ $define(GLOBAL + BIND, {
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
       var def = {chain: [], state: 0, done: false, msg: undefined};
-      set(this, DEF, def);
+      hidden(this, DEF, def);
       try {
         executor(ctx(resolve, def, 1), ctx(reject, def, 1));
       } catch(err){
@@ -1048,7 +1030,7 @@ $define(GLOBAL + BIND, {
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // if it hasn't object id - add next
     if(!has(it, STOREID)){
-      if(create)set(it, STOREID, ++uid);
+      if(create)hidden(it, STOREID, ++uid);
       else return '';
     }
     // return object id with 'O' prefix
@@ -1060,9 +1042,9 @@ $define(GLOBAL + BIND, {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function(){
-        set(this, KEYS, create(null));
-        if($VALUES == VALUES)set(this, VALUES, create(null));
-        set(this, SIZE, 0);
+        hidden(this, SIZE, 0);
+        hidden(this, KEYS, create(null));
+        if($VALUES == VALUES)hidden(this, VALUES, create(null));
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
@@ -1134,7 +1116,7 @@ $define(GLOBAL + BIND, {
   }, collectionMethods(KEYS));
   
   function getWeakData(it){
-    has(it, WEAKDATA) || set(it, WEAKDATA, {});
+    has(it, WEAKDATA) || hidden(it, WEAKDATA, {});
     return it[WEAKDATA];
   }
   function weakCollectionHas(key){
@@ -1144,7 +1126,7 @@ $define(GLOBAL + BIND, {
     // 23.3.3.1 WeakMap.prototype.clear()
     // 23.4.3.2 WeakSet.prototype.clear()
     clear: function(){
-      set(this, WEAKID, wid++);
+      hidden(this, WEAKID, wid++);
     },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)
@@ -1193,23 +1175,19 @@ $define(GLOBAL + BIND, {
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
     , getValues  = createObjectToArray(false)
-    , Iterators  = {};
+    , Iterators  = {}
+    , IteratorPrototype = {};
+  
+  // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-23.md#conclusionresolution-1
+  hidden(IteratorPrototype, ITERATOR, returnThis);
+  // Add iterator for FF iterator protocol
+  FFITERATOR && hidden(IteratorPrototype, $$ITERATOR, returnThis);
   
   function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
   function createIteratorClass(Base, NAME, DEFAULT, Constructor, next){
-    Constructor[PROTOTYPE] = {};
-    // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
-    // 23.1.5.2.1 %MapIteratorPrototype%.next()
-    // 23.2.5.2.1 %SetIteratorPrototype%.next()
-    hidden(Constructor[PROTOTYPE], 'next', next);
-    // 22.1.5.2.2 %ArrayIteratorPrototype%[@@iterator]()
-    // 23.1.5.2.2 %MapIteratorPrototype%[@@iterator]()
-    // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
-    hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
-    // Add iterator for FF iterator protocol
-    FFITERATOR && hidden(Constructor[PROTOTYPE], $$ITERATOR, returnThis);
+    Constructor[PROTOTYPE] = create(IteratorPrototype, {next: descriptor(1, next)});
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -1446,9 +1424,6 @@ $define(GLOBAL + BIND, {
     contains: function(object, el){
       return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
     },
-    clone: function(it){
-      return clone(it, [], []);
-    },
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -1472,7 +1447,7 @@ $define(GLOBAL + BIND, {
  * Module : binding                                                           *
  ******************************************************************************/
 
-!function(_){
+!function(_, BOUND, toLocaleString){
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
@@ -1508,27 +1483,20 @@ $define(GLOBAL + BIND, {
   });
   
   function tie(key){
-    var that   = this
-      , _      = path._
-      , holder = false
-      , length = arguments.length
-      , i = 1, args;
-    if(length < 2)return ctx(that[key], that, -1);
-    args = Array(length - 1);
-    while(length > i)if((args[i - 1] = arguments[i++]) === _)holder = true;
-    return partial(that[key], args, length, holder, _, true, that);
+    var that = this, bound;
+    if(key === undefined)return toLocaleString.call(that);
+    if(!has(that, BOUND))hidden(that, BOUND, {});
+    bound = that[BOUND];
+    return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
   }
-
-  $define(STATIC + FORCED, OBJECT, {tie: ctx(call, tie)});
   
   hidden(path._, TO_STRING, function(){
     return _;
   });
-  DESCRIPTORS && hidden(ObjectProto, _, tie);
-  hidden(FunctionProto, _, tie);
-  hidden(ArrayProto, _, tie);
-  hidden(RegExp[PROTOTYPE], _, tie);
-}(uid('tie'));
+  
+  hidden(ObjectProto, _, tie);
+  DESCRIPTORS || hidden(ArrayProto, _, tie);
+}(DESCRIPTORS ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
 
 /******************************************************************************
  * Module : object                                                            *
@@ -1580,10 +1548,7 @@ $define(PROTO + FORCED, ARRAY, {
     splice.call(this, index, 1);
     return true;
   },
-  turn: turn,
-  clone: function(){
-    return clone(this, [], []);
-  }
+  turn: turn
 });
 
 /******************************************************************************
@@ -1603,7 +1568,7 @@ $define(PROTO + FORCED, ARRAY, {
       }, {}
     ));
   }
-  setArrayStatics('pop,reverse,shift,keys,values,entries,clone', 1);
+  setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
   setArrayStatics('get,delete', 2);
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,reduce,reduceRight,fill,turn');
@@ -1729,12 +1694,6 @@ $define(STATIC, REGEXP, {
     };
     return this;
   }
-  $define(STATIC + FORCED, DATE, {
-    locale: function(locale){
-      return has(locales, locale) ? current = locale : current;
-    },
-    addLocale: addLocale
-  });
   $define(PROTO + FORCED, DATE, {
     format:    createFormat(false),
     formatUTC: createFormat(true)
@@ -1747,6 +1706,10 @@ $define(STATIC, REGEXP, {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
+  core.locale = function(locale){
+    return has(locales, locale) ? current = locale : current;
+  };
+  core.addLocale = addLocale;
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
 
 /******************************************************************************

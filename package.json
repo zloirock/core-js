@@ -8,7 +8,7 @@
   },
   "main": "index.js",
   "devDependencies": {
-    "LiveScript": "*",
+    "LiveScript": "1.3.0",
     "grunt": "*",
     "load-grunt-tasks": "*",
     "grunt-livescript": "*",

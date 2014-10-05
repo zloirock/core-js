@@ -8,23 +8,19 @@
     , KEYS       = symbol('keys')
     , ENTRIES    = symbol('entries')
     , getValues  = createObjectToArray(false)
-    , Iterators  = {};
+    , Iterators  = {}
+    , IteratorPrototype = {};
+  
+  // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-23.md#conclusionresolution-1
+  hidden(IteratorPrototype, ITERATOR, returnThis);
+  // Add iterator for FF iterator protocol
+  FFITERATOR && hidden(IteratorPrototype, $$ITERATOR, returnThis);
   
   function createIterResultObject(done, value){
     return {value: value, done: !!done};
   }
   function createIteratorClass(Base, NAME, DEFAULT, Constructor, next){
-    Constructor[PROTOTYPE] = {};
-    // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
-    // 23.1.5.2.1 %MapIteratorPrototype%.next()
-    // 23.2.5.2.1 %SetIteratorPrototype%.next()
-    hidden(Constructor[PROTOTYPE], 'next', next);
-    // 22.1.5.2.2 %ArrayIteratorPrototype%[@@iterator]()
-    // 23.1.5.2.2 %MapIteratorPrototype%[@@iterator]()
-    // 23.2.5.2.2 %SetIteratorPrototype%[@@iterator]()
-    hidden(Constructor[PROTOTYPE], ITERATOR, returnThis);
-    // Add iterator for FF iterator protocol
-    FFITERATOR && hidden(Constructor[PROTOTYPE], $$ITERATOR, returnThis);
+    Constructor[PROTOTYPE] = create(IteratorPrototype, {next: descriptor(1, next)});
     // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
     // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
     // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]

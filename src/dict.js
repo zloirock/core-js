@@ -87,9 +87,6 @@
     contains: function(object, el){
       return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
     },
-    clone: function(it){
-      return clone(it, [], []);
-    },
     // Has / get / set own property
     has: has,
     get: function(object, key){

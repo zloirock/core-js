@@ -43,12 +43,6 @@
     };
     return this;
   }
-  $define(STATIC + FORCED, DATE, {
-    locale: function(locale){
-      return has(locales, locale) ? current = locale : current;
-    },
-    addLocale: addLocale
-  });
   $define(PROTO + FORCED, DATE, {
     format:    createFormat(false),
     formatUTC: createFormat(true)
@@ -61,4 +55,8 @@
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
     months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
+  core.locale = function(locale){
+    return has(locales, locale) ? current = locale : current;
+  };
+  core.addLocale = addLocale;
 }(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
