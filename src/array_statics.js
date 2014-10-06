@@ -14,5 +14,6 @@
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
   setArrayStatics('get,delete', 2);
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
-  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,reduce,reduceRight,fill,turn');
+  setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
+                  'lastIndexOf,reduce,reduceRight,fill,turn');
 }();

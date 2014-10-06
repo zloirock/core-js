@@ -1,8 +1,4 @@
-/**
- * setImmediate
- * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
- * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
- */
+// setImmediate shim
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
   var postMessage      = global.postMessage

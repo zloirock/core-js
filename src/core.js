@@ -19,6 +19,7 @@ var global          = returnThis()
   , CONSTRUCTOR     = 'constructor'
   , TO_STRING       = 'toString'
   , TO_LOCALE       = 'toLocaleString'
+  , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
@@ -65,10 +66,11 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = ObjectProto[TO_STRING]
-  , buildIn  = {Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1, Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1}
-    // define in es6_symbol module
-  , TOSTRINGTAG;
+var toString = ObjectProto[TO_STRING];
+var buildIn  = {
+  Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
+  Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
+}, TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
   if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
@@ -158,12 +160,10 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
-  , ownKeys          = getSymbols ? function(it){
-      return getNames(it).concat(getSymbols(it));
-    } : getNames
-  , isEnumerable     = ObjectProto.propertyIsEnumerable
-  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
-  , __PROTO__        = '__proto__' in ObjectProto
+  , ownKeys          = function(it){
+      return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
+    }
+  , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
@@ -278,7 +278,8 @@ function turn(mapfn, target /* = [] */){
   return memo;
 }
 function generic(A, B){
-  return typeof A == 'function' ? A : B; // strange IE quirks mode bug -> use typeof vs isFunction
+  // strange IE quirks mode bug -> use typeof vs isFunction
+  return typeof A == 'function' ? A : B;
 }
 
 // Math
@@ -350,7 +351,7 @@ function simpleSet(object, key, value){
   return object;
 }
 function createDefiner(bitmap){
-  return DESCRIPTORS ? function(object, key, value){
+  return DESC ? function(object, key, value){
     return defineProperty(object, key, descriptor(bitmap, value));
   } : simpleSet;
 }
@@ -358,11 +359,11 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESCRIPTORS = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
-  , sid         = 0
-  , hidden      = createDefiner(1)
-  , symbol      = Symbol || uid
-  , set         = Symbol ? simpleSet : hidden;
+var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
+  , sid    = 0
+  , hidden = createDefiner(1)
+  , symbol = Symbol || uid
+  , set    = Symbol ? simpleSet : hidden;
 
 // Collections & iterators variables, define in over modules
 var ITERATOR
@@ -378,7 +379,7 @@ var html = document && document.documentElement;
 // core
 var NODE   = cof(process) == PROCESS
   , REQJS  = isFunction(define) && define.amd
-  , old
+  , old    = global.core
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -389,12 +390,14 @@ var NODE   = cof(process) == PROCESS
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
+    , target   = isGlobal ? global : (type & STATIC)
+        ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
     // there is a similar native
-    own = !(type & FORCED) && target && key in target && (!isFunction(target[key]) || isNative(target[key]));
+    own = !(type & FORCED) && target && key in target
+      && (!isFunction(target[key]) || isNative(target[key]));
     // export native or passed
     out = (own ? target : source)[key];
     // bind timers to global for call from export context
@@ -418,7 +421,6 @@ if(NODE)module.exports = core;
 if(REQJS)define(function(){return core});
 // Export to global object
 if(!NODE && !REQJS || framework){
-  old = global.core;
   core.noConflict = function(){
     global.core = old;
     return core;

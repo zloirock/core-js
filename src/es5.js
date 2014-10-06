@@ -1,57 +1,15 @@
-/**
- * ECMAScript 5 shim
- * http://es5.github.io/
- */
-!function(){
-  var Empty       = Function()
-    , _classof    = classof
-    , whitespace  = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    // For fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
-    , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
-    , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
-    , slyKeysLen1 = slyKeys1.length
-    , dontEnumBug = !isEnumerable.call({toString: undefined}, TO_STRING)
-    , $PROTO      = symbol(PROTOTYPE)
-    // Create object with null prototype
-    , createDict  = __PROTO__
-      ? function(){
-          return {__proto__: null};
-        }
-      : function(){
-          // Thrash, waste and sodomy
-          var iframe = document[CREATE_ELEMENT]('iframe')
-            , i      = slyKeysLen1
-            , iframeDocument;
-          iframe.style.display = 'none';
-          html.appendChild(iframe);
-          iframe.src = 'javascript:';
-          // createDict = iframe.contentWindow.Object;
-          // html.removeChild(iframe);
-          iframeDocument = iframe.contentWindow.document;
-          iframeDocument.open();
-          iframeDocument.write('<script>document.F=Object</script>');
-          iframeDocument.close();
-          createDict = iframeDocument.F;
-          while(i--)delete createDict[PROTOTYPE][slyKeys1[i]];
-          return createDict();
-        }
-    , createGetKeys = function(names, length, isNames){
-        return function(object){
-          var O      = ES5Object(object)
-            , i      = 0
-            , result = []
-            , key;
-          for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
-          // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          if(dontEnumBug || isNames)while(length > i)if(has(O, key = names[i++])){
-            ~indexOf.call(result, key) || result.push(key);
-          }
-          return result;
-        }
-      };
-  if(!DESCRIPTORS){
+// ECMAScript 5 shim
+!function(IS_ENUMERABLE, Empty, _classof, $PROTO){
+  var whitespace = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004' +
+                   '\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    // For fix IE 8- don't enum bug
+    , keys1 = [CONSTRUCTOR, HAS_OWN, 'isPrototypeOf', IS_ENUMERABLE, TO_LOCALE, TO_STRING, 'valueOf']
+    , keys2 = keys1.concat('length', PROTOTYPE)
+    , keysLen1 = keys1.length;
+  
+  if(!DESC){
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!isEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -71,7 +29,7 @@
       return O;
     };
   }
-  $define(STATIC + FORCED * !DESCRIPTORS, OBJECT, {
+  $define(STATIC + FORCED * !DESC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -79,34 +37,67 @@
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
   });
+  
+  // Create object with `null` prototype
+  function createDict(){
+    // Thrash, waste and sodomy
+    var iframe = document[CREATE_ELEMENT]('iframe')
+      , i      = keysLen1
+      , iframeDocument;
+    iframe.style.display = 'none';
+    html.appendChild(iframe);
+    iframe.src = 'javascript:';
+    // createDict = iframe.contentWindow.Object;
+    // html.removeChild(iframe);
+    iframeDocument = iframe.contentWindow.document;
+    iframeDocument.open();
+    iframeDocument.write('<script>document.F=Object</script>');
+    iframeDocument.close();
+    createDict = iframeDocument.F;
+    while(i--)delete createDict[PROTOTYPE][keys1[i]];
+    return createDict();
+  }
+  function createGetKeys(names, length, isNames){
+    return function(object){
+      var O      = ES5Object(object)
+        , i      = 0
+        , result = []
+        , key;
+      for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
+      // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+      while(length > i)if(has(O, key = names[i++])){
+        ~indexOf.call(result, key) || result.push(key);
+      }
+      return result;
+    }
+  }
   $define(STATIC, OBJECT, {
-    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
-      assertObject(O);
-      if(has(O, $PROTO))return O[$PROTO];
-      if(__PROTO__ && '__proto__' in O)return O.__proto__;
-      if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
-      if(O instanceof Object)return ObjectProto;
-      return null;
+      if(has(assertObject(O), $PROTO))return O[$PROTO];
+      if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
+        return O[CONSTRUCTOR][PROTOTYPE];
+      } return O instanceof Object ? ObjectProto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || (ownKeys = createGetKeys(slyKeys2, slyKeys2.length, true)),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(keys2, keys2.length, true),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
-      if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
-      Empty[PROTOTYPE] = assertObject(O);
-      var result = new Empty();
-      Empty[PROTOTYPE] = null;
-      if(Properties)defineProperties(result, Properties);
-      // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
-      return result;
+      var result
+      if(O !== null){
+        Empty[PROTOTYPE] = assertObject(O);
+        result = new Empty();
+        Empty[PROTOTYPE] = null;
+        // add "__proto__" for Object.getPrototypeOf shim
+        result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
+      } else result = createDict();
+      return Properties === undefined ? result : defineProperties(result, Properties);
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1, false)
+    keys: getKeys = getKeys || createGetKeys(keys1, keysLen1, false)
   });
   
-  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
   $define(PROTO, FUNCTION, {
     bind: function(that /*, args... */){
       var fn       = assertFunction(this)
@@ -172,15 +163,15 @@
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach = forEach || createArrayMethod(0),
     // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-    map:         createArrayMethod(1),
+    map: createArrayMethod(1),
     // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-    filter:      createArrayMethod(2),
+    filter: createArrayMethod(2),
     // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-    some:        createArrayMethod(3),
+    some: createArrayMethod(3),
     // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-    every:       createArrayMethod(4),
+    every: createArrayMethod(4),
     // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
-    reduce:      createArrayReduce(false),
+    reduce: createArrayReduce(false),
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
@@ -214,4 +205,4 @@
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}();
+}('propertyIsEnumerable', Function(), classof, symbol(PROTOTYPE));

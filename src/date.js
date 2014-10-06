@@ -8,21 +8,21 @@
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
-          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
-          case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
-          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 00-59
-          case 'h'    : return get(HOURS);                                      // Hours        : 0-23
-          case 'hh'   : return lz(get(HOURS));                                  // Hours        : 00-23
-          case 'D'    : return get(DATE)                                        // Date         : 1-31
-          case 'DD'   : return lz(get(DATE));                                   // Date         : 01-31
-          case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
-          case 'M'    : return get(MONTH) + 1;                                  // Month        : 1-12
-          case 'MM'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
-          case 'MMM'  : return dict.M[get(MONTH)];                              // Month        : Январь
-          case 'MMMM' : return dict.MM[get(MONTH)];                             // Month        : Января
-          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
-          case 'YYYY' : return get(YEAR);                                       // Year         : 2014
+          case 's'    : return get(SECONDS);                // Seconds      : 0-59
+          case 'ss'   : return lz(get(SECONDS));            // Seconds      : 00-59
+          case 'm'    : return get(MINUTES);                // Minutes      : 0-59
+          case 'mm'   : return lz(get(MINUTES));            // Minutes      : 00-59
+          case 'h'    : return get(HOURS);                  // Hours        : 0-23
+          case 'hh'   : return lz(get(HOURS));              // Hours        : 00-23
+          case 'D'    : return get(DATE)                    // Date         : 1-31
+          case 'DD'   : return lz(get(DATE));               // Date         : 01-31
+          case 'W'    : return dict.W[get('Day')];          // Day          : Понедельник
+          case 'M'    : return get(MONTH) + 1;              // Month        : 1-12
+          case 'MM'   : return lz(get(MONTH) + 1);          // Month        : 01-12
+          case 'MMM'  : return dict.M[get(MONTH)];          // Month        : Январь
+          case 'MMMM' : return dict.MM[get(MONTH)];         // Month        : Января
+          case 'YY'   : return lz(get(YEAR) % 100);         // Year         : 14
+          case 'YYYY' : return get(YEAR);                   // Year         : 2014
         } return part;
       });
     }
@@ -49,11 +49,12 @@
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    months:   'January,February,March,April,May,June,July,August,September,October,November,December'
+    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
   });
   addLocale('ru', {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
+    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,' +
+            'Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
   core.locale = function(locale){
     return has(locales, locale) ? current = locale : current;

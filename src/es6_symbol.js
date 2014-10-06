@@ -1,8 +1,4 @@
-/**
- * ECMAScript 6 Symbol
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- */
+// ECMAScript 6 symbols shim
 !function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){

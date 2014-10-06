@@ -32,6 +32,7 @@ var global          = returnThis()
   , CONSTRUCTOR     = 'constructor'
   , TO_STRING       = 'toString'
   , TO_LOCALE       = 'toLocaleString'
+  , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
@@ -78,10 +79,11 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = ObjectProto[TO_STRING]
-  , buildIn  = {Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1, Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1}
-    // define in es6_symbol module
-  , TOSTRINGTAG;
+var toString = ObjectProto[TO_STRING];
+var buildIn  = {
+  Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
+  Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
+}, TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
   if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
@@ -171,12 +173,10 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
-  , ownKeys          = getSymbols ? function(it){
-      return getNames(it).concat(getSymbols(it));
-    } : getNames
-  , isEnumerable     = ObjectProto.propertyIsEnumerable
-  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
-  , __PROTO__        = '__proto__' in ObjectProto
+  , ownKeys          = function(it){
+      return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
+    }
+  , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
@@ -291,7 +291,8 @@ function turn(mapfn, target /* = [] */){
   return memo;
 }
 function generic(A, B){
-  return typeof A == 'function' ? A : B; // strange IE quirks mode bug -> use typeof vs isFunction
+  // strange IE quirks mode bug -> use typeof vs isFunction
+  return typeof A == 'function' ? A : B;
 }
 
 // Math
@@ -363,7 +364,7 @@ function simpleSet(object, key, value){
   return object;
 }
 function createDefiner(bitmap){
-  return DESCRIPTORS ? function(object, key, value){
+  return DESC ? function(object, key, value){
     return defineProperty(object, key, descriptor(bitmap, value));
   } : simpleSet;
 }
@@ -371,11 +372,11 @@ function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESCRIPTORS = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
-  , sid         = 0
-  , hidden      = createDefiner(1)
-  , symbol      = Symbol || uid
-  , set         = Symbol ? simpleSet : hidden;
+var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
+  , sid    = 0
+  , hidden = createDefiner(1)
+  , symbol = Symbol || uid
+  , set    = Symbol ? simpleSet : hidden;
 
 // Collections & iterators variables, define in over modules
 var ITERATOR
@@ -391,7 +392,7 @@ var html = document && document.documentElement;
 // core
 var NODE   = cof(process) == PROCESS
   , REQJS  = isFunction(define) && define.amd
-  , old
+  , old    = global.core
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -402,12 +403,14 @@ var NODE   = cof(process) == PROCESS
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC) ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
+    , target   = isGlobal ? global : (type & STATIC)
+        ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
     // there is a similar native
-    own = !(type & FORCED) && target && key in target && (!isFunction(target[key]) || isNative(target[key]));
+    own = !(type & FORCED) && target && key in target
+      && (!isFunction(target[key]) || isNative(target[key]));
     // export native or passed
     out = (own ? target : source)[key];
     // bind timers to global for call from export context
@@ -431,7 +434,6 @@ if(NODE)module.exports = core;
 if(REQJS)define(function(){return core});
 // Export to global object
 if(!NODE && !REQJS || framework){
-  old = global.core;
   core.noConflict = function(){
     global.core = old;
     return core;
@@ -443,60 +445,18 @@ if(!NODE && !REQJS || framework){
  * Module : es5                                                               *
  ******************************************************************************/
 
-/**
- * ECMAScript 5 shim
- * http://es5.github.io/
- */
-!function(){
-  var Empty       = Function()
-    , _classof    = classof
-    , whitespace  = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
-    // For fix IE 8- don't enum bug https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
-    , slyKeys1    = array(TO_STRING + ',toLocaleString,valueOf,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' + CONSTRUCTOR)
-    , slyKeys2    = slyKeys1.concat(PROTOTYPE, 'length')
-    , slyKeysLen1 = slyKeys1.length
-    , dontEnumBug = !isEnumerable.call({toString: undefined}, TO_STRING)
-    , $PROTO      = symbol(PROTOTYPE)
-    // Create object with null prototype
-    , createDict  = __PROTO__
-      ? function(){
-          return {__proto__: null};
-        }
-      : function(){
-          // Thrash, waste and sodomy
-          var iframe = document[CREATE_ELEMENT]('iframe')
-            , i      = slyKeysLen1
-            , iframeDocument;
-          iframe.style.display = 'none';
-          html.appendChild(iframe);
-          iframe.src = 'javascript:';
-          // createDict = iframe.contentWindow.Object;
-          // html.removeChild(iframe);
-          iframeDocument = iframe.contentWindow.document;
-          iframeDocument.open();
-          iframeDocument.write('<script>document.F=Object</script>');
-          iframeDocument.close();
-          createDict = iframeDocument.F;
-          while(i--)delete createDict[PROTOTYPE][slyKeys1[i]];
-          return createDict();
-        }
-    , createGetKeys = function(names, length, isNames){
-        return function(object){
-          var O      = ES5Object(object)
-            , i      = 0
-            , result = []
-            , key;
-          for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
-          // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
-          if(dontEnumBug || isNames)while(length > i)if(has(O, key = names[i++])){
-            ~indexOf.call(result, key) || result.push(key);
-          }
-          return result;
-        }
-      };
-  if(!DESCRIPTORS){
+// ECMAScript 5 shim
+!function(IS_ENUMERABLE, Empty, _classof, $PROTO){
+  var whitespace = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004' +
+                   '\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    // For fix IE 8- don't enum bug
+    , keys1 = [CONSTRUCTOR, HAS_OWN, 'isPrototypeOf', IS_ENUMERABLE, TO_LOCALE, TO_STRING, 'valueOf']
+    , keys2 = keys1.concat('length', PROTOTYPE)
+    , keysLen1 = keys1.length;
+  
+  if(!DESC){
     getOwnDescriptor = function(O, P){
-      if(has(O, P))return descriptor(!isEnumerable.call(O, P), O[P]);
+      if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
     };
     defineProperty = function(O, P, Attributes){
       if('value' in Attributes)assertObject(O)[P] = Attributes.value;
@@ -516,7 +476,7 @@ if(!NODE && !REQJS || framework){
       return O;
     };
   }
-  $define(STATIC + FORCED * !DESCRIPTORS, OBJECT, {
+  $define(STATIC + FORCED * !DESC, OBJECT, {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -524,34 +484,67 @@ if(!NODE && !REQJS || framework){
     // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
     defineProperties: defineProperties
   });
+  
+  // Create object with `null` prototype
+  function createDict(){
+    // Thrash, waste and sodomy
+    var iframe = document[CREATE_ELEMENT]('iframe')
+      , i      = keysLen1
+      , iframeDocument;
+    iframe.style.display = 'none';
+    html.appendChild(iframe);
+    iframe.src = 'javascript:';
+    // createDict = iframe.contentWindow.Object;
+    // html.removeChild(iframe);
+    iframeDocument = iframe.contentWindow.document;
+    iframeDocument.open();
+    iframeDocument.write('<script>document.F=Object</script>');
+    iframeDocument.close();
+    createDict = iframeDocument.F;
+    while(i--)delete createDict[PROTOTYPE][keys1[i]];
+    return createDict();
+  }
+  function createGetKeys(names, length, isNames){
+    return function(object){
+      var O      = ES5Object(object)
+        , i      = 0
+        , result = []
+        , key;
+      for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
+      // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+      while(length > i)if(has(O, key = names[i++])){
+        ~indexOf.call(result, key) || result.push(key);
+      }
+      return result;
+    }
+  }
   $define(STATIC, OBJECT, {
-    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O) 
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
-      assertObject(O);
-      if(has(O, $PROTO))return O[$PROTO];
-      if(__PROTO__ && '__proto__' in O)return O.__proto__;
-      if(isFunction(O[CONSTRUCTOR]) && O != O[CONSTRUCTOR][PROTOTYPE])return O[CONSTRUCTOR][PROTOTYPE];
-      if(O instanceof Object)return ObjectProto;
-      return null;
+      if(has(assertObject(O), $PROTO))return O[$PROTO];
+      if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
+        return O[CONSTRUCTOR][PROTOTYPE];
+      } return O instanceof Object ? ObjectProto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-    getOwnPropertyNames: getNames = getNames || (ownKeys = createGetKeys(slyKeys2, slyKeys2.length, true)),
+    getOwnPropertyNames: getNames = getNames || createGetKeys(keys2, keys2.length, true),
     // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
     create: create = create || function(O, /*?*/Properties){
-      if(O === null)return Properties ? defineProperties(createDict(), Properties) : createDict();
-      Empty[PROTOTYPE] = assertObject(O);
-      var result = new Empty();
-      Empty[PROTOTYPE] = null;
-      if(Properties)defineProperties(result, Properties);
-      // add __proto__ for Object.getPrototypeOf shim
-      __PROTO__ || result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
-      return result;
+      var result
+      if(O !== null){
+        Empty[PROTOTYPE] = assertObject(O);
+        result = new Empty();
+        Empty[PROTOTYPE] = null;
+        // add "__proto__" for Object.getPrototypeOf shim
+        result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
+      } else result = createDict();
+      return Properties === undefined ? result : defineProperties(result, Properties);
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(slyKeys1, slyKeysLen1, false)
+    keys: getKeys = getKeys || createGetKeys(keys1, keysLen1, false)
   });
   
-  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg [, arg1 [, arg2, …]]) 
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
   $define(PROTO, FUNCTION, {
     bind: function(that /*, args... */){
       var fn       = assertFunction(this)
@@ -617,15 +610,15 @@ if(!NODE && !REQJS || framework){
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach = forEach || createArrayMethod(0),
     // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-    map:         createArrayMethod(1),
+    map: createArrayMethod(1),
     // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-    filter:      createArrayMethod(2),
+    filter: createArrayMethod(2),
     // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-    some:        createArrayMethod(3),
+    some: createArrayMethod(3),
     // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-    every:       createArrayMethod(4),
+    every: createArrayMethod(4),
     // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
-    reduce:      createArrayReduce(false),
+    reduce: createArrayReduce(false),
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
@@ -659,7 +652,7 @@ if(!NODE && !REQJS || framework){
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}();
+}('propertyIsEnumerable', Function(), classof, symbol(PROTOTYPE));
 
 /******************************************************************************
  * Module : global                                                            *
@@ -671,11 +664,7 @@ $define(GLOBAL, {global: global});
  * Module : es6_symbol                                                        *
  ******************************************************************************/
 
-/**
- * ECMAScript 6 Symbol
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-symbol-objects
- */
+// ECMAScript 6 symbols shim
 !function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
@@ -726,15 +715,10 @@ $define(GLOBAL, {global: global});
  * Module : es6                                                               *
  ******************************************************************************/
 
-/**
- * ECMAScript 6 shim
- * http://people.mozilla.org/~jorendorff/es6-draft.html
- */
+// ECMAScript 6 shim
 !function(isFinite){
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
-    // The assign function is used to copy the values of all of the enumerable
-    // own properties from a source object to a target object.
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
     is: function(x, y){
@@ -743,7 +727,7 @@ $define(GLOBAL, {global: global});
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && function(set){
+  '__proto__' in ObjectProto && function(set){
     var buggy;
     try { set({}, ArrayProto) }
     catch(e){ buggy = true }
@@ -956,7 +940,7 @@ $define(GLOBAL, {global: global});
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-    find:      createArrayMethod(5),
+    find: createArrayMethod(5),
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });
@@ -968,11 +952,7 @@ $define(GLOBAL, {global: global});
  * Module : immediate                                                         *
  ******************************************************************************/
 
-/**
- * setImmediate
- * https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
- * http://nodejs.org/api/timers.html#timers_setimmediate_callback_arg
- */
+// setImmediate shim
 // Node.js 0.9+ & IE10+ has setImmediate, else:
 isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATECHANGE){
   var postMessage      = global.postMessage
@@ -1045,12 +1025,8 @@ $define(GLOBAL + BIND, {
  * Module : es6_promise                                                       *
  ******************************************************************************/
 
-/**
- * ES6 Promises
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
- * https://github.com/domenic/promises-unwrapping
- * Based on https://github.com/getify/native-promise-only/
- */
+// ES6 promises shim
+// Based on https://github.com/getify/native-promise-only/
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(Function())) == test
@@ -1176,9 +1152,10 @@ $define(GLOBAL + BIND, {
     });
     // 25.4.4.6 Promise.resolve(x)
     hidden(Promise, 'resolve', function(x){
-      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
-        resolve(x);
-      });
+      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
+        ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
     });
   }(nextTick || setImmediate, symbol('def'));
   setToStringTag(Promise, PROMISE);
@@ -1189,10 +1166,7 @@ $define(GLOBAL + BIND, {
  * Module : es6_collections                                                   *
  ******************************************************************************/
 
-/**
- * ECMAScript 6 collection polyfill
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-keyed-collection
- */
+// ECMAScript 6 collections shim
 !function(){
   SHIM = symbol('shim');
   var KEYS     = COLLECTION_KEYS = symbol('keys')
@@ -1200,7 +1174,7 @@ $define(GLOBAL + BIND, {
     , STOREID  = symbol('storeId')
     , WEAKDATA = symbol('weakData')
     , WEAKID   = symbol('weakId')
-    , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
+    , SIZE     = DESC ? symbol('size') : 'size'
     , uid      = 0
     , wid      = 0;
   
@@ -1393,6 +1367,7 @@ $define(GLOBAL + BIND, {
  * Module : es6_iterators                                                     *
  ******************************************************************************/
 
+// ECMAScript 6 iterators shim
 !function($$ITERATOR){
   var FFITERATOR = $$ITERATOR in ArrayProto
     , KEY        = 1
@@ -1675,15 +1650,11 @@ $define(GLOBAL + BIND, {
  * Module : timers                                                            *
  ******************************************************************************/
 
-/**
- * ie9- setTimeout & setInterval additional parameters fix
- * http://www.w3.org/TR/html5/webappapis.html#timers
- * http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers
- */
+// ie9- setTimeout & setInterval additional parameters fix
 !function(MSIE){
   function wrap(set){
     return MSIE ? function(fn, time /*, ...args */){
-      return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time || 1);
+      return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time);
     } : set;
   }
   $define(GLOBAL + BIND + FORCED * MSIE, {
@@ -1745,8 +1716,8 @@ $define(GLOBAL + BIND, {
   });
   
   hidden(ObjectProto, _, tie);
-  DESCRIPTORS || hidden(ArrayProto, _, tie);
-}(DESCRIPTORS ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
+  DESC || hidden(ArrayProto, _, tie);
+}(DESC ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
 
 /******************************************************************************
  * Module : object                                                            *
@@ -1821,7 +1792,8 @@ $define(PROTO + FORCED, ARRAY, {
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
   setArrayStatics('get,delete', 2);
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
-  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,reduce,reduceRight,fill,turn');
+  setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
+                  'lastIndexOf,reduce,reduceRight,fill,turn');
 }();
 
 /******************************************************************************
@@ -1909,21 +1881,21 @@ $define(STATIC, REGEXP, {
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 's'    : return get(SECONDS);                                    // Seconds      : 0-59
-          case 'ss'   : return lz(get(SECONDS));                                // Seconds      : 00-59
-          case 'm'    : return get(MINUTES);                                    // Minutes      : 0-59
-          case 'mm'   : return lz(get(MINUTES));                                // Minutes      : 00-59
-          case 'h'    : return get(HOURS);                                      // Hours        : 0-23
-          case 'hh'   : return lz(get(HOURS));                                  // Hours        : 00-23
-          case 'D'    : return get(DATE)                                        // Date         : 1-31
-          case 'DD'   : return lz(get(DATE));                                   // Date         : 01-31
-          case 'W'    : return dict.W[get('Day')];                              // Day          : Понедельник
-          case 'M'    : return get(MONTH) + 1;                                  // Month        : 1-12
-          case 'MM'   : return lz(get(MONTH) + 1);                              // Month        : 01-12
-          case 'MMM'  : return dict.M[get(MONTH)];                              // Month        : Январь
-          case 'MMMM' : return dict.MM[get(MONTH)];                             // Month        : Января
-          case 'YY'   : return lz(get(YEAR) % 100);                             // Year         : 14
-          case 'YYYY' : return get(YEAR);                                       // Year         : 2014
+          case 's'    : return get(SECONDS);                // Seconds      : 0-59
+          case 'ss'   : return lz(get(SECONDS));            // Seconds      : 00-59
+          case 'm'    : return get(MINUTES);                // Minutes      : 0-59
+          case 'mm'   : return lz(get(MINUTES));            // Minutes      : 00-59
+          case 'h'    : return get(HOURS);                  // Hours        : 0-23
+          case 'hh'   : return lz(get(HOURS));              // Hours        : 00-23
+          case 'D'    : return get(DATE)                    // Date         : 1-31
+          case 'DD'   : return lz(get(DATE));               // Date         : 01-31
+          case 'W'    : return dict.W[get('Day')];          // Day          : Понедельник
+          case 'M'    : return get(MONTH) + 1;              // Month        : 1-12
+          case 'MM'   : return lz(get(MONTH) + 1);          // Month        : 01-12
+          case 'MMM'  : return dict.M[get(MONTH)];          // Month        : Январь
+          case 'MMMM' : return dict.MM[get(MONTH)];         // Month        : Января
+          case 'YY'   : return lz(get(YEAR) % 100);         // Year         : 14
+          case 'YYYY' : return get(YEAR);                   // Year         : 2014
         } return part;
       });
     }
@@ -1950,11 +1922,12 @@ $define(STATIC, REGEXP, {
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    months:   'January,February,March,April,May,June,July,August,September,October,November,December'
+    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
   });
   addLocale('ru', {
     weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    months:   'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
+    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,' +
+            'Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
   core.locale = function(locale){
     return has(locales, locale) ? current = locale : current;

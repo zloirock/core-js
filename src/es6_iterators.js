@@ -1,3 +1,4 @@
+// ECMAScript 6 iterators shim
 !function($$ITERATOR){
   var FFITERATOR = $$ITERATOR in ArrayProto
     , KEY        = 1

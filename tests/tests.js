@@ -708,9 +708,9 @@
     fn = function(b, c){
       return this.a + b + c;
     };
-    ok(fn.by(o, '2')('3'), '123');
-    ok(fn.by($)(o, '2', '3'), '123');
-    ok(fn.by($, '2')(o, '3'), '123');
+    ok(fn.by(o, '2')('3') === '123');
+    ok(fn.by($)(o, '2', '3') === '123');
+    ok(fn.by($, '2')(o, '3') === '123');
   });
   test('Function::part', function(){
     var obj, $, fn, part;

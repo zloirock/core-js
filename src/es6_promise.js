@@ -1,9 +1,5 @@
-/**
- * ES6 Promises
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects
- * https://github.com/domenic/promises-unwrapping
- * Based on https://github.com/getify/native-promise-only/
- */
+// ES6 promises shim
+// Based on https://github.com/getify/native-promise-only/
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(Function())) == test
@@ -129,9 +125,10 @@
     });
     // 25.4.4.6 Promise.resolve(x)
     hidden(Promise, 'resolve', function(x){
-      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE] ? x : new this(function(resolve, reject){
-        resolve(x);
-      });
+      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
+        ? x : new this(function(resolve, reject){
+          resolve(x);
+        });
     });
   }(nextTick || setImmediate, symbol('def'));
   setToStringTag(Promise, PROMISE);

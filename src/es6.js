@@ -1,12 +1,7 @@
-/**
- * ECMAScript 6 shim
- * http://people.mozilla.org/~jorendorff/es6-draft.html
- */
+// ECMAScript 6 shim
 !function(isFinite){
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
-    // The assign function is used to copy the values of all of the enumerable
-    // own properties from a source object to a target object.
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
     is: function(x, y){
@@ -15,7 +10,7 @@
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  __PROTO__ && function(set){
+  '__proto__' in ObjectProto && function(set){
     var buggy;
     try { set({}, ArrayProto) }
     catch(e){ buggy = true }
@@ -228,7 +223,7 @@
       return this;
     },
     // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-    find:      createArrayMethod(5),
+    find: createArrayMethod(5),
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });

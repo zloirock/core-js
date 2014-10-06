@@ -1,7 +1,4 @@
-/**
- * ECMAScript 6 collection polyfill
- * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-keyed-collection
- */
+// ECMAScript 6 collections shim
 !function(){
   SHIM = symbol('shim');
   var KEYS     = COLLECTION_KEYS = symbol('keys')
@@ -9,7 +6,7 @@
     , STOREID  = symbol('storeId')
     , WEAKDATA = symbol('weakData')
     , WEAKID   = symbol('weakId')
-    , SIZE     = DESCRIPTORS ? symbol('size') : 'size'
+    , SIZE     = DESC ? symbol('size') : 'size'
     , uid      = 0
     , wid      = 0;
   

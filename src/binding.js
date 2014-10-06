@@ -46,5 +46,5 @@
   });
   
   hidden(ObjectProto, _, tie);
-  DESCRIPTORS || hidden(ArrayProto, _, tie);
-}(DESCRIPTORS ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
+  DESC || hidden(ArrayProto, _, tie);
+}(DESC ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
