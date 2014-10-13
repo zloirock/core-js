@@ -64,9 +64,6 @@ Array
   ::entries() -> iterator (entries)                                   es6
   ::@@iterator() -> iterator                                          es6
   ::contains(var, from?) -> bool                                      es7
-  ::get(index) -> var                                                 core
-  ::set(index, value) -> @                                            core
-  ::delete(index) -> bool                                             core
   ::turn(fn(memo, val, key, @), memo = []) -> memo                    core
 [new] Dict(itarable (entries) | object ?) -> dict                     core
   .isDict(var) -> bool                                                core
@@ -127,7 +124,6 @@ String
   ::@@iterator() -> iterator                                          es6 sham
   ::escapeHTML() -> str                                               core
   ::unescapeHTML() -> str                                             core
-  ::get(index) -> char                                                core
 RegExp
   .escape(str) -> str                                                 es7
 Number
