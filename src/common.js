@@ -72,7 +72,7 @@ var buildIn  = {
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
 }, TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
-  if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TOSTRINGTAG && it)hidden(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined

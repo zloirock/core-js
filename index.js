@@ -8,7 +8,7 @@
 'use strict';
 
 /******************************************************************************
- * Module : core                                                              *
+ * Module : common                                                            *
  ******************************************************************************/
 
 var global          = returnThis()
@@ -85,7 +85,7 @@ var buildIn  = {
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
 }, TOSTRINGTAG;
 function setToStringTag(it, tag, stat){
-  if(TOSTRINGTAG && it)set(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TOSTRINGTAG && it)hidden(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -497,7 +497,7 @@ if(!NODE && !REQJS || framework){
  ******************************************************************************/
 
 // ECMAScript 6 shim
-!function(isFinite){
+!function(isFinite, tmp){
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -727,7 +727,15 @@ if(!NODE && !REQJS || framework){
   });
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
-}(isFinite);
+  
+  // 19.1.3.6 Object.prototype.toString()
+  if(framework && TOSTRINGTAG){
+    tmp[TOSTRINGTAG] = 'x';
+    if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
+      return '[object ' + classof(this) + ']';
+    });
+  }
+}(isFinite, {});
 
 /******************************************************************************
  * Module : immediate                                                         *
@@ -1513,25 +1521,6 @@ $define(PROTO, ARRAY, {
   contains: createArrayContains(true)
 });
 $define(PROTO + FORCED, ARRAY, {
-  /**
-   * Alternatives:
-   * http://sugarjs.com/api/Array/at
-   * With Proxy: http://www.h3manth.com/new/blog/2013/negative-array-index-in-javascript/
-   */
-  get: function(index){
-    var O = ES5Object(this);
-    return O[getPositiveIndex(O, index)];
-  },
-  set: function(index, value){
-    this[getPositiveIndex(this, index)] = value;
-    return this;
-  },
-  'delete': function(index){
-    var index = getPositiveIndex(this, index);
-    if(index >= this.length || index < 0)return false;
-    splice.call(this, index, 1);
-    return true;
-  },
   turn: turn
 });
 
@@ -1539,10 +1528,7 @@ $define(PROTO + FORCED, ARRAY, {
  * Module : array_statics                                                     *
  ******************************************************************************/
 
-/**
- * Strawman: http://wiki.ecmascript.org/doku.php?id=strawman:array_statics
- * JavaScript 1.6: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods
- */
+// JavaScript 1.6 / Strawman array statics shim
 !function(){
   function setArrayStatics(keys, length){
     $define(STATIC, ARRAY, turn.call(
@@ -1553,8 +1539,7 @@ $define(PROTO + FORCED, ARRAY, {
     ));
   }
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
-  setArrayStatics('get,delete', 2);
-  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains,set', 3);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
                   'lastIndexOf,reduce,reduceRight,fill,turn');
 }();
@@ -1593,7 +1578,7 @@ $define(PROTO + FORCED, NUMBER, turn.call(
   function(memo, key){
     var fn = Math[key];
     if(fn)memo[key] = function(/* ...args */){
-      // ie8- convert `this` to object -> convert it to number
+      // ie9- dont support strict mode & convert `this` to object -> convert it to number
       var args = [+this]
         , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
@@ -1702,6 +1687,7 @@ $define(STATIC, REGEXP, {
  * Module : console                                                           *
  ******************************************************************************/
 
+// console cap
 !function(console){
   var $console = turn.call(
     /**
@@ -1709,9 +1695,9 @@ $define(STATIC, REGEXP, {
      * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
      * https://developer.mozilla.org/en-US/docs/Web/API/console
      */
-    array('assert,count,clear,debug,dir,dirxml,error,exception,' +
-      'group,groupCollapsed,groupEnd,info,log,table,trace,warn,' +
-      'markTimeline,profile,profileEnd,time,timeEnd,timeStamp'),
+    array('assert,clear,count,debug,dir,dirxml,error,exception,group,groupCollapsed,' +
+      'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
+      'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
       var fn = console[key];
       memo[key] = function(){

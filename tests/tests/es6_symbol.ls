@@ -50,6 +50,6 @@ test 'Reflect.ownKeys' !->
   ok O1[keys.0] is 1, 'ownKeys return all own keys: simple'
   ok O1[keys.1] is 2, 'ownKeys return all own keys: hidden'
   ok O1[keys.2] is 3, 'ownKeys return all own keys: symbol'
-  O2 = create O1
+  O2 = ^^O1
   keys = Reflect.ownKeys O2
   ok keys.length is 0, 'ownKeys return only own keys'

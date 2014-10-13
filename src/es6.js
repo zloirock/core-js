@@ -1,5 +1,5 @@
 // ECMAScript 6 shim
-!function(isFinite){
+!function(isFinite, tmp){
   $define(STATIC, OBJECT, {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -229,4 +229,12 @@
   });
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
-}(isFinite);
+  
+  // 19.1.3.6 Object.prototype.toString()
+  if(framework && TOSTRINGTAG){
+    tmp[TOSTRINGTAG] = 'x';
+    if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
+      return '[object ' + classof(this) + ']';
+    });
+  }
+}(isFinite, {});

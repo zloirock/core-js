@@ -28,7 +28,7 @@ $define(PROTO + FORCED, NUMBER, turn.call(
   function(memo, key){
     var fn = Math[key];
     if(fn)memo[key] = function(/* ...args */){
-      // ie8- convert `this` to object -> convert it to number
+      // ie9- dont support strict mode & convert `this` to object -> convert it to number
       var args = [+this]
         , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);

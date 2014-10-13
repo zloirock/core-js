@@ -33,6 +33,7 @@ Object
   .classof(var) -> string                                             core
   .define(target, mixin) -> &0                                        core
   .make(proto | null, mixin?, withDescriptors = false) -> object      core
+  ::toString()                                                        es6
   ::[_](key) -> boundFn                                               core
 Function
   ::bind(object, ...args | _) -> boundFn(...args)                     es5
@@ -126,6 +127,7 @@ String
   ::@@iterator() -> iterator                                          es6 sham
   ::escapeHTML() -> str                                               core
   ::unescapeHTML() -> str                                             core
+  ::get(index) -> char                                                core
 RegExp
   .escape(str) -> str                                                 es7
 Number

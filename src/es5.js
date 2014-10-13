@@ -63,7 +63,7 @@
         , i      = 0
         , result = []
         , key;
-      for(key in O)(key !== $PROTO) && has(O, key) && result.push(key);
+      for(key in O)if(key != $PROTO)has(O, key) && result.push(key);
       // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
       while(length > i)if(has(O, key = names[i++])){
         ~indexOf.call(result, key) || result.push(key);
