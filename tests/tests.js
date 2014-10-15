@@ -827,18 +827,18 @@
       months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
     });
     ok(locale('zz') === 'zz');
-    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MMMM YYYY') === 'Воскресенье, 3 Марта 1901');
+    ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MM Y') === 'Воскресенье, 3 Марта 1901');
   });
   test('::format', function(){
     var locale, date;
     locale = core.locale;
     ok(isFunction(Date.prototype.format), 'Is function');
     date = new Date(1, 2, 3, 4, 5, 6, 7);
-    ok(date.format('DD.MM.YYYY') === '03.03.1901', 'Works basic');
+    ok(date.format('DD.NN.Y') === '03.03.1901', 'Works basic');
     locale('en');
-    ok(date.format('s ss m mm h hh D DD W M MM MMM MMMM YY foo YYYY') === '6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
+    ok(date.format('s ss m mm h hh D DD W N NN M MM YY foo Y') === '6 06 5 05 4 04 3 03 Sunday 3 03 March March 01 foo 1901', 'Works with defaut locale');
     locale('ru');
-    ok(date.format('s ss m mm h hh D DD W M MM MMM MMMM YY foo YYYY') === '6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
+    ok(date.format('s ss m mm h hh D DD W N NN M MM YY foo Y') === '6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
   });
   test('::formatUTC', function(){
     var date;

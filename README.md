@@ -33,7 +33,7 @@ Object
   .classof(var) -> string                                             core
   .define(target, mixin) -> &0                                        core
   .make(proto | null, mixin?, withDescriptors = false) -> object      core
-  ::toString()                                                        es6
+  ::toString()                                                        es6 fix
   ::[_](key) -> boundFn                                               core
 Function
   ::bind(object, ...args | _) -> boundFn(...args)                     es5
@@ -45,8 +45,8 @@ Array
   .from(iterable | array-like, fn(val, key, @)?, that) -> array       es6
   .of(...args) -> array                                               es6
   .{...Array::}                                                       js1.6
-  ::slice(start?, end?) -> array                                      es5
-  ::join(string = ',') -> string                                      es5
+  ::slice(start?, end?) -> array                                      es5 fix
+  ::join(string = ',') -> string                                      es5 fix
   ::indexOf(var, from?) -> int                                        es5
   ::lastIndexOf(var, from?) -> int                                    es5
   ::every(fn(val, key, @), that) -> bool                              es5
@@ -176,8 +176,8 @@ new Promise(resolver(resolve(var), reject(var))) -> promise           es6
   .reject(var) -> promise                                             es6
   .all(iterable) -> promise                                           es6
   .race(iterable) -> promise                                          es6
-setTimeout(fn(...args), time, ...args) -> id                          w3c / whatwg
-setInterval(fn(...args), time, ...args) -> id                         w3c / whatwg
+setTimeout(fn(...args), time, ...args) -> id                          w3c / whatwg fix
+setInterval(fn(...args), time, ...args) -> id                         w3c / whatwg fix
 setImmediate(fn(...args), ...args) -> id                              w3c / whatwg
 clearImmediate(id) -> void                                            w3c / whatwg
 console(...args) -> void                                              core

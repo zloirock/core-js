@@ -1476,8 +1476,8 @@ $define(GLOBAL + BIND, {
   
   function tie(key){
     var that = this, bound;
-    if(key === undefined)return toLocaleString.call(that);
-    if(!has(that, BOUND))hidden(that, BOUND, {});
+    if(key === undefined || !(key in that))return toLocaleString.call(that);
+    has(that, BOUND) || hidden(that, BOUND, {});
     bound = that[BOUND];
     return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
   }
@@ -1488,6 +1488,7 @@ $define(GLOBAL + BIND, {
   
   hidden(ObjectProto, _, tie);
   DESC || hidden(ArrayProto, _, tie);
+  // IE8- dirty hack - redefined toLocaleString is not enumerable
 }(DESC ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
 
 /******************************************************************************
@@ -1629,21 +1630,21 @@ $define(STATIC, REGEXP, {
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
-          case 's'    : return get(SECONDS);                // Seconds      : 0-59
-          case 'ss'   : return lz(get(SECONDS));            // Seconds      : 00-59
-          case 'm'    : return get(MINUTES);                // Minutes      : 0-59
-          case 'mm'   : return lz(get(MINUTES));            // Minutes      : 00-59
-          case 'h'    : return get(HOURS);                  // Hours        : 0-23
-          case 'hh'   : return lz(get(HOURS));              // Hours        : 00-23
-          case 'D'    : return get(DATE)                    // Date         : 1-31
-          case 'DD'   : return lz(get(DATE));               // Date         : 01-31
-          case 'W'    : return dict.W[get('Day')];          // Day          : Понедельник
-          case 'M'    : return get(MONTH) + 1;              // Month        : 1-12
-          case 'MM'   : return lz(get(MONTH) + 1);          // Month        : 01-12
-          case 'MMM'  : return dict.M[get(MONTH)];          // Month        : Январь
-          case 'MMMM' : return dict.MM[get(MONTH)];         // Month        : Января
-          case 'YY'   : return lz(get(YEAR) % 100);         // Year         : 14
-          case 'YYYY' : return get(YEAR);                   // Year         : 2014
+          case 's'  : return get(SECONDS);                  // Seconds : 0-59
+          case 'ss' : return lz(get(SECONDS));              // Seconds : 00-59
+          case 'm'  : return get(MINUTES);                  // Minutes : 0-59
+          case 'mm' : return lz(get(MINUTES));              // Minutes : 00-59
+          case 'h'  : return get(HOURS);                    // Hours   : 0-23
+          case 'hh' : return lz(get(HOURS));                // Hours   : 00-23
+          case 'D'  : return get(DATE)                      // Date    : 1-31
+          case 'DD' : return lz(get(DATE));                 // Date    : 01-31
+          case 'W'  : return dict[0][get('Day')];           // Day     : Понедельник
+          case 'N'  : return get(MONTH) + 1;                // Month   : 1-12
+          case 'NN' : return lz(get(MONTH) + 1);            // Month   : 01-12
+          case 'M'  : return dict[2][get(MONTH)];           // Month   : Январь
+          case 'MM' : return dict[1][get(MONTH)];           // Month   : Января
+          case 'Y'  : return get(YEAR);                     // Year    : 2014
+          case 'YY' : return lz(get(YEAR) % 100);           // Year    : 14
         } return part;
       });
     }
@@ -1657,12 +1658,8 @@ $define(STATIC, REGEXP, {
         memo.push(it.replace(flexioRegExp, '$' + index));
       });
     }
-    locales[lang] = {
-      W : array(locale.weekdays),
-      MM: split(1),
-      M : split(2)
-    };
-    return this;
+    locales[lang] = [array(locale.weekdays), split(1), split(2)];
+    return core;
   }
   $define(PROTO + FORCED, DATE, {
     format:    createFormat(false),
@@ -1681,7 +1678,7 @@ $define(STATIC, REGEXP, {
     return has(locales, locale) ? current = locale : current;
   };
   core.addLocale = addLocale;
-}(/\b\w{1,4}\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
+}(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
 
 /******************************************************************************
  * Module : console                                                           *
