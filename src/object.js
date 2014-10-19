@@ -10,8 +10,8 @@
     isObject: isObject,
     classof: classof,
     define: define,
-    make: function(proto, mixin, withDescriptors){
-      return (withDescriptors ? define : assign)(create(proto), mixin);
+    make: function(proto, mixin){
+      return define(create(proto), mixin);
     }
   });
 }();

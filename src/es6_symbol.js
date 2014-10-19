@@ -1,5 +1,5 @@
 // ECMAScript 6 symbols shim
-!function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
+!function(TAG, $ITERATOR, $TO_STRING_TAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -20,9 +20,9 @@
   ITERATOR = $ITERATOR in Symbol
     ? Symbol[$ITERATOR]
     : uid(SYMBOL + '.' + $ITERATOR);
-  TOSTRINGTAG = $TOSTRINGTAG in Symbol
-    ? Symbol[$TOSTRINGTAG]
-    : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
+  TO_STRING_TAG = $TO_STRING_TAG in Symbol
+    ? Symbol[$TO_STRING_TAG]
+    : Symbol(SYMBOL + '.' + $TO_STRING_TAG);
   $define(GLOBAL + WRAP, {Symbol: Symbol});
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
@@ -36,7 +36,7 @@
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG,
+    toStringTag: TO_STRING_TAG,
     pure: symbol,
     set: set
   });

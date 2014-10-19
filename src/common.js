@@ -70,9 +70,9 @@ var toString = ObjectProto[TO_STRING];
 var buildIn  = {
   Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
-}, TOSTRINGTAG;
+}, TO_STRING_TAG;
 function setToStringTag(it, tag, stat){
-  if(TOSTRINGTAG && it)hidden(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TO_STRING_TAG && it)hidden(stat ? it : it[PROTOTYPE], TO_STRING_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -80,7 +80,7 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG])
+  return klass == OBJECT && TO_STRING_TAG && (tag = it[TO_STRING_TAG])
     ? has(buildIn, tag) ? '~' : tag : klass;
 }
 

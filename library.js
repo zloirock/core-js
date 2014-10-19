@@ -83,9 +83,9 @@ var toString = ObjectProto[TO_STRING];
 var buildIn  = {
   Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
-}, TOSTRINGTAG;
+}, TO_STRING_TAG;
 function setToStringTag(it, tag, stat){
-  if(TOSTRINGTAG && it)hidden(stat ? it : it[PROTOTYPE], TOSTRINGTAG, tag);
+  if(TO_STRING_TAG && it)hidden(stat ? it : it[PROTOTYPE], TO_STRING_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -93,7 +93,7 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && TOSTRINGTAG && (tag = it[TOSTRINGTAG])
+  return klass == OBJECT && TO_STRING_TAG && (tag = it[TO_STRING_TAG])
     ? has(buildIn, tag) ? '~' : tag : klass;
 }
 
@@ -665,7 +665,7 @@ $define(GLOBAL, {global: global});
  ******************************************************************************/
 
 // ECMAScript 6 symbols shim
-!function(TAG, $ITERATOR, $TOSTRINGTAG, SymbolRegistry){
+!function(TAG, $ITERATOR, $TO_STRING_TAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -686,9 +686,9 @@ $define(GLOBAL, {global: global});
   ITERATOR = $ITERATOR in Symbol
     ? Symbol[$ITERATOR]
     : uid(SYMBOL + '.' + $ITERATOR);
-  TOSTRINGTAG = $TOSTRINGTAG in Symbol
-    ? Symbol[$TOSTRINGTAG]
-    : Symbol(SYMBOL + '.' + $TOSTRINGTAG);
+  TO_STRING_TAG = $TO_STRING_TAG in Symbol
+    ? Symbol[$TO_STRING_TAG]
+    : Symbol(SYMBOL + '.' + $TO_STRING_TAG);
   $define(GLOBAL + WRAP, {Symbol: Symbol});
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
@@ -702,7 +702,7 @@ $define(GLOBAL, {global: global});
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TOSTRINGTAG,
+    toStringTag: TO_STRING_TAG,
     pure: symbol,
     set: set
   });
@@ -727,10 +727,11 @@ $define(GLOBAL, {global: global});
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  '__proto__' in ObjectProto && function(set){
-    var buggy;
-    try { set({}, ArrayProto) }
-    catch(e){ buggy = true }
+  '__proto__' in ObjectProto && function(buggy, set){
+    try {
+      set = ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2);
+      set({}, ArrayProto);
+    } catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
         assertObject(O);
@@ -740,7 +741,7 @@ $define(GLOBAL, {global: global});
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2));
+  }();
   
       // 20.1.2.3 Number.isInteger(number)
   var isInteger = Number.isInteger || function(it){
@@ -948,8 +949,8 @@ $define(GLOBAL, {global: global});
   setToStringTag(global.JSON, 'JSON', true);
   
   // 19.1.3.6 Object.prototype.toString()
-  if(framework && TOSTRINGTAG){
-    tmp[TOSTRINGTAG] = 'x';
+  if(framework && TO_STRING_TAG){
+    tmp[TO_STRING_TAG] = 'x';
     if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
       return '[object ' + classof(this) + ']';
     });
@@ -1005,7 +1006,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     addEventListener('message', listner, false);
   // WebWorkers
   } else if(isFunction(MessageChannel)){
-    channel = new MessageChannel();
+    channel = new MessageChannel;
     port    = channel.port2;
     channel.port1.onmessage = listner;
     defer = ctx(port.postMessage, port, 1);
@@ -1389,7 +1390,7 @@ $define(GLOBAL + BIND, {
     , Iterators  = {}
     , IteratorPrototype = {};
   
-  // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-23.md#conclusionresolution-1
+  // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
   hidden(IteratorPrototype, ITERATOR, returnThis);
   // Add iterator for FF iterator protocol
   FFITERATOR && hidden(IteratorPrototype, $$ITERATOR, returnThis);
@@ -1744,8 +1745,8 @@ $define(GLOBAL + BIND, {
     isObject: isObject,
     classof: classof,
     define: define,
-    make: function(proto, mixin, withDescriptors){
-      return (withDescriptors ? define : assign)(create(proto), mixin);
+    make: function(proto, mixin){
+      return define(create(proto), mixin);
     }
   });
 }();

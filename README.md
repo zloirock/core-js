@@ -19,20 +19,20 @@ global -> object                                                      node
 Object
   .create(proto | null, descriptors?) -> object                       es5
   .getPrototypeOf(object) -> proto | null                             es5 sham
-  .setPrototypeOf(object, proto | null) -> &0                         es6 sham
-  .defineProperty(object, key, desc) -> &0                            es5 sham
-  .defineProperties(object, descriptors) -> &0                        es5 sham
+  .setPrototypeOf(target, proto | null) -> target                     es6 sham
+  .defineProperty(target, key, desc) -> target                        es5 sham
+  .defineProperties(target, descriptors) -> target                    es5 sham
   .getOwnPropertyNames(object) -> array                               es5 sham
   .getOwnPropertyDescriptor(object, key) -> desc                      es5
   .keys(object) -> array                                              es5
   .values(object) -> array                                            es7
   .entries(object) -> array                                           es7
-  .assign(target, ...src) -> &0                                       es6
+  .assign(target, ...src) -> target                                   es6
   .is(a, b) -> bool                                                   es6
   .isObject(var) -> bool                                              core
   .classof(var) -> string                                             core
-  .define(target, mixin) -> &0                                        core
-  .make(proto | null, mixin?, withDescriptors = false) -> object      core
+  .define(target, mixin) -> target                                    core
+  .make(proto | null, mixin?) -> object                               core
   ::toString()                                                        es6 fix
   ::[_](key) -> boundFn                                               core
 Function
@@ -69,7 +69,7 @@ Array
   .isDict(var) -> bool                                                core
   .has(object, key) -> bool                                           core
   .get(object, key) -> val                                            core
-  .set(object, key, value) -> &0                                      core
+  .set(object, key, value) -> object                                  core
   .forEach(object, fn(val, key, @), that) -> void                     core
   .map(object, fn(val, key, @), that) -> new @                        core
   .filter(object, fn(val, key, @), that) -> new @                     core
@@ -166,7 +166,7 @@ Symbol(description?) -> symbol                                        es6 sham
   .iterator -> symbol                                                 es6 sham
   .toStringTag -> symbol                                              es6
   .pure() -> symbol || string                                         core
-  .set(object, key, val) -> &0                                        core
+  .set(object, key, val) -> object                                    core
 Reflect -> object                                                     es6
   .ownKeys(object) -> array                                           es6
 new Promise(resolver(resolve(var), reject(var))) -> promise           es6

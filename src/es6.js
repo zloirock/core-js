@@ -10,10 +10,11 @@
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  '__proto__' in ObjectProto && function(set){
-    var buggy;
-    try { set({}, ArrayProto) }
-    catch(e){ buggy = true }
+  '__proto__' in ObjectProto && function(buggy, set){
+    try {
+      set = ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2);
+      set({}, ArrayProto);
+    } catch(e){ buggy = true }
     $define(STATIC, OBJECT, {
       setPrototypeOf: function(O, proto){
         assertObject(O);
@@ -23,7 +24,7 @@
         return O;
       }
     });
-  }(ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2));
+  }();
   
       // 20.1.2.3 Number.isInteger(number)
   var isInteger = Number.isInteger || function(it){
@@ -231,8 +232,8 @@
   setToStringTag(global.JSON, 'JSON', true);
   
   // 19.1.3.6 Object.prototype.toString()
-  if(framework && TOSTRINGTAG){
-    tmp[TOSTRINGTAG] = 'x';
+  if(framework && TO_STRING_TAG){
+    tmp[TO_STRING_TAG] = 'x';
     if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
       return '[object ' + classof(this) + ']';
     });

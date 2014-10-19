@@ -43,7 +43,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     addEventListener('message', listner, false);
   // WebWorkers
   } else if(isFunction(MessageChannel)){
-    channel = new MessageChannel();
+    channel = new MessageChannel;
     port    = channel.port2;
     channel.port1.onmessage = listner;
     defer = ctx(port.postMessage, port, 1);

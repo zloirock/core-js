@@ -12,7 +12,7 @@
     , Iterators  = {}
     , IteratorPrototype = {};
   
-  // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-23.md#conclusionresolution-1
+  // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
   hidden(IteratorPrototype, ITERATOR, returnThis);
   // Add iterator for FF iterator protocol
   FFITERATOR && hidden(IteratorPrototype, $$ITERATOR, returnThis);
