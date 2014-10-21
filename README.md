@@ -15,8 +15,8 @@ require('core-js');
 ```
 ### API:
 ```livescript
-signature                                                      from         define in module
---------------------------------------------------------------------------------------------
+signature                                                      from         def in module
+-------------------------------------------------------------------------------------------
 global -> object                                               node         global
 Object
   .create(proto | null, descriptors?) -> object                es5          es5

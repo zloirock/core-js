@@ -19,20 +19,28 @@ module.exports = (grunt)->
       tests:
         files: './tests/tests/*'
         tasks: \livescript
-  grunt.registerTask \build (options = 'all')->
+  grunt.registerTask \build (options = 'old_shim,new_shim,core')->
     options .= split \, .turn ((memo, it)-> memo[it] = on), {}
-    grunt.option(\path) || grunt.option \path './core'
+    grunt.option(\path) || grunt.option \path './custom'
     done = @async!
     js <- build options
     fs.writeFile grunt.option(\path) + '.js', js, done
-  grunt.registerTask \all <[build:all uglify]>
   grunt.registerTask \node ->
     grunt.option \path './index'
-    grunt.task.run <[build:node]>
+    grunt.task.run <[build:new_shim,core]>
   grunt.registerTask \library ->
     grunt.option \path './library'
-    grunt.task.run <[build:all,library]>
+    grunt.task.run <[build:new_shim,core,library]>
   grunt.registerTask \shim ->
     grunt.option \path './shim'
-    grunt.task.run <[build:es5,es6,es6_collections,es6_promise,es6_symbol,es6_iterators,timers,immediate,array_statics,console]>
-  grunt.registerTask \default <[all node library]>
+    grunt.task.run <[build:new_shim]>
+  grunt.registerTask \client ->
+    grunt.option \path './client/core'
+    grunt.task.run <[build:old_shim,new_shim,core uglify]>
+  grunt.registerTask \client-library ->
+    grunt.option \path './client/library'
+    grunt.task.run <[build:old_shim,new_shim,core,library uglify]>
+  grunt.registerTask \client-shim ->
+    grunt.option \path './client/shim'
+    grunt.task.run <[build:old_shim,new_shim uglify]>
+  grunt.registerTask \default <[node library shim client client-library client-shim]>

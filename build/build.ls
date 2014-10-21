@@ -1,17 +1,17 @@
 {banner}   = require './config'
 {readFile} = require \fs
-modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections
-            es6_iterators dict timers binding object array array_statics number
-            string regexp date console]>
+modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections es6_iterators dict timers
+            binding object array array_statics number string regexp date console]>
+old_shim = <[es5 timers]>
+new_shim = <[es6 es6_collections es6_promise es6_symbol es6_iterators global immediate array_statics console]>
+core = <[dict binding object array number string regexp date]>
 module.exports = (opt, next)-> let @ = opt
   @common = on
-  import {+global, +es5, +timers, +node} if @all
-  import {+binding, +object, +array, +array_statics , +number, +string, +regexp
-        , +date, +es6, +es6_collections, +es6_promise, +es6_symbol
-        , +es6_iterators, +dict, +immediate, +console
-  } if @node
-  import {+immediate, +es6_iterators} if @es6_promise
-  import {+es6_symbol} if @es6_iterators
+  if @old_shim => for old_shim => @[..] = on
+  if @new_shim => for new_shim => @[..] = on
+  if @core => for core => @[..] = on
+  if @es6_promise => @ <<< {+immediate, +es6_iterators}
+  if @es6_iterators => @es6_symbol = on
   include = modules.filter ~> @[it]
   scripts = [] <~ Promise.all include.map (module)->
     resolve, reject <- new Promise _

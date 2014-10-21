@@ -442,6 +442,219 @@ if(!NODE && !REQJS || framework){
 }
 
 /******************************************************************************
+ * Module : es5                                                               *
+ ******************************************************************************/
+
+// ECMAScript 5 shim
+!function(IS_ENUMERABLE, Empty, _classof, $PROTO){
+  var whitespace = '[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004' +
+                   '\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]'
+    // For fix IE 8- don't enum bug
+    , keys1 = [CONSTRUCTOR, HAS_OWN, 'isPrototypeOf', IS_ENUMERABLE, TO_LOCALE, TO_STRING, 'valueOf']
+    , keys2 = keys1.concat('length', PROTOTYPE)
+    , keysLen1 = keys1.length;
+  
+  if(!DESC){
+    getOwnDescriptor = function(O, P){
+      if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
+    };
+    defineProperty = function(O, P, Attributes){
+      if('value' in Attributes)assertObject(O)[P] = Attributes.value;
+      return O;
+    };
+    defineProperties = function(O, Properties){
+      assertObject(O);
+      var keys   = getKeys(Properties)
+        , length = keys.length
+        , i = 0
+        , P, Attributes;
+      while(length > i){
+        P          = keys[i++];
+        Attributes = Properties[P];
+        if('value' in Attributes)O[P] = Attributes.value;
+      }
+      return O;
+    };
+  }
+  $define(STATIC + FORCED * !DESC, OBJECT, {
+    // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
+    getOwnPropertyDescriptor: getOwnDescriptor,
+    // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
+    defineProperty: defineProperty,
+    // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
+    defineProperties: defineProperties
+  });
+  
+  // Create object with `null` prototype
+  function createDict(){
+    // Thrash, waste and sodomy
+    var iframe = document[CREATE_ELEMENT]('iframe')
+      , i      = keysLen1
+      , iframeDocument;
+    iframe.style.display = 'none';
+    html.appendChild(iframe);
+    iframe.src = 'javascript:';
+    // createDict = iframe.contentWindow.Object;
+    // html.removeChild(iframe);
+    iframeDocument = iframe.contentWindow.document;
+    iframeDocument.open();
+    iframeDocument.write('<script>document.F=Object</script>');
+    iframeDocument.close();
+    createDict = iframeDocument.F;
+    while(i--)delete createDict[PROTOTYPE][keys1[i]];
+    return createDict();
+  }
+  function createGetKeys(names, length, isNames){
+    return function(object){
+      var O      = ES5Object(object)
+        , i      = 0
+        , result = []
+        , key;
+      for(key in O)if(key != $PROTO)has(O, key) && result.push(key);
+      // Hidden names for Object.getOwnPropertyNames & don't enum bug fix for Object.keys
+      while(length > i)if(has(O, key = names[i++])){
+        ~indexOf.call(result, key) || result.push(key);
+      }
+      return result;
+    }
+  }
+  $define(STATIC, OBJECT, {
+    // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
+    getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
+      if(has(assertObject(O), $PROTO))return O[$PROTO];
+      if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
+        return O[CONSTRUCTOR][PROTOTYPE];
+      } return O instanceof Object ? ObjectProto : null;
+    },
+    // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
+    getOwnPropertyNames: getNames = getNames || createGetKeys(keys2, keys2.length, true),
+    // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
+    create: create = create || function(O, /*?*/Properties){
+      var result
+      if(O !== null){
+        Empty[PROTOTYPE] = assertObject(O);
+        result = new Empty();
+        Empty[PROTOTYPE] = null;
+        // add "__proto__" for Object.getPrototypeOf shim
+        result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
+      } else result = createDict();
+      return Properties === undefined ? result : defineProperties(result, Properties);
+    },
+    // 19.1.2.14 / 15.2.3.14 Object.keys(O)
+    keys: getKeys = getKeys || createGetKeys(keys1, keysLen1, false)
+  });
+  
+  // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
+  $define(PROTO, FUNCTION, {
+    bind: function(that /*, args... */){
+      var fn       = assertFunction(this)
+        , partArgs = slice.call(arguments, 1);
+      function bound(/* args... */){
+        var args = partArgs.concat(slice.call(arguments));
+        if(this instanceof bound){
+          var instance = create(fn[PROTOTYPE])
+            , result   = invoke(fn, args, instance);
+          return isObject(result) ? result : instance;
+        } return invoke(fn, args, that);
+      }
+      return bound;
+    }
+  });
+  
+  // Fix for not array-like ES3 string
+  function arrayMethodFix(fn){
+    return function(){
+      return fn.apply(ES5Object(this), arguments);
+    }
+  }
+  if(!(0 in Object('q') && 'q'[0] == 'q')){
+    ES5Object = function(it){
+      return cof(it) == STRING ? it.split('') : Object(it);
+    }
+    slice = arrayMethodFix(slice);
+  }
+  $define(PROTO + FORCED * (ES5Object != Object), ARRAY, {
+    slice: slice,
+    join: arrayMethodFix(ArrayProto.join)
+  });
+  
+  // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
+  $define(STATIC, ARRAY, {
+    isArray: function(arg){
+      return cof(arg) == ARRAY
+    }
+  });
+  function createArrayReduce(isRight){
+    return function(callbackfn, memo){
+      assertFunction(callbackfn);
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = isRight ? length - 1 : 0
+        , i      = isRight ? -1 : 1;
+      if(2 > arguments.length)for(;;){
+        if(index in O){
+          memo = O[index];
+          index += i;
+          break;
+        }
+        index += i;
+        assert(isRight ? index >= 0 : length > index, REDUCE_ERROR);
+      }
+      for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
+        memo = callbackfn(memo, O[index], index, this);
+      }
+      return memo;
+    }
+  }
+  $define(PROTO, ARRAY, {
+    // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
+    forEach: forEach = forEach || createArrayMethod(0),
+    // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
+    map: createArrayMethod(1),
+    // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
+    filter: createArrayMethod(2),
+    // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
+    some: createArrayMethod(3),
+    // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
+    every: createArrayMethod(4),
+    // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
+    reduce: createArrayReduce(false),
+    // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
+    reduceRight: createArrayReduce(true),
+    // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
+    indexOf: indexOf = indexOf || createArrayContains(false),
+    // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
+    lastIndexOf: function(el, fromIndex /* = @[*-1] */){
+      var O      = ES5Object(this)
+        , length = toLength(O.length)
+        , index  = length - 1;
+      if(arguments.length > 1)index = min(index, toInteger(fromIndex));
+      if(index < 0)index = toLength(length + index);
+      for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
+      return -1;
+    }
+  });
+  
+  // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
+  $define(PROTO, STRING, {
+    trim: createReplacer(RegExp('^' + whitespace + '+|' + whitespace + '+$', 'g'), '')
+  });
+  
+  // 20.3.3.1 / 15.9.4.4 Date.now()
+  $define(STATIC, DATE, {now: function(){
+    return +new Date;
+  }});
+  
+  if(isFunction(/./))isFunction = function(it){
+    return cof(it) == FUNCTION;
+  }
+  if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
+    var cof = _classof(it);
+    return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
+  }
+}('propertyIsEnumerable', Function(), classof, symbol(PROTOTYPE));
+
+/******************************************************************************
  * Module : global                                                            *
  ******************************************************************************/
 
@@ -1331,206 +1544,22 @@ $define(GLOBAL + BIND, {
 }('@@iterator');
 
 /******************************************************************************
- * Module : dict                                                              *
+ * Module : timers                                                            *
  ******************************************************************************/
 
-!function(){
-  function Dict(iterable){
-    var dict = create(null);
-    if(iterable != undefined){
-      if($for && isIterable(iterable))$for(iterable, true).of(function(key, value){
-        dict[key] = value;
-      });
-      else assign(dict, iterable);
-    }
-    return dict;
+// ie9- setTimeout & setInterval additional parameters fix
+!function(MSIE){
+  function wrap(set){
+    return MSIE ? function(fn, time /*, ...args */){
+      return set(invoke(part, slice.call(arguments, 2), isFunction(fn) ? fn : Function(fn)), time);
+    } : set;
   }
-  Dict[PROTOTYPE] = null;
-  
-  /*
-   * 0 -> forEach
-   * 1 -> map
-   * 2 -> filter
-   * 3 -> some
-   * 4 -> every
-   * 5 -> find
-   * 6 -> findKey
-   */
-  function createDictMethod(type){
-    var isMap    = type == 1
-      , isFilter = type == 2
-      , isSome   = type == 3
-      , isEvery  = type == 4;
-    return function(object, callbackfn, that /* = undefined */){
-      var f      = ctx(callbackfn, that, 3)
-        , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , result = isMap || isFilter ? new (generic(this, Dict)) : undefined
-        , key, val, res;
-      while(length > i){
-        key = keys[i++];
-        val = O[key];
-        res = f(val, key, object);
-        if(type){
-          if(isMap)result[key] = res;             // map
-          else if(res)switch(type){
-            case 3: return true;                  // some
-            case 5: return val;                   // find
-            case 6: return key;                   // findKey
-            case 2: result[key] = val;            // filter
-          } else if(isEvery)return false;         // every
-        }
-      }
-      return isSome || isEvery ? isEvery : result;
-    }
-  }
-  function createDictReduce(isTurn){
-    return function(object, mapfn, init){
-      assertFunction(mapfn);
-      var O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , memo, key, result;
-      if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
-      else if(arguments.length < 3){
-        assert(length, REDUCE_ERROR);
-        memo = O[keys[i++]];
-      } else memo = Object(init);
-      while(length > i){
-        result = mapfn(memo, O[key = keys[i++]], key, object);
-        if(isTurn){
-          if(result === false)break;
-        } else memo = result;
-      }
-      return memo;
-    }
-  }
-  var findKey = createDictMethod(6);
-  assign(Dict, {
-    forEach: createDictMethod(0),
-    map:     createDictMethod(1),
-    filter:  createDictMethod(2),
-    some:    createDictMethod(3),
-    every:   createDictMethod(4),
-    find:    createDictMethod(5),
-    findKey: findKey,
-    reduce:  createDictReduce(false),
-    turn:    createDictReduce(true),
-    keyOf:   keyOf,
-    contains: function(object, el){
-      return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
-    },
-    // Has / get / set own property
-    has: has,
-    get: function(object, key){
-      if(has(object, key))return object[key];
-    },
-    set: createDefiner(0),
-    isDict: function(it){
-      return getPrototypeOf(it) === Dict[PROTOTYPE];
-    }
+  $define(GLOBAL + BIND + FORCED * MSIE, {
+    setTimeout: setTimeout = wrap(setTimeout),
+    setInterval: wrap(setInterval)
   });
-  $define(STATIC, OBJECT, {
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: createObjectToArray(false),
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: createObjectToArray(true)
-  });
-  $define(GLOBAL + FORCED, {Dict: Dict});
-}();
-
-/******************************************************************************
- * Module : binding                                                           *
- ******************************************************************************/
-
-!function(_, BOUND, toLocaleString){
-  $define(PROTO + FORCED, FUNCTION, {
-    part: part,
-    by: function(that){
-      var fn     = this
-        , _      = path._
-        , holder = false
-        , length = arguments.length
-        , isThat = that === _
-        , i      = +!isThat
-        , indent = i
-        , it, args;
-      if(isThat){
-        it = fn;
-        fn = call;
-      } else it = that;
-      if(length < 2)return ctx(fn, it, -1);
-      args = Array(length - indent);
-      while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partial(fn, args, length, holder, _, true, it);
-    },
-    only: function(numberArguments, that /* = @ */){
-      var fn     = assertFunction(this)
-        , n      = toLength(numberArguments)
-        , isThat = arguments.length > 1;
-      return function(/* ...args */){
-        var length = min(n, arguments.length)
-          , args   = Array(length)
-          , i      = 0;
-        while(length > i)args[i] = arguments[i++];
-        return invoke(fn, args, isThat ? that : this);
-      }
-    }
-  });
-  
-  function tie(key){
-    var that = this, bound;
-    if(key === undefined || !(key in that))return toLocaleString.call(that);
-    has(that, BOUND) || hidden(that, BOUND, {});
-    bound = that[BOUND];
-    return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
-  }
-  
-  hidden(path._, TO_STRING, function(){
-    return _;
-  });
-  
-  hidden(ObjectProto, _, tie);
-  DESC || hidden(ArrayProto, _, tie);
-  // IE8- dirty hack - redefined toLocaleString is not enumerable
-}(DESC ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
-
-/******************************************************************************
- * Module : object                                                            *
- ******************************************************************************/
-
-!function(){
-  function define(target, mixin){
-    var keys   = ownKeys(ES5Object(mixin))
-      , length = keys.length
-      , i = 0, key;
-    while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));
-    return target;
-  };
-  $define(STATIC + FORCED, OBJECT, {
-    isObject: isObject,
-    classof: classof,
-    define: define,
-    make: function(proto, mixin){
-      return define(create(proto), mixin);
-    }
-  });
-}();
-
-/******************************************************************************
- * Module : array                                                             *
- ******************************************************************************/
-
-$define(PROTO, ARRAY, {
-  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
-  contains: createArrayContains(true)
-});
-$define(PROTO + FORCED, ARRAY, {
-  turn: turn
-});
+  // ie9- dirty check
+}(!!navigator && /MSIE .\./.test(navigator.userAgent));
 
 /******************************************************************************
  * Module : array_statics                                                     *
@@ -1551,141 +1580,6 @@ $define(PROTO + FORCED, ARRAY, {
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
                   'lastIndexOf,reduce,reduceRight,fill,turn');
 }();
-
-/******************************************************************************
- * Module : number                                                            *
- ******************************************************************************/
-
-$define(PROTO + FORCED, NUMBER, {
-  times: function(mapfn /* = -> it */, that /* = undefined */){
-    var number = +this
-      , length = toLength(number)
-      , result = Array(length)
-      , i      = 0
-      , f;
-    if(mapfn != undefined){
-      f = ctx(mapfn, that, 1);
-      while(length > i)result[i] = f(i++);
-    } else while(length > i)result[i] = i++;
-    return result;
-  },
-  random: function(lim /* = 0 */){
-    var a = +this
-      , b = lim == undefined ? 0 : +lim
-      , m = min(a, b);
-    return random() * (max(a, b) - m) + m;
-  }
-});
-$define(PROTO + FORCED, NUMBER, turn.call(
-  array(
-    // ES3:
-    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-    // ES6:
-    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-  ),
-  function(memo, key){
-    var fn = Math[key];
-    if(fn)memo[key] = function(/* ...args */){
-      // ie9- dont support strict mode & convert `this` to object -> convert it to number
-      var args = [+this]
-        , i    = 0;
-      while(arguments.length > i)args.push(arguments[i++]);
-      return invoke(fn, args);
-    }
-  }, {}
-));
-
-/******************************************************************************
- * Module : string                                                            *
- ******************************************************************************/
-
-!function(){
-  var escapeHTMLDict = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&apos;'
-  }, unescapeHTMLDict = {}, key;
-  for(key in escapeHTMLDict)unescapeHTMLDict[escapeHTMLDict[key]] = key;
-  $define(PROTO + FORCED, STRING, {
-    escapeHTML:   createReplacer(/[&<>"']/g, escapeHTMLDict),
-    unescapeHTML: createReplacer(/&(?:amp|lt|gt|quot|apos);/g, unescapeHTMLDict)
-  });
-}();
-
-/******************************************************************************
- * Module : regexp                                                            *
- ******************************************************************************/
-
-// ~ES7 : https://gist.github.com/kangax/9698100
-$define(STATIC, REGEXP, {
-  escape: createReplacer(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
-});
-
-/******************************************************************************
- * Module : date                                                              *
- ******************************************************************************/
-
-!function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, MONTH, YEAR){
-  function createFormat(UTC){
-    return function(template, locale /* = current */){
-      var that = this
-        , dict = locales[has(locales, locale) ? locale : current];
-      function get(unit){
-        return that[(UTC ? 'getUTC' : 'get') + unit]();
-      }
-      return String(template).replace(formatRegExp, function(part){
-        switch(part){
-          case 's'  : return get(SECONDS);                  // Seconds : 0-59
-          case 'ss' : return lz(get(SECONDS));              // Seconds : 00-59
-          case 'm'  : return get(MINUTES);                  // Minutes : 0-59
-          case 'mm' : return lz(get(MINUTES));              // Minutes : 00-59
-          case 'h'  : return get(HOURS);                    // Hours   : 0-23
-          case 'hh' : return lz(get(HOURS));                // Hours   : 00-23
-          case 'D'  : return get(DATE)                      // Date    : 1-31
-          case 'DD' : return lz(get(DATE));                 // Date    : 01-31
-          case 'W'  : return dict[0][get('Day')];           // Day     : Понедельник
-          case 'N'  : return get(MONTH) + 1;                // Month   : 1-12
-          case 'NN' : return lz(get(MONTH) + 1);            // Month   : 01-12
-          case 'M'  : return dict[2][get(MONTH)];           // Month   : Январь
-          case 'MM' : return dict[1][get(MONTH)];           // Month   : Января
-          case 'Y'  : return get(YEAR);                     // Year    : 2014
-          case 'YY' : return lz(get(YEAR) % 100);           // Year    : 14
-        } return part;
-      });
-    }
-  }
-  function lz(num){
-    return num > 9 ? num : '0' + num;
-  }
-  function addLocale(lang, locale){
-    function split(index){
-      return turn.call(array(locale.months), function(memo, it){
-        memo.push(it.replace(flexioRegExp, '$' + index));
-      });
-    }
-    locales[lang] = [array(locale.weekdays), split(1), split(2)];
-    return core;
-  }
-  $define(PROTO + FORCED, DATE, {
-    format:    createFormat(false),
-    formatUTC: createFormat(true)
-  });
-  addLocale(current, {
-    weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-    months: 'January,February,March,April,May,June,July,August,September,October,November,December'
-  });
-  addLocale('ru', {
-    weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-    months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,' +
-            'Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
-  });
-  core.locale = function(locale){
-    return has(locales, locale) ? current = locale : current;
-  };
-  core.addLocale = addLocale;
-}(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
 
 /******************************************************************************
  * Module : console                                                           *
@@ -1722,4 +1616,4 @@ $define(STATIC, REGEXP, {
   } catch(e){}
   $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
 }(global.console || {});
-}(Function('return this'), false);
+}(Function('return this'), true);
