@@ -23,8 +23,8 @@ module.exports = (grunt)->
     options .= split \, .turn ((memo, it)-> memo[it] = on), {}
     grunt.option(\path) || grunt.option \path './custom'
     done = @async!
-    js <- build options
-    fs.writeFile grunt.option(\path) + '.js', js, done
+    <- build options
+    fs.writeFile grunt.option(\path) + '.js', it, done
   grunt.registerTask \node ->
     grunt.option \path './index'
     grunt.task.run <[build:new_shim,core]>
