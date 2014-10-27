@@ -3177,7 +3177,7 @@
       function BadClass(){}
       return BadClass;
     }());
-    ok(classof(new BadClass) === '~', 'safe [[Class]]');
+    ok(classof(new BadClass) === '~Array', 'safe [[Class]]');
   });
   test('.make', function(){
     var make, object, foo;

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.0.8
+ * Core.js 0.0.9
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -94,7 +94,7 @@ function cof(it){
 function classof(it){
   var klass = cof(it), tag;
   return klass == OBJECT && TO_STRING_TAG && (tag = it[TO_STRING_TAG])
-    ? has(buildIn, tag) ? '~' : tag : klass;
+    ? has(buildIn, tag) ? '~' + tag : tag : klass;
 }
 
 // Function
@@ -391,7 +391,6 @@ var html = document && document.documentElement;
 
 // core
 var NODE   = cof(process) == PROCESS
-  , REQJS  = isFunction(define) && define.amd
   , old    = global.core
   // type bitmap
   , FORCED = 1
@@ -431,9 +430,9 @@ function $define(type, name, source){
 // CommonJS export
 if(NODE)module.exports = core;
 // RequireJS export
-if(REQJS)define(function(){return core});
+if(isFunction(define) && define.amd)define(function(){return core});
 // Export to global object
-if(!NODE && !REQJS || framework){
+if(!NODE || framework){
   core.noConflict = function(){
     global.core = old;
     return core;
@@ -487,7 +486,7 @@ if(!NODE && !REQJS || framework){
   
   // Create object with `null` prototype
   function createDict(){
-    // Thrash, waste and sodomy
+    // Thrash, waste and sodomy: IE GC bug
     var iframe = document[CREATE_ELEMENT]('iframe')
       , i      = keysLen1
       , iframeDocument;

@@ -40,7 +40,7 @@
   
   // Create object with `null` prototype
   function createDict(){
-    // Thrash, waste and sodomy
+    // Thrash, waste and sodomy: IE GC bug
     var iframe = document[CREATE_ELEMENT]('iframe')
       , i      = keysLen1
       , iframeDocument;
