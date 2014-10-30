@@ -2,7 +2,7 @@
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if($for && isIterable(iterable))$for(iterable, true).of(function(key, value){
+      if(isIterable(iterable))forOf(iterable, true, function(key, value){
         dict[key] = value;
       });
       else assign(dict, iterable);
@@ -10,6 +10,28 @@
     return dict;
   }
   Dict[PROTOTYPE] = null;
+  
+  function DictIterator(iterated, kind){
+    set(this, ITER, {o: iterated, a: getKeys(iterated), i: 0, k: kind});
+  }
+  createIterator(DictIterator, 'Dict', function(){
+    var iter   = this[ITER]
+      , index  = iter.i++
+      , keys   = iter.a
+      , kind   = iter.k
+      , key, value;
+    if(index >= keys.length)return createIterResultObject(1);
+    key = keys[index];
+    if(kind == KEY)       value = key;
+    else if(kind == VALUE)value = iter.o[key];
+    else                  value = [key, iter.o[key]];
+    return createIterResultObject(0, value);
+  });
+  function createDictIter(kind){
+    return function(it){
+      return new DictIterator(it, kind);
+    }
+  }
   
   /*
    * 0 -> forEach
@@ -74,6 +96,9 @@
   }
   var findKey = createDictMethod(6);
   assign(Dict, {
+    keys:    createDictIter(KEY),
+    values:  createDictIter(VALUE),
+    entries: createDictIter(KEY+VALUE),
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
     filter:  createDictMethod(2),

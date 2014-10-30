@@ -69,6 +69,9 @@ Array
   ::turn(fn(memo, val, index, @), memo = []) -> memo           core         array
 [new] Dict(itarable (entries) | object ?) -> dict              core         dict
   .isDict(var) -> bool                                         core         dict
+  .values(object) -> iterator                                  core         dict
+  .keys(object) -> iterator                                    core         dict
+  .entries(object) -> iterator (entries)                       core         dict
   .has(object, key) -> bool                                    core         dict
   .get(object, key) -> val                                     core         dict
   .set(object, key, value) -> object                           core         dict
@@ -138,6 +141,7 @@ Number
   .MIN_SAFE_INTEGER -> int                                     es6          es6
   .parseFloat(str) -> num                                      es6          es6
   .parseInt(str) -> int                                        es6          es6
+  ::@@iterator() -> iterator                                   core         number
   ::times(fn(i)?, that) -> array                               core         number
   ::random(lim = 0) -> num                                     core         number
   ::{...Math}                                                  core         number

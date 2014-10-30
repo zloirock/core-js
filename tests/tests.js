@@ -3059,31 +3059,66 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('::times', function(){
-    ok(isFunction(Number.prototype.times), 'Is function');
-    deepEqual(5 .times(), [0, 1, 2, 3, 4]);
-    deepEqual(5 .times(function(it){
-      return it * it;
-    }), [0, 1, 4, 9, 16]);
-    deepEqual(5 .times(function(it){
-      return this + it * it;
-    }, 1), [1, 2, 5, 10, 17]);
+  test('::@@iterator', function(){
+    var iterator, toStringTag, iter1, iter2, iter3;
+    iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
+    ok(isFunction(Number.prototype[iterator]), 'Is function');
+    iter1 = 2[iterator]();
+    ok(iter1[toStringTag] === 'Number Iterator');
+    deepEqual(iter1.next(), {
+      done: false,
+      value: 0
+    });
+    deepEqual(iter1.next(), {
+      done: false,
+      value: 1
+    });
+    deepEqual(iter1.next(), {
+      done: true,
+      value: void 8
+    });
+    iter2 = 1.5[iterator]();
+    deepEqual(iter2.next(), {
+      done: false,
+      value: 0
+    });
+    deepEqual(iter2.next(), {
+      done: true,
+      value: void 8
+    });
+    iter3 = (-1)[iterator]();
+    deepEqual(iter3.next(), {
+      done: true,
+      value: void 8
+    });
   });
   test('::random', function(){
     ok(isFunction(Number.prototype.random), 'Is function');
-    ok(100 .times(function(){
-      return 10 .random();
-    }).every(function(it){
+    ok((function(){
+      var i$, results$ = [];
+      for (i$ = 0; i$ < 100; ++i$) {
+        results$.push(10 .random());
+      }
+      return results$;
+    }()).every(function(it){
       return 0 <= it && it <= 10;
     }));
-    ok(100 .times(function(){
-      return 10 .random(7);
-    }).every(function(it){
+    ok((function(){
+      var i$, results$ = [];
+      for (i$ = 0; i$ < 100; ++i$) {
+        results$.push(10 .random(7));
+      }
+      return results$;
+    }()).every(function(it){
       return 7 <= it && it <= 10;
     }));
-    ok(100 .times(function(){
-      return 7 .random(10);
-    }).every(function(it){
+    ok((function(){
+      var i$, results$ = [];
+      for (i$ = 0; i$ < 100; ++i$) {
+        results$.push(7 .random(10));
+      }
+      return results$;
+    }()).every(function(it){
       return 7 <= it && it <= 10;
     }));
   });

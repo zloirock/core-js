@@ -198,9 +198,6 @@
     return +new Date;
   }});
   
-  if(isFunction(/./))isFunction = function(it){
-    return cof(it) == FUNCTION;
-  }
   if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;

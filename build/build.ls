@@ -11,7 +11,6 @@ module.exports = (opt, next)-> let @ = opt
   if @new_shim => for new_shim => @[..] = on
   if @core => for core => @[..] = on
   if @es6_promise => @ <<< {+immediate, +es6_iterators}
-  if @es6_iterators => @es6_symbol = on
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _
     error, data <- readFile "src/#name.js"

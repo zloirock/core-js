@@ -1,6 +1,5 @@
 // ECMAScript 6 collections shim
 !function(){
-  SHIM = symbol('shim');
   var KEYS     = COLLECTION_KEYS = symbol('keys')
     , VALUES   = symbol('values')
     , STOREID  = symbol('storeId')
@@ -14,9 +13,7 @@
     var ADDER_KEY = isMap ? 'set' : 'add'
       , init      = commonMethods.clear;
     function initFromIterable(that, iterable){
-      if(iterable != undefined && $for){
-        $for(iterable, isMap).of(that[ADDER_KEY], that);
-      }
+      if(iterable != undefined)forOf(iterable, isMap, that[ADDER_KEY], that);
       return that;
     }
     if(!test){
@@ -37,7 +34,7 @@
         , collection = new C([isMap ? [test_key, 1] : test_key])
         , adder      = collection[ADDER_KEY];
       // wrap to init collections from iterable
-      if(!(ITERATOR in ArrayProto && collection.has(test_key))){
+      if(!(SYMBOL_ITERATOR in ArrayProto && collection.has(test_key))){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);

@@ -186,7 +186,7 @@
         , index   = 0
         , length, f;
       if(mapping)f = ctx(mapfn, that, 2);
-      if($for && isIterable(O))$for(O).of(function(value){
+      if(isIterable(O))forOf(O, false, function(value){
         result[index] = mapping ? f(value, index) : value;
         index++;
       });

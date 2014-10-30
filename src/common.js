@@ -365,13 +365,69 @@ var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e)
   , symbol = Symbol || uid
   , set    = Symbol ? simpleSet : hidden;
 
-// Collections & iterators variables, define in over modules
-var ITERATOR
-  , $for
-  , isIterable
-  , getIterator
-  , COLLECTION_KEYS
-  , SHIM;
+// Iterators
+var ITERATOR = 'iterator'
+  , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
+      ? Symbol[ITERATOR]
+      : uid(SYMBOL + '.' + ITERATOR)
+  , FF_ITERATOR = '@@' + ITERATOR
+  , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
+  , ITER  = symbol('iter')
+  , SHIM  = symbol('shim')
+  , KEY   = 1
+  , VALUE = 2
+  , Iterators = {}
+  , IteratorPrototype = {}
+  , COLLECTION_KEYS;
+// 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
+hidden(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
+// Add iterator for FF iterator protocol
+SUPPORT_FF_ITER && hidden(IteratorPrototype, FF_ITERATOR, returnThis);
+function createIterResultObject(done, value){
+  return {value: value, done: !!done};
+}
+function createIterator(Constructor, NAME, next){
+  Constructor[PROTOTYPE] = create(IteratorPrototype, {next: descriptor(1, next)});
+  // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
+  // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
+  // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
+  setToStringTag(Constructor, NAME + ' Iterator');
+}
+function defineIterator(Constructor, NAME, value){
+  var proto       = Constructor[PROTOTYPE]
+    , HAS_FF_ITER = has(proto, FF_ITERATOR);
+  var iter = has(proto, SYMBOL_ITERATOR)
+    ? proto[SYMBOL_ITERATOR]
+    : HAS_FF_ITER
+      ? proto[FF_ITERATOR]
+      : value;
+  if(framework){
+    // Define iterator
+    !has(proto, SYMBOL_ITERATOR) && hidden(proto, SYMBOL_ITERATOR, iter);
+    // FF fix
+    if(HAS_FF_ITER)hidden(getPrototypeOf(iter.call(new Constructor)), SYMBOL_ITERATOR, returnThis);
+    // Add iterator for FF iterator protocol
+    else SUPPORT_FF_ITER && hidden(proto, FF_ITERATOR, iter);
+  }
+  // Plug for library
+  Iterators[NAME] = iter;
+  // FF & v8 fix
+  Iterators[NAME + ' Iterator'] = returnThis;
+}
+function isIterable(it){
+  return (it != undefined && SYMBOL_ITERATOR in it) || has(Iterators, classof(it));
+}
+function getIterator(it){
+  return assertObject((it[SYMBOL_ITERATOR] || Iterators[classof(it)]).call(it));
+}
+function forOf(iterable, entries, fn, that){
+  var iterator = getIterator(iterable)
+    , f        = ctx(fn, that, entries ? 2 : 1)
+    , step;
+  while(!(step = iterator.next()).done){
+    if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
+  }
+}
 
 // DOM
 var html = document && document.documentElement;

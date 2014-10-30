@@ -96,7 +96,7 @@
       var Promise = this
         , values  = [];
       return new Promise(function(resolve, reject){
-        $for(iterable).of(push, values);
+        forOf(iterable, false, push, values);
         var remaining = values.length
           , results   = Array(remaining);
         if(remaining)forEach.call(values, function(promise, index){
@@ -112,7 +112,7 @@
     hidden(Promise, 'race', function(iterable){
       var Promise = this;
       return new Promise(function(resolve, reject){
-        $for(iterable).of(function(promise){
+        forOf(iterable, false, function(promise){
           Promise.resolve(promise).then(resolve, reject);
         });
       });
