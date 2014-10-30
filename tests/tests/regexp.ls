@@ -1,4 +1,4 @@
-module \RegExp
+QUnit.module \RegExp
 isFunction = -> typeof! it is \Function
 test '.escape' !->
   {escape} = RegExp

@@ -1,4 +1,4 @@
-module 'Array statics'
+QUnit.module 'Array statics'
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'are functions' !->

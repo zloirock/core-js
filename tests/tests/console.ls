@@ -1,4 +1,4 @@
-module \Console
+QUnit.module \Console
 isFunction = -> typeof! it is \Function
 isObject = -> it is Object it
 methods = <[assert count debug dir dirxml error exception group groupEnd groupCollapsed groupEnd info log table trace warn markTimeline profile profileEnd time timeEnd timeStamp]>

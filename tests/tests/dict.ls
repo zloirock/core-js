@@ -1,6 +1,8 @@
-module \Dict
+QUnit.module \Dict
 isFunction = -> typeof! it is \Function
 {keys, create, assign} = Object
+{from} = Array
+{toStringTag} = Symbol
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
   dict1 = Dict!
@@ -168,6 +170,33 @@ test '.get' !->
   ok get([] 0) is void
   ok get(^^{q:1} \q) is void
   ok get({} \toString) is void
+test '.values' !->
+  {values} = Dict
+  ok isFunction(values), 'Is function'
+  iter = values {}
+  ok iter[toStringTag] is 'Dict Iterator'
+  ok \next of iter
+  deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
+  deepEqual from(values(new String \qwe)), [\q \w \e]
+  deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
+test '.keys' !->
+  {keys} = Dict
+  ok isFunction(keys), 'Is function'
+  iter = keys {}
+  ok iter[toStringTag] is 'Dict Iterator'
+  ok \next of iter
+  deepEqual from(keys({q:1, w:2, e:3})), <[q w e]>
+  deepEqual from(keys(new String \qwe)), <[0 1 2]>
+  deepEqual from(keys(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), <[a s d]>
+test '.entries' !->
+  {entries} = Dict
+  ok isFunction(entries), 'Is function'
+  iter = entries {}
+  ok iter[toStringTag] is 'Dict Iterator'
+  ok \next of iter
+  deepEqual from(entries({q:1, w:2, e:3})),[[\q 1] [\w 2] [\e 3]]
+  deepEqual from(entries(new String \qwe)), [[\0 \q] [\1 \w] [\2 \e]]
+  deepEqual from(entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [[\a 4] [\s 5] [\d 6]]
 test 'Object.values' !->
   {values} = Object
   ok isFunction(values), 'Is function'

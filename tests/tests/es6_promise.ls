@@ -1,4 +1,4 @@
-module 'ES6 Promise'
+QUnit.module 'ES6 Promise'
 isFunction = -> typeof! it is \Function
 test 'Promise' !->
   ok isFunction((global? && global || window)Promise), 'Is function'

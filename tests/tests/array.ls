@@ -1,4 +1,4 @@
-module \Array
+QUnit.module \Array
 isFunction = -> typeof! it is \Function
 test '::contains' !->
   ok isFunction(Array::contains), 'Is function'

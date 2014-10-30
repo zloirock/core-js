@@ -1,4 +1,4 @@
-module \Object
+QUnit.module \Object
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getPrototypeOf,  defineProperty, getOwnPropertyDescriptor} = Object

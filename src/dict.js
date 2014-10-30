@@ -12,7 +12,7 @@
   Dict[PROTOTYPE] = null;
   
   function DictIterator(iterated, kind){
-    set(this, ITER, {o: iterated, a: getKeys(iterated), i: 0, k: kind});
+    set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, 'Dict', function(){
     var iter   = this[ITER]

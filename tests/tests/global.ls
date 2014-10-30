@@ -1,4 +1,4 @@
-module \Global
+QUnit.module \Global
 test \global !->
   ok global?, 'global is define'
   ok global.global is global, 'global.global is global'

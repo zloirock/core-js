@@ -1,4 +1,4 @@
-module \String
+QUnit.module \String
 isFunction = -> typeof! it is \Function
 test '::escapeHTML' !->
   ok isFunction(String::escapeHTML), 'Is function'

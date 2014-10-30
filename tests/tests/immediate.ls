@@ -1,4 +1,4 @@
-module \Immediate
+QUnit.module \Immediate
 isFunction = -> typeof! it  is \Function
 that = global? && global || window
 asyncTest 'setImmediate / clearImmediate' 6 !->

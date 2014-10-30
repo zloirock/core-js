@@ -1,4 +1,4 @@
-module 'ES6 Iterators'
+QUnit.module 'ES6 Iterators'
 isIterator = ->
   return typeof it is \object  && typeof it.next is \function
 

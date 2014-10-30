@@ -1,4 +1,4 @@
-module \Number
+QUnit.module \Number
 isFunction = -> typeof! it is \Function
 test '::@@iterator' !->
   {iterator, toStringTag} = Symbol

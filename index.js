@@ -202,7 +202,8 @@ function createObjectToArray(isEntries){
       , i      = 0
       , result = Array(length)
       , key;
-    while(length > i)result[i] = isEntries ? [key = keys[i++], O[key]] : O[keys[i++]];
+    if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
+    else while(length > i)result[i] = O[keys[i++]];
     return result;
   }
 }
@@ -1339,7 +1340,7 @@ $define(GLOBAL + BIND, {
   Dict[PROTOTYPE] = null;
   
   function DictIterator(iterated, kind){
-    set(this, ITER, {o: iterated, a: getKeys(iterated), i: 0, k: kind});
+    set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, 'Dict', function(){
     var iter   = this[ITER]

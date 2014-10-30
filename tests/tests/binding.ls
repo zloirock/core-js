@@ -1,4 +1,4 @@
-module \Binding
+QUnit.module \Binding
 isFunction = -> typeof! it  is \Function
 DESC = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 {slice} = Array::

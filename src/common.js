@@ -189,7 +189,8 @@ function createObjectToArray(isEntries){
       , i      = 0
       , result = Array(length)
       , key;
-    while(length > i)result[i] = isEntries ? [key = keys[i++], O[key]] : O[keys[i++]];
+    if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
+    else while(length > i)result[i] = O[keys[i++]];
     return result;
   }
 }

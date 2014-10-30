@@ -1,4 +1,4 @@
-module \ES6
+QUnit.module \ES6
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor, defineProperty} = Object

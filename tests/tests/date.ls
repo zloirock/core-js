@@ -1,4 +1,4 @@
-module \Date
+QUnit.module \Date
 isFunction = -> typeof! it is \Function
 test '.locale' !->
   {locale} = core
