@@ -70,9 +70,9 @@ var toString = ObjectProto[TO_STRING];
 var buildIn  = {
   Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
-}, TO_STRING_TAG;
+} , TO_STRING_TAG = TO_STRING + 'Tag';
 function setToStringTag(it, tag, stat){
-  if(TO_STRING_TAG && it)hidden(stat ? it : it[PROTOTYPE], TO_STRING_TAG, tag);
+  if(it)has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG) || hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -80,8 +80,7 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && TO_STRING_TAG && (tag = it[TO_STRING_TAG])
-    ? has(buildIn, tag) ? '~' + tag : tag : klass;
+  return klass == OBJECT && (tag = it[SYMBOL_TAG]) ? has(buildIn, tag) ? '~' + tag : tag : klass;
 }
 
 // Function
@@ -135,7 +134,7 @@ function ctx(fn, that, length){
 // http://jsperf.lnkit.com/fast-apply/5
 function invoke(fn, args, that){
   var un = that === undefined;
-  switch(args.length){
+  switch(args.length | 0){
     case 0: return un ? fn()
                       : fn.call(that);
     case 1: return un ? fn(args[0])
@@ -369,8 +368,9 @@ var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e)
 // Iterators
 var ITERATOR = 'iterator'
   , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
-      ? Symbol[ITERATOR]
-      : uid(SYMBOL + '.' + ITERATOR)
+      ? Symbol[ITERATOR] : uid(SYMBOL + '.' + ITERATOR)
+  , SYMBOL_TAG = Symbol && TO_STRING_TAG in Symbol
+      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + '.' + TO_STRING_TAG)
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = symbol('iter')
@@ -381,14 +381,14 @@ var ITERATOR = 'iterator'
   , IteratorPrototype = {}
   , COLLECTION_KEYS;
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
-hidden(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
-// Add iterator for FF iterator protocol
-SUPPORT_FF_ITER && hidden(IteratorPrototype, FF_ITERATOR, returnThis);
-function createIterResultObject(done, value){
-  return {value: value, done: !!done};
+setIterator(IteratorPrototype, returnThis);
+function setIterator(O, value){
+  hidden(O, SYMBOL_ITERATOR, value);
+  // Add iterator for FF iterator protocol
+  SUPPORT_FF_ITER && hidden(O, FF_ITERATOR, value);
 }
-function createIterator(Constructor, NAME, next){
-  Constructor[PROTOTYPE] = create(IteratorPrototype, {next: descriptor(1, next)});
+function createIterator(Constructor, NAME, next, proto){
+  Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
   // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
   // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
   // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
@@ -415,19 +415,23 @@ function defineIterator(Constructor, NAME, value){
   // FF & v8 fix
   Iterators[NAME + ' Iterator'] = returnThis;
 }
+function iterResult(done, value){
+  return {value: value, done: !!done};
+}
 function isIterable(it){
   return (it != undefined && SYMBOL_ITERATOR in it) || has(Iterators, classof(it));
 }
 function getIterator(it){
   return assertObject((it[SYMBOL_ITERATOR] || Iterators[classof(it)]).call(it));
 }
+function stepCall(fn, value, entries){
+  return entries ? invoke(fn, value) : fn(value);
+}
 function forOf(iterable, entries, fn, that){
   var iterator = getIterator(iterable)
     , f        = ctx(fn, that, entries ? 2 : 1)
     , step;
-  while(!(step = iterator.next()).done){
-    if((entries ? invoke(f, step.value) : f(step.value)) === false)return;
-  }
+  while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false)return;
 }
 
 // DOM

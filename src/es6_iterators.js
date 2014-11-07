@@ -39,11 +39,11 @@
       , index    = iter.i++
       , kind     = iter.k
       , value;
-    if(index >= iterated.length)return createIterResultObject(1);
+    if(index >= iterated.length)return iterResult(1);
     if(kind == KEY)       value = index;
     else if(kind == VALUE)value = iterated[index];
     else                  value = [index, iterated[index]];
-    return createIterResultObject(0, value);
+    return iterResult(0, value);
   });
   
   // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
@@ -67,12 +67,12 @@
       , index    = iter.i++
       , kind     = iter.k
       , key, value;
-    if(index >= keys.length)return createIterResultObject(1);
+    if(index >= keys.length)return iterResult(1);
     key = keys[index];
     if(kind == KEY)       value = key;
     else if(kind == VALUE)value = iterated.get(key);
     else                  value = [key, iterated.get(key)];
-    return createIterResultObject(0, value);
+    return iterResult(0, value);
   });
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
@@ -88,21 +88,8 @@
     var iter = this[ITER]
       , keys = iter.a
       , key;
-    if(!keys.length)return createIterResultObject(1);
+    if(!keys.length)return iterResult(1);
     key = keys.pop();
-    return createIterResultObject(0, iter.k == KEY+VALUE ? [key, key] : key);
+    return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
   });
-  
-  function $for(iterable, entries){
-    if(!(this instanceof $for))return new $for(iterable, entries);
-    set(this, ITER, {o: iterable, e: entries});
-  }
-  $for[PROTOTYPE].of = function(fn, that){
-    var data = this[ITER];
-    forOf(data.o, data.e, fn, that);
-  }
-  $for.isIterable = isIterable;
-  $for.getIterator = getIterator;
-  
-  $define(GLOBAL + FORCED, {$for: $for});
 }();

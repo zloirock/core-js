@@ -1,4 +1,16 @@
-!function(){
+!function(){  
+  function NumberIterator(iterated){
+    set(this, ITER, {l: toLength(iterated), i: 0});
+  }
+  createIterator(NumberIterator, NUMBER, function(){
+    var iter = this[ITER]
+      , i    = iter.i++;
+    return i < iter.l ? iterResult(0, i) : iterResult(1);
+  });
+  defineIterator(Number, NUMBER, function(){
+    return new NumberIterator(this);
+  });
+  
   $define(PROTO + FORCED, NUMBER, {
     random: function(lim /* = 0 */){
       var a = +this
@@ -6,18 +18,6 @@
         , m = min(a, b);
       return random() * (max(a, b) - m) + m;
     }
-  });
-  
-  function NumberIterator(iterated){
-    set(this, ITER, {l: toLength(iterated), i: 0});
-  }
-  createIterator(NumberIterator, NUMBER, function(){
-    var iter = this[ITER]
-      , i    = iter.i++;
-    return i < iter.l ? createIterResultObject(0, i) : createIterResultObject(1);
-  });
-  defineIterator(Number, NUMBER, function(){
-    return new NumberIterator(this);
   });
 
   $define(PROTO + FORCED, NUMBER, turn.call(

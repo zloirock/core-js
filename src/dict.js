@@ -20,12 +20,12 @@
       , keys   = iter.a
       , kind   = iter.k
       , key, value;
-    if(index >= keys.length)return createIterResultObject(1);
+    if(index >= keys.length)return iterResult(1);
     key = keys[index];
     if(kind == KEY)       value = key;
     else if(kind == VALUE)value = iter.o[key];
     else                  value = [key, iter.o[key]];
-    return createIterResultObject(0, value);
+    return iterResult(0, value);
   });
   function createDictIter(kind){
     return function(it){

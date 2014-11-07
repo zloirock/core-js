@@ -190,9 +190,13 @@ console(...args) -> void                                       core         cons
   .{...console API}                                            console api  console
   .enable() -> void                                            core         console
   .disable() -> void                                           core         console
-$for(iterable, entries).of(fn(value, key?), that) -> void      core         es6_iterators
-  .isIterable(var) -> bool                                     core         es6_iterators
-  .getIterator(iterable) -> iterator                           core         es6_iterators
+[new] $for(iterable, entries) -> iterator ($for)               core         $for
+  ::of(fn(value, key?), that) -> void                          core         $for
+  ::array(mapFn(value, key?)?, that) -> array                  core         $for
+  ::filter(fn(value, key?), that) -> iterator ($for)           core         $for
+  ::map(fn(value, key?), that) -> iterator ($for)              core         $for
+  .isIterable(var) -> bool                                     core         $for
+  .getIterator(iterable) -> iterator                           core         $for
 core                                                           core         common
   .{...global}                                                 core         common
   .addLocale(key, object) -> @                                 core         date

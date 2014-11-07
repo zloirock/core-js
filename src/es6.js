@@ -232,8 +232,8 @@
   setToStringTag(global.JSON, 'JSON', true);
   
   // 19.1.3.6 Object.prototype.toString()
-  if(framework && TO_STRING_TAG){
-    tmp[TO_STRING_TAG] = 'x';
+  if(framework){
+    tmp[SYMBOL_TAG] = 'x';
     if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
       return '[object ' + classof(this) + ']';
     });

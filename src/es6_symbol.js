@@ -1,5 +1,5 @@
 // ECMAScript 6 symbols shim
-!function(TAG, $TO_STRING_TAG, SymbolRegistry){
+!function(TAG, SymbolRegistry){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
@@ -17,9 +17,6 @@
       return this[TAG];
     });
   }
-  TO_STRING_TAG = $TO_STRING_TAG in Symbol
-    ? Symbol[$TO_STRING_TAG]
-    : Symbol(SYMBOL + '.' + $TO_STRING_TAG);
   $define(GLOBAL + WRAP, {Symbol: Symbol});
   $define(STATIC, SYMBOL, {
     // 19.4.2.2 Symbol.for(key)
@@ -33,11 +30,13 @@
     // 19.4.2.7 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.toStringTag
-    toStringTag: TO_STRING_TAG,
+    toStringTag: SYMBOL_TAG = TO_STRING_TAG in Symbol
+      ? Symbol[TO_STRING_TAG]
+      : Symbol(SYMBOL + '.' + TO_STRING_TAG),
     pure: symbol,
     set: set
   });
   setToStringTag(Symbol, SYMBOL);
   // 26.1.11 Reflect.ownKeys (target)
   $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
-}(symbol('tag'), TO_STRING + 'Tag', {});
+}(symbol('tag'), {});
