@@ -1,6 +1,7 @@
 // ECMAScript 6 iterators shim
 !function(){
-  var getValues = createObjectToArray(false);
+  var getValues = createObjectToArray(false)
+    , buggy = 'keys' in ArrayProto && !('next' in [].keys());
   
   function defineStdIterators(Base, NAME, DEFAULT, Constructor, next){
     function createIter(kind){
@@ -9,7 +10,7 @@
       }
     }
     createIterator(Constructor, NAME, next);
-    $define(PROTO, NAME, {
+    $define(PROTO + FORCED * buggy, NAME, {
       // 22.1.3.4 Array.prototype.entries()
       // 23.1.3.4 Map.prototype.entries()
       // 23.2.3.5 Set.prototype.entries()

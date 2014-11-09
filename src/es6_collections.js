@@ -31,10 +31,10 @@
     } else {
       var Native     = C
         , test_key   = {}
-        , collection = new C([isMap ? [test_key, 1] : test_key])
+        , collection = new C
         , adder      = collection[ADDER_KEY];
       // wrap to init collections from iterable
-      if(!(SYMBOL_ITERATOR in ArrayProto && collection.has(test_key))){
+      if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);

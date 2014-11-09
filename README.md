@@ -142,7 +142,6 @@ Number
   .parseFloat(str) -> num                                      es6          es6
   .parseInt(str) -> int                                        es6          es6
   ::@@iterator() -> iterator                                   core         number
-  ::times(fn(i)?, that) -> array                               core         number
   ::random(lim = 0) -> num                                     core         number
   ::{...Math}                                                  core         number
 Math

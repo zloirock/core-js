@@ -164,7 +164,7 @@ test '.reduceRight' !->
   ok reduceRight(\123 ((+a, +b)-> a + b), 1) is 7
 test '.fill' !->
   {fill} = Array
-  deepEqual fill((-> &)(null null null), 5), (-> &)(5 5 5)
+  deepEqual fill(Array(3), 5), [5 5 5]
 test '.find' !->
   {find} = Array
   find al = (->&)(1), (val, key, that)->

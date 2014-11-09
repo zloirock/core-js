@@ -439,11 +439,7 @@
   test('.fill', function(){
     var fill;
     fill = Array.fill;
-    deepEqual(fill(function(){
-      return arguments;
-    }(null, null, null), 5), function(){
-      return arguments;
-    }(5, 5, 5));
+    deepEqual(fill(Array(3), 5), [5, 5, 5]);
   });
   test('.find', function(){
     var find, al, ctx;
@@ -2331,12 +2327,10 @@
     r = {};
     count = 0;
     M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
-    M.forEach(function(value, key, ctx){
-      T = ctx;
-      count = count + 1;
+    M.forEach(function(value, key){
+      count++;
       r[value] = key;
     });
-    ok(T === M);
     ok(count === 5);
     deepEqual(r, {
       1: NaN,
@@ -2418,15 +2412,11 @@
     ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from iterator #2');
     S = new Set([1, 2, 3, 2, 1]);
     ok(S.size === 3);
-    r = {};
-    S.forEach(function(v, k){
-      return r[k] = v;
+    r = [];
+    S.forEach(function(v){
+      return r.push(v);
     });
-    deepEqual(r, {
-      1: 1,
-      2: 2,
-      3: 3
-    });
+    deepEqual(r, [1, 2, 3]);
     ok(new Set([NaN, NaN, NaN]).size === 1);
     if (Array.from) {
       deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
@@ -2473,23 +2463,17 @@
     ok(S.size === 3);
   });
   test('Set::forEach', function(){
-    var r, T, count, S;
+    var r, count, S;
     ok(isFunction(Set.prototype.forEach), 'Is function');
-    r = {};
+    r = [];
     count = 0;
     S = new Set([1, 2, 3, 2, 1]);
-    S.forEach(function(value, key, ctx){
-      T = ctx;
-      count = count + 1;
-      r[key] = value;
+    S.forEach(function(value){
+      count++;
+      r.push(value);
     });
-    ok(T === S);
     ok(count === 3);
-    deepEqual(r, {
-      1: 1,
-      2: 2,
-      3: 3
-    });
+    deepEqual(r, [1, 2, 3]);
   });
   test('Set::has', function(){
     var a, S;

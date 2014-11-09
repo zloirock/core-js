@@ -38,11 +38,9 @@ test 'Map::forEach' !->
   var T
   count = 0
   M = new Map!set NaN, 1 .set 2 1 .set 3 7 .set 2 5 .set 1 4 .set a = {}, 9
-  M.forEach (value, key, ctx)!->
-    T := ctx
-    count := count + 1
+  M.forEach (value, key)!->
+    count++
     r[value] = key
-  ok T is M
   ok count is 5
   deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
 test 'Map::get' !->
@@ -107,9 +105,9 @@ test 'Set' !->
   ok new Set([1 2 3 2 1]).size is 3, 'Init Set from iterator #2'
   S = new Set [1 2 3 2 1]
   ok S.size is 3
-  r = {}
-  S.forEach (v, k)-> r[k] = v
-  deepEqual r, {1:1,2:2,3:3}
+  r = []
+  S.forEach (v)-> r.push v
+  deepEqual r, [1 2 3]
   ok new Set([NaN, NaN, NaN])size is 1
   if Array.from => deepEqual Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
 test 'Set::add' !->
@@ -148,17 +146,14 @@ test 'Set::delete' !->
   ok S.size is 3
 test 'Set::forEach' !->
   ok isFunction(Set::forEach), 'Is function'
-  r = {}
-  var T
+  r = []
   count = 0
   S = new Set [1 2 3 2 1]
-  S.forEach (value, key, ctx)!->
-    T := ctx
-    count := count + 1
-    r[key] = value
-  ok T is S
+  S.forEach (value)!->
+    count++
+    r.push value
   ok count is 3
-  deepEqual r, {1: 1, 2: 2, 3: 3}
+  deepEqual r, [1 2 3]
 test 'Set::has' !->
   ok isFunction(Set::has), 'Is function'
   a = []

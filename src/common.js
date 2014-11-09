@@ -404,11 +404,9 @@ function defineIterator(Constructor, NAME, value){
       : value;
   if(framework){
     // Define iterator
-    !has(proto, SYMBOL_ITERATOR) && hidden(proto, SYMBOL_ITERATOR, iter);
+    setIterator(proto, iter);
     // FF fix
-    if(HAS_FF_ITER)hidden(getPrototypeOf(iter.call(new Constructor)), SYMBOL_ITERATOR, returnThis);
-    // Add iterator for FF iterator protocol
-    else SUPPORT_FF_ITER && hidden(proto, FF_ITERATOR, iter);
+    if(HAS_FF_ITER)setIterator(getPrototypeOf(iter.call(new Constructor)), returnThis);
   }
   // Plug for library
   Iterators[NAME] = iter;
