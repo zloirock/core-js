@@ -741,14 +741,13 @@ $define(GLOBAL, {global: global});
       var O       = ES5Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
+        , f       = mapping ? ctx(mapfn, that, 2) : undefined
         , index   = 0
-        , length, f;
-      if(mapping)f = ctx(mapfn, that, 2);
-      if(isIterable(O))forOf(O, false, function(value){
-        result[index] = mapping ? f(value, index) : value;
+        , length;
+      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done;){
+        result[index] = mapping ? f(step.value, index) : step.value;
         index++;
-      });
-      else for(length = toLength(O.length); length > index; index++){
+      } else for(length = toLength(O.length); length > index; index++){
         result[index] = mapping ? f(O[index], index) : O[index];
       }
       result.length = index;
@@ -1236,7 +1235,7 @@ $define(GLOBAL + BIND, {
       this[FN]      = ctx(fn, that, I[ENTRIES] ? 2 : 1);
     }
     createIterator(Iter, 'Chain', next, $forProto);
-    setIterator(Iter[PROTOTYPE], returnThis); // override $forProto unwrap
+    setIterator(Iter[PROTOTYPE], returnThis); // override $forProto iterator
     return Iter;
   }
   
@@ -1282,6 +1281,7 @@ $define(GLOBAL + BIND, {
 // ECMAScript 6 iterators shim
 !function(){
   var getValues = createObjectToArray(false)
+    // Safari define byggy iterators w/o `next`
     , buggy = 'keys' in ArrayProto && !('next' in [].keys());
   
   function defineStdIterators(Base, NAME, DEFAULT, Constructor, next){
@@ -1384,10 +1384,12 @@ $define(GLOBAL + BIND, {
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))forOf(iterable, true, function(key, value){
-        dict[key] = value;
-      });
-      else assign(dict, iterable);
+      if(isIterable(iterable)){
+        for(var iter = getIterator(iterable), step, value; !(step = iter.next()).done;){
+          value = step.value;
+          dict[value[0]] = value[1];
+        }
+      } else assign(dict, iterable);
     }
     return dict;
   }
@@ -1765,7 +1767,6 @@ $define(STATIC, REGEXP, {
  * Module : console                                                           *
  ******************************************************************************/
 
-// console cap
 !function(console){
   var $console = turn.call(
     /**

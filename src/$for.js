@@ -20,7 +20,7 @@
       this[FN]      = ctx(fn, that, I[ENTRIES] ? 2 : 1);
     }
     createIterator(Iter, 'Chain', next, $forProto);
-    setIterator(Iter[PROTOTYPE], returnThis); // override $forProto unwrap
+    setIterator(Iter[PROTOTYPE], returnThis); // override $forProto iterator
     return Iter;
   }
   

@@ -1,6 +1,7 @@
 // ECMAScript 6 iterators shim
 !function(){
   var getValues = createObjectToArray(false)
+    // Safari define byggy iterators w/o `next`
     , buggy = 'keys' in ArrayProto && !('next' in [].keys());
   
   function defineStdIterators(Base, NAME, DEFAULT, Constructor, next){

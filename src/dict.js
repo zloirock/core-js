@@ -2,10 +2,12 @@
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
-      if(isIterable(iterable))forOf(iterable, true, function(key, value){
-        dict[key] = value;
-      });
-      else assign(dict, iterable);
+      if(isIterable(iterable)){
+        for(var iter = getIterator(iterable), step, value; !(step = iter.next()).done;){
+          value = step.value;
+          dict[value[0]] = value[1];
+        }
+      } else assign(dict, iterable);
     }
     return dict;
   }

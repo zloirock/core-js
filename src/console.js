@@ -1,4 +1,3 @@
-// console cap
 !function(console){
   var $console = turn.call(
     /**

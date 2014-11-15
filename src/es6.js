@@ -183,14 +183,13 @@
       var O       = ES5Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
+        , f       = mapping ? ctx(mapfn, that, 2) : undefined
         , index   = 0
-        , length, f;
-      if(mapping)f = ctx(mapfn, that, 2);
-      if(isIterable(O))forOf(O, false, function(value){
-        result[index] = mapping ? f(value, index) : value;
+        , length;
+      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done;){
+        result[index] = mapping ? f(step.value, index) : step.value;
         index++;
-      });
-      else for(length = toLength(O.length); length > index; index++){
+      } else for(length = toLength(O.length); length > index; index++){
         result[index] = mapping ? f(O[index], index) : O[index];
       }
       result.length = index;
