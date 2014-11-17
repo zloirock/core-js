@@ -1,5 +1,5 @@
 /**
- * Core.js 0.0.9
+ * Core.js 0.1.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -1710,7 +1710,7 @@ $define(GLOBAL + BIND, {
     },
     set: createDefiner(0),
     isDict: function(it){
-      return getPrototypeOf(it) === Dict[PROTOTYPE];
+      return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];
     }
   });
   $define(STATIC, OBJECT, {

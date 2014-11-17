@@ -121,7 +121,7 @@
     },
     set: createDefiner(0),
     isDict: function(it){
-      return getPrototypeOf(it) === Dict[PROTOTYPE];
+      return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];
     }
   });
   $define(STATIC, OBJECT, {
