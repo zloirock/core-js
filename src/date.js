@@ -1,10 +1,10 @@
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, MONTH, YEAR){
-  function createFormat(UTC){
+  function createFormat(prefix){
     return function(template, locale /* = current */){
       var that = this
         , dict = locales[has(locales, locale) ? locale : current];
       function get(unit){
-        return that[(UTC ? 'getUTC' : 'get') + unit]();
+        return that[prefix + unit]();
       }
       return String(template).replace(formatRegExp, function(part){
         switch(part){
@@ -14,7 +14,7 @@
           case 'mm' : return lz(get(MINUTES));              // Minutes : 00-59
           case 'h'  : return get(HOURS);                    // Hours   : 0-23
           case 'hh' : return lz(get(HOURS));                // Hours   : 00-23
-          case 'D'  : return get(DATE)                      // Date    : 1-31
+          case 'D'  : return get(DATE);                     // Date    : 1-31
           case 'DD' : return lz(get(DATE));                 // Date    : 01-31
           case 'W'  : return dict[0][get('Day')];           // Day     : Понедельник
           case 'N'  : return get(MONTH) + 1;                // Month   : 1-12
@@ -40,8 +40,8 @@
     return core;
   }
   $define(PROTO + FORCED, DATE, {
-    format:    createFormat(false),
-    formatUTC: createFormat(true)
+    format:    createFormat('get'),
+    formatUTC: createFormat('getUTC')
   });
   addLocale(current, {
     weekdays: 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',

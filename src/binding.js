@@ -1,4 +1,4 @@
-!function(_, BOUND, toLocaleString){
+!function(_, toLocaleString){
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
@@ -34,11 +34,12 @@
   });
   
   function tie(key){
-    var that = this, bound;
-    if(key === undefined || !(key in that))return toLocaleString.call(that);
-    has(that, BOUND) || hidden(that, BOUND, {});
-    bound = that[BOUND];
-    return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
+    var that  = this
+      , bound = {};
+    return hidden(that, _, function(key){
+      if(key === undefined || !(key in that))return toLocaleString.call(that);
+      return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
+    })[_](key);
   }
   
   hidden(path._, TO_STRING, function(){
@@ -48,4 +49,4 @@
   hidden(ObjectProto, _, tie);
   DESC || hidden(ArrayProto, _, tie);
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-}(DESC ? uid('tie') : TO_LOCALE, symbol('bound'), ObjectProto[TO_LOCALE]);
+}(DESC ? uid('tie') : TO_LOCALE, ObjectProto[TO_LOCALE]);

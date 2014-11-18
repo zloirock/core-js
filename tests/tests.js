@@ -760,7 +760,7 @@
 }).call(this);
 
 (function(){
-  var isFunction, DESC, slice, toString$ = {}.toString;
+  var isFunction, DESC, slice, toString$ = {}.toString, slice$ = [].slice;
   QUnit.module('Binding');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
@@ -817,6 +817,31 @@
     ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
     ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
+  test('Function::only', function(){
+    var fn, f, that, o, c;
+    ok(isFunction(Function.prototype.only), 'Is function');
+    fn = function(){
+      var args;
+      args = slice$.call(arguments);
+      return args.reduce(curry$(function(x$, y$){
+        return x$ + y$;
+      }));
+    };
+    f = fn.only(2);
+    ok(f(1, 2, 3) === 3);
+    ok(f(1) === 1);
+    that = function(){
+      return this;
+    };
+    o = {
+      f: that.only(1)
+    };
+    ok(o.f() === o);
+    o = {
+      f: that.only(1, c = {})
+    };
+    ok(o.f() === c);
+  });
   test('::[_]', function(){
     var $, fn, ctx, array, push, foo, bar;
     $ = _;
@@ -842,6 +867,19 @@
     bar = foo[_]('bar');
     bar(1, 2);
   });
+  function curry$(f, bound){
+    var context,
+    _curry = function(args) {
+      return f.length > 1 ? function(){
+        var params = args ? args.concat() : [];
+        context = bound ? context || this : this;
+        return params.push.apply(params, arguments) <
+            f.length && arguments.length ?
+          _curry.call(context, params) : f.apply(context, params);
+      } : f;
+    };
+    return _curry();
+  }
 }).call(this);
 
 (function(){
