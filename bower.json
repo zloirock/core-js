@@ -1,5 +1,5 @@
 {
-  "name": "core-js",
+  "name": "core.js",
   "main": "client/core.js",
   "version": "0.1.1",
   "description": "Standard Library",
