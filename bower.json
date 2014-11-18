@@ -1,0 +1,32 @@
+{
+  "name": "core-js",
+  "main": "client/core.js",
+  "version": "0.1.1",
+  "description": "Standard Library",
+  "keywords": [
+    "ES6",
+    "ECMAScript 6",
+    "ES7",
+    "ECMAScript 7",
+    "Map",
+    "Set",
+    "WeakMap",
+    "WeakSet",
+    "Dict",
+    "Promise",
+    "Symbol",
+    "console"
+  ],
+  "authors": [
+    "zloirock.ru"
+  ],
+  "license": "MIT",
+  "homepage": "github.com/zloirock/core-js",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
