@@ -43,6 +43,16 @@ test 'Map::forEach' !->
     r[value] = key
   ok count is 5
   deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
+  map = new Map [[\0 9], [\1 9], [\2 9], [\3 9]]
+  s = "";
+  map.forEach (value, key)->
+    s += key;
+    if key is \2
+      map.delete \2
+      map.delete \3
+      map.delete \1
+      map.set \4 9
+  ok s is \0124
 test 'Map::get' !->
   ok isFunction(Map::get), 'Is function'
   o = {}
@@ -154,6 +164,16 @@ test 'Set::forEach' !->
     r.push value
   ok count is 3
   deepEqual r, [1 2 3]
+  set = new Set <[0 1 2 3]>
+  s = "";
+  set.forEach ->
+    s += it;
+    if it is \2
+      set.delete \2
+      set.delete \3
+      set.delete \1
+      set.add \4
+  ok s is \0124
 test 'Set::has' !->
   ok isFunction(Set::has), 'Is function'
   a = []

@@ -96,14 +96,15 @@
         var f      = ctx(callbackfn, that, 3)
           , values = this[$VALUES]
           , keys   = this[KEYS]
-          , names  = getKeys(keys)
-          , length = names.length
-          , i = 0
-          , index;
-        while(length > i){
-          index = names[i++];
-          f(values[index], keys[index], this);
-        }
+          , done   = {}
+          , k, index;
+        do {
+          for(index in keys){
+            if(index in done)continue;
+            done[index] = true;
+            f(values[index], keys[index], this);
+          }
+        } while(index != undefined && index != (k = getKeys(keys))[k.length - 1]);
       },
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)

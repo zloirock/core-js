@@ -2444,7 +2444,7 @@
     ok(M.size === 3);
   });
   test('Map::forEach', function(){
-    var r, T, count, M, a;
+    var r, T, count, M, a, map, s;
     ok(isFunction(Map.prototype.forEach), 'Is function');
     r = {};
     count = 0;
@@ -2461,6 +2461,18 @@
       4: 1,
       9: a
     });
+    map = new Map([['0', 9], ['1', 9], ['2', 9], ['3', 9]]);
+    s = "";
+    map.forEach(function(value, key){
+      s += key;
+      if (key === '2') {
+        map['delete']('2');
+        map['delete']('3');
+        map['delete']('1');
+        return map.set('4', 9);
+      }
+    });
+    ok(s === '0124');
   });
   test('Map::get', function(){
     var o, M;
@@ -2585,7 +2597,7 @@
     ok(S.size === 3);
   });
   test('Set::forEach', function(){
-    var r, count, S;
+    var r, count, S, set, s;
     ok(isFunction(Set.prototype.forEach), 'Is function');
     r = [];
     count = 0;
@@ -2596,6 +2608,18 @@
     });
     ok(count === 3);
     deepEqual(r, [1, 2, 3]);
+    set = new Set(['0', '1', '2', '3']);
+    s = "";
+    set.forEach(function(it){
+      s += it;
+      if (it === '2') {
+        set['delete']('2');
+        set['delete']('3');
+        set['delete']('1');
+        return set.add('4');
+      }
+    });
+    ok(s === '0124');
   });
   test('Set::has', function(){
     var a, S;
