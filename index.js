@@ -306,6 +306,10 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , trunc  = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
     }
+// 7.2.3 SameValue(x, y)
+function same(x, y){
+  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
+}
 // 20.1.2.4 Number.isNaN(number)
 function sameNaN(number){
   return number != number;
@@ -562,9 +566,7 @@ $define(GLOBAL, {global: global});
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
-    is: function(x, y){
-      return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
-    }
+    is: same
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
@@ -1141,7 +1143,7 @@ $define(GLOBAL + BIND, {
       var index  = fastKey(key, true)
         , values = this[VALUES];
       if(!(index in values)){
-        this[KEYS][index] = key;
+        this[KEYS][index] = same(key, -0) ? 0 : key;
         this[SIZE]++;
       }
       values[index] = value;
@@ -1156,7 +1158,7 @@ $define(GLOBAL + BIND, {
       var index  = fastKey(value, true)
         , values = this[KEYS];
       if(!(index in values)){
-        values[index] = value;
+        values[index] = same(value, -0) ? 0 : value;
         this[SIZE]++;
       }
       return this;

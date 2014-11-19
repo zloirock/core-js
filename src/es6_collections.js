@@ -124,7 +124,7 @@
       var index  = fastKey(key, true)
         , values = this[VALUES];
       if(!(index in values)){
-        this[KEYS][index] = key;
+        this[KEYS][index] = same(key, -0) ? 0 : key;
         this[SIZE]++;
       }
       values[index] = value;
@@ -139,7 +139,7 @@
       var index  = fastKey(value, true)
         , values = this[KEYS];
       if(!(index in values)){
-        values[index] = value;
+        values[index] = same(value, -0) ? 0 : value;
         this[SIZE]++;
       }
       return this;

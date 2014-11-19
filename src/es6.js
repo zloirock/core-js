@@ -4,9 +4,7 @@
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
-    is: function(x, y){
-      return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
-    }
+    is: same
   });
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
