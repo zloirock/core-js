@@ -32,7 +32,7 @@
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = TO_STRING_TAG in Symbol
       ? Symbol[TO_STRING_TAG]
-      : Symbol(SYMBOL + '.' + TO_STRING_TAG),
+      : Symbol(SYMBOL + DOT + TO_STRING_TAG),
     pure: symbol,
     set: set
   });

@@ -1,4 +1,4 @@
-!function(){
+!function(DICT){
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
@@ -16,7 +16,7 @@
   function DictIterator(iterated, kind){
     set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
-  createIterator(DictIterator, 'Dict', function(){
+  createIterator(DictIterator, DICT, function(){
     var iter   = this[ITER]
       , index  = iter.i++
       , keys   = iter.a
@@ -97,6 +97,9 @@
     }
   }
   var findKey = createDictMethod(6);
+  function includes(object, el){
+    return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
+  }
   assign(Dict, {
     keys:    createDictIter(KEY),
     values:  createDictIter(VALUE),
@@ -111,9 +114,8 @@
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,
-    contains: function(object, el){
-      return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
-    },
+    includes: includes,
+    contains: deprecated(includes, DICT+DOT+CONTAINS, DICT+DOT+INCLUDES),
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -131,4 +133,4 @@
     entries: createObjectToArray(true)
   });
   $define(GLOBAL + FORCED, {Dict: Dict});
-}();
+}('Dict');

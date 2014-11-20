@@ -1,17 +1,17 @@
 QUnit.module \Array
 isFunction = -> typeof! it is \Function
-test '::contains' !->
-  ok isFunction(Array::contains), 'Is function'
+test '::includes' !->
+  ok isFunction(Array::includes), 'Is function'
   arr = [1 2 3 -0 NaN, o = {}]
-  ok arr.contains 1
-  ok arr.contains -0
-  ok arr.contains 0
-  ok arr.contains NaN
-  ok arr.contains o
-  ok !arr.contains 4
-  ok !arr.contains -0.5
-  ok !arr.contains {}
-  ok Array(1)contains void
+  ok arr.includes 1
+  ok arr.includes -0
+  ok arr.includes 0
+  ok arr.includes o
+  ok !arr.includes 4
+  ok !arr.includes -0.5
+  ok !arr.includes {}
+  ok Array(1)includes void
+  ok [NaN].includes(NaN)
 test '::turn' !->
   ok isFunction(Array::turn), 'Is function'
   (arr = [1])turn (memo, val, key, that)->

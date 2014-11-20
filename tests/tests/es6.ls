@@ -326,12 +326,12 @@ test 'Math.trunc' !->
   ok trunc(-555.555) is -555, '-555.555 -> -555'
   ok trunc(0x20000000000001) is 0x20000000000001, '0x20000000000001 -> 0x20000000000001'
   ok trunc(-0x20000000000001) is -0x20000000000001, '-0x20000000000001 -> -0x20000000000001'
-test 'String::contains' !->
-  ok isFunction(String::contains), 'Is function'
-  ok not 'abc'contains!
-  ok 'aundefinedb'contains!
-  ok 'abcd'contains \b 1
-  ok not 'abcd'contains \b 2
+test 'String::includes' !->
+  ok isFunction(String::includes), 'Is function'
+  ok not 'abc'includes!
+  ok 'aundefinedb'includes!
+  ok 'abcd'includes \b 1
+  ok not 'abcd'includes \b 2
 test 'String::endsWith' !->
   ok isFunction(String::endsWith), 'Is function'
   ok 'undefined'endsWith!

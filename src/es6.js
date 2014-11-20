@@ -145,13 +145,16 @@
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   // TODO
+  function includes(searchString, position /* = 0 */){
+    return !!~String(this).indexOf(searchString, position);
+  }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // TODO
-    // 21.1.3.6 String.prototype.contains(searchString, position = 0)
-    contains: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position);
-    },
+    // String.prototype.includes(searchString, position = 0)
+    includes: includes,
+    // Deprecated name of String#includes
+    contains: deprecated(includes, STRING+SHARP+CONTAINS, STRING+SHARP+INCLUDES),
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length

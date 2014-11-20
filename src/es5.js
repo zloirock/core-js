@@ -119,7 +119,7 @@
       return fn.apply(ES5Object(this), arguments);
     }
   }
-  if(!(0 in Object('q') && 'q'[0] == 'q')){
+  if(!(0 in Object(DOT) && DOT[0] == DOT)){
     ES5Object = function(it){
       return cof(it) == STRING ? it.split('') : Object(it);
     }

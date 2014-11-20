@@ -9,7 +9,7 @@
     ));
   }
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
-  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains', 3);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
                   'lastIndexOf,reduce,reduceRight,fill,turn');
 }();

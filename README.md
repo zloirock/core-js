@@ -65,7 +65,7 @@ Array
   ::keys() -> iterator                                         es6          es6_iterators
   ::entries() -> iterator (entries)                            es6          es6_iterators
   ::@@iterator() -> iterator                                   es6          es6_iterators
-  ::contains(var, from?) -> bool                               es7          array
+  ::includes(var, from?) -> bool                               es7          array
   ::turn(fn(memo, val, index, @), memo = []) -> memo           core         array
 [new] Dict(itarable (entries) | object ?) -> dict              core         dict
   .isDict(var) -> bool                                         core         dict
@@ -83,7 +83,7 @@ Array
   .find(object, fn(val, key, @), that) -> val                  core         dict
   .findKey(object, fn(val, key, @), that) -> key               core         dict
   .keyOf(object, var) -> key                                   core         dict
-  .contains(object, var) -> bool                               core         dict
+  .includes(object, var) -> bool                               core         dict
   .reduce(object, fn(memo, val, key, @), memo?) -> var         core         dict
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo   core         dict
 new Set(iterable?) -> set                                      es6          es6_collections
@@ -111,18 +111,16 @@ new Map(iterable (entries) ?) -> map                           es6          es6_
   ::@@iterator() -> iterator (entries)                         es6          es6_iterators
 new WeakSet(iterable?) -> weakset                              es6          es6_collections
   ::add(key) -> @                                              es6          es6_collections
-  ::clear() -> void                                            es6          es6_collections
   ::delete(key) -> bool                                        es6          es6_collections
   ::has(key) -> bool                                           es6          es6_collections
 new WeakMap(iterable (entries) ?) -> weakmap                   es6 sham     es6_collections
-  ::clear() -> void                                            es6 sham     es6_collections
   ::delete(key) -> bool                                        es6          es6_collections
   ::get(key) -> val                                            es6          es6_collections
   ::has(key) -> bool                                           es6          es6_collections
   ::set(key, val) -> @                                         es6          es6_collections
 String
   ::trim() -> str                                              es5          es5
-  ::contains(str, from?) -> bool                               es6          es6
+  ::includes(str, from?) -> bool                               es6          es6
   ::startsWith(str, from?) -> bool                             es6          es6
   ::endsWith(str, from?) -> bool                               es6          es6
   ::repeat(num) -> str                                         es6          es6

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.1.1
+ * Core.js 0.1.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -34,6 +34,8 @@ var global          = returnThis()
   , TO_LOCALE       = 'toLocaleString'
   , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
+  , CONTAINS        = 'contains'
+  , INCLUDES        = 'includes'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -65,7 +67,9 @@ var global          = returnThis()
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
   , core            = {}
-  , path            = framework ? global : core;
+  , path            = framework ? global : core
+  , DOT             = '.'
+  , SHARP           = '#';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -272,10 +276,10 @@ function createArrayContains(isContains){
       , length = toLength(O.length)
       , index  = max(getPositiveIndex(O, fromIndex), 0);
     if(isContains && el != el){
-      for(;length > index; index++)if(sameNaN(O[index]))return index;
+      for(;length > index; index++)if(sameNaN(O[index]))return isContains || index;
     } else for(;length > index; index++)if(isContains || index in O){
-      if(O[index] === el)return isContains ? true : index;
-    } return isContains ? false : -1;
+      if(O[index] === el)return isContains || index;
+    } return !isContains && -1;
   }
 }
 // Simple reduce to object
@@ -353,6 +357,17 @@ function assertObject(it){
 function assertInstance(it, Constructor, name){
   assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
+function deprecated(fn, name, alter){
+  var shown, msg = name + ' is deprecated and will be removed in the future!';
+  if(alter)msg += ' Use ' + alter + DOT;
+  return function(){
+    if(!shown && global.console && console.warn){
+      shown = true;
+      console.warn(msg);
+    }
+    return fn.apply(this, arguments);
+  }
+}
 
 // Property descriptors & Symbol
 function descriptor(bitmap, value){
@@ -385,9 +400,9 @@ var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e)
 // Iterators
 var ITERATOR = 'iterator'
   , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
-      ? Symbol[ITERATOR] : uid(SYMBOL + '.' + ITERATOR)
+      ? Symbol[ITERATOR] : uid(SYMBOL + DOT + ITERATOR)
   , SYMBOL_TAG = Symbol && TO_STRING_TAG in Symbol
-      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + '.' + TO_STRING_TAG)
+      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + DOT + TO_STRING_TAG)
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = symbol('iter')
@@ -628,7 +643,7 @@ if(!NODE || framework){
       return fn.apply(ES5Object(this), arguments);
     }
   }
-  if(!(0 in Object('q') && 'q'[0] == 'q')){
+  if(!(0 in Object(DOT) && DOT[0] == DOT)){
     ES5Object = function(it){
       return cof(it) == STRING ? it.split('') : Object(it);
     }
@@ -754,7 +769,7 @@ $define(GLOBAL, {global: global});
     // 19.4.2.10 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = TO_STRING_TAG in Symbol
       ? Symbol[TO_STRING_TAG]
-      : Symbol(SYMBOL + '.' + TO_STRING_TAG),
+      : Symbol(SYMBOL + DOT + TO_STRING_TAG),
     pure: symbol,
     set: set
   });
@@ -914,13 +929,16 @@ $define(GLOBAL, {global: global});
   // TODO
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   // TODO
+  function includes(searchString, position /* = 0 */){
+    return !!~String(this).indexOf(searchString, position);
+  }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     // TODO
-    // 21.1.3.6 String.prototype.contains(searchString, position = 0)
-    contains: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position);
-    },
+    // String.prototype.includes(searchString, position = 0)
+    includes: includes,
+    // Deprecated name of String#includes
+    contains: deprecated(includes, STRING+SHARP+CONTAINS, STRING+SHARP+INCLUDES),
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
@@ -1246,7 +1264,7 @@ $define(GLOBAL + BIND, {
       // create collection constructor
       C = function(iterable){
         assertInstance(this, C, NAME);
-        init.call(this);
+        isWeak ? hidden(this, WEAKID, wid++) : init.call(this);
         initFromIterable(this, iterable);
       }
       set(C, SHIM, true);
@@ -1381,11 +1399,6 @@ $define(GLOBAL + BIND, {
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
   }
   var weakCollectionMethods = {
-    // 23.3.3.1 WeakMap.prototype.clear()
-    // 23.4.3.2 WeakSet.prototype.clear()
-    clear: function(){
-      hidden(this, WEAKID, wid++);
-    },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)
     'delete': function(key){
@@ -1397,7 +1410,7 @@ $define(GLOBAL + BIND, {
   };
   
   // 23.3 WeakMap Objects
-  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap) && has(WeakMap[PROTOTYPE], 'clear'), {
+  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap), {
     // 23.3.3.4 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
@@ -1590,7 +1603,7 @@ $define(GLOBAL + BIND, {
  * Module : dict                                                              *
  ******************************************************************************/
 
-!function(){
+!function(DICT){
   function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
@@ -1608,7 +1621,7 @@ $define(GLOBAL + BIND, {
   function DictIterator(iterated, kind){
     set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
-  createIterator(DictIterator, 'Dict', function(){
+  createIterator(DictIterator, DICT, function(){
     var iter   = this[ITER]
       , index  = iter.i++
       , keys   = iter.a
@@ -1689,6 +1702,9 @@ $define(GLOBAL + BIND, {
     }
   }
   var findKey = createDictMethod(6);
+  function includes(object, el){
+    return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
+  }
   assign(Dict, {
     keys:    createDictIter(KEY),
     values:  createDictIter(VALUE),
@@ -1703,9 +1719,8 @@ $define(GLOBAL + BIND, {
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,
-    contains: function(object, el){
-      return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
-    },
+    includes: includes,
+    contains: deprecated(includes, DICT+DOT+CONTAINS, DICT+DOT+INCLUDES),
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -1723,7 +1738,7 @@ $define(GLOBAL + BIND, {
     entries: createObjectToArray(true)
   });
   $define(GLOBAL + FORCED, {Dict: Dict});
-}();
+}('Dict');
 
 /******************************************************************************
  * Module : timers                                                            *
@@ -1826,11 +1841,11 @@ $define(GLOBAL + BIND, {
  * Module : array                                                             *
  ******************************************************************************/
 
-$define(PROTO, ARRAY, {
-  // ~ ES7 : https://github.com/domenic/Array.prototype.contains
-  contains: createArrayContains(true)
-});
 $define(PROTO + FORCED, ARRAY, {
+  // ~ ES7 : https://github.com/domenic/Array.prototype.includes
+  includes: createArrayContains(true),
+  // Deprecated name of Array#includes
+  contains: deprecated(createArrayContains(true), ARRAY+SHARP+CONTAINS, ARRAY+SHARP+INCLUDES),
   turn: turn
 });
 
@@ -1849,7 +1864,7 @@ $define(PROTO + FORCED, ARRAY, {
     ));
   }
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
-  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,contains', 3);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,' +
                   'lastIndexOf,reduce,reduceRight,fill,turn');
 }();

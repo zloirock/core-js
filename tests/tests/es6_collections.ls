@@ -196,7 +196,6 @@ test 'Set::@@toStringTag' !->
 
 test 'WeakMap' !->
   ok isFunction(that.WeakMap), 'Is function'
-  ok \clear  of WeakMap::, 'clear in WeakMap.prototype'
   ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   ok \get    of WeakMap::, 'get in WeakMap.prototype'
   ok \has    of WeakMap::, 'has in WeakMap.prototype'
@@ -204,14 +203,6 @@ test 'WeakMap' !->
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   ok new WeakMap([[a = {}, b = {}]].values!).get(a) is b, 'Init WeakMap from iterator #1'
   ok new WeakMap(new Map([[a = {}, b = {}]])).get(a) is b, 'Init WeakMap from iterator #2'
-test 'WeakMap::clear' !->
-  ok isFunction(WeakMap::clear), 'Is function'
-  M = new WeakMap!
-    .set a = {}, 42
-    .set b = {}, 21
-  ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
-  M.clear!
-  ok !M.has(a) && !M.has(b), 'WeakMap has`nt values after .clear()'
 test 'WeakMap::delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap!
@@ -246,7 +237,6 @@ test 'WeakMap::@@toStringTag' !->
 test 'WeakSet' !->
   ok isFunction(that.WeakSet), 'Is function'
   ok \add    of WeakSet::, 'add in WeakSet.prototype'
-  ok \clear  of WeakSet::, 'clear in WeakSet.prototype'
   ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   ok \has    of WeakSet::, 'has in WeakSet.prototype'
   ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
@@ -256,14 +246,6 @@ test 'WeakSet::add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
-test 'WeakSet::clear' !->
-  ok isFunction(WeakSet::clear), 'Is function'
-  M = new WeakSet!
-    .add a = {}
-    .add b = {}
-  ok M.has(a) && M.has(b), 'WeakSet has values before .clear()'
-  M.clear!
-  ok !M.has(a) && !M.has(b), 'WeakSet has`nt values after .clear()'
 test 'WeakSet::delete' !->
   ok isFunction(WeakSet::delete), 'Is function'
   M = new WeakSet!

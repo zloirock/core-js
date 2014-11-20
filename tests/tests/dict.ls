@@ -140,18 +140,18 @@ test '.turn' !->
     ok it   is obj
   , obj = {}
   deepEqual turn({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
-test '.contains' !->
-  {contains} = Dict
-  ok isFunction(contains), 'Is function'
+test '.includes' !->
+  {includes} = Dict
+  ok isFunction(includes), 'Is function'
   dict = {q:1, w: NaN, e: -0, r: o = {}}
-  ok contains dict, 1
-  ok contains dict, -0
-  ok contains dict, 0
-  ok contains dict, NaN
-  ok contains dict, o
-  ok !contains dict, 4
-  ok !contains dict, -0.5
-  ok !contains dict, {}
+  ok includes dict, 1
+  ok includes dict, -0
+  ok includes dict, 0
+  ok includes dict, NaN
+  ok includes dict, o
+  ok !includes dict, 4
+  ok !includes dict, -0.5
+  ok !includes dict, {}
 test '.has' !->
   {has} = Dict
   ok isFunction(has), 'Is function'

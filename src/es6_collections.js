@@ -20,7 +20,7 @@
       // create collection constructor
       C = function(iterable){
         assertInstance(this, C, NAME);
-        init.call(this);
+        isWeak ? hidden(this, WEAKID, wid++) : init.call(this);
         initFromIterable(this, iterable);
       }
       set(C, SHIM, true);
@@ -155,11 +155,6 @@
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
   }
   var weakCollectionMethods = {
-    // 23.3.3.1 WeakMap.prototype.clear()
-    // 23.4.3.2 WeakSet.prototype.clear()
-    clear: function(){
-      hidden(this, WEAKID, wid++);
-    },
     // 23.3.3.3 WeakMap.prototype.delete(key)
     // 23.4.3.4 WeakSet.prototype.delete(value)
     'delete': function(key){
@@ -171,7 +166,7 @@
   };
   
   // 23.3 WeakMap Objects
-  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap) && has(WeakMap[PROTOTYPE], 'clear'), {
+  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap), {
     // 23.3.3.4 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];

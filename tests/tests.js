@@ -138,19 +138,19 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('::contains', function(){
+  test('::includes', function(){
     var arr, o;
-    ok(isFunction(Array.prototype.contains), 'Is function');
+    ok(isFunction(Array.prototype.includes), 'Is function');
     arr = [1, 2, 3, -0, NaN, o = {}];
-    ok(arr.contains(1));
-    ok(arr.contains(-0));
-    ok(arr.contains(0));
-    ok(arr.contains(NaN));
-    ok(arr.contains(o));
-    ok(!arr.contains(4));
-    ok(!arr.contains(-0.5));
-    ok(!arr.contains({}));
-    ok(Array(1).contains(void 8));
+    ok(arr.includes(1));
+    ok(arr.includes(-0));
+    ok(arr.includes(0));
+    ok(arr.includes(o));
+    ok(!arr.includes(4));
+    ok(!arr.includes(-0.5));
+    ok(!arr.includes({}));
+    ok(Array(1).includes(void 8));
+    ok([NaN].includes(NaN));
   });
   test('::turn', function(){
     var arr, obj;
@@ -179,7 +179,7 @@
   slice = Array.prototype.slice;
   test('are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'turn', 'contains']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'turn', 'includes']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -738,24 +738,24 @@
       return memo.unshift(it);
     }));
   });
-  test('.contains', function(){
-    var contains, args, o, str;
-    contains = Array.contains;
-    ok(isFunction(contains), 'Is function');
+  test('.includes', function(){
+    var includes, args, o, str;
+    includes = Array.includes;
+    ok(isFunction(includes), 'Is function');
     args = function(){
       return arguments;
     }(1, 2, 3, -0, NaN, o = {});
-    ok(contains(args, 1));
-    ok(contains(args, -0));
-    ok(contains(args, 0));
-    ok(contains(args, NaN));
-    ok(contains(args, o));
-    ok(!contains(args, 4));
-    ok(!contains(args, -0.5));
-    ok(!contains(args, {}));
+    ok(includes(args, 1));
+    ok(includes(args, -0));
+    ok(includes(args, 0));
+    ok(includes(args, NaN));
+    ok(includes(args, o));
+    ok(!includes(args, 4));
+    ok(!includes(args, -0.5));
+    ok(!includes(args, {}));
     str = 'qwe';
-    ok(contains(str, 'q'));
-    ok(!contains(str, 'r'));
+    ok(includes(str, 'q'));
+    ok(!includes(str, 'r'));
   });
 }).call(this);
 
@@ -1317,24 +1317,24 @@
       3: 3
     }));
   });
-  test('.contains', function(){
-    var contains, dict, o;
-    contains = Dict.contains;
-    ok(isFunction(contains), 'Is function');
+  test('.includes', function(){
+    var includes, dict, o;
+    includes = Dict.includes;
+    ok(isFunction(includes), 'Is function');
     dict = {
       q: 1,
       w: NaN,
       e: -0,
       r: o = {}
     };
-    ok(contains(dict, 1));
-    ok(contains(dict, -0));
-    ok(contains(dict, 0));
-    ok(contains(dict, NaN));
-    ok(contains(dict, o));
-    ok(!contains(dict, 4));
-    ok(!contains(dict, -0.5));
-    ok(!contains(dict, {}));
+    ok(includes(dict, 1));
+    ok(includes(dict, -0));
+    ok(includes(dict, 0));
+    ok(includes(dict, NaN));
+    ok(includes(dict, o));
+    ok(!includes(dict, 4));
+    ok(!includes(dict, -0.5));
+    ok(!includes(dict, {}));
   });
   test('.has', function(){
     var has;
@@ -2270,12 +2270,12 @@
     ok(trunc(0x20000000000001) === 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
     ok(trunc(-0x20000000000001) === -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
   });
-  test('String::contains', function(){
-    ok(isFunction(String.prototype.contains), 'Is function');
-    ok(!'abc'.contains());
-    ok('aundefinedb'.contains());
-    ok('abcd'.contains('b', 1));
-    ok(!'abcd'.contains('b', 2));
+  test('String::includes', function(){
+    ok(isFunction(String.prototype.includes), 'Is function');
+    ok(!'abc'.includes());
+    ok('aundefinedb'.includes());
+    ok('abcd'.includes('b', 1));
+    ok(!'abcd'.includes('b', 2));
   });
   test('String::endsWith', function(){
     ok(isFunction(String.prototype.endsWith), 'Is function');
@@ -2649,7 +2649,6 @@
   test('WeakMap', function(){
     var a, b;
     ok(isFunction(that.WeakMap), 'Is function');
-    ok('clear' in WeakMap.prototype, 'clear in WeakMap.prototype');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
     ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
@@ -2657,14 +2656,6 @@
     ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
     ok(new WeakMap([[a = {}, b = {}]].values()).get(a) === b, 'Init WeakMap from iterator #1');
     ok(new WeakMap(new Map([[a = {}, b = {}]])).get(a) === b, 'Init WeakMap from iterator #2');
-  });
-  test('WeakMap::clear', function(){
-    var M, a, b;
-    ok(isFunction(WeakMap.prototype.clear), 'Is function');
-    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
-    ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
-    M.clear();
-    ok(!M.has(a) && !M.has(b), 'WeakMap has`nt values after .clear()');
   });
   test('WeakMap::delete', function(){
     var M, a, b;
@@ -2715,7 +2706,6 @@
     var a;
     ok(isFunction(that.WeakSet), 'Is function');
     ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
-    ok('clear' in WeakSet.prototype, 'clear in WeakSet.prototype');
     ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
     ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
     ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
@@ -2735,14 +2725,6 @@
         return true;
       }
     }()), 'WeakSet.prototype.add throw with primitive keys');
-  });
-  test('WeakSet::clear', function(){
-    var M, a, b;
-    ok(isFunction(WeakSet.prototype.clear), 'Is function');
-    M = new WeakSet().add(a = {}).add(b = {});
-    ok(M.has(a) && M.has(b), 'WeakSet has values before .clear()');
-    M.clear();
-    ok(!M.has(a) && !M.has(b), 'WeakSet has`nt values after .clear()');
   });
   test('WeakSet::delete', function(){
     var M, a, b;

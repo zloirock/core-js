@@ -21,6 +21,8 @@ var global          = returnThis()
   , TO_LOCALE       = 'toLocaleString'
   , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
+  , CONTAINS        = 'contains'
+  , INCLUDES        = 'includes'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -52,7 +54,9 @@ var global          = returnThis()
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
   , core            = {}
-  , path            = framework ? global : core;
+  , path            = framework ? global : core
+  , DOT             = '.'
+  , SHARP           = '#';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -259,10 +263,10 @@ function createArrayContains(isContains){
       , length = toLength(O.length)
       , index  = max(getPositiveIndex(O, fromIndex), 0);
     if(isContains && el != el){
-      for(;length > index; index++)if(sameNaN(O[index]))return index;
+      for(;length > index; index++)if(sameNaN(O[index]))return isContains || index;
     } else for(;length > index; index++)if(isContains || index in O){
-      if(O[index] === el)return isContains ? true : index;
-    } return isContains ? false : -1;
+      if(O[index] === el)return isContains || index;
+    } return !isContains && -1;
   }
 }
 // Simple reduce to object
@@ -340,6 +344,17 @@ function assertObject(it){
 function assertInstance(it, Constructor, name){
   assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
+function deprecated(fn, name, alter){
+  var shown, msg = name + ' is deprecated and will be removed in the future!';
+  if(alter)msg += ' Use ' + alter + DOT;
+  return function(){
+    if(!shown && global.console && console.warn){
+      shown = true;
+      console.warn(msg);
+    }
+    return fn.apply(this, arguments);
+  }
+}
 
 // Property descriptors & Symbol
 function descriptor(bitmap, value){
@@ -372,9 +387,9 @@ var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e)
 // Iterators
 var ITERATOR = 'iterator'
   , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
-      ? Symbol[ITERATOR] : uid(SYMBOL + '.' + ITERATOR)
+      ? Symbol[ITERATOR] : uid(SYMBOL + DOT + ITERATOR)
   , SYMBOL_TAG = Symbol && TO_STRING_TAG in Symbol
-      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + '.' + TO_STRING_TAG)
+      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + DOT + TO_STRING_TAG)
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = symbol('iter')

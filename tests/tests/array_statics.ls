@@ -2,7 +2,7 @@ QUnit.module 'Array statics'
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries turn contains]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries turn includes]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test '.join' !->
   {join} = Array
@@ -249,18 +249,18 @@ test '.turn' !->
   , obj = {}
   deepEqual [3 2 1], turn (->&)(1 2 3), ((memo, it)-> memo.unshift it)
   deepEqual [\3 \2 \1], turn \123, ((memo, it)-> memo.unshift it)
-test '.contains' !->
-  {contains} = Array
-  ok isFunction(contains), 'Is function'
+test '.includes' !->
+  {includes} = Array
+  ok isFunction(includes), 'Is function'
   args = (->&)(1 2 3 -0 NaN, o = {})
-  ok contains args, 1
-  ok contains args, -0
-  ok contains args, 0
-  ok contains args, NaN
-  ok contains args, o
-  ok !contains args, 4
-  ok !contains args, -0.5
-  ok !contains args, {}
+  ok includes args, 1
+  ok includes args, -0
+  ok includes args, 0
+  ok includes args, NaN
+  ok includes args, o
+  ok !includes args, 4
+  ok !includes args, -0.5
+  ok !includes args, {}
   str = \qwe
-  ok contains str, \q
-  ok !contains str, \r
+  ok includes str, \q
+  ok !includes str, \r
