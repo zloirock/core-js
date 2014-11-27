@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, extended object api, [Date formatting](#date-formate) and some other sugar.
+Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, [Date formatting](#date-formate) and some other sugar.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -29,8 +29,13 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
-  - [setTimeout / setInterval](#settimeout-setinterval)
+  - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
+  - [Dict](#dict)
+  - [Object classify](#dict)
+  - [Date formatting](#date-formate)
+  - [Array](#array)
+  - [Escaping characters](#escaping-characters)
 - [Install](#install)
 
 ## API:
@@ -182,6 +187,8 @@ Symbol(description?) -> symbol
   .toStringTag -> symbol
   .pure() -> symbol || string
   .set(object, key, val) -> object
+Reflect -> object
+  .ownKeys(object) -> array
 ```
 [Basic example](http://goo.gl/EUsvAf):
 ```javascript
@@ -207,6 +214,13 @@ for(var key in person)console.log(key); // => only 'getName', symbols not enumer
 var symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
+```
+`Reflect.ownKeys` return all object keys - strings & symbols, [example](http://goo.gl/fyu6pn):
+```javascript
+var O = {a: 1};
+Object.defineProperty(O, 'b', {value: 2});
+O[Symbol('c')] = 3;
+Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 ```
 
 ### ECMAScript 6: Collections
@@ -453,12 +467,137 @@ setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
 ```
 ### Console
-Module `console`. Console cap for old browsers. Binding console methods to console object. `console` is shortcut for `console.log`.
-```
+Module `console`. Console cap for old browsers. Binding console methods to `console` object. `console` is shortcut for `console.log`.
+```javascript
 console(...args) -> void
   .{...console API}
   .enable() -> void
   .disable() -> void
+```
+```javascript
+// Before:
+if(window.console && console.log)console.log(42);
+// After:
+console.log(42);
+
+// Before:
+setTimeout(console.log.bind(console, 42), 1000);
+[1, 2, 3].forEach(console.log, console);
+// After:
+setTimeout(console.log, 1000, 42);
+[1, 2, 3].forEach(console.log);
+
+console.disable();
+console.warn('Console is disabled, you will not see this message.');
+console.enable();
+console.warn('Console is enabled.');
+
+console('Shortcut for console.log');
+// Before:
+setTimeout(console.log.bind(console, 42), 1000);
+// After:
+setTimeout(console, 1000, 42);
+```
+
+### Dict
+Module `dict`.
+```javascript
+[new] Dict(itarable (entries) | object ?) -> dict
+  .isDict(var) -> bool
+  .values(object) -> iterator
+  .keys(object) -> iterator
+  .entries(object) -> iterator (entries)
+  .has(object, key) -> bool
+  .get(object, key) -> val
+  .set(object, key, value) -> object
+  .forEach(object, fn(val, key, @), that) -> void
+  .map(object, fn(val, key, @), that) -> new @
+  .mapPairs(object, fn(val, key, @), that) -> new @
+  .filter(object, fn(val, key, @), that) -> new @
+  .some(object, fn(val, key, @), that) -> bool
+  .every(object, fn(val, key, @), that) -> bool
+  .find(object, fn(val, key, @), that) -> val
+  .findKey(object, fn(val, key, @), that) -> key
+  .keyOf(object, var) -> key
+  .includes(object, var) -> bool
+  .reduce(object, fn(memo, val, key, @), memo?) -> var
+  .turn(object, fn(memo, val, key, @), memo = new @) -> memo
+Object
+  .values(object) -> array
+  .entries(object) -> array
+```
+`Dict` create object without prototype from iterable or simple object. [Example](http://goo.gl/pnp8Vr):
+```javascript
+var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
+
+Dict();                    // => {__proto__: null}
+Dict({a: 1, b: 2, c: 3});  // => {__proto__: null, a: 1, b: 2, c: 3}
+Dict(map);                 // => {__proto__: null, a: 1, b: 2, c: 3}
+Dict([1, 2, 3].entries()); // => {__proto__: null, 0: 1, 1: 2, 2: 3}
+
+var dict = Dict({a: 42});
+dict instanceof Object;   // => false
+dict.a;                   // => 42
+dict.toString;            // => undefined
+'a' in dict;              // => true
+'hasOwnProperty' in dict; // => false
+
+Dict.isDict({});     // => false
+Dict.isDict(Dict()); // => true
+```
+
+### Date formate
+Module `date`.
+```javascript
+Date
+  #format(str, key?) -> str
+  #formatUTC(str, key?) -> str
+core
+  .addLocale(key, object) -> core
+  .locale(key?) -> key
+```
+Token | Unit | Sample
+------|----- | ------
+s  | Seconds           | 0-59
+ss | Seconds, 2 digits | 00-59
+m  | Minutes           | 0-59
+mm | Minutes, 2 digits | 00-59
+h  | Hours             | 0-23
+hh | Hours, 2 digits   | 00-23
+D  | Date              | 1-31
+DD | Date, 2 digits    | 01-31
+W  | Weekday, string   | Вторник
+N  | Month             | 1-12
+NN | Month, 2 digits   | 01-12
+M  | Month, string     | Ноябрь
+MM | Of month, string  | Ноября
+Y  | Year, full        | 2014
+YY | Year, 2 digits    | 14
+### Array
+Module `array`.
+```javascript
+Array
+  #includes(var, from?) -> bool
+  #turn(fn(memo, val, index, @), memo = []) -> memo
+```
+### Escaping characters
+Module `string`.
+```javascript
+String
+  #escapeHTML() -> str
+  #unescapeHTML() -> str
+```
+```javascript
+'<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
+'&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
+```
+Module `regexp`.
+```javascript
+RegExp
+  .escape(str) -> str
+```
+```javascript
+RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
 
 ## Install
