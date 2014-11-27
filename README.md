@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular standard library for JavaScript. Includes polyfills for ECMAScript 5, ECMAScript 6: [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), iterators, [Promise](#promise); [setImmediate](#setimmmediate), static array methods, [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, extended object api, [Date formatting](#date-formate) and some other sugar.
+Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmmediate), static array methods, [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, extended object api, [Date formatting](#date-formate) and some other sugar.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -22,20 +22,23 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6](#ecmascript-6)
   - [ECMAScript 6: Symbols](#ecmascript-6-symbols)
   - [ECMAScript 6: Collections](#ecmascript-6-collections)
-    - [Set](#set)
     - [Map](#map)
-    - [WeakSet](#weakset)
+    - [Set](#set)
     - [WeakMap](#weakmap)
+    - [WeakSet](#weakset)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
   - [setImmediate / setTimeout / setInterval](#setimmediate-settimeout-setinterval)
 - [Install](#install)
 
 ### ECMAScript 5
+Module: `es5`.
 
 ### ECMAScript 6
+Module: `es6`.
 
 ### ECMAScript 6: Symbols
+Module: `es6_symbol`.
 [Example](http://goo.gl/EUsvAf):
 ```javascript
 var Person = (function(){
@@ -174,8 +177,101 @@ console.log(wset.has(b));   // => false
 ```
 
 ### ECMAScript 6: Iterators
+Module: `es6_collections`.
+```javascript
+String
+  #@@iterator() -> iterator
+Array
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator
+Set
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator
+Map
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator (entries)
+Arguments
+  #@@iterator() -> iterator (sham)
+```
+[Example](http://goo.gl/ArArLq):
+```javascript
+var string = 'abc';
+
+for(var val of string)console.log(val);         // => 'a', 'b', 'c'
+
+var array = ['a', 'b', 'c'];
+
+for(var val of array)console.log(val);          // => 'a', 'b', 'c'
+for(var val of array.values())console.log(val); // => 'a', 'b', 'c'
+for(var key of array.keys())console.log(key);   // => 0, 1, 2
+for(var [key, val] of array.entries()){
+  console.log(key);                             // => 0, 1, 2
+  console.log(val);                             // => 'a', 'b', 'c'
+}
+
+var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
+
+for(var [key, val] of map){
+  console.log(key);                             // => 'a', 'b', 'c'
+  console.log(val);                             // => 1, 2, 3
+}
+for(var val of map.values())console.log(val);   // => 1, 2, 3
+for(var key of map.keys())console.log(key);     // => 'a', 'b', 'c'
+for(var [key, val] of map.entries()){
+  console.log(key);                             // => 'a', 'b', 'c'
+  console.log(val);                             // => 1, 2, 3
+}
+
+var set = new Set([1, 2, 3, 2, 1]);
+
+for(var val of set)console.log(val);            // => 1, 2, 3
+for(var val of set.values())console.log(val);   // => 1, 2, 3
+for(var key of set.keys())console.log(key);     // => 1, 2, 3
+for(var [key, val] of set.entries()){
+  console.log(key);                             // => 1, 2, 3
+  console.log(val);                             // => 1, 2, 3
+}
+```
 
 ### ECMAScript 6: Promises
+Module: `es6_promise`.
+```javascript
+new Promise(executor(resolve(var), reject(var))) -> promise
+  #then(resolved(var), rejected(var)) -> promise
+  #catch(rejected(var)) -> promise
+  .resolve(var || promise) -> promise
+  .reject(var) -> promise
+  .all(iterable) -> promise
+  .race(iterable) -> promise
+```
+[Example](http://goo.gl/z3bXC8):
+```javascript
+var log = console.log.bind(console);
+function sleepRandom(time){
+  return new Promise(function(resolve, reject){
+    setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3);
+  });
+}
+
+log('Run');                    // => Run
+sleepRandom(5).then(function(result){
+  log(result);                 // => 869, after 5 sec.
+  return sleepRandom(10);
+}).then(function(result){
+  log(result);                 // => 202, after 10 sec. 
+}).then(function(){
+  log('immediately after');    // => immediately after
+  throw Error('Irror!');
+}).then(function(){
+  log('will not be displayed');
+}).catch(log);                 // => => Error: Irror!
+```
 
 ## Install
 ```
