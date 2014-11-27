@@ -1,5 +1,5 @@
 !function(DICT){
-  function Dict(iterable){
+  Dict = function(iterable){
     var dict = create(null);
     if(iterable != undefined){
       if(isIterable(iterable)){
@@ -43,11 +43,10 @@
    * 4 -> every
    * 5 -> find
    * 6 -> findKey
+   * 7 -> mapPairs
    */
   function createDictMethod(type){
     var isMap    = type == 1
-      , isFilter = type == 2
-      , isSome   = type == 3
       , isEvery  = type == 4;
     return function(object, callbackfn, that /* = undefined */){
       var f      = ctx(callbackfn, that, 3)
@@ -55,7 +54,7 @@
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0
-        , result = isMap || isFilter ? new (generic(this, Dict)) : undefined
+        , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
         , key, val, res;
       while(length > i){
         key = keys[i++];
@@ -64,14 +63,15 @@
         if(type){
           if(isMap)result[key] = res;             // map
           else if(res)switch(type){
+            case 2: result[key] = val; break      // filter
             case 3: return true;                  // some
             case 5: return val;                   // find
             case 6: return key;                   // findKey
-            case 2: result[key] = val;            // filter
+            case 7: result[res[0]] = res[1];      // mapPairs
           } else if(isEvery)return false;         // every
         }
       }
-      return isSome || isEvery ? isEvery : result;
+      return type == 3 || isEvery ? isEvery : result;
     }
   }
   function createDictReduce(isTurn){
@@ -111,6 +111,7 @@
     every:   createDictMethod(4),
     find:    createDictMethod(5),
     findKey: findKey,
+    mapPairs:createDictMethod(7),
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,

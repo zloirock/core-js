@@ -1227,6 +1227,29 @@
       e: 9
     }));
   });
+  test('.mapPairs', function(){
+    var mapPairs, obj, ctx;
+    mapPairs = Dict.mapPairs;
+    ok(isFunction(mapPairs), 'Is function');
+    mapPairs(obj = {
+      q: 1
+    }, function(val, key, that){
+      ok(val === 1);
+      ok(key === 'q');
+      ok(that === obj);
+      return ok(this === ctx);
+    }, ctx = {});
+    deepEqual(mapPairs({
+      q: 1,
+      w: 2,
+      e: 3
+    }, function(v, k){
+      return v !== 2 && [k + k, v * v];
+    }), Dict({
+      qq: 1,
+      ee: 9
+    }));
+  });
   test('.reduce', function(){
     var reduce, obj, foo, memo;
     reduce = Dict.reduce;

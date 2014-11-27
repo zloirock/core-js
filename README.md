@@ -35,38 +35,38 @@ Object
   .classof(var) -> string                                      core         object
   .define(target, mixin) -> target                             core         object
   .make(proto | null, mixin?) -> object                        core         object
-  ::toString()                                                 es6 fix      es6
-  ::[_](key) -> boundFn                                        core         binding
+  #toString()                                                  es6 fix      es6
+  #[_](key) -> boundFn                                         core         binding
 Function
-  ::bind(object, ...args | _) -> boundFn(...args)              es5          es5
-  ::part(...args | _) -> fn(...args)                           core         binding
-  ::by(object | _, ...args | _) -> boundFn(...args)            core         binding
-  ::only(num, that /* = @ */) -> (fn | boundFn)(...args)       core         binding
+  #bind(object, ...args | _) -> boundFn(...args)               es5          es5
+  #part(...args | _) -> fn(...args)                            core         binding
+  #by(object | _, ...args | _) -> boundFn(...args)             core         binding
+  #only(num, that /* = @ */) -> (fn | boundFn)(...args)        core         binding
 Array
   .isArray(var) -> bool                                        es5          es5
   .from(iterable | array-like, fn(val, index)?, that) -> array es6          es6
   .of(...args) -> array                                        es6          es6
-  .{...Array::}                                                js1.6        array_statics
-  ::slice(start?, end?) -> array                               es5 fix      es5
-  ::join(string = ',') -> string                               es5 fix      es5
-  ::indexOf(var, from?) -> int                                 es5          es5
-  ::lastIndexOf(var, from?) -> int                             es5          es5
-  ::every(fn(val, index, @), that) -> bool                     es5          es5
-  ::some(fn(val, index, @), that) -> bool                      es5          es5
-  ::forEach(fn(val, index, @), that) -> void                   es5          es5
-  ::map(fn(val, index, @), that) -> array                      es5          es5
-  ::filter(fn(val, index, @), that) -> array                   es5          es5
-  ::reduce(fn(memo, val, index, @), memo?) -> var              es5          es5
-  ::reduceRight(fn(memo, val, index, @), memo?) -> var         es5          es5
-  ::fill(var, start?, end?) -> @                               es5          es5
-  ::find(fn(val, index, @), that) -> var                       es6          es6
-  ::findIndex(fn(val, index, @), that) -> int                  es6          es6
-  ::values() -> iterator                                       es6          es6_iterators
-  ::keys() -> iterator                                         es6          es6_iterators
-  ::entries() -> iterator (entries)                            es6          es6_iterators
-  ::@@iterator() -> iterator                                   es6          es6_iterators
-  ::includes(var, from?) -> bool                               es7          array
-  ::turn(fn(memo, val, index, @), memo = []) -> memo           core         array
+  .{...Array#}                                                 js1.6        array_statics
+  #slice(start?, end?) -> array                                es5 fix      es5
+  #join(string = ',') -> string                                es5 fix      es5
+  #indexOf(var, from?) -> int                                  es5          es5
+  #lastIndexOf(var, from?) -> int                              es5          es5
+  #every(fn(val, index, @), that) -> bool                      es5          es5
+  #some(fn(val, index, @), that) -> bool                       es5          es5
+  #forEach(fn(val, index, @), that) -> void                    es5          es5
+  #map(fn(val, index, @), that) -> array                       es5          es5
+  #filter(fn(val, index, @), that) -> array                    es5          es5
+  #reduce(fn(memo, val, index, @), memo?) -> var               es5          es5
+  #reduceRight(fn(memo, val, index, @), memo?) -> var          es5          es5
+  #fill(var, start?, end?) -> @                                es5          es5
+  #find(fn(val, index, @), that) -> var                        es6          es6
+  #findIndex(fn(val, index, @), that) -> int                   es6          es6
+  #values() -> iterator                                        es6          es6_iterators
+  #keys() -> iterator                                          es6          es6_iterators
+  #entries() -> iterator (entries)                             es6          es6_iterators
+  #@@iterator() -> iterator                                    es6          es6_iterators
+  #includes(var, from?) -> bool                                es7          array
+  #turn(fn(memo, val, index, @), memo = []) -> memo            core         array
 [new] Dict(itarable (entries) | object ?) -> dict              core         dict
   .isDict(var) -> bool                                         core         dict
   .values(object) -> iterator                                  core         dict
@@ -77,6 +77,7 @@ Array
   .set(object, key, value) -> object                           core         dict
   .forEach(object, fn(val, key, @), that) -> void              core         dict
   .map(object, fn(val, key, @), that) -> new @                 core         dict
+  .mapPairs(object, fn(val, key, @), that) -> new @            core         dict
   .filter(object, fn(val, key, @), that) -> new @              core         dict
   .some(object, fn(val, key, @), that) -> bool                 core         dict
   .every(object, fn(val, key, @), that) -> bool                core         dict
@@ -87,46 +88,46 @@ Array
   .reduce(object, fn(memo, val, key, @), memo?) -> var         core         dict
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo   core         dict
 new Set(iterable?) -> set                                      es6          es6_collections
-  ::add(key) -> @                                              es6          es6_collections
-  ::clear() -> void                                            es6          es6_collections
-  ::delete(key) -> bool                                        es6          es6_collections
-  ::forEach(fn(el, el, @), that) -> void                       es6          es6_collections
-  ::has(key) -> bool                                           es6          es6_collections
-  ::size -> uint                                               es6          es6_collections
-  ::values() -> iterator                                       es6          es6_iterators
-  ::keys() -> iterator                                         es6          es6_iterators
-  ::entries() -> iterator (entries)                            es6          es6_iterators
-  ::@@iterator() -> iterator                                   es6          es6_iterators
+  #add(key) -> @                                               es6          es6_collections
+  #clear() -> void                                             es6          es6_collections
+  #delete(key) -> bool                                         es6          es6_collections
+  #forEach(fn(el, el, @), that) -> void                        es6          es6_collections
+  #has(key) -> bool                                            es6          es6_collections
+  #size -> uint                                                es6          es6_collections
+  #values() -> iterator                                        es6          es6_iterators
+  #keys() -> iterator                                          es6          es6_iterators
+  #entries() -> iterator (entries)                             es6          es6_iterators
+  #@@iterator() -> iterator                                    es6          es6_iterators
 new Map(iterable (entries) ?) -> map                           es6          es6_collections
-  ::clear() -> void                                            es6          es6_collections
-  ::delete(key) -> bool                                        es6          es6_collections
-  ::forEach(fn(val, key, @), that) -> void                     es6          es6_collections
-  ::get(key) -> val                                            es6          es6_collections
-  ::has(key) -> bool                                           es6          es6_collections
-  ::set(key, val) -> @                                         es6          es6_collections
-  ::size -> uint                                               es6          es6_collections
-  ::values() -> iterator                                       es6          es6_iterators
-  ::keys() -> iterator                                         es6          es6_iterators
-  ::entries() -> iterator (entries)                            es6          es6_iterators
-  ::@@iterator() -> iterator (entries)                         es6          es6_iterators
+  #clear() -> void                                             es6          es6_collections
+  #delete(key) -> bool                                         es6          es6_collections
+  #forEach(fn(val, key, @), that) -> void                      es6          es6_collections
+  #get(key) -> val                                             es6          es6_collections
+  #has(key) -> bool                                            es6          es6_collections
+  #set(key, val) -> @                                          es6          es6_collections
+  #size -> uint                                                es6          es6_collections
+  #values() -> iterator                                        es6          es6_iterators
+  #keys() -> iterator                                          es6          es6_iterators
+  #entries() -> iterator (entries)                             es6          es6_iterators
+  #@@iterator() -> iterator (entries)                          es6          es6_iterators
 new WeakSet(iterable?) -> weakset                              es6          es6_collections
-  ::add(key) -> @                                              es6          es6_collections
-  ::delete(key) -> bool                                        es6          es6_collections
-  ::has(key) -> bool                                           es6          es6_collections
+  #add(key) -> @                                               es6          es6_collections
+  #delete(key) -> bool                                         es6          es6_collections
+  #has(key) -> bool                                            es6          es6_collections
 new WeakMap(iterable (entries) ?) -> weakmap                   es6 sham     es6_collections
-  ::delete(key) -> bool                                        es6          es6_collections
-  ::get(key) -> val                                            es6          es6_collections
-  ::has(key) -> bool                                           es6          es6_collections
-  ::set(key, val) -> @                                         es6          es6_collections
+  #delete(key) -> bool                                         es6          es6_collections
+  #get(key) -> val                                             es6          es6_collections
+  #has(key) -> bool                                            es6          es6_collections
+  #set(key, val) -> @                                          es6          es6_collections
 String
-  ::trim() -> str                                              es5          es5
-  ::includes(str, from?) -> bool                               es6          es6
-  ::startsWith(str, from?) -> bool                             es6          es6
-  ::endsWith(str, from?) -> bool                               es6          es6
-  ::repeat(num) -> str                                         es6          es6
-  ::@@iterator() -> iterator                                   es6 sham     es6_iterators
-  ::escapeHTML() -> str                                        core         string
-  ::unescapeHTML() -> str                                      core         string
+  #trim() -> str                                               es5          es5
+  #includes(str, from?) -> bool                                es6          es6
+  #startsWith(str, from?) -> bool                              es6          es6
+  #endsWith(str, from?) -> bool                                es6          es6
+  #repeat(num) -> str                                          es6          es6
+  #@@iterator() -> iterator                                    es6 sham     es6_iterators
+  #escapeHTML() -> str                                         core         string
+  #unescapeHTML() -> str                                       core         string
 RegExp
   .escape(str) -> str                                          es7          regexp
 Number
@@ -139,9 +140,9 @@ Number
   .MIN_SAFE_INTEGER -> int                                     es6          es6
   .parseFloat(str) -> num                                      es6          es6
   .parseInt(str) -> int                                        es6          es6
-  ::@@iterator() -> iterator                                   core         number
-  ::random(lim = 0) -> num                                     core         number
-  ::{...Math}                                                  core         number
+  #@@iterator() -> iterator                                    core         number
+  #random(lim = 0) -> num                                      core         number
+  #{...Math}                                                   core         number
 Math
   .acosh(num) -> num                                           es6          es6
   .asinh(num) -> num                                           es6          es6
@@ -161,8 +162,8 @@ Math
   .trunc(num) -> num                                           es6          es6
 Date
   .now() -> int                                                es5          es5
-  ::format(str, key?) -> str                                   core         date
-  ::formatUTC(str, key?) -> str                                core         date
+  #format(str, key?) -> str                                    core         date
+  #formatUTC(str, key?) -> str                                 core         date
 Symbol(description?) -> symbol                                 es6 sham     es6_symbol
   .for(key) -> symbol                                          es6          es6_symbol
   .keyFor(symbol) -> key                                       es6          es6_symbol
@@ -173,8 +174,8 @@ Symbol(description?) -> symbol                                 es6 sham     es6_
 Reflect -> object                                              es6          es6_symbol
   .ownKeys(object) -> array                                    es6          es6_symbol
 new Promise(executor(resolve(var), reject(var))) -> promise    es6          es6_promise
-  ::then(resolved(var), rejected(var)) -> promise              es6          es6_promise
-  ::catch(rejected(var)) -> promise                            es6          es6_promise
+  #then(resolved(var), rejected(var)) -> promise               es6          es6_promise
+  #catch(rejected(var)) -> promise                             es6          es6_promise
   .resolve(var || promise) -> promise                          es6          es6_promise
   .reject(var) -> promise                                      es6          es6_promise
   .all(iterable) -> promise                                    es6          es6_promise
@@ -187,11 +188,11 @@ console(...args) -> void                                       core         cons
   .{...console API}                                            console api  console
   .enable() -> void                                            core         console
   .disable() -> void                                           core         console
-[new] $for(iterable, entries) -> iterator ($for)               core         $for
-  ::of(fn(value, key?), that) -> void                          core         $for
-  ::array(mapFn(value, key?)?, that) -> array                  core         $for
-  ::filter(fn(value, key?), that) -> iterator ($for)           core         $for
-  ::map(fn(value, key?), that) -> iterator ($for)              core         $for
+$for(iterable, entries) -> iterator ($for)                     core         $for
+  #of(fn(value, key?), that) -> void                           core         $for
+  #array(mapFn(value, key?)?, that) -> array                   core         $for
+  #filter(fn(value, key?), that) -> iterator ($for)            core         $for
+  #map(fn(value, key?), that) -> iterator ($for)               core         $for
   .isIterable(var) -> bool                                     core         $for
   .getIterator(iterable) -> iterator                           core         $for
 core                                                           core         common

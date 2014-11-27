@@ -168,7 +168,8 @@ var create           = Object.create
     }
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object;
+  , ES5Object        = Object
+  , Dict;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)
@@ -436,7 +437,8 @@ function iterResult(done, value){
   return {value: value, done: !!done};
 }
 function isIterable(it){
-  return (it != undefined && SYMBOL_ITERATOR in it) || has(Iterators, classof(it));
+  var O = Object(it);
+  return SYMBOL_ITERATOR in O || has(Iterators, classof(O));
 }
 function getIterator(it){
   return assertObject((it[SYMBOL_ITERATOR] || Iterators[classof(it)]).call(it));

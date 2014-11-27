@@ -1,6 +1,7 @@
 require! './config': {banner}, fs: {readFile}
-modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections $for es6_iterators
-            dict timers binding object array array_statics number string regexp date console]>
+modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections
+            dict $for iterator es6_iterators timers binding object array array_statics
+            number string regexp date console abstract_refs]>
 old_shim = <[es5 timers]>
 new_shim = <[es6 es6_collections es6_promise es6_symbol es6_iterators global immediate array_statics console]>
 core = <[$for dict binding object array number string regexp date]>

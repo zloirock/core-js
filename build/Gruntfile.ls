@@ -34,6 +34,9 @@ module.exports = (grunt)->
   grunt.registerTask \shim ->
     grunt.option \path './shim'
     grunt.task.run <[build:new_shim]>
+  grunt.registerTask \experimental ->
+    grunt.option \path './index'
+    grunt.task.run <[build:new_shim,core,iterator,abstract_refs]>
   grunt.registerTask \client ->
     grunt.option \path './client/core'
     grunt.task.run <[build:old_shim,new_shim,core uglify]>
@@ -43,4 +46,8 @@ module.exports = (grunt)->
   grunt.registerTask \client-shim ->
     grunt.option \path './client/shim'
     grunt.task.run <[build:old_shim,new_shim uglify]>
+  grunt.registerTask \client-experimental ->
+    grunt.option \path './client/core'
+    grunt.task.run <[build:old_shim,new_shim,core,iterator,abstract_refs uglify]>
+  grunt.registerTask \e <[experimental client-experimental]>
   grunt.registerTask \default <[node library shim client client-library client-shim]>

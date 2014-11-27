@@ -99,6 +99,16 @@ test '.map' !->
     ok @    is ctx
   , ctx = {}
   deepEqual map({q:1 w:2 e:3} (^2)), Dict q:1 w:4 e:9
+test '.mapPairs' !->
+  {mapPairs} = Dict
+  ok isFunction(mapPairs), 'Is function'
+  mapPairs obj = {q: 1}, (val, key, that)->
+    ok val  is 1
+    ok key  is \q
+    ok that is obj
+    ok @    is ctx
+  , ctx = {}
+  deepEqual mapPairs({q:1 w:2 e:3}, (v, k)-> v != 2 && [k + k, v * v]), Dict qq:1 ee:9
 test '.reduce' !->
   {reduce} = Dict
   ok isFunction(reduce), 'Is function'
