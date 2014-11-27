@@ -9,7 +9,7 @@ Promise.resolve(32).then(console.log);             // => 32
 setImmediate(console.log, 42);                     // => 42
 ```
 
-[Without extension of the native objects](http://goo.gl/mfHYm2):
+[Without extension of the native objects](http://goo.gl/WBhs43):
 ```javascript
 var log  = core.console.log;
 log(core.Array.from(new core.Set([1, 2, 3, 2, 1]))); // => [1, 2, 3]
@@ -31,15 +31,155 @@ core.setImmediate(log, 42);                          // => 42
   - [setImmediate / setTimeout / setInterval](#setimmediate-settimeout-setinterval)
 - [Install](#install)
 
+## API:
 ### ECMAScript 5
-Module: `es5`.
+Module `es5`, nothing new - without examples.
+```javascript
+Object
+  .create(proto | null, descriptors?) -> object
+  .getPrototypeOf(object) -> proto | null
+  .setPrototypeOf(target, proto | null) -> target, sham(ie10+)
+  .defineProperty(target, key, desc) -> target, cap for ie8-
+  .defineProperties(target, descriptors) -> target, cap for ie8-
+  .getOwnPropertyNames(object) -> array
+  .getOwnPropertyDescriptor(object, key) -> desc
+  .keys(object) -> array
+Array
+  .isArray(var) -> bool
+  #slice(start?, end?) -> array, fix for ie7-
+  #join(string = ',') -> string, fix for ie7-
+  #indexOf(var, from?) -> int
+  #lastIndexOf(var, from?) -> int
+  #every(fn(val, index, @), that) -> bool
+  #some(fn(val, index, @), that) -> bool
+  #forEach(fn(val, index, @), that) -> void
+  #map(fn(val, index, @), that) -> array
+  #filter(fn(val, index, @), that) -> array
+  #reduce(fn(memo, val, index, @), memo?) -> var
+  #reduceRight(fn(memo, val, index, @), memo?) -> var
+Function
+  #bind(object, ...args) -> boundFn(...args)
+String
+  #trim() -> str
+Date
+  .now() -> int
+```
 
 ### ECMAScript 6
-Module: `es6`.
+Module `es6`.
+
+Object:
+```javascript
+Object
+  .assign(target, ...src) -> target
+  .is(a, b) -> bool
+  #toString() -> string, fix for @@toStringTag
+```
+[Examples](http://goo.gl/IPehks):
+```javascript
+var foo = {q: 1, w: 2}
+  , bar = {e: 3, r: 4}
+  , baz = {t: 5, y: 6};
+Object.assign(foo, bar, baz); // => foo = {q: 1, w: 2, e: 3, r: 4, t: 5, y: 6}
+
+Object.is(NaN, NaN); // => true
+Object.is(0, -0);    // => false
+Object.is(42, 42);   // => true
+Object.is(42, '42'); // => false
+```
+```javascript
+Array
+  .from(iterable | array-like, fn(val, index)?, that) -> array
+  .of(...args) -> array
+  #fill(var, start?, end?) -> @
+  #find(fn(val, index, @), that) -> var
+  #findIndex(fn(val, index, @), that) -> int
+```
+[Examples](http://goo.gl/gMYP1H):
+```javascript
+Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
+Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
+Array.from('123', Number);                 // => [1, 2, 3]
+Array.from('123', function(it){
+  return it * it;
+});                                        // => [1, 4, 9]
+
+Array.of(1);       // => [1]
+Array.of(1, 2, 3); // => [1, 2, 3]
+
+function isOdd(val){
+  return val % 2;
+}
+[4, 8, 15, 16, 23, 42].find(isOdd);      // => 15
+[4, 8, 15, 16, 23, 42].findIndex(isOdd); // => 2
+[4, 8, 15, 16, 23, 42].find(isNaN);      // => undefined
+[4, 8, 15, 16, 23, 42].findIndex(isNaN); // => -1
+
+Array(5).map(function(){
+  return 42;
+});                // => [undefined × 5], .map ignore holes
+Array(5).fill(42); // => [42, 42, 42, 42, 42]
+```
+```javascript
+String
+  #includes(str, from?) -> bool
+  #startsWith(str, from?) -> bool
+  #endsWith(str, from?) -> bool
+  #repeat(num) -> str
+```
+[Examples](http://goo.gl/JKrMn5):
+```javascript
+'foobarbaz'.includes('bar');      // => true
+'foobarbaz'.includes('bar', 4);   // => false
+'foobarbaz'.startsWith('foo');    // => true
+'foobarbaz'.startsWith('bar', 3); // => true
+'foobarbaz'.endsWith('baz');      // => true
+'foobarbaz'.endsWith('bar', 6);   // => true
+
+'string'.repeat(3); // => 'stringstringstring'
+```
+```javascript
+Number
+  .EPSILON -> num
+  .isFinite(num) -> bool
+  .isInteger(num) -> bool
+  .isNaN(num) -> bool
+  .isSafeInteger(num) -> bool
+  .MAX_SAFE_INTEGER -> int
+  .MIN_SAFE_INTEGER -> int
+  .parseFloat(str) -> num
+  .parseInt(str) -> int
+Math
+  .acosh(num) -> num
+  .asinh(num) -> num
+  .atanh(num) -> num
+  .cbrt(num) -> num
+  .clz32(num) -> uint
+  .cosh(num) -> num
+  .expm1(num) -> num
+  .hypot(...args) -> num
+  .imul(num, num) -> int
+  .log1p(num) -> num
+  .log10(num) -> num
+  .log2(num) -> num
+  .sign(num) -> 1 | -1 | 0 | -0 | NaN
+  .sinh(num) -> num
+  .tanh(num) -> num
+  .trunc(num) -> num
+```
 
 ### ECMAScript 6: Symbols
-Module: `es6_symbol`.
-[Example](http://goo.gl/EUsvAf):
+Module `es6_symbol`.
+```javascript
+Symbol(description?) -> symbol
+  .for(key) -> symbol
+  .keyFor(symbol) -> key
+  .iterator -> symbol
+  .toStringTag -> symbol
+  .pure() -> symbol || string
+  .set(object, key, val) -> object
+```
+[Basic example](http://goo.gl/EUsvAf):
 ```javascript
 var Person = (function(){
   var NAME = Symbol('name');
@@ -58,9 +198,15 @@ console.log(person['name']);            // => undefined
 console.log(person[Symbol('name')]);    // => undefined, symbols are uniq
 for(var key in person)console.log(key); // => only 'getName', symbols not enumerable
 ```
+`Symbol.for` & `Symbol.keyFor` [example](http://goo.gl/0pdJjX):
+```javascript
+var symbol = Symbol.for('key');
+symbol === Symbol.for('key'); // true
+Symbol.keyFor(symbol);        // 'key'
+```
 
 ### ECMAScript 6: Collections
-Module: `es6_collections`, iterators for them define in [es6_iterators](#ecmascript-6-iterators).
+Module `es6_collections`, iterators for them define in [es6_iterators](#ecmascript-6-iterators).
 
 #### Map
 ```javascript
@@ -177,7 +323,7 @@ console.log(wset.has(b));   // => false
 ```
 
 ### ECMAScript 6: Iterators
-Module: `es6_collections`.
+Module `es6_iterators`.
 ```javascript
 String
   #@@iterator() -> iterator
@@ -240,7 +386,7 @@ for(var [key, val] of set.entries()){
 ```
 
 ### ECMAScript 6: Promises
-Module: `es6_promise`.
+Module `es6_promise`.
 ```javascript
 new Promise(executor(resolve(var), reject(var))) -> promise
   #then(resolved(var), rejected(var)) -> promise
