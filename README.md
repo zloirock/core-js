@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmmediate), static array methods, [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, extended object api, [Date formatting](#date-formate) and some other sugar.
+Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, extended object api, [Date formatting](#date-formate) and some other sugar.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -17,7 +17,7 @@ log(core.String.repeat('*', 10));                    // => '**********'
 core.Promise.resolve(32).then(log);                  // => 32
 core.setImmediate(log, 42);                          // => 42
 ```
-- [API](#api)
+- [API](#api-)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
   - [ECMAScript 6: Symbols](#ecmascript-6-symbols)
@@ -28,7 +28,9 @@ core.setImmediate(log, 42);                          // => 42
     - [WeakSet](#weakset)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
-  - [setImmediate / setTimeout / setInterval](#setimmediate-settimeout-setinterval)
+  - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
+  - [setTimeout / setInterval](#settimeout-setinterval)
+  - [setImmediate](#setimmediate)
 - [Install](#install)
 
 ## API:
@@ -67,15 +69,14 @@ Date
 
 ### ECMAScript 6
 Module `es6`.
-
-Object:
+#### Object
 ```javascript
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
   #toString() -> string, fix for @@toStringTag
 ```
-[Examples](http://goo.gl/IPehks):
+[Example](http://goo.gl/IPehks):
 ```javascript
 var foo = {q: 1, w: 2}
   , bar = {e: 3, r: 4}
@@ -87,6 +88,7 @@ Object.is(0, -0);    // => false
 Object.is(42, 42);   // => true
 Object.is(42, '42'); // => false
 ```
+#### Array
 ```javascript
 Array
   .from(iterable | array-like, fn(val, index)?, that) -> array
@@ -95,7 +97,7 @@ Array
   #find(fn(val, index, @), that) -> var
   #findIndex(fn(val, index, @), that) -> int
 ```
-[Examples](http://goo.gl/gMYP1H):
+[Example](http://goo.gl/gMYP1H):
 ```javascript
 Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
 Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
@@ -120,6 +122,7 @@ Array(5).map(function(){
 });                // => [undefined × 5], .map ignore holes
 Array(5).fill(42); // => [42, 42, 42, 42, 42]
 ```
+#### String
 ```javascript
 String
   #includes(str, from?) -> bool
@@ -127,7 +130,7 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
 ```
-[Examples](http://goo.gl/JKrMn5):
+[String example](http://goo.gl/JKrMn5):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -138,6 +141,7 @@ String
 
 'string'.repeat(3); // => 'stringstringstring'
 ```
+#### Number & Math
 ```javascript
 Number
   .EPSILON -> num
@@ -417,6 +421,44 @@ sleepRandom(5).then(function(result){
 }).then(function(){
   log('will not be displayed');
 }).catch(log);                 // => => Error: Irror!
+```
+### Mozilla JavaScript: Array generics
+Module `array_statics`.
+```javascript
+Array
+  .{...ArrayPrototype methods}
+```
+
+```javascript
+Array.slice(arguments, 1);
+
+Array.join('abcdef', '+'); // => 'a+b+c+d+e+f'
+
+var form = document.getElementsByClassName('form__input');
+Array.reduce(form, function(memo, it){
+  memo[it.name] = it.value;
+  return memo; 
+}, {}); // => {name: 'Vasya', age: '42', sex: 'yes, please'}
+```
+### setTimeout / setInterval
+Module `timers`. Additional arguments fix for IE9-.
+```javascript
+setTimeout(fn(...args), time, ...args) -> id
+setInterval(fn(...args), time, ...args) -> id
+```
+### setImmediate
+Module `immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
+```javascript
+setImmediate(fn(...args), ...args) -> id
+clearImmediate(id) -> void
+```
+### Console
+Module `console`. Console cap for old browsers. Binding console methods to console object. `console` is shortcut for `console.log`.
+```
+console(...args) -> void
+  .{...console API}
+  .enable() -> void
+  .disable() -> void
 ```
 
 ## Install
