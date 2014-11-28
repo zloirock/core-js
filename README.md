@@ -22,20 +22,15 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6](#ecmascript-6)
   - [ECMAScript 6: Symbols](#ecmascript-6-symbols)
   - [ECMAScript 6: Collections](#ecmascript-6-collections)
-    - [Map](#map)
-    - [Set](#set)
-    - [WeakMap](#weakmap)
-    - [WeakSet](#weakset)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
   - [console](#console)
-  - **
-  - [Dict](#dict)
   - [Object classify](#object-classify)
-  - [Partial ](#object-classify)
+  - [Dict](#dict)
+  - [Partial application](#object-classify)
   - [Date formatting](#date-formatting)
   - [Array](#array)
   - [Escaping characters](#escaping-characters)
@@ -501,6 +496,59 @@ setTimeout(console.log.bind(console, 42), 1000);
 // After:
 setTimeout(console, 1000, 42);
 ```
+### Object classify
+```javascript
+Object
+  .isObject(var) -> bool
+  .classof(var) -> string 
+```
+[Examples](http://goo.gl/YZQmGo):
+```javascript
+Object.isObject({});    // => true
+Object.isObject(isNaN); // => true
+Object.isObject(null);  // => false
+
+var classof = Object.classof;
+
+classof(null);                 // => 'Null'
+classof(undefined);            // => 'Undefined'
+classof(1);                    // => 'Number'
+classof(true);                 // => 'Boolean'
+classof('string');             // => 'String'
+classof(Symbol());             // => 'Symbol'
+
+classof(new Number(1));        // => 'Number'
+classof(new Boolean(true));    // => 'Boolean'
+classof(new String('string')); // => 'String'
+
+var fn   = function(){}
+  , list = (function(){return arguments})(1, 2, 3);
+
+classof({});                   // => 'Object'
+classof(fn);                   // => 'Function'
+classof([]);                   // => 'Array'
+classof(list);                 // => 'Arguments'
+classof(/./);                  // => 'RegExp'
+classof(new TypeError);        // => 'Error'
+
+classof(new Set);              // => 'Set'
+classof(new Map);              // => 'Map'
+classof(new WeakSet);          // => 'WeakSet'
+classof(new WeakMap);          // => 'WeakMap'
+classof(new Promise(fn));      // => 'Promise'
+
+classof([].values());          // => 'Array Iterator'
+classof(new Set().values());   // => 'Set Iterator'
+classof(new Map().values());   // => 'Map Iterator'
+
+classof(Math);                 // => 'Math'
+classof(JSON);                 // => 'JSON'
+
+function Example(){}
+Example.prototype[Symbol.toStringTag] = 'Example';
+
+classof(new Example);          // => 'Example'
+```
 
 ### Dict
 Module `dict`.
@@ -576,6 +624,28 @@ M  | Month, string     | Ноябрь
 MM | Of month, string  | Ноября
 Y  | Year, full        | 2014
 YY | Year, 2 digits    | 14
+[Examples](http://goo.gl/nkCJ15):
+```javascript
+new Date().format('W, MM D, YY, h:mm:ss');        // => 'Friday, November 28, 14, 18:47:05'
+new Date().formatUTC('W, MM D, YY, h:mm:ss');     // => 'Friday, November 28, 14, 12:47:05'
+
+new Date().format('W, D MM Y г., h:mm:ss', 'ru'); // => 'Пятница, 28 Ноября 2014 г., 18:07:25'
+
+core.locale('ru');
+new Date().format('W, D MM Y г., h:mm:ss');       // => 'Пятница, 28 Ноября 2014 г., 18:07:25'
+
+new Date().format('DD.NN.YY');         // => '28.11.14'
+new Date().format('hh:mm:ss');         // => '18:47:05'
+new Date().format('DD.NN.Y hh:mm:ss'); // => '28.11.2014 18:47:05'
+new Date().format('W, D MM Y года');   // => 'Пятница, 28 Ноября 2014 года'
+new Date().format('D MM, h:mm');       // => '28 Ноября, 16:47'
+new Date().format('M Y');              // => 'Ноябрь 2014'
+
+(typeof core != 'undefined' ? core : require('core-js/library')).addLocale('ru', {
+  weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
+  months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
+});
+```
 ### Array
 Module `array`.
 ```javascript
