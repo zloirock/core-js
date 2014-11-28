@@ -43,11 +43,10 @@ Module `es5`, nothing new - without examples.
 Object
   .create(proto | null, descriptors?) -> object
   .getPrototypeOf(object) -> proto | null
-  .setPrototypeOf(target, proto | null) -> target, sham(ie10+)
   .defineProperty(target, key, desc) -> target, cap for ie8-
   .defineProperties(target, descriptors) -> target, cap for ie8-
-  .getOwnPropertyNames(object) -> array
   .getOwnPropertyDescriptor(object, key) -> desc
+  .getOwnPropertyNames(object) -> array
   .keys(object) -> array
 Array
   .isArray(var) -> bool
@@ -72,11 +71,12 @@ Date
 
 ### ECMAScript 6
 Module `es6`.
-#### Object
+#### ECMAScript 6 Object
 ```javascript
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
+  .setPrototypeOf(target, proto | null) -> target, sham(ie10+)
   #toString() -> string, fix for @@toStringTag
 ```
 [Example](http://goo.gl/IPehks):
@@ -91,7 +91,7 @@ Object.is(0, -0);    // => false
 Object.is(42, 42);   // => true
 Object.is(42, '42'); // => false
 ```
-#### Array
+#### ECMAScript 6 Array
 ```javascript
 Array
   .from(iterable | array-like, fn(val, index)?, that) -> array
@@ -125,7 +125,7 @@ Array(5).map(function(){
 });                // => [undefined × 5], .map ignore holes
 Array(5).fill(42); // => [42, 42, 42, 42, 42]
 ```
-#### String
+#### ECMAScript 6 String
 ```javascript
 String
   #includes(str, from?) -> bool
@@ -144,7 +144,7 @@ String
 
 'string'.repeat(3); // => 'stringstringstring'
 ```
-#### Number & Math
+#### ECMAScript 6 Number & Math
 ```javascript
 Number
   .EPSILON -> num
@@ -400,6 +400,61 @@ for(var [key, val] of set.entries()){
   console.log(val);                             // => 1, 2, 3
 }
 ```
+Module `$for` - iterator chaining - `for-of` and array / generator comprehensions helpers for ES5.
+```javascript
+$for(iterable, entries) -> iterator ($for)
+  #of(fn(value, key?), that) -> void
+  #array(mapFn(value, key?)?, that) -> array
+  #filter(fn(value, key?), that) -> iterator ($for)
+  #map(fn(value, key?), that) -> iterator ($for)
+  .isIterable(var) -> bool
+  .getIterator(iterable) -> iterator
+```
+[Examples](http://goo.gl/Jtz0oG):
+```javascript
+$for(new Set([1, 2, 3, 2, 1])).of(function(it){
+  console.log(it); // => 1, 2, 3
+});
+
+$for([1, 2, 3].entries(), true).of(function(key, value){
+  console.log(key);   // => 0, 1, 2
+  console.log(value); // => 1, 2, 3
+});
+
+$for('abc').of(console.log, console); // => 'a', 'b', 'c'
+
+$for([1, 2, 3, 4, 5]).of(function(it){
+  console.log(it); // => 1, 2, 3
+  if(it == 3)return false;
+});
+
+var ar1 = $for([1, 2, 3]).array(function(v){
+  return v * v;
+}); // => [1, 4, 9]
+
+var set = new Set([1, 2, 3, 2, 1]);
+var ar1 = $for(set).filter(function(v){
+  return v % 2;
+}).array(function(v){
+  return v * v;
+}); // => [1, 9]
+
+var iter = $for(set).filter(function(v){
+  return v % 2;
+}).map(function(v){
+  return v * v;
+});
+iter.next(); // => {value: 1, done: false}
+iter.next(); // => {value: 9, done: false}
+iter.next(); // => {value: undefined, done: true}
+
+var map1 = new Map([['a', 1], ['b', 2], ['c', 3]]);
+var map2 = new Map($for(map1, true).filter(function(k, v){
+  return v % 2;
+}).map(function(k, v){
+  return [k + k, v * v];
+})); // => Map {aa: 1, cc: 9}
+```
 
 ### ECMAScript 6: Promises
 Module `es6_promise`.
@@ -497,6 +552,7 @@ setTimeout(console.log.bind(console, 42), 1000);
 setTimeout(console, 1000, 42);
 ```
 ### Object classify
+Module `object`.
 ```javascript
 Object
   .isObject(var) -> bool
