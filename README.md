@@ -28,11 +28,12 @@ core.setImmediate(log, 42);                          // => 42
   - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
   - [console](#console)
-  - [Object classify](#object-classify)
+  - [Object](#object)
   - [Dict](#dict)
-  - [Partial application](#object-classify)
+  - [Partial application](#partial-application)
   - [Date formatting](#date-formatting)
   - [Array](#array)
+  - [Number](#number)
   - [Escaping characters](#escaping-characters)
 - [Install](#install)
 
@@ -133,7 +134,7 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
 ```
-[String example](http://goo.gl/JKrMn5):
+[Example](http://goo.gl/JKrMn5):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -188,7 +189,7 @@ Symbol(description?) -> symbol
 Reflect -> object
   .ownKeys(object) -> array
 ```
-[Basic example](http://goo.gl/EUsvAf):
+[Basic example](http://goo.gl/BbvWFc):
 ```javascript
 var Person = (function(){
   var NAME = Symbol('name');
@@ -287,7 +288,7 @@ new WeakMap(iterable (entries) ?) -> weakmap
   #has(key) -> bool
   #set(key, val) -> @
 ```
-[Example](http://goo.gl/wCvuq3):
+[Example](http://goo.gl/SILXyw):
 ```javascript
 var a = [1]
   , b = [2]
@@ -361,7 +362,7 @@ Map
 Arguments
   #@@iterator() -> iterator (sham)
 ```
-[Example](http://goo.gl/ArArLq):
+[Example](http://goo.gl/iwLk0N):
 ```javascript
 var string = 'abc';
 
@@ -400,7 +401,7 @@ for(var [key, val] of set.entries()){
   console.log(val);                             // => 1, 2, 3
 }
 ```
-Module `$for` - iterator chaining - `for-of` and array / generator comprehensions helpers for ES5.
+Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5.
 ```javascript
 $for(iterable, entries) -> iterator ($for)
   #of(fn(value, key?), that) -> void
@@ -513,6 +514,12 @@ Module `timers`. Additional arguments fix for IE9-.
 setTimeout(fn(...args), time, ...args) -> id
 setInterval(fn(...args), time, ...args) -> id
 ```
+```javascript
+// Before:
+setTimeout(log.bind(null, 42), 1000);
+// After:
+setTimeout(log, 1000, 42);
+```
 ### setImmediate
 Module `immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```javascript
@@ -551,14 +558,16 @@ setTimeout(console.log.bind(console, 42), 1000);
 // After:
 setTimeout(console, 1000, 42);
 ```
-### Object classify
+### Object
 Module `object`.
 ```javascript
 Object
   .isObject(var) -> bool
   .classof(var) -> string 
+  .define(target, mixin) -> target
+  .make(proto | null, mixin?) -> object
 ```
-[Examples](http://goo.gl/YZQmGo):
+Object classify [examples](http://goo.gl/YZQmGo):
 ```javascript
 Object.isObject({});    // => true
 Object.isObject(isNaN); // => true
@@ -652,7 +661,16 @@ dict.toString;            // => undefined
 Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
-
+### Partial application
+Module `binding`.
+```javascript
+Function
+  #part(...args | _) -> fn(...args)
+  #by(object | _, ...args | _) -> boundFn(...args)
+  #only(num, that /* = @ */) -> (fn | boundFn)(...args)
+Object
+  #[_](key) -> boundFn
+```
 ### Date formatting
 Module `date`.
 ```javascript
@@ -709,6 +727,14 @@ Array
   #includes(var, from?) -> bool
   #turn(fn(memo, val, index, @), memo = []) -> memo
 ```
+### Number
+Module `number`.
+```javascript
+Number
+  #@@iterator() -> iterator
+  #random(lim = 0) -> num
+  #{...Math} 
+```
 ### Escaping characters
 Module `string`.
 ```javascript
@@ -756,3 +782,4 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
+
