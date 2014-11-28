@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended partial application, [Date formatting](#date-formate) and some other sugar.
+Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended [partial application](#partial-application), [Date formatting](#date-formatting) and some other sugar.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -9,7 +9,7 @@ Promise.resolve(32).then(console.log);             // => 32
 setImmediate(console.log, 42);                     // => 42
 ```
 
-[Without extension of the native objects](http://goo.gl/WBhs43):
+[Without extension of native objects](http://goo.gl/WBhs43):
 ```javascript
 var log  = core.console.log;
 log(core.Array.from(new core.Set([1, 2, 3, 2, 1]))); // => [1, 2, 3]
@@ -17,7 +17,7 @@ log(core.String.repeat('*', 10));                    // => '**********'
 core.Promise.resolve(32).then(log);                  // => 32
 core.setImmediate(log, 42);                          // => 42
 ```
-- [API](#api-)
+- [API](#api)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
   - [ECMAScript 6: Symbols](#ecmascript-6-symbols)
@@ -31,9 +31,12 @@ core.setImmediate(log, 42);                          // => 42
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
+  - [console](#console)
+  - **
   - [Dict](#dict)
-  - [Object classify](#dict)
-  - [Date formatting](#date-formate)
+  - [Object classify](#object-classify)
+  - [Partial ](#object-classify)
+  - [Date formatting](#date-formatting)
   - [Array](#array)
   - [Escaping characters](#escaping-characters)
 - [Install](#install)
@@ -207,7 +210,7 @@ var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
 console.log(person['name']);            // => undefined
 console.log(person[Symbol('name')]);    // => undefined, symbols are uniq
-for(var key in person)console.log(key); // => only 'getName', symbols not enumerable
+for(var key in person)console.log(key); // => only 'getName', symbols are not enumerable
 ```
 `Symbol.for` & `Symbol.keyFor` [example](http://goo.gl/0pdJjX):
 ```javascript
@@ -224,7 +227,7 @@ Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 ```
 
 ### ECMAScript 6: Collections
-Module `es6_collections`, iterators for them define in [es6_iterators](#ecmascript-6-iterators).
+Module `es6_collections`, iterators for them are defined in [es6_iterators](#ecmascript-6-iterators).
 
 #### Map
 ```javascript
@@ -467,7 +470,7 @@ setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
 ```
 ### Console
-Module `console`. Console cap for old browsers. Binding console methods to `console` object. `console` is shortcut for `console.log`.
+Module `console`. Console cap for old browsers and some additional functionality.
 ```javascript
 console(...args) -> void
   .{...console API}
@@ -490,7 +493,7 @@ setTimeout(console.log, 1000, 42);
 console.disable();
 console.warn('Console is disabled, you will not see this message.');
 console.enable();
-console.warn('Console is enabled.');
+console.warn('Console is enabled again.');
 
 console('Shortcut for console.log');
 // Before:
@@ -546,7 +549,7 @@ Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
 
-### Date formate
+### Date formatting
 Module `date`.
 ```javascript
 Date
@@ -607,7 +610,7 @@ npm i core-js
 // Bower:
 bower install core.js
 ```
-Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without extension of the native objects](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
+Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without extension of native objects](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
 
 Custom builds:
 ```
@@ -616,16 +619,14 @@ npm i core-js
 cd node_modules/core-js && npm i
 grunt build:date,console,library --path=custom uglify
 ```
-Require in Node.js
+Where `date` and `console` are module names, `library` is flag for not extension of native objects and `custom` is target file name.
+
+Require in Node.js:
 ```javascript
 // Dafault
 require('core-js');
-// Without extension of the native objects
+// Without extension of native objects
 var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
-```
-Require in browser:
-```html
-<script src='core.min.js'></script>
 ```
