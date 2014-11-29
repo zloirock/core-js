@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [Symbol](#ecmascript-6-symbols), [Map](#map), [Set](#set), [WeakMap](#weakmap), [WeakSet](#weakset), [iterators](#ecmascript-6-iterators), [Promise](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [Dict](#dict), extended [partial application](#partial-application), [Date formatting](#date-formatting) and some other sugar.
+Alternative modular compact (max. ~22kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [dictionaries](#dict), extended [partial application](#partial-application), [date formatting](#date-formatting) and some other sugar.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -95,7 +95,7 @@ Object.is(42, '42'); // => false
 #### ECMAScript 6 Array
 ```javascript
 Array
-  .from(iterable | array-like, fn(val, index)?, that) -> array
+  .from(iterable | array-like, mapFn(val, index)?, that) -> array
   .of(...args) -> array
   #fill(var, start?, end?) -> @
   #find(fn(val, index, @), that) -> var
@@ -401,7 +401,7 @@ for(var [key, val] of set.entries()){
   console.log(val);                             // => 1, 2, 3
 }
 ```
-Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5.
+Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5-.
 ```javascript
 $for(iterable, entries) -> iterator ($for)
   #of(fn(value, key?), that) -> void
@@ -468,7 +468,7 @@ new Promise(executor(resolve(var), reject(var))) -> promise
   .all(iterable) -> promise
   .race(iterable) -> promise
 ```
-[Example](http://goo.gl/z3bXC8):
+[Example](http://goo.gl/vGrtUC):
 ```javascript
 var log = console.log.bind(console);
 function sleepRandom(time){
