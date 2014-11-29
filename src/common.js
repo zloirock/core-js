@@ -262,7 +262,7 @@ function createArrayContains(isContains){
   return function(el, fromIndex /* = 0 */){
     var O      = ES5Object(this)
       , length = toLength(O.length)
-      , index  = max(getPositiveIndex(O, fromIndex), 0);
+      , index  = toIndex(fromIndex, length);
     if(isContains && el != el){
       for(;length > index; index++)if(sameNaN(O[index]))return isContains || index;
     } else for(;length > index; index++)if(isContains || index in O){
@@ -314,10 +314,10 @@ function toInteger(it){
 function toLength(it){
   return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
 }
-function getPositiveIndex(O, index){
+function toIndex(index, length){
   var index = toInteger(index);
-  if(index < 0)index += toLength(O.length);
-  return index;
+  if(index < 0)index += length;
+  return min(max(index, 0), length);
 }
 
 function createReplacer(regExp, replace, isStatic){

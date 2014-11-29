@@ -2,7 +2,7 @@ QUnit.module 'Array statics'
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight fill find findIndex keys values entries turn includes]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight copyWithin fill find findIndex keys values entries turn includes]>
     ok isFunction(Array[..]), "Array.#{..} is function"
 test '.join' !->
   {join} = Array
@@ -162,8 +162,15 @@ test '.reduceRight' !->
   ok reduceRight(\123 ((+a, +b)-> a + b)) is 6
   ok reduceRight((-> &)(1 2 3), (a, b)-> '' + b * b + a) is \143
   ok reduceRight(\123 ((+a, +b)-> a + b), 1) is 7
+test '.copyWithin' !->
+  {copyWithin} = Array
+  ok copyWithin(a = (->&)(1 2 3), 0) is a
+  deepEqual copyWithin((->&)(1 2 3), -2), (->&)(1 1 2)
+  deepEqual copyWithin((->&)(1 2 3), 0 1), (->&)(2 3 3)
+  deepEqual copyWithin((->&)(1 2 3), 0 1 2), (->&)(2 2 3)
 test '.fill' !->
   {fill} = Array
+  ok fill(a = (->&)(1 2 3), 0) is a
   deepEqual fill(Array(3), 5), [5 5 5]
 test '.find' !->
   {find} = Array

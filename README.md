@@ -97,7 +97,8 @@ Object.is(42, '42'); // => false
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
   .of(...args) -> array
-  #fill(var, start?, end?) -> @
+  #copyWithin(target = 0, start = 0, end = @length) -> @
+  #fill(var, start = 0, end = @length) -> @
   #find(fn(val, index, @), that) -> var
   #findIndex(fn(val, index, @), that) -> int
 ```

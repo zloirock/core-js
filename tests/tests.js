@@ -179,7 +179,7 @@
   slice = Array.prototype.slice;
   test('are functions', function(){
     var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'turn', 'includes']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['concat', 'join', 'pop', 'push', 'reverse', 'shift', 'slice', 'sort', 'splice', 'unshift', 'indexOf', 'lastIndexOf', 'every', 'some', 'forEach', 'map', 'filter', 'reduce', 'reduceRight', 'copyWithin', 'fill', 'find', 'findIndex', 'keys', 'values', 'entries', 'turn', 'includes']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(Array[x$]), "Array." + x$ + " is function");
     }
@@ -527,9 +527,34 @@
       return a + b;
     }, 1) === 7);
   });
+  test('.copyWithin', function(){
+    var copyWithin, a;
+    copyWithin = Array.copyWithin;
+    ok(copyWithin(a = function(){
+      return arguments;
+    }(1, 2, 3), 0) === a);
+    deepEqual(copyWithin(function(){
+      return arguments;
+    }(1, 2, 3), -2), function(){
+      return arguments;
+    }(1, 1, 2));
+    deepEqual(copyWithin(function(){
+      return arguments;
+    }(1, 2, 3), 0, 1), function(){
+      return arguments;
+    }(2, 3, 3));
+    deepEqual(copyWithin(function(){
+      return arguments;
+    }(1, 2, 3), 0, 1, 2), function(){
+      return arguments;
+    }(2, 2, 3));
+  });
   test('.fill', function(){
-    var fill;
+    var fill, a;
     fill = Array.fill;
+    ok(fill(a = function(){
+      return arguments;
+    }(1, 2, 3), 0) === a);
     deepEqual(fill(Array(3), 5), [5, 5, 5]);
   });
   test('.find', function(){
@@ -2382,8 +2407,27 @@
     deepEqual(Array.of(1), [1]);
     deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
   });
+  test('Array::copyWithin', function(){
+    var a;
+    ok(isFunction(Array.prototype.copyWithin), 'Is function');
+    ok((a = [1].copyWithin(0)) === a);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3), [4, 5, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 3), [1, 4, 5, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 2), [1, 3, 4, 5, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(2, 2), [1, 2, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3, 4), [4, 2, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 3, 4), [1, 4, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 2, 4), [1, 3, 4, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(0, -2), [4, 5, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(0, -2, -1), [4, 2, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
+    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
+  });
   test('Array::fill', function(){
+    var a;
     ok(isFunction(Array.prototype.fill), 'Is function');
+    ok((a = Array(5).fill(5)) === a);
     deepEqual(Array(5).fill(5), [5, 5, 5, 5, 5]);
     deepEqual(Array(5).fill(5, 1), [void 8, 5, 5, 5, 5]);
     deepEqual(Array(5).fill(5, 1, 4), [void 8, 5, 5, 5, void 8]);

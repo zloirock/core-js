@@ -391,8 +391,24 @@ test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'
   deepEqual Array.of(1), [1]
   deepEqual Array.of(1 2 3), [1 2 3]
+test 'Array::copyWithin' !->
+  ok isFunction(Array::copyWithin), 'Is function'
+  ok (a = [1]copyWithin(0)) is a
+  deepEqual [1 2 3 4 5]copyWithin(0 3), [4 5 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(1 3), [1 4 5 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(1 2), [1 3 4 5 5]
+  deepEqual [1 2 3 4 5]copyWithin(2 2), [1 2 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(0 3 4), [4 2 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(1 3 4), [1 4 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(1 2 4), [1 3 4 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(0 -2), [4 5 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(0 -2 -1), [4 2 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(-4 -3 -2), [1 3 3 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(-4 -3 -1), [1 3 4 4 5]
+  deepEqual [1 2 3 4 5]copyWithin(-4 -3), [1 3 4 5 5]
 test 'Array::fill' !->
   ok isFunction(Array::fill), 'Is function'
+  ok (a = Array(5)fill(5)) is a
   deepEqual Array(5)fill(5), [5 5 5 5 5]
   deepEqual Array(5)fill(5 1), [void 5 5 5 5]
   deepEqual Array(5)fill(5 1 4), [void 5 5 5 void]
