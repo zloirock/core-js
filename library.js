@@ -329,8 +329,7 @@ function toLength(it){
 }
 function toIndex(index, length){
   var index = toInteger(index);
-  if(index < 0)index += length;
-  return min(max(index, 0), length);
+  return index < 0 ? max(index + length, 0) : min(index, length);
 }
 
 function createReplacer(regExp, replace, isStatic){
@@ -737,7 +736,7 @@ $define(GLOBAL + FORCED, {global: global});
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
-        , end    = toLength(min(endPosition === undefined ? length : endPosition, length));
+        , end    = endPosition === undefined ? length : min(toLength(endPosition), length);
       searchString += '';
       return String(this).slice(end - searchString.length, end) === searchString;
     },
@@ -800,7 +799,7 @@ $define(GLOBAL + FORCED, {global: global});
         to   = to + count - 1;
       }
       while(count-- > 0){
-        if(has(O, from))O[to] = O[from];
+        if(from in O)O[to] = O[from];
         else delete O[to];
         to += inc;
         from += inc;
@@ -1061,14 +1060,15 @@ $define(GLOBAL + BIND, {
     , uid      = 0
     , wid      = 0;
   
-  function getCollection(C, NAME, test, methods, commonMethods, isMap, isWeak){
+  function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER_KEY = isMap ? 'set' : 'add'
-      , init      = commonMethods.clear;
+      , init      = commonMethods.clear
+      , O         = {};
     function initFromIterable(that, iterable){
       if(iterable != undefined)forOf(iterable, isMap, that[ADDER_KEY], that);
       return that;
     }
-    if(!test){
+    if(!(isNative(C) && (isWeak || has(C[PROTOTYPE], FOR_EACH)))){
       // create collection constructor
       C = function(iterable){
         assertInstance(this, C, NAME);
@@ -1102,7 +1102,6 @@ $define(GLOBAL + BIND, {
       }
     }
     setToStringTag(C, NAME);
-    var O = {};
     O[NAME] = C;
     $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
     return C;
@@ -1167,7 +1166,7 @@ $define(GLOBAL + BIND, {
   }
   
   // 23.1 Map Objects
-  Map = getCollection(Map, MAP, isNative(Map) && has(Map[PROTOTYPE], FOR_EACH), {
+  Map = getCollection(Map, MAP, {
     // 23.1.3.6 Map.prototype.get(key)
     get: function(key){
       return this[VALUES][fastKey(key)];
@@ -1186,7 +1185,7 @@ $define(GLOBAL + BIND, {
   }, collectionMethods(VALUES), true);
   
   // 23.2 Set Objects
-  Set = getCollection(Set, SET, isNative(Set) && has(Set[PROTOTYPE], FOR_EACH), {
+  Set = getCollection(Set, SET, {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
       var index  = fastKey(value, true)
@@ -1218,7 +1217,7 @@ $define(GLOBAL + BIND, {
   };
   
   // 23.3 WeakMap Objects
-  WeakMap = getCollection(WeakMap, WEAKMAP, isNative(WeakMap), {
+  WeakMap = getCollection(WeakMap, WEAKMAP, {
     // 23.3.3.4 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
@@ -1231,7 +1230,7 @@ $define(GLOBAL + BIND, {
   }, weakCollectionMethods, true, true);
   
   // 23.4 WeakSet Objects
-  WeakSet = getCollection(WeakSet, WEAKSET, isNative(WeakSet), {
+  WeakSet = getCollection(WeakSet, WEAKSET, {
     // 23.4.3.1 WeakSet.prototype.add(value)
     add: function(value){
       getWeakData(assertObject(value))[this[WEAKID]] = true;

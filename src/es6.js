@@ -158,7 +158,7 @@
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
-        , end    = toLength(min(endPosition === undefined ? length : endPosition, length));
+        , end    = endPosition === undefined ? length : min(toLength(endPosition), length);
       searchString += '';
       return String(this).slice(end - searchString.length, end) === searchString;
     },
@@ -221,7 +221,7 @@
         to   = to + count - 1;
       }
       while(count-- > 0){
-        if(has(O, from))O[to] = O[from];
+        if(from in O)O[to] = O[from];
         else delete O[to];
         to += inc;
         from += inc;

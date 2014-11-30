@@ -185,7 +185,7 @@ Symbol(description?) -> symbol
   .keyFor(symbol) -> key
   .iterator -> symbol
   .toStringTag -> symbol
-  .pure() -> symbol || string
+  .pure(description?) -> symbol || string
   .set(object, key, val) -> object
 Reflect -> object
   .ownKeys(object) -> array

@@ -316,8 +316,7 @@ function toLength(it){
 }
 function toIndex(index, length){
   var index = toInteger(index);
-  if(index < 0)index += length;
-  return min(max(index, 0), length);
+  return index < 0 ? max(index + length, 0) : min(index, length);
 }
 
 function createReplacer(regExp, replace, isStatic){
