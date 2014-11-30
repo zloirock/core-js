@@ -108,11 +108,9 @@
     // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
       var UInt16 = 0xffff
-        , xh = UInt16 & x >>> 16
         , xl = UInt16 & x
-        , yh = UInt16 & y >>> 16
         , yl = UInt16 & y;
-      return 0 | xl * yl + (xh * yl + xl * yh << 16 >>> 0);
+      return 0 | xl * yl + ((UInt16 & x >>> 16) * yl + xl * (UInt16 & y >>> 16) << 16 >>> 0);
     },
     // 20.2.2.20 Math.log1p(x)
     log1p: function(x){
@@ -150,7 +148,17 @@
   }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
-    // TODO
+    codePointAt: function(pos){
+      var s = String(this)
+        , i = toInteger(pos)
+        , l = s.length
+        , a, b;
+      if(i < 0 || i >= l)return;
+      a = s.charCodeAt(i);
+      if(a < 0xd800 || a > 0xdbff || i + 1 === l)return a;
+      b = s.charCodeAt(i + 1);
+      return b < 0xdc00 || b > 0xdfff ? a : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
+    },
     // String.prototype.includes(searchString, position = 0)
     includes: includes,
     // Deprecated name of String#includes

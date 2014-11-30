@@ -326,6 +326,58 @@ test 'Math.trunc' !->
   ok trunc(-555.555) is -555, '-555.555 -> -555'
   ok trunc(0x20000000000001) is 0x20000000000001, '0x20000000000001 -> 0x20000000000001'
   ok trunc(-0x20000000000001) is -0x20000000000001, '-0x20000000000001 -> -0x20000000000001'
+test 'String::codePointAt' !->
+  ok isFunction(String::codePointAt), 'Is function'
+  # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
+  ok 'abc\uD834\uDF06def'codePointAt('') is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(\_) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt! is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(-Infinity) is void
+  ok 'abc\uD834\uDF06def'codePointAt(-1) is void
+  ok 'abc\uD834\uDF06def'codePointAt(-0) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(0) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(3) is 0x1D306
+  ok 'abc\uD834\uDF06def'codePointAt(4) is 0xDF06
+  ok 'abc\uD834\uDF06def'codePointAt(5) is 0x64
+  ok 'abc\uD834\uDF06def'codePointAt(42) is void
+  ok 'abc\uD834\uDF06def'codePointAt(Infinity) is void
+  ok 'abc\uD834\uDF06def'codePointAt(Infinity) is void
+  ok 'abc\uD834\uDF06def'codePointAt(NaN) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(no) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(null) is 0x61
+  ok 'abc\uD834\uDF06def'codePointAt(void) is 0x61
+  ok '\uD834\uDF06def'codePointAt('') is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(\1) is 0xDF06
+  ok '\uD834\uDF06def'codePointAt(\_) is 0x1D306
+  ok '\uD834\uDF06def'codePointAt! is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(-1) is void
+  ok '\uD834\uDF06def'codePointAt(-0) is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(0) is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(1) is 0xDF06
+  ok '\uD834\uDF06def'codePointAt(42) is void
+  ok '\uD834\uDF06def'codePointAt(no) is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(null) is 0x1D306
+  ok '\uD834\uDF06def'codePointAt(void) is 0x1D306
+  ok '\uD834abc'codePointAt('') is 0xD834
+  ok '\uD834abc'codePointAt(\_) is 0xD834
+  ok '\uD834abc'codePointAt! is 0xD834
+  ok '\uD834abc'codePointAt(-1) is void
+  ok '\uD834abc'codePointAt(-0) is 0xD834
+  ok '\uD834abc'codePointAt(0) is 0xD834
+  ok '\uD834abc'codePointAt(no) is 0xD834
+  ok '\uD834abc'codePointAt(NaN) is 0xD834
+  ok '\uD834abc'codePointAt(null) is 0xD834
+  ok '\uD834abc'codePointAt(void) is 0xD834
+  ok '\uDF06abc'codePointAt('') is 0xDF06
+  ok '\uDF06abc'codePointAt(\_) is 0xDF06
+  ok '\uDF06abc'codePointAt! is 0xDF06
+  ok '\uDF06abc'codePointAt(-1) is void
+  ok '\uDF06abc'codePointAt(-0) is 0xDF06
+  ok '\uDF06abc'codePointAt(0) is 0xDF06
+  ok '\uDF06abc'codePointAt(no) is 0xDF06
+  ok '\uDF06abc'codePointAt(NaN) is 0xDF06
+  ok '\uDF06abc'codePointAt(null) is 0xDF06
+  ok '\uDF06abc'codePointAt(void) is 0xDF06
 test 'String::includes' !->
   ok isFunction(String::includes), 'Is function'
   ok not 'abc'includes!
