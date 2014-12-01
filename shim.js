@@ -1,5 +1,5 @@
 /**
- * Core.js 0.1.4
+ * Core.js 0.1.5
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev

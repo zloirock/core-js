@@ -130,6 +130,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 #### ECMAScript 6 String
 ```javascript
 String
+  .fromCodePoint(...codePoints) -> str
   #includes(str, from?) -> bool
   #startsWith(str, from?) -> bool
   #endsWith(str, from?) -> bool
