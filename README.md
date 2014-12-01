@@ -134,6 +134,7 @@ String
   #startsWith(str, from?) -> bool
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
+  #codePointAt(pos) -> uint
 ```
 [Example](http://goo.gl/JKrMn5):
 ```javascript

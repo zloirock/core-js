@@ -1,20 +1,28 @@
 QUnit.module \ES6
+
+eq = strictEqual
+deq = deepEqual
+sameEq = (a, b, c)-> ok Object.is(a, b), c
+
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
+
 {getOwnPropertyDescriptor, defineProperty} = Object
-same = Object.is
+
 epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
+
 test 'Object.assign' !->
   {assign} = Object
   ok isFunction(assign), 'Is function'
-  foo = q:1
-  ok foo is assign(foo, bar: 2), 'assign return target'
-  ok foo.bar is 2, 'assign define properties'
+  foo = q: 1
+  eq foo, assign(foo, bar: 2), 'assign return target'
+  eq foo.bar, 2, 'assign define properties'
   if isNative getOwnPropertyDescriptor
     foo = baz: 1
     assign foo, defineProperty {}, \bar, get: -> @baz + 1
     ok foo.bar is void, "assign don't copy descriptors"
 test 'Object.is' !->
+  same = Object.is
   ok isFunction(same), 'Is function'
   ok same(1 1), '1 is 1'
   ok same(NaN, NaN), '1 is 1'
@@ -25,8 +33,8 @@ if Object.setPrototypeOf
     {setPrototypeOf} = Object
     ok isFunction(setPrototypeOf), 'Is function'
     ok \apply of setPrototypeOf({} Function::), 'Parent properties in target'
-    ok setPrototypeOf(a:2, {b: -> @a^2})b! is 4, 'Child and parent properties in target'
-    ok setPrototypeOf(tmp = {}, {a: 1}) is tmp, 'setPrototypeOf return target'
+    eq setPrototypeOf(a:2, {b: -> @a^2})b!, 4, 'Child and parent properties in target'
+    eq setPrototypeOf(tmp = {}, {a: 1}), tmp, 'setPrototypeOf return target'
     ok !(\toString of setPrototypeOf {} null), 'Can set null as prototype'
 test 'Number.EPSILON' !->
   {EPSILON} = Number
@@ -62,9 +70,9 @@ test 'Number.isSafeInteger' !->
   for [16~20000000000000 -16~20000000000000 NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
     ok not isSafeInteger(..), "not isSafeInteger #{typeof ..} #{..}"
 test 'Number.MAX_SAFE_INTEGER' !->
-  ok Number.MAX_SAFE_INTEGER is 2^53 - 1, 'Is 2^53 - 1'
+  eq Number.MAX_SAFE_INTEGER, 2^53 - 1, 'Is 2^53 - 1'
 test 'Number.MIN_SAFE_INTEGER' !->
-  ok Number.MIN_SAFE_INTEGER is -2^53 + 1, 'Is -2^53 + 1'
+  eq Number.MIN_SAFE_INTEGER, -2^53 + 1, 'Is -2^53 + 1'
 test 'Number.parseFloat' !->
   ok isFunction(Number.parseFloat), 'Is function'
 test 'Number.parseInt' !->
@@ -73,22 +81,22 @@ test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
   {acosh} = Math
   ok isFunction(acosh), 'Is function'
-  ok same acosh(NaN), NaN
-  ok same acosh(0.5), NaN
-  ok same acosh(-1), NaN
-  ok same acosh(1), 0
-  ok same acosh(Infinity), Infinity
+  sameEq acosh(NaN), NaN
+  sameEq acosh(0.5), NaN
+  sameEq acosh(-1), NaN
+  sameEq acosh(1), 0
+  eq acosh(Infinity), Infinity
   ok epsilon acosh(1234), 7.811163220849231
   ok epsilon acosh(8.88), 2.8737631531629235
 test 'Math.asinh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
   {asinh} = Math
   ok isFunction(asinh), 'Is function'
-  ok same asinh(NaN), NaN
-  ok same asinh(0), 0
-  ok same asinh(-0), -0
-  ok same asinh(Infinity), Infinity
-  ok same asinh(-Infinity), -Infinity
+  sameEq asinh(NaN), NaN
+  sameEq asinh(0), 0
+  sameEq asinh(-0), -0
+  eq asinh(Infinity), Infinity
+  eq asinh(-Infinity), -Infinity
   ok epsilon asinh(1234), 7.811163549201245
   ok epsilon asinh(9.99), 2.997227420191335
   ok epsilon asinh(1e150), 346.0809111296668
@@ -98,17 +106,17 @@ test 'Math.atanh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
   {atanh} = Math
   ok isFunction(atanh), 'Is function'
-  ok same atanh(NaN), NaN
-  ok same atanh(-2), NaN
-  ok same atanh(-1.5), NaN
-  ok same atanh(2), NaN
-  ok same atanh(1.5), NaN
-  ok same atanh(-1), -Infinity
-  ok same atanh(1), Infinity
-  ok same atanh(0), 0
-  ok same atanh(-0), -0
-  ok same atanh(-1e300), NaN
-  ok same atanh(1e300), NaN
+  sameEq atanh(NaN), NaN
+  sameEq atanh(-2), NaN
+  sameEq atanh(-1.5), NaN
+  sameEq atanh(2), NaN
+  sameEq atanh(1.5), NaN
+  eq atanh(-1), -Infinity
+  eq atanh(1), Infinity
+  sameEq atanh(0), 0
+  sameEq atanh(-0), -0
+  sameEq atanh(-1e300), NaN
+  sameEq atanh(1e300), NaN
   ok epsilon atanh(0.5), 0.5493061443340549
   ok epsilon atanh(-0.5), -0.5493061443340549
   ok epsilon atanh(0.444), 0.47720201260109457
@@ -116,33 +124,33 @@ test 'Math.cbrt' !->
   # Returns an implementation-dependent approximation to the cube root of x.
   {cbrt} = Math
   ok isFunction(cbrt), 'Is function'
-  ok same cbrt(NaN), NaN
-  ok same cbrt(0), 0
-  ok same cbrt(-0), -0
-  ok same cbrt(Infinity), Infinity
-  ok same cbrt(-Infinity), -Infinity
-  ok same cbrt(-8), -2
-  ok same cbrt(8), 2
+  sameEq cbrt(NaN), NaN
+  sameEq cbrt(0), 0
+  sameEq cbrt(-0), -0
+  eq cbrt(Infinity), Infinity
+  eq cbrt(-Infinity), -Infinity
+  eq cbrt(-8), -2
+  eq cbrt(8), 2
   ok epsilon cbrt(-1000), -10 # O_o
   ok epsilon cbrt(1000), 10   # O_o
 test 'Math.clz32' !->
   {clz32} = Math
   ok isFunction(clz32), 'Is function'
-  ok clz32(0) is 32
-  ok clz32(1) is 31
-  ok clz32(-1) is 0
-  ok clz32(0.6) is 32
-  ok clz32(2^32 - 1) is 0
-  ok clz32(2^32) is 32
+  eq clz32(0), 32
+  eq clz32(1), 31
+  sameEq clz32(-1), 0
+  eq clz32(0.6), 32
+  sameEq clz32(2^32 - 1), 0
+  eq clz32(2^32), 32
 test 'Math.cosh' !->
   # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
   {cosh} = Math
   ok isFunction(cosh), 'Is function'
-  ok same cosh(NaN), NaN
-  ok same cosh(0), 1
-  ok same cosh(-0), 1
-  ok same cosh(Infinity), Infinity
-  # ok same cosh(-Infinity), Infinity # v8 bug!
+  sameEq cosh(NaN), NaN
+  eq cosh(0), 1
+  eq cosh(-0), 1
+  eq cosh(Infinity), Infinity
+  eq cosh(-Infinity), Infinity # v8 bug!
   ok epsilon cosh(12), 81377.39571257407, 3e-11
   ok epsilon cosh(22), 1792456423.065795780980053377, 1e-5
   ok epsilon cosh(-10), 11013.23292010332313972137
@@ -151,108 +159,108 @@ test 'Math.expm1' !->
   # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
   {expm1} = Math
   ok isFunction(expm1), 'Is function'
-  ok same expm1(NaN), NaN
-  ok same expm1(0), 0
-  ok same expm1(-0), -0
-  ok same expm1(Infinity), Infinity
-  ok same expm1(-Infinity), -1
+  sameEq expm1(NaN), NaN
+  sameEq expm1(0), 0
+  sameEq expm1(-0), -0
+  eq expm1(Infinity), Infinity
+  eq expm1(-Infinity), -1
   ok epsilon expm1(10), 22025.465794806718,
   ok epsilon expm1(-10), -0.9999546000702375
 test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
   {hypot, sqrt} = Math
   ok isFunction(hypot), 'Is function'
-  ok same hypot('', 0), 0
-  ok same hypot(0, ''), 0
-  ok same hypot(Infinity, 0), Infinity
-  ok same hypot(-Infinity, 0), Infinity
-  ok same hypot(0, Infinity), Infinity
-  ok same hypot(0, -Infinity), Infinity
-  ok same hypot(Infinity, NaN), Infinity
-  ok same hypot(NaN, -Infinity), Infinity
-  ok same hypot(NaN, 0), NaN
-  ok same hypot(0, NaN), NaN
-  ok same hypot(0, -0), 0
-  ok same hypot(0, 0), 0
-  ok same hypot(-0, -0), 0
-  ok same hypot(-0, 0), 0
-  ok same hypot(0, 1), 1
-  ok same hypot(0, -1), 1
-  ok same hypot(-0, 1), 1
-  ok same hypot(-0, -1), 1
-  ok same hypot(0), 0
-  ok same hypot(1), 1
-  ok same hypot(2), 2
-  ok same hypot(0 0 1), 1
-  ok same hypot(0 1 0), 1
-  ok same hypot(1 0 0), 1
-  ok same hypot(2 3 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)
-  ok same hypot(2 3 4 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)
+  sameEq hypot('', 0), 0
+  sameEq hypot(0, ''), 0
+  eq hypot(Infinity, 0), Infinity
+  eq hypot(-Infinity, 0), Infinity
+  eq hypot(0, Infinity), Infinity
+  eq hypot(0, -Infinity), Infinity
+  eq hypot(Infinity, NaN), Infinity
+  eq hypot(NaN, -Infinity), Infinity
+  sameEq hypot(NaN, 0), NaN
+  sameEq hypot(0, NaN), NaN
+  sameEq hypot(0, -0), 0
+  sameEq hypot(0, 0), 0
+  sameEq hypot(-0, -0), 0
+  sameEq hypot(-0, 0), 0
+  eq hypot(0, 1), 1
+  eq hypot(0, -1), 1
+  eq hypot(-0, 1), 1
+  eq hypot(-0, -1), 1
+  sameEq hypot(0), 0
+  eq hypot(1), 1
+  eq hypot(2), 2
+  eq hypot(0 0 1), 1
+  eq hypot(0 1 0), 1
+  eq hypot(1 0 0), 1
+  eq hypot(2 3 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)
+  eq hypot(2 3 4 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)
   ok epsilon hypot(66 66), 93.33809511662427
   ok epsilon hypot(0.1 100), 100.0000499999875
 test 'Math.imul' !->
   {imul} = Math
   ok isFunction(imul), 'Is function'
-  ok same imul(0, 0), 0
-  ok imul(123, 456) is 56088
-  ok imul(-123, 456) is -56088
-  ok imul(123, -456) is -56088
-  ok imul(16~01234567, 16~fedcba98) is 602016552
-  ok imul(no 7) is 0
-  ok imul(7 no) is 0
-  ok imul(no no) is 0
-  ok imul(on 7) is 7
-  ok imul(7 on) is 7
-  ok imul(on on) is 1
-  ok imul(void 7) is 0
-  ok imul(7 void) is 0
-  ok imul(void void) is 0
-  ok imul(\str 7) is 0
-  ok imul(7 \str) is 0
-  ok imul({} 7) is 0
-  ok imul(7 {}) is 0
-  ok imul([] 7) is 0
-  ok imul(7 []) is 0
-  ok imul(0xffffffff, 5) is -5
-  ok imul(0xfffffffe, 5) is -10
-  ok imul(2 4) is 8
-  ok imul(-1 8) is -8
-  ok imul(-2 -2) is 4
-  ok imul(-0 7) is 0
-  ok imul(7 -0) is 0
-  ok imul(0.1 7) is 0
-  ok imul(7 0.1) is 0
-  ok imul(0.9 7) is 0
-  ok imul(7 0.9) is 0
-  ok imul(1.1 7) is 7
-  ok imul(7 1.1) is 7
-  ok imul(1.9 7) is 7
-  ok imul(7 1.9) is 7
+  sameEq imul(0, 0), 0
+  eq imul(123, 456), 56088
+  eq imul(-123, 456), -56088
+  eq imul(123, -456), -56088
+  eq imul(16~01234567, 16~fedcba98), 602016552
+  sameEq imul(no 7), 0
+  sameEq imul(7 no), 0
+  sameEq imul(no no), 0
+  eq imul(on 7), 7
+  eq imul(7 on), 7
+  eq imul(on on), 1
+  sameEq imul(void 7), 0
+  sameEq imul(7 void), 0
+  sameEq imul(void void), 0
+  sameEq imul(\str 7), 0
+  sameEq imul(7 \str), 0
+  sameEq imul({} 7), 0
+  sameEq imul(7 {}), 0
+  sameEq imul([] 7), 0
+  sameEq imul(7 []), 0
+  eq imul(0xffffffff, 5), -5
+  eq imul(0xfffffffe, 5), -10
+  eq imul(2 4), 8
+  eq imul(-1 8), -8
+  eq imul(-2 -2), 4
+  sameEq imul(-0 7), 0
+  sameEq imul(7 -0), 0
+  sameEq imul(0.1 7), 0
+  sameEq imul(7 0.1), 0
+  sameEq imul(0.9 7), 0
+  sameEq imul(7 0.9), 0
+  eq imul(1.1 7), 7
+  eq imul(7 1.1), 7
+  eq imul(1.9 7), 7
+  eq imul(7 1.9), 7
 test 'Math.log1p' !->
   # Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
   # The result is computed in a way that is accurate even when the value of x is close to zero.
   {log1p} = Math
   ok isFunction(log1p), 'Is function'
-  ok same log1p(''), log1p 0
-  ok same log1p(NaN), NaN
-  ok same log1p(-2), NaN
-  ok same log1p(-1), -Infinity
-  ok same log1p(0), 0
-  ok same log1p(-0), -0
-  ok same log1p(Infinity), Infinity
+  sameEq log1p(''), log1p 0
+  sameEq log1p(NaN), NaN
+  sameEq log1p(-2), NaN
+  sameEq log1p(-1), -Infinity
+  sameEq log1p(0), 0
+  sameEq log1p(-0), -0
+  sameEq log1p(Infinity), Infinity
   ok epsilon log1p(5), 1.791759469228055
   ok epsilon log1p(50), 3.9318256327243257
 test 'Math.log10' !->
   # Returns an implementation-dependent approximation to the base 10 logarithm of x.
   {log10} = Math
   ok isFunction(log10), 'Is function'
-  ok same log10(''), log10 0
-  ok same log10(NaN), NaN
-  ok same log10(-1), NaN
-  ok same log10(0), -Infinity
-  ok same log10(-0), -Infinity
-  ok same log10(1), 0
-  ok same log10(Infinity), Infinity
+  sameEq log10(''), log10 0
+  sameEq log10(NaN), NaN
+  sameEq log10(-1), NaN
+  sameEq log10(0), -Infinity
+  sameEq log10(-0), -Infinity
+  sameEq log10(1), 0
+  sameEq log10(Infinity), Infinity
   ok epsilon log10(0.1), -1 # O_o
   ok epsilon log10(0.5), -0.3010299956639812
   ok epsilon log10(1.5), 0.17609125905568124
@@ -262,129 +270,170 @@ test 'Math.log2' !->
   # Returns an implementation-dependent approximation to the base 2 logarithm of x.
   {log2} = Math
   ok isFunction(log2), 'Is function'
-  ok same log2(''), log2 0
-  ok same log2(NaN), NaN
-  ok same log2(-1), NaN
-  ok same log2(0), -Infinity
-  ok same log2(-0), -Infinity
-  ok same log2(1), 0
-  ok same log2(Infinity), Infinity
-  ok same log2(0.5), -1
-  ok same log2(32), 5
+  sameEq log2(''), log2 0
+  sameEq log2(NaN), NaN
+  sameEq log2(-1), NaN
+  sameEq log2(0), -Infinity
+  sameEq log2(-0), -Infinity
+  sameEq log2(1), 0
+  sameEq log2(Infinity), Infinity
+  sameEq log2(0.5), -1
+  sameEq log2(32), 5
   ok epsilon log2(5), 2.321928094887362
 test 'Math.sign' !->
   # Returns the sign of the x, indicating whether x is positive, negative or zero.
   {sign} = Math
   ok isFunction(sign), 'Is function'
-  ok same sign(NaN), NaN
-  ok same sign!, NaN
-  ok same sign(-0), -0
-  ok same sign(0), 0
-  ok same sign(Infinity), 1
-  ok same sign(-Infinity), -1
-  ok sign(16~2fffffffffffff) is 1
-  ok sign(-16~2fffffffffffff) is -1
-  ok sign(42.5) is 1
-  ok sign(-42.5) is -1
+  sameEq sign(NaN), NaN
+  sameEq sign!, NaN
+  sameEq sign(-0), -0
+  sameEq sign(0), 0
+  eq sign(Infinity), 1
+  eq sign(-Infinity), -1
+  eq sign(16~2fffffffffffff), 1
+  eq sign(-16~2fffffffffffff), -1
+  eq sign(42.5), 1
+  eq sign(-42.5), -1
 test 'Math.sinh' !->
   # Returns an implementation-dependent approximation to the hyperbolic sine of x.
   {sinh} = Math
   ok isFunction(sinh), 'Is function'
-  ok same sinh(NaN), NaN
-  ok same sinh(0), 0
-  ok same sinh(-0), -0 
-  ok same sinh(Infinity), Infinity
-  ok same sinh(-Infinity), -Infinity
+  sameEq sinh(NaN), NaN
+  sameEq sinh(0), 0
+  sameEq sinh(-0), -0 
+  eq sinh(Infinity), Infinity
+  eq sinh(-Infinity), -Infinity
   ok epsilon sinh(-5), -74.20321057778875
   ok epsilon sinh(2), 3.6268604078470186
 test 'Math.tanh' !->
   # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
   {tanh} = Math
   ok isFunction(tanh), 'Is function'
-  ok same tanh(NaN), NaN
-  ok same tanh(0), 0
-  ok same tanh(-0), -0
-  ok same tanh(Infinity), 1
-  ok same tanh(90), 1
+  sameEq tanh(NaN), NaN
+  sameEq tanh(0), 0
+  sameEq tanh(-0), -0
+  eq tanh(Infinity), 1
+  eq tanh(90), 1
   ok epsilon tanh(10), 0.9999999958776927
 test 'Math.trunc' !->
   # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
   {trunc} = Math
   ok isFunction(trunc), 'Is function'
-  ok same(trunc(NaN), NaN), 'NaN -> NaN'
-  ok same(trunc(-0), -0), '-0 -> -0'
-  ok same(trunc(0), 0), '0 -> 0'
-  ok same(trunc(Infinity), Infinity), 'Infinity -> Infinity'
-  ok same(trunc(-Infinity), -Infinity), '-Infinity -> -Infinity'
-  ok same(trunc(null), 0), 'null -> 0'
-  ok same(trunc({}), NaN), '{} -> NaN'
-  ok trunc([]) is 0, '[] -> 0'
-  ok trunc(1.01) is 1, '1.01 -> 0'
-  ok trunc(1.99) is 1, '1.99 -> 0'
-  ok trunc(-1) is -1, '-1 -> -1'
-  ok trunc(-1.99) is -1, '-1.99 -> -1'
-  ok trunc(-555.555) is -555, '-555.555 -> -555'
-  ok trunc(0x20000000000001) is 0x20000000000001, '0x20000000000001 -> 0x20000000000001'
-  ok trunc(-0x20000000000001) is -0x20000000000001, '-0x20000000000001 -> -0x20000000000001'
-test 'String::codePointAt' !->
+  sameEq trunc(NaN), NaN, 'NaN -> NaN'
+  sameEq trunc(-0), -0, '-0 -> -0'
+  sameEq trunc(0), 0, '0 -> 0'
+  sameEq trunc(Infinity), Infinity, 'Infinity -> Infinity'
+  sameEq trunc(-Infinity), -Infinity, '-Infinity -> -Infinity'
+  sameEq trunc(null), 0, 'null -> 0'
+  sameEq trunc({}), NaN, '{} -> NaN'
+  eq trunc([]), 0, '[] -> 0'
+  eq trunc(1.01), 1, '1.01 -> 0'
+  eq trunc(1.99), 1, '1.99 -> 0'
+  eq trunc(-1), -1, '-1 -> -1'
+  eq trunc(-1.99), -1, '-1.99 -> -1'
+  eq trunc(-555.555), -555, '-555.555 -> -555'
+  eq trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001'
+  eq trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001'
+test 'String.fromCodePoint' !->
+  {fromCodePoint} = String
+  ok isFunction(fromCodePoint), 'Is function'
+  # tests from https://github.com/mathiasbynens/String.fromCodePoint/blob/master/tests/tests.js
+  eq fromCodePoint(''), '\0'
+  eq fromCodePoint!, ''
+  eq fromCodePoint(-0), '\0'
+  eq fromCodePoint(0), '\0'
+  eq fromCodePoint(0x1D306), '\uD834\uDF06'
+  eq fromCodePoint(0x1D306, 0x61, 0x1D307), '\uD834\uDF06a\uD834\uDF07'
+  eq fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07'
+  eq fromCodePoint(false), '\0'
+  eq fromCodePoint(null), '\0'
+  throws (->fromCodePoint \_), RangeError
+  throws (->fromCodePoint '+Infinity'), RangeError
+  throws (->fromCodePoint '-Infinity'), RangeError
+  throws (->fromCodePoint -1), RangeError
+  throws (->fromCodePoint 0x10FFFF + 1), RangeError
+  throws (->fromCodePoint 3.14), RangeError
+  throws (->fromCodePoint 3e-2), RangeError
+  throws (->fromCodePoint -Infinity), RangeError
+  throws (->fromCodePoint Infinity), RangeError
+  throws (->fromCodePoint NaN), RangeError
+  throws (->fromCodePoint void), RangeError
+  throws (->fromCodePoint {}), RangeError
+  throws (->fromCodePoint /./), RangeError
+  
+  tmp = 0x60;
+  eq fromCodePoint({valueOf: -> ++tmp}), \a
+  eq tmp, 0x61
+  
+  counter = (2 ** 15) * 3 / 2
+  result = []
+  while --counter >= 0 => result.push 0 # one code unit per symbol
+  fromCodePoint.apply null result # must not throw
+
+  counter = (2 ** 15) * 3 / 2
+  result = []
+  while --counter >= 0 => result.push 0xFFFF + 1 # two code units per symbol
+  fromCodePoint.apply null result # must not throw
+
+test 'String#codePointAt' !->
   ok isFunction(String::codePointAt), 'Is function'
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
-  ok 'abc\uD834\uDF06def'codePointAt('') is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(\_) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt! is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(-Infinity) is void
-  ok 'abc\uD834\uDF06def'codePointAt(-1) is void
-  ok 'abc\uD834\uDF06def'codePointAt(-0) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(0) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(3) is 0x1D306
-  ok 'abc\uD834\uDF06def'codePointAt(4) is 0xDF06
-  ok 'abc\uD834\uDF06def'codePointAt(5) is 0x64
-  ok 'abc\uD834\uDF06def'codePointAt(42) is void
-  ok 'abc\uD834\uDF06def'codePointAt(Infinity) is void
-  ok 'abc\uD834\uDF06def'codePointAt(Infinity) is void
-  ok 'abc\uD834\uDF06def'codePointAt(NaN) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(no) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(null) is 0x61
-  ok 'abc\uD834\uDF06def'codePointAt(void) is 0x61
-  ok '\uD834\uDF06def'codePointAt('') is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(\1) is 0xDF06
-  ok '\uD834\uDF06def'codePointAt(\_) is 0x1D306
-  ok '\uD834\uDF06def'codePointAt! is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(-1) is void
-  ok '\uD834\uDF06def'codePointAt(-0) is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(0) is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(1) is 0xDF06
-  ok '\uD834\uDF06def'codePointAt(42) is void
-  ok '\uD834\uDF06def'codePointAt(no) is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(null) is 0x1D306
-  ok '\uD834\uDF06def'codePointAt(void) is 0x1D306
-  ok '\uD834abc'codePointAt('') is 0xD834
-  ok '\uD834abc'codePointAt(\_) is 0xD834
-  ok '\uD834abc'codePointAt! is 0xD834
-  ok '\uD834abc'codePointAt(-1) is void
-  ok '\uD834abc'codePointAt(-0) is 0xD834
-  ok '\uD834abc'codePointAt(0) is 0xD834
-  ok '\uD834abc'codePointAt(no) is 0xD834
-  ok '\uD834abc'codePointAt(NaN) is 0xD834
-  ok '\uD834abc'codePointAt(null) is 0xD834
-  ok '\uD834abc'codePointAt(void) is 0xD834
-  ok '\uDF06abc'codePointAt('') is 0xDF06
-  ok '\uDF06abc'codePointAt(\_) is 0xDF06
-  ok '\uDF06abc'codePointAt! is 0xDF06
-  ok '\uDF06abc'codePointAt(-1) is void
-  ok '\uDF06abc'codePointAt(-0) is 0xDF06
-  ok '\uDF06abc'codePointAt(0) is 0xDF06
-  ok '\uDF06abc'codePointAt(no) is 0xDF06
-  ok '\uDF06abc'codePointAt(NaN) is 0xDF06
-  ok '\uDF06abc'codePointAt(null) is 0xDF06
-  ok '\uDF06abc'codePointAt(void) is 0xDF06
-test 'String::includes' !->
+  eq 'abc\uD834\uDF06def'codePointAt(''), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(\_), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt!, 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(-Infinity), void
+  eq 'abc\uD834\uDF06def'codePointAt(-1), void
+  eq 'abc\uD834\uDF06def'codePointAt(-0), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(0), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(3), 0x1D306
+  eq 'abc\uD834\uDF06def'codePointAt(4), 0xDF06
+  eq 'abc\uD834\uDF06def'codePointAt(5), 0x64
+  eq 'abc\uD834\uDF06def'codePointAt(42), void
+  eq 'abc\uD834\uDF06def'codePointAt(Infinity), void
+  eq 'abc\uD834\uDF06def'codePointAt(Infinity), void
+  eq 'abc\uD834\uDF06def'codePointAt(NaN), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(no), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(null), 0x61
+  eq 'abc\uD834\uDF06def'codePointAt(void), 0x61
+  eq '\uD834\uDF06def'codePointAt(''), 0x1D306
+  eq '\uD834\uDF06def'codePointAt(\1), 0xDF06
+  eq '\uD834\uDF06def'codePointAt(\_), 0x1D306
+  eq '\uD834\uDF06def'codePointAt!, 0x1D306
+  eq '\uD834\uDF06def'codePointAt(-1), void
+  eq '\uD834\uDF06def'codePointAt(-0), 0x1D306
+  eq '\uD834\uDF06def'codePointAt(0), 0x1D306
+  eq '\uD834\uDF06def'codePointAt(1), 0xDF06
+  eq '\uD834\uDF06def'codePointAt(42), void
+  eq '\uD834\uDF06def'codePointAt(no), 0x1D306
+  eq '\uD834\uDF06def'codePointAt(null), 0x1D306
+  eq '\uD834\uDF06def'codePointAt(void), 0x1D306
+  eq '\uD834abc'codePointAt(''), 0xD834
+  eq '\uD834abc'codePointAt(\_), 0xD834
+  eq '\uD834abc'codePointAt!, 0xD834
+  eq '\uD834abc'codePointAt(-1), void
+  eq '\uD834abc'codePointAt(-0), 0xD834
+  eq '\uD834abc'codePointAt(0), 0xD834
+  eq '\uD834abc'codePointAt(no), 0xD834
+  eq '\uD834abc'codePointAt(NaN), 0xD834
+  eq '\uD834abc'codePointAt(null), 0xD834
+  eq '\uD834abc'codePointAt(void), 0xD834
+  eq '\uDF06abc'codePointAt(''), 0xDF06
+  eq '\uDF06abc'codePointAt(\_), 0xDF06
+  eq '\uDF06abc'codePointAt!, 0xDF06
+  eq '\uDF06abc'codePointAt(-1), void
+  eq '\uDF06abc'codePointAt(-0), 0xDF06
+  eq '\uDF06abc'codePointAt(0), 0xDF06
+  eq '\uDF06abc'codePointAt(no), 0xDF06
+  eq '\uDF06abc'codePointAt(NaN), 0xDF06
+  eq '\uDF06abc'codePointAt(null), 0xDF06
+  eq '\uDF06abc'codePointAt(void), 0xDF06
+test 'String#includes' !->
   ok isFunction(String::includes), 'Is function'
   ok not 'abc'includes!
   ok 'aundefinedb'includes!
   ok 'abcd'includes \b 1
   ok not 'abcd'includes \b 2
-test 'String::endsWith' !->
+test 'String#endsWith' !->
   ok isFunction(String::endsWith), 'Is function'
   ok 'undefined'endsWith!
   ok not 'undefined'endsWith null
@@ -399,16 +448,12 @@ test 'String::endsWith' !->
   ok 'abc'endsWith \a on
   ok not 'abc'endsWith \c \x
   ok not 'abc'endsWith \a \x
-test 'String::repeat' !->
+test 'String#repeat' !->
   ok isFunction(String::repeat), 'Is function'
-  ok 'qwe'repeat(3) is \qweqweqwe
-  ok 'qwe'repeat(2.5) is \qweqwe
-  try
-    'qwe'repeat(-1)
-    ok no
-  catch
-    ok on
-test 'String::startsWith' !->
+  eq 'qwe'repeat(3), \qweqweqwe
+  eq 'qwe'repeat(2.5), \qweqwe
+  throws (->'qwe'repeat(-1)), RangeError
+test 'String#startsWith' !->
   ok isFunction(String::startsWith), 'Is function'
   ok 'undefined'startsWith!
   ok not 'undefined'startsWith null
@@ -425,63 +470,63 @@ test 'String::startsWith' !->
 test 'Array.from' !->
   {from} = Array
   ok isFunction(from), 'Is function'
-  deepEqual from(\123), <[1 2 3]>
-  deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
+  deq from(\123), <[1 2 3]>
+  deq from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
   from al = (-> &)(1), (val, key)->
-    ok @ is ctx
-    ok val is 1
-    ok key is 0
+    eq @, ctx
+    eq val, 1
+    eq key, 0
   , ctx = {}
   from [1], (val, key)->
-    ok @ is ctx
-    ok val is 1
-    ok key is 0
+    eq @, ctx
+    eq val, 1
+    eq key, 0
   , ctx = {}
-  deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}, (^2)), [1 4 9]
-  deepEqual from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
+  deq from({length: 3, 0: 1, 1: 2, 2: 3}, (^2)), [1 4 9]
+  deq from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
 test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'
-  deepEqual Array.of(1), [1]
-  deepEqual Array.of(1 2 3), [1 2 3]
-test 'Array::copyWithin' !->
+  deq Array.of(1), [1]
+  deq Array.of(1 2 3), [1 2 3]
+test 'Array#copyWithin' !->
   ok isFunction(Array::copyWithin), 'Is function'
-  ok (a = [1]copyWithin(0)) is a
-  deepEqual [1 2 3 4 5]copyWithin(0 3), [4 5 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(1 3), [1 4 5 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(1 2), [1 3 4 5 5]
-  deepEqual [1 2 3 4 5]copyWithin(2 2), [1 2 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(0 3 4), [4 2 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(1 3 4), [1 4 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(1 2 4), [1 3 4 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(0 -2), [4 5 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(0 -2 -1), [4 2 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(-4 -3 -2), [1 3 3 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(-4 -3 -1), [1 3 4 4 5]
-  deepEqual [1 2 3 4 5]copyWithin(-4 -3), [1 3 4 5 5]
-test 'Array::fill' !->
+  eq (a = [1]copyWithin(0)), a
+  deq [1 2 3 4 5]copyWithin(0 3), [4 5 3 4 5]
+  deq [1 2 3 4 5]copyWithin(1 3), [1 4 5 4 5]
+  deq [1 2 3 4 5]copyWithin(1 2), [1 3 4 5 5]
+  deq [1 2 3 4 5]copyWithin(2 2), [1 2 3 4 5]
+  deq [1 2 3 4 5]copyWithin(0 3 4), [4 2 3 4 5]
+  deq [1 2 3 4 5]copyWithin(1 3 4), [1 4 3 4 5]
+  deq [1 2 3 4 5]copyWithin(1 2 4), [1 3 4 4 5]
+  deq [1 2 3 4 5]copyWithin(0 -2), [4 5 3 4 5]
+  deq [1 2 3 4 5]copyWithin(0 -2 -1), [4 2 3 4 5]
+  deq [1 2 3 4 5]copyWithin(-4 -3 -2), [1 3 3 4 5]
+  deq [1 2 3 4 5]copyWithin(-4 -3 -1), [1 3 4 4 5]
+  deq [1 2 3 4 5]copyWithin(-4 -3), [1 3 4 5 5]
+test 'Array#fill' !->
   ok isFunction(Array::fill), 'Is function'
-  ok (a = Array(5)fill(5)) is a
-  deepEqual Array(5)fill(5), [5 5 5 5 5]
-  deepEqual Array(5)fill(5 1), [void 5 5 5 5]
-  deepEqual Array(5)fill(5 1 4), [void 5 5 5 void]
-  deepEqual Array(5)fill(5 6 1), [void void void void void]
-  deepEqual Array(5)fill(5 -3 4), [void void 5 5 void]
-test 'Array::find' !->
+  eq (a = Array(5)fill(5)), a
+  deq Array(5)fill(5), [5 5 5 5 5]
+  deq Array(5)fill(5 1), [void 5 5 5 5]
+  deq Array(5)fill(5 1 4), [void 5 5 5 void]
+  deq Array(5)fill(5 6 1), [void void void void void]
+  deq Array(5)fill(5 -3 4), [void void 5 5 void]
+test 'Array#find' !->
   ok isFunction(Array::find), 'Is function'
   (arr = [1])find (val, key, that)->
-    ok @ is ctx
-    ok val is 1
-    ok key is 0
-    ok that is arr
+    eq @, ctx
+    eq val, 1
+    eq key, 0
+    eq that, arr
   , ctx = {}
-  ok [1 3 NaN, 42 {}]find((is 42)) is 42
-  ok [1 3 NaN, 42 {}]find((is 43)) is void
-test 'Array::findIndex' !->
+  eq [1 3 NaN, 42 {}]find((is 42)), 42
+  eq [1 3 NaN, 42 {}]find((is 43)), void
+test 'Array#findIndex' !->
   ok isFunction(Array::findIndex), 'Is function'
   (arr = [1])findIndex (val, key, that)->
-    ok @ is ctx
-    ok val is 1
-    ok key is 0
-    ok that is arr
+    eq @, ctx
+    eq val, 1
+    eq key, 0
+    eq that, arr
   , ctx = {}
-  ok [1 3 NaN, 42 {}]findIndex((is 42)) is 3
+  eq [1 3 NaN, 42 {}]findIndex((is 42)), 3

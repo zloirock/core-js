@@ -1911,8 +1911,13 @@
 }).call(this);
 
 (function(){
-  var isFunction, isNative, getOwnPropertyDescriptor, defineProperty, same, epsilon, toString$ = {}.toString;
+  var eq, deq, sameEq, isFunction, isNative, getOwnPropertyDescriptor, defineProperty, epsilon, toString$ = {}.toString;
   QUnit.module('ES6');
+  eq = strictEqual;
+  deq = deepEqual;
+  sameEq = function(a, b, c){
+    return ok(Object.is(a, b), c);
+  };
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -1920,7 +1925,6 @@
     return /\[native code\]\s*\}\s*$/.test(it);
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
-  same = Object.is;
   epsilon = function(a, b, E){
     return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
@@ -1931,10 +1935,10 @@
     foo = {
       q: 1
     };
-    ok(foo === assign(foo, {
+    eq(foo, assign(foo, {
       bar: 2
     }), 'assign return target');
-    ok(foo.bar === 2, 'assign define properties');
+    eq(foo.bar, 2, 'assign define properties');
     if (isNative(getOwnPropertyDescriptor)) {
       foo = {
         baz: 1
@@ -1948,6 +1952,8 @@
     }
   });
   test('Object.is', function(){
+    var same;
+    same = Object.is;
     ok(isFunction(same), 'Is function');
     ok(same(1, 1), '1 is 1');
     ok(same(NaN, NaN), '1 is 1');
@@ -1960,16 +1966,16 @@
       setPrototypeOf = Object.setPrototypeOf;
       ok(isFunction(setPrototypeOf), 'Is function');
       ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
-      ok(setPrototypeOf({
+      eq(setPrototypeOf({
         a: 2
       }, {
         b: function(){
           return Math.pow(this.a, 2);
         }
-      }).b() === 4, 'Child and parent properties in target');
-      ok(setPrototypeOf(tmp = {}, {
+      }).b(), 4, 'Child and parent properties in target');
+      eq(setPrototypeOf(tmp = {}, {
         a: 1
-      }) === tmp, 'setPrototypeOf return target');
+      }), tmp, 'setPrototypeOf return target');
       ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
     });
   }
@@ -2035,10 +2041,10 @@
     function fn$(){}
   });
   test('Number.MAX_SAFE_INTEGER', function(){
-    ok(Number.MAX_SAFE_INTEGER === Math.pow(2, 53) - 1, 'Is 2^53 - 1');
+    eq(Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
   });
   test('Number.MIN_SAFE_INTEGER', function(){
-    ok(Number.MIN_SAFE_INTEGER === -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
+    eq(Number.MIN_SAFE_INTEGER, -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
   });
   test('Number.parseFloat', function(){
     ok(isFunction(Number.parseFloat), 'Is function');
@@ -2050,11 +2056,11 @@
     var acosh;
     acosh = Math.acosh;
     ok(isFunction(acosh), 'Is function');
-    ok(same(acosh(NaN), NaN));
-    ok(same(acosh(0.5), NaN));
-    ok(same(acosh(-1), NaN));
-    ok(same(acosh(1), 0));
-    ok(same(acosh(Infinity), Infinity));
+    sameEq(acosh(NaN), NaN);
+    sameEq(acosh(0.5), NaN);
+    sameEq(acosh(-1), NaN);
+    sameEq(acosh(1), 0);
+    eq(acosh(Infinity), Infinity);
     ok(epsilon(acosh(1234), 7.811163220849231));
     ok(epsilon(acosh(8.88), 2.8737631531629235));
   });
@@ -2062,11 +2068,11 @@
     var asinh;
     asinh = Math.asinh;
     ok(isFunction(asinh), 'Is function');
-    ok(same(asinh(NaN), NaN));
-    ok(same(asinh(0), 0));
-    ok(same(asinh(-0), -0));
-    ok(same(asinh(Infinity), Infinity));
-    ok(same(asinh(-Infinity), -Infinity));
+    sameEq(asinh(NaN), NaN);
+    sameEq(asinh(0), 0);
+    sameEq(asinh(-0), -0);
+    eq(asinh(Infinity), Infinity);
+    eq(asinh(-Infinity), -Infinity);
     ok(epsilon(asinh(1234), 7.811163549201245));
     ok(epsilon(asinh(9.99), 2.997227420191335));
     ok(epsilon(asinh(1e150), 346.0809111296668));
@@ -2077,17 +2083,17 @@
     var atanh;
     atanh = Math.atanh;
     ok(isFunction(atanh), 'Is function');
-    ok(same(atanh(NaN), NaN));
-    ok(same(atanh(-2), NaN));
-    ok(same(atanh(-1.5), NaN));
-    ok(same(atanh(2), NaN));
-    ok(same(atanh(1.5), NaN));
-    ok(same(atanh(-1), -Infinity));
-    ok(same(atanh(1), Infinity));
-    ok(same(atanh(0), 0));
-    ok(same(atanh(-0), -0));
-    ok(same(atanh(-1e300), NaN));
-    ok(same(atanh(1e300), NaN));
+    sameEq(atanh(NaN), NaN);
+    sameEq(atanh(-2), NaN);
+    sameEq(atanh(-1.5), NaN);
+    sameEq(atanh(2), NaN);
+    sameEq(atanh(1.5), NaN);
+    eq(atanh(-1), -Infinity);
+    eq(atanh(1), Infinity);
+    sameEq(atanh(0), 0);
+    sameEq(atanh(-0), -0);
+    sameEq(atanh(-1e300), NaN);
+    sameEq(atanh(1e300), NaN);
     ok(epsilon(atanh(0.5), 0.5493061443340549));
     ok(epsilon(atanh(-0.5), -0.5493061443340549));
     ok(epsilon(atanh(0.444), 0.47720201260109457));
@@ -2096,13 +2102,13 @@
     var cbrt;
     cbrt = Math.cbrt;
     ok(isFunction(cbrt), 'Is function');
-    ok(same(cbrt(NaN), NaN));
-    ok(same(cbrt(0), 0));
-    ok(same(cbrt(-0), -0));
-    ok(same(cbrt(Infinity), Infinity));
-    ok(same(cbrt(-Infinity), -Infinity));
-    ok(same(cbrt(-8), -2));
-    ok(same(cbrt(8), 2));
+    sameEq(cbrt(NaN), NaN);
+    sameEq(cbrt(0), 0);
+    sameEq(cbrt(-0), -0);
+    eq(cbrt(Infinity), Infinity);
+    eq(cbrt(-Infinity), -Infinity);
+    eq(cbrt(-8), -2);
+    eq(cbrt(8), 2);
     ok(epsilon(cbrt(-1000), -10));
     ok(epsilon(cbrt(1000), 10));
   });
@@ -2110,21 +2116,22 @@
     var clz32;
     clz32 = Math.clz32;
     ok(isFunction(clz32), 'Is function');
-    ok(clz32(0) === 32);
-    ok(clz32(1) === 31);
-    ok(clz32(-1) === 0);
-    ok(clz32(0.6) === 32);
-    ok(clz32(Math.pow(2, 32) - 1) === 0);
-    ok(clz32(Math.pow(2, 32)) === 32);
+    eq(clz32(0), 32);
+    eq(clz32(1), 31);
+    sameEq(clz32(-1), 0);
+    eq(clz32(0.6), 32);
+    sameEq(clz32(Math.pow(2, 32) - 1), 0);
+    eq(clz32(Math.pow(2, 32)), 32);
   });
   test('Math.cosh', function(){
     var cosh;
     cosh = Math.cosh;
     ok(isFunction(cosh), 'Is function');
-    ok(same(cosh(NaN), NaN));
-    ok(same(cosh(0), 1));
-    ok(same(cosh(-0), 1));
-    ok(same(cosh(Infinity), Infinity));
+    sameEq(cosh(NaN), NaN);
+    eq(cosh(0), 1);
+    eq(cosh(-0), 1);
+    eq(cosh(Infinity), Infinity);
+    eq(cosh(-Infinity), Infinity);
     ok(epsilon(cosh(12), 81377.39571257407, 3e-11));
     ok(epsilon(cosh(22), 1792456423.065795780980053377, 1e-5));
     ok(epsilon(cosh(-10), 11013.23292010332313972137));
@@ -2134,43 +2141,43 @@
     var expm1;
     expm1 = Math.expm1;
     ok(isFunction(expm1), 'Is function');
-    ok(same(expm1(NaN), NaN));
-    ok(same(expm1(0), 0));
-    ok(same(expm1(-0), -0));
-    ok(same(expm1(Infinity), Infinity));
-    ok(same(expm1(-Infinity), -1));
+    sameEq(expm1(NaN), NaN);
+    sameEq(expm1(0), 0);
+    sameEq(expm1(-0), -0);
+    eq(expm1(Infinity), Infinity);
+    eq(expm1(-Infinity), -1);
     ok(epsilon(expm1(10), 22025.465794806718, ok(epsilon(expm1(-10), -0.9999546000702375))));
   });
   test('Math.hypot', function(){
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
     ok(isFunction(hypot), 'Is function');
-    ok(same(hypot('', 0), 0));
-    ok(same(hypot(0, ''), 0));
-    ok(same(hypot(Infinity, 0), Infinity));
-    ok(same(hypot(-Infinity, 0), Infinity));
-    ok(same(hypot(0, Infinity), Infinity));
-    ok(same(hypot(0, -Infinity), Infinity));
-    ok(same(hypot(Infinity, NaN), Infinity));
-    ok(same(hypot(NaN, -Infinity), Infinity));
-    ok(same(hypot(NaN, 0), NaN));
-    ok(same(hypot(0, NaN), NaN));
-    ok(same(hypot(0, -0), 0));
-    ok(same(hypot(0, 0), 0));
-    ok(same(hypot(-0, -0), 0));
-    ok(same(hypot(-0, 0), 0));
-    ok(same(hypot(0, 1), 1));
-    ok(same(hypot(0, -1), 1));
-    ok(same(hypot(-0, 1), 1));
-    ok(same(hypot(-0, -1), 1));
-    ok(same(hypot(0), 0));
-    ok(same(hypot(1), 1));
-    ok(same(hypot(2), 2));
-    ok(same(hypot(0, 0, 1), 1));
-    ok(same(hypot(0, 1, 0), 1));
-    ok(same(hypot(1, 0, 0), 1));
-    ok(same(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4)));
-    ok(same(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5)));
+    sameEq(hypot('', 0), 0);
+    sameEq(hypot(0, ''), 0);
+    eq(hypot(Infinity, 0), Infinity);
+    eq(hypot(-Infinity, 0), Infinity);
+    eq(hypot(0, Infinity), Infinity);
+    eq(hypot(0, -Infinity), Infinity);
+    eq(hypot(Infinity, NaN), Infinity);
+    eq(hypot(NaN, -Infinity), Infinity);
+    sameEq(hypot(NaN, 0), NaN);
+    sameEq(hypot(0, NaN), NaN);
+    sameEq(hypot(0, -0), 0);
+    sameEq(hypot(0, 0), 0);
+    sameEq(hypot(-0, -0), 0);
+    sameEq(hypot(-0, 0), 0);
+    eq(hypot(0, 1), 1);
+    eq(hypot(0, -1), 1);
+    eq(hypot(-0, 1), 1);
+    eq(hypot(-0, -1), 1);
+    sameEq(hypot(0), 0);
+    eq(hypot(1), 1);
+    eq(hypot(2), 2);
+    eq(hypot(0, 0, 1), 1);
+    eq(hypot(0, 1, 0), 1);
+    eq(hypot(1, 0, 0), 1);
+    eq(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4));
+    eq(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5));
     ok(epsilon(hypot(66, 66), 93.33809511662427));
     ok(epsilon(hypot(0.1, 100), 100.0000499999875));
   });
@@ -2178,53 +2185,53 @@
     var imul;
     imul = Math.imul;
     ok(isFunction(imul), 'Is function');
-    ok(same(imul(0, 0), 0));
-    ok(imul(123, 456) === 56088);
-    ok(imul(-123, 456) === -56088);
-    ok(imul(123, -456) === -56088);
-    ok(imul(19088743, 4275878552) === 602016552);
-    ok(imul(false, 7) === 0);
-    ok(imul(7, false) === 0);
-    ok(imul(false, false) === 0);
-    ok(imul(true, 7) === 7);
-    ok(imul(7, true) === 7);
-    ok(imul(true, true) === 1);
-    ok(imul(void 8, 7) === 0);
-    ok(imul(7, void 8) === 0);
-    ok(imul(void 8, void 8) === 0);
-    ok(imul('str', 7) === 0);
-    ok(imul(7, 'str') === 0);
-    ok(imul({}, 7) === 0);
-    ok(imul(7, {}) === 0);
-    ok(imul([], 7) === 0);
-    ok(imul(7, []) === 0);
-    ok(imul(0xffffffff, 5) === -5);
-    ok(imul(0xfffffffe, 5) === -10);
-    ok(imul(2, 4) === 8);
-    ok(imul(-1, 8) === -8);
-    ok(imul(-2, -2) === 4);
-    ok(imul(-0, 7) === 0);
-    ok(imul(7, -0) === 0);
-    ok(imul(0.1, 7) === 0);
-    ok(imul(7, 0.1) === 0);
-    ok(imul(0.9, 7) === 0);
-    ok(imul(7, 0.9) === 0);
-    ok(imul(1.1, 7) === 7);
-    ok(imul(7, 1.1) === 7);
-    ok(imul(1.9, 7) === 7);
-    ok(imul(7, 1.9) === 7);
+    sameEq(imul(0, 0), 0);
+    eq(imul(123, 456), 56088);
+    eq(imul(-123, 456), -56088);
+    eq(imul(123, -456), -56088);
+    eq(imul(19088743, 4275878552), 602016552);
+    sameEq(imul(false, 7), 0);
+    sameEq(imul(7, false), 0);
+    sameEq(imul(false, false), 0);
+    eq(imul(true, 7), 7);
+    eq(imul(7, true), 7);
+    eq(imul(true, true), 1);
+    sameEq(imul(void 8, 7), 0);
+    sameEq(imul(7, void 8), 0);
+    sameEq(imul(void 8, void 8), 0);
+    sameEq(imul('str', 7), 0);
+    sameEq(imul(7, 'str'), 0);
+    sameEq(imul({}, 7), 0);
+    sameEq(imul(7, {}), 0);
+    sameEq(imul([], 7), 0);
+    sameEq(imul(7, []), 0);
+    eq(imul(0xffffffff, 5), -5);
+    eq(imul(0xfffffffe, 5), -10);
+    eq(imul(2, 4), 8);
+    eq(imul(-1, 8), -8);
+    eq(imul(-2, -2), 4);
+    sameEq(imul(-0, 7), 0);
+    sameEq(imul(7, -0), 0);
+    sameEq(imul(0.1, 7), 0);
+    sameEq(imul(7, 0.1), 0);
+    sameEq(imul(0.9, 7), 0);
+    sameEq(imul(7, 0.9), 0);
+    eq(imul(1.1, 7), 7);
+    eq(imul(7, 1.1), 7);
+    eq(imul(1.9, 7), 7);
+    eq(imul(7, 1.9), 7);
   });
   test('Math.log1p', function(){
     var log1p;
     log1p = Math.log1p;
     ok(isFunction(log1p), 'Is function');
-    ok(same(log1p(''), log1p(0)));
-    ok(same(log1p(NaN), NaN));
-    ok(same(log1p(-2), NaN));
-    ok(same(log1p(-1), -Infinity));
-    ok(same(log1p(0), 0));
-    ok(same(log1p(-0), -0));
-    ok(same(log1p(Infinity), Infinity));
+    sameEq(log1p(''), log1p(0));
+    sameEq(log1p(NaN), NaN);
+    sameEq(log1p(-2), NaN);
+    sameEq(log1p(-1), -Infinity);
+    sameEq(log1p(0), 0);
+    sameEq(log1p(-0), -0);
+    sameEq(log1p(Infinity), Infinity);
     ok(epsilon(log1p(5), 1.791759469228055));
     ok(epsilon(log1p(50), 3.9318256327243257));
   });
@@ -2232,13 +2239,13 @@
     var log10;
     log10 = Math.log10;
     ok(isFunction(log10), 'Is function');
-    ok(same(log10(''), log10(0)));
-    ok(same(log10(NaN), NaN));
-    ok(same(log10(-1), NaN));
-    ok(same(log10(0), -Infinity));
-    ok(same(log10(-0), -Infinity));
-    ok(same(log10(1), 0));
-    ok(same(log10(Infinity), Infinity));
+    sameEq(log10(''), log10(0));
+    sameEq(log10(NaN), NaN);
+    sameEq(log10(-1), NaN);
+    sameEq(log10(0), -Infinity);
+    sameEq(log10(-0), -Infinity);
+    sameEq(log10(1), 0);
+    sameEq(log10(Infinity), Infinity);
     ok(epsilon(log10(0.1), -1));
     ok(epsilon(log10(0.5), -0.3010299956639812));
     ok(epsilon(log10(1.5), 0.17609125905568124));
@@ -2249,41 +2256,41 @@
     var log2;
     log2 = Math.log2;
     ok(isFunction(log2), 'Is function');
-    ok(same(log2(''), log2(0)));
-    ok(same(log2(NaN), NaN));
-    ok(same(log2(-1), NaN));
-    ok(same(log2(0), -Infinity));
-    ok(same(log2(-0), -Infinity));
-    ok(same(log2(1), 0));
-    ok(same(log2(Infinity), Infinity));
-    ok(same(log2(0.5), -1));
-    ok(same(log2(32), 5));
+    sameEq(log2(''), log2(0));
+    sameEq(log2(NaN), NaN);
+    sameEq(log2(-1), NaN);
+    sameEq(log2(0), -Infinity);
+    sameEq(log2(-0), -Infinity);
+    sameEq(log2(1), 0);
+    sameEq(log2(Infinity), Infinity);
+    sameEq(log2(0.5), -1);
+    sameEq(log2(32), 5);
     ok(epsilon(log2(5), 2.321928094887362));
   });
   test('Math.sign', function(){
     var sign;
     sign = Math.sign;
     ok(isFunction(sign), 'Is function');
-    ok(same(sign(NaN), NaN));
-    ok(same(sign(), NaN));
-    ok(same(sign(-0), -0));
-    ok(same(sign(0), 0));
-    ok(same(sign(Infinity), 1));
-    ok(same(sign(-Infinity), -1));
-    ok(sign(13510798882111488) === 1);
-    ok(sign(-13510798882111488) === -1);
-    ok(sign(42.5) === 1);
-    ok(sign(-42.5) === -1);
+    sameEq(sign(NaN), NaN);
+    sameEq(sign(), NaN);
+    sameEq(sign(-0), -0);
+    sameEq(sign(0), 0);
+    eq(sign(Infinity), 1);
+    eq(sign(-Infinity), -1);
+    eq(sign(13510798882111488), 1);
+    eq(sign(-13510798882111488), -1);
+    eq(sign(42.5), 1);
+    eq(sign(-42.5), -1);
   });
   test('Math.sinh', function(){
     var sinh;
     sinh = Math.sinh;
     ok(isFunction(sinh), 'Is function');
-    ok(same(sinh(NaN), NaN));
-    ok(same(sinh(0), 0));
-    ok(same(sinh(-0), -0));
-    ok(same(sinh(Infinity), Infinity));
-    ok(same(sinh(-Infinity), -Infinity));
+    sameEq(sinh(NaN), NaN);
+    sameEq(sinh(0), 0);
+    sameEq(sinh(-0), -0);
+    eq(sinh(Infinity), Infinity);
+    eq(sinh(-Infinity), -Infinity);
     ok(epsilon(sinh(-5), -74.20321057778875));
     ok(epsilon(sinh(2), 3.6268604078470186));
   });
@@ -2291,93 +2298,165 @@
     var tanh;
     tanh = Math.tanh;
     ok(isFunction(tanh), 'Is function');
-    ok(same(tanh(NaN), NaN));
-    ok(same(tanh(0), 0));
-    ok(same(tanh(-0), -0));
-    ok(same(tanh(Infinity), 1));
-    ok(same(tanh(90), 1));
+    sameEq(tanh(NaN), NaN);
+    sameEq(tanh(0), 0);
+    sameEq(tanh(-0), -0);
+    eq(tanh(Infinity), 1);
+    eq(tanh(90), 1);
     ok(epsilon(tanh(10), 0.9999999958776927));
   });
   test('Math.trunc', function(){
     var trunc;
     trunc = Math.trunc;
     ok(isFunction(trunc), 'Is function');
-    ok(same(trunc(NaN), NaN), 'NaN -> NaN');
-    ok(same(trunc(-0), -0), '-0 -> -0');
-    ok(same(trunc(0), 0), '0 -> 0');
-    ok(same(trunc(Infinity), Infinity), 'Infinity -> Infinity');
-    ok(same(trunc(-Infinity), -Infinity), '-Infinity -> -Infinity');
-    ok(same(trunc(null), 0), 'null -> 0');
-    ok(same(trunc({}), NaN), '{} -> NaN');
-    ok(trunc([]) === 0, '[] -> 0');
-    ok(trunc(1.01) === 1, '1.01 -> 0');
-    ok(trunc(1.99) === 1, '1.99 -> 0');
-    ok(trunc(-1) === -1, '-1 -> -1');
-    ok(trunc(-1.99) === -1, '-1.99 -> -1');
-    ok(trunc(-555.555) === -555, '-555.555 -> -555');
-    ok(trunc(0x20000000000001) === 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
-    ok(trunc(-0x20000000000001) === -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
+    sameEq(trunc(NaN), NaN, 'NaN -> NaN');
+    sameEq(trunc(-0), -0, '-0 -> -0');
+    sameEq(trunc(0), 0, '0 -> 0');
+    sameEq(trunc(Infinity), Infinity, 'Infinity -> Infinity');
+    sameEq(trunc(-Infinity), -Infinity, '-Infinity -> -Infinity');
+    sameEq(trunc(null), 0, 'null -> 0');
+    sameEq(trunc({}), NaN, '{} -> NaN');
+    eq(trunc([]), 0, '[] -> 0');
+    eq(trunc(1.01), 1, '1.01 -> 0');
+    eq(trunc(1.99), 1, '1.99 -> 0');
+    eq(trunc(-1), -1, '-1 -> -1');
+    eq(trunc(-1.99), -1, '-1.99 -> -1');
+    eq(trunc(-555.555), -555, '-555.555 -> -555');
+    eq(trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
+    eq(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
   });
-  test('String::codePointAt', function(){
+  test('String.fromCodePoint', function(){
+    var fromCodePoint, tmp, counter, result;
+    fromCodePoint = String.fromCodePoint;
+    ok(isFunction(fromCodePoint), 'Is function');
+    eq(fromCodePoint(''), '\0');
+    eq(fromCodePoint(), '');
+    eq(fromCodePoint(-0), '\0');
+    eq(fromCodePoint(0), '\0');
+    eq(fromCodePoint(0x1D306), '\uD834\uDF06');
+    eq(fromCodePoint(0x1D306, 0x61, 0x1D307), '\uD834\uDF06a\uD834\uDF07');
+    eq(fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07');
+    eq(fromCodePoint(false), '\0');
+    eq(fromCodePoint(null), '\0');
+    throws(function(){
+      return fromCodePoint('_');
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint('+Infinity');
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint('-Infinity');
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(-1);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(0x10FFFF + 1);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(3.14);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(3e-2);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(-Infinity);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(Infinity);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(NaN);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(void 8);
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint({});
+    }, RangeError);
+    throws(function(){
+      return fromCodePoint(/./);
+    }, RangeError);
+    tmp = 0x60;
+    eq(fromCodePoint({
+      valueOf: function(){
+        return ++tmp;
+      }
+    }), 'a');
+    eq(tmp, 0x61);
+    counter = Math.pow(2, 15) * 3 / 2;
+    result = [];
+    while (--counter >= 0) {
+      result.push(0);
+    }
+    fromCodePoint.apply(null, result);
+    counter = Math.pow(2, 15) * 3 / 2;
+    result = [];
+    while (--counter >= 0) {
+      result.push(0xFFFF + 1);
+    }
+    fromCodePoint.apply(null, result);
+  });
+  test('String#codePointAt', function(){
     ok(isFunction(String.prototype.codePointAt), 'Is function');
-    ok('abc\uD834\uDF06def'.codePointAt('') === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt('_') === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt() === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(-Infinity) === void 8);
-    ok('abc\uD834\uDF06def'.codePointAt(-1) === void 8);
-    ok('abc\uD834\uDF06def'.codePointAt(-0) === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(0) === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(3) === 0x1D306);
-    ok('abc\uD834\uDF06def'.codePointAt(4) === 0xDF06);
-    ok('abc\uD834\uDF06def'.codePointAt(5) === 0x64);
-    ok('abc\uD834\uDF06def'.codePointAt(42) === void 8);
-    ok('abc\uD834\uDF06def'.codePointAt(Infinity) === void 8);
-    ok('abc\uD834\uDF06def'.codePointAt(Infinity) === void 8);
-    ok('abc\uD834\uDF06def'.codePointAt(NaN) === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(false) === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(null) === 0x61);
-    ok('abc\uD834\uDF06def'.codePointAt(void 8) === 0x61);
-    ok('\uD834\uDF06def'.codePointAt('') === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt('1') === 0xDF06);
-    ok('\uD834\uDF06def'.codePointAt('_') === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt() === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt(-1) === void 8);
-    ok('\uD834\uDF06def'.codePointAt(-0) === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt(0) === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt(1) === 0xDF06);
-    ok('\uD834\uDF06def'.codePointAt(42) === void 8);
-    ok('\uD834\uDF06def'.codePointAt(false) === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt(null) === 0x1D306);
-    ok('\uD834\uDF06def'.codePointAt(void 8) === 0x1D306);
-    ok('\uD834abc'.codePointAt('') === 0xD834);
-    ok('\uD834abc'.codePointAt('_') === 0xD834);
-    ok('\uD834abc'.codePointAt() === 0xD834);
-    ok('\uD834abc'.codePointAt(-1) === void 8);
-    ok('\uD834abc'.codePointAt(-0) === 0xD834);
-    ok('\uD834abc'.codePointAt(0) === 0xD834);
-    ok('\uD834abc'.codePointAt(false) === 0xD834);
-    ok('\uD834abc'.codePointAt(NaN) === 0xD834);
-    ok('\uD834abc'.codePointAt(null) === 0xD834);
-    ok('\uD834abc'.codePointAt(void 8) === 0xD834);
-    ok('\uDF06abc'.codePointAt('') === 0xDF06);
-    ok('\uDF06abc'.codePointAt('_') === 0xDF06);
-    ok('\uDF06abc'.codePointAt() === 0xDF06);
-    ok('\uDF06abc'.codePointAt(-1) === void 8);
-    ok('\uDF06abc'.codePointAt(-0) === 0xDF06);
-    ok('\uDF06abc'.codePointAt(0) === 0xDF06);
-    ok('\uDF06abc'.codePointAt(false) === 0xDF06);
-    ok('\uDF06abc'.codePointAt(NaN) === 0xDF06);
-    ok('\uDF06abc'.codePointAt(null) === 0xDF06);
-    ok('\uDF06abc'.codePointAt(void 8) === 0xDF06);
+    eq('abc\uD834\uDF06def'.codePointAt(''), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt('_'), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(-Infinity), void 8);
+    eq('abc\uD834\uDF06def'.codePointAt(-1), void 8);
+    eq('abc\uD834\uDF06def'.codePointAt(-0), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(0), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(3), 0x1D306);
+    eq('abc\uD834\uDF06def'.codePointAt(4), 0xDF06);
+    eq('abc\uD834\uDF06def'.codePointAt(5), 0x64);
+    eq('abc\uD834\uDF06def'.codePointAt(42), void 8);
+    eq('abc\uD834\uDF06def'.codePointAt(Infinity), void 8);
+    eq('abc\uD834\uDF06def'.codePointAt(Infinity), void 8);
+    eq('abc\uD834\uDF06def'.codePointAt(NaN), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(false), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(null), 0x61);
+    eq('abc\uD834\uDF06def'.codePointAt(void 8), 0x61);
+    eq('\uD834\uDF06def'.codePointAt(''), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt('1'), 0xDF06);
+    eq('\uD834\uDF06def'.codePointAt('_'), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(-1), void 8);
+    eq('\uD834\uDF06def'.codePointAt(-0), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(0), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(1), 0xDF06);
+    eq('\uD834\uDF06def'.codePointAt(42), void 8);
+    eq('\uD834\uDF06def'.codePointAt(false), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(null), 0x1D306);
+    eq('\uD834\uDF06def'.codePointAt(void 8), 0x1D306);
+    eq('\uD834abc'.codePointAt(''), 0xD834);
+    eq('\uD834abc'.codePointAt('_'), 0xD834);
+    eq('\uD834abc'.codePointAt(), 0xD834);
+    eq('\uD834abc'.codePointAt(-1), void 8);
+    eq('\uD834abc'.codePointAt(-0), 0xD834);
+    eq('\uD834abc'.codePointAt(0), 0xD834);
+    eq('\uD834abc'.codePointAt(false), 0xD834);
+    eq('\uD834abc'.codePointAt(NaN), 0xD834);
+    eq('\uD834abc'.codePointAt(null), 0xD834);
+    eq('\uD834abc'.codePointAt(void 8), 0xD834);
+    eq('\uDF06abc'.codePointAt(''), 0xDF06);
+    eq('\uDF06abc'.codePointAt('_'), 0xDF06);
+    eq('\uDF06abc'.codePointAt(), 0xDF06);
+    eq('\uDF06abc'.codePointAt(-1), void 8);
+    eq('\uDF06abc'.codePointAt(-0), 0xDF06);
+    eq('\uDF06abc'.codePointAt(0), 0xDF06);
+    eq('\uDF06abc'.codePointAt(false), 0xDF06);
+    eq('\uDF06abc'.codePointAt(NaN), 0xDF06);
+    eq('\uDF06abc'.codePointAt(null), 0xDF06);
+    eq('\uDF06abc'.codePointAt(void 8), 0xDF06);
   });
-  test('String::includes', function(){
+  test('String#includes', function(){
     ok(isFunction(String.prototype.includes), 'Is function');
     ok(!'abc'.includes());
     ok('aundefinedb'.includes());
     ok('abcd'.includes('b', 1));
     ok(!'abcd'.includes('b', 2));
   });
-  test('String::endsWith', function(){
+  test('String#endsWith', function(){
     ok(isFunction(String.prototype.endsWith), 'Is function');
     ok('undefined'.endsWith());
     ok(!'undefined'.endsWith(null));
@@ -2393,20 +2472,15 @@
     ok(!'abc'.endsWith('c', 'x'));
     ok(!'abc'.endsWith('a', 'x'));
   });
-  test('String::repeat', function(){
-    var e;
+  test('String#repeat', function(){
     ok(isFunction(String.prototype.repeat), 'Is function');
-    ok('qwe'.repeat(3) === 'qweqweqwe');
-    ok('qwe'.repeat(2.5) === 'qweqwe');
-    try {
-      'qwe'.repeat(-1);
-      ok(false);
-    } catch (e$) {
-      e = e$;
-      ok(true);
-    }
+    eq('qwe'.repeat(3), 'qweqweqwe');
+    eq('qwe'.repeat(2.5), 'qweqwe');
+    throws(function(){
+      return 'qwe'.repeat(-1);
+    }, RangeError);
   });
-  test('String::startsWith', function(){
+  test('String#startsWith', function(){
     ok(isFunction(String.prototype.startsWith), 'Is function');
     ok('undefined'.startsWith());
     ok(!'undefined'.startsWith(null));
@@ -2425,8 +2499,8 @@
     var from, al, ctx;
     from = Array.from;
     ok(isFunction(from), 'Is function');
-    deepEqual(from('123'), ['1', '2', '3']);
-    deepEqual(from({
+    deq(from('123'), ['1', '2', '3']);
+    deq(from({
       length: 3,
       0: 1,
       1: 2,
@@ -2435,16 +2509,16 @@
     from(al = function(){
       return arguments;
     }(1), function(val, key){
-      ok(this === ctx);
-      ok(val === 1);
-      return ok(key === 0);
+      eq(this, ctx);
+      eq(val, 1);
+      return eq(key, 0);
     }, ctx = {});
     from([1], function(val, key){
-      ok(this === ctx);
-      ok(val === 1);
-      return ok(key === 0);
+      eq(this, ctx);
+      eq(val, 1);
+      return eq(key, 0);
     }, ctx = {});
-    deepEqual(from({
+    deq(from({
       length: 3,
       0: 1,
       1: 2,
@@ -2452,68 +2526,68 @@
     }, (function(it){
       return Math.pow(it, 2);
     })), [1, 4, 9]);
-    deepEqual(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
+    deq(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
   });
   test('Array.of', function(){
     ok(isFunction(Array.of), 'Is function');
-    deepEqual(Array.of(1), [1]);
-    deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
+    deq(Array.of(1), [1]);
+    deq(Array.of(1, 2, 3), [1, 2, 3]);
   });
-  test('Array::copyWithin', function(){
+  test('Array#copyWithin', function(){
     var a;
     ok(isFunction(Array.prototype.copyWithin), 'Is function');
-    ok((a = [1].copyWithin(0)) === a);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3), [4, 5, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 3), [1, 4, 5, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 2), [1, 3, 4, 5, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(2, 2), [1, 2, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3, 4), [4, 2, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 3, 4), [1, 4, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(1, 2, 4), [1, 3, 4, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(0, -2), [4, 5, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(0, -2, -1), [4, 2, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
-    deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
+    eq(a = [1].copyWithin(0), a);
+    deq([1, 2, 3, 4, 5].copyWithin(0, 3), [4, 5, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(1, 3), [1, 4, 5, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(1, 2), [1, 3, 4, 5, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(2, 2), [1, 2, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(0, 3, 4), [4, 2, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(1, 3, 4), [1, 4, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(1, 2, 4), [1, 3, 4, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(0, -2), [4, 5, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(0, -2, -1), [4, 2, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
+    deq([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
   });
-  test('Array::fill', function(){
+  test('Array#fill', function(){
     var a;
     ok(isFunction(Array.prototype.fill), 'Is function');
-    ok((a = Array(5).fill(5)) === a);
-    deepEqual(Array(5).fill(5), [5, 5, 5, 5, 5]);
-    deepEqual(Array(5).fill(5, 1), [void 8, 5, 5, 5, 5]);
-    deepEqual(Array(5).fill(5, 1, 4), [void 8, 5, 5, 5, void 8]);
-    deepEqual(Array(5).fill(5, 6, 1), [void 8, void 8, void 8, void 8, void 8]);
-    deepEqual(Array(5).fill(5, -3, 4), [void 8, void 8, 5, 5, void 8]);
+    eq(a = Array(5).fill(5), a);
+    deq(Array(5).fill(5), [5, 5, 5, 5, 5]);
+    deq(Array(5).fill(5, 1), [void 8, 5, 5, 5, 5]);
+    deq(Array(5).fill(5, 1, 4), [void 8, 5, 5, 5, void 8]);
+    deq(Array(5).fill(5, 6, 1), [void 8, void 8, void 8, void 8, void 8]);
+    deq(Array(5).fill(5, -3, 4), [void 8, void 8, 5, 5, void 8]);
   });
-  test('Array::find', function(){
+  test('Array#find', function(){
     var arr, ctx;
     ok(isFunction(Array.prototype.find), 'Is function');
     (arr = [1]).find(function(val, key, that){
-      ok(this === ctx);
-      ok(val === 1);
-      ok(key === 0);
-      return ok(that === arr);
+      eq(this, ctx);
+      eq(val, 1);
+      eq(key, 0);
+      return eq(that, arr);
     }, ctx = {});
-    ok([1, 3, NaN, 42, {}].find((function(it){
+    eq([1, 3, NaN, 42, {}].find((function(it){
       return it === 42;
-    })) === 42);
-    ok([1, 3, NaN, 42, {}].find((function(it){
+    })), 42);
+    eq([1, 3, NaN, 42, {}].find((function(it){
       return it === 43;
-    })) === void 8);
+    })), void 8);
   });
-  test('Array::findIndex', function(){
+  test('Array#findIndex', function(){
     var arr, ctx;
     ok(isFunction(Array.prototype.findIndex), 'Is function');
     (arr = [1]).findIndex(function(val, key, that){
-      ok(this === ctx);
-      ok(val === 1);
-      ok(key === 0);
-      return ok(that === arr);
+      eq(this, ctx);
+      eq(val, 1);
+      eq(key, 0);
+      return eq(that, arr);
     }, ctx = {});
-    ok([1, 3, NaN, 42, {}].findIndex((function(it){
+    eq([1, 3, NaN, 42, {}].findIndex((function(it){
       return it === 42;
-    })) === 3);
+    })), 3);
   });
 }).call(this);
 

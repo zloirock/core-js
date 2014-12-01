@@ -53,6 +53,7 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
+  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setImmediate    = global.setImmediate
@@ -613,7 +614,8 @@ $define(GLOBAL + FORCED, {global: global});
     , abs  = Math.abs
     , exp  = Math.exp
     , log  = Math.log
-    , sqrt = Math.sqrt;
+    , sqrt = Math.sqrt
+    , fcc  = String.fromCharCode;
   // 20.2.2.5 Math.asinh(x)
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
@@ -717,10 +719,19 @@ $define(GLOBAL + FORCED, {global: global});
   });
   // 20.2.1.9 Math[@@toStringTag]
   setToStringTag(Math, MATH, true);
-  // 21.1.2.2 String.fromCodePoint(...codePoints)
-  // TODO
+  
+  $define(STATIC, STRING, {
+    // 21.1.2.2 String.fromCodePoint(...codePoints)
+    fromCodePoint: function(){
+      for(var r = [], i = 0, l = arguments.length, c; i < l; i++){
+        c = +arguments[i];
+        if(toIndex(c, 0x10ffff) !== c)throw RangeError();
+        r.push(c < 0x10000 ? fcc(c) : fcc(((c -= 0x10000) >> 10) + 0xd800) + fcc(c % 0x400 + 0xdc00));
+      } return r.join('');
+    }
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   // TODO
+  });
   function includes(searchString, position /* = 0 */){
     return !!~String(this).indexOf(searchString, position);
   }
@@ -750,10 +761,10 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var str    = '' + this
+      var str    = String(this)
         , result = ''
         , n      = toInteger(count);
-      assert(0 <= n, "Count can't be negative");
+      if(0 > n)throw RangeError("Count can't be negative");
       for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)result += str;
       return result;
     },

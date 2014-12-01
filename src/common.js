@@ -40,6 +40,7 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
+  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setImmediate    = global.setImmediate
