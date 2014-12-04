@@ -1,5 +1,5 @@
 !function(DICT){
-  Dict = function(iterable){
+  function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
       if(isIterable(iterable)){
@@ -100,7 +100,8 @@
   function includes(object, el){
     return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
   }
-  assign(Dict, {
+  
+  var dictMethods = {
     keys:    createDictIter(KEY),
     values:  createDictIter(VALUE),
     entries: createDictIter(KEY+VALUE),
@@ -126,12 +127,23 @@
     isDict: function(it){
       return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];
     }
-  });
+  };
+  
+  if(REFERENCE_GET)for(var key in dictMethods)!function(fn){
+    function method(){
+      for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
+      return invoke(fn, args);
+    }
+    fn[REFERENCE_GET] = function(){
+      return method;
+    }
+  }(dictMethods[key]);
+  
   $define(STATIC, OBJECT, {
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     values: createObjectToArray(false),
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     entries: createObjectToArray(true)
   });
-  $define(GLOBAL + FORCED, {Dict: Dict});
+  $define(GLOBAL + FORCED, {Dict: assign(Dict, dictMethods)});
 }('Dict');

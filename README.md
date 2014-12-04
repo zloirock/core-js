@@ -24,6 +24,7 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6: Collections](#ecmascript-6-collections)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
+  - [ECMAScript 7: Abstract References](#ecmascript-7-abstract-references)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
@@ -185,8 +186,8 @@ Module `es6_symbol`.
 Symbol(description?) -> symbol
   .for(key) -> symbol
   .keyFor(symbol) -> key
-  .iterator -> symbol
-  .toStringTag -> symbol
+  .iterator -> @@iterator
+  .toStringTag -> @@toStringTag
   .pure(description?) -> symbol || string
   .set(object, key, val) -> object
 Reflect -> object
@@ -493,6 +494,50 @@ sleepRandom(5).then(function(result){
   log('will not be displayed');
 }).catch(log);                 // => => Error: Irror!
 ```
+
+### ECMAScript 7: Abstract References
+Module `es7_refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several translators, such as [6to5](https://github.com/6to5/6to5).
+```javascript
+Symbol
+  .referenceGet -> @@referenceGet
+  .referenceSet -> @@referenceSet
+  .referenceDelete -> @@referenceDelete
+Function
+  #@@referenceGet() -> @
+Map
+  #@@referenceGet ==== #get
+  #@@referenceSet ==== #set
+  #@@referenceDelete ==== #delete
+WeakMap
+  #@@referenceGet ==== #get
+  #@@referenceSet ==== #set
+  #@@referenceDelete ==== #delete
+```
+Private properties [example](http://goo.gl/Uxh9xG) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
+```javascript
+var Person = ((NAME) => class {
+  constructor(name){
+    this::NAME = name;
+  }
+  getName(){
+    return this::NAME;
+  }
+})(new WeakMap);
+
+var person = new Person('Vasya');
+console.log(person.getName());          // => 'Vasya'
+for(var key in person)console.log(key); // nothing
+```
+Virtual methods [example](http://goo.gl/Gk8YFe):
+```javascript
+var toString = {}.toString;
+console.log([]::toString()); // => '[object Array]'
+```
+Methods from [Dict module](#dict) override `@@referenceGet` method, [example](http://goo.gl/vgIKJ2):
+```javascript
+var {filter, map} = Dict;
+var dict = {q: 1, w: 2, e: 3}::filter((v, k) => k != 'w')::map(v => v * v); // => {"q":1,"e":9}
+```
 ### Mozilla JavaScript: Array generics
 Module `array_statics`.
 ```javascript
@@ -785,4 +830,3 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
-

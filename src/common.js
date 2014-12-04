@@ -90,7 +90,8 @@ function classof(it){
 
 // Function
 var apply = FunctionProto.apply
-  , call  = FunctionProto.call;
+  , call  = FunctionProto.call
+  , REFERENCE_GET;
 // Placeholder
 core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
@@ -169,8 +170,7 @@ var create           = Object.create
     }
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object
-  , Dict;
+  , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)

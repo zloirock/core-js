@@ -1,7 +1,7 @@
 {
   "name": "core.js",
   "main": "client/core.js",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Standard Library",
   "keywords": [
     "ES6",
@@ -23,10 +23,9 @@
   "license": "MIT",
   "homepage": "github.com/zloirock/core-js",
   "ignore": [
-    "**/.*",
+    "build",
     "node_modules",
-    "bower_components",
-    "test",
+    "src",
     "tests"
   ]
 }

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.1.5
+ * Core.js 0.1.6
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -103,7 +103,8 @@ function classof(it){
 
 // Function
 var apply = FunctionProto.apply
-  , call  = FunctionProto.call;
+  , call  = FunctionProto.call
+  , REFERENCE_GET;
 // Placeholder
 core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
@@ -182,8 +183,7 @@ var create           = Object.create
     }
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object
-  , Dict;
+  , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)
@@ -1466,11 +1466,40 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
+ * Module : es7_refs                                                          *
+ ******************************************************************************/
+
+!function(REFERENCE){
+  REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
+  var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)
+    , REFERENCE_DELETE = Symbol(SYMBOL+DOT+REFERENCE+'Delete');
+  
+  $define(STATIC, SYMBOL, {
+    referenceGet: REFERENCE_GET,
+    referenceSet: REFERENCE_SET,
+    referenceDelete: REFERENCE_DELETE
+  });
+  
+  FunctionProto[REFERENCE_GET] || hidden(FunctionProto, REFERENCE_GET, returnThis);
+  
+  function setMapMethods(Constructor){
+    if(Constructor){
+      var MapProto = Constructor[PROTOTYPE];
+      MapProto[REFERENCE_GET] || hidden(MapProto, REFERENCE_GET, MapProto.get);
+      MapProto[REFERENCE_SET] || hidden(MapProto, REFERENCE_SET, MapProto.set);
+      MapProto[REFERENCE_DELETE] || hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
+    }
+  }
+  setMapMethods(Map);
+  setMapMethods(WeakMap);
+}('reference');
+
+/******************************************************************************
  * Module : dict                                                              *
  ******************************************************************************/
 
 !function(DICT){
-  Dict = function(iterable){
+  function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
       if(isIterable(iterable)){
@@ -1571,7 +1600,8 @@ $define(GLOBAL + BIND, {
   function includes(object, el){
     return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
   }
-  assign(Dict, {
+  
+  var dictMethods = {
     keys:    createDictIter(KEY),
     values:  createDictIter(VALUE),
     entries: createDictIter(KEY+VALUE),
@@ -1597,14 +1627,25 @@ $define(GLOBAL + BIND, {
     isDict: function(it){
       return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];
     }
-  });
+  };
+  
+  if(REFERENCE_GET)for(var key in dictMethods)!function(fn){
+    function method(){
+      for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
+      return invoke(fn, args);
+    }
+    fn[REFERENCE_GET] = function(){
+      return method;
+    }
+  }(dictMethods[key]);
+  
   $define(STATIC, OBJECT, {
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     values: createObjectToArray(false),
     // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
     entries: createObjectToArray(true)
   });
-  $define(GLOBAL + FORCED, {Dict: Dict});
+  $define(GLOBAL + FORCED, {Dict: assign(Dict, dictMethods)});
 }('Dict');
 
 /******************************************************************************

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.1.5
+ * Core.js 0.1.6
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -103,7 +103,8 @@ function classof(it){
 
 // Function
 var apply = FunctionProto.apply
-  , call  = FunctionProto.call;
+  , call  = FunctionProto.call
+  , REFERENCE_GET;
 // Placeholder
 core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
@@ -182,8 +183,7 @@ var create           = Object.create
     }
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object
-  , Dict;
+  , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(target)
@@ -1464,6 +1464,35 @@ $define(GLOBAL + BIND, {
     }
   }, weakCollectionMethods, false, true);
 }();
+
+/******************************************************************************
+ * Module : es7_refs                                                          *
+ ******************************************************************************/
+
+!function(REFERENCE){
+  REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
+  var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)
+    , REFERENCE_DELETE = Symbol(SYMBOL+DOT+REFERENCE+'Delete');
+  
+  $define(STATIC, SYMBOL, {
+    referenceGet: REFERENCE_GET,
+    referenceSet: REFERENCE_SET,
+    referenceDelete: REFERENCE_DELETE
+  });
+  
+  FunctionProto[REFERENCE_GET] || hidden(FunctionProto, REFERENCE_GET, returnThis);
+  
+  function setMapMethods(Constructor){
+    if(Constructor){
+      var MapProto = Constructor[PROTOTYPE];
+      MapProto[REFERENCE_GET] || hidden(MapProto, REFERENCE_GET, MapProto.get);
+      MapProto[REFERENCE_SET] || hidden(MapProto, REFERENCE_SET, MapProto.set);
+      MapProto[REFERENCE_DELETE] || hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
+    }
+  }
+  setMapMethods(Map);
+  setMapMethods(WeakMap);
+}('reference');
 
 /******************************************************************************
  * Module : es6_iterators                                                     *

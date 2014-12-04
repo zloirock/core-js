@@ -3360,6 +3360,71 @@
 }).call(this);
 
 (function(){
+  var eq, isFunction, referenceGet, referenceSet, referenceDelete, toString$ = {}.toString;
+  QUnit.module('ES7 Abstract References');
+  eq = strictEqual;
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  referenceGet = Symbol.referenceGet, referenceSet = Symbol.referenceSet, referenceDelete = Symbol.referenceDelete;
+  test('Symbols', function(){
+    ok('referenceGet' in Symbol);
+    ok('referenceSet' in Symbol);
+    ok('referenceDelete' in Symbol);
+  });
+  test('Function#@@referenceGet', function(){
+    var fn, O;
+    ok(isFunction(Function.prototype[referenceGet]));
+    fn = function(){
+      return 42;
+    };
+    eq(fn[referenceGet](null), fn);
+    eq(fn[referenceGet]({}), fn);
+    eq(fn[referenceGet](O = {}).call(O), 42);
+  });
+  test('Map#@@referenceGet', function(){
+    var map, O;
+    ok(isFunction(Map.prototype[referenceGet]));
+    map = new Map([[O = {}, 42]]);
+    eq(map[referenceGet](O), 42);
+  });
+  test('Map#@@referenceSet', function(){
+    var map, O;
+    ok(isFunction(Map.prototype[referenceSet]));
+    map = new Map;
+    map[referenceSet](O = {}, 42);
+    eq(map.get(O), 42);
+  });
+  test('Map#@@referenceDelete', function(){
+    var map, O;
+    ok(isFunction(Map.prototype[referenceDelete]));
+    map = new Map([[O = {}, 42]]);
+    map[referenceDelete](O);
+    eq(map.get(O), void 8);
+  });
+  test('WeakMap#@@referenceGet', function(){
+    var map, O;
+    ok(isFunction(WeakMap.prototype[referenceGet]));
+    map = new WeakMap([[O = {}, 42]]);
+    eq(map[Symbol.referenceGet](O), 42);
+  });
+  test('WeakMap#@@referenceSet', function(){
+    var map, O;
+    ok(isFunction(WeakMap.prototype[referenceSet]));
+    map = new WeakMap;
+    map[referenceSet](O = {}, 42);
+    eq(map.get(O), 42);
+  });
+  test('WeakMap#@@referenceDelete', function(){
+    var map, O;
+    ok(isFunction(WeakMap.prototype[referenceDelete]));
+    map = new WeakMap([[O = {}, 42]]);
+    map[referenceDelete](O);
+    eq(map.get(O), void 8);
+  });
+}).call(this);
+
+(function(){
   QUnit.module('Global');
   test('global', function(){
     ok(typeof global != 'undefined' && global !== null, 'global is define');
