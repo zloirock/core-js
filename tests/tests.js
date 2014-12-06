@@ -13,7 +13,7 @@
     ok(toString$.call(iter[iterator]()).slice(8, -1) === 'Set Iterator');
     deepEqual(['1', '2', '3'], from(iter));
   });
-  test('$for::filter', function(){
+  test('$for#filter', function(){
     var set, iter, o;
     ok(typeof $for.prototype.filter === 'function', 'Is function');
     set = new Set(['1', '2', '3', '2', '1']);
@@ -29,7 +29,7 @@
       return ok(this === o);
     }, o = {});
   });
-  test('$for::map', function(){
+  test('$for#map', function(){
     var set, iter, o;
     ok(typeof $for.prototype.map === 'function', 'Is function');
     set = new Set(['1', '2', '3', '2', '1']);
@@ -45,7 +45,7 @@
       return ok(this === o);
     }, o = {});
   });
-  test('$for::array', function(){
+  test('$for#array', function(){
     var set, o;
     ok(typeof $for.prototype.array === 'function', 'Is function');
     set = new Set([1, 2, 3, 2, 1]);
@@ -60,7 +60,7 @@
       return ok(this === o);
     }, o = {});
   });
-  test('$for::of', function(){
+  test('$for#of', function(){
     var set, counter1, string1, counter2, string2, o;
     ok(typeof $for.prototype.of === 'function', 'Is function');
     set = new Set(['1', '2', '3', '2', '1']);
@@ -138,21 +138,7 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('::includes', function(){
-    var arr, o;
-    ok(isFunction(Array.prototype.includes), 'Is function');
-    arr = [1, 2, 3, -0, NaN, o = {}];
-    ok(arr.includes(1));
-    ok(arr.includes(-0));
-    ok(arr.includes(0));
-    ok(arr.includes(o));
-    ok(!arr.includes(4));
-    ok(!arr.includes(-0.5));
-    ok(!arr.includes({}));
-    ok(Array(1).includes(void 8));
-    ok([NaN].includes(NaN));
-  });
-  test('::turn', function(){
+  test('#turn', function(){
     var arr, obj;
     ok(isFunction(Array.prototype.turn), 'Is function');
     (arr = [1]).turn(function(memo, val, key, that){
@@ -792,7 +778,7 @@
   };
   DESC = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
   slice = Array.prototype.slice;
-  test('Function::by', function(){
+  test('Function#by', function(){
     var $, array, push, foo, bar, o, fn;
     $ = _;
     ok(isFunction(Function.prototype.by), 'Is function');
@@ -819,7 +805,7 @@
     ok(fn.by($)(o, '2', '3') === '123');
     ok(fn.by($, '2')(o, '3') === '123');
   });
-  test('Function::part', function(){
+  test('Function#part', function(){
     var obj, $, fn, part;
     ok(isFunction(Function.prototype.part), 'Is function');
     ok(function(it){
@@ -842,7 +828,7 @@
     ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
     ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
-  test('Function::only', function(){
+  test('Function#only', function(){
     var fn, f, that, o, c;
     ok(isFunction(Function.prototype.only), 'Is function');
     fn = function(){
@@ -867,7 +853,7 @@
     };
     ok(o.f() === c);
   });
-  test('::[_]', function(){
+  test('#[_]', function(){
     var $, fn, ctx, array, push, foo, bar;
     $ = _;
     ok(isFunction(Object.prototype[_]), 'Object::[_] is function');
@@ -920,14 +906,14 @@
   test('is object', function(){
     ok(isObject(((typeof global != 'undefined' && global !== null) && global || window).console), 'global.console is object');
   });
-  test('console.#{..} are functions', function(){
+  test('console.{..} are functions', function(){
     var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFunction(console[x$]), "console." + x$ + " is function");
     }
   });
-  test('call console.#{..}', function(){
+  test('call console.{..}', function(){
     var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1017,7 +1003,7 @@
     ok(locale('zz') === 'zz');
     ok(new Date(1, 2, 3, 4, 5, 6, 7).format('W, D MM Y') === 'Воскресенье, 3 Марта 1901');
   });
-  test('::format', function(){
+  test('#format', function(){
     var locale, date;
     locale = core.locale;
     ok(isFunction(Date.prototype.format), 'Is function');
@@ -1028,7 +1014,7 @@
     locale('ru');
     ok(date.format('s ss m mm h hh D DD W N NN M MM YY foo Y') === '6 06 5 05 4 04 3 03 Воскресенье 3 03 Март Марта 01 foo 1901', 'Works with set in Date.locale locale');
   });
-  test('::formatUTC', function(){
+  test('#formatUTC', function(){
     var date;
     ok(isFunction(Date.prototype.formatUTC), 'Is function');
     date = new Date(1, 2, 3, 4, 5, 6, 7);
@@ -1487,46 +1473,6 @@
       d: 6
     }))), [['a', 4], ['s', 5], ['d', 6]]);
   });
-  test('Object.values', function(){
-    var values;
-    values = Object.values;
-    ok(isFunction(values), 'Is function');
-    deepEqual(values({
-      q: 1,
-      w: 2,
-      e: 3
-    }), [1, 2, 3]);
-    deepEqual(values(new String('qwe')), ['q', 'w', 'e']);
-    deepEqual(values(assign(create({
-      q: 1,
-      w: 2,
-      e: 3
-    }), {
-      a: 4,
-      s: 5,
-      d: 6
-    })), [4, 5, 6]);
-  });
-  test('Object.entries', function(){
-    var entries;
-    entries = Object.entries;
-    ok(isFunction(entries), 'Is function');
-    deepEqual(entries({
-      q: 1,
-      w: 2,
-      e: 3
-    }), [['q', 1], ['w', 2], ['e', 3]]);
-    deepEqual(entries(new String('qwe')), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
-    deepEqual(entries(assign(create({
-      q: 1,
-      w: 2,
-      e: 3
-    }), {
-      a: 4,
-      s: 5,
-      d: 6
-    })), [['a', 4], ['s', 5], ['d', 6]]);
-  });
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;
@@ -1673,7 +1619,7 @@
     deepEqual(keys(new fn2(1)), ['toString']);
     ok(!in$('push', keys(Array.prototype)));
   });
-  test('Function.prototype.bind', function(){
+  test('Function#bind', function(){
     var obj;
     ok(isFunction(Function.prototype.bind), 'Is function');
     obj = {
@@ -1704,7 +1650,7 @@
       ok(isFunction(Array.prototype[x$]), "Array::" + x$ + " is function");
     }
   });
-  test('Array::indexOf', function(){
+  test('Array#indexOf', function(){
     ok(0 === [1, 1, 1].indexOf(1));
     ok(-1 === [1, 2, 3].indexOf(1, 1));
     ok(1 === [1, 2, 3].indexOf(2, 1));
@@ -1712,14 +1658,14 @@
     ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
     ok(-1 === Array(1).indexOf(void 8));
   });
-  test('Array::lastIndexOf', function(){
+  test('Array#lastIndexOf', function(){
     ok(2 === [1, 1, 1].lastIndexOf(1));
     ok(-1 === [1, 2, 3].lastIndexOf(3, 1));
     ok(1 === [1, 2, 3].lastIndexOf(2, 1));
     ok(-1 === [NaN].lastIndexOf(NaN));
     ok(1 === [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   });
-  test('Array::every', function(){
+  test('Array#every', function(){
     var a, ctx, rez, arr;
     (a = [1]).every(function(val, key, that){
       ok(val === 1);
@@ -1751,7 +1697,7 @@
       return arguments[2] === arr;
     }));
   });
-  test('Array::some', function(){
+  test('Array#some', function(){
     var a, ctx, rez, arr;
     (a = [1]).some(function(val, key, that){
       ok(val === 1);
@@ -1784,7 +1730,7 @@
       return arguments[2] !== arr;
     }));
   });
-  test('Array::forEach', function(){
+  test('Array#forEach', function(){
     var a, ctx, rez, arr;
     (a = [1]).forEach(function(val, key, that){
       ok(val === 1);
@@ -1820,7 +1766,7 @@
     });
     ok(rez === '5');
   });
-  test('Array::map', function(){
+  test('Array#map', function(){
     var a, ctx;
     (a = [1]).map(function(val, key, that){
       ok(val === 1);
@@ -1838,7 +1784,7 @@
       return +this;
     }, 2));
   });
-  test('Array::filter', function(){
+  test('Array#filter', function(){
     var a, ctx;
     (a = [1]).filter(function(val, key, that){
       ok(val === 1);
@@ -1850,7 +1796,7 @@
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
   });
-  test('Array::reduce', function(){
+  test('Array#reduce', function(){
     var a;
     ok(-5 === [5, 4, 3, 2, 1].reduce(curry$(function(x$, y$){
       return x$ - y$;
@@ -1865,7 +1811,7 @@
       return ok(it === 42);
     });
   });
-  test('Array::reduceRight', function(){
+  test('Array#reduceRight', function(){
     var a;
     ok(-5 === [1, 2, 3, 4, 5].reduceRight(curry$(function(x$, y$){
       return x$ - y$;
@@ -1880,7 +1826,7 @@
       return ok(it === 43);
     });
   });
-  test('String.prototype.trim', function(){
+  test('String#trim', function(){
     ok(isFunction(String.prototype.trim), 'Is function');
     ok('   q w e \n  '.trim() === 'q w e', 'Remove whitespaces at left & right side of string');
   });
@@ -1979,6 +1925,54 @@
       ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
     });
   }
+  test('Object#toString', function(){
+    var toString, Class, BadClass;
+    toString = Object.prototype.toString;
+    eq(toString.call(true), '[object Boolean]', 'classof bool is `Boolean`');
+    eq(toString.call('string'), '[object String]', 'classof string is `String`');
+    eq(toString.call(7), '[object Number]', 'classof number is `Number`');
+    eq(toString.call(Symbol()), '[object Symbol]', 'classof symbol is `Symbol`');
+    eq(toString.call(new Boolean(false)), '[object Boolean]', 'classof new Boolean is `Boolean`');
+    eq(toString.call(new String('')), '[object String]', 'classof new String is `String`');
+    eq(toString.call(new Number(7)), '[object Number]', 'classof new Number is `Number`');
+    eq('' + {}, '[object Object]', 'classof {} is `Object`');
+    eq(toString.call([]), '[object Array]', 'classof array is `Array`');
+    eq(toString.call(function(){}), '[object Function]', 'classof function is `Function`');
+    eq(toString.call(/./), '[object RegExp]', 'classof regexp is `Undefined`');
+    eq(toString.call(TypeError()), '[object Error]', 'classof new TypeError is `RegExp`');
+    eq(toString.call(function(){
+      return arguments;
+    }()), '[object Arguments]', 'classof arguments list is `Arguments`');
+    eq('' + new Set, '[object Set]', 'classof undefined is `Map`');
+    eq('' + new Map, '[object Map]', 'classof map is `Undefined`');
+    eq('' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`');
+    eq('' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`');
+    eq('' + new Promise(function(){}), '[object Promise]', 'classof promise is `Promise`');
+    eq('' + ''[Symbol.iterator](), '[object String Iterator]', 'classof String Iterator is `String Iterator`');
+    eq('' + [].entries(), '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`');
+    eq('' + new Set().entries(), '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`');
+    eq('' + new Map().entries(), '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`');
+    eq('' + Math, '[object Math]', 'classof Math is `Math`');
+    if (typeof JSON != 'undefined' && JSON !== null) {
+      eq(toString.call(JSON), '[object JSON]', 'classof JSON is `JSON`');
+    }
+    Class = (function(){
+      Class.displayName = 'Class';
+      var prototype = Class.prototype, constructor = Class;
+      Class.prototype[Symbol.toStringTag] = 'Class';
+      function Class(){}
+      return Class;
+    }());
+    eq('' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]');
+    BadClass = (function(){
+      BadClass.displayName = 'BadClass';
+      var prototype = BadClass.prototype, constructor = BadClass;
+      BadClass.prototype[Symbol.toStringTag] = 'Array';
+      function BadClass(){}
+      return BadClass;
+    }());
+    eq('' + new BadClass, '[object ~Array]', 'safe [[Class]]');
+  });
   test('Number.EPSILON', function(){
     var EPSILON;
     EPSILON = Number.EPSILON;
@@ -2614,14 +2608,14 @@
     ok(new Map([1, 2, 3].entries()).size === 3, 'Init from iterator #1');
     ok(new Map(new Map([1, 2, 3].entries())).size === 3, 'Init from iterator #2');
   });
-  test('Map::clear', function(){
+  test('Map#clear', function(){
     var M;
     ok(isFunction(Map.prototype.clear), 'Is function');
     M = new Map().set(1, 2).set(2, 3).set(1, 4);
     M.clear();
     ok(M.size === 0);
   });
-  test('Map::delete', function(){
+  test('Map#delete', function(){
     var a, M;
     ok(isFunction(Map.prototype['delete']), 'Is function');
     a = [];
@@ -2636,7 +2630,7 @@
     M['delete'](a);
     ok(M.size === 3);
   });
-  test('Map::forEach', function(){
+  test('Map#forEach', function(){
     var r, T, count, M, a, map, s;
     ok(isFunction(Map.prototype.forEach), 'Is function');
     r = {};
@@ -2667,7 +2661,7 @@
     });
     ok(s === '0124');
   });
-  test('Map::get', function(){
+  test('Map#get', function(){
     var o, M;
     ok(isFunction(Map.prototype.get), 'Is function');
     o = {};
@@ -2678,7 +2672,7 @@
     ok(M.get(o) === o);
     ok(M.get(2) === 5);
   });
-  test('Map::has', function(){
+  test('Map#has', function(){
     var o, M;
     ok(isFunction(Map.prototype.has), 'Is function');
     o = {};
@@ -2689,7 +2683,7 @@
     ok(!M.has(4));
     ok(!M.has({}));
   });
-  test('Map::set', function(){
+  test('Map#set', function(){
     var o, M, chain;
     ok(isFunction(Map.prototype.set), 'Is function');
     o = {};
@@ -2712,7 +2706,7 @@
     ok(M.get(o) === 27);
     ok(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size === 1);
   });
-  test('Map::size', function(){
+  test('Map#size', function(){
     var size, sizeDesc;
     size = new Map().set(2, 1).size;
     ok(typeof size === 'number', 'size is number');
@@ -2723,7 +2717,7 @@
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
   });
-  test('Map::@@toStringTag', function(){
+  test('Map#@@toStringTag', function(){
     ok(Map.prototype[Symbol.toStringTag] === 'Map', 'Map::@@toStringTag is `Map`');
   });
   test('Set', function(){
@@ -2749,7 +2743,7 @@
       deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
     }
   });
-  test('Set::add', function(){
+  test('Set#add', function(){
     var a, S, chain;
     ok(isFunction(Set.prototype.add), 'Is function');
     a = [];
@@ -2767,14 +2761,14 @@
     S.add(4);
     ok(S.size === 7);
   });
-  test('Set::clear', function(){
+  test('Set#clear', function(){
     var S;
     ok(isFunction(Set.prototype.clear), 'Is function');
     S = new Set([1, 2, 3, 2, 1]);
     S.clear();
     ok(S.size === 0);
   });
-  test('Set::delete', function(){
+  test('Set#delete', function(){
     var a, S;
     ok(isFunction(Set.prototype['delete']), 'Is function');
     a = [];
@@ -2789,7 +2783,7 @@
     S['delete'](a);
     ok(S.size === 3);
   });
-  test('Set::forEach', function(){
+  test('Set#forEach', function(){
     var r, count, S, set, s;
     ok(isFunction(Set.prototype.forEach), 'Is function');
     r = [];
@@ -2814,7 +2808,7 @@
     });
     ok(s === '0124');
   });
-  test('Set::has', function(){
+  test('Set#has', function(){
     var a, S;
     ok(isFunction(Set.prototype.has), 'Is function');
     a = [];
@@ -2825,7 +2819,7 @@
     ok(!S.has(4));
     ok(!S.has([]));
   });
-  test('Set::size', function(){
+  test('Set#size', function(){
     var size, sizeDesc;
     size = new Set([1]).size;
     ok(typeof size === 'number', 'size is number');
@@ -2836,7 +2830,7 @@
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
   });
-  test('Set::@@toStringTag', function(){
+  test('Set#@@toStringTag', function(){
     ok(Set.prototype[Symbol.toStringTag] === 'Set', 'Set::@@toStringTag is `Set`');
   });
   test('WeakMap', function(){
@@ -2850,7 +2844,7 @@
     ok(new WeakMap([[a = {}, b = {}]].values()).get(a) === b, 'Init WeakMap from iterator #1');
     ok(new WeakMap(new Map([[a = {}, b = {}]])).get(a) === b, 'Init WeakMap from iterator #2');
   });
-  test('WeakMap::delete', function(){
+  test('WeakMap#delete', function(){
     var M, a, b;
     ok(isFunction(WeakMap.prototype['delete']), 'Is function');
     M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
@@ -2858,7 +2852,7 @@
     M['delete'](a);
     ok(!M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()');
   });
-  test('WeakMap::get', function(){
+  test('WeakMap#get', function(){
     var M, a;
     ok(isFunction(WeakMap.prototype.get), 'Is function');
     M = new WeakMap();
@@ -2868,7 +2862,7 @@
     M['delete'](a);
     ok(M.get(a) === void 8, 'WeakMap .get() after .delete() return undefined');
   });
-  test('WeakMap::has', function(){
+  test('WeakMap#has', function(){
     var M, a;
     ok(isFunction(WeakMap.prototype.has), 'Is function');
     M = new WeakMap();
@@ -2878,7 +2872,7 @@
     M['delete'](a);
     ok(M.has(a) === false, 'WeakMap .has() after .delete() return false');
   });
-  test('WeakMap::set', function(){
+  test('WeakMap#set', function(){
     var a, e;
     ok(isFunction(WeakMap.prototype.set), 'Is function');
     ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
@@ -2892,7 +2886,7 @@
       }
     }()), 'WeakMap.prototype.set throw with primitive keys');
   });
-  test('WeakMap::@@toStringTag', function(){
+  test('WeakMap#@@toStringTag', function(){
     ok(WeakMap.prototype[Symbol.toStringTag] === 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
   });
   test('WeakSet', function(){
@@ -2905,7 +2899,7 @@
     ok(new WeakSet([a = {}].values()).has(a), 'Init WeakSet from iterator #1');
     ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2');
   });
-  test('WeakSet::add', function(){
+  test('WeakSet#add', function(){
     var a, e;
     ok(isFunction(WeakSet.prototype.add), 'Is function');
     ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
@@ -2919,7 +2913,7 @@
       }
     }()), 'WeakSet.prototype.add throw with primitive keys');
   });
-  test('WeakSet::delete', function(){
+  test('WeakSet#delete', function(){
     var M, a, b;
     ok(isFunction(WeakSet.prototype['delete']), 'Is function');
     M = new WeakSet().add(a = {}).add(b = {});
@@ -2927,7 +2921,7 @@
     M['delete'](a);
     ok(!M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()');
   });
-  test('WeakSet::has', function(){
+  test('WeakSet#has', function(){
     var M, a;
     ok(isFunction(WeakSet.prototype.has), 'Is function');
     M = new WeakSet();
@@ -2943,293 +2937,327 @@
 }).call(this);
 
 (function(){
-  var isIterator;
+  var eq, deq, iterator, toStringTag, isIterator;
   QUnit.module('ES6 Iterators');
+  eq = strictEqual;
+  deq = deepEqual;
+  iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
   isIterator = function(it){
     return typeof it === 'object' && typeof it.next === 'function';
   };
-  test('String::@@iterator', function(){
+  test('String#@@iterator', function(){
     var iter;
-    ok(typeof String.prototype[Symbol.iterator] === 'function', 'Is function');
-    iter = 'qwe'[Symbol.iterator]();
+    ok(typeof String.prototype[iterator] === 'function', 'Is function');
+    iter = 'qwe'[iterator]();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'String Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
+      value: void 8,
+      done: true
+    });
+    eq(Array.from('𠮷𠮷𠮷').length, 3);
+    iter = '𠮷𠮷𠮷'[iterator]();
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Array::keys', function(){
+  test('Array#keys', function(){
     var iter;
     ok(typeof Array.prototype.keys === 'function', 'Is function');
     iter = ['q', 'w', 'e'].keys();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Array Iterator');
+    deq(iter.next(), {
       value: 0,
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 1,
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 2,
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Array::values', function(){
+  test('Array#values', function(){
     var iter;
     ok(typeof Array.prototype.values === 'function', 'Is function');
     iter = ['q', 'w', 'e'].values();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Array Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Array::entries', function(){
+  test('Array#entries', function(){
     var iter;
     ok(typeof Array.prototype.entries === 'function', 'Is function');
     iter = ['q', 'w', 'e'].entries();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Array Iterator');
+    deq(iter.next(), {
       value: [0, 'q'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: [1, 'w'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: [2, 'e'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Array::@@iterator', function(){
+  test('Array#@@iterator', function(){
     var iter;
-    ok(typeof Array.prototype[Symbol.iterator] === 'function', 'Is function');
-    iter = ['q', 'w', 'e'][Symbol.iterator]();
+    ok(typeof Array.prototype[iterator] === 'function', 'Is function');
+    iter = ['q', 'w', 'e'][iterator]();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Array Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Map::keys', function(){
+  test('Map#keys', function(){
     var iter;
     ok(typeof Map.prototype.keys === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Map Iterator');
+    deq(iter.next(), {
       value: 'a',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 's',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'd',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Map::values', function(){
+  test('Map#values', function(){
     var iter;
     ok(typeof Map.prototype.values === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Map Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Map::entries', function(){
+  test('Map#entries', function(){
     var iter;
     ok(typeof Map.prototype.entries === 'function', 'Is function');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Map Iterator');
+    deq(iter.next(), {
       value: ['a', 'q'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['s', 'w'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['d', 'e'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Map::@@iterator', function(){
+  test('Map#@@iterator', function(){
     var iter;
-    ok(typeof Map.prototype[Symbol.iterator] === 'function', 'Is function');
-    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[Symbol.iterator]();
+    ok(typeof Map.prototype[iterator] === 'function', 'Is function');
+    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[iterator]();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Map Iterator');
+    deq(iter.next(), {
       value: ['a', 'q'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['s', 'w'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['d', 'e'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Set::keys', function(){
+  test('Set#keys', function(){
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).keys();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Set Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Set::values', function(){
+  test('Set#values', function(){
     var iter;
     ok(typeof Set.prototype.values === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).values();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Set Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Set::entries', function(){
+  test('Set#entries', function(){
     var iter;
     ok(typeof Set.prototype.entries === 'function', 'Is function');
     iter = new Set(['q', 'w', 'e']).entries();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Set Iterator');
+    deq(iter.next(), {
       value: ['q', 'q'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['w', 'w'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: ['e', 'e'],
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
   });
-  test('Set::@@iterator', function(){
+  test('Set#@@iterator', function(){
     var iter;
-    ok(typeof Set.prototype[Symbol.iterator] === 'function', 'Is function');
-    iter = new Set(['q', 'w', 'e'])[Symbol.iterator]();
+    ok(typeof Set.prototype[iterator] === 'function', 'Is function');
+    iter = new Set(['q', 'w', 'e'])[iterator]();
     ok(isIterator(iter), 'Return iterator');
-    deepEqual(iter.next(), {
+    eq(iter[toStringTag], 'Set Iterator');
+    deq(iter.next(), {
       value: 'q',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'w',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: 'e',
       done: false
     });
-    deepEqual(iter.next(), {
+    deq(iter.next(), {
       value: void 8,
       done: true
     });
@@ -3245,16 +3273,13 @@
   test('Promise', function(){
     ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
   });
-  test('::then', function(){
+  test('#then', function(){
     ok(isFunction(Promise.prototype.then), 'Is function');
   });
-  test('::catch', function(){
+  test('#catch', function(){
     ok(isFunction(Promise.prototype['catch']), 'Is function');
   });
-  test('Promise', function(){
-    ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
-  });
-  test('::@@toStringTag', function(){
+  test('#@@toStringTag', function(){
     ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('.all', function(){
@@ -3306,7 +3331,7 @@
   test('.toStringTag', function(){
     ok('toStringTag' in Symbol, 'toStringTag in Symbol');
   });
-  test('::@@toStringTag', function(){
+  test('#@@toStringTag', function(){
     ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });
   test('.pure', function(){
@@ -3357,6 +3382,161 @@
     function fun(){} fun.prototype = it;
     return new fun;
   }
+}).call(this);
+
+(function(){
+  var isFunction, eq, deq, create, assign, toString$ = {}.toString;
+  QUnit.module('ES7');
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  eq = strictEqual;
+  deq = deepEqual;
+  create = Object.create, assign = Object.assign;
+  test('Array#includes', function(){
+    var arr, o;
+    ok(isFunction(Array.prototype.includes), 'Is function');
+    arr = [1, 2, 3, -0, NaN, o = {}];
+    ok(arr.includes(1));
+    ok(arr.includes(-0));
+    ok(arr.includes(0));
+    ok(arr.includes(o));
+    ok(!arr.includes(4));
+    ok(!arr.includes(-0.5));
+    ok(!arr.includes({}));
+    ok(Array(1).includes(void 8));
+    ok([NaN].includes(NaN));
+  });
+  test('String#at', function(){
+    var at;
+    eq('abc\uD834\uDF06def'.at(-Infinity), '');
+    eq('abc\uD834\uDF06def'.at(-1), '');
+    eq('abc\uD834\uDF06def'.at(-0), 'a');
+    eq('abc\uD834\uDF06def'.at(+0), 'a');
+    eq('abc\uD834\uDF06def'.at(1), 'b');
+    eq('abc\uD834\uDF06def'.at(3), '\uD834\uDF06');
+    eq('abc\uD834\uDF06def'.at(4), '\uDF06');
+    eq('abc\uD834\uDF06def'.at(5), 'd');
+    eq('abc\uD834\uDF06def'.at(42), '');
+    eq('abc\uD834\uDF06def'.at(Infinity), '');
+    eq('abc\uD834\uDF06def'.at(null), 'a');
+    eq('abc\uD834\uDF06def'.at(void 8), 'a');
+    eq('abc\uD834\uDF06def'.at(), 'a');
+    eq('abc\uD834\uDF06def'.at(false), 'a');
+    eq('abc\uD834\uDF06def'.at(NaN), 'a');
+    eq('abc\uD834\uDF06def'.at(''), 'a');
+    eq('abc\uD834\uDF06def'.at('_'), 'a');
+    eq('abc\uD834\uDF06def'.at('1'), 'b');
+    eq('abc\uD834\uDF06def'.at([]), 'a');
+    eq('abc\uD834\uDF06def'.at({}), 'a');
+    eq('abc\uD834\uDF06def'.at(-0.9), 'a');
+    eq('abc\uD834\uDF06def'.at(1.9), 'b');
+    eq('abc\uD834\uDF06def'.at(7.9), 'f');
+    eq('abc\uD834\uDF06def'.at(Math.pow(2, 32)), '');
+    eq('\uD834\uDF06def'.at(-Infinity), '');
+    eq('\uD834\uDF06def'.at(-1), '');
+    eq('\uD834\uDF06def'.at(-0), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(0), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(1), '\uDF06');
+    eq('\uD834\uDF06def'.at(2), 'd');
+    eq('\uD834\uDF06def'.at(3), 'e');
+    eq('\uD834\uDF06def'.at(4), 'f');
+    eq('\uD834\uDF06def'.at(42), '');
+    eq('\uD834\uDF06def'.at(Infinity), '');
+    eq('\uD834\uDF06def'.at(null), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(void 8), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(false), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(NaN), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at(''), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at('_'), '\uD834\uDF06');
+    eq('\uD834\uDF06def'.at('1'), '\uDF06');
+    eq('\uD834abc'.at(-Infinity), '');
+    eq('\uD834abc'.at(-1), '');
+    eq('\uD834abc'.at(-0), '\uD834');
+    eq('\uD834abc'.at(0), '\uD834');
+    eq('\uD834abc'.at(1), 'a');
+    eq('\uD834abc'.at(42), '');
+    eq('\uD834abc'.at(Infinity), '');
+    eq('\uD834abc'.at(null), '\uD834');
+    eq('\uD834abc'.at(void 8), '\uD834');
+    eq('\uD834abc'.at(), '\uD834');
+    eq('\uD834abc'.at(false), '\uD834');
+    eq('\uD834abc'.at(NaN), '\uD834');
+    eq('\uD834abc'.at(''), '\uD834');
+    eq('\uD834abc'.at('_'), '\uD834');
+    eq('\uD834abc'.at('1'), 'a');
+    eq('\uDF06abc'.at(-Infinity), '');
+    eq('\uDF06abc'.at(-1), '');
+    eq('\uDF06abc'.at(-0), '\uDF06');
+    eq('\uDF06abc'.at(0), '\uDF06');
+    eq('\uDF06abc'.at(1), 'a');
+    eq('\uDF06abc'.at(42), '');
+    eq('\uDF06abc'.at(Infinity), '');
+    eq('\uDF06abc'.at(null), '\uDF06');
+    eq('\uDF06abc'.at(void 8), '\uDF06');
+    eq('\uDF06abc'.at(), '\uDF06');
+    eq('\uDF06abc'.at(false), '\uDF06');
+    eq('\uDF06abc'.at(NaN), '\uDF06');
+    eq('\uDF06abc'.at(''), '\uDF06');
+    eq('\uDF06abc'.at('_'), '\uDF06');
+    eq('\uDF06abc'.at('1'), 'a');
+    at = String.prototype.at;
+    eq(at.call(42, 0), '4');
+    eq(at.call(42, 1), '2');
+    return eq(at.call({
+      toString: function(){
+        return 'abc';
+      }
+    }, 2), 'c');
+  });
+  test('Object.values', function(){
+    var values;
+    values = Object.values;
+    ok(isFunction(values), 'Is function');
+    deq(values({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [1, 2, 3]);
+    deq(values(new String('qwe')), ['q', 'w', 'e']);
+    deq(values(assign(create({
+      q: 1,
+      w: 2,
+      e: 3
+    }), {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [4, 5, 6]);
+  });
+  test('Object.entries', function(){
+    var entries;
+    entries = Object.entries;
+    ok(isFunction(entries), 'Is function');
+    deq(entries({
+      q: 1,
+      w: 2,
+      e: 3
+    }), [['q', 1], ['w', 2], ['e', 3]]);
+    deq(entries(new String('qwe')), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
+    deq(entries(assign(create({
+      q: 1,
+      w: 2,
+      e: 3
+    }), {
+      a: 4,
+      s: 5,
+      d: 6
+    })), [['a', 4], ['s', 5], ['d', 6]]);
+  });
+  test('RegExp.escape', function(){
+    var escape;
+    escape = RegExp.escape;
+    ok(isFunction(escape), 'Is function');
+    eq(escape('qwe asd'), 'qwe asd', "Don't change simple string");
+    eq(escape('\\-[]{}()*+?.,^$|'), '\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|', 'Escape all RegExp special chars');
+  });
 }).call(this);
 
 (function(){
@@ -3499,7 +3679,7 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('::@@iterator', function(){
+  test('#@@iterator', function(){
     var iterator, toStringTag, iter1, iter2, iter3;
     iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
     ok(isFunction(Number.prototype[iterator]), 'Is function');
@@ -3532,7 +3712,7 @@
       value: void 8
     });
   });
-  test('::random', function(){
+  test('#random', function(){
     ok(isFunction(Number.prototype.random), 'Is function');
     ok((function(){
       var i$, results$ = [];
@@ -3562,16 +3742,16 @@
       return 7 <= it && it <= 10;
     }));
   });
-  test('::#{...Math}', function(){
+  test('#{...Math}', function(){
     var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = ['round', 'floor', 'ceil', 'abs', 'sin', 'asin', 'cos', 'acos', 'tan', 'atan', 'exp', 'sqrt', 'max', 'min', 'pow', 'atan2', 'acosh', 'asinh', 'atanh', 'cbrt', 'clz32', 'cosh', 'expm1', 'hypot', 'imul', 'log1p', 'log10', 'log2', 'sign', 'sinh', 'tanh', 'trunc']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      ok(isFunction(Number.prototype[x$]), "Number::" + x$ + " is function");
+      ok(isFunction(Number.prototype[x$]), "Number" + x$ + " is function");
     }
-    ok(1 .min() === 1, 'context is argument of Number::{Math}');
-    ok(3 .max(2) === 3, 'context is argument of Number::{Math}');
-    ok(3 .min(2) === 2, 'Number::{Math} works with first argument');
-    ok(1 .max(2, 3, 4, 5, 6, 7) === 7, 'Number::{Math} works with various arguments length');
+    ok(1 .min() === 1, 'context is argument of Number#{..}');
+    ok(3 .max(2) === 3, 'context is argument of Number#{..}');
+    ok(3 .min(2) === 2, 'Number#{..} works with first argument');
+    ok(1 .max(2, 3, 4, 5, 6, 7) === 7, 'Number#{..} works with various arguments length');
   });
 }).call(this);
 
@@ -3629,6 +3809,7 @@
     ok(classof(new WeakSet) === 'WeakSet', 'classof weakset is `WeakSet`');
     ok(classof(new WeakMap) === 'WeakMap', 'classof weakmap is `WeakMap`');
     ok(classof(new Promise(function(){})) === 'Promise', 'classof promise is `Promise`');
+    ok(classof(''[Symbol.iterator]()) === 'String Iterator', 'classof String Iterator is `String Iterator`');
     ok(classof([].entries()) === 'Array Iterator', 'classof Array Iterator is `Array Iterator`');
     ok(classof(new Set().entries()) === 'Set Iterator', 'classof Set Iterator is `Set Iterator`');
     ok(classof(new Map().entries()) === 'Map Iterator', 'classof Map Iterator is `Map Iterator`');
@@ -3693,32 +3874,17 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
-  QUnit.module('RegExp');
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  test('.escape', function(){
-    var escape;
-    escape = RegExp.escape;
-    ok(isFunction(escape), 'Is function');
-    ok(escape('qwe asd') === 'qwe asd', "Don't change simple string");
-    ok(escape('\\-[]{}()*+?.,^$|') === "\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|", 'Escape all RegExp special chars');
-  });
-}).call(this);
-
-(function(){
-  var isFunction, toString$ = {}.toString;
   QUnit.module('String');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  test('::escapeHTML', function(){
+  test('#escapeHTML', function(){
     ok(isFunction(String.prototype.escapeHTML), 'Is function');
     ok('qwe, asd'.escapeHTML() === 'qwe, asd');
     ok('<div>qwe</div>'.escapeHTML() === '&lt;div&gt;qwe&lt;/div&gt;');
     ok("&<>\"'".escapeHTML() === '&amp;&lt;&gt;&quot;&apos;');
   });
-  test('::unescapeHTML', function(){
+  test('#unescapeHTML', function(){
     ok(isFunction(String.prototype.unescapeHTML), 'Is function');
     ok('qwe, asd'.unescapeHTML() === 'qwe, asd');
     ok('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML() === '<div>qwe</div>');

@@ -21,8 +21,6 @@ var global          = returnThis()
   , TO_LOCALE       = 'toLocaleString'
   , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
-  , CONTAINS        = 'contains'
-  , INCLUDES        = 'includes'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -56,8 +54,7 @@ var global          = returnThis()
   , Infinity        = 1 / 0
   , core            = {}
   , path            = framework ? global : core
-  , DOT             = '.'
-  , SHARP           = '#';
+  , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -328,6 +325,19 @@ function createReplacer(regExp, replace, isStatic){
     return String(isStatic ? it : this).replace(regExp, replacer);
   }
 }
+function createPointAt(toString){
+  return function(pos){
+    var s = String(this)
+      , i = toInteger(pos)
+      , l = s.length
+      , a, b;
+    if(i < 0 || i >= l)return toString ? '' : undefined;
+    a = s.charCodeAt(i);
+    return a < 0xd800 || a > 0xdbff || i + 1 === l || (b = s.charCodeAt(i + 1)) < 0xdc00 || b > 0xdfff
+      ? toString ? s.charAt(i) : a
+      : toString ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
+  }
+}
 
 // Assertion & errors
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
@@ -344,17 +354,6 @@ function assertObject(it){
 }
 function assertInstance(it, Constructor, name){
   assert(it instanceof Constructor, name, ": use the 'new' operator!");
-}
-function deprecated(fn, name, alter){
-  var shown, msg = name + ' is deprecated and will be removed in the future!';
-  if(alter)msg += ' Use ' + alter + DOT;
-  return function(){
-    if(!shown && global.console && console.warn){
-      shown = true;
-      console.warn(msg);
-    }
-    return fn.apply(this, arguments);
-  }
 }
 
 // Property descriptors & Symbol
@@ -409,9 +408,6 @@ function setIterator(O, value){
 }
 function createIterator(Constructor, NAME, next, proto){
   Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
-  // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
-  // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
-  // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
   setToStringTag(Constructor, NAME + ' Iterator');
 }
 function defineIterator(Constructor, NAME, value){
@@ -425,8 +421,13 @@ function defineIterator(Constructor, NAME, value){
   if(framework){
     // Define iterator
     setIterator(proto, iter);
-    // FF fix
-    if(HAS_FF_ITER)setIterator(getPrototypeOf(iter.call(new Constructor)), returnThis);
+    if(iter !== value){
+      var iterProto = getPrototypeOf(iter.call(new Constructor));
+      // Set @@toStringTag to native iterators
+      setToStringTag(iterProto, NAME + ' Iterator', true);
+      // FF fix
+      HAS_FF_ITER && setIterator(iterProto, returnThis);
+    }
   }
   // Plug for library
   Iterators[NAME] = iter;

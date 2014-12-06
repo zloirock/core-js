@@ -1,5 +1,5 @@
 # Core.js
-Alternative modular compact (max. ~22kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Additional functionality: [dictionaries](#dict), extended [partial application](#partial-application), [date formatting](#date-formatting) and some other sugar.
+Alternative modular compact (max. ~23kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting).
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -24,6 +24,7 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6: Collections](#ecmascript-6-collections)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
+  - [ECMAScript 7](#ecmascript-7)
   - [ECMAScript 7: Abstract References](#ecmascript-7-abstract-references)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
@@ -37,6 +38,7 @@ core.setImmediate(log, 42);                          // => 42
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
 - [Install](#install)
+- [Changelog](#changelog)
 
 ## API:
 ### ECMAScript 5
@@ -72,16 +74,16 @@ Date
 ```
 
 ### ECMAScript 6
-Module `es6`.
+Module `es6`. [Symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators) and [promises](#ecmascript-6-promises) in separate modules.
 #### ECMAScript 6 Object
 ```javascript
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
   .setPrototypeOf(target, proto | null) -> target, sham(ie10+)
-  #toString() -> string, fix for @@toStringTag
+  #toString() -> string, fix for @@toStringTag support
 ```
-[Example](http://goo.gl/IPehks):
+[Example](http://goo.gl/VzmY3j):
 ```javascript
 var foo = {q: 1, w: 2}
   , bar = {e: 3, r: 4}
@@ -92,6 +94,16 @@ Object.is(NaN, NaN); // => true
 Object.is(0, -0);    // => false
 Object.is(42, 42);   // => true
 Object.is(42, '42'); // => false
+
+function Parent(){}
+function Child(){}
+Object.setPrototypeOf(Child.prototype, Parent.prototype);
+new Child instanceof Child;  // => true
+new Child instanceof Parent; // => true
+
+var O = {};
+O[Symbol.toStringTag] = 'Foo';
+'' + O; // => '[object Foo]'
 ```
 #### ECMAScript 6 Array
 ```javascript
@@ -103,7 +115,7 @@ Array
   #find(fn(val, index, @), that) -> var
   #findIndex(fn(val, index, @), that) -> int
 ```
-[Example](http://goo.gl/gMYP1H):
+[Example](http://goo.gl/nxmJTe):
 ```javascript
 Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
 Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
@@ -123,10 +135,9 @@ function isOdd(val){
 [4, 8, 15, 16, 23, 42].find(isNaN);      // => undefined
 [4, 8, 15, 16, 23, 42].findIndex(isNaN); // => -1
 
-Array(5).map(function(){
-  return 42;
-});                // => [undefined × 5], .map ignore holes
 Array(5).fill(42); // => [42, 42, 42, 42, 42]
+
+[1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6 String
 ```javascript
@@ -138,7 +149,7 @@ String
   #repeat(num) -> str
   #codePointAt(pos) -> uint
 ```
-[Example](http://goo.gl/JKrMn5):
+[Example](http://goo.gl/uhvQG4):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -148,6 +159,9 @@ String
 'foobarbaz'.endsWith('bar', 6);   // => true
 
 'string'.repeat(3); // => 'stringstringstring'
+
+'𠮷'.codePointAt(0); // => 134071
+String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 ```
 #### ECMAScript 6 Number & Math
 ```javascript
@@ -364,13 +378,13 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 Arguments
-  #@@iterator() -> iterator (sham)
+  #@@iterator() -> iterator
 ```
-[Example](http://goo.gl/iwLk0N):
+[Example](http://goo.gl/3s27dC):
 ```javascript
-var string = 'abc';
+var string = 'a𠮷b';
 
-for(var val of string)console.log(val);         // => 'a', 'b', 'c'
+for(var val of string)console.log(val);         // => 'a', '𠮷', 'b'
 
 var array = ['a', 'b', 'c'];
 
@@ -472,7 +486,7 @@ new Promise(executor(resolve(var), reject(var))) -> promise
   .all(iterable) -> promise
   .race(iterable) -> promise
 ```
-[Example](http://goo.gl/vGrtUC):
+Basic [example](http://goo.gl/vGrtUC):
 ```javascript
 var log = console.log.bind(console);
 function sleepRandom(time){
@@ -486,7 +500,7 @@ sleepRandom(5).then(function(result){
   log(result);                 // => 869, after 5 sec.
   return sleepRandom(10);
 }).then(function(result){
-  log(result);                 // => 202, after 10 sec. 
+  log(result);                 // => 202, after 10 sec.
 }).then(function(){
   log('immediately after');    // => immediately after
   throw Error('Irror!');
@@ -494,7 +508,99 @@ sleepRandom(5).then(function(result){
   log('will not be displayed');
 }).catch(log);                 // => => Error: Irror!
 ```
+`Promise.resolve` and `Promise.reject` [example](http://goo.gl/vr8TN3):
+```javascript
+Promise.resolve(42).then(log); // => 42
+Promise.reject(42).catch(log); // => 42
 
+Promise.resolve($.getJSON('/data.json')); // => ES6 promise
+```
+`Promise.all` [example](http://goo.gl/RdoDBZ):
+```javascript
+Promise.all([
+  'foo',
+  sleepRandom(5),
+  sleepRandom(15),
+  sleepRandom(10)  // after 15 sec:
+]).then(log);      // => ['foo', 956, 85, 382]
+```
+`Promise.race` [example](http://goo.gl/L8ovkJ):
+```javascript
+function timeLimit(promise, time){
+  return Promise.race([promise, new Promise(function(resolve, reject){
+    setTimeout(reject, time * 1e3, Error('Await > ' + time + ' sec'));
+  })]);
+}
+
+timeLimit(sleepRandom(5), 10).then(log);   // => 853, after 5 sec.
+timeLimit(sleepRandom(15), 10).catch(log); // Error: Await > 10 sec
+```
+ECMAScript 7 [async functions](https://github.com/lukehoban/ecmascript-asyncawait) [example](http://goo.gl/rksdJx):
+```javascript
+var delay = time => new Promise(resolve => setTimeout(resolve, time))
+
+async function sleepRandom(time){
+  await delay(time * 1e3);
+  return 0 | Math.random() * 1e3;
+}
+async function sleepError(time, msg){
+  await delay(time * 1e3);
+  throw Error(msg);
+}
+
+(async () => {
+  try {
+    log('Run');                // => Run
+    log(await sleepRandom(5)); // => 936, after 5 sec.
+    var [a, b, c] = await Promise.all([
+      sleepRandom(5),
+      sleepRandom(15),
+      sleepRandom(10)
+    ]);
+    log(a, b, c);              // => 210 445 71, after 15 sec.
+    await sleepError(5, 'Irror!');
+    log('Will not be displayed');
+  } catch(e){
+    log(e);                    // => Error: 'Irror!', after 5 sec.
+  }
+})();
+```
+### ECMAScript 7
+Module `es7`.
+`Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes).
+`String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at).
+`Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues).
+`RegExp.escape` [proposal](https://gist.github.com/kangax/9698100).
+```javascript
+Array
+  #includes(var, from?) -> bool
+String
+  #at(index) -> string
+Object
+  .values(object) -> array
+  .entries(object) -> array
+RegExp
+  .escape(str) -> str
+```
+[Examples](http://goo.gl/4HcpLK):
+```javascript
+[1, 2, 3].includes(2);        // => true
+[1, 2, 3].includes(4);        // => false
+[1, 2, 3].includes(2, 2);     // => false
+
+[NaN].indexOf(NaN);           // => -1
+[NaN].includes(NaN);          // => true
+Array(1).indexOf(undefined);  // => -1
+Array(1).includes(undefined); // => true
+
+'a𠮷b'.at(1);        // => '𠮷'
+'a𠮷b'.at(1).length; // => 2
+
+Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
+Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
+
+RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
+```
 ### ECMAScript 7: Abstract References
 Module `es7_refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several translators, such as [6to5](https://github.com/6to5/6to5).
 ```javascript
@@ -513,9 +619,9 @@ WeakMap
   #@@referenceSet ==== #set
   #@@referenceDelete ==== #delete
 ```
-Private properties [example](http://goo.gl/Uxh9xG) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
+Private properties [example](http://goo.gl/sO0KHa) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
 ```javascript
-var Person = ((NAME) => class {
+var Person = (NAME => class {
   constructor(name){
     this::NAME = name;
   }
@@ -526,12 +632,18 @@ var Person = ((NAME) => class {
 
 var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key); // nothing
+for(var key in person)console.log(key);
 ```
-Virtual methods [example](http://goo.gl/Gk8YFe):
+Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
-var toString = {}.toString;
+var {toString} = {};
 console.log([]::toString()); // => '[object Array]'
+
+function sum(){
+  var {reduce} = [];
+  return arguments::reduce((a, b)=> a + b);
+}
+console.log(sum(1, 2, 3, 4, 5)); // => 15
 ```
 Methods from [Dict module](#dict) override `@@referenceGet` method, [example](http://goo.gl/vgIKJ2):
 ```javascript
@@ -662,7 +774,55 @@ Example.prototype[Symbol.toStringTag] = 'Example';
 
 classof(new Example);          // => 'Example'
 ```
+`Object.define` and `Object.make` [examples](http://goo.gl/rtpD5Z):
+```javascript
+// Before:
+Object.defineProperty(target, 'c', {
+  enumerable: true,
+  configurable: true,
+  get: function(){
+    return this.a + this.b;
+  }
+});
 
+// After:
+Object.define(target, {
+  get c(){
+    return this.a + this.b;
+  }
+});
+
+// Shallow object cloning with prototype and descriptors:
+var copy = Object.make(Object.getPrototypeOf(src), src);
+
+// Simple inheritance:
+function Vector2D(x, y){
+  this.x = x;
+  this.y = y;
+}
+Object.define(Vector2D.prototype, {
+  get xy(){
+    return Math.hypot(this.x, this.y);
+  }
+});
+function Vector3D(x, y, z){
+  Vector2D.apply(this, arguments);
+  this.z = z;
+}
+Vector3D.prototype = Object.make(Vector2D.prototype, {
+  constructor: Vector3D,
+  get xyz(){
+    return Math.hypot(this.x, this.y, this.z);
+  }
+});
+
+var vector = new Vector3D(9, 12, 20);
+console.log(vector.xy);  // => 15
+console.log(vector.xyz); // => 25
+vector.y++;
+console.log(vector.xy);  // => 15.811388300841896
+console.log(vector.xyz); // => 25.495097567963924
+```
 ### Dict
 Module `dict`.
 ```javascript
@@ -686,9 +846,6 @@ Module `dict`.
   .includes(object, var) -> bool
   .reduce(object, fn(memo, val, key, @), memo?) -> var
   .turn(object, fn(memo, val, key, @), memo = new @) -> memo
-Object
-  .values(object) -> array
-  .entries(object) -> array
 ```
 `Dict` create object without prototype from iterable or simple object. [Example](http://goo.gl/pnp8Vr):
 ```javascript
@@ -709,6 +866,86 @@ dict.toString;            // => undefined
 Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
+`Dict.keys`, `Dict.values` and `Dict.entries` return iterators for objects, [examples](http://goo.gl/JRkgM8):
+```javascript
+var dict = {a: 1, b: 2, c: 3};
+
+for(var key of Dict.keys(dict))console(key); // => 'a', 'b', 'c'
+
+for(var [key, val] of Dict.entries(dict)){
+  console(key); // => 'a', 'b', 'c'
+  console(val); // => 1, 2, 3
+}
+
+$for(Dict.values(dict)).of(console); // => 1, 2, 3
+
+new Map(Dict.entries(dict)); // => Map {a: 1, b: 2, c: 3}
+
+new Map((for([k, v] of Dict.entries(dict))if(v % 2)[k + k, v * v])); // =>  Map {aa: 1, cc: 9}
+```
+Other methods of `Dict` module are static equialents of `Array.prototype` methods for dictionaries, [examples](http://goo.gl/yARYXR):
+```javascript
+var dict = {a: 1, b: 2, c: 3};
+
+Dict.forEach(dict, console.log, console);
+// => 1, 'a', {a: 1, b: 2, c: 3}
+// => 2, 'b', {a: 1, b: 2, c: 3}
+// => 3, 'c', {a: 1, b: 2, c: 3}
+
+Dict.map(dict, function(it){
+  return it * it;
+}); // => {a: 1, b: 4, c: 9}
+
+Dict.mapPairs(dict, function(val, key){
+  if(key != 'b')return [key + key, val * val];
+}); // => {aa: 1, cc: 9}
+
+Dict.filter(dict, function(it){
+  return it % 2;
+}); // => {a: 1, c: 3}
+
+Dict.some(dict, function(it){
+  return it === 2;
+}); // => true
+
+Dict.every(dict, function(it){
+  return it === 2;
+}); // => false
+
+Dict.find(dict, function(it){
+  return it > 2;
+}); // => 3
+Dict.find(dict, function(it){
+  return it > 4;
+}); // => undefined
+
+Dict.findKey(dict, function(it){
+  return it > 2;
+}); // => 'c'
+Dict.findKey(dict, function(it){
+  return it > 4;
+}); // => undefined
+
+Dict.keyOf(dict, 2);    // => 'b'
+Dict.keyOf(dict, 4);    // => undefined
+
+Dict.includes(dict, 2); // => true
+Dict.includes(dict, 4); // => false
+
+Dict.reduce(dict, function(memo, it){
+  return memo + it;
+});     // => 6
+Dict.reduce(dict, function(memo, it){
+  return memo + it;
+}, ''); // => '123'
+
+Dict.turn(dict, function(memo, it, key){
+  memo[key + key] = it;
+});     // => {aa: 1, bb: 2, cc: 3}
+Dict.turn(dict, function(memo, it, key){
+  it % 2 && memo.push(key + it);
+}, []); // => ['a1', 'c3']
+```
 ### Partial application
 Module `binding`.
 ```javascript
@@ -718,6 +955,44 @@ Function
   #only(num, that /* = @ */) -> (fn | boundFn)(...args)
 Object
   #[_](key) -> boundFn
+```
+`Fnction#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/ROgBsL):
+```javascript
+var fn1 = log.part(1, 2);
+fn1(3, 4);    // => 1, 2, 3, 4
+
+var fn2 = log.part(_, 2, _, 4);
+fn2(1, 3);    // => 1, 2, 3, 4
+
+var fn3 = log.part(1, _, _, 4);
+fn3(2, 3);    // => 1, 2, 3, 4
+
+fn2(1, 3, 5); // => 1, 2, 3, 4, 5
+fn2(1);       // => 1, 2, undefined, 4
+```
+Method `Function#by` is analogue of `Function#bind` with the ability to use placeholder:
+```javascript
+var fn = console.log.by(console, _, 2, _, 4);
+fn(1, 3, 5); // => 1, 2, 3, 4, 5
+```
+Method `Object#[_]` extracts bound method from object, [examples](http://goo.gl/dQsSTi):
+```javascript
+['foobar', 'foobaz', 'barbaz'].filter(/bar/[_]('test')); // => ['foobar', 'barbaz']
+
+var has = {}.hasOwnProperty[_]('call');
+
+log(has({key: 42}, 'foo')); // => false
+log(has({key: 42}, 'key')); // => true
+
+var array = []
+  , push  = array[_]('push');
+push(1);
+push(2, 3);
+log(array); // => [1, 2, 3];
+```
+Method `Function#only` limits number of arguments. [Example](http://goo.gl/ROgBsL):
+```javascript
+[1, 2, 3].forEach(log.only(1)); // => 1, 2, 3
 ```
 ### Date formatting
 Module `date`.
@@ -772,8 +1047,18 @@ new Date().format('M Y');              // => 'Ноябрь 2014'
 Module `array`.
 ```javascript
 Array
-  #includes(var, from?) -> bool
   #turn(fn(memo, val, index, @), memo = []) -> memo
+```
+Method `Array#turn` reduce array to object, [example](http://goo.gl/zZbvq7):
+```javascript
+[1, 2, 3, 4, 5].turn(function(memo, it){
+  memo['key' + it] = !!(it % 2);
+}, {}); // => {key1: true, key2: false, key3: true, key4: false, key5: true}
+
+[1, 2, 3, 4, 5, 6, 7, 8, 9].turn(function(memo, it){
+  it % 2 && memo.push(it * it);
+  if(memo.length == 3)return false;
+}); // => [1, 9, 25]
 ```
 ### Number
 Module `number`.
@@ -783,6 +1068,46 @@ Number
   #random(lim = 0) -> num
   #{...Math} 
 ```
+Number Iterator [examples](http://goo.gl/mkReUE):
+```javascript
+for(var i of 3)console(i); // => 0, 1, 2
+
+$for(3).of(console); // => 0, 1, 2
+
+Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
+
+Array.from(10); // => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+Array.from(10, function(it){
+  return this + it * it;
+}, .42); // => [0.42, 1.42, 4.42, 9.42, 16.42, 25.42, 36.42, 49.42, 64.42, 81.42]
+
+// Comprehensions:
+[for(i of 10)if(i % 2)i * i]; // => [1, 9, 25, 49, 81]
+
+Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
+
+$for(10).filter(function(i){
+  return i % 2;
+}).array(function(i){
+  return i * i;
+});  // => [1, 9, 25, 49, 81]
+
+Dict($for(3).map(function(i){
+  return ['key' + i, !(i % 2)];
+})); // => {key0: true, key1: false, key2: true}
+```
+`Math` methods in `Number.prototype` [examples](http://goo.gl/06bs1k):
+```javascript
+3..pow(3);           // => 27
+(-729).abs().sqrt(); // => 27
+
+10..random(20);         // => Random number (10, 20), for example, 16.818793776910752
+10..random(20).floor(); // => Random integer [10, 19], for example, 16
+
+var array = [1, 2, 3, 4, 5];
+array[array.length.random().floor()]; // => Random element, for example, 4
+```
 ### Escaping characters
 Module `string`.
 ```javascript
@@ -790,17 +1115,10 @@ String
   #escapeHTML() -> str
   #unescapeHTML() -> str
 ```
+[Examples](http://goo.gl/6bOvsQ):
 ```javascript
 '<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
-```
-Module `regexp`.
-```javascript
-RegExp
-  .escape(str) -> str
-```
-```javascript
-RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
 
 ## Install
@@ -830,3 +1148,42 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
+## Changelog
+**0.2.0** - *2014.12.06*
+  * added `es7`, `es7_refs` modules
+  * added `String#at`
+  * added real String Iterator, older versions used Array Iterator
+  * added abstract references support:
+    * added `Symbol.referenceGet`
+    * added `Symbol.referenceSet`
+    * added `Symbol.referenceDelete`
+    * added `Function#@@referenceGet`
+    * added `Map#@@referenceGet`
+    * added `Map#@@referenceSet`
+    * added `Map#@@referenceDelete`
+    * added `WeakMap#@@referenceGet`
+    * added `WeakMap#@@referenceSet`
+    * added `WeakMap#@@referenceDelete`
+    * added `Dict.{...methods}[@@referenceGet]`
+  * removed deprecated `.contains` methods
+  * some fixes
+
+**0.1.5** - *2014.12.01* - **ES6**:
+  * added `Array#copyWithin`
+  * added `String#codePointAt`
+  * added `String.fromCodePoint`
+
+**0.1.4** - *2014.11.27*
+  * added `Dict.mapPairs`
+
+**0.1.3** - *2014.11.20* - **TC39 November meeting**:
+  * `.contains` -> `.includes`
+    * `String#contains` -> `String#includes`
+    * `Array#contains` -> `Array#includes`
+    * `Dict.contains` -> `Dict.includes`
+  * removed `WeakMap#clear`
+  * removed `WeakSet#clear`
+
+**0.1.2** - *2014.11.19* - **Map & Set bug fix**
+
+**0.1.1** - *2014.11.18* - **Public release**

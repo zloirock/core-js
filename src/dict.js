@@ -116,8 +116,7 @@
     reduce:  createDictReduce(false),
     turn:    createDictReduce(true),
     keyOf:   keyOf,
-    includes: includes,
-    contains: deprecated(includes, DICT+DOT+CONTAINS, DICT+DOT+INCLUDES),
+    includes:includes,
     // Has / get / set own property
     has: has,
     get: function(object, key){
@@ -139,11 +138,5 @@
     }
   }(dictMethods[key]);
   
-  $define(STATIC, OBJECT, {
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    values: createObjectToArray(false),
-    // ~ ES7 : http://esdiscuss.org/topic/april-8-2014-meeting-notes#content-1
-    entries: createObjectToArray(true)
-  });
   $define(GLOBAL + FORCED, {Dict: assign(Dict, dictMethods)});
 }('Dict');

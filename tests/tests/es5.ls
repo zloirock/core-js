@@ -68,7 +68,7 @@ test 'Object.keys' !->
   deepEqual keys(new fn1 1), <[w]>
   deepEqual keys(new fn2 1), <[toString]>
   ok \push not in keys Array::
-test 'Function.prototype.bind' !->
+test 'Function#bind' !->
   ok isFunction(Function::bind), 'Is function'
   obj = a: 42
   ok 42   is (-> @a)bind(obj)!
@@ -83,20 +83,20 @@ test 'Array.isArray' !->
 test 'ES5 Array prototype methods are functions' !->
   for <[indexOf lastIndexOf every some forEach map filter reduce reduceRight]>
     ok isFunction(Array::[..]), "Array::#{..} is function"
-test 'Array::indexOf' !->
+test 'Array#indexOf' !->
   ok 0  is [1 1 1]indexOf 1
   ok -1 is [1 2 3]indexOf 1 1
   ok 1  is [1 2 3]indexOf 2 1
   ok -1 is [NaN]indexOf NaN
   ok 3  is Array(2)concat([1 2 3])indexOf 2
   ok -1 is Array(1)indexOf void
-test 'Array::lastIndexOf' !->
+test 'Array#lastIndexOf' !->
   ok 2  is [1 1 1]lastIndexOf 1
   ok -1 is [1 2 3]lastIndexOf 3 1
   ok 1  is [1 2 3]lastIndexOf 2 1
   ok -1 is [NaN]lastIndexOf NaN
   ok 1  is [1 2 3]concat(Array 2)lastIndexOf 2
-test 'Array::every' !->
+test 'Array#every' !->
   (a = [1])every (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -112,7 +112,7 @@ test 'Array::every' !->
   [1 2 3]every -> rez += &1
   ok rez is \012
   ok (arr = [1 2 3])every -> &2 is arr
-test 'Array::some' !->
+test 'Array#some' !->
   (a = [1])some (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -128,7 +128,7 @@ test 'Array::some' !->
   [1 2 3]some -> rez += &1; no
   ok rez is \012
   ok not (arr = [1 2 3])some -> &2 isnt arr
-test 'Array::forEach' !->
+test 'Array#forEach' !->
   (a = [1])forEach (val, key, that)!->
     ok val  is 1
     ok key  is 0
@@ -152,7 +152,7 @@ test 'Array::forEach' !->
   arr.5 = ''
   arr.forEach (, k)!-> rez += k
   ok rez is \5
-test 'Array::map' !->
+test 'Array#map' !->
   (a = [1])map (val, key, that)->
     ok val  is 1
     ok key  is 0
@@ -162,7 +162,7 @@ test 'Array::map' !->
   deepEqual [2 3 4] [1 2 3]map (+ 1)
   deepEqual [1 3 5] [1 2 3]map ( + )
   deepEqual [2 2 2] [1 2 3]map (-> +@), 2 
-test 'Array::filter' !->
+test 'Array#filter' !->
   (a = [1])filter (val, key, that)->
     ok val is 1
     ok key is 0
@@ -170,7 +170,7 @@ test 'Array::filter' !->
     ok @ is ctx
   , ctx = {}
   deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
-test 'Array::reduce' !->
+test 'Array#reduce' !->
   ok -5 is [5 4 3 2 1]reduce (-)
   (a = [1])reduce (memo, val, key, that)->
     ok memo is 42
@@ -180,7 +180,7 @@ test 'Array::reduce' !->
   , 42
   [42 43]reduce ->
     ok it is 42
-test 'Array::reduceRight' !->
+test 'Array#reduceRight' !->
   ok -5 is [1 2 3 4 5]reduceRight (-)
   (a = [1])reduceRight (memo, val, key, that)->
     ok memo is 42
@@ -190,7 +190,7 @@ test 'Array::reduceRight' !->
   , 42
   [42 43]reduceRight ->
     ok it is 43
-test 'String.prototype.trim' !->
+test 'String#trim' !->
   ok isFunction(String::trim), 'Is function'
   ok '   q w e \n  'trim! is 'q w e', 'Remove whitespaces at left & right side of string'
 test 'Date.now' !->

@@ -1,9 +1,9 @@
 require! './config': {banner}, fs: {readFile}
-modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections es7_refs dict $for iterator
-            es6_iterators timers binding object array array_statics number string regexp date console]>
+modules = <[common es5 global es6_symbol es6 immediate es6_promise es6_collections es7 es7_refs dict $for iterator
+            es6_iterators timers binding object array array_statics number string date console]>
 old_shim = <[es5 timers]>
-new_shim = <[es6 es6_collections es6_promise es6_symbol es6_iterators es7_refs global immediate array_statics console]>
-core = <[$for dict binding object array number string regexp date]>
+new_shim = <[es6 es6_collections es6_promise es6_symbol es6_iterators es7 es7_refs global immediate array_statics console]>
+core = <[$for dict binding object array number string date]>
 x78 = '*'repeat 78
 module.exports = (opt, next)-> let @ = opt
   @common = on

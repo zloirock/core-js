@@ -41,6 +41,7 @@ test '.classof' !->
   ok classof(new WeakSet) is \WeakSet, 'classof weakset is `WeakSet`'
   ok classof(new WeakMap) is \WeakMap, 'classof weakmap is `WeakMap`'
   ok classof(new Promise ->) is \Promise, 'classof promise is `Promise`'
+  ok classof(''[Symbol.iterator]!) is 'String Iterator', 'classof String Iterator is `String Iterator`'
   ok classof([]entries!) is 'Array Iterator', 'classof Array Iterator is `Array Iterator`'
   ok classof(new Set!entries!) is 'Set Iterator', 'classof Set Iterator is `Set Iterator`'
   ok classof(new Map!entries!) is 'Map Iterator', 'classof Map Iterator is `Map Iterator`'

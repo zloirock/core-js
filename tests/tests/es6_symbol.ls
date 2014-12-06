@@ -20,7 +20,7 @@ test '.iterator' !->
   ok \iterator of Symbol, 'iterator in Symbol'
 test '.toStringTag' !->
   ok \toStringTag of Symbol, 'toStringTag in Symbol'
-test '::@@toStringTag' !->
+test '#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 test '.pure' !->
   {pure} = Symbol

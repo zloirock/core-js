@@ -2,7 +2,7 @@ QUnit.module \Binding
 isFunction = -> typeof! it  is \Function
 DESC = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 {slice} = Array::
-test 'Function::by' !->
+test 'Function#by' !->
   $ = _
   ok isFunction(Function::by), 'Is function'
   array = [1 2 3]
@@ -20,7 +20,7 @@ test 'Function::by' !->
   ok fn.by(o, \2)(\3) is \123
   ok fn.by($)(o, \2, \3) is \123
   ok fn.by($, \2)(o, \3) is \123
-test 'Function::part' !->
+test 'Function#part' !->
   ok isFunction(Function::part), 'Is function'
   ok (-> typeof! it is \String)part(\qwe)!
   obj = a: 42
@@ -33,7 +33,7 @@ test 'Function::part' !->
   ok part(\Шла \по) is 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders'
   ok part(\Шла \по \и) is 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders'
   ok part(\Шла \по \и \сушку) is 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders'
-test 'Function::only' !->
+test 'Function#only' !->
   ok isFunction(Function::only), 'Is function'
   fn = (...args)-> args.reduce (+)
   f = fn.only 2
@@ -44,7 +44,7 @@ test 'Function::only' !->
   ok o.f! is o
   o = {f: that.only(1, c = {})}
   ok o.f! is c    
-test '::[_]' !->
+test '#[_]' !->
   $ = _
   ok isFunction(Object::[_]), 'Object::[_] is function'
   fn = (->

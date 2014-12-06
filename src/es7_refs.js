@@ -1,3 +1,4 @@
+// https://github.com/zenparsing/es-abstract-refs
 !function(REFERENCE){
   REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
   var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)

@@ -10,12 +10,12 @@ test 'Dict' !->
   deepEqual keys(dict1), []
   dict2 = Dict q:1 w:2
   ok dict2 not instanceof Object
-  deepEqual keys(dict2), [\q, \w]
+  deepEqual keys(dict2), <[q w]>
   ok dict2.q is 1
   ok dict2.w is 2
   dict3 = Dict new Set([1 2])entries!
   ok dict3 not instanceof Object
-  deepEqual keys(dict3), [\1, \2]
+  deepEqual keys(dict3), <[1 2]>
   ok dict3.1 is 1
   ok dict3.2 is 2
 test '.every' !->
@@ -38,7 +38,7 @@ test '.filter' !->
     ok that is obj
     ok @    is ctx
   , ctx = {}
-  deepEqual filter({q:1 w:2 e:3} -> it % 2), Dict q:1 e:3
+  deepEqual filter({q:1 w:2 e:3} -> it % 2), Dict q: 1 e: 3
 test '.find' !->
   {find} = Dict
   ok isFunction(find), 'Is function'
@@ -187,7 +187,7 @@ test '.values' !->
   ok iter[toStringTag] is 'Dict Iterator'
   ok \next of iter
   deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
-  deepEqual from(values(new String \qwe)), [\q \w \e]
+  deepEqual from(values(new String \qwe)), <[q w e]>
   deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
 test '.keys' !->
   {keys} = Dict
@@ -207,15 +207,3 @@ test '.entries' !->
   deepEqual from(entries({q:1, w:2, e:3})),[[\q 1] [\w 2] [\e 3]]
   deepEqual from(entries(new String \qwe)), [[\0 \q] [\1 \w] [\2 \e]]
   deepEqual from(entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [[\a 4] [\s 5] [\d 6]]
-test 'Object.values' !->
-  {values} = Object
-  ok isFunction(values), 'Is function'
-  deepEqual values({q:1, w:2, e:3}), [1 2 3]
-  deepEqual values(new String \qwe), [\q \w \e]
-  deepEqual values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]
-test 'Object.entries' !->
-  {entries} = Object
-  ok isFunction(entries), 'Is function'
-  deepEqual entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
-  deepEqual entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
-  deepEqual entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]

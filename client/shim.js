@@ -1,5 +1,5 @@
 /**
- * Core.js 0.1.6
+ * Core.js 0.2.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -34,8 +34,6 @@ var global          = returnThis()
   , TO_LOCALE       = 'toLocaleString'
   , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
-  , CONTAINS        = 'contains'
-  , INCLUDES        = 'includes'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -69,8 +67,7 @@ var global          = returnThis()
   , Infinity        = 1 / 0
   , core            = {}
   , path            = framework ? global : core
-  , DOT             = '.'
-  , SHARP           = '#';
+  , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -341,6 +338,19 @@ function createReplacer(regExp, replace, isStatic){
     return String(isStatic ? it : this).replace(regExp, replacer);
   }
 }
+function createPointAt(toString){
+  return function(pos){
+    var s = String(this)
+      , i = toInteger(pos)
+      , l = s.length
+      , a, b;
+    if(i < 0 || i >= l)return toString ? '' : undefined;
+    a = s.charCodeAt(i);
+    return a < 0xd800 || a > 0xdbff || i + 1 === l || (b = s.charCodeAt(i + 1)) < 0xdc00 || b > 0xdfff
+      ? toString ? s.charAt(i) : a
+      : toString ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
+  }
+}
 
 // Assertion & errors
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
@@ -357,17 +367,6 @@ function assertObject(it){
 }
 function assertInstance(it, Constructor, name){
   assert(it instanceof Constructor, name, ": use the 'new' operator!");
-}
-function deprecated(fn, name, alter){
-  var shown, msg = name + ' is deprecated and will be removed in the future!';
-  if(alter)msg += ' Use ' + alter + DOT;
-  return function(){
-    if(!shown && global.console && console.warn){
-      shown = true;
-      console.warn(msg);
-    }
-    return fn.apply(this, arguments);
-  }
 }
 
 // Property descriptors & Symbol
@@ -422,9 +421,6 @@ function setIterator(O, value){
 }
 function createIterator(Constructor, NAME, next, proto){
   Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
-  // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
-  // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
-  // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
   setToStringTag(Constructor, NAME + ' Iterator');
 }
 function defineIterator(Constructor, NAME, value){
@@ -438,8 +434,13 @@ function defineIterator(Constructor, NAME, value){
   if(framework){
     // Define iterator
     setIterator(proto, iter);
-    // FF fix
-    if(HAS_FF_ITER)setIterator(getPrototypeOf(iter.call(new Constructor)), returnThis);
+    if(iter !== value){
+      var iterProto = getPrototypeOf(iter.call(new Constructor));
+      // Set @@toStringTag to native iterators
+      setToStringTag(iterProto, NAME + ' Iterator', true);
+      // FF fix
+      HAS_FF_ITER && setIterator(iterProto, returnThis);
+    }
   }
   // Plug for library
   Iterators[NAME] = iter;
@@ -944,21 +945,9 @@ $define(GLOBAL + FORCED, {global: global});
   }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
-    codePointAt: function(pos){
-      var s = String(this)
-        , i = toInteger(pos)
-        , l = s.length
-        , a, b;
-      if(i < 0 || i >= l)return;
-      a = s.charCodeAt(i);
-      if(a < 0xd800 || a > 0xdbff || i + 1 === l)return a;
-      b = s.charCodeAt(i + 1);
-      return b < 0xdc00 || b > 0xdfff ? a : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
-    },
+    codePointAt: createPointAt(false),
     // String.prototype.includes(searchString, position = 0)
     includes: includes,
-    // Deprecated name of String#includes
-    contains: deprecated(includes, STRING+SHARP+CONTAINS, STRING+SHARP+INCLUDES),
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
@@ -985,15 +974,14 @@ $define(GLOBAL + FORCED, {global: global});
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
-      var O       = ES5Object(arrayLike)
+      var O       = Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, that, 2) : undefined
         , index   = 0
         , length;
-      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done;){
+      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done; index++){
         result[index] = mapping ? f(step.value, index) : step.value;
-        index++;
       } else for(length = toLength(O.length); length > index; index++){
         result[index] = mapping ? f(O[index], index) : O[index];
       }
@@ -1466,9 +1454,34 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
+ * Module : es7                                                               *
+ ******************************************************************************/
+
+!function(){
+  $define(PROTO, ARRAY, {
+    // https://github.com/domenic/Array.prototype.includes
+    includes: createArrayContains(true)
+  });
+  $define(PROTO, STRING, {
+    // https://github.com/mathiasbynens/String.prototype.at
+    at: createPointAt(true)
+  });
+  $define(STATIC, OBJECT, {
+    // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues
+    values: createObjectToArray(false),
+    entries: createObjectToArray(true)
+  });
+  $define(STATIC, REGEXP, {
+    // https://gist.github.com/kangax/9698100
+    escape: createReplacer(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
+  });
+}();
+
+/******************************************************************************
  * Module : es7_refs                                                          *
  ******************************************************************************/
 
+// https://github.com/zenparsing/es-abstract-refs
 !function(REFERENCE){
   REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
   var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)
@@ -1502,16 +1515,21 @@ $define(GLOBAL + BIND, {
 !function(){
   var getValues = createObjectToArray(false)
     // Safari define byggy iterators w/o `next`
-    , buggy = 'keys' in ArrayProto && !('next' in [].keys());
+    , buggy = 'keys' in ArrayProto && !('next' in [].keys())
+    , at = createPointAt(true);
   
-  function defineStdIterators(Base, NAME, DEFAULT, Constructor, next){
+  function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
     function createIter(kind){
       return function(){
         return new Constructor(this, kind);
       }
     }
+    // 21.1.5.2.2 %StringIteratorPrototype%[@@toStringTag]
+    // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
+    // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
+    // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
     createIterator(Constructor, NAME, next);
-    $define(PROTO + FORCED * buggy, NAME, {
+    DEFAULT && $define(PROTO + FORCED * buggy, NAME, {
       // 22.1.3.4 Array.prototype.entries()
       // 23.1.3.4 Map.prototype.entries()
       // 23.2.3.5 Set.prototype.entries()
@@ -1525,14 +1543,30 @@ $define(GLOBAL + BIND, {
       // 23.2.3.10 Set.prototype.values()
       values:  createIter(VALUE)
     });
+    // 21.1.3.27 String.prototype[@@iterator]()
     // 22.1.3.30 Array.prototype[@@iterator]()
     // 23.1.3.12 Map.prototype[@@iterator]()
     // 23.2.3.11 Set.prototype[@@iterator]()
     Base && defineIterator(Base, NAME, createIter(DEFAULT));
   }
   
+  // 21.1.5.1 CreateStringIterator Abstract Operation
+  defineStdIterators(String, STRING, function(iterated){
+    set(this, ITER, {o: String(iterated), i: 0});
+  // 21.1.5.2.1 %StringIteratorPrototype%.next()
+  }, function(){
+    var iter     = this[ITER]
+      , iterated = iter.o
+      , index    = iter.i
+      , point;
+    if(index >= iterated.length)return iterResult(1);
+    point = at.call(iterated, index);
+    iter.i += point.length;
+    return iterResult(0, point);
+  });
+  
   // 22.1.5.1 CreateArrayIterator Abstract Operation
-  defineStdIterators(Array, ARRAY, VALUE, function(iterated, kind){
+  defineStdIterators(Array, ARRAY, function(iterated, kind){
     set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
   }, function(){
@@ -1546,15 +1580,13 @@ $define(GLOBAL + BIND, {
     else if(kind == VALUE)value = iterated[index];
     else                  value = [index, iterated[index]];
     return iterResult(0, value);
-  });
+  }, VALUE);
   
-  // 21.1.3.27 String.prototype[@@iterator]() - SHAM, TODO
-  defineIterator(String, STRING, Iterators[ARRAY]);
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-  
+    
   // 23.1.5.1 CreateMapIterator Abstract Operation
-  defineStdIterators(Map, MAP, KEY+VALUE, function(iterated, kind){
+  defineStdIterators(Map, MAP, function(iterated, kind){
     var keys;
     if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
@@ -1575,10 +1607,10 @@ $define(GLOBAL + BIND, {
     else if(kind == VALUE)value = iterated.get(key);
     else                  value = [key, iterated.get(key)];
     return iterResult(0, value);
-  });
+  }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
-  defineStdIterators(Set, SET, VALUE, function(iterated, kind){
+  defineStdIterators(Set, SET, function(iterated, kind){
     var keys;
     if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
     else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
@@ -1593,7 +1625,7 @@ $define(GLOBAL + BIND, {
     if(!keys.length)return iterResult(1);
     key = keys.pop();
     return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
-  });
+  }, VALUE);
 }();
 
 /******************************************************************************

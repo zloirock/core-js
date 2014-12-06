@@ -9,7 +9,7 @@ test '$for' !->
   ok iter instanceof $for
   ok typeof! iter[iterator]! is 'Set Iterator'
   deepEqual <[1 2 3]>, from iter
-test '$for::filter' !->
+test '$for#filter' !->
   ok typeof $for::filter is \function, 'Is function'
   set = new Set <[1 2 3 2 1]>
   iter = $for set .filter (% 2)
@@ -19,7 +19,7 @@ test '$for::filter' !->
   $for [1] .filter ->
     ok @ is o
   , o = {}
-test '$for::map' !->
+test '$for#map' !->
   ok typeof $for::map is \function, 'Is function'
   set = new Set <[1 2 3 2 1]>
   iter = $for set .map (* 2)
@@ -29,7 +29,7 @@ test '$for::map' !->
   $for [1] .map ->
     ok @ is o
   , o = {}
-test '$for::array' !->
+test '$for#array' !->
   ok typeof $for::array is \function, 'Is function'
   set = new Set [1 2 3 2 1]
   deepEqual([[1 1], [2 2], [3 3]], $for set.entries! .array!)
@@ -38,7 +38,7 @@ test '$for::array' !->
   $for [1] .array ->
     ok @ is o
   , o = {}
-test '$for::of' !->
+test '$for#of' !->
   ok typeof $for::of is \function, 'Is function'
   set = new Set <[1 2 3 2 1]>
   counter1 = 0

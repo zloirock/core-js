@@ -158,21 +158,9 @@
   }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
-    codePointAt: function(pos){
-      var s = String(this)
-        , i = toInteger(pos)
-        , l = s.length
-        , a, b;
-      if(i < 0 || i >= l)return;
-      a = s.charCodeAt(i);
-      if(a < 0xd800 || a > 0xdbff || i + 1 === l)return a;
-      b = s.charCodeAt(i + 1);
-      return b < 0xdc00 || b > 0xdfff ? a : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
-    },
+    codePointAt: createPointAt(false),
     // String.prototype.includes(searchString, position = 0)
     includes: includes,
-    // Deprecated name of String#includes
-    contains: deprecated(includes, STRING+SHARP+CONTAINS, STRING+SHARP+INCLUDES),
     // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       var length = this.length
@@ -199,15 +187,14 @@
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
-      var O       = ES5Object(arrayLike)
+      var O       = Object(arrayLike)
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, that, 2) : undefined
         , index   = 0
         , length;
-      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done;){
+      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done; index++){
         result[index] = mapping ? f(step.value, index) : step.value;
-        index++;
       } else for(length = toLength(O.length); length > index; index++){
         result[index] = mapping ? f(O[index], index) : O[index];
       }
