@@ -378,7 +378,7 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 Arguments
-  #@@iterator() -> iterator
+  #@@iterator() -> iterator (sham, available only in core-js methods)
 ```
 [Example](http://goo.gl/3s27dC):
 ```javascript
@@ -419,7 +419,7 @@ for(var [key, val] of set.entries()){
   console.log(val);                             // => 1, 2, 3
 }
 ```
-Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5-.
+Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
 $for(iterable, entries) -> iterator ($for)
   #of(fn(value, key?), that) -> void
@@ -567,10 +567,11 @@ async function sleepError(time, msg){
 ```
 ### ECMAScript 7
 Module `es7`.
-`Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes).
-`String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at).
-`Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues).
-`RegExp.escape` [proposal](https://gist.github.com/kangax/9698100).
+* `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes)
+* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at)
+* `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues)
+* `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100)
+
 ```javascript
 Array
   #includes(var, from?) -> bool
@@ -956,7 +957,7 @@ Function
 Object
   #[_](key) -> boundFn
 ```
-`Fnction#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/ROgBsL):
+`Fnction#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
 var fn1 = log.part(1, 2);
 fn1(3, 4);    // => 1, 2, 3, 4
@@ -1150,10 +1151,10 @@ require('core-js/shim');
 ```
 ## Changelog
 **0.2.0** - *2014.12.06*
-  * added `es7`, `es7_refs` modules
-  * added `String#at`
-  * added real String Iterator, older versions used Array Iterator
-  * added abstract references support:
+  * added [`es7`](#ecmascript-7), [`es7_refs`](#ecmascript-7-abstract-references) modules
+  * added [`String#at`](#ecmascript-7)
+  * added real [String Iterator](#ecmascript-6-iterators), older versions used Array Iterator
+  * added [abstract references](#ecmascript-7-abstract-references) support:
     * added `Symbol.referenceGet`
     * added `Symbol.referenceSet`
     * added `Symbol.referenceDelete`
@@ -1169,18 +1170,18 @@ require('core-js/shim');
   * some fixes
 
 **0.1.5** - *2014.12.01* - **ES6**:
-  * added `Array#copyWithin`
-  * added `String#codePointAt`
-  * added `String.fromCodePoint`
+  * added [`Array#copyWithin`](#ecmascript-6-array)
+  * added [`String#codePointAt`](#ecmascript-6-string)
+  * added [`String.fromCodePoint`](#ecmascript-6-string)
 
 **0.1.4** - *2014.11.27*
-  * added `Dict.mapPairs`
+  * added [`Dict.mapPairs`](#dict)
 
 **0.1.3** - *2014.11.20* - **TC39 November meeting**:
   * `.contains` -> `.includes`
-    * `String#contains` -> `String#includes`
-    * `Array#contains` -> `Array#includes`
-    * `Dict.contains` -> `Dict.includes`
+    * `String#contains` -> [`String#includes`](#ecmascript-6-string)
+    * `Array#contains` -> [`Array#includes`](#ecmascript-7)
+    * `Dict.contains` -> [`Dict.includes`](#dict)
   * removed `WeakMap#clear`
   * removed `WeakSet#clear`
 
