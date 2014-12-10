@@ -3615,41 +3615,60 @@
 }).call(this);
 
 (function(){
-  var isFunction, that, req, toString$ = {}.toString;
+  var isFunction, G, eq, timeLimitedPromise, toString$ = {}.toString;
   QUnit.module('Immediate');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  that = (typeof global != 'undefined' && global !== null) && global || window;
-  asyncTest('setImmediate / clearImmediate', 6, function(){
-    var tmp1, id, tmp2, tmp3, tmp4;
-    ok(isFunction(that.setImmediate), 'setImmediate is function');
-    ok(isFunction(that.clearImmediate), 'clearImmediate is function');
-    id = setImmediate(function(){
-      tmp1 = 42;
-    });
-    ok(tmp1 === void 8, 'setImmediate is async');
-    setImmediate(function(){
-      tmp2 = true;
-    });
-    setImmediate(function(b, c){
-      tmp3 = b + c;
-    }, 'b', 'c');
-    clearImmediate(setImmediate(function(){
-      tmp4 = 42;
-    }));
-    setTimeout(function(){
-      ok(tmp2, 'setImmediate works');
-    }, 70);
-    setTimeout(function(){
-      ok(tmp3 === 'bc', 'setImmediate works with additional params');
-    }, 80);
-    setTimeout(function(){
-      ok(tmp4 === void 8, 'clearImmediate works');
-    }, 90);
-    setTimeout(start, 100);
+  G = (typeof global != 'undefined' && global !== null) && global || window;
+  eq = strictEqual;
+  timeLimitedPromise = function(time, fn){
+    return Promise.race([
+      new Promise(fn), new Promise(function(res, rej){
+        return setTimeout(rej, time);
+      })
+    ]);
+  };
+  test('setImmediate / clearImmediate', function(it){
+    var def;
+    it.expect(6);
+    ok(isFunction(G.setImmediate), 'setImmediate is function');
+    ok(isFunction(G.clearImmediate), 'clearImmediate is function');
+    timeLimitedPromise(1e3, function(res){
+      return setImmediate(function(){
+        def = 'a';
+        return res();
+      });
+    }).then(function(){
+      return ok(true, 'setImmediate works');
+    })['catch'](function(){
+      return ok(false, 'setImmediate works');
+    }).then(it.async());
+    eq(def, void 8, 'setImmediate is async');
+    timeLimitedPromise(1e3, function(res){
+      return setImmediate(function(a, b){
+        return res(a + b);
+      }, 'a', 'b');
+    }).then(function(it){
+      return eq(it, 'ab', 'setImmediate works with additional args');
+    })['catch'](function(){
+      return ok(false, 'setImmediate works with additional args');
+    }).then(it.async());
+    timeLimitedPromise(50, function(res){
+      return clearImmediate(setImmediate(res));
+    }).then(function(){
+      return ok(false, 'clearImmediate works');
+    })['catch'](function(){
+      return ok(true, 'clearImmediate works');
+    }).then(it.async());
   });
-  req = function(){
+  (function(it){
+    if (typeof window != 'undefined' && window !== null) {
+      return window.onload = it;
+    } else {
+      return it();
+    }
+  })(function(){
     return setTimeout(function(){
       var x, now, inc;
       x = 0;
@@ -3657,20 +3676,15 @@
       return (inc = function(){
         return setImmediate(function(){
           x = x + 1;
-          if (Date.now() - now < 1000) {
+          if (Date.now() - now < 5e3) {
             return inc();
           } else {
-            return console("setImmediate: " + x + " per second");
+            return console("setImmediate: " + x / 5 + " per second");
           }
         });
       })();
     }, 5e3);
-  };
-  if (typeof window != 'undefined' && window !== null) {
-    window.onload = req;
-  } else {
-    req();
-  }
+  });
 }).call(this);
 
 (function(){
@@ -3893,47 +3907,63 @@
 }).call(this);
 
 (function(){
-  var that, slice$ = [].slice;
+  var G, eq, timeLimitedPromise;
   QUnit.module('Timers');
-  that = (typeof global != 'undefined' && global !== null) && global || window;
-  asyncTest('setTimeout / clearTimeout', 2, function(){
-    that.setTimeout(function(b, c){
-      ok(b + c === 'bc');
-    }, 1, 'b', 'c');
-    clearTimeout(partialize$.apply(that, [
-      that.setTimeout, [
-        void 8, 1, function(){
-          ok(false);
+  G = (typeof global != 'undefined' && global !== null) && global || window;
+  eq = strictEqual;
+  timeLimitedPromise = function(time, fn){
+    return Promise.race([
+      new Promise(fn), new Promise(function(res, rej){
+        return setTimeout(rej, time);
+      })
+    ]);
+  };
+  test('setTimeout / clearTimeout', function(it){
+    it.expect(2);
+    timeLimitedPromise(1e3, function(res){
+      return G.setTimeout(function(a, b){
+        return res(a + b);
+      }, 10, 'a', 'b');
+    }).then(function(it){
+      return eq(it, 'ab', 'setTimeout works with additional args');
+    })['catch'](function(){
+      return ok(false, 'setTimeout works with additional args');
+    }).then(it.async());
+    timeLimitedPromise(50, function(res){
+      return clearTimeout(G.setTimeout(res, 10));
+    }).then(function(){
+      return ok(false, 'clearImmediate works with wraped setTimeout');
+    })['catch'](function(){
+      return ok(true, 'clearImmediate works with wraped setTimeout');
+    }).then(it.async());
+  });
+  test('setInterval / clearInterval', function(it){
+    var i;
+    it.expect(1);
+    i = 0;
+    timeLimitedPromise(5e3, function(res, rej){
+      var interval;
+      return interval = G.setInterval(function(a, b){
+        if (a + b !== 'ab' || i > 5) {
+          rej({
+            a: a,
+            b: b,
+            i: i
+          });
         }
-      ], [0]
-    ]));
-    that.setTimeout(function(){
-      ok(true);
-      start();
-    }, 20);
+        if (i++ === 5) {
+          clearInterval(interval);
+          return setTimeout(res, 30);
+        }
+      }, 4, 'a', 'b');
+    }).then(function(){
+      return ok(true, 'setInterval & clearInterval works with additional args');
+    })['catch'](function(arg$){
+      var ref$, a, b, i;
+      ref$ = arg$ != null
+        ? arg$
+        : {}, a = ref$.a, b = ref$.b, i = ref$.i;
+      return ok(false, "setInterval & clearInterval works with additional args: " + a + ", " + b + ", times: " + i);
+    }).then(it.async());
   });
-  asyncTest('setInterval / clearInterval', 6, function(){
-    var i, interval;
-    i = 1;
-    interval = that.setInterval(function(it){
-      ok(i < 4);
-      ok(it === 42);
-      if (i === 3) {
-        clearInterval(interval);
-        start();
-      }
-      i = i + 1;
-    }, 1, 42);
-  });
-  function partialize$(f, args, where){
-    var context = this;
-    return function(){
-      var params = slice$.call(arguments), i,
-          len = params.length, wlen = where.length,
-          ta = args ? args.concat() : [], tw = where ? where.concat() : [];
-      for(i = 0; i < len; ++i) { ta[tw[0]] = params[i]; tw.shift(); }
-      return len < wlen && len ?
-        partialize$.apply(context, [f, ta, tw]) : f.apply(context, ta);
-    };
-  }
 }).call(this);
