@@ -22,12 +22,12 @@ test 'setTimeout / clearTimeout' !->
 test 'setInterval / clearInterval' !->
   it.expect 1
   i = 0
-  timeLimitedPromise(5e3, (res, rej)-> interval = G.setInterval(((a, b)->
-    if a + b isnt \ab or i > 5 => rej {a, b, i}
-    if i++ is 5
+  timeLimitedPromise(1e4, (res, rej)-> interval = G.setInterval(((a, b)->
+    if a + b isnt \ab or i > 2 => rej {a, b, i}
+    if i++ is 2
       clearInterval interval
       setTimeout res, 30
-  ), 4 \a \b))
+  ), 5 \a \b))
     .then  -> ok on 'setInterval & clearInterval works with additional args'
     .catch ({a, b, i} = {})-> ok no "setInterval & clearInterval works with additional args: #a, #b, times: #i"
     .then it.async!

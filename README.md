@@ -1150,6 +1150,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.2.1** - *2014.12.12* - **Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)**
+
 **0.2.0** - *2014.12.06*
   * added [`es7`](#ecmascript-7), [`es7_refs`](#ecmascript-7-abstract-references) modules
   * added [`String#at`](#ecmascript-7)

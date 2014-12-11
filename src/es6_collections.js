@@ -31,9 +31,9 @@
       }});
     } else {
       var Native     = C
-        , test_key   = {}
         , collection = new C
-        , adder      = collection[ADDER_KEY];
+        , adder      = collection[ADDER_KEY]
+        , buggyChaining, buggyZero;
       // wrap to init collections from iterable
       if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
         C = function(iterable){
@@ -42,10 +42,14 @@
         }
         C[PROTOTYPE] = Native[PROTOTYPE];
       }
-      // fix .add & .set for chaining
-      if(framework && collection[ADDER_KEY](test_key, 1) !== collection){
+      buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
+      isWeak || collection.forEach(function(val, key){
+        if(same(key, -0))buggyZero = true;
+      });
+      // fix .add & .set for chaining & converting -0 key to +0
+      if(framework && (buggyChaining || buggyZero)){
         hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
-          adder.call(this, a, b);
+          adder.call(this, same(a, -0) ? 0 : a, b);
           return this;
         });
       }

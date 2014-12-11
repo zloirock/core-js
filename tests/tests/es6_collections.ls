@@ -1,5 +1,6 @@
 QUnit.module 'ES6 Collections'
 isFunction = -> typeof! it is \Function
+same = Object.is
 isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor} = Object
 that = global? && global || window
@@ -100,6 +101,14 @@ test 'Map#size' !->
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+test 'Map & -0' !->
+  map = new Map
+  map.set -0, 1
+  map.forEach (val, key)->
+    ok !same key, -0
+  map = new Map [[-0 1]]
+  map.forEach (val, key)->
+    ok !same key, -0
 test 'Map#@@toStringTag' !->
   ok Map::[Symbol.toStringTag] is \Map, 'Map::@@toStringTag is `Map`'
 
@@ -191,6 +200,14 @@ test 'Set#size' !->
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+test 'Set & -0' !->
+  map = new Set
+  map.add -0
+  map.forEach (key)->
+    ok !same key, -0
+  map = new Set [-0]
+  map.forEach (key)->
+    ok !same key, -0
 test 'Set#@@toStringTag' !->
   ok Set::[Symbol.toStringTag] is \Set, 'Set::@@toStringTag is `Set`'
 

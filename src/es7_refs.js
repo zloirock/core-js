@@ -10,14 +10,14 @@
     referenceDelete: REFERENCE_DELETE
   });
   
-  FunctionProto[REFERENCE_GET] || hidden(FunctionProto, REFERENCE_GET, returnThis);
+  hidden(FunctionProto, REFERENCE_GET, returnThis);
   
   function setMapMethods(Constructor){
     if(Constructor){
       var MapProto = Constructor[PROTOTYPE];
-      MapProto[REFERENCE_GET] || hidden(MapProto, REFERENCE_GET, MapProto.get);
-      MapProto[REFERENCE_SET] || hidden(MapProto, REFERENCE_SET, MapProto.set);
-      MapProto[REFERENCE_DELETE] || hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
+      hidden(MapProto, REFERENCE_GET, MapProto.get);
+      hidden(MapProto, REFERENCE_SET, MapProto.set);
+      hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
     }
   }
   setMapMethods(Map);

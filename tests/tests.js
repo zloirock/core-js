@@ -2586,11 +2586,12 @@
 }).call(this);
 
 (function(){
-  var isFunction, isNative, getOwnPropertyDescriptor, that, toString$ = {}.toString;
+  var isFunction, same, isNative, getOwnPropertyDescriptor, that, toString$ = {}.toString;
   QUnit.module('ES6 Collections');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
+  same = Object.is;
   isNative = function(it){
     return /\[native code\]\s*\}\s*$/.test(it);
   };
@@ -2717,6 +2718,18 @@
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
   });
+  test('Map & -0', function(){
+    var map;
+    map = new Map;
+    map.set(-0, 1);
+    map.forEach(function(val, key){
+      return ok(!same(key, -0));
+    });
+    map = new Map([[-0, 1]]);
+    map.forEach(function(val, key){
+      return ok(!same(key, -0));
+    });
+  });
   test('Map#@@toStringTag', function(){
     ok(Map.prototype[Symbol.toStringTag] === 'Map', 'Map::@@toStringTag is `Map`');
   });
@@ -2829,6 +2842,18 @@
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
     }
+  });
+  test('Set & -0', function(){
+    var map;
+    map = new Set;
+    map.add(-0);
+    map.forEach(function(key){
+      return ok(!same(key, -0));
+    });
+    map = new Set([-0]);
+    map.forEach(function(key){
+      return ok(!same(key, -0));
+    });
   });
   test('Set#@@toStringTag', function(){
     ok(Set.prototype[Symbol.toStringTag] === 'Set', 'Set::@@toStringTag is `Set`');
@@ -3941,21 +3966,21 @@
     var i;
     it.expect(1);
     i = 0;
-    timeLimitedPromise(5e3, function(res, rej){
+    timeLimitedPromise(1e4, function(res, rej){
       var interval;
       return interval = G.setInterval(function(a, b){
-        if (a + b !== 'ab' || i > 5) {
+        if (a + b !== 'ab' || i > 2) {
           rej({
             a: a,
             b: b,
             i: i
           });
         }
-        if (i++ === 5) {
+        if (i++ === 2) {
           clearInterval(interval);
           return setTimeout(res, 30);
         }
-      }, 4, 'a', 'b');
+      }, 5, 'a', 'b');
     }).then(function(){
       return ok(true, 'setInterval & clearInterval works with additional args');
     })['catch'](function(arg$){

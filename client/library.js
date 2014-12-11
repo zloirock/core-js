@@ -1,5 +1,5 @@
 /**
- * Core.js 0.2.0
+ * Core.js 0.2.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -1296,9 +1296,9 @@ $define(GLOBAL + BIND, {
       }});
     } else {
       var Native     = C
-        , test_key   = {}
         , collection = new C
-        , adder      = collection[ADDER_KEY];
+        , adder      = collection[ADDER_KEY]
+        , buggyChaining, buggyZero;
       // wrap to init collections from iterable
       if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
         C = function(iterable){
@@ -1307,10 +1307,14 @@ $define(GLOBAL + BIND, {
         }
         C[PROTOTYPE] = Native[PROTOTYPE];
       }
-      // fix .add & .set for chaining
-      if(framework && collection[ADDER_KEY](test_key, 1) !== collection){
+      buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
+      isWeak || collection.forEach(function(val, key){
+        if(same(key, -0))buggyZero = true;
+      });
+      // fix .add & .set for chaining & converting -0 key to +0
+      if(framework && (buggyChaining || buggyZero)){
         hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
-          adder.call(this, a, b);
+          adder.call(this, same(a, -0) ? 0 : a, b);
           return this;
         });
       }
@@ -1493,14 +1497,14 @@ $define(GLOBAL + BIND, {
     referenceDelete: REFERENCE_DELETE
   });
   
-  FunctionProto[REFERENCE_GET] || hidden(FunctionProto, REFERENCE_GET, returnThis);
+  hidden(FunctionProto, REFERENCE_GET, returnThis);
   
   function setMapMethods(Constructor){
     if(Constructor){
       var MapProto = Constructor[PROTOTYPE];
-      MapProto[REFERENCE_GET] || hidden(MapProto, REFERENCE_GET, MapProto.get);
-      MapProto[REFERENCE_SET] || hidden(MapProto, REFERENCE_SET, MapProto.set);
-      MapProto[REFERENCE_DELETE] || hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
+      hidden(MapProto, REFERENCE_GET, MapProto.get);
+      hidden(MapProto, REFERENCE_SET, MapProto.set);
+      hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
     }
   }
   setMapMethods(Map);
