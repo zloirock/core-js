@@ -408,6 +408,13 @@ test 'String.fromCodePoint' !->
   while --counter >= 0 => result.push 0xFFFF + 1 # two code units per symbol
   fromCodePoint.apply null result # must not throw
 
+test 'String.raw' !->
+  {raw} = String
+  ok isFunction(raw), 'Is function'
+  eq raw({raw: ['Hi\\n', '!']} , \Bob), 'Hi\\nBob!', 'raw is array'
+  eq raw({raw: \test}, 0, 1, 2), 't0e1s2t', 'raw is string'
+  eq raw({raw: \test}, 0), 't0est', 'lacks substituting'
+
 test 'String#codePointAt' !->
   ok isFunction(String::codePointAt), 'Is function'
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
@@ -563,3 +570,12 @@ test 'Array#findIndex' !->
     eq that, arr
   , ctx = {}
   eq [1 3 NaN, 42 {}]findIndex((is 42)), 3
+if \flags of RegExp:: => test 'RegExp#flags' !->
+  eq /./g.flags, \g, '/./g.flags is "g"'
+  eq /./.flags, '', '/./.flags is ""'
+  eq RegExp('.', \gim).flags, \gim, 'RegExp(".", "gim").flags is "gim"'
+  eq RegExp('.').flags, '', 'RegExp(".").flags is ""'
+  eq /./gim.flags, \gim, '/./gim.flags is "gim"'
+  eq /./gmi.flags, \gim, '/./gmi.flags is "gim"'
+  eq /./mig.flags, \gim, '/./mig.flags is "gim"'
+  eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'

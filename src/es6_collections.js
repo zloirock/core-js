@@ -43,7 +43,7 @@
         C[PROTOTYPE] = Native[PROTOTYPE];
       }
       buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
-      isWeak || collection.forEach(function(val, key){
+      isWeak || collection[FOR_EACH](function(val, key){
         if(same(key, -0))buggyZero = true;
       });
       // fix .add & .set for chaining & converting -0 key to +0
@@ -159,23 +159,23 @@
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
   }
   var weakCollectionMethods = {
-    // 23.3.3.3 WeakMap.prototype.delete(key)
-    // 23.4.3.4 WeakSet.prototype.delete(value)
+    // 23.3.3.2 WeakMap.prototype.delete(key)
+    // 23.4.3.3 WeakSet.prototype.delete(value)
     'delete': function(key){
       return weakCollectionHas.call(this, key) && delete key[WEAKDATA][this[WEAKID]];
     },
-    // 23.3.3.5 WeakMap.prototype.has(key)
-    // 23.4.3.5 WeakSet.prototype.has(value)
+    // 23.3.3.4 WeakMap.prototype.has(key)
+    // 23.4.3.4 WeakSet.prototype.has(value)
     has: weakCollectionHas
   };
   
   // 23.3 WeakMap Objects
   WeakMap = getCollection(WeakMap, WEAKMAP, {
-    // 23.3.3.4 WeakMap.prototype.get(key)
+    // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
     },
-    // 23.3.3.6 WeakMap.prototype.set(key, value)
+    // 23.3.3.5 WeakMap.prototype.set(key, value)
     set: function(key, value){
       getWeakData(assertObject(key))[this[WEAKID]] = value;
       return this;

@@ -139,17 +139,20 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
-#### ECMAScript 6 String
+#### ECMAScript 6 String & RegExp
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
+  .raw({raw}, ...substitutions) -> str
   #includes(str, from?) -> bool
   #startsWith(str, from?) -> bool
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
+RegExp
+  #flags -> str (getter, IE9+)
 ```
-[Example](http://goo.gl/uhvQG4):
+[Example](http://goo.gl/gbP8Io):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -162,6 +165,13 @@ String
 
 '𠮷'.codePointAt(0); // => 134071
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
+
+var name = 'Bob';
+String.raw`Hi\n${name}!`;             // => 'Hi\\nBob!'
+String.raw({ raw: 'test' }, 0, 1, 2); // => // 't0e1s2t'
+
+/foo/.flags;    // => ''
+/foo/gim.flags; // => 'gim'
 ```
 #### ECMAScript 6 Number & Math
 ```javascript
@@ -1150,7 +1160,11 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
-**0.2.1** - *2014.12.12* - **Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)**
+**0.2.2** - *2014.12.13* - ES6:
+  * added [`RegExp#flags`](#ecmascript-6-string--regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
+  * added [`String.raw`](#ecmascript-6-string--regexp)
+
+**0.2.1** - *2014.12.12* - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
 
 **0.2.0** - *2014.12.06*
   * added [`es7`](#ecmascript-7), [`es7_refs`](#ecmascript-7-abstract-references) modules
@@ -1171,22 +1185,22 @@ require('core-js/shim');
   * removed deprecated `.contains` methods
   * some fixes
 
-**0.1.5** - *2014.12.01* - **ES6**:
+**0.1.5** - *2014.12.01* - ES6:
   * added [`Array#copyWithin`](#ecmascript-6-array)
-  * added [`String#codePointAt`](#ecmascript-6-string)
-  * added [`String.fromCodePoint`](#ecmascript-6-string)
+  * added [`String#codePointAt`](#ecmascript-6-string--regexp)
+  * added [`String.fromCodePoint`](#ecmascript-6-string--regexp)
 
 **0.1.4** - *2014.11.27*
   * added [`Dict.mapPairs`](#dict)
 
-**0.1.3** - *2014.11.20* - **TC39 November meeting**:
+**0.1.3** - *2014.11.20* - TC39 November meeting:
   * `.contains` -> `.includes`
-    * `String#contains` -> [`String#includes`](#ecmascript-6-string)
+    * `String#contains` -> [`String#includes`](#ecmascript-6-string--regexp)
     * `Array#contains` -> [`Array#includes`](#ecmascript-7)
     * `Dict.contains` -> [`Dict.includes`](#dict)
   * removed `WeakMap#clear`
   * removed `WeakSet#clear`
 
-**0.1.2** - *2014.11.19* - **Map & Set bug fix**
+**0.1.2** - *2014.11.19* - Map & Set bug fix
 
-**0.1.1** - *2014.11.18* - **Public release**
+**0.1.1** - *2014.11.18* - Public release

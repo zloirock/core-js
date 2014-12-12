@@ -2391,6 +2391,20 @@
     }
     fromCodePoint.apply(null, result);
   });
+  test('String.raw', function(){
+    var raw;
+    raw = String.raw;
+    ok(isFunction(raw), 'Is function');
+    eq(raw({
+      raw: ['Hi\\n', '!']
+    }, 'Bob'), 'Hi\\nBob!', 'raw is array');
+    eq(raw({
+      raw: 'test'
+    }, 0, 1, 2), 't0e1s2t', 'raw is string');
+    eq(raw({
+      raw: 'test'
+    }, 0), 't0est', 'lacks substituting');
+  });
   test('String#codePointAt', function(){
     ok(isFunction(String.prototype.codePointAt), 'Is function');
     eq('abc\uD834\uDF06def'.codePointAt(''), 0x61);
@@ -2583,6 +2597,18 @@
       return it === 42;
     })), 3);
   });
+  if ('flags' in RegExp.prototype) {
+    test('RegExp#flags', function(){
+      eq(/./g.flags, 'g', '/./g.flags is "g"');
+      eq(/./.flags, '', '/./.flags is ""');
+      eq(RegExp('.', 'gim').flags, 'gim', 'RegExp(".", "gim").flags is "gim"');
+      eq(RegExp('.').flags, '', 'RegExp(".").flags is ""');
+      eq(/./gim.flags, 'gim', '/./gim.flags is "gim"');
+      eq(/./gmi.flags, 'gim', '/./gmi.flags is "gim"');
+      eq(/./mig.flags, 'gim', '/./mig.flags is "gim"');
+      eq(/./mgi.flags, 'gim', '/./mgi.flags is "gim"');
+    });
+  }
 }).call(this);
 
 (function(){

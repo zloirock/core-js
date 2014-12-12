@@ -828,6 +828,7 @@ $define(GLOBAL + FORCED, {global: global});
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
   }
+  
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -852,6 +853,7 @@ $define(GLOBAL + FORCED, {global: global});
     // 20.1.2.13 Number.parseInt(string, radix)
     parseInt: parseInt
   });
+  
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
@@ -931,38 +933,54 @@ $define(GLOBAL + FORCED, {global: global});
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     fromCodePoint: function(){
-      for(var r = [], i = 0, l = arguments.length, c; i < l; i++){
-        c = +arguments[i];
-        if(toIndex(c, 0x10ffff) !== c)throw RangeError();
-        r.push(c < 0x10000 ? fcc(c) : fcc(((c -= 0x10000) >> 10) + 0xd800) + fcc(c % 0x400 + 0xdc00));
-      } return r.join('');
+      var res = []
+        , len = arguments.length
+        , i   = 0
+        , code
+      while(len > i){
+        code = +arguments[i++];
+        if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
+        res.push(code < 0x10000
+          ? fcc(code)
+          : fcc(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
+        );
+      } return res.join('');
+    },
+    // 21.1.2.4 String.raw(callSite, ...substitutions)
+    raw: function(callSite){
+      var raw = ES5Object(callSite.raw)
+        , len = toLength(raw.length)
+        , sln = arguments.length
+        , res = []
+        , i   = 0;
+      while(len > i){
+        res.push(String(raw[i++]));
+        if(i < sln)res.push(String(arguments[i]));
+      } return res.join('');
     }
-  // 21.1.2.4 String.raw(callSite, ...substitutions)
-  // TODO
   });
-  function includes(searchString, position /* = 0 */){
-    return !!~String(this).indexOf(searchString, position);
-  }
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     codePointAt: createPointAt(false),
-    // String.prototype.includes(searchString, position = 0)
-    includes: includes,
-    // 21.1.3.7 String.prototype.endsWith(searchString [, endPosition])
+    // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
-      var length = this.length
-        , end    = endPosition === undefined ? length : min(toLength(endPosition), length);
+      var len = this.length
+        , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
       return String(this).slice(end - searchString.length, end) === searchString;
     },
+    // 21.1.3.7 String.prototype.includes(searchString, position = 0)
+    includes: function(searchString, position /* = 0 */){
+      return !!~String(this).indexOf(searchString, position);
+    },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var str    = String(this)
-        , result = ''
-        , n      = toInteger(count);
+      var str = String(this)
+        , res = ''
+        , n   = toInteger(count);
       if(0 > n)throw RangeError("Count can't be negative");
-      for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)result += str;
-      return result;
+      for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
+      return res;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
@@ -971,6 +989,7 @@ $define(GLOBAL + FORCED, {global: global});
       return String(this).slice(index, index + searchString.length) === searchString;
     }
   });
+  
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
@@ -1033,14 +1052,21 @@ $define(GLOBAL + FORCED, {global: global});
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });
+  
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
   
-  // 19.1.3.6 Object.prototype.toString()
   if(framework){
-    tmp[SYMBOL_TAG] = 'x';
-    if(cof(tmp) != 'x')hidden(ObjectProto, TO_STRING, function(){
+    // 19.1.3.6 Object.prototype.toString()
+    tmp[SYMBOL_TAG] = DOT;
+    if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
       return '[object ' + classof(this) + ']';
+    });
+    
+    // 21.2.5.3 get RegExp.prototype.flags()
+    if(/./g.flags != 'g')defineProperty(RegExp[PROTOTYPE], 'flags', {
+      configurable: true,
+      get: createReplacer(/^.*\/(\w*)$/, '$1')
     });
   }
 }(isFinite, {});
@@ -1308,7 +1334,7 @@ $define(GLOBAL + BIND, {
         C[PROTOTYPE] = Native[PROTOTYPE];
       }
       buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
-      isWeak || collection.forEach(function(val, key){
+      isWeak || collection[FOR_EACH](function(val, key){
         if(same(key, -0))buggyZero = true;
       });
       // fix .add & .set for chaining & converting -0 key to +0
@@ -1424,23 +1450,23 @@ $define(GLOBAL + BIND, {
     return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
   }
   var weakCollectionMethods = {
-    // 23.3.3.3 WeakMap.prototype.delete(key)
-    // 23.4.3.4 WeakSet.prototype.delete(value)
+    // 23.3.3.2 WeakMap.prototype.delete(key)
+    // 23.4.3.3 WeakSet.prototype.delete(value)
     'delete': function(key){
       return weakCollectionHas.call(this, key) && delete key[WEAKDATA][this[WEAKID]];
     },
-    // 23.3.3.5 WeakMap.prototype.has(key)
-    // 23.4.3.5 WeakSet.prototype.has(value)
+    // 23.3.3.4 WeakMap.prototype.has(key)
+    // 23.4.3.4 WeakSet.prototype.has(value)
     has: weakCollectionHas
   };
   
   // 23.3 WeakMap Objects
   WeakMap = getCollection(WeakMap, WEAKMAP, {
-    // 23.3.3.4 WeakMap.prototype.get(key)
+    // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
     },
-    // 23.3.3.6 WeakMap.prototype.set(key, value)
+    // 23.3.3.5 WeakMap.prototype.set(key, value)
     set: function(key, value){
       getWeakData(assertObject(key))[this[WEAKID]] = value;
       return this;
