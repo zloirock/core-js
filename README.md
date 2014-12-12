@@ -167,8 +167,8 @@ RegExp
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 
 var name = 'Bob';
-String.raw`Hi\n${name}!`;             // => 'Hi\\nBob!'
-String.raw({ raw: 'test' }, 0, 1, 2); // => // 't0e1s2t'
+String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!'
+String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
 
 /foo/.flags;    // => ''
 /foo/gim.flags; // => 'gim'
@@ -1193,13 +1193,13 @@ require('core-js/shim');
 **0.1.4** - *2014.11.27*
   * added [`Dict.mapPairs`](#dict)
 
-**0.1.3** - *2014.11.20* - TC39 November meeting:
-  * `.contains` -> `.includes`
+**0.1.3** - *2014.11.20* - [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
+  * [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
     * `String#contains` -> [`String#includes`](#ecmascript-6-string--regexp)
     * `Array#contains` -> [`Array#includes`](#ecmascript-7)
     * `Dict.contains` -> [`Dict.includes`](#dict)
-  * removed `WeakMap#clear`
-  * removed `WeakSet#clear`
+  * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
+  * [removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 
 **0.1.2** - *2014.11.19* - Map & Set bug fix
 
