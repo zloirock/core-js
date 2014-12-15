@@ -377,23 +377,24 @@ function createDefiner(bitmap){
 function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
+function getWellKnownSymbol(name, setter){
+  return (Symbol && Symbol[name]) || (setter ? Symbol : safeSymbol)(SYMBOL + DOT + name);
+}
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
   , sid    = 0
   , hidden = createDefiner(1)
-  , symbol = Symbol || uid
-  , set    = Symbol ? simpleSet : hidden;
+  , set    = Symbol ? simpleSet : hidden
+  , safeSymbol = Symbol || uid;
 
 // Iterators
 var ITERATOR = 'iterator'
-  , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
-      ? Symbol[ITERATOR] : uid(SYMBOL + DOT + ITERATOR)
-  , SYMBOL_TAG = Symbol && TO_STRING_TAG in Symbol
-      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + DOT + TO_STRING_TAG)
+  , SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
+  , SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG)
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
-  , ITER  = symbol('iter')
-  , SHIM  = symbol('shim')
+  , ITER  = safeSymbol('iter')
+  , SHIM  = safeSymbol('shim')
   , KEY   = 1
   , VALUE = 2
   , Iterators = {}

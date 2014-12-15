@@ -1,8 +1,8 @@
 // https://github.com/zenparsing/es-abstract-refs
 !function(REFERENCE){
-  REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
-  var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)
-    , REFERENCE_DELETE = Symbol(SYMBOL+DOT+REFERENCE+'Delete');
+  REFERENCE_GET = getWellKnownSymbol(REFERENCE+'Get', true);
+  var REFERENCE_SET = getWellKnownSymbol(REFERENCE+SET, true)
+    , REFERENCE_DELETE = getWellKnownSymbol(REFERENCE+'Delete', true);
   
   $define(STATIC, SYMBOL, {
     referenceGet: REFERENCE_GET,

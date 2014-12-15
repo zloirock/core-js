@@ -57,4 +57,4 @@
   $for.getIterator = getIterator;
   
   $define(GLOBAL + FORCED, {$for: $for});
-}('entries', symbol('fn'));
+}('entries', safeSymbol('fn'));

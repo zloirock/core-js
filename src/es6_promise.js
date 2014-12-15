@@ -130,7 +130,7 @@
           resolve(x);
         });
     });
-  }(nextTick || setImmediate, symbol('def'));
+  }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(global[PROMISE]);

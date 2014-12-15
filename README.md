@@ -75,7 +75,7 @@ Date
 
 ### ECMAScript 6
 Module `es6`. [Symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators) and [promises](#ecmascript-6-promises) in separate modules.
-#### ECMAScript 6 Object
+#### ECMAScript 6: Object
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -105,7 +105,7 @@ var O = {};
 O[Symbol.toStringTag] = 'Foo';
 '' + O; // => '[object Foo]'
 ```
-#### ECMAScript 6 Array
+#### ECMAScript 6: Array
 ```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
@@ -139,7 +139,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
-#### ECMAScript 6 String & RegExp
+#### ECMAScript 6: String & RegExp
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -173,7 +173,7 @@ String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
 /foo/.flags;    // => ''
 /foo/gim.flags; // => 'gim'
 ```
-#### ECMAScript 6 Number & Math
+#### ECMAScript 6: Number & Math
 ```javascript
 Number
   .EPSILON -> num
@@ -208,10 +208,21 @@ Math
 Module `es6_symbol`.
 ```javascript
 Symbol(description?) -> symbol
+  .hasInstance -> @@hasInstance
+  .isConcatSpreadable -> @@isConcatSpreadable
+  .iterator -> @@iterator
+  .match -> @@match
+  .replace -> @@replace
+  .search -> @@search
+  .species -> @@species
+  .split -> @@split
+  .toPrimitive -> @@toPrimitive
+  .toStringTag -> @@toStringTag
+  .unscopables -> @@unscopables
   .for(key) -> symbol
   .keyFor(symbol) -> key
-  .iterator -> @@iterator
-  .toStringTag -> @@toStringTag
+  .useSimple() -> void
+  .useSetter() -> void
   .pure(description?) -> symbol || string
   .set(object, key, val) -> object
 Reflect -> object
@@ -249,7 +260,25 @@ Object.defineProperty(O, 'b', {value: 2});
 O[Symbol('c')] = 3;
 Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 ```
+By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/gbgULA):
+```javascript
+var s1 = Symbol('s1')
+  , o1 = {};
+o1[s1] = true;
+for(var key in o1)log(key); // nothing
 
+Symbol.simple();
+var s2 = Symbol('s2')
+  , o2 = {};
+o2[s2] = true;
+for(var key in o2)log(key); // => 'Symbol(s2)_t.qamkg9f3q', w/o native Symbol
+
+Symbol.setter();
+var s3 = Symbol('s3')
+  , o3 = {};
+o3[s3] = true;
+for(var key in o3)log(key); // nothing
+```
 ### ECMAScript 6: Collections
 Module `es6_collections`, iterators for them are defined in [es6_iterators](#ecmascript-6-iterators).
 
@@ -643,7 +672,7 @@ var Person = (NAME => class {
 
 var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key);
+for(var key in person)console.log(key); // => only 'getName'
 ```
 Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
@@ -835,7 +864,7 @@ console.log(vector.xy);  // => 15.811388300841896
 console.log(vector.xyz); // => 25.495097567963924
 ```
 ### Dict
-Module `dict`.
+Module `dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```javascript
 [new] Dict(itarable (entries) | object ?) -> dict
   .isDict(var) -> bool
@@ -967,7 +996,7 @@ Function
 Object
   #[_](key) -> boundFn
 ```
-`Fnction#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
+`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
 var fn1 = log.part(1, 2);
 fn1(3, 4);    // => 1, 2, 3, 4
@@ -1006,7 +1035,7 @@ Method `Function#only` limits number of arguments. [Example](http://goo.gl/ROgBs
 [1, 2, 3].forEach(log.only(1)); // => 1, 2, 3
 ```
 ### Date formatting
-Module `date`.
+Module `date`. Much more simple and compact (~60 lines with `en` & `ru` locales) than [Intl](https://github.com/andyearnshaw/Intl.js) or [Moment.js](http://momentjs.com/). Use them if you need extended work with `Date`.
 ```javascript
 Date
   #format(str, key?) -> str
@@ -1160,6 +1189,21 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.2.3** - *2014.12.15* - [Symbols](#ecmascript-6-symbols):
+  * added option to disable addition setter to `Object.prototype` for Symbol polyfill:
+    * added `Symbol.useSimple`
+    * added `Symbol.useSetter`
+  * added cap for well-known Symbols:
+    * added `Symbol.hasInstance`
+    * added `Symbol.isConcatSpreadable`
+    * added `Symbol.match`
+    * added `Symbol.replace`
+    * added `Symbol.search`
+    * added `Symbol.species`
+    * added `Symbol.split`
+    * added `Symbol.toPrimitive`
+    * added `Symbol.unscopables`
+
 **0.2.2** - *2014.12.13* - ES6:
   * added [`RegExp#flags`](#ecmascript-6-string--regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
   * added [`String.raw`](#ecmascript-6-string--regexp)

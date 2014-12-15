@@ -111,4 +111,4 @@
   });
   
   $define(GLOBAL + FORCED, {Iterator: Iterator});
-}('Wrapper', symbol('entries'), symbol('fn'), symbol('i'));
+}('Wrapper', safeSymbol('entries'), safeSymbol('fn'), safeSymbol('i'));

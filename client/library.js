@@ -1,5 +1,5 @@
 /**
- * Core.js 0.2.2
+ * Core.js 0.2.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -390,23 +390,24 @@ function createDefiner(bitmap){
 function uid(key){
   return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
 }
+function getWellKnownSymbol(name, setter){
+  return (Symbol && Symbol[name]) || (setter ? Symbol : safeSymbol)(SYMBOL + DOT + name);
+}
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
   , sid    = 0
   , hidden = createDefiner(1)
-  , symbol = Symbol || uid
-  , set    = Symbol ? simpleSet : hidden;
+  , set    = Symbol ? simpleSet : hidden
+  , safeSymbol = Symbol || uid;
 
 // Iterators
 var ITERATOR = 'iterator'
-  , SYMBOL_ITERATOR = Symbol && ITERATOR in Symbol
-      ? Symbol[ITERATOR] : uid(SYMBOL + DOT + ITERATOR)
-  , SYMBOL_TAG = Symbol && TO_STRING_TAG in Symbol
-      ? Symbol[TO_STRING_TAG] : uid(SYMBOL + DOT + TO_STRING_TAG)
+  , SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
+  , SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG)
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
-  , ITER  = symbol('iter')
-  , SHIM  = symbol('shim')
+  , ITER  = safeSymbol('iter')
+  , SHIM  = safeSymbol('shim')
   , KEY   = 1
   , VALUE = 2
   , Iterators = {}
@@ -726,7 +727,7 @@ if(!NODE || framework){
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}('propertyIsEnumerable', Function(), classof, symbol(PROTOTYPE));
+}('propertyIsEnumerable', Function(), classof, safeSymbol(PROTOTYPE));
 
 /******************************************************************************
  * Module : global                                                            *
@@ -739,13 +740,13 @@ $define(GLOBAL + FORCED, {global: global});
  ******************************************************************************/
 
 // ECMAScript 6 symbols shim
-!function(TAG, SymbolRegistry){
+!function(TAG, SymbolRegistry, setter){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
       assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
-      defineProperty(ObjectProto, tag, {
+      setter && defineProperty(ObjectProto, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
@@ -758,28 +759,46 @@ $define(GLOBAL + FORCED, {global: global});
     });
   }
   $define(GLOBAL + WRAP, {Symbol: Symbol});
-  $define(STATIC, SYMBOL, {
-    // 19.4.2.2 Symbol.for(key)
+  
+  var symbolStatics = {
+    // 19.4.2.1 Symbol.for(key)
     'for': function(key){
       return has(SymbolRegistry, key += '')
         ? SymbolRegistry[key]
         : SymbolRegistry[key] = Symbol(key);
     },
-    // 19.4.2.6 Symbol.iterator
+    // 19.4.2.4 Symbol.iterator
     iterator: SYMBOL_ITERATOR,
-    // 19.4.2.7 Symbol.keyFor(sym)
+    // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
-    // 19.4.2.10 Symbol.toStringTag
-    toStringTag: SYMBOL_TAG = TO_STRING_TAG in Symbol
-      ? Symbol[TO_STRING_TAG]
-      : Symbol(SYMBOL + DOT + TO_STRING_TAG),
-    pure: symbol,
-    set: set
-  });
+    // 19.4.2.13 Symbol.toStringTag
+    toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
+    pure: safeSymbol,
+    set: set,
+    useSetter: function(){setter = true},
+    useSimple: function(){setter = false}
+  };
+  // 19.4.2.2 Symbol.hasInstance
+  // 19.4.2.3 Symbol.isConcatSpreadable
+  // 19.4.2.6 Symbol.match
+  // 19.4.2.8 Symbol.replace
+  // 19.4.2.9 Symbol.search
+  // 19.4.2.10 Symbol.species
+  // 19.4.2.11 Symbol.split
+  // 19.4.2.12 Symbol.toPrimitive
+  // 19.4.2.14 Symbol.unscopables
+  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,' +
+    'species,split,toPrimitive,unscopables'), function(it){
+      symbolStatics[it] = getWellKnownSymbol(it);
+    }
+  );
+  $define(STATIC, SYMBOL, symbolStatics);
+  
   setToStringTag(Symbol, SYMBOL);
+  
   // 26.1.11 Reflect.ownKeys (target)
   $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
-}(symbol('tag'), {});
+}(safeSymbol('tag'), {}, true);
 
 /******************************************************************************
  * Module : es6                                                               *
@@ -1280,7 +1299,7 @@ $define(GLOBAL + BIND, {
           resolve(x);
         });
     });
-  }(nextTick || setImmediate, symbol('def'));
+  }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(global[PROMISE]);
@@ -1291,12 +1310,12 @@ $define(GLOBAL + BIND, {
 
 // ECMAScript 6 collections shim
 !function(){
-  var KEYS     = COLLECTION_KEYS = symbol('keys')
-    , VALUES   = symbol('values')
-    , STOREID  = symbol('storeId')
-    , WEAKDATA = symbol('weakData')
-    , WEAKID   = symbol('weakId')
-    , SIZE     = DESC ? symbol('size') : 'size'
+  var KEYS     = COLLECTION_KEYS = safeSymbol('keys')
+    , VALUES   = safeSymbol('values')
+    , STOREID  = safeSymbol('storeId')
+    , WEAKDATA = safeSymbol('weakData')
+    , WEAKID   = safeSymbol('weakId')
+    , SIZE     = DESC ? safeSymbol('size') : 'size'
     , uid      = 0
     , wid      = 0;
   
@@ -1513,9 +1532,9 @@ $define(GLOBAL + BIND, {
 
 // https://github.com/zenparsing/es-abstract-refs
 !function(REFERENCE){
-  REFERENCE_GET = Symbol(SYMBOL+DOT+REFERENCE+'Get');
-  var REFERENCE_SET = Symbol(SYMBOL+DOT+REFERENCE+SET)
-    , REFERENCE_DELETE = Symbol(SYMBOL+DOT+REFERENCE+'Delete');
+  REFERENCE_GET = getWellKnownSymbol(REFERENCE+'Get', true);
+  var REFERENCE_SET = getWellKnownSymbol(REFERENCE+SET, true)
+    , REFERENCE_DELETE = getWellKnownSymbol(REFERENCE+'Delete', true);
   
   $define(STATIC, SYMBOL, {
     referenceGet: REFERENCE_GET,
@@ -1747,7 +1766,7 @@ $define(GLOBAL + BIND, {
   $for.getIterator = getIterator;
   
   $define(GLOBAL + FORCED, {$for: $for});
-}('entries', symbol('fn'));
+}('entries', safeSymbol('fn'));
 
 /******************************************************************************
  * Module : es6_iterators                                                     *

@@ -16,10 +16,9 @@ test 'Symbol' !->
     count = 0
     for i of O => count++
     ok count is 0, 'object[Symbol()] is not enumerable'
-test '.iterator' !->
-  ok \iterator of Symbol, 'iterator in Symbol'
-test '.toStringTag' !->
-  ok \toStringTag of Symbol, 'toStringTag in Symbol'
+test 'Well-known Symbols' !->
+  for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
+    ok .. of Symbol, "Symbol.#{..} available"
 test '#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 test '.pure' !->

@@ -3376,11 +3376,12 @@
       ok(count === 0, 'object[Symbol()] is not enumerable');
     }
   });
-  test('.iterator', function(){
-    ok('iterator' in Symbol, 'iterator in Symbol');
-  });
-  test('.toStringTag', function(){
-    ok('toStringTag' in Symbol, 'toStringTag in Symbol');
+  test('Well-known Symbols', function(){
+    var i$, x$, ref$, len$;
+    for (i$ = 0, len$ = (ref$ = ['hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables']).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      ok(x$ in Symbol, "Symbol." + x$ + " available");
+    }
   });
   test('#@@toStringTag', function(){
     ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');

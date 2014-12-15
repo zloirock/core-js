@@ -1,11 +1,11 @@
 // ECMAScript 6 collections shim
 !function(){
-  var KEYS     = COLLECTION_KEYS = symbol('keys')
-    , VALUES   = symbol('values')
-    , STOREID  = symbol('storeId')
-    , WEAKDATA = symbol('weakData')
-    , WEAKID   = symbol('weakId')
-    , SIZE     = DESC ? symbol('size') : 'size'
+  var KEYS     = COLLECTION_KEYS = safeSymbol('keys')
+    , VALUES   = safeSymbol('values')
+    , STOREID  = safeSymbol('storeId')
+    , WEAKDATA = safeSymbol('weakData')
+    , WEAKID   = safeSymbol('weakId')
+    , SIZE     = DESC ? safeSymbol('size') : 'size'
     , uid      = 0
     , wid      = 0;
   
