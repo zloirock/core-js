@@ -260,20 +260,20 @@ Object.defineProperty(O, 'b', {value: 2});
 O[Symbol('c')] = 3;
 Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 ```
-By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/gbgULA):
+By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/bnqYk9):
 ```javascript
 var s1 = Symbol('s1')
   , o1 = {};
 o1[s1] = true;
 for(var key in o1)log(key); // nothing
 
-Symbol.simple();
+Symbol.useSimple();
 var s2 = Symbol('s2')
   , o2 = {};
 o2[s2] = true;
 for(var key in o2)log(key); // => 'Symbol(s2)_t.qamkg9f3q', w/o native Symbol
 
-Symbol.setter();
+Symbol.useSetter();
 var s3 = Symbol('s3')
   , o3 = {};
 o3[s3] = true;
