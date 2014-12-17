@@ -1,12 +1,18 @@
+'use strict'
+
 QUnit.module \ES7
+
+strict = typeof (-> @).call(void) is \undefined
+
 isFunction = -> typeof! it is \Function
+
 eq = strictEqual
 deq = deepEqual
 {create, assign} = Object
 
 test 'Array#includes' !->
   ok isFunction(Array::includes), 'Is function'
-  arr = [1 2 3 -0 NaN, o = {}]
+  arr = [1 2 3 -0 o = {}]
   ok arr.includes 1
   ok arr.includes -0
   ok arr.includes 0
@@ -16,8 +22,11 @@ test 'Array#includes' !->
   ok !arr.includes {}
   ok Array(1)includes void
   ok [NaN].includes(NaN)
+  if strict
+    throws (-> Array::includes.call null, 0), TypeError
+    throws (-> Array::includes.call void, 0), TypeError
 
-test 'String#at' ->
+test 'String#at' !->
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol
   eq 'abc\uD834\uDF06def'at(-Infinity), ''
@@ -101,6 +110,10 @@ test 'String#at' ->
   eq at.call(42 0), \4
   eq at.call(42 1), \2
   eq at.call({toString: -> \abc}, 2), \c
+  
+  if strict
+    throws (-> String::at.call null, 0), TypeError
+    throws (-> String::at.call void, 0), TypeError
 
 test 'Object.values' !->
   {values} = Object

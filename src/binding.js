@@ -1,4 +1,7 @@
 !function(_, toLocaleString){
+  // Placeholder
+  core._ = path._ = path._ || {};
+
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.2.3
+ * Core.js 0.2.4
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -65,8 +65,6 @@ var global          = returnThis()
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , core            = {}
-  , path            = framework ? global : core
   , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
@@ -102,8 +100,6 @@ function classof(it){
 var apply = FunctionProto.apply
   , call  = FunctionProto.call
   , REFERENCE_GET;
-// Placeholder
-core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -183,7 +179,7 @@ var create           = Object.create
   , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
-  var T = Object(target)
+  var T = Object(assertDefined(target))
     , l = arguments.length
     , i = 1;
   while(l > i){
@@ -246,9 +242,9 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, that /* = undefined */){
-    var f      = ctx(callbackfn, that, 3)
-      , O      = Object(this)
+    var O      = Object(assertDefined(this))
       , self   = ES5Object(O)
+      , f      = ctx(callbackfn, that, 3)
       , length = toLength(self.length)
       , index  = 0
       , result = isMap ? Array(length) : isFilter ? [] : undefined
@@ -271,7 +267,7 @@ function createArrayMethod(type){
 }
 function createArrayContains(isContains){
   return function(el, fromIndex /* = 0 */){
-    var O      = ES5Object(this)
+    var O      = ES5Object(assertDefined(this))
       , length = toLength(O.length)
       , index  = toIndex(fromIndex, length);
     if(isContains && el != el){
@@ -340,7 +336,7 @@ function createReplacer(regExp, replace, isStatic){
 }
 function createPointAt(toString){
   return function(pos){
-    var s = String(this)
+    var s = String(assertDefined(this))
       , i = toInteger(pos)
       , l = s.length
       , a, b;
@@ -356,6 +352,10 @@ function createPointAt(toString){
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition, msg1, msg2){
   if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
+}
+function assertDefined(it){
+  if(it == undefined)throw TypeError('Function called on null or undefined');
+  return it;
 }
 function assertFunction(it){
   assert(isFunction(it), it, ' is not a function!');
@@ -472,8 +472,10 @@ function forOf(iterable, entries, fn, that){
 var html = document && document.documentElement;
 
 // core
-var NODE   = cof(process) == PROCESS
-  , old    = global.core
+var NODE = cof(process) == PROCESS
+  , core = {}
+  , path = framework ? global : core
+  , old  = global.core
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -481,6 +483,10 @@ var NODE   = cof(process) == PROCESS
   , PROTO  = 8
   , BIND   = 16
   , WRAP   = 32;
+function assignHidden(target, src){
+  for(var key in src)hidden(target, key, src[key]);
+  return target;
+}
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
@@ -504,7 +510,7 @@ function $define(type, name, source){
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // export
-    if(exports[key] != out)exports[key] = exp;
+    if(exports[key] != out)hidden(exports, key, exp);
     // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }
@@ -832,7 +838,7 @@ $define(GLOBAL + FORCED, {global: global});
   
       // 20.1.2.3 Number.isInteger(number)
   var isInteger = Number.isInteger || function(it){
-        return isFinite(it) && floor(it) === it;
+        return !isObject(it) && isFinite(it) && floor(it) === it;
       }
       // 20.2.2.28 Math.sign(x)
     , sign = Math.sign || function sign(it){
@@ -876,7 +882,7 @@ $define(GLOBAL + FORCED, {global: global});
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
-      return log(x + sqrt(x * x - 1));
+      return x < 1 ? NaN : log(x + sqrt(x * x - 1));
     },
     // 20.2.2.5 Math.asinh(x)
     asinh: asinh,
@@ -901,8 +907,12 @@ $define(GLOBAL + FORCED, {global: global});
       return x == 0 ? +x : x > -1e-6 && x < 1e-6 ? +x + x * x / 2 : exp(x) - 1;
     },
     // 20.2.2.16 Math.fround(x)
-    // TODO
+    // TODO: fallback for IE9-
+    fround: function(x){
+      return new Float32Array([x])[0];
+    },
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
+    // TODO: work for very large & small numbers
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
@@ -949,6 +959,9 @@ $define(GLOBAL + FORCED, {global: global});
   // 20.2.1.9 Math[@@toStringTag]
   setToStringTag(Math, MATH, true);
   
+  function assertNotRegExp(it){
+    if(isObject(it) && it instanceof RegExp)throw TypeError();
+  }
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     fromCodePoint: function(){
@@ -967,7 +980,7 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(callSite){
-      var raw = ES5Object(callSite.raw)
+      var raw = ES5Object(assertDefined(callSite.raw))
         , len = toLength(raw.length)
         , sln = arguments.length
         , res = []
@@ -983,6 +996,7 @@ $define(GLOBAL + FORCED, {global: global});
     codePointAt: createPointAt(false),
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
+      assertNotRegExp(searchString);
       var len = this.length
         , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
@@ -990,19 +1004,20 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
     includes: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position);
+      return !!~String(assertDefined(this)).indexOf(searchString, position);
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var str = String(this)
+      var str = String(assertDefined(this))
         , res = ''
         , n   = toInteger(count);
-      if(0 > n)throw RangeError("Count can't be negative");
+      if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
       for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
       return res;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
+      assertNotRegExp(searchString);
       var index = toLength(min(position, this.length));
       searchString += '';
       return String(this).slice(index, index + searchString.length) === searchString;
@@ -1012,7 +1027,7 @@ $define(GLOBAL + FORCED, {global: global});
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
-      var O       = Object(arrayLike)
+      var O       = Object(assertDefined(arrayLike))
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, that, 2) : undefined
@@ -1039,12 +1054,13 @@ $define(GLOBAL + FORCED, {global: global});
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0 */, end /* = @length */){
-      var O     = Object(this)
+      var O     = Object(assertDefined(this))
         , len   = toLength(O.length)
         , to    = toIndex(target, len)
         , from  = toIndex(start, len)
         , fin   = end === undefined ? len : toIndex(end, len)
-        , count = min(fin - from, len - to), inc = 1;
+        , count = min(fin - from, len - to)
+        , inc   = 1;
       if(from < to && to < from + count){
         inc  = -1;
         from = from + count - 1;
@@ -1059,7 +1075,7 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
-      var O      = Object(this)
+      var O      = Object(assertDefined(this))
         , length = toLength(O.length)
         , index  = toIndex(start, length)
         , endPos = end === undefined ? length : toIndex(end, length);
@@ -1319,6 +1335,12 @@ $define(GLOBAL + BIND, {
     , uid      = 0
     , wid      = 0;
   
+  function wrapSVZ(method, chain){
+    return function(a, b){
+      var result = method.call(this, same(a, -0) ? 0 : a, b);
+      return chain ? this : result;
+    }
+  }
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER_KEY = isMap ? 'set' : 'add'
       , init      = commonMethods.clear
@@ -1335,33 +1357,36 @@ $define(GLOBAL + BIND, {
         initFromIterable(this, iterable);
       }
       set(C, SHIM, true);
-      assign(C[PROTOTYPE], methods, commonMethods);
+      assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
       isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
-        return this[SIZE];
+        return assertDefined(this[SIZE]);
       }});
     } else {
-      var Native     = C
-        , collection = new C
-        , adder      = collection[ADDER_KEY]
-        , buggyChaining, buggyZero;
+      var Native = C
+        , proto  = C[PROTOTYPE]
+        , inst   = new C
+        , chain  = inst[ADDER_KEY](isWeak ? {} : -0, 1)
+        , buggyZero;
       // wrap to init collections from iterable
       if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);
         }
-        C[PROTOTYPE] = Native[PROTOTYPE];
+        C[PROTOTYPE] = proto;
       }
-      buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
-      isWeak || collection[FOR_EACH](function(val, key){
+      isWeak || inst[FOR_EACH](function(val, key){
         if(same(key, -0))buggyZero = true;
       });
-      // fix .add & .set for chaining & converting -0 key to +0
-      if(framework && (buggyChaining || buggyZero)){
-        hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
-          adder.call(this, same(a, -0) ? 0 : a, b);
-          return this;
-        });
+      if(framework){
+        // fix converting -0 key to +0
+        if(buggyZero){
+          hidden(proto, 'delete', wrapSVZ(proto['delete']));
+          hidden(proto, 'has', wrapSVZ(proto.has));
+          isMap && hidden(proto, 'get', wrapSVZ(proto.get));
+        }
+        // fix .add & .set for chaining
+        if(buggyZero || chain !== inst)hidden(proto, ADDER_KEY, wrapSVZ(proto[ADDER_KEY], true));
       }
     }
     setToStringTag(C, NAME);
@@ -1418,7 +1443,7 @@ $define(GLOBAL + BIND, {
             done[index] = true;
             f(values[index], keys[index], this);
           }
-        } while(index != undefined && index != (k = getKeys(keys))[k.length - 1]);
+        } while((k = getKeys(keys)).length && k[k.length - 1] != index);
       },
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)
@@ -1700,7 +1725,7 @@ $define(GLOBAL + BIND, {
     }
   }(dictMethods[key]);
   
-  $define(GLOBAL + FORCED, {Dict: assign(Dict, dictMethods)});
+  $define(GLOBAL + FORCED, {Dict: assignHidden(Dict, dictMethods)});
 }('Dict');
 
 /******************************************************************************
@@ -1745,7 +1770,7 @@ $define(GLOBAL + BIND, {
     }
   });
   
-  assign($forProto, {
+  assignHidden($forProto, {
     of: function(fn, that){
       forOf(this, this[ENTRIES], fn, that);
     },
@@ -1912,6 +1937,9 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 !function(_, toLocaleString){
+  // Placeholder
+  core._ = path._ = path._ || {};
+
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
     by: function(that){
@@ -2175,6 +2203,6 @@ $define(PROTO + FORCED, ARRAY, {
   try {
     framework && delete global.console;
   } catch(e){}
-  $define(GLOBAL + FORCED, {console: assign($console.log, $console)});
+  $define(GLOBAL + FORCED, {console: assignHidden($console.log, $console)});
 }(global.console || {});
 }(Function('return this'), false);

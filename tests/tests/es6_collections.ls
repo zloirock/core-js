@@ -1,8 +1,8 @@
 QUnit.module 'ES6 Collections'
 isFunction = -> typeof! it is \Function
 same = Object.is
-isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getOwnPropertyDescriptor} = Object
+descriptors = /\[native code\]\s*\}\s*$/.test getOwnPropertyDescriptor
 that = global? && global || window
 test 'Map' !->
   ok isFunction(that.Map), 'Is function'
@@ -54,6 +54,13 @@ test 'Map#forEach' !->
       map.delete \1
       map.set \4 9
   ok s is \0124
+  map = new Map [[\0 1]]
+  s = "";
+  map.forEach ->
+    map.delete \0
+    if s isnt '' => throw '!!!'
+    s += it
+  ok s is \1
 test 'Map#get' !->
   ok isFunction(Map::get), 'Is function'
   o = {}
@@ -97,15 +104,23 @@ test 'Map#size' !->
   size = new Map!set 2 1 .size
   ok typeof size is \number, 'size is number'
   ok size is 1, 'size is correct'
-  if isNative getOwnPropertyDescriptor
+  if descriptors
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+    throws (-> Map::size), TypeError
 test 'Map & -0' !->
   map = new Map
   map.set -0, 1
+  equal map.size, 1
+  ok map.has 0
+  ok map.has -0
+  equal map.get(0), 1
+  equal map.get(-0), 1
   map.forEach (val, key)->
     ok !same key, -0
+  map.delete -0
+  equal map.size, 0
   map = new Map [[-0 1]]
   map.forEach (val, key)->
     ok !same key, -0
@@ -183,6 +198,13 @@ test 'Set#forEach' !->
       set.delete \1
       set.add \4
   ok s is \0124
+  set = new Set <[0]>
+  s = "";
+  set.forEach ->
+    set.delete \0
+    if s isnt '' => throw '!!!'
+    s += it
+  ok s is \0
 test 'Set#has' !->
   ok isFunction(Set::has), 'Is function'
   a = []
@@ -196,17 +218,23 @@ test 'Set#size' !->
   size = new Set([1]).size
   ok typeof size is \number, 'size is number'
   ok size is 1, 'size is correct'
-  if isNative getOwnPropertyDescriptor
+  if descriptors
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+    throws (-> Set::size), TypeError
 test 'Set & -0' !->
-  map = new Set
-  map.add -0
-  map.forEach (key)->
-    ok !same key, -0
-  map = new Set [-0]
-  map.forEach (key)->
+  set = new Set
+  set.add -0
+  equal set.size, 1
+  ok set.has 0
+  ok set.has -0
+  set.forEach (it)->
+    ok !same it, -0
+  set.delete -0
+  equal set.size, 0
+  set = new Set [-0]
+  set.forEach (key)->
     ok !same key, -0
 test 'Set#@@toStringTag' !->
   ok Set::[Symbol.toStringTag] is \Set, 'Set::@@toStringTag is `Set`'

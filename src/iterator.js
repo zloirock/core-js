@@ -80,7 +80,7 @@
     return --this[I] < 0 ? iterResult(1) : this[ITER].next();
   });
   
-  assign(IteratorPrototype, {
+  assignHidden(IteratorPrototype, {
     to: function(to){
       return to.from(this);
     },

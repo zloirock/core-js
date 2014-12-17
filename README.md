@@ -193,6 +193,7 @@ Math
   .clz32(num) -> uint
   .cosh(num) -> num
   .expm1(num) -> num
+  .fround(num) -> num (IE10+)
   .hypot(...args) -> num
   .imul(num, num) -> int
   .log1p(num) -> num
@@ -260,24 +261,19 @@ Object.defineProperty(O, 'b', {value: 2});
 O[Symbol('c')] = 3;
 Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 ```
-By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/bnqYk9):
+By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/N5UD7J):
 ```javascript
+Symbol.useSimple();
 var s1 = Symbol('s1')
   , o1 = {};
 o1[s1] = true;
-for(var key in o1)log(key); // nothing
+for(var key in o1)log(key); // => 'Symbol(s1)_t.qamkg9f3q', w/o native Symbol
 
-Symbol.useSimple();
+Symbol.useSetter();
 var s2 = Symbol('s2')
   , o2 = {};
 o2[s2] = true;
-for(var key in o2)log(key); // => 'Symbol(s2)_t.qamkg9f3q', w/o native Symbol
-
-Symbol.useSetter();
-var s3 = Symbol('s3')
-  , o3 = {};
-o3[s3] = true;
-for(var key in o3)log(key); // nothing
+for(var key in o2)log(key); // nothing
 ```
 ### ECMAScript 6: Collections
 Module `es6_collections`, iterators for them are defined in [es6_iterators](#ecmascript-6-iterators).
@@ -1189,6 +1185,10 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.2.4** - *2014.12.17* - Better compliance of ES6
+  * some fixes
+  * added [`Math.fround`](#ecmascript-6-number--math) (IE10+)
+
 **0.2.3** - *2014.12.15* - [Symbols](#ecmascript-6-symbols):
   * added option to disable addition setter to `Object.prototype` for Symbol polyfill:
     * added `Symbol.useSimple`

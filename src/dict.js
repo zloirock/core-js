@@ -138,5 +138,5 @@
     }
   }(dictMethods[key]);
   
-  $define(GLOBAL + FORCED, {Dict: assign(Dict, dictMethods)});
+  $define(GLOBAL + FORCED, {Dict: assignHidden(Dict, dictMethods)});
 }('Dict');

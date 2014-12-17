@@ -1857,25 +1857,29 @@
 }).call(this);
 
 (function(){
-  var eq, deq, sameEq, isFunction, isNative, getOwnPropertyDescriptor, defineProperty, epsilon, toString$ = {}.toString;
+  'use strict';
+  var eq, deq, sameEq, strict, isFunction, isNative, getOwnPropertyDescriptor, defineProperty, create, epsilon, toString$ = {}.toString;
   QUnit.module('ES6');
   eq = strictEqual;
   deq = deepEqual;
   sameEq = function(a, b, c){
     return ok(Object.is(a, b), c);
   };
+  strict = typeof function(){
+    return this;
+  }.call(void 8) === 'undefined';
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   isNative = function(it){
     return /\[native code\]\s*\}\s*$/.test(it);
   };
-  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty, create = Object.create;
   epsilon = function(a, b, E){
     return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
   test('Object.assign', function(){
-    var assign, foo;
+    var assign, foo, str;
     assign = Object.assign;
     ok(isFunction(assign), 'Is function');
     foo = {
@@ -1896,6 +1900,35 @@
       }));
       ok(foo.bar === void 8, "assign don't copy descriptors");
     }
+    deq(assign({}, {
+      q: 1
+    }, {
+      w: 2
+    }), {
+      q: 1,
+      w: 2
+    });
+    deq(assign({}, 'qwe'), {
+      0: 'q',
+      1: 'w',
+      2: 'e'
+    });
+    throws(function(){
+      return assign(null, {
+        q: 1
+      });
+    }, TypeError);
+    throws(function(){
+      return assign(void 8, {
+        q: 1
+      });
+    }, TypeError);
+    str = assign('qwe', {
+      q: 1
+    });
+    eq(typeof str, 'object');
+    eq(String(str), 'qwe');
+    eq(str.q, 1);
   });
   test('Object.is', function(){
     var same;
@@ -1982,57 +2015,89 @@
     ok(1 === 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
   });
   test('Number.isFinite', function(){
-    var isFinite, i$, x$, ref$, len$, y$;
+    var isFinite, i$, x$, ref$, len$, y$, e;
     isFinite = Number.isFinite;
     ok(isFunction(isFinite), 'Is function');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFinite(x$), "isFinite " + typeof x$ + " " + x$);
     }
-    for (i$ = 0, len$ = (ref$ = [NaN, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = [NaN, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + y$);
+      ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + (fn1$()));
     }
     function fn$(){}
+    function fn1$(){
+      try {
+        return String(y$);
+      } catch (e$) {
+        e = e$;
+        return 'Object.create(null)';
+      }
+    }
   });
   test('Number.isInteger', function(){
-    var isInteger, i$, x$, ref$, len$, y$;
+    var isInteger, i$, x$, ref$, len$, y$, e;
     isInteger = Number.isInteger;
     ok(isFunction(isInteger), 'Is function');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isInteger(x$), "isInteger " + typeof x$ + " " + x$);
     }
-    for (i$ = 0, len$ = (ref$ = [NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = [NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + y$);
+      ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + (fn1$()));
     }
     function fn$(){}
+    function fn1$(){
+      try {
+        return String(y$);
+      } catch (e$) {
+        e = e$;
+        return 'Object.create(null)';
+      }
+    }
   });
   test('Number.isNaN', function(){
-    var isNaN, i$, x$, ref$, len$;
+    var isNaN, i$, x$, ref$, len$, e;
     isNaN = Number.isNaN;
     ok(isFunction(isNaN), 'Is function');
     ok(isNaN(NaN), 'Number.isNaN NaN');
-    for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + x$);
+      ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + (fn1$()));
     }
     function fn$(){}
+    function fn1$(){
+      try {
+        return String(x$);
+      } catch (e$) {
+        e = e$;
+        return 'Object.create(null)';
+      }
+    }
   });
   test('Number.isSafeInteger', function(){
-    var isSafeInteger, i$, x$, ref$, len$, y$;
+    var isSafeInteger, i$, x$, ref$, len$, y$, e;
     isSafeInteger = Number.isSafeInteger;
     ok(isFunction(isSafeInteger), 'Is function');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, 9007199254740991, -9007199254740991]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isSafeInteger(x$), "isSafeInteger " + typeof x$ + " " + x$);
     }
-    for (i$ = 0, len$ = (ref$ = [9007199254740992, -9007199254740992, NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$]).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = [9007199254740992, -9007199254740992, NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + y$);
+      ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + (fn1$()));
     }
     function fn$(){}
+    function fn1$(){
+      try {
+        return String(y$);
+      } catch (e$) {
+        e = e$;
+        return 'Object.create(null)';
+      }
+    }
   });
   test('Number.MAX_SAFE_INTEGER', function(){
     eq(Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
@@ -2053,6 +2118,7 @@
     sameEq(acosh(NaN), NaN);
     sameEq(acosh(0.5), NaN);
     sameEq(acosh(-1), NaN);
+    sameEq(acosh(-1e300), NaN);
     sameEq(acosh(1), 0);
     eq(acosh(Infinity), Infinity);
     ok(epsilon(acosh(1234), 7.811163220849231));
@@ -2142,6 +2208,37 @@
     eq(expm1(-Infinity), -1);
     ok(epsilon(expm1(10), 22025.465794806718, ok(epsilon(expm1(-10), -0.9999546000702375))));
   });
+  if (typeof Float32Array != 'undefined' && Float32Array !== null) {
+    test('Math.fround', function(){
+      var fround, maxFloat32, minFloat32;
+      fround = Math.fround;
+      ok(isFunction(fround), 'Is function');
+      sameEq(fround(void 8), NaN);
+      sameEq(fround(NaN), NaN);
+      sameEq(fround(0), 0);
+      sameEq(fround(-0), -0);
+      sameEq(fround(Number.MIN_VALUE), 0);
+      sameEq(fround(-Number.MIN_VALUE), -0);
+      eq(fround(Infinity), Infinity);
+      eq(fround(-Infinity), -Infinity);
+      eq(fround(1.7976931348623157e+308), Infinity);
+      eq(fround(-1.7976931348623157e+308), -Infinity);
+      eq(fround(3.4028235677973366e+38), Infinity);
+      eq(fround(3), 3);
+      eq(fround(-3), -3);
+      maxFloat32 = 3.4028234663852886e+38;
+      minFloat32 = 1.401298464324817e-45;
+      eq(fround(maxFloat32), maxFloat32);
+      eq(fround(-maxFloat32), -maxFloat32);
+      eq(fround(maxFloat32 + Math.pow(2, Math.pow(2, 8 - 1) - 1 - 23 - 2)), maxFloat32);
+      eq(fround(minFloat32), minFloat32);
+      eq(fround(-minFloat32), -minFloat32);
+      sameEq(fround(minFloat32 / 2), 0);
+      sameEq(fround(-minFloat32 / 2), -0);
+      eq(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
+      eq(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
+    });
+  }
   test('Math.hypot', function(){
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
@@ -2404,6 +2501,14 @@
     eq(raw({
       raw: 'test'
     }, 0), 't0est', 'lacks substituting');
+    throws(function(){
+      return raw({});
+    }, TypeError);
+    throws(function(){
+      return raw({
+        raw: null
+      });
+    }, TypeError);
   });
   test('String#codePointAt', function(){
     ok(isFunction(String.prototype.codePointAt), 'Is function');
@@ -2456,6 +2561,14 @@
     eq('\uDF06abc'.codePointAt(NaN), 0xDF06);
     eq('\uDF06abc'.codePointAt(null), 0xDF06);
     eq('\uDF06abc'.codePointAt(void 8), 0xDF06);
+    if (strict) {
+      throws(function(){
+        return String.prototype.codePointAt.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return String.prototype.codePointAt.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('String#includes', function(){
     ok(isFunction(String.prototype.includes), 'Is function');
@@ -2463,6 +2576,14 @@
     ok('aundefinedb'.includes());
     ok('abcd'.includes('b', 1));
     ok(!'abcd'.includes('b', 2));
+    if (strict) {
+      throws(function(){
+        return String.prototype.includes.call(null, '.');
+      }, TypeError);
+      throws(function(){
+        return String.prototype.includes.call(void 8, '.');
+      }, TypeError);
+    }
   });
   test('String#endsWith', function(){
     ok(isFunction(String.prototype.endsWith), 'Is function');
@@ -2479,14 +2600,17 @@
     ok('abc'.endsWith('a', true));
     ok(!'abc'.endsWith('c', 'x'));
     ok(!'abc'.endsWith('a', 'x'));
-  });
-  test('String#repeat', function(){
-    ok(isFunction(String.prototype.repeat), 'Is function');
-    eq('qwe'.repeat(3), 'qweqweqwe');
-    eq('qwe'.repeat(2.5), 'qweqwe');
+    if (strict) {
+      throws(function(){
+        return String.prototype.endsWith.call(null, '.');
+      }, TypeError);
+      throws(function(){
+        return String.prototype.endsWith.call(void 8, '.');
+      }, TypeError);
+    }
     throws(function(){
-      return 'qwe'.repeat(-1);
-    }, RangeError);
+      return 'qwe'.endsWith(/./);
+    }, TypeError);
   });
   test('String#startsWith', function(){
     ok(isFunction(String.prototype.startsWith), 'Is function');
@@ -2502,6 +2626,36 @@
     ok(!'abc'.startsWith('a', Infinity));
     ok('abc'.startsWith('b', true));
     ok('abc'.startsWith('a', 'x'));
+    if (strict) {
+      throws(function(){
+        return String.prototype.startsWith.call(null, '.');
+      }, TypeError);
+      throws(function(){
+        return String.prototype.startsWith.call(void 8, '.');
+      }, TypeError);
+    }
+    throws(function(){
+      return 'qwe'.startsWith(/./);
+    }, TypeError);
+  });
+  test('String#repeat', function(){
+    ok(isFunction(String.prototype.repeat), 'Is function');
+    eq('qwe'.repeat(3), 'qweqweqwe');
+    eq('qwe'.repeat(2.5), 'qweqwe');
+    throws(function(){
+      return 'qwe'.repeat(-1);
+    }, RangeError);
+    throws(function(){
+      return 'qwe'.repeat(Infinity);
+    }, RangeError);
+    if (strict) {
+      throws(function(){
+        return String.prototype.repeat.call(null, 1);
+      }, TypeError);
+      throws(function(){
+        return String.prototype.repeat.call(void 8, 1);
+      }, TypeError);
+    }
   });
   test('Array.from', function(){
     var from, al, ctx;
@@ -2535,6 +2689,12 @@
       return Math.pow(it, 2);
     })), [1, 4, 9]);
     deq(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
+    throws(function(){
+      return from(null);
+    }, TypeError);
+    throws(function(){
+      return from(void 8);
+    }, TypeError);
   });
   test('Array.of', function(){
     ok(isFunction(Array.of), 'Is function');
@@ -2557,6 +2717,14 @@
     deq([1, 2, 3, 4, 5].copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
     deq([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
     deq([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
+    if (strict) {
+      throws(function(){
+        return Array.prototype.copyWithin.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return Array.prototype.copyWithin.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('Array#fill', function(){
     var a;
@@ -2567,6 +2735,14 @@
     deq(Array(5).fill(5, 1, 4), [void 8, 5, 5, 5, void 8]);
     deq(Array(5).fill(5, 6, 1), [void 8, void 8, void 8, void 8, void 8]);
     deq(Array(5).fill(5, -3, 4), [void 8, void 8, 5, 5, void 8]);
+    if (strict) {
+      throws(function(){
+        return Array.prototype.fill.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return Array.prototype.fill.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('Array#find', function(){
     var arr, ctx;
@@ -2583,6 +2759,14 @@
     eq([1, 3, NaN, 42, {}].find((function(it){
       return it === 43;
     })), void 8);
+    if (strict) {
+      throws(function(){
+        return Array.prototype.find.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return Array.prototype.find.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('Array#findIndex', function(){
     var arr, ctx;
@@ -2596,6 +2780,14 @@
     eq([1, 3, NaN, 42, {}].findIndex((function(it){
       return it === 42;
     })), 3);
+    if (strict) {
+      throws(function(){
+        return Array.prototype.findIndex.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return Array.prototype.findIndex.call(void 8, 0);
+      }, TypeError);
+    }
   });
   if ('flags' in RegExp.prototype) {
     test('RegExp#flags', function(){
@@ -2612,16 +2804,14 @@
 }).call(this);
 
 (function(){
-  var isFunction, same, isNative, getOwnPropertyDescriptor, that, toString$ = {}.toString;
+  var isFunction, same, getOwnPropertyDescriptor, descriptors, that, toString$ = {}.toString;
   QUnit.module('ES6 Collections');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   same = Object.is;
-  isNative = function(it){
-    return /\[native code\]\s*\}\s*$/.test(it);
-  };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
   that = (typeof global != 'undefined' && global !== null) && global || window;
   test('Map', function(){
     ok(isFunction(that.Map), 'Is function');
@@ -2687,6 +2877,16 @@
       }
     });
     ok(s === '0124');
+    map = new Map([['0', 1]]);
+    s = "";
+    map.forEach(function(it){
+      map['delete']('0');
+      if (s !== '') {
+        throw '!!!';
+      }
+      return s += it;
+    });
+    ok(s === '1');
   });
   test('Map#get', function(){
     var o, M;
@@ -2738,19 +2938,29 @@
     size = new Map().set(2, 1).size;
     ok(typeof size === 'number', 'size is number');
     ok(size === 1, 'size is correct');
-    if (isNative(getOwnPropertyDescriptor)) {
+    if (descriptors) {
       sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+      throws(function(){
+        return Map.prototype.size;
+      }, TypeError);
     }
   });
   test('Map & -0', function(){
     var map;
     map = new Map;
     map.set(-0, 1);
+    equal(map.size, 1);
+    ok(map.has(0));
+    ok(map.has(-0));
+    equal(map.get(0), 1);
+    equal(map.get(-0), 1);
     map.forEach(function(val, key){
       return ok(!same(key, -0));
     });
+    map['delete'](-0);
+    equal(map.size, 0);
     map = new Map([[-0, 1]]);
     map.forEach(function(val, key){
       return ok(!same(key, -0));
@@ -2846,6 +3056,16 @@
       }
     });
     ok(s === '0124');
+    set = new Set(['0']);
+    s = "";
+    set.forEach(function(it){
+      set['delete']('0');
+      if (s !== '') {
+        throw '!!!';
+      }
+      return s += it;
+    });
+    ok(s === '0');
   });
   test('Set#has', function(){
     var a, S;
@@ -2863,21 +3083,29 @@
     size = new Set([1]).size;
     ok(typeof size === 'number', 'size is number');
     ok(size === 1, 'size is correct');
-    if (isNative(getOwnPropertyDescriptor)) {
+    if (descriptors) {
       sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+      throws(function(){
+        return Set.prototype.size;
+      }, TypeError);
     }
   });
   test('Set & -0', function(){
-    var map;
-    map = new Set;
-    map.add(-0);
-    map.forEach(function(key){
-      return ok(!same(key, -0));
+    var set;
+    set = new Set;
+    set.add(-0);
+    equal(set.size, 1);
+    ok(set.has(0));
+    ok(set.has(-0));
+    set.forEach(function(it){
+      return ok(!same(it, -0));
     });
-    map = new Set([-0]);
-    map.forEach(function(key){
+    set['delete'](-0);
+    equal(set.size, 0);
+    set = new Set([-0]);
+    set.forEach(function(key){
       return ok(!same(key, -0));
     });
   });
@@ -3437,8 +3665,12 @@
 }).call(this);
 
 (function(){
-  var isFunction, eq, deq, create, assign, toString$ = {}.toString;
+  'use strict';
+  var strict, isFunction, eq, deq, create, assign, toString$ = {}.toString;
   QUnit.module('ES7');
+  strict = typeof function(){
+    return this;
+  }.call(void 8) === 'undefined';
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
@@ -3448,7 +3680,7 @@
   test('Array#includes', function(){
     var arr, o;
     ok(isFunction(Array.prototype.includes), 'Is function');
-    arr = [1, 2, 3, -0, NaN, o = {}];
+    arr = [1, 2, 3, -0, o = {}];
     ok(arr.includes(1));
     ok(arr.includes(-0));
     ok(arr.includes(0));
@@ -3458,6 +3690,14 @@
     ok(!arr.includes({}));
     ok(Array(1).includes(void 8));
     ok([NaN].includes(NaN));
+    if (strict) {
+      throws(function(){
+        return Array.prototype.includes.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return Array.prototype.includes.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('String#at', function(){
     var at;
@@ -3536,11 +3776,19 @@
     at = String.prototype.at;
     eq(at.call(42, 0), '4');
     eq(at.call(42, 1), '2');
-    return eq(at.call({
+    eq(at.call({
       toString: function(){
         return 'abc';
       }
     }, 2), 'c');
+    if (strict) {
+      throws(function(){
+        return String.prototype.at.call(null, 0);
+      }, TypeError);
+      throws(function(){
+        return String.prototype.at.call(void 8, 0);
+      }, TypeError);
+    }
   });
   test('Object.values', function(){
     var values;

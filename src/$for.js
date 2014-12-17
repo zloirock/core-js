@@ -36,7 +36,7 @@
     }
   });
   
-  assign($forProto, {
+  assignHidden($forProto, {
     of: function(fn, that){
       forOf(this, this[ENTRIES], fn, that);
     },

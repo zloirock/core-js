@@ -1,5 +1,5 @@
 config = module.exports = {}
-  ..version = '0.2.3'
+  ..version = '0.2.4'
   ..year    = new Date!getFullYear!
   ..banner  = """
     /**

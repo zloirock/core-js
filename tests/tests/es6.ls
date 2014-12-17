@@ -1,13 +1,17 @@
+'use strict'
+
 QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual
 sameEq = (a, b, c)-> ok Object.is(a, b), c
 
+strict = typeof (-> @).call(void) is \undefined
+
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
 
-{getOwnPropertyDescriptor, defineProperty} = Object
+{getOwnPropertyDescriptor, defineProperty, create} = Object
 
 epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
 
@@ -21,6 +25,14 @@ test 'Object.assign' !->
     foo = baz: 1
     assign foo, defineProperty {}, \bar, get: -> @baz + 1
     ok foo.bar is void, "assign don't copy descriptors"
+  deq assign({}, {q: 1}, {w: 2}), {q: 1, w: 2}
+  deq assign({}, \qwe), {0: \q, 1: \w, 2: \e}
+  throws (-> assign null {q: 1}), TypeError
+  throws (-> assign void, {q: 1}), TypeError
+  str = assign(\qwe, {q: 1})
+  eq typeof str, \object
+  eq String(str), \qwe
+  eq str.q, 1
 test 'Object.is' !->
   same = Object.is
   ok isFunction(same), 'Is function'
@@ -80,28 +92,28 @@ test 'Number.isFinite' !->
   ok isFunction(isFinite), 'Is function'
   for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
     ok isFinite(..), "isFinite #{typeof ..} #{..}"
-  for [NaN, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
-    ok not isFinite(..), "not isFinite #{typeof ..} #{..}"
+  for [NaN, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
+    ok not isFinite(..), "not isFinite #{typeof ..} #{try String(..) catch e => 'Object.create(null)'}"
 test 'Number.isInteger' !->
   {isInteger} = Number
   ok isFunction(isInteger), 'Is function'
   for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
     ok isInteger(..), "isInteger #{typeof ..} #{..}"
-  for [NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
-    ok not isInteger(..), "not isInteger #{typeof ..} #{..}"
+  for [NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
+    ok not isInteger(..), "not isInteger #{typeof ..} #{try String(..) catch e => 'Object.create(null)'}"
 test 'Number.isNaN' !->
   {isNaN} = Number
   ok isFunction(isNaN), 'Is function'
   ok isNaN(NaN), 'Number.isNaN NaN'
-  for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
-    ok not isNaN(..), "not Number.isNaN #{typeof ..} #{..}"
+  for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
+    ok not isNaN(..), "not Number.isNaN #{typeof ..} #{try String(..) catch e => 'Object.create(null)'}"
 test 'Number.isSafeInteger' !->
   {isSafeInteger} = Number
   ok isFunction(isSafeInteger), 'Is function'
   for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 16~1fffffffffffff -16~1fffffffffffff]
     ok isSafeInteger(..), "isSafeInteger #{typeof ..} #{..}"
-  for [16~20000000000000 -16~20000000000000 NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->]
-    ok not isSafeInteger(..), "not isSafeInteger #{typeof ..} #{..}"
+  for [16~20000000000000 -16~20000000000000 NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
+    ok not isSafeInteger(..), "not isSafeInteger #{typeof ..} #{try String(..) catch e => 'Object.create(null)'}"
 test 'Number.MAX_SAFE_INTEGER' !->
   eq Number.MAX_SAFE_INTEGER, 2^53 - 1, 'Is 2^53 - 1'
 test 'Number.MIN_SAFE_INTEGER' !->
@@ -117,6 +129,7 @@ test 'Math.acosh' !->
   sameEq acosh(NaN), NaN
   sameEq acosh(0.5), NaN
   sameEq acosh(-1), NaN
+  sameEq acosh(-1e300), NaN
   sameEq acosh(1), 0
   eq acosh(Infinity), Infinity
   ok epsilon acosh(1234), 7.811163220849231
@@ -199,6 +212,34 @@ test 'Math.expm1' !->
   eq expm1(-Infinity), -1
   ok epsilon expm1(10), 22025.465794806718,
   ok epsilon expm1(-10), -0.9999546000702375
+if Float32Array? => test 'Math.fround' !->
+  # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
+  {fround} = Math
+  ok isFunction(fround), 'Is function'
+  sameEq fround(void), NaN
+  sameEq fround(NaN), NaN
+  sameEq fround(0), 0
+  sameEq fround(-0), -0
+  sameEq fround(Number.MIN_VALUE), 0
+  sameEq fround(-Number.MIN_VALUE), -0
+  eq fround(Infinity), Infinity
+  eq fround(-Infinity), -Infinity
+  eq fround(1.7976931348623157e+308), Infinity
+  eq fround(-1.7976931348623157e+308), -Infinity
+  eq fround(3.4028235677973366e+38), Infinity
+  eq fround(3), 3
+  eq fround(-3), -3
+  maxFloat32 = 3.4028234663852886e+38
+  minFloat32 = 1.401298464324817e-45
+  eq fround(maxFloat32), maxFloat32
+  eq fround(-maxFloat32), -maxFloat32
+  eq fround(maxFloat32 + 2 ** (2 ** (8 - 1) - 1 - 23 - 2)), maxFloat32
+  eq fround(minFloat32), minFloat32
+  eq fround(-minFloat32), -minFloat32
+  sameEq fround(minFloat32 / 2), 0
+  sameEq fround(-minFloat32 / 2), -0
+  eq fround(minFloat32 / 2 + 2 ** -202), minFloat32
+  eq fround(-minFloat32 / 2 - 2 ** -202), -minFloat32
 test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
   {hypot, sqrt} = Math
@@ -380,19 +421,19 @@ test 'String.fromCodePoint' !->
   eq fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07'
   eq fromCodePoint(false), '\0'
   eq fromCodePoint(null), '\0'
-  throws (->fromCodePoint \_), RangeError
-  throws (->fromCodePoint '+Infinity'), RangeError
-  throws (->fromCodePoint '-Infinity'), RangeError
-  throws (->fromCodePoint -1), RangeError
-  throws (->fromCodePoint 0x10FFFF + 1), RangeError
-  throws (->fromCodePoint 3.14), RangeError
-  throws (->fromCodePoint 3e-2), RangeError
-  throws (->fromCodePoint -Infinity), RangeError
-  throws (->fromCodePoint Infinity), RangeError
-  throws (->fromCodePoint NaN), RangeError
-  throws (->fromCodePoint void), RangeError
-  throws (->fromCodePoint {}), RangeError
-  throws (->fromCodePoint /./), RangeError
+  throws (-> fromCodePoint \_), RangeError
+  throws (-> fromCodePoint '+Infinity'), RangeError
+  throws (-> fromCodePoint '-Infinity'), RangeError
+  throws (-> fromCodePoint -1), RangeError
+  throws (-> fromCodePoint 0x10FFFF + 1), RangeError
+  throws (-> fromCodePoint 3.14), RangeError
+  throws (-> fromCodePoint 3e-2), RangeError
+  throws (-> fromCodePoint -Infinity), RangeError
+  throws (-> fromCodePoint Infinity), RangeError
+  throws (-> fromCodePoint NaN), RangeError
+  throws (-> fromCodePoint void), RangeError
+  throws (-> fromCodePoint {}), RangeError
+  throws (-> fromCodePoint /./), RangeError
   
   tmp = 0x60;
   eq fromCodePoint({valueOf: -> ++tmp}), \a
@@ -414,6 +455,8 @@ test 'String.raw' !->
   eq raw({raw: ['Hi\\n', '!']} , \Bob), 'Hi\\nBob!', 'raw is array'
   eq raw({raw: \test}, 0, 1, 2), 't0e1s2t', 'raw is string'
   eq raw({raw: \test}, 0), 't0est', 'lacks substituting'
+  throws (-> raw {}), TypeError
+  throws (-> raw {raw: null}), TypeError
 
 test 'String#codePointAt' !->
   ok isFunction(String::codePointAt), 'Is function'
@@ -467,12 +510,18 @@ test 'String#codePointAt' !->
   eq '\uDF06abc'codePointAt(NaN), 0xDF06
   eq '\uDF06abc'codePointAt(null), 0xDF06
   eq '\uDF06abc'codePointAt(void), 0xDF06
+  if strict
+    throws (-> String::codePointAt.call null, 0), TypeError
+    throws (-> String::codePointAt.call void, 0), TypeError
 test 'String#includes' !->
   ok isFunction(String::includes), 'Is function'
   ok not 'abc'includes!
   ok 'aundefinedb'includes!
   ok 'abcd'includes \b 1
   ok not 'abcd'includes \b 2
+  if strict
+    throws (-> String::includes.call null, '.'), TypeError
+    throws (-> String::includes.call void, '.'), TypeError
 test 'String#endsWith' !->
   ok isFunction(String::endsWith), 'Is function'
   ok 'undefined'endsWith!
@@ -488,11 +537,10 @@ test 'String#endsWith' !->
   ok 'abc'endsWith \a on
   ok not 'abc'endsWith \c \x
   ok not 'abc'endsWith \a \x
-test 'String#repeat' !->
-  ok isFunction(String::repeat), 'Is function'
-  eq 'qwe'repeat(3), \qweqweqwe
-  eq 'qwe'repeat(2.5), \qweqwe
-  throws (->'qwe'repeat(-1)), RangeError
+  if strict
+    throws (-> String::endsWith.call null, '.'), TypeError
+    throws (-> String::endsWith.call void, '.'), TypeError
+  throws (-> 'qwe'endsWith /./), TypeError
 test 'String#startsWith' !->
   ok isFunction(String::startsWith), 'Is function'
   ok 'undefined'startsWith!
@@ -507,6 +555,19 @@ test 'String#startsWith' !->
   ok not 'abc'startsWith \a Infinity
   ok 'abc'startsWith \b on
   ok 'abc'startsWith \a \x
+  if strict
+    throws (-> String::startsWith.call null, '.'), TypeError
+    throws (-> String::startsWith.call void, '.'), TypeError
+  throws (-> 'qwe'startsWith /./), TypeError
+test 'String#repeat' !->
+  ok isFunction(String::repeat), 'Is function'
+  eq 'qwe'repeat(3), \qweqweqwe
+  eq 'qwe'repeat(2.5), \qweqwe
+  throws (-> 'qwe'repeat -1), RangeError
+  throws (-> 'qwe'repeat Infinity), RangeError
+  if strict
+    throws (-> String::repeat.call null, 1), TypeError
+    throws (-> String::repeat.call void, 1), TypeError
 test 'Array.from' !->
   {from} = Array
   ok isFunction(from), 'Is function'
@@ -524,6 +585,8 @@ test 'Array.from' !->
   , ctx = {}
   deq from({length: 3, 0: 1, 1: 2, 2: 3}, (^2)), [1 4 9]
   deq from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
+  throws (-> from null), TypeError
+  throws (-> from void), TypeError
 test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'
   deq Array.of(1), [1]
@@ -543,6 +606,9 @@ test 'Array#copyWithin' !->
   deq [1 2 3 4 5]copyWithin(-4 -3 -2), [1 3 3 4 5]
   deq [1 2 3 4 5]copyWithin(-4 -3 -1), [1 3 4 4 5]
   deq [1 2 3 4 5]copyWithin(-4 -3), [1 3 4 5 5]
+  if strict
+    throws (-> Array::copyWithin.call null, 0), TypeError
+    throws (-> Array::copyWithin.call void, 0), TypeError
 test 'Array#fill' !->
   ok isFunction(Array::fill), 'Is function'
   eq (a = Array(5)fill(5)), a
@@ -551,6 +617,9 @@ test 'Array#fill' !->
   deq Array(5)fill(5 1 4), [void 5 5 5 void]
   deq Array(5)fill(5 6 1), [void void void void void]
   deq Array(5)fill(5 -3 4), [void void 5 5 void]
+  if strict
+    throws (-> Array::fill.call null, 0), TypeError
+    throws (-> Array::fill.call void, 0), TypeError
 test 'Array#find' !->
   ok isFunction(Array::find), 'Is function'
   (arr = [1])find (val, key, that)->
@@ -561,6 +630,9 @@ test 'Array#find' !->
   , ctx = {}
   eq [1 3 NaN, 42 {}]find((is 42)), 42
   eq [1 3 NaN, 42 {}]find((is 43)), void
+  if strict
+    throws (-> Array::find.call null, 0), TypeError
+    throws (-> Array::find.call void, 0), TypeError
 test 'Array#findIndex' !->
   ok isFunction(Array::findIndex), 'Is function'
   (arr = [1])findIndex (val, key, that)->
@@ -570,6 +642,9 @@ test 'Array#findIndex' !->
     eq that, arr
   , ctx = {}
   eq [1 3 NaN, 42 {}]findIndex((is 42)), 3
+  if strict
+    throws (-> Array::findIndex.call null, 0), TypeError
+    throws (-> Array::findIndex.call void, 0), TypeError
 if \flags of RegExp:: => test 'RegExp#flags' !->
   eq /./g.flags, \g, '/./g.flags is "g"'
   eq /./.flags, '', '/./.flags is ""'

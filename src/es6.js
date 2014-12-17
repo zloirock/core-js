@@ -26,7 +26,7 @@
   
       // 20.1.2.3 Number.isInteger(number)
   var isInteger = Number.isInteger || function(it){
-        return isFinite(it) && floor(it) === it;
+        return !isObject(it) && isFinite(it) && floor(it) === it;
       }
       // 20.2.2.28 Math.sign(x)
     , sign = Math.sign || function sign(it){
@@ -70,7 +70,7 @@
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
-      return log(x + sqrt(x * x - 1));
+      return x < 1 ? NaN : log(x + sqrt(x * x - 1));
     },
     // 20.2.2.5 Math.asinh(x)
     asinh: asinh,
@@ -95,8 +95,12 @@
       return x == 0 ? +x : x > -1e-6 && x < 1e-6 ? +x + x * x / 2 : exp(x) - 1;
     },
     // 20.2.2.16 Math.fround(x)
-    // TODO
+    // TODO: fallback for IE9-
+    fround: function(x){
+      return new Float32Array([x])[0];
+    },
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
+    // TODO: work for very large & small numbers
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
@@ -143,6 +147,9 @@
   // 20.2.1.9 Math[@@toStringTag]
   setToStringTag(Math, MATH, true);
   
+  function assertNotRegExp(it){
+    if(isObject(it) && it instanceof RegExp)throw TypeError();
+  }
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     fromCodePoint: function(){
@@ -161,7 +168,7 @@
     },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(callSite){
-      var raw = ES5Object(callSite.raw)
+      var raw = ES5Object(assertDefined(callSite.raw))
         , len = toLength(raw.length)
         , sln = arguments.length
         , res = []
@@ -177,6 +184,7 @@
     codePointAt: createPointAt(false),
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
+      assertNotRegExp(searchString);
       var len = this.length
         , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
@@ -184,19 +192,20 @@
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
     includes: function(searchString, position /* = 0 */){
-      return !!~String(this).indexOf(searchString, position);
+      return !!~String(assertDefined(this)).indexOf(searchString, position);
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
-      var str = String(this)
+      var str = String(assertDefined(this))
         , res = ''
         , n   = toInteger(count);
-      if(0 > n)throw RangeError("Count can't be negative");
+      if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
       for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
       return res;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
+      assertNotRegExp(searchString);
       var index = toLength(min(position, this.length));
       searchString += '';
       return String(this).slice(index, index + searchString.length) === searchString;
@@ -206,7 +215,7 @@
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
-      var O       = Object(arrayLike)
+      var O       = Object(assertDefined(arrayLike))
         , result  = new (generic(this, Array))
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, that, 2) : undefined
@@ -233,12 +242,13 @@
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0 */, end /* = @length */){
-      var O     = Object(this)
+      var O     = Object(assertDefined(this))
         , len   = toLength(O.length)
         , to    = toIndex(target, len)
         , from  = toIndex(start, len)
         , fin   = end === undefined ? len : toIndex(end, len)
-        , count = min(fin - from, len - to), inc = 1;
+        , count = min(fin - from, len - to)
+        , inc   = 1;
       if(from < to && to < from + count){
         inc  = -1;
         from = from + count - 1;
@@ -253,7 +263,7 @@
     },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value, start /* = 0 */, end /* = @length */){
-      var O      = Object(this)
+      var O      = Object(assertDefined(this))
         , length = toLength(O.length)
         , index  = toIndex(start, length)
         , endPos = end === undefined ? length : toIndex(end, length);

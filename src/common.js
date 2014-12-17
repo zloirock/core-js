@@ -52,8 +52,6 @@ var global          = returnThis()
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , core            = {}
-  , path            = framework ? global : core
   , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
@@ -89,8 +87,6 @@ function classof(it){
 var apply = FunctionProto.apply
   , call  = FunctionProto.call
   , REFERENCE_GET;
-// Placeholder
-core._ = path._ = framework ? path._ || {} : {};
 // Partial apply
 function part(/* ...args */){
   var length = arguments.length
@@ -170,7 +166,7 @@ var create           = Object.create
   , ES5Object        = Object;
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
-  var T = Object(target)
+  var T = Object(assertDefined(target))
     , l = arguments.length
     , i = 1;
   while(l > i){
@@ -233,9 +229,9 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
   return function(callbackfn, that /* = undefined */){
-    var f      = ctx(callbackfn, that, 3)
-      , O      = Object(this)
+    var O      = Object(assertDefined(this))
       , self   = ES5Object(O)
+      , f      = ctx(callbackfn, that, 3)
       , length = toLength(self.length)
       , index  = 0
       , result = isMap ? Array(length) : isFilter ? [] : undefined
@@ -258,7 +254,7 @@ function createArrayMethod(type){
 }
 function createArrayContains(isContains){
   return function(el, fromIndex /* = 0 */){
-    var O      = ES5Object(this)
+    var O      = ES5Object(assertDefined(this))
       , length = toLength(O.length)
       , index  = toIndex(fromIndex, length);
     if(isContains && el != el){
@@ -327,7 +323,7 @@ function createReplacer(regExp, replace, isStatic){
 }
 function createPointAt(toString){
   return function(pos){
-    var s = String(this)
+    var s = String(assertDefined(this))
       , i = toInteger(pos)
       , l = s.length
       , a, b;
@@ -343,6 +339,10 @@ function createPointAt(toString){
 var REDUCE_ERROR = 'Reduce of empty object with no initial value';
 function assert(condition, msg1, msg2){
   if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
+}
+function assertDefined(it){
+  if(it == undefined)throw TypeError('Function called on null or undefined');
+  return it;
 }
 function assertFunction(it){
   assert(isFunction(it), it, ' is not a function!');
@@ -459,8 +459,10 @@ function forOf(iterable, entries, fn, that){
 var html = document && document.documentElement;
 
 // core
-var NODE   = cof(process) == PROCESS
-  , old    = global.core
+var NODE = cof(process) == PROCESS
+  , core = {}
+  , path = framework ? global : core
+  , old  = global.core
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -468,6 +470,10 @@ var NODE   = cof(process) == PROCESS
   , PROTO  = 8
   , BIND   = 16
   , WRAP   = 32;
+function assignHidden(target, src){
+  for(var key in src)hidden(target, key, src[key]);
+  return target;
+}
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
@@ -491,7 +497,7 @@ function $define(type, name, source){
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // export
-    if(exports[key] != out)exports[key] = exp;
+    if(exports[key] != out)hidden(exports, key, exp);
     // extend global
     framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
   }

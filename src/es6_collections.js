@@ -9,6 +9,12 @@
     , uid      = 0
     , wid      = 0;
   
+  function wrapSVZ(method, chain){
+    return function(a, b){
+      var result = method.call(this, same(a, -0) ? 0 : a, b);
+      return chain ? this : result;
+    }
+  }
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER_KEY = isMap ? 'set' : 'add'
       , init      = commonMethods.clear
@@ -25,33 +31,36 @@
         initFromIterable(this, iterable);
       }
       set(C, SHIM, true);
-      assign(C[PROTOTYPE], methods, commonMethods);
+      assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
       isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
-        return this[SIZE];
+        return assertDefined(this[SIZE]);
       }});
     } else {
-      var Native     = C
-        , collection = new C
-        , adder      = collection[ADDER_KEY]
-        , buggyChaining, buggyZero;
+      var Native = C
+        , proto  = C[PROTOTYPE]
+        , inst   = new C
+        , chain  = inst[ADDER_KEY](isWeak ? {} : -0, 1)
+        , buggyZero;
       // wrap to init collections from iterable
       if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);
         }
-        C[PROTOTYPE] = Native[PROTOTYPE];
+        C[PROTOTYPE] = proto;
       }
-      buggyChaining = collection[ADDER_KEY](isWeak ? {} : -0, 1) !== collection;
-      isWeak || collection[FOR_EACH](function(val, key){
+      isWeak || inst[FOR_EACH](function(val, key){
         if(same(key, -0))buggyZero = true;
       });
-      // fix .add & .set for chaining & converting -0 key to +0
-      if(framework && (buggyChaining || buggyZero)){
-        hidden(C[PROTOTYPE], ADDER_KEY, function(a, b){
-          adder.call(this, same(a, -0) ? 0 : a, b);
-          return this;
-        });
+      if(framework){
+        // fix converting -0 key to +0
+        if(buggyZero){
+          hidden(proto, 'delete', wrapSVZ(proto['delete']));
+          hidden(proto, 'has', wrapSVZ(proto.has));
+          isMap && hidden(proto, 'get', wrapSVZ(proto.get));
+        }
+        // fix .add & .set for chaining
+        if(buggyZero || chain !== inst)hidden(proto, ADDER_KEY, wrapSVZ(proto[ADDER_KEY], true));
       }
     }
     setToStringTag(C, NAME);
@@ -108,7 +117,7 @@
             done[index] = true;
             f(values[index], keys[index], this);
           }
-        } while(index != undefined && index != (k = getKeys(keys))[k.length - 1]);
+        } while((k = getKeys(keys)).length && k[k.length - 1] != index);
       },
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)
