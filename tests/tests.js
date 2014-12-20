@@ -939,16 +939,10 @@
       } catch (e$) {}
     }
   });
-  test('console as console.log shortcut', function(){
-    ok(isFunction(console), 'console is function');
-    ok(console === console.log, 'console is console.log shortcut');
-    ok((function(){
-      try {
-        console('console');
-        return true;
-      } catch (e$) {}
-    }()), 'call console');
-  });
+  /*test 'console as console.log shortcut' !->
+    ok isFunction(console), 'console is function'
+    ok console is console.log, 'console is console.log shortcut'
+    ok (try console 'console'; on), 'call console'*/
   test('console.{enable, disable}', function(){
     var enable, disable;
     enable = console.enable, disable = console.disable;
@@ -962,7 +956,7 @@
     }()), 'disable console');
     ok((function(){
       try {
-        return console('call disabled console') === void 8;
+        return console.log('call disabled console') === void 8;
       } catch (e$) {}
     }()), 'call disabled console');
     ok((function(){
@@ -1023,7 +1017,7 @@
 }).call(this);
 
 (function(){
-  var isFunction, keys, create, assign, from, toStringTag, toString$ = {}.toString;
+  var isFunction, keys, create, assign, from, toStringTag, global, toString$ = {}.toString;
   QUnit.module('Dict');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
@@ -1031,6 +1025,7 @@
   keys = Object.keys, create = Object.create, assign = Object.assign;
   from = Array.from;
   toStringTag = Symbol.toStringTag;
+  global = this;
   test('Dict', function(){
     var dict1, dict2, dict3;
     ok(isFunction(global.Dict), 'Is function');
@@ -3979,7 +3974,7 @@
           if (Date.now() - now < 5e3) {
             return inc();
           } else {
-            return console("setImmediate: " + x / 5 + " per second");
+            return console.log("setImmediate: " + x / 5 + " per second");
           }
         });
       })();

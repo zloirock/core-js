@@ -17,16 +17,18 @@
     set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, DICT, function(){
-    var iter   = this[ITER]
-      , index  = iter.i++
-      , keys   = iter.a
-      , kind   = iter.k
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i++
+      , keys  = iter.a
+      , kind  = iter.k
       , key, value;
     if(index >= keys.length)return iterResult(1);
     key = keys[index];
+    if(!has(O, key))return this.next();
     if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = iter.o[key];
-    else                  value = [key, iter.o[key]];
+    else if(kind == VALUE)value = O[key];
+    else                  value = [key, O[key]];
     return iterResult(0, value);
   });
   function createDictIter(kind){
@@ -51,13 +53,9 @@
     return function(object, callbackfn, that /* = undefined */){
       var f      = ctx(callbackfn, that, 3)
         , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
         , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
         , key, val, res;
-      while(length > i){
-        key = keys[i++];
+      for(key in O)if(has(O, key)){
         val = O[key];
         res = f(val, key, object);
         if(type){
@@ -87,8 +85,8 @@
         assert(length, REDUCE_ERROR);
         memo = O[keys[i++]];
       } else memo = Object(init);
-      while(length > i){
-        result = mapfn(memo, O[key = keys[i++]], key, object);
+      while(length > i)if(has(O, key = keys[i++])){
+        result = mapfn(memo, O[key], key, object);
         if(isTurn){
           if(result === false)break;
         } else memo = result;

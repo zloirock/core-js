@@ -1,5 +1,5 @@
 /**
- * Core.js 0.2.4
+ * Core.js 0.2.5
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -512,7 +512,7 @@ function $define(type, name, source){
     // export
     if(exports[key] != out)hidden(exports, key, exp);
     // extend global
-    framework && target && !own && (isGlobal || delete target[key]) && hidden(target, key, out);
+    if(framework && target && !own && (isGlobal || delete target[key]))hidden(target, key, out);
   }
 }
 // CommonJS export
@@ -705,7 +705,7 @@ $define(GLOBAL + FORCED, {global: global});
       return new Float32Array([x])[0];
     },
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-    // TODO: work for very large & small numbers
+    // TODO: work with very large & small numbers
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length
@@ -1052,61 +1052,65 @@ $define(GLOBAL + BIND, {
         reject.call(def, err);
       }
     }
-    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
-      var react = {
-        ok:   isFunction(onFulfilled) ? onFulfilled : true,
-        fail: isFunction(onRejected)  ? onRejected  : false
-      } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
-        react.res = assertFunction(resolve);
-        react.rej = assertFunction(reject);
-      }), def = this[DEF];
-      def.chain.push(react);
-      def.state && notify(def);
-      return P;
+    assignHidden(Promise[PROTOTYPE], {
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+      then: function(onFulfilled, onRejected){
+        var react = {
+          ok:   isFunction(onFulfilled) ? onFulfilled : true,
+          fail: isFunction(onRejected)  ? onRejected  : false
+        } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
+          react.res = assertFunction(resolve);
+          react.rej = assertFunction(reject);
+        }), def = this[DEF];
+        def.chain.push(react);
+        def.state && notify(def);
+        return P;
+      },
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
+      'catch': function(onRejected){
+        return this.then(undefined, onRejected);
+      }
     });
-    // 25.4.5.1 Promise.prototype.catch(onRejected)
-    hidden(Promise[PROTOTYPE], 'catch', function(onRejected){
-      return this.then(undefined, onRejected);
-    });
-    // 25.4.4.1 Promise.all(iterable)
-    hidden(Promise, 'all', function(iterable){
-      var Promise = this
-        , values  = [];
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, push, values);
-        var remaining = values.length
-          , results   = Array(remaining);
-        if(remaining)forEach.call(values, function(promise, index){
-          Promise.resolve(promise).then(function(value){
-            results[index] = value;
-            --remaining || resolve(results);
-          }, reject);
+    assignHidden(Promise, {
+      // 25.4.4.1 Promise.all(iterable)
+      all: function(iterable){
+        var Promise = this
+          , values  = [];
+        return new Promise(function(resolve, reject){
+          forOf(iterable, false, push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
+          if(remaining)forEach.call(values, function(promise, index){
+            Promise.resolve(promise).then(function(value){
+              results[index] = value;
+              --remaining || resolve(results);
+            }, reject);
+          });
+          else resolve(results);
         });
-        else resolve(results);
-      });
-    });
-    // 25.4.4.4 Promise.race(iterable)
-    hidden(Promise, 'race', function(iterable){
-      var Promise = this;
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, function(promise){
-          Promise.resolve(promise).then(resolve, reject);
+      },
+      // 25.4.4.4 Promise.race(iterable)
+      race: function(iterable){
+        var Promise = this;
+        return new Promise(function(resolve, reject){
+          forOf(iterable, false, function(promise){
+            Promise.resolve(promise).then(resolve, reject);
+          });
         });
-      });
-    });
-    // 25.4.4.5 Promise.reject(r)
-    hidden(Promise, 'reject', function(r){
-      return new this(function(resolve, reject){
-        reject(r);
-      });
-    });
-    // 25.4.4.6 Promise.resolve(x)
-    hidden(Promise, 'resolve', function(x){
-      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
-        ? x : new this(function(resolve, reject){
-          resolve(x);
+      },
+      // 25.4.4.5 Promise.reject(r)
+      reject: function(r){
+        return new this(function(resolve, reject){
+          reject(r);
         });
+      },
+      // 25.4.4.6 Promise.resolve(x)
+      resolve: function(x){
+        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
+          ? x : new this(function(resolve, reject){
+            resolve(x);
+          });
+      }
     });
   }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);
@@ -1397,16 +1401,18 @@ $define(GLOBAL + BIND, {
     set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, DICT, function(){
-    var iter   = this[ITER]
-      , index  = iter.i++
-      , keys   = iter.a
-      , kind   = iter.k
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i++
+      , keys  = iter.a
+      , kind  = iter.k
       , key, value;
     if(index >= keys.length)return iterResult(1);
     key = keys[index];
+    if(!has(O, key))return this.next();
     if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = iter.o[key];
-    else                  value = [key, iter.o[key]];
+    else if(kind == VALUE)value = O[key];
+    else                  value = [key, O[key]];
     return iterResult(0, value);
   });
   function createDictIter(kind){
@@ -1431,13 +1437,9 @@ $define(GLOBAL + BIND, {
     return function(object, callbackfn, that /* = undefined */){
       var f      = ctx(callbackfn, that, 3)
         , O      = ES5Object(object)
-        , keys   = getKeys(O)
-        , length = keys.length
-        , i      = 0
         , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
         , key, val, res;
-      while(length > i){
-        key = keys[i++];
+      for(key in O)if(has(O, key)){
         val = O[key];
         res = f(val, key, object);
         if(type){
@@ -1467,8 +1469,8 @@ $define(GLOBAL + BIND, {
         assert(length, REDUCE_ERROR);
         memo = O[keys[i++]];
       } else memo = Object(init);
-      while(length > i){
-        result = mapfn(memo, O[key = keys[i++]], key, object);
+      while(length > i)if(has(O, key = keys[i++])){
+        result = mapfn(memo, O[key], key, object);
         if(isTurn){
           if(result === false)break;
         } else memo = result;
@@ -1663,46 +1665,46 @@ $define(GLOBAL + BIND, {
   
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-    
+  
+  function getCollectionKeys(inst, C){
+    var keys;
+    if(C[SHIM])keys = getValues(inst[COLLECTION_KEYS]);
+    else inst[FOR_EACH](function(val, key){
+      this.push(C == Map ? key : val);
+    }, keys = []);
+    return keys;
+  }
+  
   // 23.1.5.1 CreateMapIterator Abstract Operation
   defineStdIterators(Map, MAP, function(iterated, kind){
-    var keys;
-    if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
-      this.push(key);
-    }, keys = []);
-    set(this, ITER, {o: iterated, k: kind, a: keys, i: 0});
+    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Map), i: 0});
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
   }, function(){
-    var iter     = this[ITER]
-      , iterated = iter.o
-      , keys     = iter.a
-      , index    = iter.i++
-      , kind     = iter.k
+    var iter  = this[ITER]
+      , O     = iter.o
+      , keys  = iter.a
+      , index = iter.i++
+      , kind  = iter.k
       , key, value;
     if(index >= keys.length)return iterResult(1);
-    key = keys[index];
+    if(!O.has(key = keys[index]))return this.next();
     if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = iterated.get(key);
-    else                  value = [key, iterated.get(key)];
+    else if(kind == VALUE)value = O.get(key);
+    else                  value = [key, O.get(key)];
     return iterResult(0, value);
   }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
   defineStdIterators(Set, SET, function(iterated, kind){
-    var keys;
-    if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
-      this.push(val);
-    }, keys = []);
-    set(this, ITER, {k: kind, a: keys.reverse(), l: keys.length});
+    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Set).reverse()});
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   }, function(){
     var iter = this[ITER]
+      , O    = iter.o
       , keys = iter.a
-      , key;
+      , key; 
     if(!keys.length)return iterResult(1);
-    key = keys.pop();
+    if(!O.has(key = keys.pop()))return this.next();
     return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
   }, VALUE);
 }();
@@ -1950,7 +1952,9 @@ $define(PROTO + FORCED, ARRAY, {
  * Module : console                                                           *
  ******************************************************************************/
 
-!function(console){
+!function(console, enabled){
+  var exports  = core.console = framework ? console || (global.console = {}) : {}
+    , _console = console || {};
   var $console = turn.call(
     /**
      * Methods from:
@@ -1961,23 +1965,18 @@ $define(PROTO + FORCED, ARRAY, {
       'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
       'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
-      var fn = console[key];
-      memo[key] = function(){
+      var fn = _console[key];
+      if(!(NODE && key in _console))hidden(memo, key, function(){
         if(enabled && fn)return apply.call(fn, console, arguments);
-      };
-    },
-    {
+      });
+    }, assignHidden(exports, {
       enable: function(){
         enabled = true;
       },
       disable: function(){
         enabled = false;
       }
-    }
-  ), enabled = true;
-  try {
-    framework && delete global.console;
-  } catch(e){}
-  $define(GLOBAL + FORCED, {console: assignHidden($console.log, $console)});
-}(global.console || {});
+    })
+  );
+}(global.console, true);
 }(Function('return this'), true);

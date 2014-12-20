@@ -1,4 +1,6 @@
-!function(console){
+!function(console, enabled){
+  var exports  = core.console = framework ? console || (global.console = {}) : {}
+    , _console = console || {};
   var $console = turn.call(
     /**
      * Methods from:
@@ -9,22 +11,17 @@
       'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
       'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
-      var fn = console[key];
-      memo[key] = function(){
+      var fn = _console[key];
+      if(!(NODE && key in _console))hidden(memo, key, function(){
         if(enabled && fn)return apply.call(fn, console, arguments);
-      };
-    },
-    {
+      });
+    }, assignHidden(exports, {
       enable: function(){
         enabled = true;
       },
       disable: function(){
         enabled = false;
       }
-    }
-  ), enabled = true;
-  try {
-    framework && delete global.console;
-  } catch(e){}
-  $define(GLOBAL + FORCED, {console: assignHidden($console.log, $console)});
-}(global.console || {});
+    })
+  );
+}(global.console, true);

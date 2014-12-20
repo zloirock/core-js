@@ -100,7 +100,7 @@
       return new Float32Array([x])[0];
     },
     // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-    // TODO: work for very large & small numbers
+    // TODO: work with very large & small numbers
     hypot: function(value1, value2){
       var sum    = 0
         , length = arguments.length

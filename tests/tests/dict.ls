@@ -3,6 +3,7 @@ isFunction = -> typeof! it is \Function
 {keys, create, assign} = Object
 {from} = Array
 {toStringTag} = Symbol
+global = @
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
   dict1 = Dict!

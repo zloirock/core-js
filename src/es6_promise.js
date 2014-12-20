@@ -74,61 +74,65 @@
         reject.call(def, err);
       }
     }
-    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    hidden(Promise[PROTOTYPE], 'then', function(onFulfilled, onRejected){
-      var react = {
-        ok:   isFunction(onFulfilled) ? onFulfilled : true,
-        fail: isFunction(onRejected)  ? onRejected  : false
-      } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
-        react.res = assertFunction(resolve);
-        react.rej = assertFunction(reject);
-      }), def = this[DEF];
-      def.chain.push(react);
-      def.state && notify(def);
-      return P;
+    assignHidden(Promise[PROTOTYPE], {
+      // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+      then: function(onFulfilled, onRejected){
+        var react = {
+          ok:   isFunction(onFulfilled) ? onFulfilled : true,
+          fail: isFunction(onRejected)  ? onRejected  : false
+        } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
+          react.res = assertFunction(resolve);
+          react.rej = assertFunction(reject);
+        }), def = this[DEF];
+        def.chain.push(react);
+        def.state && notify(def);
+        return P;
+      },
+      // 25.4.5.1 Promise.prototype.catch(onRejected)
+      'catch': function(onRejected){
+        return this.then(undefined, onRejected);
+      }
     });
-    // 25.4.5.1 Promise.prototype.catch(onRejected)
-    hidden(Promise[PROTOTYPE], 'catch', function(onRejected){
-      return this.then(undefined, onRejected);
-    });
-    // 25.4.4.1 Promise.all(iterable)
-    hidden(Promise, 'all', function(iterable){
-      var Promise = this
-        , values  = [];
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, push, values);
-        var remaining = values.length
-          , results   = Array(remaining);
-        if(remaining)forEach.call(values, function(promise, index){
-          Promise.resolve(promise).then(function(value){
-            results[index] = value;
-            --remaining || resolve(results);
-          }, reject);
+    assignHidden(Promise, {
+      // 25.4.4.1 Promise.all(iterable)
+      all: function(iterable){
+        var Promise = this
+          , values  = [];
+        return new Promise(function(resolve, reject){
+          forOf(iterable, false, push, values);
+          var remaining = values.length
+            , results   = Array(remaining);
+          if(remaining)forEach.call(values, function(promise, index){
+            Promise.resolve(promise).then(function(value){
+              results[index] = value;
+              --remaining || resolve(results);
+            }, reject);
+          });
+          else resolve(results);
         });
-        else resolve(results);
-      });
-    });
-    // 25.4.4.4 Promise.race(iterable)
-    hidden(Promise, 'race', function(iterable){
-      var Promise = this;
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, function(promise){
-          Promise.resolve(promise).then(resolve, reject);
+      },
+      // 25.4.4.4 Promise.race(iterable)
+      race: function(iterable){
+        var Promise = this;
+        return new Promise(function(resolve, reject){
+          forOf(iterable, false, function(promise){
+            Promise.resolve(promise).then(resolve, reject);
+          });
         });
-      });
-    });
-    // 25.4.4.5 Promise.reject(r)
-    hidden(Promise, 'reject', function(r){
-      return new this(function(resolve, reject){
-        reject(r);
-      });
-    });
-    // 25.4.4.6 Promise.resolve(x)
-    hidden(Promise, 'resolve', function(x){
-      return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
-        ? x : new this(function(resolve, reject){
-          resolve(x);
+      },
+      // 25.4.4.5 Promise.reject(r)
+      reject: function(r){
+        return new this(function(resolve, reject){
+          reject(r);
         });
+      },
+      // 25.4.4.6 Promise.resolve(x)
+      resolve: function(x){
+        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
+          ? x : new this(function(resolve, reject){
+            resolve(x);
+          });
+      }
     });
   }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);

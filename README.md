@@ -725,7 +725,7 @@ clearImmediate(id) -> void
 ### Console
 Module `console`. Console cap for old browsers and some additional functionality.
 ```javascript
-console(...args) -> void
+console
   .{...console API}
   .enable() -> void
   .disable() -> void
@@ -747,12 +747,6 @@ console.disable();
 console.warn('Console is disabled, you will not see this message.');
 console.enable();
 console.warn('Console is enabled again.');
-
-console('Shortcut for console.log');
-// Before:
-setTimeout(console.log.bind(console, 42), 1000);
-// After:
-setTimeout(console, 1000, 42);
 ```
 ### Object
 Module `object`.
@@ -1185,6 +1179,10 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.2.5** - *2014.12.20*
+  * `console` no longer shortcut for `console.log` (compatibility problems)
+  * some fixes
+
 **0.2.4** - *2014.12.17* - Better compliance of ES6
   * some fixes
   * added [`Math.fround`](#ecmascript-6-number--math) (IE10+)

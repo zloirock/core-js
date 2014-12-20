@@ -71,46 +71,46 @@
   
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
-    
+  
+  function getCollectionKeys(inst, C){
+    var keys;
+    if(C[SHIM])keys = getValues(inst[COLLECTION_KEYS]);
+    else inst[FOR_EACH](function(val, key){
+      this.push(C == Map ? key : val);
+    }, keys = []);
+    return keys;
+  }
+  
   // 23.1.5.1 CreateMapIterator Abstract Operation
   defineStdIterators(Map, MAP, function(iterated, kind){
-    var keys;
-    if(Map[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else Map[PROTOTYPE][FOR_EACH].call(iterated, function(val, key){
-      this.push(key);
-    }, keys = []);
-    set(this, ITER, {o: iterated, k: kind, a: keys, i: 0});
+    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Map), i: 0});
   // 23.1.5.2.1 %MapIteratorPrototype%.next()
   }, function(){
-    var iter     = this[ITER]
-      , iterated = iter.o
-      , keys     = iter.a
-      , index    = iter.i++
-      , kind     = iter.k
+    var iter  = this[ITER]
+      , O     = iter.o
+      , keys  = iter.a
+      , index = iter.i++
+      , kind  = iter.k
       , key, value;
     if(index >= keys.length)return iterResult(1);
-    key = keys[index];
+    if(!O.has(key = keys[index]))return this.next();
     if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = iterated.get(key);
-    else                  value = [key, iterated.get(key)];
+    else if(kind == VALUE)value = O.get(key);
+    else                  value = [key, O.get(key)];
     return iterResult(0, value);
   }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
   defineStdIterators(Set, SET, function(iterated, kind){
-    var keys;
-    if(Set[SHIM])keys = getValues(iterated[COLLECTION_KEYS]);
-    else Set[PROTOTYPE][FOR_EACH].call(iterated, function(val){
-      this.push(val);
-    }, keys = []);
-    set(this, ITER, {k: kind, a: keys.reverse(), l: keys.length});
+    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Set).reverse()});
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   }, function(){
     var iter = this[ITER]
+      , O    = iter.o
       , keys = iter.a
-      , key;
+      , key; 
     if(!keys.length)return iterResult(1);
-    key = keys.pop();
+    if(!O.has(key = keys.pop()))return this.next();
     return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
   }, VALUE);
 }();
