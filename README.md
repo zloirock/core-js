@@ -900,14 +900,14 @@ Dict.isDict(Dict()); // => true
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
-for(var key of Dict.keys(dict))console(key); // => 'a', 'b', 'c'
+for(var key of Dict.keys(dict))console.log(key); // => 'a', 'b', 'c'
 
 for(var [key, val] of Dict.entries(dict)){
-  console(key); // => 'a', 'b', 'c'
-  console(val); // => 1, 2, 3
+  console.log(key); // => 'a', 'b', 'c'
+  console.log(val); // => 1, 2, 3
 }
 
-$for(Dict.values(dict)).of(console); // => 1, 2, 3
+$for(Dict.values(dict)).of(console.log); // => 1, 2, 3
 
 new Map(Dict.entries(dict)); // => Map {a: 1, b: 2, c: 3}
 
@@ -988,13 +988,13 @@ Object
 ```
 `Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
-var fn1 = log.part(1, 2);
+var fn1 = console.log.part(1, 2);
 fn1(3, 4);    // => 1, 2, 3, 4
 
-var fn2 = log.part(_, 2, _, 4);
+var fn2 = console.log.part(_, 2, _, 4);
 fn2(1, 3);    // => 1, 2, 3, 4
 
-var fn3 = log.part(1, _, _, 4);
+var fn3 = console.log.part(1, _, _, 4);
 fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
@@ -1100,9 +1100,9 @@ Number
 ```
 Number Iterator [examples](http://goo.gl/mkReUE):
 ```javascript
-for(var i of 3)console(i); // => 0, 1, 2
+for(var i of 3)console.log(i); // => 0, 1, 2
 
-$for(3).of(console); // => 0, 1, 2
+$for(3).of(console.log); // => 0, 1, 2
 
 Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
 

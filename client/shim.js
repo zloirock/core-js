@@ -1633,12 +1633,12 @@ $define(GLOBAL + BIND, {
     set(this, ITER, {o: String(iterated), i: 0});
   // 21.1.5.2.1 %StringIteratorPrototype%.next()
   }, function(){
-    var iter     = this[ITER]
-      , iterated = iter.o
-      , index    = iter.i
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i
       , point;
-    if(index >= iterated.length)return iterResult(1);
-    point = at.call(iterated, index);
+    if(index >= O.length)return iterResult(1);
+    point = at.call(O, index);
     iter.i += point.length;
     return iterResult(0, point);
   });
@@ -1648,16 +1648,14 @@ $define(GLOBAL + BIND, {
     set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
   }, function(){
-    var iter     = this[ITER]
-      , iterated = iter.o
-      , index    = iter.i++
-      , kind     = iter.k
-      , value;
-    if(index >= iterated.length)return iterResult(1);
-    if(kind == KEY)       value = index;
-    else if(kind == VALUE)value = iterated[index];
-    else                  value = [index, iterated[index]];
-    return iterResult(0, value);
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i++
+      , kind  = iter.k;
+    if(index >= O.length)return iterResult(1);
+    if(kind == KEY)      return iterResult(0, index);
+    if(kind == VALUE)    return iterResult(0, O[index]);
+                         return iterResult(0, [index, O[index]]);
   }, VALUE);
   
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
@@ -1680,15 +1678,15 @@ $define(GLOBAL + BIND, {
     var iter  = this[ITER]
       , O     = iter.o
       , keys  = iter.a
-      , index = iter.i++
       , kind  = iter.k
-      , key, value;
-    if(index >= keys.length)return iterResult(1);
-    if(!O.has(key = keys[index]))return this.next();
-    if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = O.get(key);
-    else                  value = [key, O.get(key)];
-    return iterResult(0, value);
+      , key;
+    while(true){
+      if(iter.i >= keys.length)return iterResult(1);
+      if(O.has(key = keys[iter.i++]))break;
+    }
+    if(kind == KEY)  return iterResult(0, key);
+    if(kind == VALUE)return iterResult(0, O.get(key));
+                     return iterResult(0, [key, O.get(key)]);
   }, KEY+VALUE);
   
   // 23.2.5.1 CreateSetIterator Abstract Operation
@@ -1697,12 +1695,12 @@ $define(GLOBAL + BIND, {
   // 23.2.5.2.1 %SetIteratorPrototype%.next()
   }, function(){
     var iter = this[ITER]
-      , O    = iter.o
       , keys = iter.a
-      , key; 
-    if(!keys.length)return iterResult(1);
-    if(!O.has(key = keys.pop()))return this.next();
-    return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
+      , key;
+    while(true){
+      if(!keys.length)return iterResult(1);
+      if(iter.o.has(key = keys.pop()))break;
+    } return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
   }, VALUE);
 }();
 

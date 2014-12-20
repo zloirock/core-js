@@ -939,10 +939,6 @@
       } catch (e$) {}
     }
   });
-  /*test 'console as console.log shortcut' !->
-    ok isFunction(console), 'console is function'
-    ok console is console.log, 'console is console.log shortcut'
-    ok (try console 'console'; on), 'call console'*/
   test('console.{enable, disable}', function(){
     var enable, disable;
     enable = console.enable, disable = console.disable;

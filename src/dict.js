@@ -19,17 +19,16 @@
   createIterator(DictIterator, DICT, function(){
     var iter  = this[ITER]
       , O     = iter.o
-      , index = iter.i++
       , keys  = iter.a
       , kind  = iter.k
-      , key, value;
-    if(index >= keys.length)return iterResult(1);
-    key = keys[index];
-    if(!has(O, key))return this.next();
-    if(kind == KEY)       value = key;
-    else if(kind == VALUE)value = O[key];
-    else                  value = [key, O[key]];
-    return iterResult(0, value);
+      , key;
+    while(true){
+      if(iter.i >= keys.length)return iterResult(1);
+      if(has(O, key = keys[iter.i++]))break;
+    }
+    if(kind == KEY)  return iterResult(0, key);
+    if(kind == VALUE)return iterResult(0, O[key]);
+                     return iterResult(0, [key, O[key]]);    
   });
   function createDictIter(kind){
     return function(it){
