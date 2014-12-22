@@ -116,9 +116,7 @@
     includes:includes,
     // Has / get / set own property
     has: has,
-    get: function(object, key){
-      if(has(object, key))return object[key];
-    },
+    get: get,
     set: createDefiner(0),
     isDict: function(it){
       return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];

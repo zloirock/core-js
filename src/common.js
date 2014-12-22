@@ -164,6 +164,9 @@ var create           = Object.create
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
+function get(object, key){
+  if(has(object, key))return object[key];
+}
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(assertDefined(target))
@@ -178,19 +181,6 @@ var assign = Object.assign || function(target, source){
     while(length > j)T[key = keys[j++]] = S[key];
   }
   return T;
-}
-function createObjectToArray(isEntries){
-  return function(object){
-    var O      = ES5Object(object)
-      , keys   = getKeys(object)
-      , length = keys.length
-      , i      = 0
-      , result = Array(length)
-      , key;
-    if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
-    else while(length > i)result[i] = O[keys[i++]];
-    return result;
-  }
 }
 function keyOf(object, el){
   var O      = ES5Object(object)
@@ -394,12 +384,13 @@ var ITERATOR = 'iterator'
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = safeSymbol('iter')
-  , SHIM  = safeSymbol('shim')
   , KEY   = 1
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-  , COLLECTION_KEYS;
+  , NATIVE_ITERATORS = SYMBOL_ITERATOR in ArrayProto
+    // Safari define byggy iterators w/o `next`
+  , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);
 function setIterator(O, value){
@@ -411,14 +402,9 @@ function createIterator(Constructor, NAME, next, proto){
   Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 }
-function defineIterator(Constructor, NAME, value){
-  var proto       = Constructor[PROTOTYPE]
-    , HAS_FF_ITER = has(proto, FF_ITERATOR);
-  var iter = has(proto, SYMBOL_ITERATOR)
-    ? proto[SYMBOL_ITERATOR]
-    : HAS_FF_ITER
-      ? proto[FF_ITERATOR]
-      : value;
+function defineIterator(Constructor, NAME, value, DEFAULT){
+  var proto = Constructor[PROTOTYPE]
+    , iter  = get(proto, SYMBOL_ITERATOR) || get(proto, FF_ITERATOR) || (DEFAULT && get(proto, DEFAULT)) || value;
   if(framework){
     // Define iterator
     setIterator(proto, iter);
@@ -427,13 +413,27 @@ function defineIterator(Constructor, NAME, value){
       // Set @@toStringTag to native iterators
       setToStringTag(iterProto, NAME + ' Iterator', true);
       // FF fix
-      HAS_FF_ITER && setIterator(iterProto, returnThis);
+      has(proto, FF_ITERATOR) && setIterator(iterProto, returnThis);
     }
   }
   // Plug for library
   Iterators[NAME] = iter;
   // FF & v8 fix
   Iterators[NAME + ' Iterator'] = returnThis;
+}
+function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
+  function createIter(kind){
+    return function(){
+      return new Constructor(this, kind);
+    }
+  }
+  createIterator(Constructor, NAME, next);
+  defineIterator(Base, NAME, createIter(DEFAULT), DEFAULT == VALUE ? 'values' : 'entries');
+  DEFAULT && $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
+    entries: createIter(KEY+VALUE),
+    keys:    createIter(KEY),
+    values:  createIter(VALUE)
+  });
 }
 function iterResult(done, value){
   return {value: value, done: !!done};

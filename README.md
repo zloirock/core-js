@@ -74,7 +74,7 @@ Date
 ```
 
 ### ECMAScript 6
-Module `es6`. [Symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators) and [promises](#ecmascript-6-promises) in separate modules.
+Module `es6`. About iterators from this module [here](#ecmascript-6-iterators). [Symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections) and [promises](#ecmascript-6-promises) in separate modules.
 #### ECMAScript 6: Object
 ```javascript
 Object
@@ -276,7 +276,7 @@ o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
 ### ECMAScript 6: Collections
-Module `es6_collections`, iterators for them are defined in [es6_iterators](#ecmascript-6-iterators).
+Module `es6_collections`. About iterators from this module [here](#ecmascript-6-iterators).
 
 #### Map
 ```javascript
@@ -393,7 +393,7 @@ console.log(wset.has(b));   // => false
 ```
 
 ### ECMAScript 6: Iterators
-Module `es6_iterators`.
+Module `es6`:
 ```javascript
 String
   #@@iterator() -> iterator
@@ -402,6 +402,11 @@ Array
   #keys() -> iterator
   #entries() -> iterator (entries)
   #@@iterator() -> iterator
+Arguments
+  #@@iterator() -> iterator (sham, available only in core-js methods)
+```
+Module `es6_collections`:
+```javascript
 Set
   #values() -> iterator
   #keys() -> iterator
@@ -412,8 +417,6 @@ Map
   #keys() -> iterator
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
-Arguments
-  #@@iterator() -> iterator (sham, available only in core-js methods)
 ```
 [Example](http://goo.gl/3s27dC):
 ```javascript
@@ -1179,6 +1182,11 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.3.0** - *2014.12.23* - Optimize `Map` & `Set`
+  * use entries chain on hash table
+  * fast & correct iteration
+  * iterators moved to `es6` and `es6_collections` modules
+
 **0.2.5** - *2014.12.20*
   * `console` no longer shortcut for `console.log` (compatibility problems)
   * some fixes

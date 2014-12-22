@@ -9,11 +9,15 @@ sameEq = (a, b, c)-> ok Object.is(a, b), c
 strict = typeof (-> @).call(void) is \undefined
 
 isFunction = -> typeof! it is \Function
-isNative = -> /\[native code\]\s*\}\s*$/.test it
+isIterator = ->
+  return typeof it is \object  && typeof it.next is \function
 
 {getOwnPropertyDescriptor, defineProperty, create} = Object
+{iterator, toStringTag} = Symbol
 
 epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
+
+descriptors = /\[native code\]\s*\}\s*$/.test getOwnPropertyDescriptor
 
 test 'Object.assign' !->
   {assign} = Object
@@ -21,7 +25,7 @@ test 'Object.assign' !->
   foo = q: 1
   eq foo, assign(foo, bar: 2), 'assign return target'
   eq foo.bar, 2, 'assign define properties'
-  if isNative getOwnPropertyDescriptor
+  if descriptors
     foo = baz: 1
     assign foo, defineProperty {}, \bar, get: -> @baz + 1
     ok foo.bar is void, "assign don't copy descriptors"
@@ -568,6 +572,22 @@ test 'String#repeat' !->
   if strict
     throws (-> String::repeat.call null, 1), TypeError
     throws (-> String::repeat.call void, 1), TypeError
+test 'String#@@iterator' !->
+  ok typeof String::[iterator] is \function, 'Is function'
+  iter = 'qwe'[iterator]!
+  ok isIterator(iter), 'Return iterator'
+  eq iter[toStringTag], 'String Iterator'
+  deq iter.next!, {value: \q, done: no}
+  deq iter.next!, {value: \w, done: no}
+  deq iter.next!, {value: \e, done: no}
+  deq iter.next!, {value: void, done: on}
+  eq Array.from(\𠮷𠮷𠮷).length, 3
+  iter = '𠮷𠮷𠮷'[iterator]!
+  deq iter.next!, {value: \𠮷, done: no}
+  deq iter.next!, {value: \𠮷, done: no}
+  deq iter.next!, {value: \𠮷, done: no}
+  deq iter.next!, {value: void, done: on}
+
 test 'Array.from' !->
   {from} = Array
   ok isFunction(from), 'Is function'
@@ -654,3 +674,39 @@ if \flags of RegExp:: => test 'RegExp#flags' !->
   eq /./gmi.flags, \gim, '/./gmi.flags is "gim"'
   eq /./mig.flags, \gim, '/./mig.flags is "gim"'
   eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'
+test 'Array#keys' !->
+  ok typeof Array::keys is \function, 'Is function'
+  iter = <[q w e]>keys!
+  ok isIterator(iter), 'Return iterator'
+  eq iter[toStringTag], 'Array Iterator'
+  deq iter.next!, {value: 0, done: no}
+  deq iter.next!, {value: 1, done: no}
+  deq iter.next!, {value: 2, done: no}
+  deq iter.next!, {value: void, done: on}
+test 'Array#values' !->
+  ok typeof Array::values is \function, 'Is function'
+  iter = <[q w e]>values!
+  ok isIterator(iter), 'Return iterator'
+  eq iter[toStringTag], 'Array Iterator'
+  deq iter.next!, {value: \q, done: no}
+  deq iter.next!, {value: \w, done: no}
+  deq iter.next!, {value: \e, done: no}
+  deq iter.next!, {value: void, done: on}
+test 'Array#entries' !->
+  ok typeof Array::entries is \function, 'Is function'
+  iter = <[q w e]>entries!
+  ok isIterator(iter), 'Return iterator'
+  eq iter[toStringTag], 'Array Iterator'
+  deq iter.next!, {value: [0 \q], done: no}
+  deq iter.next!, {value: [1 \w], done: no}
+  deq iter.next!, {value: [2 \e], done: no}
+  deq iter.next!, {value: void, done: on}
+test 'Array#@@iterator' !->
+  ok typeof Array::[iterator] is \function, 'Is function'
+  iter = <[q w e]>[iterator]!
+  ok isIterator(iter), 'Return iterator'
+  eq iter[toStringTag], 'Array Iterator'
+  deq iter.next!, {value: \q, done: no}
+  deq iter.next!, {value: \w, done: no}
+  deq iter.next!, {value: \e, done: no}
+  deq iter.next!, {value: void, done: on}

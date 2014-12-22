@@ -1849,7 +1849,7 @@
 
 (function(){
   'use strict';
-  var eq, deq, sameEq, strict, isFunction, isNative, getOwnPropertyDescriptor, defineProperty, create, epsilon, toString$ = {}.toString;
+  var eq, deq, sameEq, strict, isFunction, isIterator, getOwnPropertyDescriptor, defineProperty, create, iterator, toStringTag, epsilon, descriptors, toString$ = {}.toString;
   QUnit.module('ES6');
   eq = strictEqual;
   deq = deepEqual;
@@ -1862,13 +1862,15 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  isNative = function(it){
-    return /\[native code\]\s*\}\s*$/.test(it);
+  isIterator = function(it){
+    return typeof it === 'object' && typeof it.next === 'function';
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty, create = Object.create;
+  iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
   epsilon = function(a, b, E){
     return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
+  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
   test('Object.assign', function(){
     var assign, foo, str;
     assign = Object.assign;
@@ -1880,7 +1882,7 @@
       bar: 2
     }), 'assign return target');
     eq(foo.bar, 2, 'assign define properties');
-    if (isNative(getOwnPropertyDescriptor)) {
+    if (descriptors) {
       foo = {
         baz: 1
       };
@@ -2648,6 +2650,47 @@
       }, TypeError);
     }
   });
+  test('String#@@iterator', function(){
+    var iter;
+    ok(typeof String.prototype[iterator] === 'function', 'Is function');
+    iter = 'qwe'[iterator]();
+    ok(isIterator(iter), 'Return iterator');
+    eq(iter[toStringTag], 'String Iterator');
+    deq(iter.next(), {
+      value: 'q',
+      done: false
+    });
+    deq(iter.next(), {
+      value: 'w',
+      done: false
+    });
+    deq(iter.next(), {
+      value: 'e',
+      done: false
+    });
+    deq(iter.next(), {
+      value: void 8,
+      done: true
+    });
+    eq(Array.from('𠮷𠮷𠮷').length, 3);
+    iter = '𠮷𠮷𠮷'[iterator]();
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
+      value: '𠮷',
+      done: false
+    });
+    deq(iter.next(), {
+      value: void 8,
+      done: true
+    });
+  });
   test('Array.from', function(){
     var from, al, ctx;
     from = Array.from;
@@ -2792,470 +2835,6 @@
       eq(/./mgi.flags, 'gim', '/./mgi.flags is "gim"');
     });
   }
-}).call(this);
-
-(function(){
-  var isFunction, same, getOwnPropertyDescriptor, descriptors, that, toString$ = {}.toString;
-  QUnit.module('ES6 Collections');
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  same = Object.is;
-  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
-  that = (typeof global != 'undefined' && global !== null) && global || window;
-  test('Map', function(){
-    ok(isFunction(that.Map), 'Is function');
-    ok('clear' in Map.prototype, 'clear in Map.prototype');
-    ok('delete' in Map.prototype, 'delete in Map.prototype');
-    ok('forEach' in Map.prototype, 'forEach in Map.prototype');
-    ok('get' in Map.prototype, 'get in Map.prototype');
-    ok('has' in Map.prototype, 'has in Map.prototype');
-    ok('set' in Map.prototype, 'set in Map.prototype');
-    ok(new Map instanceof Map, 'new Map instanceof Map');
-    ok(new Map([1, 2, 3].entries()).size === 3, 'Init from iterator #1');
-    ok(new Map(new Map([1, 2, 3].entries())).size === 3, 'Init from iterator #2');
-  });
-  test('Map#clear', function(){
-    var M;
-    ok(isFunction(Map.prototype.clear), 'Is function');
-    M = new Map().set(1, 2).set(2, 3).set(1, 4);
-    M.clear();
-    ok(M.size === 0);
-  });
-  test('Map#delete', function(){
-    var a, M;
-    ok(isFunction(Map.prototype['delete']), 'Is function');
-    a = [];
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
-    ok(M.size === 5);
-    ok(M['delete'](NaN) === true);
-    ok(M.size === 4);
-    ok(M['delete'](4) === false);
-    ok(M.size === 4);
-    M['delete']([]);
-    ok(M.size === 4);
-    M['delete'](a);
-    ok(M.size === 3);
-  });
-  test('Map#forEach', function(){
-    var r, T, count, M, a, map, s;
-    ok(isFunction(Map.prototype.forEach), 'Is function');
-    r = {};
-    count = 0;
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
-    M.forEach(function(value, key){
-      count++;
-      r[value] = key;
-    });
-    ok(count === 5);
-    deepEqual(r, {
-      1: NaN,
-      7: 3,
-      5: 2,
-      4: 1,
-      9: a
-    });
-    map = new Map([['0', 9], ['1', 9], ['2', 9], ['3', 9]]);
-    s = "";
-    map.forEach(function(value, key){
-      s += key;
-      if (key === '2') {
-        map['delete']('2');
-        map['delete']('3');
-        map['delete']('1');
-        return map.set('4', 9);
-      }
-    });
-    ok(s === '0124');
-    map = new Map([['0', 1]]);
-    s = "";
-    map.forEach(function(it){
-      map['delete']('0');
-      if (s !== '') {
-        throw '!!!';
-      }
-      return s += it;
-    });
-    ok(s === '1');
-  });
-  test('Map#get', function(){
-    var o, M;
-    ok(isFunction(Map.prototype.get), 'Is function');
-    o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
-    ok(M.get(NaN) === 1);
-    ok(M.get(4) === void 8);
-    ok(M.get({}) === void 8);
-    ok(M.get(o) === o);
-    ok(M.get(2) === 5);
-  });
-  test('Map#has', function(){
-    var o, M;
-    ok(isFunction(Map.prototype.has), 'Is function');
-    o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
-    ok(M.has(NaN));
-    ok(M.has(o));
-    ok(M.has(2));
-    ok(!M.has(4));
-    ok(!M.has({}));
-  });
-  test('Map#set', function(){
-    var o, M, chain;
-    ok(isFunction(Map.prototype.set), 'Is function');
-    o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
-    ok(M.size === 5);
-    chain = M.set(7, 2);
-    ok(chain === M);
-    M.set(7, 2);
-    ok(M.size === 6);
-    ok(M.get(7) === 2);
-    ok(M.get(NaN) === 1);
-    M.set(NaN, 42);
-    ok(M.size === 6);
-    ok(M.get(NaN) === 42);
-    M.set({}, 11);
-    ok(M.size === 7);
-    ok(M.get(o) === o);
-    M.set(o, 27);
-    ok(M.size === 7);
-    ok(M.get(o) === 27);
-    ok(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size === 1);
-  });
-  test('Map#size', function(){
-    var size, sizeDesc;
-    size = new Map().set(2, 1).size;
-    ok(typeof size === 'number', 'size is number');
-    ok(size === 1, 'size is correct');
-    if (descriptors) {
-      sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
-      ok(sizeDesc && sizeDesc.get, 'size is getter');
-      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      throws(function(){
-        return Map.prototype.size;
-      }, TypeError);
-    }
-  });
-  test('Map & -0', function(){
-    var map;
-    map = new Map;
-    map.set(-0, 1);
-    equal(map.size, 1);
-    ok(map.has(0));
-    ok(map.has(-0));
-    equal(map.get(0), 1);
-    equal(map.get(-0), 1);
-    map.forEach(function(val, key){
-      return ok(!same(key, -0));
-    });
-    map['delete'](-0);
-    equal(map.size, 0);
-    map = new Map([[-0, 1]]);
-    map.forEach(function(val, key){
-      return ok(!same(key, -0));
-    });
-  });
-  test('Map#@@toStringTag', function(){
-    ok(Map.prototype[Symbol.toStringTag] === 'Map', 'Map::@@toStringTag is `Map`');
-  });
-  test('Set', function(){
-    var S, r;
-    ok(isFunction(that.Set), 'Is function');
-    ok('add' in Set.prototype, 'add in Set.prototype');
-    ok('clear' in Set.prototype, 'clear in Set.prototype');
-    ok('delete' in Set.prototype, 'delete in Set.prototype');
-    ok('forEach' in Set.prototype, 'forEach in Set.prototype');
-    ok('has' in Set.prototype, 'has in Set.prototype');
-    ok(new Set instanceof Set, 'new Set instanceof Set');
-    ok(new Set([1, 2, 3, 2, 1].values()).size === 3, 'Init from iterator #1');
-    ok(new Set([1, 2, 3, 2, 1]).size === 3, 'Init Set from iterator #2');
-    S = new Set([1, 2, 3, 2, 1]);
-    ok(S.size === 3);
-    r = [];
-    S.forEach(function(v){
-      return r.push(v);
-    });
-    deepEqual(r, [1, 2, 3]);
-    ok(new Set([NaN, NaN, NaN]).size === 1);
-    if (Array.from) {
-      deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
-    }
-  });
-  test('Set#add', function(){
-    var a, S, chain;
-    ok(isFunction(Set.prototype.add), 'Is function');
-    a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
-    ok(S.size === 5);
-    chain = S.add(NaN);
-    ok(chain === S);
-    ok(S.size === 5);
-    S.add(2);
-    ok(S.size === 5);
-    S.add(a);
-    ok(S.size === 5);
-    S.add([]);
-    ok(S.size === 6);
-    S.add(4);
-    ok(S.size === 7);
-  });
-  test('Set#clear', function(){
-    var S;
-    ok(isFunction(Set.prototype.clear), 'Is function');
-    S = new Set([1, 2, 3, 2, 1]);
-    S.clear();
-    ok(S.size === 0);
-  });
-  test('Set#delete', function(){
-    var a, S;
-    ok(isFunction(Set.prototype['delete']), 'Is function');
-    a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
-    ok(S.size === 5);
-    ok(S['delete'](NaN) === true);
-    ok(S.size === 4);
-    ok(S['delete'](4) === false);
-    ok(S.size === 4);
-    S['delete']([]);
-    ok(S.size === 4);
-    S['delete'](a);
-    ok(S.size === 3);
-  });
-  test('Set#forEach', function(){
-    var r, count, S, set, s;
-    ok(isFunction(Set.prototype.forEach), 'Is function');
-    r = [];
-    count = 0;
-    S = new Set([1, 2, 3, 2, 1]);
-    S.forEach(function(value){
-      count++;
-      r.push(value);
-    });
-    ok(count === 3);
-    deepEqual(r, [1, 2, 3]);
-    set = new Set(['0', '1', '2', '3']);
-    s = "";
-    set.forEach(function(it){
-      s += it;
-      if (it === '2') {
-        set['delete']('2');
-        set['delete']('3');
-        set['delete']('1');
-        return set.add('4');
-      }
-    });
-    ok(s === '0124');
-    set = new Set(['0']);
-    s = "";
-    set.forEach(function(it){
-      set['delete']('0');
-      if (s !== '') {
-        throw '!!!';
-      }
-      return s += it;
-    });
-    ok(s === '0');
-  });
-  test('Set#has', function(){
-    var a, S;
-    ok(isFunction(Set.prototype.has), 'Is function');
-    a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
-    ok(S.has(NaN));
-    ok(S.has(a));
-    ok(S.has(2));
-    ok(!S.has(4));
-    ok(!S.has([]));
-  });
-  test('Set#size', function(){
-    var size, sizeDesc;
-    size = new Set([1]).size;
-    ok(typeof size === 'number', 'size is number');
-    ok(size === 1, 'size is correct');
-    if (descriptors) {
-      sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
-      ok(sizeDesc && sizeDesc.get, 'size is getter');
-      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      throws(function(){
-        return Set.prototype.size;
-      }, TypeError);
-    }
-  });
-  test('Set & -0', function(){
-    var set;
-    set = new Set;
-    set.add(-0);
-    equal(set.size, 1);
-    ok(set.has(0));
-    ok(set.has(-0));
-    set.forEach(function(it){
-      return ok(!same(it, -0));
-    });
-    set['delete'](-0);
-    equal(set.size, 0);
-    set = new Set([-0]);
-    set.forEach(function(key){
-      return ok(!same(key, -0));
-    });
-  });
-  test('Set#@@toStringTag', function(){
-    ok(Set.prototype[Symbol.toStringTag] === 'Set', 'Set::@@toStringTag is `Set`');
-  });
-  test('WeakMap', function(){
-    var a, b;
-    ok(isFunction(that.WeakMap), 'Is function');
-    ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
-    ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
-    ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
-    ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
-    ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
-    ok(new WeakMap([[a = {}, b = {}]].values()).get(a) === b, 'Init WeakMap from iterator #1');
-    ok(new WeakMap(new Map([[a = {}, b = {}]])).get(a) === b, 'Init WeakMap from iterator #2');
-  });
-  test('WeakMap#delete', function(){
-    var M, a, b;
-    ok(isFunction(WeakMap.prototype['delete']), 'Is function');
-    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
-    ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
-    M['delete'](a);
-    ok(!M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()');
-  });
-  test('WeakMap#get', function(){
-    var M, a;
-    ok(isFunction(WeakMap.prototype.get), 'Is function');
-    M = new WeakMap();
-    ok(M.get({}) === void 8, 'WeakMap .get() before .set() return undefined');
-    M.set(a = {}, 42);
-    ok(M.get(a) === 42, 'WeakMap .get() return value');
-    M['delete'](a);
-    ok(M.get(a) === void 8, 'WeakMap .get() after .delete() return undefined');
-  });
-  test('WeakMap#has', function(){
-    var M, a;
-    ok(isFunction(WeakMap.prototype.has), 'Is function');
-    M = new WeakMap();
-    ok(M.has({}) === false, 'WeakMap .has() before .set() return false');
-    M.set(a = {}, 42);
-    ok(M.has(a), 'WeakMap .has() return true');
-    M['delete'](a);
-    ok(M.has(a) === false, 'WeakMap .has() after .delete() return false');
-  });
-  test('WeakMap#set', function(){
-    var a, e;
-    ok(isFunction(WeakMap.prototype.set), 'Is function');
-    ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
-    ok((function(){
-      try {
-        new WeakMap().set(42, 42);
-        return false;
-      } catch (e$) {
-        e = e$;
-        return true;
-      }
-    }()), 'WeakMap.prototype.set throw with primitive keys');
-  });
-  test('WeakMap#@@toStringTag', function(){
-    ok(WeakMap.prototype[Symbol.toStringTag] === 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
-  });
-  test('WeakSet', function(){
-    var a;
-    ok(isFunction(that.WeakSet), 'Is function');
-    ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
-    ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
-    ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
-    ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
-    ok(new WeakSet([a = {}].values()).has(a), 'Init WeakSet from iterator #1');
-    ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2');
-  });
-  test('WeakSet#add', function(){
-    var a, e;
-    ok(isFunction(WeakSet.prototype.add), 'Is function');
-    ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
-    ok((function(){
-      try {
-        new WeakSet().add(42);
-        return false;
-      } catch (e$) {
-        e = e$;
-        return true;
-      }
-    }()), 'WeakSet.prototype.add throw with primitive keys');
-  });
-  test('WeakSet#delete', function(){
-    var M, a, b;
-    ok(isFunction(WeakSet.prototype['delete']), 'Is function');
-    M = new WeakSet().add(a = {}).add(b = {});
-    ok(M.has(a) && M.has(b), 'WeakSet has values before .delete()');
-    M['delete'](a);
-    ok(!M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()');
-  });
-  test('WeakSet#has', function(){
-    var M, a;
-    ok(isFunction(WeakSet.prototype.has), 'Is function');
-    M = new WeakSet();
-    ok(!M.has({}), 'WeakSet has`nt value');
-    M.add(a = {});
-    ok(M.has(a), 'WeakSet has value after .add()');
-    M['delete'](a);
-    ok(!M.has(a), 'WeakSet has`nt value after .delete()');
-  });
-  test('WeakSet::@@toStringTag', function(){
-    ok(WeakSet.prototype[Symbol.toStringTag] === 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
-  });
-}).call(this);
-
-(function(){
-  var eq, deq, iterator, toStringTag, isIterator;
-  QUnit.module('ES6 Iterators');
-  eq = strictEqual;
-  deq = deepEqual;
-  iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
-  isIterator = function(it){
-    return typeof it === 'object' && typeof it.next === 'function';
-  };
-  test('String#@@iterator', function(){
-    var iter;
-    ok(typeof String.prototype[iterator] === 'function', 'Is function');
-    iter = 'qwe'[iterator]();
-    ok(isIterator(iter), 'Return iterator');
-    eq(iter[toStringTag], 'String Iterator');
-    deq(iter.next(), {
-      value: 'q',
-      done: false
-    });
-    deq(iter.next(), {
-      value: 'w',
-      done: false
-    });
-    deq(iter.next(), {
-      value: 'e',
-      done: false
-    });
-    deq(iter.next(), {
-      value: void 8,
-      done: true
-    });
-    eq(Array.from('𠮷𠮷𠮷').length, 3);
-    iter = '𠮷𠮷𠮷'[iterator]();
-    deq(iter.next(), {
-      value: '𠮷',
-      done: false
-    });
-    deq(iter.next(), {
-      value: '𠮷',
-      done: false
-    });
-    deq(iter.next(), {
-      value: '𠮷',
-      done: false
-    });
-    deq(iter.next(), {
-      value: void 8,
-      done: true
-    });
-  });
   test('Array#keys', function(){
     var iter;
     ok(typeof Array.prototype.keys === 'function', 'Is function');
@@ -3347,6 +2926,197 @@
       value: void 8,
       done: true
     });
+  });
+}).call(this);
+
+(function(){
+  var isFunction, same, getOwnPropertyDescriptor, descriptors, eq, deq, iterator, toStringTag, isIterator, that, toString$ = {}.toString;
+  QUnit.module('ES6 Collections');
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  same = Object.is;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
+  eq = strictEqual;
+  deq = deepEqual;
+  iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
+  isIterator = function(it){
+    return typeof it === 'object' && typeof it.next === 'function';
+  };
+  that = (typeof global != 'undefined' && global !== null) && global || window;
+  test('Map', function(){
+    ok(isFunction(that.Map), 'Is function');
+    ok('clear' in Map.prototype, 'clear in Map.prototype');
+    ok('delete' in Map.prototype, 'delete in Map.prototype');
+    ok('forEach' in Map.prototype, 'forEach in Map.prototype');
+    ok('get' in Map.prototype, 'get in Map.prototype');
+    ok('has' in Map.prototype, 'has in Map.prototype');
+    ok('set' in Map.prototype, 'set in Map.prototype');
+    ok(new Map instanceof Map, 'new Map instanceof Map');
+    eq(new Map([1, 2, 3].entries()).size, 3, 'Init from iterator #1');
+    eq(new Map(new Map([1, 2, 3].entries())).size, 3, 'Init from iterator #2');
+  });
+  test('Map#clear', function(){
+    var M;
+    ok(isFunction(Map.prototype.clear), 'Is function');
+    M = new Map().set(1, 2).set(2, 3).set(1, 4);
+    M.clear();
+    eq(M.size, 0);
+  });
+  test('Map#delete', function(){
+    var a, M;
+    ok(isFunction(Map.prototype['delete']), 'Is function');
+    a = [];
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
+    eq(M.size, 5);
+    ok(M['delete'](NaN));
+    eq(M.size, 4);
+    ok(!M['delete'](4));
+    eq(M.size, 4);
+    M['delete']([]);
+    eq(M.size, 4);
+    M['delete'](a);
+    eq(M.size, 3);
+  });
+  test('Map#forEach', function(){
+    var r, T, count, M, a, map, s;
+    ok(isFunction(Map.prototype.forEach), 'Is function');
+    r = {};
+    count = 0;
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
+    M.forEach(function(value, key){
+      count++;
+      r[value] = key;
+    });
+    eq(count, 5);
+    deq(r, {
+      1: NaN,
+      7: 3,
+      5: 2,
+      4: 1,
+      9: a
+    });
+    map = new Map([['0', 9], ['1', 9], ['2', 9], ['3', 9]]);
+    s = "";
+    map.forEach(function(value, key){
+      s += key;
+      if (key === '2') {
+        map['delete']('2');
+        map['delete']('3');
+        map['delete']('1');
+        return map.set('4', 9);
+      }
+    });
+    eq(s, '0124');
+    map = new Map([['0', 1]]);
+    s = "";
+    map.forEach(function(it){
+      map['delete']('0');
+      if (s !== '') {
+        throw '!!!';
+      }
+      return s += it;
+    });
+    eq(s, '1');
+  });
+  test('Map#get', function(){
+    var o, M;
+    ok(isFunction(Map.prototype.get), 'Is function');
+    o = {};
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    eq(M.get(NaN), 1);
+    eq(M.get(4), void 8);
+    eq(M.get({}), void 8);
+    eq(M.get(o), o);
+    eq(M.get(2), 5);
+  });
+  test('Map#has', function(){
+    var o, M;
+    ok(isFunction(Map.prototype.has), 'Is function');
+    o = {};
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    ok(M.has(NaN));
+    ok(M.has(o));
+    ok(M.has(2));
+    ok(!M.has(4));
+    ok(!M.has({}));
+  });
+  test('Map#set', function(){
+    var o, M, chain;
+    ok(isFunction(Map.prototype.set), 'Is function');
+    o = {};
+    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    ok(M.size === 5);
+    chain = M.set(7, 2);
+    eq(chain, M);
+    M.set(7, 2);
+    eq(M.size, 6);
+    eq(M.get(7), 2);
+    eq(M.get(NaN), 1);
+    M.set(NaN, 42);
+    eq(M.size, 6);
+    eq(M.get(NaN), 42);
+    M.set({}, 11);
+    eq(M.size, 7);
+    eq(M.get(o), o);
+    M.set(o, 27);
+    eq(M.size, 7);
+    eq(M.get(o), 27);
+    eq(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size, 1);
+  });
+  test('Map#size', function(){
+    var size, sizeDesc;
+    size = new Map().set(2, 1).size;
+    eq(typeof size, 'number', 'size is number');
+    eq(size, 1, 'size is correct');
+    if (descriptors) {
+      sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
+      ok(sizeDesc && sizeDesc.get, 'size is getter');
+      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+      throws(function(){
+        return Map.prototype.size;
+      }, TypeError);
+    }
+  });
+  test('Map & -0', function(){
+    var map;
+    map = new Map;
+    map.set(-0, 1);
+    eq(map.size, 1);
+    ok(map.has(0));
+    ok(map.has(-0));
+    eq(map.get(0), 1);
+    eq(map.get(-0), 1);
+    map.forEach(function(val, key){
+      return ok(!same(key, -0));
+    });
+    map['delete'](-0);
+    eq(map.size, 0);
+    map = new Map([[-0, 1]]);
+    map.forEach(function(val, key){
+      return ok(!same(key, -0));
+    });
+  });
+  test('Map#@@toStringTag', function(){
+    eq(Map.prototype[Symbol.toStringTag], 'Map', 'Map::@@toStringTag is `Map`');
+  });
+  test('Map Iterator', function(){
+    var map, keys, iterator;
+    map = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4]]);
+    keys = [];
+    iterator = map.keys();
+    keys.push(iterator.next().value);
+    ok(map['delete']('a'));
+    ok(map['delete']('b'));
+    ok(map['delete']('c'));
+    map.set('e');
+    keys.push(iterator.next().value);
+    keys.push(iterator.next().value);
+    ok(iterator.next().done);
+    map.set('f');
+    ok(iterator.next().done);
+    deq(keys, ['a', 'd', 'e']);
   });
   test('Map#keys', function(){
     var iter;
@@ -3440,6 +3210,166 @@
       done: true
     });
   });
+  test('Set', function(){
+    var S, r;
+    ok(isFunction(that.Set), 'Is function');
+    ok('add' in Set.prototype, 'add in Set.prototype');
+    ok('clear' in Set.prototype, 'clear in Set.prototype');
+    ok('delete' in Set.prototype, 'delete in Set.prototype');
+    ok('forEach' in Set.prototype, 'forEach in Set.prototype');
+    ok('has' in Set.prototype, 'has in Set.prototype');
+    ok(new Set instanceof Set, 'new Set instanceof Set');
+    eq(new Set([1, 2, 3, 2, 1].values()).size, 3, 'Init from iterator #1');
+    eq(new Set([1, 2, 3, 2, 1]).size, 3, 'Init Set from iterator #2');
+    S = new Set([1, 2, 3, 2, 1]);
+    eq(S.size, 3);
+    r = [];
+    S.forEach(function(v){
+      return r.push(v);
+    });
+    deq(r, [1, 2, 3]);
+    eq(new Set([NaN, NaN, NaN]).size, 1);
+    if (Array.from) {
+      deq(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
+    }
+  });
+  test('Set#add', function(){
+    var a, S, chain;
+    ok(isFunction(Set.prototype.add), 'Is function');
+    a = [];
+    S = new Set([NaN, 2, 3, 2, 1, a]);
+    eq(S.size, 5);
+    chain = S.add(NaN);
+    eq(chain, S);
+    eq(S.size, 5);
+    S.add(2);
+    eq(S.size, 5);
+    S.add(a);
+    eq(S.size, 5);
+    S.add([]);
+    eq(S.size, 6);
+    S.add(4);
+    eq(S.size, 7);
+  });
+  test('Set#clear', function(){
+    var S;
+    ok(isFunction(Set.prototype.clear), 'Is function');
+    S = new Set([1, 2, 3, 2, 1]);
+    S.clear();
+    eq(S.size, 0);
+  });
+  test('Set#delete', function(){
+    var a, S;
+    ok(isFunction(Set.prototype['delete']), 'Is function');
+    a = [];
+    S = new Set([NaN, 2, 3, 2, 1, a]);
+    eq(S.size, 5);
+    eq(S['delete'](NaN), true);
+    eq(S.size, 4);
+    eq(S['delete'](4), false);
+    eq(S.size, 4);
+    S['delete']([]);
+    eq(S.size, 4);
+    S['delete'](a);
+    eq(S.size, 3);
+  });
+  test('Set#forEach', function(){
+    var r, count, S, set, s;
+    ok(isFunction(Set.prototype.forEach), 'Is function');
+    r = [];
+    count = 0;
+    S = new Set([1, 2, 3, 2, 1]);
+    S.forEach(function(value){
+      count++;
+      r.push(value);
+    });
+    eq(count, 3);
+    deq(r, [1, 2, 3]);
+    set = new Set(['0', '1', '2', '3']);
+    s = "";
+    set.forEach(function(it){
+      s += it;
+      if (it === '2') {
+        set['delete']('2');
+        set['delete']('3');
+        set['delete']('1');
+        return set.add('4');
+      }
+    });
+    eq(s, '0124');
+    set = new Set(['0']);
+    s = "";
+    set.forEach(function(it){
+      set['delete']('0');
+      if (s !== '') {
+        throw '!!!';
+      }
+      return s += it;
+    });
+    eq(s, '0');
+  });
+  test('Set#has', function(){
+    var a, S;
+    ok(isFunction(Set.prototype.has), 'Is function');
+    a = [];
+    S = new Set([NaN, 2, 3, 2, 1, a]);
+    ok(S.has(NaN));
+    ok(S.has(a));
+    ok(S.has(2));
+    ok(!S.has(4));
+    ok(!S.has([]));
+  });
+  test('Set#size', function(){
+    var size, sizeDesc;
+    size = new Set([1]).size;
+    eq(typeof size, 'number', 'size is number');
+    eq(size, 1, 'size is correct');
+    if (descriptors) {
+      sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
+      ok(sizeDesc && sizeDesc.get, 'size is getter');
+      ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
+      throws(function(){
+        return Set.prototype.size;
+      }, TypeError);
+    }
+  });
+  test('Set & -0', function(){
+    var set;
+    set = new Set;
+    set.add(-0);
+    eq(set.size, 1);
+    ok(set.has(0));
+    ok(set.has(-0));
+    set.forEach(function(it){
+      return ok(!same(it, -0));
+    });
+    set['delete'](-0);
+    eq(set.size, 0);
+    set = new Set([-0]);
+    set.forEach(function(key){
+      return ok(!same(key, -0));
+    });
+  });
+  test('Set#@@toStringTag', function(){
+    eq(Set.prototype[Symbol.toStringTag], 'Set', 'Set::@@toStringTag is `Set`');
+  });
+  test('Set Iterator', function(){
+    var set, keys, iterator;
+    set = new Set(['a', 'b', 'c', 'd']);
+    keys = [];
+    iterator = set.keys();
+    keys.push(iterator.next().value);
+    ok(set['delete']('a'));
+    ok(set['delete']('b'));
+    ok(set['delete']('c'));
+    set.add('e');
+    keys.push(iterator.next().value);
+    keys.push(iterator.next().value);
+    ok(iterator.next().done);
+    set.add('f');
+    ok(iterator.next().done);
+    deq(keys, ['a', 'd', 'e']);
+  });
   test('Set#keys', function(){
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
@@ -3531,6 +3461,107 @@
       value: void 8,
       done: true
     });
+  });
+  test('WeakMap', function(){
+    var a, b;
+    ok(isFunction(that.WeakMap), 'Is function');
+    ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
+    ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
+    ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
+    ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
+    ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
+    eq(new WeakMap([[a = {}, b = {}]].values()).get(a), b, 'Init WeakMap from iterator #1');
+    eq(new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2');
+  });
+  test('WeakMap#delete', function(){
+    var M, a, b;
+    ok(isFunction(WeakMap.prototype['delete']), 'Is function');
+    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
+    ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
+    M['delete'](a);
+    ok(!M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()');
+  });
+  test('WeakMap#get', function(){
+    var M, a;
+    ok(isFunction(WeakMap.prototype.get), 'Is function');
+    M = new WeakMap();
+    eq(M.get({}), void 8, 'WeakMap .get() before .set() return undefined');
+    M.set(a = {}, 42);
+    eq(M.get(a), 42, 'WeakMap .get() return value');
+    M['delete'](a);
+    eq(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
+  });
+  test('WeakMap#has', function(){
+    var M, a;
+    ok(isFunction(WeakMap.prototype.has), 'Is function');
+    M = new WeakMap();
+    ok(!M.has({}), 'WeakMap .has() before .set() return false');
+    M.set(a = {}, 42);
+    ok(M.has(a), 'WeakMap .has() return true');
+    M['delete'](a);
+    ok(!M.has(a), 'WeakMap .has() after .delete() return false');
+  });
+  test('WeakMap#set', function(){
+    var a, e;
+    ok(isFunction(WeakMap.prototype.set), 'Is function');
+    ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
+    ok((function(){
+      try {
+        new WeakMap().set(42, 42);
+        return false;
+      } catch (e$) {
+        e = e$;
+        return true;
+      }
+    }()), 'WeakMap.prototype.set throw with primitive keys');
+  });
+  test('WeakMap#@@toStringTag', function(){
+    eq(WeakMap.prototype[Symbol.toStringTag], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
+  });
+  test('WeakSet', function(){
+    var a;
+    ok(isFunction(that.WeakSet), 'Is function');
+    ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
+    ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
+    ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
+    ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
+    ok(new WeakSet([a = {}].values()).has(a), 'Init WeakSet from iterator #1');
+    ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2');
+  });
+  test('WeakSet#add', function(){
+    var a, e;
+    ok(isFunction(WeakSet.prototype.add), 'Is function');
+    ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
+    ok((function(){
+      try {
+        new WeakSet().add(42);
+        return false;
+      } catch (e$) {
+        e = e$;
+        return true;
+      }
+    }()), 'WeakSet.prototype.add throw with primitive keys');
+  });
+  test('WeakSet#delete', function(){
+    var M, a, b;
+    ok(isFunction(WeakSet.prototype['delete']), 'Is function');
+    M = new WeakSet().add(a = {}).add(b = {});
+    ok(M.has(a) && M.has(b), 'WeakSet has values before .delete()');
+    M['delete'](a);
+    ok(!M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()');
+  });
+  test('WeakSet#has', function(){
+    var M, a;
+    ok(isFunction(WeakSet.prototype.has), 'Is function');
+    M = new WeakSet();
+    ok(!M.has({}), 'WeakSet has`nt value');
+    M.add(a = {});
+    ok(M.has(a), 'WeakSet has value after .add()');
+    M['delete'](a);
+    ok(!M.has(a), 'WeakSet has`nt value after .delete()');
+  });
+  test('WeakSet::@@toStringTag', function(){
+    eq(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
   });
 }).call(this);
 

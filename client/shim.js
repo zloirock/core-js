@@ -1,5 +1,5 @@
 /**
- * Core.js 0.2.5
+ * Core.js 0.3.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -177,6 +177,9 @@ var create           = Object.create
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
+function get(object, key){
+  if(has(object, key))return object[key];
+}
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
   var T = Object(assertDefined(target))
@@ -191,19 +194,6 @@ var assign = Object.assign || function(target, source){
     while(length > j)T[key = keys[j++]] = S[key];
   }
   return T;
-}
-function createObjectToArray(isEntries){
-  return function(object){
-    var O      = ES5Object(object)
-      , keys   = getKeys(object)
-      , length = keys.length
-      , i      = 0
-      , result = Array(length)
-      , key;
-    if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
-    else while(length > i)result[i] = O[keys[i++]];
-    return result;
-  }
 }
 function keyOf(object, el){
   var O      = ES5Object(object)
@@ -407,12 +397,13 @@ var ITERATOR = 'iterator'
   , FF_ITERATOR = '@@' + ITERATOR
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = safeSymbol('iter')
-  , SHIM  = safeSymbol('shim')
   , KEY   = 1
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-  , COLLECTION_KEYS;
+  , NATIVE_ITERATORS = SYMBOL_ITERATOR in ArrayProto
+    // Safari define byggy iterators w/o `next`
+  , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);
 function setIterator(O, value){
@@ -424,14 +415,9 @@ function createIterator(Constructor, NAME, next, proto){
   Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 }
-function defineIterator(Constructor, NAME, value){
-  var proto       = Constructor[PROTOTYPE]
-    , HAS_FF_ITER = has(proto, FF_ITERATOR);
-  var iter = has(proto, SYMBOL_ITERATOR)
-    ? proto[SYMBOL_ITERATOR]
-    : HAS_FF_ITER
-      ? proto[FF_ITERATOR]
-      : value;
+function defineIterator(Constructor, NAME, value, DEFAULT){
+  var proto = Constructor[PROTOTYPE]
+    , iter  = get(proto, SYMBOL_ITERATOR) || get(proto, FF_ITERATOR) || (DEFAULT && get(proto, DEFAULT)) || value;
   if(framework){
     // Define iterator
     setIterator(proto, iter);
@@ -440,13 +426,27 @@ function defineIterator(Constructor, NAME, value){
       // Set @@toStringTag to native iterators
       setToStringTag(iterProto, NAME + ' Iterator', true);
       // FF fix
-      HAS_FF_ITER && setIterator(iterProto, returnThis);
+      has(proto, FF_ITERATOR) && setIterator(iterProto, returnThis);
     }
   }
   // Plug for library
   Iterators[NAME] = iter;
   // FF & v8 fix
   Iterators[NAME + ' Iterator'] = returnThis;
+}
+function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
+  function createIter(kind){
+    return function(){
+      return new Constructor(this, kind);
+    }
+  }
+  createIterator(Constructor, NAME, next);
+  defineIterator(Base, NAME, createIter(DEFAULT), DEFAULT == VALUE ? 'values' : 'entries');
+  DEFAULT && $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
+    entries: createIter(KEY+VALUE),
+    keys:    createIter(KEY),
+    values:  createIter(VALUE)
+  });
 }
 function iterResult(done, value){
   return {value: value, done: !!done};
@@ -848,7 +848,8 @@ $define(GLOBAL + FORCED, {global: global});
     , exp  = Math.exp
     , log  = Math.log
     , sqrt = Math.sqrt
-    , fcc  = String.fromCharCode;
+    , fcc  = String.fromCharCode
+    , at   = createPointAt(true);
   // 20.2.2.5 Math.asinh(x)
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
@@ -1023,6 +1024,21 @@ $define(GLOBAL + FORCED, {global: global});
       return String(this).slice(index, index + searchString.length) === searchString;
     }
   });
+  // 21.1.3.27 String.prototype[@@iterator]()
+  // 21.1.5.1 CreateStringIterator Abstract Operation
+  defineStdIterators(String, STRING, function(iterated){
+    set(this, ITER, {o: String(iterated), i: 0});
+  // 21.1.5.2.1 %StringIteratorPrototype%.next()
+  }, function(){
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i
+      , point;
+    if(index >= O.length)return iterResult(1);
+    point = at.call(O, index);
+    iter.i += point.length;
+    return iterResult(0, point);
+  });
   
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
@@ -1087,6 +1103,27 @@ $define(GLOBAL + FORCED, {global: global});
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });
+  // 22.1.3.4 Array.prototype.entries()
+  // 22.1.3.13 Array.prototype.keys()
+  // 22.1.3.29 Array.prototype.values()
+  // 22.1.3.30 Array.prototype[@@iterator]()
+  // 22.1.5.1 CreateArrayIterator Abstract Operation
+  defineStdIterators(Array, ARRAY, function(iterated, kind){
+    set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
+  // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
+  }, function(){
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i++;
+    if(!O || index >= O.length)return (iter.o = undefined), iterResult(1);
+    switch(iter.k){
+      case KEY:   return iterResult(0, index);
+      case VALUE: return iterResult(0, O[index]);
+    }             return iterResult(0, [index, O[index]]);
+  }, VALUE);
+  
+  // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
+  Iterators[ARGUMENTS] = Iterators[ARRAY];
   
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
@@ -1330,49 +1367,58 @@ $define(GLOBAL + BIND, {
 
 // ECMAScript 6 collections shim
 !function(){
-  var KEYS     = COLLECTION_KEYS = safeSymbol('keys')
-    , VALUES   = safeSymbol('values')
-    , STOREID  = safeSymbol('storeId')
+  var DATA     = safeSymbol('data')
+    , UID      = safeSymbol('uid')
+    , LAST     = safeSymbol('last')
+    , FIRST    = safeSymbol('first')
     , WEAKDATA = safeSymbol('weakData')
     , WEAKID   = safeSymbol('weakId')
     , SIZE     = DESC ? safeSymbol('size') : 'size'
     , uid      = 0
     , wid      = 0;
   
-  function wrapSVZ(method, chain){
-    return function(a, b){
+  function fixSVZ(proto, key, method, chain){
+    framework && hidden(proto, key, function(a, b){
       var result = method.call(this, same(a, -0) ? 0 : a, b);
       return chain ? this : result;
-    }
+    });
   }
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
-    var ADDER_KEY = isMap ? 'set' : 'add'
-      , init      = commonMethods.clear
-      , O         = {};
+    var ADDER = isMap ? 'set' : 'add'
+      , proto = C && C[PROTOTYPE]
+      , O     = {};
     function initFromIterable(that, iterable){
-      if(iterable != undefined)forOf(iterable, isMap, that[ADDER_KEY], that);
+      if(iterable != undefined)forOf(iterable, isMap, that[ADDER], that);
       return that;
     }
-    if(!(isNative(C) && (isWeak || has(C[PROTOTYPE], FOR_EACH)))){
+    if(BUGGY_ITERATORS || !(isNative(C) && (isWeak || (has(proto, FOR_EACH) && has(proto, 'entries'))))){
       // create collection constructor
-      C = function(iterable){
-        assertInstance(this, C, NAME);
-        isWeak ? hidden(this, WEAKID, wid++) : init.call(this);
-        initFromIterable(this, iterable);
-      }
-      set(C, SHIM, true);
+      C = isWeak
+        ? function(iterable){
+            assertInstance(this, C, NAME);
+            set(this, WEAKID, wid++);
+            initFromIterable(this, iterable);
+          }
+        : function(iterable){
+            var that = this;
+            assertInstance(that, C, NAME);
+            set(that, DATA, create(null));
+            set(that, SIZE, 0);
+            set(that, LAST, undefined);
+            set(that, FIRST, undefined);
+            initFromIterable(that, iterable);
+          };
       assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
       isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return assertDefined(this[SIZE]);
       }});
     } else {
       var Native = C
-        , proto  = C[PROTOTYPE]
         , inst   = new C
-        , chain  = inst[ADDER_KEY](isWeak ? {} : -0, 1)
+        , chain  = inst[ADDER](isWeak ? {} : -0, 1)
         , buggyZero;
       // wrap to init collections from iterable
-      if(!(SYMBOL_ITERATOR in ArrayProto && C.length)){
+      if(!NATIVE_ITERATORS || !C.length){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);
@@ -1382,16 +1428,14 @@ $define(GLOBAL + BIND, {
       isWeak || inst[FOR_EACH](function(val, key){
         if(same(key, -0))buggyZero = true;
       });
-      if(framework){
-        // fix converting -0 key to +0
-        if(buggyZero){
-          hidden(proto, 'delete', wrapSVZ(proto['delete']));
-          hidden(proto, 'has', wrapSVZ(proto.has));
-          isMap && hidden(proto, 'get', wrapSVZ(proto.get));
-        }
-        // fix .add & .set for chaining
-        if(buggyZero || chain !== inst)hidden(proto, ADDER_KEY, wrapSVZ(proto[ADDER_KEY], true));
+      // fix converting -0 key to +0
+      if(buggyZero){
+        fixSVZ(proto, 'delete', proto['delete']);
+        fixSVZ(proto, 'has', proto.has);
+        isMap && fixSVZ(proto, 'get', proto.get);
       }
+      // fix .add & .set for chaining
+      if(buggyZero || chain !== inst)fixSVZ(proto, ADDER, proto[ADDER], true);
     }
     setToStringTag(C, NAME);
     O[NAME] = C;
@@ -1403,57 +1447,72 @@ $define(GLOBAL + BIND, {
     // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // if it hasn't object id - add next
-    if(!has(it, STOREID)){
-      if(create)hidden(it, STOREID, ++uid);
+    if(!has(it, UID)){
+      if(create)hidden(it, UID, ++uid);
       else return '';
     }
     // return object id with 'O' prefix
-    return 'O' + it[STOREID];
+    return 'O' + it[UID];
+  }
+  
+  function def(that, key, value){
+    var index  = fastKey(key, true)
+      , values = that[DATA]
+      , last   = that[LAST]
+      , entry;
+    if(index in values)values[index].v = value;
+    else {
+      entry = values[index] = {k: key, v: value, p: last};
+      if(!that[FIRST])that[FIRST] = entry;
+      if(last)last.n = entry;
+      that[LAST] = entry;
+      that[SIZE]++;
+    } return that;
+  }
+  function del(that, keys, index){
+    var entry = keys[index]
+      , next  = entry.n
+      , prev  = entry.p;
+    delete keys[index];
+    entry.r = true;
+    if(prev)prev.n = next;
+    if(next)next.p = prev;
+    if(that[FIRST] == entry)that[FIRST] = next;
+    if(that[LAST] == entry)that[LAST] = prev;
+    that[SIZE]--;
   }
 
-  function collectionMethods($VALUES){
-    return {
-      // 23.1.3.1 Map.prototype.clear()
-      // 23.2.3.2 Set.prototype.clear()
-      clear: function(){
-        hidden(this, SIZE, 0);
-        hidden(this, KEYS, create(null));
-        if($VALUES == VALUES)hidden(this, VALUES, create(null));
-      },
-      // 23.1.3.3 Map.prototype.delete(key)
-      // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function(key){
-        var index    = fastKey(key)
-          , keys     = this[KEYS]
-          , contains = index in keys;
-        if(contains){
-          delete keys[index];
-          if($VALUES == VALUES)delete this[VALUES][index];
-          this[SIZE]--;
-        }
-        return contains;
-      },
-      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
-      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: function(callbackfn, that /* = undefined */){
-        var f      = ctx(callbackfn, that, 3)
-          , values = this[$VALUES]
-          , keys   = this[KEYS]
-          , done   = {}
-          , k, index;
-        do {
-          for(index in keys){
-            if(index in done)continue;
-            done[index] = true;
-            f(values[index], keys[index], this);
-          }
-        } while((k = getKeys(keys)).length && k[k.length - 1] != index);
-      },
-      // 23.1.3.7 Map.prototype.has(key)
-      // 23.2.3.7 Set.prototype.has(value)
-      has: function(key){
-        return fastKey(key) in this[KEYS];
+  var collectionMethods = {
+    // 23.1.3.1 Map.prototype.clear()
+    // 23.2.3.2 Set.prototype.clear()
+    clear: function(){
+      var keys = this[DATA], index;
+      for(index in keys)del(this, keys, index);
+    },
+    // 23.1.3.3 Map.prototype.delete(key)
+    // 23.2.3.4 Set.prototype.delete(value)
+    'delete': function(key){
+      var keys     = this[DATA]
+        , index    = fastKey(key)
+        , contains = index in keys;
+      if(contains)del(this, keys, index);
+      return contains;
+    },
+    // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
+    // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
+    forEach: function(callbackfn, that /* = undefined */){
+      var f = ctx(callbackfn, that, 3)
+        , entry;
+      while(true){
+        while(entry && entry.r)entry = entry.p;
+        if(!(entry = entry ? entry.n : this[FIRST]))return;
+        f(entry.v, entry.k, this);
       }
+    },
+    // 23.1.3.7 Map.prototype.has(key)
+    // 23.2.3.7 Set.prototype.has(value)
+    has: function(key){
+      return fastKey(key) in this[DATA];
     }
   }
   
@@ -1461,34 +1520,23 @@ $define(GLOBAL + BIND, {
   Map = getCollection(Map, MAP, {
     // 23.1.3.6 Map.prototype.get(key)
     get: function(key){
-      return this[VALUES][fastKey(key)];
+      var entry = this[DATA][fastKey(key)];
+      return entry && entry.v;
     },
     // 23.1.3.9 Map.prototype.set(key, value)
     set: function(key, value){
-      var index  = fastKey(key, true)
-        , values = this[VALUES];
-      if(!(index in values)){
-        this[KEYS][index] = same(key, -0) ? 0 : key;
-        this[SIZE]++;
-      }
-      values[index] = value;
-      return this;
+      return def(this, same(key, -0) ? 0 : key, value);
     }
-  }, collectionMethods(VALUES), true);
+  }, collectionMethods, true);
   
   // 23.2 Set Objects
   Set = getCollection(Set, SET, {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
-      var index  = fastKey(value, true)
-        , values = this[KEYS];
-      if(!(index in values)){
-        values[index] = same(value, -0) ? 0 : value;
-        this[SIZE]++;
-      }
-      return this;
+      value = same(value, -0) ? 0 : value;
+      return def(this, value, value);
     }
-  }, collectionMethods(KEYS));
+  }, collectionMethods);
   
   function getWeakData(it){
     has(it, WEAKDATA) || hidden(it, WEAKDATA, {});
@@ -1529,6 +1577,37 @@ $define(GLOBAL + BIND, {
       return this;
     }
   }, weakCollectionMethods, false, true);
+  
+  function defineCollectionIterators(C, NAME, DEFAULT){
+    // 23.2.5.1 CreateSetIterator Abstract Operation
+    // 23.1.5.1 CreateMapIterator Abstract Operation
+    defineStdIterators(C, NAME, function(iterated, kind){
+      set(this, ITER, {o: iterated, k: kind});
+    // 23.1.5.2.1 %MapIteratorPrototype%.next()
+    // 23.2.5.2.1 %SetIteratorPrototype%.next()
+    }, function(){
+      var iter = this[ITER]
+        , O    = iter.o
+        , last = iter.l
+        , entry;
+      while(iter.l && iter.l.r)iter.l = iter.l.p;
+      if(!O || !(iter.l = entry = iter.l ? iter.l.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
+      switch(iter.k){
+        case KEY:   return iterResult(0, entry.k);
+        case VALUE: return iterResult(0, entry.v);
+      }             return iterResult(0, [entry.k, entry.v]);
+    }, DEFAULT);
+  }
+  // 23.1.3.4 Map.prototype.entries()
+  // 23.1.3.8 Map.prototype.keys()
+  // 23.1.3.11 Map.prototype.values()
+  // 23.1.3.12 Map.prototype[@@iterator]()
+  defineCollectionIterators(Map, MAP, KEY+VALUE);
+  // 23.2.3.5 Set.prototype.entries()
+  // 23.2.3.8 Set.prototype.keys()
+  // 23.2.3.10 Set.prototype.values()
+  // 23.2.3.11 Set.prototype[@@iterator]()
+  defineCollectionIterators(Set, SET, VALUE);
 }();
 
 /******************************************************************************
@@ -1544,6 +1623,20 @@ $define(GLOBAL + BIND, {
     // https://github.com/mathiasbynens/String.prototype.at
     at: createPointAt(true)
   });
+  
+  function createObjectToArray(isEntries){
+    return function(object){
+      var O      = ES5Object(object)
+        , keys   = getKeys(object)
+        , length = keys.length
+        , i      = 0
+        , result = Array(length)
+        , key;
+      if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
+      else while(length > i)result[i] = O[keys[i++]];
+      return result;
+    }
+  }
   $define(STATIC, OBJECT, {
     // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues
     values: createObjectToArray(false),
@@ -1584,125 +1677,6 @@ $define(GLOBAL + BIND, {
   setMapMethods(Map);
   setMapMethods(WeakMap);
 }('reference');
-
-/******************************************************************************
- * Module : es6_iterators                                                     *
- ******************************************************************************/
-
-// ECMAScript 6 iterators shim
-!function(){
-  var getValues = createObjectToArray(false)
-    // Safari define byggy iterators w/o `next`
-    , buggy = 'keys' in ArrayProto && !('next' in [].keys())
-    , at = createPointAt(true);
-  
-  function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
-    function createIter(kind){
-      return function(){
-        return new Constructor(this, kind);
-      }
-    }
-    // 21.1.5.2.2 %StringIteratorPrototype%[@@toStringTag]
-    // 22.1.5.2.3 %ArrayIteratorPrototype%[@@toStringTag]
-    // 23.1.5.2.3 %MapIteratorPrototype%[@@toStringTag]
-    // 23.2.5.2.3 %SetIteratorPrototype%[@@toStringTag]
-    createIterator(Constructor, NAME, next);
-    DEFAULT && $define(PROTO + FORCED * buggy, NAME, {
-      // 22.1.3.4 Array.prototype.entries()
-      // 23.1.3.4 Map.prototype.entries()
-      // 23.2.3.5 Set.prototype.entries()
-      entries: createIter(KEY+VALUE),
-      // 22.1.3.13 Array.prototype.keys()
-      // 23.1.3.8 Map.prototype.keys()
-      // 23.2.3.8 Set.prototype.keys()
-      keys:    createIter(KEY),
-      // 22.1.3.29 Array.prototype.values()
-      // 23.1.3.11 Map.prototype.values()
-      // 23.2.3.10 Set.prototype.values()
-      values:  createIter(VALUE)
-    });
-    // 21.1.3.27 String.prototype[@@iterator]()
-    // 22.1.3.30 Array.prototype[@@iterator]()
-    // 23.1.3.12 Map.prototype[@@iterator]()
-    // 23.2.3.11 Set.prototype[@@iterator]()
-    Base && defineIterator(Base, NAME, createIter(DEFAULT));
-  }
-  
-  // 21.1.5.1 CreateStringIterator Abstract Operation
-  defineStdIterators(String, STRING, function(iterated){
-    set(this, ITER, {o: String(iterated), i: 0});
-  // 21.1.5.2.1 %StringIteratorPrototype%.next()
-  }, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , index = iter.i
-      , point;
-    if(index >= O.length)return iterResult(1);
-    point = at.call(O, index);
-    iter.i += point.length;
-    return iterResult(0, point);
-  });
-  
-  // 22.1.5.1 CreateArrayIterator Abstract Operation
-  defineStdIterators(Array, ARRAY, function(iterated, kind){
-    set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
-  // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
-  }, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , index = iter.i++
-      , kind  = iter.k;
-    if(index >= O.length)return iterResult(1);
-    if(kind == KEY)      return iterResult(0, index);
-    if(kind == VALUE)    return iterResult(0, O[index]);
-                         return iterResult(0, [index, O[index]]);
-  }, VALUE);
-  
-  // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
-  Iterators[ARGUMENTS] = Iterators[ARRAY];
-  
-  function getCollectionKeys(inst, C){
-    var keys;
-    if(C[SHIM])keys = getValues(inst[COLLECTION_KEYS]);
-    else inst[FOR_EACH](function(val, key){
-      this.push(C == Map ? key : val);
-    }, keys = []);
-    return keys;
-  }
-  
-  // 23.1.5.1 CreateMapIterator Abstract Operation
-  defineStdIterators(Map, MAP, function(iterated, kind){
-    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Map), i: 0});
-  // 23.1.5.2.1 %MapIteratorPrototype%.next()
-  }, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , keys  = iter.a
-      , kind  = iter.k
-      , key;
-    while(true){
-      if(iter.i >= keys.length)return iterResult(1);
-      if(O.has(key = keys[iter.i++]))break;
-    }
-    if(kind == KEY)  return iterResult(0, key);
-    if(kind == VALUE)return iterResult(0, O.get(key));
-                     return iterResult(0, [key, O.get(key)]);
-  }, KEY+VALUE);
-  
-  // 23.2.5.1 CreateSetIterator Abstract Operation
-  defineStdIterators(Set, SET, function(iterated, kind){
-    set(this, ITER, {o: iterated, k: kind, a: getCollectionKeys(iterated, Set).reverse()});
-  // 23.2.5.2.1 %SetIteratorPrototype%.next()
-  }, function(){
-    var iter = this[ITER]
-      , keys = iter.a
-      , key;
-    while(true){
-      if(!keys.length)return iterResult(1);
-      if(iter.o.has(key = keys.pop()))break;
-    } return iterResult(0, iter.k == KEY+VALUE ? [key, key] : key);
-  }, VALUE);
-}();
 
 /******************************************************************************
  * Module : timers                                                            *
