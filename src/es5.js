@@ -70,6 +70,8 @@
       return result;
     }
   }
+  function returnIt(it){ return it }
+  function isPrimitive(it){ return !isObject(it) }
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
@@ -88,12 +90,24 @@
         result = new Empty();
         Empty[PROTOTYPE] = null;
         // add "__proto__" for Object.getPrototypeOf shim
-        result[CONSTRUCTOR][PROTOTYPE] === O || (result[$PROTO] = O);
+        if(result[CONSTRUCTOR][PROTOTYPE] !== O)result[$PROTO] = O;
       } else result = createDict();
       return Properties === undefined ? result : defineProperties(result, Properties);
     },
     // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-    keys: getKeys = getKeys || createGetKeys(keys1, keysLen1, false)
+    keys: getKeys = getKeys || createGetKeys(keys1, keysLen1, false),
+    // 19.1.2.17 / 15.2.3.8 Object.seal(O)
+    seal: returnIt, // <- cap
+    // 19.1.2.5 / 15.2.3.9 Object.freeze(O)
+    freeze: returnIt, // <- cap
+    // 19.1.2.15 / 15.2.3.10 Object.preventExtensions(O)
+    preventExtensions: returnIt, // <- cap
+    // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
+    isSealed: isPrimitive, // <- cap
+    // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
+    isFrozen: isPrimitive, // <- cap
+    // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
+    isExtensible: isObject // <- cap
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)

@@ -1507,16 +1507,12 @@ $define(GLOBAL + BIND, {
       'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
       var fn = console[key];
-      if(!(NODE && key in console))hidden(memo, key, function(){
+      if(!(NODE && key in console))memo[key] = function(){
         if(enabled && fn)return apply.call(fn, console, arguments);
-      });
+      };
     }, {
-      enable: function(){
-        enabled = true;
-      },
-      disable: function(){
-        enabled = false;
-      }
+      enable: function(){ enabled = true },
+      disable: function(){ enabled = false }
     }
   )});
 }(global.console || {}, true);

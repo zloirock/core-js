@@ -1610,6 +1610,42 @@
     deepEqual(keys(new fn2(1)), ['toString']);
     ok(!in$('push', keys(Array.prototype)));
   });
+  test('Object.seal', function(){
+    var seal, a;
+    seal = Object.seal;
+    ok(isFunction(seal), 'Is function');
+    equal(seal(a = {}), a);
+  });
+  test('Object.freeze', function(){
+    var freeze, a;
+    freeze = Object.freeze;
+    ok(isFunction(freeze), 'Is function');
+    equal(freeze(a = {}), a);
+  });
+  test('Object.preventExtensions', function(){
+    var preventExtensions, a;
+    preventExtensions = Object.preventExtensions;
+    ok(isFunction(preventExtensions), 'Is function');
+    equal(preventExtensions(a = {}), a);
+  });
+  test('Object.isSealed', function(){
+    var isSealed;
+    isSealed = Object.isSealed;
+    ok(isFunction(isSealed), 'Is function');
+    equal(isSealed({}), false);
+  });
+  test('Object.isFrozen', function(){
+    var isFrozen;
+    isFrozen = Object.isFrozen;
+    ok(isFunction(isFrozen), 'Is function');
+    equal(isFrozen({}), false);
+  });
+  test('Object.isExtensible', function(){
+    var isExtensible;
+    isExtensible = Object.isExtensible;
+    ok(isFunction(isExtensible), 'Is function');
+    equal(isExtensible({}), true);
+  });
   test('Function#bind', function(){
     var obj;
     ok(isFunction(Function.prototype.bind), 'Is function');

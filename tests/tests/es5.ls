@@ -68,6 +68,31 @@ test 'Object.keys' !->
   deepEqual keys(new fn1 1), <[w]>
   deepEqual keys(new fn2 1), <[toString]>
   ok \push not in keys Array::
+test 'Object.seal' !->
+  {seal} = Object
+  ok isFunction(seal), 'Is function'
+  equal seal(a = {}), a
+test 'Object.freeze' !->
+  {freeze} = Object
+  ok isFunction(freeze), 'Is function'
+  equal freeze(a = {}), a
+test 'Object.preventExtensions' !->
+  {preventExtensions} = Object
+  ok isFunction(preventExtensions), 'Is function'
+  equal preventExtensions(a = {}), a
+test 'Object.isSealed' !->
+  {isSealed} = Object
+  ok isFunction(isSealed), 'Is function'
+  equal isSealed({}), no
+test 'Object.isFrozen' !->
+  {isFrozen} = Object
+  ok isFunction(isFrozen), 'Is function'
+  equal isFrozen({}), no
+test 'Object.isExtensible' !->
+  {isExtensible} = Object
+  ok isFunction(isExtensible), 'Is function'
+  equal isExtensible({}), on
+
 test 'Function#bind' !->
   ok isFunction(Function::bind), 'Is function'
   obj = a: 42
