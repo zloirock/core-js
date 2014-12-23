@@ -90,24 +90,25 @@
   }
   
   function def(that, key, value){
-    var index  = fastKey(key, true)
-      , values = that[DATA]
-      , last   = that[LAST]
+    var index = fastKey(key, true)
+      , data  = that[DATA]
+      , last  = that[LAST]
       , entry;
-    if(index in values)values[index].v = value;
+    if(index in data)data[index].v = value;
     else {
-      entry = values[index] = {k: key, v: value, p: last};
+      entry = data[index] = {k: key, v: value, p: last};
       if(!that[FIRST])that[FIRST] = entry;
       if(last)last.n = entry;
       that[LAST] = entry;
       that[SIZE]++;
     } return that;
   }
-  function del(that, keys, index){
-    var entry = keys[index]
+  function del(that, index){
+    var data  = that[DATA]
+      , entry = data[index]
       , next  = entry.n
       , prev  = entry.p;
-    delete keys[index];
+    delete data[index];
     entry.r = true;
     if(prev)prev.n = next;
     if(next)next.p = prev;
@@ -120,16 +121,14 @@
     // 23.1.3.1 Map.prototype.clear()
     // 23.2.3.2 Set.prototype.clear()
     clear: function(){
-      var keys = this[DATA], index;
-      for(index in keys)del(this, keys, index);
+      for(var index in this[DATA])del(this, index);
     },
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
     'delete': function(key){
-      var keys     = this[DATA]
-        , index    = fastKey(key)
-        , contains = index in keys;
-      if(contains)del(this, keys, index);
+      var index    = fastKey(key)
+        , contains = index in this[DATA];
+      if(contains)del(this, index);
       return contains;
     },
     // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)

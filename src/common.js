@@ -499,7 +499,10 @@ function $define(type, name, source){
     // export
     if(exports[key] != out)hidden(exports, key, exp);
     // extend global
-    if(framework && target && !own && (isGlobal || delete target[key]))hidden(target, key, out);
+    if(framework && target && !own){
+      if(isGlobal)target[key] = out;
+      else delete target[key] && hidden(target, key, out);
+    }
   }
 }
 // CommonJS export

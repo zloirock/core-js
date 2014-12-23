@@ -1182,10 +1182,12 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
-**0.3.0** - *2014.12.23* - Optimize `Map` & `Set`
+**0.3.1** - *2014.12.23* - Some fixes
+
+**0.3.0** - *2014.12.23* - Optimize [`Map` & `Set](#ecmascript-6-collections)
   * use entries chain on hash table
   * fast & correct iteration
-  * iterators moved to `es6` and `es6_collections` modules
+  * iterators moved to [`es6`](#ecmascript-6) and [`es6_collections`](#ecmascript-6-collections) modules
 
 **0.2.5** - *2014.12.20*
   * `console` no longer shortcut for `console.log` (compatibility problems)

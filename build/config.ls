@@ -1,11 +1,10 @@
-config = module.exports = {}
-  ..version = '0.3.0'
-  ..year    = new Date!getFullYear!
-  ..banner  = """
+config = module.exports = {
+  banner: """
     /**
-     * Core.js #{config.version}
+     * Core.js #{require('../package').version}
      * https://github.com/zloirock/core-js
      * License: http://rock.mit-license.org
-     * © #{config.year} Denis Pushkarev
+     * © #{new Date!getFullYear!} Denis Pushkarev
      */
     """
+}

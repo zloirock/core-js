@@ -1,5 +1,5 @@
 /**
- * Core.js 0.3.0
+ * Core.js 0.3.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2014 Denis Pushkarev
@@ -512,7 +512,10 @@ function $define(type, name, source){
     // export
     if(exports[key] != out)hidden(exports, key, exp);
     // extend global
-    if(framework && target && !own && (isGlobal || delete target[key]))hidden(target, key, out);
+    if(framework && target && !own){
+      if(isGlobal)target[key] = out;
+      else delete target[key] && hidden(target, key, out);
+    }
   }
 }
 // CommonJS export
@@ -1457,24 +1460,25 @@ $define(GLOBAL + BIND, {
   }
   
   function def(that, key, value){
-    var index  = fastKey(key, true)
-      , values = that[DATA]
-      , last   = that[LAST]
+    var index = fastKey(key, true)
+      , data  = that[DATA]
+      , last  = that[LAST]
       , entry;
-    if(index in values)values[index].v = value;
+    if(index in data)data[index].v = value;
     else {
-      entry = values[index] = {k: key, v: value, p: last};
+      entry = data[index] = {k: key, v: value, p: last};
       if(!that[FIRST])that[FIRST] = entry;
       if(last)last.n = entry;
       that[LAST] = entry;
       that[SIZE]++;
     } return that;
   }
-  function del(that, keys, index){
-    var entry = keys[index]
+  function del(that, index){
+    var data  = that[DATA]
+      , entry = data[index]
       , next  = entry.n
       , prev  = entry.p;
-    delete keys[index];
+    delete data[index];
     entry.r = true;
     if(prev)prev.n = next;
     if(next)next.p = prev;
@@ -1487,16 +1491,14 @@ $define(GLOBAL + BIND, {
     // 23.1.3.1 Map.prototype.clear()
     // 23.2.3.2 Set.prototype.clear()
     clear: function(){
-      var keys = this[DATA], index;
-      for(index in keys)del(this, keys, index);
+      for(var index in this[DATA])del(this, index);
     },
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
     'delete': function(key){
-      var keys     = this[DATA]
-        , index    = fastKey(key)
-        , contains = index in keys;
-      if(contains)del(this, keys, index);
+      var index    = fastKey(key)
+        , contains = index in this[DATA];
+      if(contains)del(this, index);
       return contains;
     },
     // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
@@ -2146,30 +2148,27 @@ $define(PROTO + FORCED, ARRAY, {
  ******************************************************************************/
 
 !function(console, enabled){
-  var exports  = core.console = framework ? console || (global.console = {}) : {}
-    , _console = console || {};
-  var $console = turn.call(
-    /**
-     * Methods from:
-     * https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-     * https://developer.mozilla.org/en-US/docs/Web/API/console
-     */
+  // console methods in some browsers are not configurable
+  $define(GLOBAL + FORCED, {console: turn.call(
+    // Methods from:
+    // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+    // https://developer.mozilla.org/en-US/docs/Web/API/console
     array('assert,clear,count,debug,dir,dirxml,error,exception,group,groupCollapsed,' +
       'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
       'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
-      var fn = _console[key];
-      if(!(NODE && key in _console))hidden(memo, key, function(){
+      var fn = console[key];
+      if(!(NODE && key in console))hidden(memo, key, function(){
         if(enabled && fn)return apply.call(fn, console, arguments);
       });
-    }, assignHidden(exports, {
+    }, {
       enable: function(){
         enabled = true;
       },
       disable: function(){
         enabled = false;
       }
-    })
-  );
-}(global.console, true);
+    }
+  )});
+}(global.console || {}, true);
 }(Function('return this'), false);
