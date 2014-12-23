@@ -1170,12 +1170,6 @@ $define(GLOBAL + BIND, {
     , uid      = 0
     , wid      = 0;
   
-  function fixSVZ(proto, key, method, chain){
-    framework && hidden(proto, key, function(a, b){
-      var result = method.call(this, same(a, -0) ? 0 : a, b);
-      return chain ? this : result;
-    });
-  }
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER = isMap ? 'set' : 'add'
       , proto = C && C[PROTOTYPE]
@@ -1183,6 +1177,13 @@ $define(GLOBAL + BIND, {
     function initFromIterable(that, iterable){
       if(iterable != undefined)forOf(iterable, isMap, that[ADDER], that);
       return that;
+    }
+    function fixSVZ(key, chain){
+      var method = proto[key];
+      framework && hidden(proto, key, function(a, b){
+        var result = method.call(this, same(a, -0) ? 0 : a, b);
+        return chain ? this : result;
+      });
     }
     if(BUGGY_ITERATORS || !(isNative(C) && (isWeak || (has(proto, FOR_EACH) && has(proto, 'entries'))))){
       // create collection constructor
@@ -1223,12 +1224,12 @@ $define(GLOBAL + BIND, {
       });
       // fix converting -0 key to +0
       if(buggyZero){
-        fixSVZ(proto, 'delete', proto['delete']);
-        fixSVZ(proto, 'has', proto.has);
-        isMap && fixSVZ(proto, 'get', proto.get);
+        fixSVZ('delete');
+        fixSVZ('has');
+        isMap && fixSVZ('get');
       }
-      // fix .add & .set for chaining
-      if(buggyZero || chain !== inst)fixSVZ(proto, ADDER, proto[ADDER], true);
+      // + fix .add & .set for chaining
+      if(buggyZero || chain !== inst)fixSVZ(ADDER, true);
     }
     setToStringTag(C, NAME);
     O[NAME] = C;
@@ -1296,10 +1297,9 @@ $define(GLOBAL + BIND, {
     forEach: function(callbackfn, that /* = undefined */){
       var f = ctx(callbackfn, that, 3)
         , entry;
-      while(true){
-        while(entry && entry.r)entry = entry.p;
-        if(!(entry = entry ? entry.n : this[FIRST]))return;
+      while(entry = entry ? entry.n : this[FIRST]){
         f(entry.v, entry.k, this);
+        while(entry && entry.r)entry = entry.p;
       }
     },
     // 23.1.3.7 Map.prototype.has(key)
@@ -1379,12 +1379,11 @@ $define(GLOBAL + BIND, {
     // 23.1.5.2.1 %MapIteratorPrototype%.next()
     // 23.2.5.2.1 %SetIteratorPrototype%.next()
     }, function(){
-      var iter = this[ITER]
-        , O    = iter.o
-        , last = iter.l
-        , entry;
-      while(iter.l && iter.l.r)iter.l = iter.l.p;
-      if(!O || !(iter.l = entry = iter.l ? iter.l.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
+      var iter  = this[ITER]
+        , O     = iter.o
+        , entry = iter.l;
+      while(entry && entry.r)entry = entry.p;
+      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
       switch(iter.k){
         case KEY:   return iterResult(0, entry.k);
         case VALUE: return iterResult(0, entry.v);
