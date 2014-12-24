@@ -21,7 +21,7 @@
     function fixSVZ(key, chain){
       var method = proto[key];
       framework && hidden(proto, key, function(a, b){
-        var result = method.call(this, same(a, -0) ? 0 : a, b);
+        var result = method.call(this, a === 0 ? 0 : a, b);
         return chain ? this : result;
       });
     }
@@ -60,7 +60,7 @@
         C[PROTOTYPE] = proto;
       }
       isWeak || inst[FOR_EACH](function(val, key){
-        if(same(key, -0))buggyZero = true;
+        buggyZero = 1 / key === -Infinity;
       });
       // fix converting -0 key to +0
       if(buggyZero){
@@ -157,7 +157,7 @@
     },
     // 23.1.3.9 Map.prototype.set(key, value)
     set: function(key, value){
-      return def(this, same(key, -0) ? 0 : key, value);
+      return def(this, key === 0 ? 0 : key, value);
     }
   }, collectionMethods, true);
   
@@ -165,8 +165,7 @@
   Set = getCollection(Set, SET, {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
-      value = same(value, -0) ? 0 : value;
-      return def(this, value, value);
+      return def(this, value = value === 0 ? 0 : value, value);
     }
   }, collectionMethods);
   
@@ -211,8 +210,6 @@
   }, weakCollectionMethods, false, true);
   
   function defineCollectionIterators(C, NAME, DEFAULT){
-    // 23.2.5.1 CreateSetIterator Abstract Operation
-    // 23.1.5.1 CreateMapIterator Abstract Operation
     defineStdIterators(C, NAME, function(iterated, kind){
       set(this, ITER, {o: iterated, k: kind});
     // 23.1.5.2.1 %MapIteratorPrototype%.next()

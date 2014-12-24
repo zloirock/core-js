@@ -295,10 +295,6 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , trunc  = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
     }
-// 7.2.3 SameValue(x, y)
-function same(x, y){
-  return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
-}
 // 20.1.2.4 Number.isNaN(number)
 function sameNaN(number){
   return number != number;
@@ -829,12 +825,14 @@ $define(GLOBAL + FORCED, {global: global});
 
 // ECMAScript 6 shim
 !function(isFinite, tmp){
-  $define(STATIC, OBJECT, {
+  var objectStatic = {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
     // 19.1.3.10 Object.is(value1, value2)
-    is: same
-  });
+    is: function(x, y){
+      return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
+    }
+  };
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
   '__proto__' in ObjectProto && function(buggy, set){
@@ -842,16 +840,15 @@ $define(GLOBAL + FORCED, {global: global});
       set = ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2);
       set({}, ArrayProto);
     } catch(e){ buggy = true }
-    $define(STATIC, OBJECT, {
-      setPrototypeOf: function(O, proto){
-        assertObject(O);
-        assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
-        if(buggy)O.__proto__ = proto;
-        else set(O, proto);
-        return O;
-      }
-    });
+    objectStatic.setPrototypeOf = function(O, proto){
+      assertObject(O);
+      assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
+      if(buggy)O.__proto__ = proto;
+      else set(O, proto);
+      return O;
+    }
   }();
+  $define(STATIC, OBJECT, objectStatic);
   
       // 20.1.2.3 Number.isInteger(number)
   var isInteger = Number.isInteger || function(it){
@@ -1042,7 +1039,6 @@ $define(GLOBAL + FORCED, {global: global});
     }
   });
   // 21.1.3.27 String.prototype[@@iterator]()
-  // 21.1.5.1 CreateStringIterator Abstract Operation
   defineStdIterators(String, STRING, function(iterated){
     set(this, ITER, {o: String(iterated), i: 0});
   // 21.1.5.2.1 %StringIteratorPrototype%.next()
@@ -1124,7 +1120,6 @@ $define(GLOBAL + FORCED, {global: global});
   // 22.1.3.13 Array.prototype.keys()
   // 22.1.3.29 Array.prototype.values()
   // 22.1.3.30 Array.prototype[@@iterator]()
-  // 22.1.5.1 CreateArrayIterator Abstract Operation
   defineStdIterators(Array, ARRAY, function(iterated, kind){
     set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
@@ -1405,7 +1400,7 @@ $define(GLOBAL + BIND, {
     function fixSVZ(key, chain){
       var method = proto[key];
       framework && hidden(proto, key, function(a, b){
-        var result = method.call(this, same(a, -0) ? 0 : a, b);
+        var result = method.call(this, a === 0 ? 0 : a, b);
         return chain ? this : result;
       });
     }
@@ -1444,7 +1439,7 @@ $define(GLOBAL + BIND, {
         C[PROTOTYPE] = proto;
       }
       isWeak || inst[FOR_EACH](function(val, key){
-        if(same(key, -0))buggyZero = true;
+        buggyZero = 1 / key === -Infinity;
       });
       // fix converting -0 key to +0
       if(buggyZero){
@@ -1541,7 +1536,7 @@ $define(GLOBAL + BIND, {
     },
     // 23.1.3.9 Map.prototype.set(key, value)
     set: function(key, value){
-      return def(this, same(key, -0) ? 0 : key, value);
+      return def(this, key === 0 ? 0 : key, value);
     }
   }, collectionMethods, true);
   
@@ -1549,8 +1544,7 @@ $define(GLOBAL + BIND, {
   Set = getCollection(Set, SET, {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
-      value = same(value, -0) ? 0 : value;
-      return def(this, value, value);
+      return def(this, value = value === 0 ? 0 : value, value);
     }
   }, collectionMethods);
   
@@ -1595,8 +1589,6 @@ $define(GLOBAL + BIND, {
   }, weakCollectionMethods, false, true);
   
   function defineCollectionIterators(C, NAME, DEFAULT){
-    // 23.2.5.1 CreateSetIterator Abstract Operation
-    // 23.1.5.1 CreateMapIterator Abstract Operation
     defineStdIterators(C, NAME, function(iterated, kind){
       set(this, ITER, {o: iterated, k: kind});
     // 23.1.5.2.1 %MapIteratorPrototype%.next()
