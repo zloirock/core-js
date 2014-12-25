@@ -731,6 +731,16 @@ Module `immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/
 setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
 ```
+[Example](http://goo.gl/GZpV12):
+```javascript
+setImmediate(function(arg1, arg2){
+  console.log(arg1, arg2); // => Message will be displayed with minimum delay
+}, 'Message will be displayed', 'with minimum delay');
+
+clearImmediate(setImmediate(function(){
+  console.log('Message will not be displayed');
+}));
+```
 ### Console
 Module `console`. Console cap for old browsers and some additional functionality.
 ```javascript
@@ -1188,7 +1198,7 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
-**0.3.2** - *2014.12.23*
+**0.3.2** - *2014.12.25*
   * added cap for [ES5](#ecmascript-5) freeze-family methods
   * fixed `console` bug
   
