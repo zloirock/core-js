@@ -51,6 +51,12 @@ Object
   .defineProperties(target, descriptors) -> target, cap for ie8-
   .getOwnPropertyDescriptor(object, key) -> desc
   .getOwnPropertyNames(object) -> array
+  .seal(object) -> object, cap for ie8-
+  .freeze(object) -> object, cap for ie8-
+  .preventExtensions(object) -> object, cap for ie8-
+  .isSealed(object) -> bool, cap for ie8-
+  .isFrozen(object) -> bool, cap for ie8-
+  .isExtensible(object) -> bool, cap for ie8-
   .keys(object) -> array
 Array
   .isArray(var) -> bool
@@ -1182,6 +1188,10 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.3.2** - *2014.12.23*
+  * added cap for [ES5](#ecmascript-5) freeze-family methods
+  * fixed `console` bug
+  
 **0.3.1** - *2014.12.23* - Some fixes
 
 **0.3.0** - *2014.12.23* - Optimize [`Map` & `Set`](#ecmascript-6-collections)
