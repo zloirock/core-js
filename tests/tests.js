@@ -895,73 +895,75 @@
 
 (function(){
   var isFunction, isObject, methods, toString$ = {}.toString;
-  QUnit.module('Console');
-  isFunction = function(it){
-    return toString$.call(it).slice(8, -1) === 'Function';
-  };
-  isObject = function(it){
-    return it === Object(it);
-  };
-  methods = ['assert', 'count', 'debug', 'dir', 'dirxml', 'error', 'exception', 'group', 'groupEnd', 'groupCollapsed', 'groupEnd', 'info', 'log', 'table', 'trace', 'warn', 'markTimeline', 'profile', 'profileEnd', 'time', 'timeEnd', 'timeStamp'];
-  test('is object', function(){
-    ok(isObject(((typeof global != 'undefined' && global !== null) && global || window).console), 'global.console is object');
-  });
-  test('console.{..} are functions', function(){
-    var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      ok(isFunction(console[x$]), "console." + x$ + " is function");
-    }
-  });
-  test('call console.{..}', function(){
-    var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      ok((fn$()), "call console." + x$);
-    }
-    function fn$(){
-      try {
-        console[x$]('foo');
-        return true;
-      } catch (e$) {}
-    }
-  });
-  test('call unbound console.#{..}', function(){
-    var i$, x$, ref$, len$;
-    for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      ok((fn$()), "call unbound console." + x$);
-    }
-    function fn$(){
-      try {
-        console[x$].call(void 8, 'foo');
-        return true;
-      } catch (e$) {}
-    }
-  });
-  test('console.{enable, disable}', function(){
-    var enable, disable;
-    enable = console.enable, disable = console.disable;
-    ok(isFunction(enable), 'console.enable is function');
-    ok(isFunction(disable), 'console.disable is function');
-    ok((function(){
-      try {
-        disable();
-        return true;
-      } catch (e$) {}
-    }()), 'disable console');
-    ok((function(){
-      try {
-        return console.log('call disabled console') === void 8;
-      } catch (e$) {}
-    }()), 'call disabled console');
-    ok((function(){
-      try {
-        enable();
-        return true;
-      } catch (e$) {}
-    }()), 'enable console');
-  });
+  if (toString$.call(this.process).slice(8, -1) !== 'process') {
+    QUnit.module('Console');
+    isFunction = function(it){
+      return toString$.call(it).slice(8, -1) === 'Function';
+    };
+    isObject = function(it){
+      return it === Object(it);
+    };
+    methods = ['assert', 'count', 'debug', 'dir', 'dirxml', 'error', 'exception', 'group', 'groupEnd', 'groupCollapsed', 'groupEnd', 'info', 'log', 'table', 'trace', 'warn', 'markTimeline', 'profile', 'profileEnd', 'time', 'timeEnd', 'timeStamp'];
+    test('is object', function(){
+      ok(isObject(((typeof global != 'undefined' && global !== null) && global || window).console), 'global.console is object');
+    });
+    test('console.{..} are functions', function(){
+      var i$, x$, ref$, len$;
+      for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
+        x$ = ref$[i$];
+        ok(isFunction(console[x$]), "console." + x$ + " is function");
+      }
+    });
+    test('call console.{..}', function(){
+      var i$, x$, ref$, len$;
+      for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
+        x$ = ref$[i$];
+        ok((fn$()), "call console." + x$);
+      }
+      function fn$(){
+        try {
+          console[x$]('foo');
+          return true;
+        } catch (e$) {}
+      }
+    });
+    test('call unbound console.#{..}', function(){
+      var i$, x$, ref$, len$;
+      for (i$ = 0, len$ = (ref$ = methods).length; i$ < len$; ++i$) {
+        x$ = ref$[i$];
+        ok((fn$()), "call unbound console." + x$);
+      }
+      function fn$(){
+        try {
+          console[x$].call(void 8, 'foo');
+          return true;
+        } catch (e$) {}
+      }
+    });
+    test('console.{enable, disable}', function(){
+      var enable, disable;
+      enable = console.enable, disable = console.disable;
+      ok(isFunction(enable), 'console.enable is function');
+      ok(isFunction(disable), 'console.disable is function');
+      ok((function(){
+        try {
+          disable();
+          return true;
+        } catch (e$) {}
+      }()), 'disable console');
+      ok((function(){
+        try {
+          return console.log('call disabled console') === void 8;
+        } catch (e$) {}
+      }()), 'call disabled console');
+      ok((function(){
+        try {
+          enable();
+          return true;
+        } catch (e$) {}
+      }()), 'enable console');
+    });
+  }
 }).call(this);
 
 (function(){
