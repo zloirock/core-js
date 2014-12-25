@@ -1,6 +1,7 @@
 !function(console, apply, enabled){
-  try { delete global.console }
-  catch(e){}
+  try {
+    framework && delete global.console;
+  } catch(e){}
   // console methods in some browsers are not configurable
   $define(GLOBAL + FORCED, {console: turn.call(
     // Methods from:
