@@ -1927,7 +1927,7 @@ $define(PROTO + FORCED, ARRAY, {
       'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
     function(memo, key){
       var fn = console[key];
-      if(!(NODE && key in console))memo[key] = function(){
+      memo[key] = function(){
         if(enabled && fn)return apply.call(fn, console, arguments);
       };
     }, {
