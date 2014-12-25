@@ -51,7 +51,6 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
-  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setImmediate    = global.setImmediate
@@ -97,8 +96,7 @@ function classof(it){
 }
 
 // Function
-var apply = FunctionProto.apply
-  , call  = FunctionProto.call
+var call = FunctionProto.call
   , REFERENCE_GET;
 // Partial apply
 function part(/* ...args */){
@@ -290,7 +288,6 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , floor  = Math.floor
   , max    = Math.max
   , min    = Math.min
-  , pow    = Math.pow
   , random = Math.random
   , trunc  = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
@@ -604,6 +601,23 @@ $define(GLOBAL + FORCED, {global: global});
 
 // ECMAScript 6 shim
 !function(isFinite, tmp){
+  var RangeError = global.RangeError
+      // 20.1.2.3 Number.isInteger(number)
+    , isInteger = Number.isInteger || function(it){
+        return !isObject(it) && isFinite(it) && floor(it) === it;
+      }
+      // 20.2.2.28 Math.sign(x)
+    , sign = Math.sign || function sign(it){
+        return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
+      }
+    , pow  = Math.pow
+    , abs  = Math.abs
+    , exp  = Math.exp
+    , log  = Math.log
+    , sqrt = Math.sqrt
+    , fcc  = String.fromCharCode
+    , at   = createPointAt(true);
+  
   var objectStatic = {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -629,20 +643,6 @@ $define(GLOBAL + FORCED, {global: global});
   }();
   $define(STATIC, OBJECT, objectStatic);
   
-      // 20.1.2.3 Number.isInteger(number)
-  var isInteger = Number.isInteger || function(it){
-        return !isObject(it) && isFinite(it) && floor(it) === it;
-      }
-      // 20.2.2.28 Math.sign(x)
-    , sign = Math.sign || function sign(it){
-        return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
-      }
-    , abs  = Math.abs
-    , exp  = Math.exp
-    , log  = Math.log
-    , sqrt = Math.sqrt
-    , fcc  = String.fromCharCode
-    , at   = createPointAt(true);
   // 20.2.2.5 Math.asinh(x)
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
@@ -1488,7 +1488,7 @@ $define(GLOBAL + BIND, {
  * Module : console                                                           *
  ******************************************************************************/
 
-!function(console, enabled){
+!function(console, apply, enabled){
   // console methods in some browsers are not configurable
   $define(GLOBAL + FORCED, {console: turn.call(
     // Methods from:
@@ -1507,5 +1507,5 @@ $define(GLOBAL + BIND, {
       disable: function(){ enabled = false }
     }
   )});
-}(global.console || {}, true);
+}(global.console || {}, FunctionProto.apply, true);
 }(Function('return this'), true);

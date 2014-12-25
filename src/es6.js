@@ -1,5 +1,22 @@
 // ECMAScript 6 shim
 !function(isFinite, tmp){
+  var RangeError = global.RangeError
+      // 20.1.2.3 Number.isInteger(number)
+    , isInteger = Number.isInteger || function(it){
+        return !isObject(it) && isFinite(it) && floor(it) === it;
+      }
+      // 20.2.2.28 Math.sign(x)
+    , sign = Math.sign || function sign(it){
+        return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
+      }
+    , pow  = Math.pow
+    , abs  = Math.abs
+    , exp  = Math.exp
+    , log  = Math.log
+    , sqrt = Math.sqrt
+    , fcc  = String.fromCharCode
+    , at   = createPointAt(true);
+  
   var objectStatic = {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -25,20 +42,6 @@
   }();
   $define(STATIC, OBJECT, objectStatic);
   
-      // 20.1.2.3 Number.isInteger(number)
-  var isInteger = Number.isInteger || function(it){
-        return !isObject(it) && isFinite(it) && floor(it) === it;
-      }
-      // 20.2.2.28 Math.sign(x)
-    , sign = Math.sign || function sign(it){
-        return (it = +it) == 0 || it != it ? it : it < 0 ? -1 : 1;
-      }
-    , abs  = Math.abs
-    , exp  = Math.exp
-    , log  = Math.log
-    , sqrt = Math.sqrt
-    , fcc  = String.fromCharCode
-    , at   = createPointAt(true);
   // 20.2.2.5 Math.asinh(x)
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));

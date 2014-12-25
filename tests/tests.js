@@ -1686,11 +1686,11 @@
     ok(-1 === Array(1).indexOf(void 8));
   });
   test('Array#lastIndexOf', function(){
-    ok(2 === [1, 1, 1].lastIndexOf(1));
-    ok(-1 === [1, 2, 3].lastIndexOf(3, 1));
-    ok(1 === [1, 2, 3].lastIndexOf(2, 1));
-    ok(-1 === [NaN].lastIndexOf(NaN));
-    ok(1 === [1, 2, 3].concat(Array(2)).lastIndexOf(2));
+    equal(2, [1, 1, 1].lastIndexOf(1));
+    equal(-1, [1, 2, 3].lastIndexOf(3, 1));
+    equal(1, [1, 2, 3].lastIndexOf(2, 1));
+    equal(-1, [NaN].lastIndexOf(NaN));
+    equal(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   });
   test('Array#every', function(){
     var a, ctx, rez, arr;

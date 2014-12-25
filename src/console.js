@@ -1,4 +1,4 @@
-!function(console, enabled){
+!function(console, apply, enabled){
   // console methods in some browsers are not configurable
   $define(GLOBAL + FORCED, {console: turn.call(
     // Methods from:
@@ -17,4 +17,4 @@
       disable: function(){ enabled = false }
     }
   )});
-}(global.console || {}, true);
+}(global.console || {}, FunctionProto.apply, true);

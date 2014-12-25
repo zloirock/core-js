@@ -38,7 +38,6 @@ var global          = returnThis()
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
-  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , clearTimeout    = global.clearTimeout
   , setImmediate    = global.setImmediate
@@ -84,8 +83,7 @@ function classof(it){
 }
 
 // Function
-var apply = FunctionProto.apply
-  , call  = FunctionProto.call
+var call = FunctionProto.call
   , REFERENCE_GET;
 // Partial apply
 function part(/* ...args */){
@@ -277,7 +275,6 @@ var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
   , floor  = Math.floor
   , max    = Math.max
   , min    = Math.min
-  , pow    = Math.pow
   , random = Math.random
   , trunc  = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
