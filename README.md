@@ -731,7 +731,7 @@ Module `immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/
 setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
 ```
-[Example](http://goo.gl/GZpV12):
+[Example](http://goo.gl/6nXGrx):
 ```javascript
 setImmediate(function(arg1, arg2){
   console.log(arg1, arg2); // => Message will be displayed with minimum delay
