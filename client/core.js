@@ -31,9 +31,12 @@ var global          = returnThis()
   , PROTOTYPE       = 'prototype'
   , CONSTRUCTOR     = 'constructor'
   , TO_STRING       = 'toString'
+  , TO_STRING_TAG   = TO_STRING + 'Tag'
   , TO_LOCALE       = 'toLocaleString'
   , HAS_OWN         = 'hasOwnProperty'
   , FOR_EACH        = 'forEach'
+  , ITERATOR        = 'iterator'
+  , FF_ITERATOR     = '@@' + ITERATOR
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -52,12 +55,12 @@ var global          = returnThis()
   , Math            = global[MATH]
   , TypeError       = global.TypeError
   , setTimeout      = global.setTimeout
-  , clearTimeout    = global.clearTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
   , document        = global.document
+  , html            = document && document.documentElement
   , navigator       = global.navigator
   , define          = global.define
   , ArrayProto      = Array[PROTOTYPE]
@@ -78,11 +81,10 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = ObjectProto[TO_STRING];
-var buildIn  = {
+var buildIn = {
   Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
-  Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp: 1
-} , TO_STRING_TAG = TO_STRING + 'Tag';
+  Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp:1 
+} , toString = ObjectProto[TO_STRING];
 function setToStringTag(it, tag, stat){
   if(it)has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG) || hidden(it, SYMBOL_TAG, tag);
 }
@@ -169,14 +171,14 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
-  , ownKeys          = function(it){
-      return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
-    }
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 function get(object, key){
   if(has(object, key))return object[key];
+}
+function ownKeys(it){
+  return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
 }
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
@@ -382,12 +384,14 @@ var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e)
   , hidden = createDefiner(1)
   , set    = Symbol ? simpleSet : hidden
   , safeSymbol = Symbol || uid;
+function assignHidden(target, src){
+  for(var key in src)hidden(target, key, src[key]);
+  return target;
+}
 
 // Iterators
-var ITERATOR = 'iterator'
-  , SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
-  , SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG)
-  , FF_ITERATOR = '@@' + ITERATOR
+var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
+  , SYMBOL_TAG      = getWellKnownSymbol(TO_STRING_TAG)
   , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
   , ITER  = safeSymbol('iter')
   , KEY   = 1
@@ -461,9 +465,6 @@ function forOf(iterable, entries, fn, that){
   while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false)return;
 }
 
-// DOM
-var html = document && document.documentElement;
-
 // core
 var NODE = cof(process) == PROCESS
   , core = {}
@@ -476,10 +477,6 @@ var NODE = cof(process) == PROCESS
   , PROTO  = 8
   , BIND   = 16
   , WRAP   = 32;
-function assignHidden(target, src){
-  for(var key in src)hidden(target, key, src[key]);
-  return target;
-}
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
@@ -2154,6 +2151,9 @@ $define(PROTO + FORCED, ARRAY, {
  ******************************************************************************/
 
 !function(console, apply, enabled){
+  try {
+    framework && delete global.console;
+  } catch(e){}
   // console methods in some browsers are not configurable
   $define(GLOBAL + FORCED, {console: turn.call(
     // Methods from:
