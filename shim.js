@@ -1155,15 +1155,13 @@ $define(GLOBAL + BIND, {
 
 // ECMAScript 6 collections shim
 !function(){
-  var DATA     = safeSymbol('data')
-    , UID      = safeSymbol('uid')
-    , LAST     = safeSymbol('last')
-    , FIRST    = safeSymbol('first')
-    , WEAKDATA = safeSymbol('weakData')
-    , WEAKID   = safeSymbol('weakId')
-    , SIZE     = DESC ? safeSymbol('size') : 'size'
-    , uid      = 0
-    , wid      = 0;
+  var UID   = safeSymbol('uid')
+    , DATA  = safeSymbol('data')
+    , WEAK  = safeSymbol('weak')
+    , LAST  = safeSymbol('last')
+    , FIRST = safeSymbol('first')
+    , SIZE  = DESC ? safeSymbol('size') : 'size'
+    , uid   = 0;
   
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER = isMap ? 'set' : 'add'
@@ -1180,12 +1178,12 @@ $define(GLOBAL + BIND, {
         return chain ? this : result;
       });
     }
-    if(BUGGY_ITERATORS || !(isNative(C) && (isWeak || (has(proto, FOR_EACH) && has(proto, 'entries'))))){
+    if(!isNative(C) || !(isWeak || (!BUGGY_ITERATORS && has(proto, 'entries')))){
       // create collection constructor
       C = isWeak
         ? function(iterable){
             assertInstance(this, C, NAME);
-            set(this, WEAKID, wid++);
+            set(this, UID, uid++);
             initFromIterable(this, iterable);
           }
         : function(iterable){
@@ -1227,8 +1225,26 @@ $define(GLOBAL + BIND, {
       if(buggyZero || chain !== inst)fixSVZ(ADDER, true);
     }
     setToStringTag(C, NAME);
+    
     O[NAME] = C;
     $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
+    
+    // add .keys, .values, .entries, [@@iterator]
+    // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
+    isWeak || defineStdIterators(C, NAME, function(iterated, kind){
+      set(this, ITER, {o: iterated, k: kind});
+    }, function(){
+      var iter  = this[ITER]
+        , O     = iter.o
+        , entry = iter.l;
+      while(entry && entry.r)entry = entry.p;
+      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
+      switch(iter.k){
+        case KEY:   return iterResult(0, entry.k);
+        case VALUE: return iterResult(0, entry.v);
+      }             return iterResult(0, [entry.k, entry.v]);
+    }, isMap ? KEY+VALUE : VALUE);
+    
     return C;
   }
   
@@ -1324,73 +1340,44 @@ $define(GLOBAL + BIND, {
     }
   }, collectionMethods);
   
-  function getWeakData(it){
-    has(it, WEAKDATA) || hidden(it, WEAKDATA, {});
-    return it[WEAKDATA];
+  function setWeak(that, key, value){
+    has(assertObject(key), WEAK) || hidden(key, WEAK, {});
+    key[WEAK][that[UID]] = value;
+    return that;
   }
-  function weakCollectionHas(key){
-    return isObject(key) && has(key, WEAKDATA) && has(key[WEAKDATA], this[WEAKID]);
+  function hasWeak(key){
+    return isObject(key) && has(key, WEAK) && has(key[WEAK], this[UID]);
   }
-  var weakCollectionMethods = {
+  var weakMethods = {
     // 23.3.3.2 WeakMap.prototype.delete(key)
     // 23.4.3.3 WeakSet.prototype.delete(value)
     'delete': function(key){
-      return weakCollectionHas.call(this, key) && delete key[WEAKDATA][this[WEAKID]];
+      return hasWeak.call(this, key) && delete key[WEAK][this[UID]];
     },
     // 23.3.3.4 WeakMap.prototype.has(key)
     // 23.4.3.4 WeakSet.prototype.has(value)
-    has: weakCollectionHas
+    has: hasWeak
   };
   
   // 23.3 WeakMap Objects
   WeakMap = getCollection(WeakMap, WEAKMAP, {
     // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
-      if(isObject(key) && has(key, WEAKDATA))return key[WEAKDATA][this[WEAKID]];
+      if(isObject(key) && has(key, WEAK))return key[WEAK][this[UID]];
     },
     // 23.3.3.5 WeakMap.prototype.set(key, value)
     set: function(key, value){
-      getWeakData(assertObject(key))[this[WEAKID]] = value;
-      return this;
+      return setWeak(this, key, value);
     }
-  }, weakCollectionMethods, true, true);
+  }, weakMethods, true, true);
   
   // 23.4 WeakSet Objects
   WeakSet = getCollection(WeakSet, WEAKSET, {
     // 23.4.3.1 WeakSet.prototype.add(value)
     add: function(value){
-      getWeakData(assertObject(value))[this[WEAKID]] = true;
-      return this;
+      return setWeak(this, value, true);
     }
-  }, weakCollectionMethods, false, true);
-  
-  function defineCollectionIterators(C, NAME, DEFAULT){
-    defineStdIterators(C, NAME, function(iterated, kind){
-      set(this, ITER, {o: iterated, k: kind});
-    // 23.1.5.2.1 %MapIteratorPrototype%.next()
-    // 23.2.5.2.1 %SetIteratorPrototype%.next()
-    }, function(){
-      var iter  = this[ITER]
-        , O     = iter.o
-        , entry = iter.l;
-      while(entry && entry.r)entry = entry.p;
-      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
-      switch(iter.k){
-        case KEY:   return iterResult(0, entry.k);
-        case VALUE: return iterResult(0, entry.v);
-      }             return iterResult(0, [entry.k, entry.v]);
-    }, DEFAULT);
-  }
-  // 23.1.3.4 Map.prototype.entries()
-  // 23.1.3.8 Map.prototype.keys()
-  // 23.1.3.11 Map.prototype.values()
-  // 23.1.3.12 Map.prototype[@@iterator]()
-  defineCollectionIterators(Map, MAP, KEY+VALUE);
-  // 23.2.3.5 Set.prototype.entries()
-  // 23.2.3.8 Set.prototype.keys()
-  // 23.2.3.10 Set.prototype.values()
-  // 23.2.3.11 Set.prototype[@@iterator]()
-  defineCollectionIterators(Set, SET, VALUE);
+  }, weakMethods, false, true);
 }();
 
 /******************************************************************************
