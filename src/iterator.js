@@ -1,22 +1,28 @@
 !function(WRAPPER, ENTRIES, FN, I){
+  function fixIteratorPrototype(Constructor){
+    if(Constructor && SYMBOL_ITERATOR in Constructor[PROTOTYPE]){
+      getPrototypeOf(new Constructor()[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
+    }
+  }
   if(SYMBOL_ITERATOR in ArrayProto){
-    var ArrayIterProto = getPrototypeOf([][SYMBOL_ITERATOR]())
-      , proto = getPrototypeOf(ArrayIterProto);
+    var proto = getPrototypeOf(getPrototypeOf([][SYMBOL_ITERATOR]()));
     if(proto == ObjectProto){
-      ArrayIterProto.__proto__ = IteratorPrototype;
-      if(Set && SYMBOL_ITERATOR in Set[PROTOTYPE])getPrototypeOf(new Set()[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
-      if(Map && SYMBOL_ITERATOR in Map[PROTOTYPE])getPrototypeOf(new Map()[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
-      if(SYMBOL_ITERATOR in String[PROTOTYPE])getPrototypeOf(''[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
+      fixIteratorPrototype(Array);
+      fixIteratorPrototype(Set);
+      fixIteratorPrototype(Map);
+      fixIteratorPrototype(String);
     } else IteratorPrototype = proto;
   }
   
   function setFrom(Constructor){
-    if(Constructor)Constructor.from = function(iterable){
+    if(Constructor)hidden(Constructor, 'from', function(iterable){
       return new Constructor(iterable);
-    }
+    });
   }
   setFrom(Map);
   setFrom(Set);
+  setFrom(WeakMap);
+  setFrom(WeakSet);
   setFrom(Dict);
   hidden(String, 'from', function(iterable){
     return Array.from(iterable).join('');
