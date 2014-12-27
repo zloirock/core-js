@@ -55,6 +55,6 @@
   
   setToStringTag(Symbol, SYMBOL);
   
-  // 26.1.11 Reflect.ownKeys (target)
+  // 26.1.11 Reflect.ownKeys(target)
   $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
 }(safeSymbol('tag'), {}, true);

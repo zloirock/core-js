@@ -81,13 +81,13 @@
     }, function(){
       var iter  = this[ITER]
         , O     = iter.o
+        , kind  = iter.k
         , entry = iter.l;
       while(entry && entry.r)entry = entry.p;
-      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
-      switch(iter.k){
-        case KEY:   return iterResult(0, entry.k);
-        case VALUE: return iterResult(0, entry.v);
-      }             return iterResult(0, [entry.k, entry.v]);
+      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return iter.o = undefined, iterResult(1);
+      if(kind == KEY)  return iterResult(0, entry.k);
+      if(kind == VALUE)return iterResult(0, entry.v);
+                       return iterResult(0, [entry.k, entry.v]);   
     }, isMap ? KEY+VALUE : VALUE);
     
     return C;

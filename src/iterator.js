@@ -68,7 +68,7 @@
   createIterator(SkipIterator, WRAPPER, function(){
     for(;;){
       var step = this[ITER].next();
-      if(step.done || !this[I] || this[I]--)return step;
+      if(step.done || !this[I] || !this[I]--)return step;
     }
   });
   

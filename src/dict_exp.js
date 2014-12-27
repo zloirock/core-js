@@ -1,17 +1,20 @@
 !function(DICT){
   function Dict(iterable){
-    var dict = create(null);
+    if(!(this instanceof Dict))return new Dict(iterable);
     if(iterable != undefined){
       if(isIterable(iterable)){
         for(var iter = getIterator(iterable), step, value; !(step = iter.next()).done;){
           value = step.value;
-          dict[value[0]] = value[1];
+          this[value[0]] = value[1];
         }
-      } else assign(dict, iterable);
+      } else assign(this, iterable);
     }
-    return dict;
   }
-  Dict[PROTOTYPE] = null;
+  Dict[PROTOTYPE] = create(null);
+  setToStringTag(Dict, 'Dict');
+  hidden(Dict[PROTOTYPE], SYMBOL_ITERATOR, function(){
+    return Dict.entries(this);
+  });
   
   function DictIterator(iterated, kind){
     set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});

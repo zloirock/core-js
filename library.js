@@ -588,7 +588,7 @@ $define(GLOBAL + FORCED, {global: global});
   
   setToStringTag(Symbol, SYMBOL);
   
-  // 26.1.11 Reflect.ownKeys (target)
+  // 26.1.11 Reflect.ownKeys(target)
   $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
 }(safeSymbol('tag'), {}, true);
 
@@ -902,12 +902,12 @@ $define(GLOBAL + FORCED, {global: global});
   }, function(){
     var iter  = this[ITER]
       , O     = iter.o
+      , kind  = iter.k
       , index = iter.i++;
-    if(!O || index >= O.length)return (iter.o = undefined), iterResult(1);
-    switch(iter.k){
-      case KEY:   return iterResult(0, index);
-      case VALUE: return iterResult(0, O[index]);
-    }             return iterResult(0, [index, O[index]]);
+    if(!O || index >= O.length)return iter.o = undefined, iterResult(1);
+    if(kind == KEY)  return iterResult(0, index);
+    if(kind == VALUE)return iterResult(0, O[index]);
+                     return iterResult(0, [index, O[index]]);
   }, VALUE);
   
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
@@ -1236,13 +1236,13 @@ $define(GLOBAL + BIND, {
     }, function(){
       var iter  = this[ITER]
         , O     = iter.o
+        , kind  = iter.k
         , entry = iter.l;
       while(entry && entry.r)entry = entry.p;
-      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return (iter.o = undefined), iterResult(1);
-      switch(iter.k){
-        case KEY:   return iterResult(0, entry.k);
-        case VALUE: return iterResult(0, entry.v);
-      }             return iterResult(0, [entry.k, entry.v]);
+      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return iter.o = undefined, iterResult(1);
+      if(kind == KEY)  return iterResult(0, entry.k);
+      if(kind == VALUE)return iterResult(0, entry.v);
+                       return iterResult(0, [entry.k, entry.v]);   
     }, isMap ? KEY+VALUE : VALUE);
     
     return C;
@@ -1482,7 +1482,7 @@ $define(GLOBAL + BIND, {
     }
     if(kind == KEY)  return iterResult(0, key);
     if(kind == VALUE)return iterResult(0, O[key]);
-                     return iterResult(0, [key, O[key]]);    
+                     return iterResult(0, [key, O[key]]);
   });
   function createDictIter(kind){
     return function(it){

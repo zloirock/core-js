@@ -304,12 +304,12 @@
   }, function(){
     var iter  = this[ITER]
       , O     = iter.o
+      , kind  = iter.k
       , index = iter.i++;
-    if(!O || index >= O.length)return (iter.o = undefined), iterResult(1);
-    switch(iter.k){
-      case KEY:   return iterResult(0, index);
-      case VALUE: return iterResult(0, O[index]);
-    }             return iterResult(0, [index, O[index]]);
+    if(!O || index >= O.length)return iter.o = undefined, iterResult(1);
+    if(kind == KEY)  return iterResult(0, index);
+    if(kind == VALUE)return iterResult(0, O[index]);
+                     return iterResult(0, [index, O[index]]);
   }, VALUE);
   
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
