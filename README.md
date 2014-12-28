@@ -679,6 +679,22 @@ var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
 for(var key in person)console.log(key); // => only 'getName'
 ```
+The same [example](http://goo.gl/3rVNTP) with the `private` keyword:
+```javascript
+class Person {
+  private NAME
+  constructor(name){
+    this::NAME = name;
+  }
+  getName(){
+    return this::NAME;
+  }
+}
+
+var person = new Person('Vasya');
+console.log(person.getName());          // => 'Vasya'
+for(var key in person)console.log(key); // => only 'getName'
+```
 Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
 var {toString} = {};
@@ -1198,10 +1214,13 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.3.3** - *2014.12.28*
+  * [console cap](#console) excluded from node.js default builds
+
 **0.3.2** - *2014.12.25*
   * added cap for [ES5](#ecmascript-5) freeze-family methods
   * fixed `console` bug
-  
+
 **0.3.1** - *2014.12.23* - Some fixes
 
 **0.3.0** - *2014.12.23* - Optimize [`Map` & `Set`](#ecmascript-6-collections)
