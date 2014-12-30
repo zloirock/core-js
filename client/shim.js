@@ -86,7 +86,7 @@ var buildIn = {
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp:1 
 } , toString = ObjectProto[TO_STRING];
 function setToStringTag(it, tag, stat){
-  if(it)has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG) || hidden(it, SYMBOL_TAG, tag);
+  if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -266,18 +266,6 @@ function createArrayContains(isContains){
       if(O[index] === el)return isContains || index;
     } return !isContains && -1;
   }
-}
-// Simple reduce to object
-function turn(mapfn, target /* = [] */){
-  assertFunction(mapfn);
-  var memo   = target == undefined ? [] : Object(target)
-    , O      = ES5Object(this)
-    , length = toLength(O.length)
-    , index  = 0;
-  for(;length > index; index++){
-    if(mapfn(memo, O[index], index, this) === false)break;
-  }
-  return memo;
 }
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof vs isFunction
@@ -1692,46 +1680,45 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 // JavaScript 1.6 / Strawman array statics shim
-!function(){
+!function(arrayStatics){
   function setArrayStatics(keys, length){
-    $define(STATIC, ARRAY, turn.call(
-      array(keys),
-      function(memo, key){
-        if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key], length);
-      }, {}
-    ));
+    forEach.call(array(keys), function(key){
+      if(key in ArrayProto)arrayStatics[key] = ctx(call, ArrayProto[key], length);
+    });
   }
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
                   'reduce,reduceRight,copyWithin,fill,turn');
-}();
+  $define(STATIC, ARRAY, arrayStatics);
+}({});
 
 /******************************************************************************
  * Module : console                                                           *
  ******************************************************************************/
 
 !function(console, apply, enabled){
+  var _console = {
+    enable: function(){ enabled = true },
+    disable: function(){ enabled = false }
+  };
+  // Methods from:
+  // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  // https://developer.mozilla.org/en-US/docs/Web/API/console
+  forEach.call(array('assert,clear,count,debug,dir,dirxml,error,exception,group,' +
+      'groupCollapsed,groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,' +
+      'profileEnd,table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
+    function(key){
+      var fn = console[key];
+      _console[key] = function(){
+        if(enabled && fn)return apply.call(fn, console, arguments);
+      };
+    }
+  );
+  // console methods in some browsers are not configurable
   try {
     framework && delete global.console;
   } catch(e){}
-  // console methods in some browsers are not configurable
-  $define(GLOBAL + FORCED, {console: turn.call(
-    // Methods from:
-    // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-    // https://developer.mozilla.org/en-US/docs/Web/API/console
-    array('assert,clear,count,debug,dir,dirxml,error,exception,group,groupCollapsed,' +
-      'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
-      'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
-    function(memo, key){
-      var fn = console[key];
-      memo[key] = function(){
-        if(enabled && fn)return apply.call(fn, console, arguments);
-      };
-    }, {
-      enable: function(){ enabled = true },
-      disable: function(){ enabled = false }
-    }
-  )});
+  $define(GLOBAL + FORCED, {console: _console});
 }(global.console || {}, FunctionProto.apply, true);
 }(Function('return this'), true);

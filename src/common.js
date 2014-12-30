@@ -73,7 +73,7 @@ var buildIn = {
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp:1 
 } , toString = ObjectProto[TO_STRING];
 function setToStringTag(it, tag, stat){
-  if(it)has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG) || hidden(it, SYMBOL_TAG, tag);
+  if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -253,18 +253,6 @@ function createArrayContains(isContains){
       if(O[index] === el)return isContains || index;
     } return !isContains && -1;
   }
-}
-// Simple reduce to object
-function turn(mapfn, target /* = [] */){
-  assertFunction(mapfn);
-  var memo   = target == undefined ? [] : Object(target)
-    , O      = ES5Object(this)
-    , length = toLength(O.length)
-    , index  = 0;
-  for(;length > index; index++){
-    if(mapfn(memo, O[index], index, this) === false)break;
-  }
-  return memo;
 }
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof vs isFunction

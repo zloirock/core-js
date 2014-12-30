@@ -86,7 +86,7 @@ var buildIn = {
   Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp:1 
 } , toString = ObjectProto[TO_STRING];
 function setToStringTag(it, tag, stat){
-  if(it)has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG) || hidden(it, SYMBOL_TAG, tag);
+  if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
   return it == undefined ? it === undefined
@@ -266,18 +266,6 @@ function createArrayContains(isContains){
       if(O[index] === el)return isContains || index;
     } return !isContains && -1;
   }
-}
-// Simple reduce to object
-function turn(mapfn, target /* = [] */){
-  assertFunction(mapfn);
-  var memo   = target == undefined ? [] : Object(target)
-    , O      = ES5Object(this)
-    , length = toLength(O.length)
-    , index  = 0;
-  for(;length > index; index++){
-    if(mapfn(memo, O[index], index, this) === false)break;
-  }
-  return memo;
 }
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof vs isFunction
@@ -1697,10 +1685,9 @@ $define(GLOBAL + BIND, {
       , keys  = iter.a
       , kind  = iter.k
       , key;
-    while(true){
+    do {
       if(iter.i >= keys.length)return iterResult(1);
-      if(has(O, key = keys[iter.i++]))break;
-    }
+    } while(!has(O, key = keys[iter.i++]));
     if(kind == KEY)  return iterResult(0, key);
     if(kind == VALUE)return iterResult(0, O[key]);
                      return iterResult(0, [key, O[key]]);
@@ -1981,7 +1968,15 @@ $define(GLOBAL + BIND, {
  ******************************************************************************/
 
 $define(PROTO + FORCED, ARRAY, {
-  turn: turn
+  turn: function(fn, target /* = [] */){
+    assertFunction(fn);
+    var memo   = target == undefined ? [] : Object(target)
+      , O      = ES5Object(this)
+      , length = toLength(O.length)
+      , index  = 0;
+    while(length > index)if(fn(memo, O[index], index++, this) === false)break;
+    return memo;
+  }
 });
 
 /******************************************************************************
@@ -1989,26 +1984,24 @@ $define(PROTO + FORCED, ARRAY, {
  ******************************************************************************/
 
 // JavaScript 1.6 / Strawman array statics shim
-!function(){
+!function(arrayStatics){
   function setArrayStatics(keys, length){
-    $define(STATIC, ARRAY, turn.call(
-      array(keys),
-      function(memo, key){
-        if(key in ArrayProto)memo[key] = ctx(call, ArrayProto[key], length);
-      }, {}
-    ));
+    forEach.call(array(keys), function(key){
+      if(key in ArrayProto)arrayStatics[key] = ctx(call, ArrayProto[key], length);
+    });
   }
   setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
                   'reduce,reduceRight,copyWithin,fill,turn');
-}();
+  $define(STATIC, ARRAY, arrayStatics);
+}({});
 
 /******************************************************************************
  * Module : number                                                            *
  ******************************************************************************/
 
-!function(){  
+!function(numberMethods){  
   function NumberIterator(iterated){
     set(this, ITER, {l: toLength(iterated), i: 0});
   }
@@ -2021,34 +2014,32 @@ $define(PROTO + FORCED, ARRAY, {
     return new NumberIterator(this);
   });
   
-  $define(PROTO + FORCED, NUMBER, {
-    random: function(lim /* = 0 */){
-      var a = +this
-        , b = lim == undefined ? 0 : +lim
-        , m = min(a, b);
-      return random() * (max(a, b) - m) + m;
-    }
-  });
+  numberMethods.random = function(lim /* = 0 */){
+    var a = +this
+      , b = lim == undefined ? 0 : +lim
+      , m = min(a, b);
+    return random() * (max(a, b) - m) + m;
+  };
 
-  $define(PROTO + FORCED, NUMBER, turn.call(
-    array(
+  forEach.call(array(
       // ES3:
       'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
       // ES6:
       'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-    ),
-    function(memo, key){
+    ), function(key){
       var fn = Math[key];
-      if(fn)memo[key] = function(/* ...args */){
+      if(fn)numberMethods[key] = function(/* ...args */){
         // ie9- dont support strict mode & convert `this` to object -> convert it to number
         var args = [+this]
           , i    = 0;
         while(arguments.length > i)args.push(arguments[i++]);
         return invoke(fn, args);
       }
-    }, {}
-  ));
-}();
+    }
+  );
+  
+  $define(PROTO + FORCED, NUMBER, numberMethods);
+}({});
 
 /******************************************************************************
  * Module : string                                                            *
@@ -2107,9 +2098,11 @@ $define(PROTO + FORCED, ARRAY, {
   }
   function addLocale(lang, locale){
     function split(index){
-      return turn.call(array(locale.months), function(memo, it){
-        memo.push(it.replace(flexioRegExp, '$' + index));
+      var result = [];
+      forEach.call(array(locale.months), function(it){
+        result.push(it.replace(flexioRegExp, '$' + index));
       });
+      return result;
     }
     locales[lang] = [array(locale.weekdays), split(1), split(2)];
     return core;
@@ -2138,26 +2131,27 @@ $define(PROTO + FORCED, ARRAY, {
  ******************************************************************************/
 
 !function(console, apply, enabled){
+  var _console = {
+    enable: function(){ enabled = true },
+    disable: function(){ enabled = false }
+  };
+  // Methods from:
+  // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  // https://developer.mozilla.org/en-US/docs/Web/API/console
+  forEach.call(array('assert,clear,count,debug,dir,dirxml,error,exception,group,' +
+      'groupCollapsed,groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,' +
+      'profileEnd,table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
+    function(key){
+      var fn = console[key];
+      _console[key] = function(){
+        if(enabled && fn)return apply.call(fn, console, arguments);
+      };
+    }
+  );
+  // console methods in some browsers are not configurable
   try {
     framework && delete global.console;
   } catch(e){}
-  // console methods in some browsers are not configurable
-  $define(GLOBAL + FORCED, {console: turn.call(
-    // Methods from:
-    // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-    // https://developer.mozilla.org/en-US/docs/Web/API/console
-    array('assert,clear,count,debug,dir,dirxml,error,exception,group,groupCollapsed,' +
-      'groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,profileEnd,' +
-      'table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
-    function(memo, key){
-      var fn = console[key];
-      memo[key] = function(){
-        if(enabled && fn)return apply.call(fn, console, arguments);
-      };
-    }, {
-      enable: function(){ enabled = true },
-      disable: function(){ enabled = false }
-    }
-  )});
+  $define(GLOBAL + FORCED, {console: _console});
 }(global.console || {}, FunctionProto.apply, true);
 }(Function('return this'), false);

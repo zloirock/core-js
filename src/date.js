@@ -32,9 +32,11 @@
   }
   function addLocale(lang, locale){
     function split(index){
-      return turn.call(array(locale.months), function(memo, it){
-        memo.push(it.replace(flexioRegExp, '$' + index));
+      var result = [];
+      forEach.call(array(locale.months), function(it){
+        result.push(it.replace(flexioRegExp, '$' + index));
       });
+      return result;
     }
     locales[lang] = [array(locale.weekdays), split(1), split(2)];
     return core;

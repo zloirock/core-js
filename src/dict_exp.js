@@ -25,10 +25,9 @@
       , keys  = iter.a
       , kind  = iter.k
       , key;
-    while(true){
+    do {
       if(iter.i >= keys.length)return iterResult(1);
-      if(has(O, key = keys[iter.i++]))break;
-    }
+    } while(!has(O, key = keys[iter.i++]));
     if(kind == KEY)  return iterResult(0, key);
     if(kind == VALUE)return iterResult(0, O[key]);
                      return iterResult(0, [key, O[key]]);
