@@ -444,8 +444,8 @@ function isIterable(it){
 }
 function getIterator(it){
   var Symbol  = global[SYMBOL]
-    , hasExt  = Symbol && Symbol[ITERATOR] && it[Symbol[ITERATOR]]
-    , getIter = hasExt || it[SYMBOL_ITERATOR] || Iterators[classof(it)];
+    , ext     = Symbol && Symbol[ITERATOR] && it[Symbol[ITERATOR]]
+    , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[classof(it)];
   return assertObject(getIter.call(it));
 }
 function stepCall(fn, value, entries){

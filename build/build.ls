@@ -12,12 +12,13 @@ module.exports = (opt, next)-> let @ = opt
   @common = on
   if @old_shim => for old_shim => @[..] = on
   if @new_shim => for new_shim => @[..] = on
+  if @core     => for core     => @[..] = on
   if @exp      => for exp      => @[..] = on
-  if @core => for core => @[..] = on
-  if @delay => @es6_promise = on
+  if @delay    => @es6_promise = on
   if @dict_exp => @dict = no
   if @es6_promise => @ <<< {+immediate, +es6}
-  if @es7_refs => @es6_symbol = on
+  if @es6_reflect => @ <<< {+es6, +es6_collections}
+  if @es7_refs    => @es6_symbol = on
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _
     error, data <- readFile "src/#name.js"
