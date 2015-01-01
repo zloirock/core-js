@@ -579,18 +579,18 @@ function timeLimit(promise, time){
 timeLimit(sleepRandom(5), 10).then(log);   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(log); // Error: Await > 10 sec
 ```
-ECMAScript 7 [async functions](https://github.com/lukehoban/ecmascript-asyncawait) [example](http://goo.gl/rksdJx):
+ECMAScript 7 [async functions](https://github.com/lukehoban/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
 ```javascript
 var delay = time => new Promise(resolve => setTimeout(resolve, time))
 
 async function sleepRandom(time){
   await delay(time * 1e3);
   return 0 | Math.random() * 1e3;
-}
+};
 async function sleepError(time, msg){
   await delay(time * 1e3);
   throw Error(msg);
-}
+};
 
 (async () => {
   try {
