@@ -424,11 +424,16 @@ function iterResult(done, value){
   return {value: value, done: !!done};
 }
 function isIterable(it){
-  var O = Object(it);
-  return SYMBOL_ITERATOR in O || has(Iterators, classof(O));
+  var O      = Object(it)
+    , Symbol = global[SYMBOL]
+    , hasExt = !!(Symbol && Symbol[ITERATOR] && Symbol[ITERATOR] in O);
+  return hasExt || SYMBOL_ITERATOR in O || has(Iterators, classof(O));
 }
 function getIterator(it){
-  return assertObject((it[SYMBOL_ITERATOR] || Iterators[classof(it)]).call(it));
+  var Symbol  = global[SYMBOL]
+    , hasExt  = Symbol && Symbol[ITERATOR] && it[Symbol[ITERATOR]]
+    , getIter = hasExt || it[SYMBOL_ITERATOR] || Iterators[classof(it)];
+  return assertObject(getIter.call(it));
 }
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);

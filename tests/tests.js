@@ -103,7 +103,7 @@
     }).array());
   });
   test('$for.isIterable', function(){
-    var isIterable;
+    var isIterable, _Symbol, I, o;
     isIterable = $for.isIterable;
     ok(typeof isIterable === 'function', 'Is function');
     ok(!isIterable({}));
@@ -111,24 +111,63 @@
     ok(isIterable(function(){
       return arguments;
     }()));
+    _Symbol = Symbol;
+    I = Math.random();
+    o = {
+      0: 'a',
+      1: 'b',
+      2: 'c',
+      length: 3
+    };
+    o[I] = Array.prototype.values;
+    ok(!isIterable(o));
+    global.Symbol = {
+      iterator: I
+    };
+    ok(isIterable(o));
+    global.Symbol = _Symbol;
+    ok(!isIterable(o));
   });
   test('$for.getIterator', function(){
-    var getIterator, e, iter;
+    var getIterator, iter, _Symbol, I, O, e;
     getIterator = $for.getIterator;
     ok(typeof getIterator === 'function', 'Is function');
-    try {
+    throws(function(){
       getIterator({});
-      ok(false);
-    } catch (e$) {
-      e = e$;
-      ok(true);
-    }
+    }, TypeError);
     iter = getIterator([]);
     ok('next' in iter);
     iter = getIterator(function(){
       return arguments;
     }());
     ok('next' in iter);
+    _Symbol = Symbol;
+    I = Math.random();
+    O = {
+      0: 'a',
+      1: 'b',
+      2: 'c',
+      length: 3
+    };
+    O[I] = Array.prototype.values;
+    throws(function(){
+      getIterator(O);
+    }, TypeError);
+    global.Symbol = {
+      iterator: I
+    };
+    try {
+      getIterator(O);
+      ok(true);
+    } catch (e$) {
+      e = e$;
+      ok(false);
+    }
+    deepEqual(Array.from(O), ['a', 'b', 'c']);
+    global.Symbol = _Symbol;
+    throws(function(){
+      getIterator(O);
+    }, TypeError);
   });
 }).call(this);
 
