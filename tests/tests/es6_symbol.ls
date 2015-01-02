@@ -37,18 +37,3 @@ test '.set' !->
   ok O[sym] is 42, 'Symbol.set set value'
   if !isNative(Symbol) && isNative defineProperty
     ok getOwnPropertyDescriptor(O, sym).enumerable is false, 'Symbol.set set enumerable: false value'
-test 'Reflect.ownKeys' !->
-  ok Reflect?, 'Reflect is defined'
-  ok isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function'
-  O1 = {a: 1}
-  defineProperty O1, \b, value: 2
-  sym = Symbol \c
-  O1[sym] = 3
-  keys = Reflect.ownKeys O1
-  ok keys.length is 3, 'ownKeys return all own keys'
-  ok O1[keys.0] is 1, 'ownKeys return all own keys: simple'
-  ok O1[keys.1] is 2, 'ownKeys return all own keys: hidden'
-  ok O1[keys.2] is 3, 'ownKeys return all own keys: symbol'
-  O2 = ^^O1
-  keys = Reflect.ownKeys O2
-  ok keys.length is 0, 'ownKeys return only own keys'

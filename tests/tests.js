@@ -3675,6 +3675,140 @@
 }).call(this);
 
 (function(){
+  var eq, deq, isFunction, toString$ = {}.toString;
+  QUnit.module('ES6 Reflect');
+  eq = strictEqual;
+  deq = deepEqual;
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  test('Reflect', function(){
+    ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
+  });
+  test('Reflect.apply', function(){
+    ok(isFunction(Reflect.apply), 'Reflect.apply is function');
+    eq(Reflect.apply(Array.prototype.push, [1, 2], [3, 4, 5]), 5);
+  });
+  test('Reflect.construct', function(){
+    ok(isFunction(Reflect.construct), 'Reflect.construct is function');
+    eq(Reflect.construct(function(a, b, c){
+      return this.qux = a + b + c;
+    }, ['foo', 'bar', 'baz']).qux, 'foobarbaz');
+  });
+  test('Reflect.defineProperty', function(){
+    var obj;
+    ok(isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function');
+    obj = {};
+    Reflect.defineProperty(obj, 'foo', {
+      value: 123
+    });
+    eq(obj.foo, 123);
+  });
+  test('Reflect.deleteProperty', function(){
+    var obj;
+    ok(isFunction(Reflect.deleteProperty), 'Reflect.deleteProperty is function');
+    obj = {
+      bar: 456
+    };
+    Reflect.deleteProperty(obj, 'bar');
+    ok(!in$('bar', obj));
+  });
+  test('Reflect.enumerate', function(){
+    var obj, iterator;
+    ok(isFunction(Reflect.enumerate), 'Reflect.enumerate is function');
+    obj = {
+      foo: 1,
+      bar: 2
+    };
+    iterator = Reflect.enumerate(obj);
+    ok(Symbol.iterator in iterator);
+    deq(Array.from(iterator), ['foo', 'bar']);
+  });
+  test('Reflect.get', function(){
+    ok(isFunction(Reflect.get), 'Reflect.get is function');
+    eq(Reflect.get({
+      qux: 987
+    }, 'qux'), 987);
+  });
+  test('Reflect.getOwnPropertyDescriptor', function(){
+    var obj, desc;
+    ok(isFunction(Reflect.getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function');
+    obj = {
+      baz: 789
+    };
+    desc = Reflect.getOwnPropertyDescriptor(obj, 'baz');
+    eq(desc.value, 789);
+  });
+  test('Reflect.getPrototypeOf', function(){
+    ok(isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function');
+    eq(Reflect.getPrototypeOf([]), Array.prototype);
+  });
+  test('Reflect.has', function(){
+    ok(isFunction(Reflect.has), 'Reflect.has is function');
+    ok(Reflect.has({
+      qux: 987
+    }, 'qux'));
+  });
+  test('Reflect.isExtensible', function(){
+    ok(isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function');
+    ok(Reflect.isExtensible({}));
+    ok(!Reflect.isExtensible(Object.preventExtensions({})));
+  });
+  test('Reflect.ownKeys', function(){
+    var O1, sym, keys, O2;
+    ok(isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function');
+    O1 = {
+      a: 1
+    };
+    Object.defineProperty(O1, 'b', {
+      value: 2
+    });
+    sym = Symbol('c');
+    O1[sym] = 3;
+    keys = Reflect.ownKeys(O1);
+    eq(keys.length, 3, 'ownKeys return all own keys');
+    eq(O1[keys[0]], 1, 'ownKeys return all own keys: simple');
+    eq(O1[keys[1]], 2, 'ownKeys return all own keys: hidden');
+    eq(O1[keys[2]], 3, 'ownKeys return all own keys: symbol');
+    O2 = clone$(O1);
+    keys = Reflect.ownKeys(O2);
+    eq(keys.length, 0, 'ownKeys return only own keys');
+  });
+  test('Reflect.preventExtensions', function(){
+    var obj;
+    ok(isFunction(Reflect.preventExtensions), 'Reflect.preventExtensions is function');
+    obj = {};
+    Reflect.preventExtensions(obj);
+    ok(!Object.isExtensible(obj));
+  });
+  test('Reflect.set', function(){
+    var obj;
+    ok(isFunction(Reflect.set), 'Reflect.set is function');
+    obj = {};
+    Reflect.set(obj, 'quux', 654);
+    eq(obj.quux, 654);
+  });
+  if ('__proto__' in Object.prototype) {
+    test('Reflect.setPrototypeOf', function(){
+      var obj;
+      ok(isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function');
+      obj = {};
+      Reflect.setPrototypeOf(obj, Array.prototype);
+      ok(obj instanceof Array);
+    });
+  }
+  function in$(x, xs){
+    var i = -1, l = xs.length >>> 0;
+    while (++i < l) if (x === xs[i]) return true;
+    return false;
+  }
+  function clone$(it){
+    function fun(){} fun.prototype = it;
+    return new fun;
+  }
+}).call(this);
+
+(function(){
   var defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, that, toString$ = {}.toString;
   QUnit.module('ES6 Symbol');
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, create = Object.create;
@@ -3736,31 +3870,6 @@
       ok(getOwnPropertyDescriptor(O, sym).enumerable === false, 'Symbol.set set enumerable: false value');
     }
   });
-  test('Reflect.ownKeys', function(){
-    var O1, sym, keys, O2;
-    ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
-    ok(isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function');
-    O1 = {
-      a: 1
-    };
-    defineProperty(O1, 'b', {
-      value: 2
-    });
-    sym = Symbol('c');
-    O1[sym] = 3;
-    keys = Reflect.ownKeys(O1);
-    ok(keys.length === 3, 'ownKeys return all own keys');
-    ok(O1[keys[0]] === 1, 'ownKeys return all own keys: simple');
-    ok(O1[keys[1]] === 2, 'ownKeys return all own keys: hidden');
-    ok(O1[keys[2]] === 3, 'ownKeys return all own keys: symbol');
-    O2 = clone$(O1);
-    keys = Reflect.ownKeys(O2);
-    ok(keys.length === 0, 'ownKeys return only own keys');
-  });
-  function clone$(it){
-    function fun(){} fun.prototype = it;
-    return new fun;
-  }
 }).call(this);
 
 (function(){
