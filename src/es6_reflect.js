@@ -1,20 +1,16 @@
 !function(){
-  function Enumerate(it){
-    var O    = it
-      , keys = new Set;
-    do {
-      forEach.call(getKeys(O), keys.add, keys);
-    } while(O = getPrototypeOf(O));
-    set(this, ITER, {o: it, a: Array.from(keys), i: 0});
+  function Enumerate(iterated){
+    var keys = [], key;
+    for(key in iterated)keys.push(key);
+    set(this, ITER, {o: iterated, a: keys, i: 0});
   }
   createIterator(Enumerate, OBJECT, function(){
     var iter = this[ITER]
-      , O    = iter.o
       , keys = iter.a
       , key;
     do {
       if(iter.i >= keys.length)return iterResult(1);
-    } while(!((key = keys[iter.i++]) in O));
+    } while(!((key = keys[iter.i++]) in iter.o));
     return iterResult(0, key);
   });
   
@@ -22,7 +18,7 @@
     return function(it){
       assertObject(it);
       try {
-        return fn.apply(this, arguments), true;
+        return fn.apply(undefined, arguments), true;
       } catch(e){
         return false;
       }
@@ -48,15 +44,11 @@
     return defineProperty(receiver, propertyKey, desc), true;
   }
   
-  $define(STATIC, 'Reflect', {
+  var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-    apply: ctx(call, FunctionProto.apply, 3),
+    apply: ctx(call, apply, 3),
     // 26.1.2 Reflect.construct(target, argumentsList)
-    construct: function(target, argumentsList){
-      var instance = create(target[PROTOTYPE])
-        , result   = invoke(target, argumentsList, instance);
-      return isObject(result) ? result : instance;
-    },
+    construct: construct,
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),
     // 26.1.4 Reflect.deleteProperty(target, propertyKey)
@@ -78,14 +70,16 @@
       return propertyKey in target;
     },
     // 26.1.10 Reflect.isExtensible(target)
-    isExtensible: Object.isExtensible,
+    isExtensible: Object.isExtensible || isObject,
     // 26.1.11 Reflect.ownKeys(target)
     ownKeys: ownKeys,
     // 26.1.12 Reflect.preventExtensions(target)
-    preventExtensions: wrap(Object.preventExtensions),
+    preventExtensions: wrap(Object.preventExtensions || returnIt),
     // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-    set: reflectSet,
-    // 26.1.14 Reflect.setPrototypeOf(target, proto)
-    setPrototypeOf: wrap(Object.setPrototypeOf)
-  });
+    set: reflectSet
+  }
+  // 26.1.14 Reflect.setPrototypeOf(target, proto)
+  if(setPrototypeOf)reflect.setPrototypeOf = wrap(setPrototypeOf);
+  
+  $define(STATIC, 'Reflect', reflect);
 }();

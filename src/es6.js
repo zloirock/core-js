@@ -32,7 +32,7 @@
       set = ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2);
       set({}, ArrayProto);
     } catch(e){ buggy = true }
-    objectStatic.setPrototypeOf = function(O, proto){
+    objectStatic.setPrototypeOf = setPrototypeOf = setPrototypeOf || function(O, proto){
       assertObject(O);
       assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
       if(buggy)O.__proto__ = proto;

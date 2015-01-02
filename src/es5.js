@@ -70,7 +70,6 @@
       return result;
     }
   }
-  function returnIt(it){ return it }
   function isPrimitive(it){ return !isObject(it) }
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
@@ -117,11 +116,7 @@
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        if(this instanceof bound){
-          var instance = create(fn[PROTOTYPE])
-            , result   = invoke(fn, args, instance);
-          return isObject(result) ? result : instance;
-        } return invoke(fn, args, that);
+        return (this instanceof bound ? construct : invoke)(fn, args, that);
       }
       return bound;
     }

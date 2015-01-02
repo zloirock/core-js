@@ -1,4 +1,4 @@
-!function(console, apply, enabled){
+!function(console, enabled){
   var _console = {
     enable: function(){ enabled = true },
     disable: function(){ enabled = false }
@@ -21,4 +21,4 @@
     framework && delete global.console;
   } catch(e){}
   $define(GLOBAL + FORCED, {console: _console});
-}(global.console || {}, FunctionProto.apply, true);
+}(global.console || {}, true);

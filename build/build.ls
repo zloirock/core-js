@@ -17,7 +17,6 @@ module.exports = (opt, next)-> let @ = opt
   if @delay    => @es6_promise = on
   if @dict_exp => @dict = no
   if @es6_promise => @ <<< {+immediate, +es6}
-  if @es6_reflect => @ <<< {+es6, +es6_collections}
   if @es7_refs    => @es6_symbol = on
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _

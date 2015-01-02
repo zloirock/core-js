@@ -85,7 +85,8 @@ function classof(it){
 }
 
 // Function
-var call = FunctionProto.call
+var call  = FunctionProto.call
+  , apply = FunctionProto.apply
   , REFERENCE_GET;
 // Partial apply
 function part(/* ...args */){
@@ -148,10 +149,16 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
+function construct(target, argumentsList){
+  var instance = create(target[PROTOTYPE])
+    , result   = apply.call(target, instance, argumentsList);
+  return isObject(result) ? result : instance;
+}
 
 // Object:
 var create           = Object.create
   , getPrototypeOf   = Object.getPrototypeOf
+  , setPrototypeOf   = Object.setPrototypeOf
   , defineProperty   = Object.defineProperty
   , defineProperties = Object.defineProperties
   , getOwnDescriptor = Object.getOwnPropertyDescriptor
@@ -161,6 +168,9 @@ var create           = Object.create
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
+function returnIt(it){
+  return it;
+}
 function get(object, key){
   if(has(object, key))return object[key];
 }
