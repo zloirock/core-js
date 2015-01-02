@@ -53,7 +53,8 @@
     defineProperty: wrap(defineProperty),
     // 26.1.4 Reflect.deleteProperty(target, propertyKey)
     deleteProperty: function(target, propertyKey){
-      return delete target[propertyKey];
+      var desc = getOwnDescriptor(assertObject(target), propertyKey);
+      return desc && !desc.configurable ? false : delete target[propertyKey];
     },
     // 26.1.5 Reflect.enumerate(target)
     enumerate: function(target){
@@ -79,7 +80,9 @@
     set: reflectSet
   }
   // 26.1.14 Reflect.setPrototypeOf(target, proto)
-  if(setPrototypeOf)reflect.setPrototypeOf = wrap(setPrototypeOf);
+  if(setPrototypeOf)reflect.setPrototypeOf = function(target, proto){
+    return setPrototypeOf(assertObject(target), proto), true;
+  };
   
   $define(GLOBAL, {Reflect: {}});
   $define(STATIC, 'Reflect', reflect);

@@ -5,35 +5,56 @@ deq = deepEqual
 
 isFunction = -> typeof! it is \Function
 
+MODERN = /\[native code\]\s*\}\s*$/.test Object.defineProperty
+
 test \Reflect !->
   ok Reflect?, 'Reflect is defined'
 
 test 'Reflect.apply' !->
   ok isFunction(Reflect.apply), 'Reflect.apply is function'
   eq Reflect.apply(Array::push, [1 2], [3 4 5]), 5
+  C = (a, b, c)-> a + b + c
+  C.apply = 42
+  eq Reflect.apply(C, null, <[foo bar baz]>), \foobarbaz, 'works with redefined apply'
 
 test 'Reflect.construct' !->
   ok isFunction(Reflect.construct), 'Reflect.construct is function'
-  eq Reflect.construct(((a, b, c)-> @qux = a + b + c), <[foo bar baz]>).qux, \foobarbaz
+  C = (a, b, c)-> @qux = a + b + c
+  eq Reflect.construct(C, <[foo bar baz]>).qux, \foobarbaz, \basic
+  C.apply = 42
+  eq Reflect.construct(C, <[foo bar baz]>).qux, \foobarbaz, 'works with redefined apply'
 
 test 'Reflect.defineProperty' !->
   ok isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function'
-  obj = {}
-  Reflect.defineProperty obj, \foo, {value: 123}
-  eq obj.foo, 123
+  O = {}
+  eq Reflect.defineProperty(O, \foo, {value: 123}), on
+  eq O.foo, 123
+  if MODERN
+    O = {}
+    Reflect.defineProperty O, \foo, {value: 123, enumerable: on}
+    deq Object.getOwnPropertyDescriptor(O, \foo), {value: 123, enumerable: on, configurable: no, writable: no}
+    eq Reflect.defineProperty(O, \foo, {value: 42}), no
 
 test 'Reflect.deleteProperty' !->
   ok isFunction(Reflect.deleteProperty), 'Reflect.deleteProperty is function'
-  obj = {bar: 456}
-  Reflect.deleteProperty obj, \bar
-  ok \bar not in obj
+  O = {bar: 456}
+  eq Reflect.deleteProperty(O, \bar), on
+  ok \bar not in O
+  if MODERN
+    eq Reflect.deleteProperty(Object.defineProperty({}, \foo, {value: 42}), \foo), no
 
 test 'Reflect.enumerate' !->
   ok isFunction(Reflect.enumerate), 'Reflect.enumerate is function'
   obj = {foo: 1, bar: 2}
   iterator = Reflect.enumerate obj
-  ok Symbol.iterator of iterator
-  deq Array.from(iterator), <[foo bar]>
+  ok Symbol.iterator of iterator, 'returns iterator'
+  deq Array.from(iterator), <[foo bar]>, 'bisic'
+  obj = {q: 1, w: 2, e: 3}
+  iterator = Reflect.enumerate obj
+  delete obj.w
+  deq Array.from(iterator), <[q e]>, 'ignore holes'
+  obj = {q: 1, w: 2, e: 3} with {a: 4, s: 5, d: 6}
+  deq Array.from(Reflect.enumerate obj).sort!, <[a d e q s w]>, 'works with prototype'
 
 test 'Reflect.get' !->
   ok isFunction(Reflect.get), 'Reflect.get is function'
@@ -51,12 +72,16 @@ test 'Reflect.getPrototypeOf' !->
 
 test 'Reflect.has' !->
   ok isFunction(Reflect.has), 'Reflect.has is function'
-  ok Reflect.has {qux: 987}, \qux
+  O = {qux: 987}
+  eq Reflect.has(O, \qux), on
+  eq Reflect.has(O, \qwe), no
+  eq Reflect.has(O, \toString), on
 
 test 'Reflect.isExtensible' !->
   ok isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function'
   ok Reflect.isExtensible {}
-  ok !Reflect.isExtensible Object.preventExtensions {}
+  if MODERN
+    ok !Reflect.isExtensible Object.preventExtensions {}
   
 test 'Reflect.ownKeys' !->
   ok isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function'
@@ -76,17 +101,20 @@ test 'Reflect.ownKeys' !->
 test 'Reflect.preventExtensions' !->
   ok isFunction(Reflect.preventExtensions), 'Reflect.preventExtensions is function'
   obj = {}
-  Reflect.preventExtensions obj
-  ok !Object.isExtensible obj
+  ok Reflect.preventExtensions(obj), on
+  if MODERN
+    ok !Object.isExtensible obj
 
 test 'Reflect.set' !->
   ok isFunction(Reflect.set), 'Reflect.set is function'
   obj = {}
-  Reflect.set obj, \quux, 654
+  ok Reflect.set(obj, \quux, 654), on
   eq obj.quux, 654
 
 if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   ok isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function'
   obj = {}
-  Reflect.setPrototypeOf obj, Array::
+  ok Reflect.setPrototypeOf(obj, Array::), on
   ok obj instanceof Array
+  throws (-> Reflect.setPrototypeOf {}, 42), TypeError
+  throws (-> Reflect.setPrototypeOf 42, {}), TypeError

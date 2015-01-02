@@ -3675,54 +3675,100 @@
 }).call(this);
 
 (function(){
-  var eq, deq, isFunction, toString$ = {}.toString;
+  var eq, deq, isFunction, MODERN, toString$ = {}.toString;
   QUnit.module('ES6 Reflect');
   eq = strictEqual;
   deq = deepEqual;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
+  MODERN = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
   test('Reflect', function(){
     ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
   });
   test('Reflect.apply', function(){
+    var C;
     ok(isFunction(Reflect.apply), 'Reflect.apply is function');
     eq(Reflect.apply(Array.prototype.push, [1, 2], [3, 4, 5]), 5);
+    C = function(a, b, c){
+      return a + b + c;
+    };
+    C.apply = 42;
+    eq(Reflect.apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
   });
   test('Reflect.construct', function(){
+    var C;
     ok(isFunction(Reflect.construct), 'Reflect.construct is function');
-    eq(Reflect.construct(function(a, b, c){
+    C = function(a, b, c){
       return this.qux = a + b + c;
-    }, ['foo', 'bar', 'baz']).qux, 'foobarbaz');
+    };
+    eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
+    C.apply = 42;
+    eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
   });
   test('Reflect.defineProperty', function(){
-    var obj;
+    var O;
     ok(isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function');
-    obj = {};
-    Reflect.defineProperty(obj, 'foo', {
+    O = {};
+    eq(Reflect.defineProperty(O, 'foo', {
       value: 123
-    });
-    eq(obj.foo, 123);
+    }), true);
+    eq(O.foo, 123);
+    if (MODERN) {
+      O = {};
+      Reflect.defineProperty(O, 'foo', {
+        value: 123,
+        enumerable: true
+      });
+      deq(Object.getOwnPropertyDescriptor(O, 'foo'), {
+        value: 123,
+        enumerable: true,
+        configurable: false,
+        writable: false
+      });
+      eq(Reflect.defineProperty(O, 'foo', {
+        value: 42
+      }), false);
+    }
   });
   test('Reflect.deleteProperty', function(){
-    var obj;
+    var O;
     ok(isFunction(Reflect.deleteProperty), 'Reflect.deleteProperty is function');
-    obj = {
+    O = {
       bar: 456
     };
-    Reflect.deleteProperty(obj, 'bar');
-    ok(!in$('bar', obj));
+    eq(Reflect.deleteProperty(O, 'bar'), true);
+    ok(!in$('bar', O));
+    if (MODERN) {
+      eq(Reflect.deleteProperty(Object.defineProperty({}, 'foo', {
+        value: 42
+      }), 'foo'), false);
+    }
   });
   test('Reflect.enumerate', function(){
-    var obj, iterator;
+    var obj, iterator, ref$;
     ok(isFunction(Reflect.enumerate), 'Reflect.enumerate is function');
     obj = {
       foo: 1,
       bar: 2
     };
     iterator = Reflect.enumerate(obj);
-    ok(Symbol.iterator in iterator);
-    deq(Array.from(iterator), ['foo', 'bar']);
+    ok(Symbol.iterator in iterator, 'returns iterator');
+    deq(Array.from(iterator), ['foo', 'bar'], 'bisic');
+    obj = {
+      q: 1,
+      w: 2,
+      e: 3
+    };
+    iterator = Reflect.enumerate(obj);
+    delete obj.w;
+    deq(Array.from(iterator), ['q', 'e'], 'ignore holes');
+    obj = (ref$ = clone$({
+      q: 1,
+      w: 2,
+      e: 3
+    }), ref$.a = 4, ref$.s = 5, ref$.d = 6, ref$);
+    deq(Array.from(Reflect.enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
   });
   test('Reflect.get', function(){
     ok(isFunction(Reflect.get), 'Reflect.get is function');
@@ -3744,15 +3790,21 @@
     eq(Reflect.getPrototypeOf([]), Array.prototype);
   });
   test('Reflect.has', function(){
+    var O;
     ok(isFunction(Reflect.has), 'Reflect.has is function');
-    ok(Reflect.has({
+    O = {
       qux: 987
-    }, 'qux'));
+    };
+    eq(Reflect.has(O, 'qux'), true);
+    eq(Reflect.has(O, 'qwe'), false);
+    eq(Reflect.has(O, 'toString'), true);
   });
   test('Reflect.isExtensible', function(){
     ok(isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function');
     ok(Reflect.isExtensible({}));
-    ok(!Reflect.isExtensible(Object.preventExtensions({})));
+    if (MODERN) {
+      ok(!Reflect.isExtensible(Object.preventExtensions({})));
+    }
   });
   test('Reflect.ownKeys', function(){
     var O1, sym, keys, O2;
@@ -3778,14 +3830,16 @@
     var obj;
     ok(isFunction(Reflect.preventExtensions), 'Reflect.preventExtensions is function');
     obj = {};
-    Reflect.preventExtensions(obj);
-    ok(!Object.isExtensible(obj));
+    ok(Reflect.preventExtensions(obj), true);
+    if (MODERN) {
+      ok(!Object.isExtensible(obj));
+    }
   });
   test('Reflect.set', function(){
     var obj;
     ok(isFunction(Reflect.set), 'Reflect.set is function');
     obj = {};
-    Reflect.set(obj, 'quux', 654);
+    ok(Reflect.set(obj, 'quux', 654), true);
     eq(obj.quux, 654);
   });
   if ('__proto__' in Object.prototype) {
@@ -3793,8 +3847,14 @@
       var obj;
       ok(isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function');
       obj = {};
-      Reflect.setPrototypeOf(obj, Array.prototype);
+      ok(Reflect.setPrototypeOf(obj, Array.prototype), true);
       ok(obj instanceof Array);
+      throws(function(){
+        return Reflect.setPrototypeOf({}, 42);
+      }, TypeError);
+      throws(function(){
+        return Reflect.setPrototypeOf(42, {});
+      }, TypeError);
     });
   }
   function in$(x, xs){
