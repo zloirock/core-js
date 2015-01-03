@@ -71,7 +71,9 @@
       return propertyKey in target;
     },
     // 26.1.10 Reflect.isExtensible(target)
-    isExtensible: Object.isExtensible || isObject,
+    isExtensible: Object.isExtensible || function(target){
+      return !!assertObject(target);
+    },
     // 26.1.11 Reflect.ownKeys(target)
     ownKeys: ownKeys,
     // 26.1.12 Reflect.preventExtensions(target)

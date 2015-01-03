@@ -3771,10 +3771,34 @@
     deq(Array.from(Reflect.enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
   });
   test('Reflect.get', function(){
+    var target, receiver;
     ok(isFunction(Reflect.get), 'Reflect.get is function');
     eq(Reflect.get({
       qux: 987
     }, 'qux'), 987);
+    if (MODERN) {
+      target = Object.create({
+        z: 3,
+        get w(){
+          return this;
+        }
+      }, {
+        x: {
+          value: 1
+        },
+        y: {
+          get: function(){
+            return this;
+          }
+        }
+      });
+      receiver = {};
+      eq(Reflect.get(target, 'x', receiver), 1, 'get x');
+      eq(Reflect.get(target, 'y', receiver), receiver, 'get y');
+      eq(Reflect.get(target, 'z', receiver), 3, 'get z');
+      eq(Reflect.get(target, 'w', receiver), receiver, 'get w');
+      eq(Reflect.get(target, 'u', receiver), void 8, 'get u');
+    }
   });
   test('Reflect.getOwnPropertyDescriptor', function(){
     var obj, desc;
@@ -3836,11 +3860,63 @@
     }
   });
   test('Reflect.set', function(){
-    var obj;
+    var obj, target, receiver, out;
     ok(isFunction(Reflect.set), 'Reflect.set is function');
     obj = {};
     ok(Reflect.set(obj, 'quux', 654), true);
     eq(obj.quux, 654);
+    target = {};
+    receiver = {};
+    Reflect.set(target, 'foo', 1, receiver);
+    eq(target.foo, void 8, 'target.foo === undefined');
+    eq(receiver.foo, 1, 'receiver.foo === 1');
+    if (MODERN) {
+      Object.defineProperty(receiver, 'bar', {
+        value: 0,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      });
+      Reflect.set(target, 'bar', 1, receiver);
+      eq(receiver.bar, 1, 'receiver.bar === 1');
+      eq(Object.getOwnPropertyDescriptor(receiver, 'bar').enumerable, false, 'enumerability not overridden');
+      target = Object.create({
+        z: 3,
+        set w(v){
+          out = this;
+        }
+      }, {
+        x: {
+          value: 1,
+          writable: true,
+          configurable: true
+        },
+        y: {
+          set: function(v){
+            out = this;
+          }
+        },
+        c: {
+          value: 1,
+          writable: false,
+          configurable: false
+        }
+      });
+      eq(Reflect.set(target, 'x', 2, target), true, 'set x');
+      eq(target.x, 2, 'set x');
+      out = null;
+      eq(Reflect.set(target, 'y', 2, target), true, 'set y');
+      eq(out, target, 'set y');
+      eq(Reflect.set(target, 'z', 4, target), true);
+      eq(target.z, 4, 'set z');
+      out = null;
+      eq(Reflect.set(target, 'w', 1, target), true, 'set w');
+      eq(out, target, 'set w');
+      eq(Reflect.set(target, 'u', 0, target), true, 'set u');
+      eq(target.u, 0, 'set u');
+      eq(Reflect.set(target, 'c', 2, target), false, 'set c');
+      eq(target.c, 1, 'set c');
+    }
   });
   if ('__proto__' in Object.prototype) {
     test('Reflect.setPrototypeOf', function(){

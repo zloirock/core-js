@@ -1,3 +1,4 @@
+# Some tests from https://github.com/tvcutsem/harmony-reflect/blob/master/test/testReflect.js  
 QUnit.module 'ES6 Reflect'
 
 eq = strictEqual
@@ -59,6 +60,19 @@ test 'Reflect.enumerate' !->
 test 'Reflect.get' !->
   ok isFunction(Reflect.get), 'Reflect.get is function'
   eq Reflect.get({qux: 987}, \qux), 987
+  
+  if MODERN
+    target = Object.create {z:3, w:~ -> @}, {
+      x: { value: 1 },
+      y: { get: -> @ },
+    }
+    receiver = {}
+    
+    eq Reflect.get(target, \x, receiver), 1,        'get x'
+    eq Reflect.get(target, \y, receiver), receiver, 'get y'
+    eq Reflect.get(target, \z, receiver), 3,        'get z'
+    eq Reflect.get(target, \w, receiver), receiver, 'get w'
+    eq Reflect.get(target, \u, receiver), void,     'get u'
 
 test 'Reflect.getOwnPropertyDescriptor' !->
   ok isFunction(Reflect.getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function'
@@ -110,6 +124,48 @@ test 'Reflect.set' !->
   obj = {}
   ok Reflect.set(obj, \quux, 654), on
   eq obj.quux, 654
+
+  target = {}
+  receiver = {}
+
+  Reflect.set target, \foo, 1, receiver
+  eq target.foo, void, 'target.foo === undefined'
+  eq receiver.foo, 1, 'receiver.foo === 1'
+  
+  if MODERN
+    Object.defineProperty receiver, \bar, {value: 0, writable: on, enumerable: no, configurable: on}
+    Reflect.set target, \bar, 1, receiver
+    eq receiver.bar, 1, 'receiver.bar === 1'
+    eq Object.getOwnPropertyDescriptor(receiver, \bar).enumerable, no, 'enumerability not overridden'
+    
+    var out
+    target = Object.create {z:3, w:~ (v)-> out := @}, {
+      x: { value: 1, writable: on, configurable: on },
+      y: { set: (v)!-> out := @},
+      c: { value: 1, writable: no, configurable: no },
+    }
+    
+    eq Reflect.set(target, \x, 2, target), on, 'set x'
+    eq target.x, 2, 'set x'
+    
+    out = null
+    
+    eq Reflect.set(target, \y, 2, target), on, 'set y'
+    eq out, target, 'set y'
+    
+    eq Reflect.set(target, \z, 4, target), on
+    eq target.z, 4, 'set z'
+    
+    out = null
+    
+    eq Reflect.set(target, \w, 1, target), on 'set w'
+    eq out, target, 'set w'
+           
+    eq Reflect.set(target, \u, 0, target), on, 'set u'
+    eq target.u, 0, 'set u'
+
+    eq Reflect.set(target, \c, 2, target), no, 'set c'
+    eq target.c, 1, 'set c'
 
 if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   ok isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function'
