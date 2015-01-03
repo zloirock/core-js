@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Promises/A+ Tests, Against Your Browser!</title>
+    <link rel="stylesheet" href="mocha.css" />
+</head>
+<body>
+    <div id="mocha"></div>
+    <script src="../../client/core.js"></script>
+    <script src="mocha.js"></script>
+    <script>
+        mocha.setup({ ui: "bdd", timeout: 200, slow: Infinity });
+
+        global.adapter = {
+            deferred: function () {
+                var deferred = {};
+                deferred.promise = new Promise(function (resolve, reject) {
+                    deferred.resolve = resolve;
+                    deferred.reject = reject;
+                });
+                return deferred;
+            },
+            resolved: Promise.resolve.bind(Promise),
+            rejected: Promise.reject.bind(Promise)
+        };
+    </script>
+    <script src="bundle.js"></script>
+    <script>
+        mocha.run();
+    </script>
+</body>
+</html>
