@@ -190,13 +190,15 @@
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       assertNotRegExp(searchString);
-      var len = this.length
+      var that = String(assertDefined(this))
+        , len = toLength(that.length)
         , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
-      return String(this).slice(end - searchString.length, end) === searchString;
+      return that.slice(end - searchString.length, end) === searchString;
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
     includes: function(searchString, position /* = 0 */){
+      assertNotRegExp(searchString);
       return !!~String(assertDefined(this)).indexOf(searchString, position);
     },
     // 21.1.3.13 String.prototype.repeat(count)
@@ -211,9 +213,10 @@
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       assertNotRegExp(searchString);
-      var index = toLength(min(position, this.length));
+      var that  = String(assertDefined(this))
+        , index = toLength(min(position, that.length));
       searchString += '';
-      return String(this).slice(index, index + searchString.length) === searchString;
+      return that.slice(index, index + searchString.length) === searchString;
     }
   });
   // 21.1.3.27 String.prototype[@@iterator]()

@@ -526,6 +526,7 @@ test 'String#includes' !->
   if strict
     throws (-> String::includes.call null, '.'), TypeError
     throws (-> String::includes.call void, '.'), TypeError
+  throws (-> 'foo[a-z]+(bar)?'includes /[a-z]+/), TypeError
 test 'String#endsWith' !->
   ok isFunction(String::endsWith), 'Is function'
   ok 'undefined'endsWith!

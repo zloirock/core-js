@@ -2654,6 +2654,9 @@
         return String.prototype.includes.call(void 8, '.');
       }, TypeError);
     }
+    throws(function(){
+      return 'foo[a-z]+(bar)?'.includes(/[a-z]+/);
+    }, TypeError);
   });
   test('String#endsWith', function(){
     ok(isFunction(String.prototype.endsWith), 'Is function');
