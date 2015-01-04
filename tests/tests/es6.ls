@@ -704,6 +704,7 @@ test 'Array#entries' !->
   deq iter.next!, {value: void, done: on}
 test 'Array#@@iterator' !->
   ok typeof Array::[iterator] is \function, 'Is function'
+  eq Array::[iterator], Array::values
   iter = <[q w e]>[iterator]!
   ok isIterator(iter), 'Return iterator'
   eq iter[toStringTag], 'Array Iterator'

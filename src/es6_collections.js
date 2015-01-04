@@ -88,7 +88,7 @@
       if(kind == KEY)  return iterResult(0, entry.k);
       if(kind == VALUE)return iterResult(0, entry.v);
                        return iterResult(0, [entry.k, entry.v]);   
-    }, isMap ? KEY+VALUE : VALUE);
+    }, isMap ? KEY+VALUE : VALUE, !isMap);
     
     return C;
   }

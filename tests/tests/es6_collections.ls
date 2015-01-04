@@ -182,6 +182,7 @@ test 'Map#entries' !->
   deq iter.next!, {value: void, done: on}
 test 'Map#@@iterator' !->
   ok typeof Map::[iterator] is \function, 'Is function'
+  eq Map::[iterator], Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])[iterator]!
   ok isIterator(iter), 'Return iterator'
   eq iter[toStringTag], 'Map Iterator'
@@ -319,6 +320,7 @@ test 'Set Iterator' !->
   deq keys, <[a d e]>
 test 'Set#keys' !->
   ok typeof Set::keys is \function, 'Is function'
+  eq Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   ok isIterator(iter), 'Return iterator'
   eq iter[toStringTag], 'Set Iterator'
@@ -346,6 +348,7 @@ test 'Set#entries' !->
   deq iter.next!, {value: void, done: on}
 test 'Set#@@iterator' !->
   ok typeof Set::[iterator] is \function, 'Is function'
+  eq Set::[iterator], Set::values
   iter = new Set(<[q w e]>)[iterator]!
   ok isIterator(iter), 'Return iterator'
   eq iter[toStringTag], 'Set Iterator'

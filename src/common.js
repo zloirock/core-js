@@ -415,20 +415,28 @@ function defineIterator(Constructor, NAME, value, DEFAULT){
   Iterators[NAME] = iter;
   // FF & v8 fix
   Iterators[NAME + ' Iterator'] = returnThis;
+  return iter;
 }
-function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
+function defineStdIterators(Base, NAME, Constructor, next, DEFAULT, IS_SET){
   function createIter(kind){
     return function(){
       return new Constructor(this, kind);
     }
   }
   createIterator(Constructor, NAME, next);
-  defineIterator(Base, NAME, createIter(DEFAULT), DEFAULT == VALUE ? 'values' : 'entries');
-  DEFAULT && $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
-    entries: createIter(KEY+VALUE),
-    keys:    createIter(KEY),
-    values:  createIter(VALUE)
-  });
+  var DEF_VAL = DEFAULT == VALUE
+    , entries = createIter(KEY+VALUE)
+    , keys    = createIter(KEY)
+    , values  = createIter(VALUE);
+  if(DEF_VAL)values = defineIterator(Base, NAME, values, 'values');
+  else entries = defineIterator(Base, NAME, entries, 'entries');
+  if(DEFAULT){
+    $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
+      entries: entries,
+      keys: IS_SET ? values : keys,
+      values: values
+    });
+  }
 }
 function iterResult(done, value){
   return {value: value, done: !!done};

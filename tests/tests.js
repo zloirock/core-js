@@ -2987,6 +2987,7 @@
   test('Array#@@iterator', function(){
     var iter;
     ok(typeof Array.prototype[iterator] === 'function', 'Is function');
+    eq(Array.prototype[iterator], Array.prototype.values);
     iter = ['q', 'w', 'e'][iterator]();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[toStringTag], 'Array Iterator');
@@ -3270,6 +3271,7 @@
   test('Map#@@iterator', function(){
     var iter;
     ok(typeof Map.prototype[iterator] === 'function', 'Is function');
+    eq(Map.prototype[iterator], Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[iterator]();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[toStringTag], 'Map Iterator');
@@ -3453,6 +3455,7 @@
   test('Set#keys', function(){
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
+    eq(Set.prototype.keys, Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).keys();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[toStringTag], 'Set Iterator');
@@ -3522,6 +3525,7 @@
   test('Set#@@iterator', function(){
     var iter;
     ok(typeof Set.prototype[iterator] === 'function', 'Is function');
+    eq(Set.prototype[iterator], Set.prototype.values);
     iter = new Set(['q', 'w', 'e'])[iterator]();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[toStringTag], 'Set Iterator');
