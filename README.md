@@ -24,6 +24,7 @@ core.setImmediate(log, 42);                          // => 42
   - [ECMAScript 6: Collections](#ecmascript-6-collections)
   - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
+  - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
   - [ECMAScript 7: Abstract References](#ecmascript-7-abstract-references)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
@@ -86,7 +87,7 @@ Module `es6`. About iterators from this module [here](#ecmascript-6-iterators). 
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
-  .setPrototypeOf(target, proto | null) -> target, sham(ie10+)
+  .setPrototypeOf(target, proto | null) -> target, sham(ie11+)
   #toString() -> string, fix for @@toStringTag support
 ```
 [Example](http://goo.gl/VzmY3j):
@@ -232,8 +233,6 @@ Symbol(description?) -> symbol
   .useSetter() -> void
   .pure(description?) -> symbol || string
   .set(object, key, val) -> object
-Reflect -> object
-  .ownKeys(object) -> array
 ```
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
@@ -260,13 +259,6 @@ var symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
-`Reflect.ownKeys` return all object keys - strings & symbols, [example](http://goo.gl/fyu6pn):
-```javascript
-var O = {a: 1};
-Object.defineProperty(O, 'b', {value: 2});
-O[Symbol('c')] = 3;
-Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
-```
 By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/N5UD7J):
 ```javascript
 Symbol.useSimple();
@@ -281,6 +273,7 @@ var s2 = Symbol('s2')
 o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
+`Reflect.ownKeys` from [`Reflect`](#ecmascript-6-reflect) module returns all object keys - strings & symbols.
 ### ECMAScript 6: Collections
 Module `es6_collections`. About iterators from this module [here](#ecmascript-6-iterators).
 
@@ -608,6 +601,39 @@ async function sleepError(time, msg){
     log(e);                    // => Error: 'Irror!', after 5 sec.
   }
 })();
+```
+### ECMAScript 6: Reflect
+Module `es6_reflect`.
+```javascript
+Reflect
+  .apply(target, thisArgument, argumentsList) -> var
+  .construct(target, argumentsList) -> object
+  .defineProperty(target, propertyKey, attributes) -> bool
+  .deleteProperty(target, propertyKey) -> bool
+  .enumerate(target) -> iterator
+  .get(target, propertyKey [, receiver]) -> var
+  .getOwnPropertyDescriptor(target, propertyKey) -> desc
+  .getPrototypeOf(target) -> object | null
+  .has(target, propertyKey) -> bool
+  .isExtensible(target) -> bool
+  .ownKeys(target) -> array
+  .preventExtensions(target) -> bool
+  .set(target, propertyKey, V [, receiver]) -> bool
+  .setPrototypeOf(target, proto) -> bool, sham(ie11+)
+```
+[Example](http://goo.gl/gVT0cH):
+```javascript
+var O = {a: 1};
+Object.defineProperty(O, 'b', {value: 2});
+O[Symbol('c')] = 3;
+console.log(Reflect.ownKeys(O)); // => ['a', 'b', Symbol(c)]
+
+function C(a, b){
+  this.c = a + b;
+}
+
+var instance = Reflect.construct(C, [20, 22]);
+console.log(instance.c); // => 42
 ```
 ### ECMAScript 7
 Module `es7`.
@@ -1214,6 +1240,24 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.0** - *2015.01.03*
+  * added [`es6_reflect`](#ecmascript-6-reflect) module:
+    * added `Reflect.apply`
+    * added `Reflect.construct`
+    * added `Reflect.defineProperty`
+    * added `Reflect.deleteProperty`
+    * added `Reflect.enumerate`
+    * added `Reflect.get`
+    * added `Reflect.getOwnPropertyDescriptor`
+    * added `Reflect.getPrototypeOf`
+    * added `Reflect.has`
+    * added `Reflect.isExtensible`
+    * added `Reflect.preventExtensions`
+    * added `Reflect.set`
+    * added `Reflect.setPrototypeOf`
+  * core.js methods now can use external `Symbol.iterator` polyfill
+  * some fixes
+
 **0.3.3** - *2014.12.28*
   * [console cap](#console) excluded from node.js default builds
 
