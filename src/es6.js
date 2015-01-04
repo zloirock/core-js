@@ -188,16 +188,18 @@
     // 21.1.3.3 String.prototype.codePointAt(pos)
     codePointAt: createPointAt(false),
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
-    endsWith: function(searchString, endPosition /* = @length */){
+    endsWith: function(searchString /*, endPosition = @length */){
       assertNotRegExp(searchString);
       var that = String(assertDefined(this))
+        , endPosition = arguments[1]
         , len = toLength(that.length)
         , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
       return that.slice(end - searchString.length, end) === searchString;
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
-    includes: function(searchString, position /* = 0 */){
+    includes: function(searchString /*, position = 0 */){
+      var position = arguments[1];
       assertNotRegExp(searchString);
       return !!~String(assertDefined(this)).indexOf(searchString, position);
     },
@@ -236,9 +238,11 @@
   
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-    from: function(arrayLike, mapfn /* -> it */, that /* = undefind */){
+    from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
       var O       = Object(assertDefined(arrayLike))
         , result  = new (generic(this, Array))
+        , mapfn   = arguments[1]
+        , that    = arguments[2]
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, that, 2) : undefined
         , index   = 0

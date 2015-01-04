@@ -228,8 +228,9 @@ function createArrayMethod(type){
     , isEvery     = type == 4
     , isFindIndex = type == 6
     , noholes     = type == 5 || isFindIndex;
-  return function(callbackfn, that /* = undefined */){
+  return function(callbackfn/*, that = undefined */){
     var O      = Object(assertDefined(this))
+      , that   = arguments[1]
       , self   = ES5Object(O)
       , f      = ctx(callbackfn, that, 3)
       , length = toLength(self.length)
