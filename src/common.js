@@ -499,7 +499,7 @@ function $define(type, name, source){
   }
 }
 // CommonJS export
-if(NODE)module.exports = core;
+if(typeof module != 'undefined' && module.exports)module.exports = core;
 // RequireJS export
 if(isFunction(define) && define.amd)define(function(){return core});
 // Export to global object
