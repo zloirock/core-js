@@ -3,11 +3,11 @@ modules  = <[common es5 global es6_symbol es6 immediate es6_promise es6_collecti
             es6_reflect es7 es7_refs dict dict_exp $for iterator timers delay
             binding object array array_statics number string date console]>
 old_shim = <[es5 timers console]>
-new_shim = <[es6 es6_collections es6_promise es6_symbol es7 es7_refs global
-            immediate array_statics]>
-exp = <[iterator delay dict_exp es6_reflect]>
+new_shim = <[es6 es6_collections es6_promise es6_symbol es6_reflect es7 es7_refs
+            global immediate array_statics]>
+exp  = <[iterator delay dict_exp]>
 core = <[$for dict binding object array number string date]>
-x78 = '*'repeat 78
+x78  = '*'repeat 78
 module.exports = (opt, next)-> let @ = opt
   @common = on
   if @old_shim => for old_shim => @[..] = on

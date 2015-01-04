@@ -3784,12 +3784,13 @@
       qux: 987
     }, 'qux'), 987);
     if (MODERN) {
-      target = Object.create({
-        z: 3,
-        get w(){
+      target = Object.create(Object.defineProperty({
+        z: 3
+      }, 'w', {
+        get: function(){
           return this;
         }
-      }, {
+      }), {
         x: {
           value: 1
         },
@@ -3887,12 +3888,13 @@
       Reflect.set(target, 'bar', 1, receiver);
       eq(receiver.bar, 1, 'receiver.bar === 1');
       eq(Object.getOwnPropertyDescriptor(receiver, 'bar').enumerable, false, 'enumerability not overridden');
-      target = Object.create({
-        z: 3,
-        set w(v){
-          out = this;
+      target = Object.create(Object.defineProperty({
+        z: 3
+      }, 'w', {
+        set: function(v){
+          return out = this;
         }
-      }, {
+      }), {
         x: {
           value: 1,
           writable: true,

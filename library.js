@@ -428,20 +428,28 @@ function defineIterator(Constructor, NAME, value, DEFAULT){
   Iterators[NAME] = iter;
   // FF & v8 fix
   Iterators[NAME + ' Iterator'] = returnThis;
+  return iter;
 }
-function defineStdIterators(Base, NAME, Constructor, next, DEFAULT){
+function defineStdIterators(Base, NAME, Constructor, next, DEFAULT, IS_SET){
   function createIter(kind){
     return function(){
       return new Constructor(this, kind);
     }
   }
   createIterator(Constructor, NAME, next);
-  defineIterator(Base, NAME, createIter(DEFAULT), DEFAULT == VALUE ? 'values' : 'entries');
-  DEFAULT && $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
-    entries: createIter(KEY+VALUE),
-    keys:    createIter(KEY),
-    values:  createIter(VALUE)
-  });
+  var DEF_VAL = DEFAULT == VALUE
+    , entries = createIter(KEY+VALUE)
+    , keys    = createIter(KEY)
+    , values  = createIter(VALUE);
+  if(DEF_VAL)values = defineIterator(Base, NAME, values, 'values');
+  else entries = defineIterator(Base, NAME, entries, 'entries');
+  if(DEFAULT){
+    $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
+      entries: entries,
+      keys: IS_SET ? values : keys,
+      values: values
+    });
+  }
 }
 function iterResult(done, value){
   return {value: value, done: !!done};
@@ -512,7 +520,7 @@ function $define(type, name, source){
   }
 }
 // CommonJS export
-if(NODE)module.exports = core;
+if(typeof module != 'undefined' && module.exports)module.exports = core;
 // RequireJS export
 if(isFunction(define) && define.amd)define(function(){return core});
 // Export to global object
@@ -791,13 +799,15 @@ $define(GLOBAL + FORCED, {global: global});
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
     endsWith: function(searchString, endPosition /* = @length */){
       assertNotRegExp(searchString);
-      var len = this.length
+      var that = String(assertDefined(this))
+        , len = toLength(that.length)
         , end = endPosition === undefined ? len : min(toLength(endPosition), len);
       searchString += '';
-      return String(this).slice(end - searchString.length, end) === searchString;
+      return that.slice(end - searchString.length, end) === searchString;
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
     includes: function(searchString, position /* = 0 */){
+      assertNotRegExp(searchString);
       return !!~String(assertDefined(this)).indexOf(searchString, position);
     },
     // 21.1.3.13 String.prototype.repeat(count)
@@ -812,9 +822,10 @@ $define(GLOBAL + FORCED, {global: global});
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
     startsWith: function(searchString, position /* = 0 */){
       assertNotRegExp(searchString);
-      var index = toLength(min(position, this.length));
+      var that  = String(assertDefined(this))
+        , index = toLength(min(position, that.length));
       searchString += '';
-      return String(this).slice(index, index + searchString.length) === searchString;
+      return that.slice(index, index + searchString.length) === searchString;
     }
   });
   // 21.1.3.27 String.prototype[@@iterator]()
@@ -1246,7 +1257,7 @@ $define(GLOBAL + BIND, {
       if(kind == KEY)  return iterResult(0, entry.k);
       if(kind == VALUE)return iterResult(0, entry.v);
                        return iterResult(0, [entry.k, entry.v]);   
-    }, isMap ? KEY+VALUE : VALUE);
+    }, isMap ? KEY+VALUE : VALUE, !isMap);
     
     return C;
   }
@@ -1381,6 +1392,102 @@ $define(GLOBAL + BIND, {
       return setWeak(this, value, true);
     }
   }, weakMethods, false, true);
+}();
+
+/******************************************************************************
+ * Module : es6_reflect                                                       *
+ ******************************************************************************/
+
+!function(){
+  function Enumerate(iterated){
+    var keys = [], key;
+    for(key in iterated)keys.push(key);
+    set(this, ITER, {o: iterated, a: keys, i: 0});
+  }
+  createIterator(Enumerate, OBJECT, function(){
+    var iter = this[ITER]
+      , keys = iter.a
+      , key;
+    do {
+      if(iter.i >= keys.length)return iterResult(1);
+    } while(!((key = keys[iter.i++]) in iter.o));
+    return iterResult(0, key);
+  });
+  
+  function wrap(fn){
+    return function(it){
+      assertObject(it);
+      try {
+        return fn.apply(undefined, arguments), true;
+      } catch(e){
+        return false;
+      }
+    }
+  }
+  
+  function reflectGet(target, propertyKey, receiver){
+    if(receiver === undefined)receiver = target;
+    var desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
+    if(desc)return desc.get ? desc.get.call(receiver) : desc.value;
+    return isObject(proto = getPrototypeOf(target)) ? reflectGet(proto, propertyKey, receiver) : undefined;
+  }
+  function reflectSet(target, propertyKey, V, receiver){
+    if(receiver === undefined)receiver = target;
+    var desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
+    if(desc){
+      if(desc.writable === false)return false;
+      if(desc.set)return desc.set.call(receiver, V), true;
+    }
+    if(isObject(proto = getPrototypeOf(target)))return reflectSet(proto, propertyKey, V, receiver);
+    desc = getOwnDescriptor(receiver, propertyKey) || descriptor(0);
+    desc.value = V;
+    return defineProperty(receiver, propertyKey, desc), true;
+  }
+  
+  var reflect = {
+    // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
+    apply: ctx(call, apply, 3),
+    // 26.1.2 Reflect.construct(target, argumentsList)
+    construct: construct,
+    // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
+    defineProperty: wrap(defineProperty),
+    // 26.1.4 Reflect.deleteProperty(target, propertyKey)
+    deleteProperty: function(target, propertyKey){
+      var desc = getOwnDescriptor(assertObject(target), propertyKey);
+      return desc && !desc.configurable ? false : delete target[propertyKey];
+    },
+    // 26.1.5 Reflect.enumerate(target)
+    enumerate: function(target){
+      return new Enumerate(assertObject(target));
+    },
+    // 26.1.6 Reflect.get(target, propertyKey [, receiver])
+    get: reflectGet,
+    // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
+    getOwnPropertyDescriptor: getOwnDescriptor,
+    // 26.1.8 Reflect.getPrototypeOf(target)
+    getPrototypeOf: getPrototypeOf,
+    // 26.1.9 Reflect.has(target, propertyKey)
+    has: function(target, propertyKey){
+      return propertyKey in target;
+    },
+    // 26.1.10 Reflect.isExtensible(target)
+    isExtensible: Object.isExtensible || function(target){
+      return !!assertObject(target);
+    },
+    // 26.1.11 Reflect.ownKeys(target)
+    ownKeys: ownKeys,
+    // 26.1.12 Reflect.preventExtensions(target)
+    preventExtensions: wrap(Object.preventExtensions || returnIt),
+    // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
+    set: reflectSet
+  }
+  // 26.1.14 Reflect.setPrototypeOf(target, proto)
+  if(setPrototypeOf)reflect.setPrototypeOf = function(target, proto){
+    return setPrototypeOf(assertObject(target), proto), true;
+  };
+  
+  $define(GLOBAL, {Reflect: {}});
+  $define(STATIC, 'Reflect', reflect);
 }();
 
 /******************************************************************************

@@ -62,7 +62,7 @@ test 'Reflect.get' !->
   eq Reflect.get({qux: 987}, \qux), 987
   
   if MODERN
-    target = Object.create {z:3, w:~ -> @}, {
+    target = Object.create Object.defineProperty({z:3}, \w, {get: -> @}), {
       x: { value: 1 },
       y: { get: -> @ },
     }
@@ -139,7 +139,7 @@ test 'Reflect.set' !->
     eq Object.getOwnPropertyDescriptor(receiver, \bar).enumerable, no, 'enumerability not overridden'
     
     var out
-    target = Object.create {z:3, w:~ (v)-> out := @}, {
+    target = Object.create Object.defineProperty({z:3}, \w, {set: (v)-> out := @}), {
       x: { value: 1, writable: on, configurable: on },
       y: { set: (v)!-> out := @},
       c: { value: 1, writable: no, configurable: no },
