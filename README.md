@@ -1240,6 +1240,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.1** - *2015.01.05* - Some fixes
+
 **0.4.0** - *2015.01.03*
   * added [`es6_reflect`](#ecmascript-6-reflect) module:
     * added `Reflect.apply`
