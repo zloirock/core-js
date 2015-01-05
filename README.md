@@ -611,14 +611,14 @@ Reflect
   .defineProperty(target, propertyKey, attributes) -> bool
   .deleteProperty(target, propertyKey) -> bool
   .enumerate(target) -> iterator
-  .get(target, propertyKey [, receiver]) -> var
+  .get(target, propertyKey, receiver?) -> var
   .getOwnPropertyDescriptor(target, propertyKey) -> desc
   .getPrototypeOf(target) -> object | null
   .has(target, propertyKey) -> bool
   .isExtensible(target) -> bool
   .ownKeys(target) -> array
   .preventExtensions(target) -> bool
-  .set(target, propertyKey, V [, receiver]) -> bool
+  .set(target, propertyKey, V, receiver?) -> bool
   .setPrototypeOf(target, proto) -> bool, sham(ie11+)
 ```
 [Example](http://goo.gl/gVT0cH):

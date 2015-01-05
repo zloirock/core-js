@@ -254,10 +254,10 @@ function createArrayMethod(type){
   }
 }
 function createArrayContains(isContains){
-  return function(el, fromIndex /* = 0 */){
+  return function(el /*, fromIndex = 0 */){
     var O      = ES5Object(assertDefined(this))
       , length = toLength(O.length)
-      , index  = toIndex(fromIndex, length);
+      , index  = toIndex(arguments[1], length);
     if(isContains && el != el){
       for(;length > index; index++)if(sameNaN(O[index]))return isContains || index;
     } else for(;length > index; index++)if(isContains || index in O){

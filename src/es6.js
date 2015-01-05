@@ -87,7 +87,7 @@
     cbrt: function(x){
       return sign(x) * pow(abs(x), 1 / 3);
     },
-    // 20.2.2.11 Math.clz32 (x)
+    // 20.2.2.11 Math.clz32(x)
     clz32: function(x){
       return (x >>>= 0) ? 32 - x[TO_STRING](2).length : 32;
     },
@@ -157,7 +157,7 @@
   }
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
-    fromCodePoint: function(){
+    fromCodePoint: function(x){
       var res = []
         , len = arguments.length
         , i   = 0
@@ -199,9 +199,8 @@
     },
     // 21.1.3.7 String.prototype.includes(searchString, position = 0)
     includes: function(searchString /*, position = 0 */){
-      var position = arguments[1];
       assertNotRegExp(searchString);
-      return !!~String(assertDefined(this)).indexOf(searchString, position);
+      return !!~String(assertDefined(this)).indexOf(searchString, arguments[1]);
     },
     // 21.1.3.13 String.prototype.repeat(count)
     repeat: function(count){
@@ -213,10 +212,10 @@
       return res;
     },
     // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
-    startsWith: function(searchString, position /* = 0 */){
+    startsWith: function(searchString /*, position = 0 */){
       assertNotRegExp(searchString);
       var that  = String(assertDefined(this))
-        , index = toLength(min(position, that.length));
+        , index = toLength(min(arguments[1], that.length));
       searchString += '';
       return that.slice(index, index + searchString.length) === searchString;
     }
@@ -267,11 +266,12 @@
   });
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
-    copyWithin: function(target /* = 0 */, start /* = 0 */, end /* = @length */){
+    copyWithin: function(target /* = 0 */, start /* = 0, end = @length */){
       var O     = Object(assertDefined(this))
         , len   = toLength(O.length)
         , to    = toIndex(target, len)
         , from  = toIndex(start, len)
+        , end   = arguments[2]
         , fin   = end === undefined ? len : toIndex(end, len)
         , count = min(fin - from, len - to)
         , inc   = 1;
@@ -288,10 +288,11 @@
       } return O;
     },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
-    fill: function(value, start /* = 0 */, end /* = @length */){
+    fill: function(value /*, start = 0, end = @length */){
       var O      = Object(assertDefined(this))
         , length = toLength(O.length)
-        , index  = toIndex(start, length)
+        , index  = toIndex(arguments[1], length)
+        , end    = arguments[2]
         , endPos = end === undefined ? length : toIndex(end, length);
       while(endPos > index)O[index++] = value;
       return O;

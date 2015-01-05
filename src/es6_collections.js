@@ -149,8 +149,8 @@
     },
     // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
     // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-    forEach: function(callbackfn, that /* = undefined */){
-      var f = ctx(callbackfn, that, 3)
+    forEach: function(callbackfn /*, that = undefined */){
+      var f = ctx(callbackfn, arguments[1], 3)
         , entry;
       while(entry = entry ? entry.n : this[FIRST]){
         f(entry.v, entry.k, this);
