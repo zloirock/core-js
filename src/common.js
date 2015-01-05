@@ -365,7 +365,7 @@ function getWellKnownSymbol(name, setter){
   return (Symbol && Symbol[name]) || (setter ? Symbol : safeSymbol)(SYMBOL + DOT + name);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESC   = !!function(){try{return defineProperty({}, 0, ObjectProto)}catch(e){}}()
+var DESC   = !!function(){try{return defineProperty({}, DOT, ObjectProto)}catch(e){}}()
   , sid    = 0
   , hidden = createDefiner(1)
   , set    = Symbol ? simpleSet : hidden

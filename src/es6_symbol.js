@@ -5,7 +5,7 @@
     Symbol = function(description){
       assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
-      setter && defineProperty(ObjectProto, tag, {
+      DESC && setter && defineProperty(ObjectProto, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
