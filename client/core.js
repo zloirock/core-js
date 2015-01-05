@@ -438,16 +438,14 @@ function defineStdIterators(Base, NAME, Constructor, next, DEFAULT, IS_SET){
     }
   }
   createIterator(Constructor, NAME, next);
-  var DEF_VAL = DEFAULT == VALUE
-    , entries = createIter(KEY+VALUE)
-    , keys    = createIter(KEY)
+  var entries = createIter(KEY+VALUE)
     , values  = createIter(VALUE);
-  if(DEF_VAL)values = defineIterator(Base, NAME, values, 'values');
+  if(DEFAULT == VALUE)values = defineIterator(Base, NAME, values, 'values');
   else entries = defineIterator(Base, NAME, entries, 'entries');
   if(DEFAULT){
     $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
       entries: entries,
-      keys: IS_SET ? values : keys,
+      keys: IS_SET ? values : createIter(KEY),
       values: values
     });
   }
