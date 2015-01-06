@@ -388,6 +388,9 @@ function assignHidden(target, src){
   return target;
 }
 
+var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
+  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {};
+
 // Iterators
 var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
   , SYMBOL_TAG      = getWellKnownSymbol(TO_STRING_TAG)
@@ -575,6 +578,8 @@ $define(GLOBAL + FORCED, {global: global});
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.13 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
+    // 19.4.2.14 Symbol.unscopables
+    unscopables: SYMBOL_UNSCOPABLES,
     pure: safeSymbol,
     set: set,
     useSetter: function(){setter = true},
@@ -588,9 +593,8 @@ $define(GLOBAL + FORCED, {global: global});
   // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
-  // 19.4.2.14 Symbol.unscopables
   forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,' +
-    'species,split,toPrimitive,unscopables'), function(it){
+    'species,split,toPrimitive'), function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );
@@ -946,6 +950,11 @@ $define(GLOBAL + FORCED, {global: global});
       configurable: true,
       get: createReplacer(/^.*\/(\w*)$/, '$1')
     });
+    // 22.1.3.31 Array.prototype[@@unscopables]
+    forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
+      ArrayUnscopables[it] = true;
+    });
+    SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
 }(isFinite, {});
 
@@ -1865,6 +1874,7 @@ $define(PROTO + FORCED, ARRAY, {
     return memo;
   }
 });
+if(framework)ArrayUnscopables.turn = true;
 
 /******************************************************************************
  * Module : array_statics                                                     *

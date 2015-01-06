@@ -375,6 +375,9 @@ function assignHidden(target, src){
   return target;
 }
 
+var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
+  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {};
+
 // Iterators
 var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
   , SYMBOL_TAG      = getWellKnownSymbol(TO_STRING_TAG)

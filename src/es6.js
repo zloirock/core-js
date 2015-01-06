@@ -338,5 +338,10 @@
       configurable: true,
       get: createReplacer(/^.*\/(\w*)$/, '$1')
     });
+    // 22.1.3.31 Array.prototype[@@unscopables]
+    forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
+      ArrayUnscopables[it] = true;
+    });
+    SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
 }(isFinite, {});

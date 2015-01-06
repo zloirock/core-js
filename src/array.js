@@ -9,3 +9,4 @@ $define(PROTO + FORCED, ARRAY, {
     return memo;
   }
 });
+if(framework)ArrayUnscopables.turn = true;

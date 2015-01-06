@@ -32,6 +32,8 @@
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.13 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
+    // 19.4.2.14 Symbol.unscopables
+    unscopables: SYMBOL_UNSCOPABLES,
     pure: safeSymbol,
     set: set,
     useSetter: function(){setter = true},
@@ -45,9 +47,8 @@
   // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
-  // 19.4.2.14 Symbol.unscopables
   forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,' +
-    'species,split,toPrimitive,unscopables'), function(it){
+    'species,split,toPrimitive'), function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );
