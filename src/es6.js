@@ -120,9 +120,11 @@
     // 20.2.2.18 Math.imul(x, y)
     imul: function(x, y){
       var UInt16 = 0xffff
-        , xl = UInt16 & x
-        , yl = UInt16 & y;
-      return 0 | xl * yl + ((UInt16 & x >>> 16) * yl + xl * (UInt16 & y >>> 16) << 16 >>> 0);
+        , xn = +x
+        , yn = +y
+        , xl = UInt16 & xn
+        , yl = UInt16 & yn;
+      return 0 | xl * yl + ((UInt16 & xn >>> 16) * yl + xl * (UInt16 & yn >>> 16) << 16 >>> 0);
     },
     // 20.2.2.20 Math.log1p(x)
     log1p: function(x){
