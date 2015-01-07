@@ -1656,15 +1656,15 @@ $define(GLOBAL + BIND, {
     }
   }
   
-  function reflectGet(target, propertyKey, receiver){
-    if(receiver === undefined)receiver = target;
-    var desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
+  function reflectGet(target, propertyKey/*, receiver*/){
+    var receiver = arguments.length < 3 ? target : arguments[2]
+      , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
     if(desc)return desc.get ? desc.get.call(receiver) : desc.value;
     return isObject(proto = getPrototypeOf(target)) ? reflectGet(proto, propertyKey, receiver) : undefined;
   }
-  function reflectSet(target, propertyKey, V, receiver){
-    if(receiver === undefined)receiver = target;
-    var desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
+  function reflectSet(target, propertyKey, V/*, receiver*/){
+    var receiver = arguments.length < 4 ? target : arguments[3]
+      , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
     if(desc){
       if(desc.writable === false)return false;
       if(desc.set)return desc.set.call(receiver, V), true;
