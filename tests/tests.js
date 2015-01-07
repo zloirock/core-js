@@ -192,6 +192,7 @@
     deepEqual([3, 2, 1], [1, 2, 3].turn(function(memo, it){
       return memo.unshift(it);
     }), 'Reduce to object and return it');
+    ok('turn' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -2839,6 +2840,7 @@
         return Array.prototype.copyWithin.call(void 8, 0);
       }, TypeError);
     }
+    ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#fill', function(){
     var a;
@@ -2857,6 +2859,7 @@
         return Array.prototype.fill.call(void 8, 0);
       }, TypeError);
     }
+    ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#find', function(){
     var arr, ctx;
@@ -2881,6 +2884,7 @@
         return Array.prototype.find.call(void 8, 0);
       }, TypeError);
     }
+    ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#findIndex', function(){
     var arr, ctx;
@@ -2902,6 +2906,7 @@
         return Array.prototype.findIndex.call(void 8, 0);
       }, TypeError);
     }
+    ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   if ('flags' in RegExp.prototype) {
     test('RegExp#flags', function(){
@@ -2937,6 +2942,7 @@
       value: void 8,
       done: true
     });
+    ok('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#values', function(){
     var iter;
@@ -2960,6 +2966,7 @@
       value: void 8,
       done: true
     });
+    ok('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#entries', function(){
     var iter;
@@ -2983,6 +2990,7 @@
       value: void 8,
       done: true
     });
+    ok('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('Array#@@iterator', function(){
     var iter;
@@ -3007,6 +3015,9 @@
       value: void 8,
       done: true
     });
+  });
+  test('Array#@@unscopables', function(){
+    eq(toString$.call(Array.prototype[Symbol.unscopables]).slice(8, -1), 'Object');
   });
 }).call(this);
 

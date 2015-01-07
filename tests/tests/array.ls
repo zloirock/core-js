@@ -11,3 +11,4 @@ test '#turn' !->
     ok memo is obj, 'Can reduce to exist object'
   , obj = {}
   deepEqual [3 2 1] [1 2 3]turn((memo, it)-> memo.unshift it), 'Reduce to object and return it'
+  ok \turn of Array::[Symbol.unscopables], 'In Array#@@unscopables'

@@ -630,6 +630,7 @@ test 'Array#copyWithin' !->
   if strict
     throws (-> Array::copyWithin.call null, 0), TypeError
     throws (-> Array::copyWithin.call void, 0), TypeError
+  ok \copyWithin of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#fill' !->
   ok isFunction(Array::fill), 'Is function'
   eq (a = Array(5)fill(5)), a
@@ -641,6 +642,7 @@ test 'Array#fill' !->
   if strict
     throws (-> Array::fill.call null, 0), TypeError
     throws (-> Array::fill.call void, 0), TypeError
+  ok \fill of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#find' !->
   ok isFunction(Array::find), 'Is function'
   (arr = [1])find (val, key, that)->
@@ -654,6 +656,7 @@ test 'Array#find' !->
   if strict
     throws (-> Array::find.call null, 0), TypeError
     throws (-> Array::find.call void, 0), TypeError
+  ok \find of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#findIndex' !->
   ok isFunction(Array::findIndex), 'Is function'
   (arr = [1])findIndex (val, key, that)->
@@ -666,6 +669,7 @@ test 'Array#findIndex' !->
   if strict
     throws (-> Array::findIndex.call null, 0), TypeError
     throws (-> Array::findIndex.call void, 0), TypeError
+  ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 if \flags of RegExp:: => test 'RegExp#flags' !->
   eq /./g.flags, \g, '/./g.flags is "g"'
   eq /./.flags, '', '/./.flags is ""'
@@ -684,6 +688,7 @@ test 'Array#keys' !->
   deq iter.next!, {value: 1, done: no}
   deq iter.next!, {value: 2, done: no}
   deq iter.next!, {value: void, done: on}
+  ok \keys of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#values' !->
   ok typeof Array::values is \function, 'Is function'
   iter = <[q w e]>values!
@@ -693,6 +698,7 @@ test 'Array#values' !->
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
   deq iter.next!, {value: void, done: on}
+  ok \values of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#entries' !->
   ok typeof Array::entries is \function, 'Is function'
   iter = <[q w e]>entries!
@@ -702,6 +708,7 @@ test 'Array#entries' !->
   deq iter.next!, {value: [1 \w], done: no}
   deq iter.next!, {value: [2 \e], done: no}
   deq iter.next!, {value: void, done: on}
+  ok \entries of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 test 'Array#@@iterator' !->
   ok typeof Array::[iterator] is \function, 'Is function'
   eq Array::[iterator], Array::values
@@ -712,3 +719,5 @@ test 'Array#@@iterator' !->
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
   deq iter.next!, {value: void, done: on}
+test 'Array#@@unscopables' !->
+  eq typeof! Array::[Symbol.unscopables], \Object
