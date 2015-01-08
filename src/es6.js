@@ -155,7 +155,7 @@
   setToStringTag(Math, MATH, true);
   
   function assertNotRegExp(it){
-    if(isObject(it) && it instanceof RegExp)throw TypeError();
+    if(cof(it) == REGEXP)throw TypeError();
   }
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
@@ -346,11 +346,8 @@
           set: function(it){ source[key] = it }
         });
       } , WrappedRegExp = function(pattern, flags){
-          if(cof(pattern) == REGEXP){
-            if(flags == undefined)flags = pattern.flags;
-            pattern = pattern.source;
-          }
-          return new RegExp(pattern, flags);
+        return new RegExp(cof(pattern) == REGEXP && flags !== undefined
+          ? pattern.source : pattern, flags);
       }
       forEach.call(getNames(RegExp), function(key){
         key in returnIt || proxyKey(WrappedRegExp, RegExp, key);
