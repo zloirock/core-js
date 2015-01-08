@@ -611,7 +611,7 @@ $define(GLOBAL + FORCED, {global: global});
  ******************************************************************************/
 
 // ECMAScript 6 shim
-!function(isFinite, tmp){
+!function(RegExpProto, isFinite, tmp){
   var RangeError = global.RangeError
       // 20.1.2.3 Number.isInteger(number)
     , isInteger = Number.isInteger || function(it){
@@ -947,18 +947,44 @@ $define(GLOBAL + FORCED, {global: global});
       return '[object ' + classof(this) + ']';
     });
     
+    // RegExp allows a regex as the pattern
+    if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
+      var proxyKey = function(target, source, key){
+        var desc = getOwnDescriptor(source, key);
+        defineProperty(target, key, {
+          configurable: desc.configuration,
+          enumerable: desc.enumerable,
+          get: function(){ return source[key] },
+          set: function(it){ source[key] = it }
+        });
+      } , WrappedRegExp = function(pattern, flags){
+          if(cof(pattern) == REGEXP){
+            if(flags == undefined)flags = pattern.flags;
+            pattern = pattern.source;
+          }
+          return new RegExp(pattern, flags);
+      }
+      forEach.call(getNames(RegExp), function(key){
+        key in returnIt || proxyKey(WrappedRegExp, RegExp, key);
+      });
+      RegExpProto[CONSTRUCTOR] = WrappedRegExp;
+      WrappedRegExp[PROTOTYPE] = RegExpProto;
+      hidden(global, REGEXP, WrappedRegExp);
+    }
+    
     // 21.2.5.3 get RegExp.prototype.flags()
-    if(/./g.flags != 'g')defineProperty(RegExp[PROTOTYPE], 'flags', {
+    if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
       configurable: true,
       get: createReplacer(/^.*\/(\w*)$/, '$1')
     });
+    
     // 22.1.3.31 Array.prototype[@@unscopables]
     forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
       ArrayUnscopables[it] = true;
     });
     SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
-}(isFinite, {});
+}(RegExp[PROTOTYPE], isFinite, {});
 
 /******************************************************************************
  * Module : immediate                                                         *
