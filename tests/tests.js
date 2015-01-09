@@ -3019,6 +3019,54 @@
   test('Array#@@unscopables', function(){
     eq(toString$.call(Array.prototype[Symbol.unscopables]).slice(8, -1), 'Object');
   });
+  test('Object static methods accept primitives', function(){
+    var i$, ref$, len$, method, j$, ref1$, len1$, value, result, e;
+    for (i$ = 0, len$ = (ref$ = ['freeze', 'seal', 'preventExtensions', 'getOwnPropertyDescriptor', 'getPrototypeOf', 'isExtensible', 'isSealed', 'isFrozen', 'keys', 'getOwnPropertyNames']).length; i$ < len$; ++i$) {
+      method = ref$[i$];
+      for (j$ = 0, len1$ = (ref1$ = [42, 'foo', false]).length; j$ < len1$; ++j$) {
+        value = ref1$[j$];
+        result = (fn$());
+        ok(result, "Object." + method + " accept " + toString$.call(value).slice(8, -1));
+      }
+    }
+    for (i$ = 0, len$ = (ref$ = ['freeze', 'seal', 'preventExtensions']).length; i$ < len$; ++i$) {
+      method = ref$[i$];
+      for (j$ = 0, len1$ = (ref1$ = [42, 'foo', false, null, void 8, {}]).length; j$ < len1$; ++j$) {
+        value = ref1$[j$];
+        eq(Object[method](value), value, "Object." + method + " returns target on " + toString$.call(value).slice(8, -1));
+      }
+    }
+    for (i$ = 0, len$ = (ref$ = ['isSealed', 'isFrozen']).length; i$ < len$; ++i$) {
+      method = ref$[i$];
+      for (j$ = 0, len1$ = (ref1$ = [42, 'foo', false, null, void 8]).length; j$ < len1$; ++j$) {
+        value = ref1$[j$];
+        eq(Object[method](value), true, "Object." + method + " returns true on " + toString$.call(value).slice(8, -1));
+      }
+    }
+    for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8]).length; i$ < len$; ++i$) {
+      value = ref$[i$];
+      eq(Object.isExtensible(value), false, "Object.isExtensible returns false on " + toString$.call(value).slice(8, -1));
+    }
+    for (i$ = 0, len$ = (ref$ = ['getOwnPropertyDescriptor', 'getPrototypeOf', 'keys', 'getOwnPropertyNames']).length; i$ < len$; ++i$) {
+      method = ref$[i$];
+      for (j$ = 0, len1$ = (ref1$ = [null, void 8]).length; j$ < len1$; ++j$) {
+        value = ref1$[j$];
+        throws(fn1$, TypeError, "Object." + method + " throws on " + value);
+      }
+    }
+    function fn$(){
+      try {
+        Object[method](value);
+        return true;
+      } catch (e$) {
+        e = e$;
+        return false;
+      }
+    }
+    function fn1$(){
+      return Object[method](value);
+    }
+  });
 }).call(this);
 
 (function(){
