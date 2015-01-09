@@ -1156,29 +1156,49 @@ $define(GLOBAL + FORCED, {global: global});
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
   
+  function WrappedRegExp(pattern, flags){
+    return new RegExp(cof(pattern) == REGEXP && flags !== undefined
+      ? pattern.source : pattern, flags);
+  }
+  function wrapObjectMethod(key, MODE){
+    var fn = Object[key];
+    try { fn(DOT) }
+    catch(e){
+      Object[key] =
+        MODE == 1 ? function(it){ return isObject(it) ? fn(it) : it } :
+        MODE == 2 ? function(it){ return isObject(it) ? fn(it) : true } :
+        MODE == 3 ? function(it){ return isObject(it) ? fn(it) : false } :
+        MODE == 4 ? function(it, key){ return fn(Object(assertDefined(it)), key) } :
+                    function(it){ return fn(Object(assertDefined(it))) }
+    }
+  }
   if(framework){
+    // Object static methods accept primitives
+    wrapObjectMethod('freeze', 1);
+    wrapObjectMethod('seal', 1);
+    wrapObjectMethod('preventExtensions', 1);
+    wrapObjectMethod('isFrozen', 2);
+    wrapObjectMethod('isSealed', 2);
+    wrapObjectMethod('isExtensible', 3);
+    wrapObjectMethod('getOwnPropertyDescriptor', 4);
+    wrapObjectMethod('getPrototypeOf');
+    wrapObjectMethod('keys');
+    wrapObjectMethod('getOwnPropertyNames');
+    
     // 19.1.3.6 Object.prototype.toString()
     tmp[SYMBOL_TAG] = DOT;
     if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
       return '[object ' + classof(this) + ']';
     });
     
-    // RegExp allows a regex as the pattern
+    // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
-      var proxyKey = function(target, source, key){
-        var desc = getOwnDescriptor(source, key);
-        defineProperty(target, key, {
-          configurable: desc.configuration,
-          enumerable: desc.enumerable,
-          get: function(){ return source[key] },
-          set: function(it){ source[key] = it }
-        });
-      } , WrappedRegExp = function(pattern, flags){
-        return new RegExp(cof(pattern) == REGEXP && flags !== undefined
-          ? pattern.source : pattern, flags);
-      }
       forEach.call(getNames(RegExp), function(key){
-        key in returnIt || proxyKey(WrappedRegExp, RegExp, key);
+        key in returnIt || defineProperty(WrappedRegExp, key, {
+          configurable: true,
+          get: function(){ return RegExp[key] },
+          set: function(it){ RegExp[key] = it }
+        });
       });
       RegExpProto[CONSTRUCTOR] = WrappedRegExp;
       WrappedRegExp[PROTOTYPE] = RegExpProto;
