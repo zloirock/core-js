@@ -17,7 +17,7 @@ isIterator = ->
 
 epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
 
-descriptors = /\[native code\]\s*\}\s*$/.test getOwnPropertyDescriptor
+descriptors = /\[native code\]\s*\}\s*$/.test defineProperty
 
 test 'Object.assign' !->
   {assign} = Object
@@ -670,15 +670,6 @@ test 'Array#findIndex' !->
     throws (-> Array::findIndex.call null, 0), TypeError
     throws (-> Array::findIndex.call void, 0), TypeError
   ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'
-if \flags of RegExp:: => test 'RegExp#flags' !->
-  eq /./g.flags, \g, '/./g.flags is "g"'
-  eq /./.flags, '', '/./.flags is ""'
-  eq RegExp('.', \gim).flags, \gim, 'RegExp(".", "gim").flags is "gim"'
-  eq RegExp('.').flags, '', 'RegExp(".").flags is ""'
-  eq /./gim.flags, \gim, '/./gim.flags is "gim"'
-  eq /./gmi.flags, \gim, '/./gmi.flags is "gim"'
-  eq /./mig.flags, \gim, '/./mig.flags is "gim"'
-  eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'
 test 'Array#keys' !->
   ok typeof Array::keys is \function, 'Is function'
   iter = <[q w e]>keys!
@@ -741,3 +732,25 @@ test 'Object static methods accept primitives' !->
   for method in <[getOwnPropertyDescriptor getPrototypeOf keys getOwnPropertyNames]>
     for value in [null void]
       throws (-> Object[method] value), TypeError, "Object.#method throws on #value"
+
+if descriptors => test 'RegExp#flags' !->
+  eq /./g.flags, \g, '/./g.flags is "g"'
+  eq /./.flags, '', '/./.flags is ""'
+  eq RegExp('.', \gim).flags, \gim, 'RegExp(".", "gim").flags is "gim"'
+  eq RegExp('.').flags, '', 'RegExp(".").flags is ""'
+  eq /./gim.flags, \gim, '/./gim.flags is "gim"'
+  eq /./gmi.flags, \gim, '/./gmi.flags is "gim"'
+  eq /./mig.flags, \gim, '/./mig.flags is "gim"'
+  eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'
+
+if descriptors => test 'RegExp allows a regex with flags as the pattern' !->
+  a = /a/g
+  b = new RegExp a
+  ok a isnt b, 'a != b'
+  eq String(b), '/a/g', 'b is /a/g'
+  eq String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags'
+  ok new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof'
+  eq new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor'
+  /(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)(m)(n)(o)(p)/.exec \abcdefghijklmnopq
+  for val, index in \bcdefghij
+    eq RegExp"$#{index + 1}", val, "Updates RegExp globals $#{index + 1}"

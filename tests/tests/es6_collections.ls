@@ -3,7 +3,7 @@ isFunction = -> typeof! it is \Function
 same = Object.is
 {getOwnPropertyDescriptor} = Object
 
-descriptors = /\[native code\]\s*\}\s*$/.test getOwnPropertyDescriptor
+descriptors = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 
 eq = strictEqual
 deq = deepEqual

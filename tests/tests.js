@@ -1948,7 +1948,7 @@
   epsilon = function(a, b, E){
     return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
-  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
+  descriptors = /\[native code\]\s*\}\s*$/.test(defineProperty);
   test('Object.assign', function(){
     var assign, foo, str;
     assign = Object.assign;
@@ -2908,18 +2908,6 @@
     }
     ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
-  if ('flags' in RegExp.prototype) {
-    test('RegExp#flags', function(){
-      eq(/./g.flags, 'g', '/./g.flags is "g"');
-      eq(/./.flags, '', '/./.flags is ""');
-      eq(RegExp('.', 'gim').flags, 'gim', 'RegExp(".", "gim").flags is "gim"');
-      eq(RegExp('.').flags, '', 'RegExp(".").flags is ""');
-      eq(/./gim.flags, 'gim', '/./gim.flags is "gim"');
-      eq(/./gmi.flags, 'gim', '/./gmi.flags is "gim"');
-      eq(/./mig.flags, 'gim', '/./mig.flags is "gim"');
-      eq(/./mgi.flags, 'gim', '/./mgi.flags is "gim"');
-    });
-  }
   test('Array#keys', function(){
     var iter;
     ok(typeof Array.prototype.keys === 'function', 'Is function');
@@ -3067,6 +3055,36 @@
       return Object[method](value);
     }
   });
+  if (descriptors) {
+    test('RegExp#flags', function(){
+      eq(/./g.flags, 'g', '/./g.flags is "g"');
+      eq(/./.flags, '', '/./.flags is ""');
+      eq(RegExp('.', 'gim').flags, 'gim', 'RegExp(".", "gim").flags is "gim"');
+      eq(RegExp('.').flags, '', 'RegExp(".").flags is ""');
+      eq(/./gim.flags, 'gim', '/./gim.flags is "gim"');
+      eq(/./gmi.flags, 'gim', '/./gmi.flags is "gim"');
+      eq(/./mig.flags, 'gim', '/./mig.flags is "gim"');
+      eq(/./mgi.flags, 'gim', '/./mgi.flags is "gim"');
+    });
+  }
+  if (descriptors) {
+    test('RegExp allows a regex with flags as the pattern', function(){
+      var a, b, i$, len$, index, val;
+      a = /a/g;
+      b = new RegExp(a);
+      ok(a !== b, 'a != b');
+      eq(String(b), '/a/g', 'b is /a/g');
+      eq(String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags');
+      ok(new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof');
+      eq(new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor');
+      /(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)(m)(n)(o)(p)/.exec('abcdefghijklmnopq');
+      for (i$ = 0, len$ = 'bcdefghij'.length; i$ < len$; ++i$) {
+        index = i$;
+        val = 'bcdefghij'[i$];
+        eq(RegExp["$" + (index + 1)], val, "Updates RegExp globals $" + (index + 1));
+      }
+    });
+  }
 }).call(this);
 
 (function(){
@@ -3077,7 +3095,7 @@
   };
   same = Object.is;
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  descriptors = /\[native code\]\s*\}\s*$/.test(getOwnPropertyDescriptor);
+  descriptors = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
   eq = strictEqual;
   deq = deepEqual;
   iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
@@ -4482,15 +4500,13 @@
 }).call(this);
 
 (function(){
-  var isFunction, isNative, getPrototypeOf, defineProperty, getOwnPropertyDescriptor, toString$ = {}.toString;
+  var isFunction, getPrototypeOf, defineProperty, getOwnPropertyDescriptor, DESCRIPTORS, toString$ = {}.toString;
   QUnit.module('Object');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  isNative = function(it){
-    return /\[native code\]\s*\}\s*$/.test(it);
-  };
   getPrototypeOf = Object.getPrototypeOf, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  DESCRIPTORS = /\[native code\]\s*\}\s*$/.test(defineProperty);
   test('.isObject', function(){
     var isObject;
     isObject = Object.isObject;
@@ -4583,7 +4599,7 @@
       w: 2
     }));
     ok(foo.w === 2);
-    if (isNative(getOwnPropertyDescriptor)) {
+    if (DESCRIPTORS) {
       foo = {
         q: 1
       };

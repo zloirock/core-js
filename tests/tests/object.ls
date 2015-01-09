@@ -1,7 +1,7 @@
 QUnit.module \Object
 isFunction = -> typeof! it is \Function
-isNative = -> /\[native code\]\s*\}\s*$/.test it
 {getPrototypeOf,  defineProperty, getOwnPropertyDescriptor} = Object
+DESCRIPTORS = /\[native code\]\s*\}\s*$/.test defineProperty
 test '.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'
@@ -66,7 +66,7 @@ test '.define' !->
   foo = q:1
   ok foo is define foo, w:2
   ok foo.w is 2
-  if isNative getOwnPropertyDescriptor
+  if DESCRIPTORS
     foo = q:1
     foo2 = defineProperty {}, \w, get: -> @q + 1
     define foo, foo2
