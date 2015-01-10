@@ -975,6 +975,15 @@ $define(GLOBAL + FORCED, {global: global});
       return '[object ' + classof(this) + ']';
     });
     
+    // 19.2.4.2 name
+    'name' in FunctionProto || defineProperty(FunctionProto, 'name', {
+      configurable: true,
+      get: function(){
+        var match = String(this).match(/^\s*function ([^ (]*)/);
+        return defineProperty(this, 'name', descriptor(5, match ? match[1] : '')).name;
+      }
+    });
+    
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
       forEach.call(getNames(RegExp), function(key){

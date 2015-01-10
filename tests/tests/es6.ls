@@ -713,6 +713,11 @@ test 'Array#@@iterator' !->
 test 'Array#@@unscopables' !->
   eq typeof! Array::[Symbol.unscopables], \Object
 
+if descriptors => test 'Function instance "name" property' !->
+  ok \name of Function::
+  eq (function foo => it).name, \foo
+  eq (->).name, ''
+
 test 'Object static methods accept primitives' !->
   for method in <[freeze seal preventExtensions getOwnPropertyDescriptor getPrototypeOf isExtensible isSealed isFrozen keys getOwnPropertyNames]>
     for value in [42 \foo no]

@@ -3007,6 +3007,18 @@
   test('Array#@@unscopables', function(){
     eq(toString$.call(Array.prototype[Symbol.unscopables]).slice(8, -1), 'Object');
   });
+  if (descriptors) {
+    test('Function instance "name" property', function(){
+      ok('name' in Function.prototype);
+      eq((function(){
+        function foo(it){
+          return it;
+        }
+        return foo;
+      }()).name, 'foo');
+      eq(function(){}.name, '');
+    });
+  }
   test('Object static methods accept primitives', function(){
     var i$, ref$, len$, method, j$, ref1$, len1$, value, result, e;
     for (i$ = 0, len$ = (ref$ = ['freeze', 'seal', 'preventExtensions', 'getOwnPropertyDescriptor', 'getPrototypeOf', 'isExtensible', 'isSealed', 'isFrozen', 'keys', 'getOwnPropertyNames']).length; i$ < len$; ++i$) {
