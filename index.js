@@ -979,8 +979,10 @@ $define(GLOBAL + FORCED, {global: global});
     'name' in FunctionProto || defineProperty(FunctionProto, 'name', {
       configurable: true,
       get: function(){
-        var match = String(this).match(/^\s*function ([^ (]*)/);
-        return defineProperty(this, 'name', descriptor(5, match ? match[1] : '')).name;
+        var match = String(this).match(/^\s*function ([^ (]*)/)
+          , name  = match ? match[1] : '';
+        has(this, 'name') || defineProperty(this, 'name', descriptor(5, name));
+        return name;
       }
     });
     
