@@ -58,7 +58,7 @@
   }
   function createGetKeys(names, length, isNames){
     return function(object){
-      var O      = ES5Object(object)
+      var O      = ES5Object(assertDefined(object))
         , i      = 0
         , result = []
         , key;

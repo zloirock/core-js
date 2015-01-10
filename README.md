@@ -1240,6 +1240,11 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.2** - *2015.01.10*
+  * `Object` static methods accept primitives
+  * `RegExp` constructor can alter flags (IE9+)
+  * added `Array.prototype[Symbol.unscopables]`
+
 **0.4.1** - *2015.01.05* - Some fixes
 
 **0.4.0** - *2015.01.03*

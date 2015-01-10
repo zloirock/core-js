@@ -1,5 +1,5 @@
 /**
- * Core.js 0.4.1
+ * Core.js 0.4.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -978,7 +978,7 @@ $define(GLOBAL + FORCED, {global: global});
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
       forEach.call(getNames(RegExp), function(key){
-        key in returnIt || defineProperty(WrappedRegExp, key, {
+        key in WrappedRegExp || defineProperty(WrappedRegExp, key, {
           configurable: true,
           get: function(){ return RegExp[key] },
           set: function(it){ RegExp[key] = it }

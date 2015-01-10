@@ -366,7 +366,7 @@
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
       forEach.call(getNames(RegExp), function(key){
-        key in returnIt || defineProperty(WrappedRegExp, key, {
+        key in WrappedRegExp || defineProperty(WrappedRegExp, key, {
           configurable: true,
           get: function(){ return RegExp[key] },
           set: function(it){ RegExp[key] = it }
