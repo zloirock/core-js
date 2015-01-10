@@ -89,6 +89,8 @@ Object
   .is(a, b) -> bool
   .setPrototypeOf(target, proto | null) -> target, sham(ie11+)
   #toString() -> string, fix for @@toStringTag support
+Function
+  #name -> string (IE9+)
 ```
 [Example](http://goo.gl/VzmY3j):
 ```javascript
@@ -111,6 +113,8 @@ new Child instanceof Parent; // => true
 var O = {};
 O[Symbol.toStringTag] = 'Foo';
 '' + O; // => '[object Foo]'
+
+(function foo(){}).name // => 'foo'
 ```
 #### ECMAScript 6: Array
 ```javascript
@@ -121,6 +125,7 @@ Array
   #fill(var, start = 0, end = @length) -> @
   #find(fn(val, index, @), that) -> var
   #findIndex(fn(val, index, @), that) -> int
+  #@@unscopables -> object
 ```
 [Example](http://goo.gl/nxmJTe):
 ```javascript
@@ -1240,6 +1245,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.3** - *2015.01.10* - Added `Function` instances `name` property for IE9+
+
 **0.4.2** - *2015.01.10*
   * `Object` static methods accept primitives
   * `RegExp` constructor can alter flags (IE9+)

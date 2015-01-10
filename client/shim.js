@@ -1,5 +1,5 @@
 /**
- * Core.js 0.4.2
+ * Core.js 0.4.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -827,7 +827,7 @@ $define(GLOBAL + FORCED, {global: global});
  ******************************************************************************/
 
 // ECMAScript 6 shim
-!function(RegExpProto, isFinite, tmp){
+!function(RegExpProto, isFinite, tmp, NAME){
   var RangeError = global.RangeError
       // 20.1.2.3 Number.isInteger(number)
     , isInteger = Number.isInteger || function(it){
@@ -1192,12 +1192,12 @@ $define(GLOBAL + FORCED, {global: global});
     });
     
     // 19.2.4.2 name
-    'name' in FunctionProto || defineProperty(FunctionProto, 'name', {
+    NAME in FunctionProto || defineProperty(FunctionProto, NAME, {
       configurable: true,
       get: function(){
         var match = String(this).match(/^\s*function ([^ (]*)/)
           , name  = match ? match[1] : '';
-        has(this, 'name') || defineProperty(this, 'name', descriptor(5, name));
+        has(this, NAME) || defineProperty(this, NAME, descriptor(5, name));
         return name;
       }
     });
@@ -1228,7 +1228,7 @@ $define(GLOBAL + FORCED, {global: global});
     });
     SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
-}(RegExp[PROTOTYPE], isFinite, {});
+}(RegExp[PROTOTYPE], isFinite, {}, 'name');
 
 /******************************************************************************
  * Module : immediate                                                         *
