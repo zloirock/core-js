@@ -371,6 +371,9 @@
           , name  = match ? match[1] : '';
         has(this, NAME) || defineProperty(this, NAME, descriptor(5, name));
         return name;
+      },
+      set: function(value){
+        defineProperty(this, NAME, descriptor(0, value));
       }
     });
     
