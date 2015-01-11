@@ -209,4 +209,4 @@
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}('propertyIsEnumerable', Function(), classof, safeSymbol(PROTOTYPE));
+}('propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));

@@ -31,8 +31,8 @@ module.exports = (opt, next)-> let @ = opt
     """
   next """
     #banner
-    !function(returnThis, framework, undefined){
+    !function(global, framework, undefined){
     'use strict';
     #{scripts * '\n'}
-    }(Function('return this'), #{!@library});
+    }(typeof window != 'undefined' && window.Math === Math ? window : global, #{!@library});
     """

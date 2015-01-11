@@ -2,7 +2,7 @@
 // Based on https://github.com/getify/native-promise-only/
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && Promise.resolve(test = new Promise(Function())) == test
+  && Promise.resolve(test = new Promise(function(){})) == test
   || function(asap, DEF){
     function isThenable(o){
       var then;

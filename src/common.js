@@ -1,6 +1,5 @@
-var global          = returnThis()
   // Shortcuts for [[Class]] & property names
-  , OBJECT          = 'Object'
+var OBJECT          = 'Object'
   , FUNCTION        = 'Function'
   , ARRAY           = 'Array'
   , STRING          = 'String'
@@ -173,6 +172,9 @@ function toObject(it){
 }
 function returnIt(it){
   return it;
+}
+function returnThis(){
+  return this;
 }
 function get(object, key){
   if(has(object, key))return object[key];

@@ -4,16 +4,15 @@
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
  */
-!function(returnThis, framework, undefined){
+!function(global, framework, undefined){
 'use strict';
 
 /******************************************************************************
  * Module : common                                                            *
  ******************************************************************************/
 
-var global          = returnThis()
   // Shortcuts for [[Class]] & property names
-  , OBJECT          = 'Object'
+var OBJECT          = 'Object'
   , FUNCTION        = 'Function'
   , ARRAY           = 'Array'
   , STRING          = 'String'
@@ -186,6 +185,9 @@ function toObject(it){
 }
 function returnIt(it){
   return it;
+}
+function returnThis(){
+  return this;
 }
 function get(object, key){
   if(has(object, key))return object[key];
@@ -1106,7 +1108,7 @@ $define(GLOBAL + BIND, {
 // Based on https://github.com/getify/native-promise-only/
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
-  && Promise.resolve(test = new Promise(Function())) == test
+  && Promise.resolve(test = new Promise(function(){})) == test
   || function(asap, DEF){
     function isThenable(o){
       var then;
@@ -1655,4 +1657,4 @@ $define(GLOBAL + BIND, {
                   'reduce,reduceRight,copyWithin,fill,turn');
   $define(STATIC, ARRAY, arrayStatics);
 }({});
-}(Function('return this'), true);
+}(typeof window != 'undefined' && window.Math === Math ? window : global, true);
