@@ -10,7 +10,7 @@
   
   function createObjectToArray(isEntries){
     return function(object){
-      var O      = ES5Object(object)
+      var O      = toObject(object)
         , keys   = getKeys(object)
         , length = keys.length
         , i      = 0

@@ -737,6 +737,7 @@ test 'Object static methods accept primitives' !->
   for method in <[getOwnPropertyDescriptor getPrototypeOf keys getOwnPropertyNames]>
     for value in [null void]
       throws (-> Object[method] value), TypeError, "Object.#method throws on #value"
+  eq Object.getPrototypeOf(\foo), String::
 
 if descriptors => test 'RegExp#flags' !->
   eq /./g.flags, \g, '/./g.flags is "g"'

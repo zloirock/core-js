@@ -37,6 +37,11 @@
     "Dict",
     "Promise",
     "Symbol",
-    "console"
+    "Array generics",
+    "setImmediate",
+    "console cap",
+    "abstract references",
+    "partial application",
+    "Date formatting"
   ]
 }

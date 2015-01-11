@@ -14,7 +14,7 @@
   Dict[PROTOTYPE] = null;
   
   function DictIterator(iterated, kind){
-    set(this, ITER, {o: ES5Object(iterated), a: getKeys(iterated), i: 0, k: kind});
+    set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, DICT, function(){
     var iter  = this[ITER]
@@ -50,7 +50,7 @@
       , isEvery  = type == 4;
     return function(object, callbackfn, that /* = undefined */){
       var f      = ctx(callbackfn, that, 3)
-        , O      = ES5Object(object)
+        , O      = toObject(object)
         , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
         , key, val, res;
       for(key in O)if(has(O, key)){
@@ -73,7 +73,7 @@
   function createDictReduce(isTurn){
     return function(object, mapfn, init){
       assertFunction(mapfn);
-      var O      = ES5Object(object)
+      var O      = toObject(object)
         , keys   = getKeys(O)
         , length = keys.length
         , i      = 0

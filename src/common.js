@@ -168,6 +168,9 @@ var create           = Object.create
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
+function toObject(it){
+  return ES5Object(assertDefined(it));
+}
 function returnIt(it){
   return it;
 }
@@ -193,7 +196,7 @@ var assign = Object.assign || function(target, source){
   return T;
 }
 function keyOf(object, el){
-  var O      = ES5Object(object)
+  var O      = toObject(object)
     , keys   = getKeys(O)
     , length = keys.length
     , index  = 0
@@ -255,7 +258,7 @@ function createArrayMethod(type){
 }
 function createArrayContains(isContains){
   return function(el /*, fromIndex = 0 */){
-    var O      = ES5Object(assertDefined(this))
+    var O      = toObject(this)
       , length = toLength(O.length)
       , index  = toIndex(arguments[1], length);
     if(isContains && el != el){

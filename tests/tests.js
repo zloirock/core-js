@@ -3054,6 +3054,7 @@
         throws(fn1$, TypeError, "Object." + method + " throws on " + value);
       }
     }
+    eq(Object.getPrototypeOf('foo'), String.prototype);
     function fn$(){
       try {
         Object[method](value);

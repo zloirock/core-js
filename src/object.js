@@ -1,6 +1,6 @@
 !function(){
   function define(target, mixin){
-    var keys   = ownKeys(ES5Object(mixin))
+    var keys   = ownKeys(toObject(mixin))
       , length = keys.length
       , i = 0, key;
     while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));

@@ -181,6 +181,9 @@ var create           = Object.create
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
+function toObject(it){
+  return ES5Object(assertDefined(it));
+}
 function returnIt(it){
   return it;
 }
@@ -206,7 +209,7 @@ var assign = Object.assign || function(target, source){
   return T;
 }
 function keyOf(object, el){
-  var O      = ES5Object(object)
+  var O      = toObject(object)
     , keys   = getKeys(O)
     , length = keys.length
     , index  = 0
@@ -268,7 +271,7 @@ function createArrayMethod(type){
 }
 function createArrayContains(isContains){
   return function(el /*, fromIndex = 0 */){
-    var O      = ES5Object(assertDefined(this))
+    var O      = toObject(this)
       , length = toLength(O.length)
       , index  = toIndex(arguments[1], length);
     if(isContains && el != el){
@@ -598,7 +601,7 @@ if(!NODE || framework){
   }
   function createGetKeys(names, length, isNames){
     return function(object){
-      var O      = ES5Object(assertDefined(object))
+      var O      = toObject(object)
         , i      = 0
         , result = []
         , key;
@@ -614,7 +617,8 @@ if(!NODE || framework){
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
-      if(has(assertObject(O), $PROTO))return O[$PROTO];
+      O = Object(assertDefined(O));
+      if(has(O, $PROTO))return O[$PROTO];
       if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
         return O[CONSTRUCTOR][PROTOTYPE];
       } return O instanceof Object ? ObjectProto : null;
@@ -688,7 +692,7 @@ if(!NODE || framework){
   function createArrayReduce(isRight){
     return function(callbackfn, memo){
       assertFunction(callbackfn);
-      var O      = ES5Object(this)
+      var O      = toObject(this)
         , length = toLength(O.length)
         , index  = isRight ? length - 1 : 0
         , i      = isRight ? -1 : 1;
@@ -726,7 +730,7 @@ if(!NODE || framework){
     indexOf: indexOf = indexOf || createArrayContains(false),
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-      var O      = ES5Object(this)
+      var O      = toObject(this)
         , length = toLength(O.length)
         , index  = length - 1;
       if(arguments.length > 1)index = min(index, toInteger(fromIndex));
@@ -1003,7 +1007,7 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(callSite){
-      var raw = ES5Object(assertDefined(callSite.raw))
+      var raw = toObject(callSite.raw)
         , len = toLength(raw.length)
         , sln = arguments.length
         , res = []
@@ -1137,7 +1141,7 @@ $define(GLOBAL + FORCED, {global: global});
   // 22.1.3.29 Array.prototype.values()
   // 22.1.3.30 Array.prototype[@@iterator]()
   defineStdIterators(Array, ARRAY, function(iterated, kind){
-    set(this, ITER, {o: ES5Object(iterated), i: 0, k: kind});
+    set(this, ITER, {o: toObject(iterated), i: 0, k: kind});
   // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
   }, function(){
     var iter  = this[ITER]
@@ -1156,35 +1160,40 @@ $define(GLOBAL + FORCED, {global: global});
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
   
+  // Object static methods accept primitives
+  function wrapObjectMethod(key, MODE){
+    var fn  = Object[key]
+      , exp = core[OBJECT][key]
+      , f   = 0
+      , o   = {};
+    if(!exp || isNative(exp)){
+      o[key] =
+        MODE == 1 ? function(it){ return isObject(it) ? fn(it) : it } :
+        MODE == 2 ? function(it){ return isObject(it) ? fn(it) : true } :
+        MODE == 3 ? function(it){ return isObject(it) ? fn(it) : false } :
+        MODE == 4 ? function(it, key){ return fn(toObject(it), key) } :
+                    function(it){ return fn(toObject(it)) }
+      try { fn(DOT) }
+      catch(e){ f = 1}
+      $define(STATIC + FORCED * f, OBJECT, o);
+    }
+  }
+  wrapObjectMethod('freeze', 1);
+  wrapObjectMethod('seal', 1);
+  wrapObjectMethod('preventExtensions', 1);
+  wrapObjectMethod('isFrozen', 2);
+  wrapObjectMethod('isSealed', 2);
+  wrapObjectMethod('isExtensible', 3);
+  wrapObjectMethod('getOwnPropertyDescriptor', 4);
+  wrapObjectMethod('getPrototypeOf');
+  wrapObjectMethod('keys');
+  wrapObjectMethod('getOwnPropertyNames');
+  
   function WrappedRegExp(pattern, flags){
     return new RegExp(cof(pattern) == REGEXP && flags !== undefined
       ? pattern.source : pattern, flags);
   }
-  function wrapObjectMethod(key, MODE){
-    var fn = Object[key];
-    try { fn(DOT) }
-    catch(e){
-      Object[key] =
-        MODE == 1 ? function(it){ return isObject(it) ? fn(it) : it } :
-        MODE == 2 ? function(it){ return isObject(it) ? fn(it) : true } :
-        MODE == 3 ? function(it){ return isObject(it) ? fn(it) : false } :
-        MODE == 4 ? function(it, key){ return fn(Object(assertDefined(it)), key) } :
-                    function(it){ return fn(Object(assertDefined(it))) }
-    }
-  }
   if(framework){
-    // Object static methods accept primitives
-    wrapObjectMethod('freeze', 1);
-    wrapObjectMethod('seal', 1);
-    wrapObjectMethod('preventExtensions', 1);
-    wrapObjectMethod('isFrozen', 2);
-    wrapObjectMethod('isSealed', 2);
-    wrapObjectMethod('isExtensible', 3);
-    wrapObjectMethod('getOwnPropertyDescriptor', 4);
-    wrapObjectMethod('getPrototypeOf');
-    wrapObjectMethod('keys');
-    wrapObjectMethod('getOwnPropertyNames');
-    
     // 19.1.3.6 Object.prototype.toString()
     tmp[SYMBOL_TAG] = DOT;
     if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
@@ -1201,7 +1210,7 @@ $define(GLOBAL + FORCED, {global: global});
         return name;
       },
       set: function(value){
-        defineProperty(this, NAME, descriptor(0, value));
+        has(this, NAME) || defineProperty(this, NAME, descriptor(0, value));
       }
     });
     
@@ -1794,7 +1803,7 @@ $define(GLOBAL + BIND, {
   
   function createObjectToArray(isEntries){
     return function(object){
-      var O      = ES5Object(object)
+      var O      = toObject(object)
         , keys   = getKeys(object)
         , length = keys.length
         , i      = 0

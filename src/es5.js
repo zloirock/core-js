@@ -58,7 +58,7 @@
   }
   function createGetKeys(names, length, isNames){
     return function(object){
-      var O      = ES5Object(assertDefined(object))
+      var O      = toObject(object)
         , i      = 0
         , result = []
         , key;
@@ -74,7 +74,8 @@
   $define(STATIC, OBJECT, {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
-      if(has(assertObject(O), $PROTO))return O[$PROTO];
+      O = Object(assertDefined(O));
+      if(has(O, $PROTO))return O[$PROTO];
       if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
         return O[CONSTRUCTOR][PROTOTYPE];
       } return O instanceof Object ? ObjectProto : null;
@@ -148,7 +149,7 @@
   function createArrayReduce(isRight){
     return function(callbackfn, memo){
       assertFunction(callbackfn);
-      var O      = ES5Object(this)
+      var O      = toObject(this)
         , length = toLength(O.length)
         , index  = isRight ? length - 1 : 0
         , i      = isRight ? -1 : 1;
@@ -186,7 +187,7 @@
     indexOf: indexOf = indexOf || createArrayContains(false),
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-      var O      = ES5Object(this)
+      var O      = toObject(this)
         , length = toLength(O.length)
         , index  = length - 1;
       if(arguments.length > 1)index = min(index, toInteger(fromIndex));
