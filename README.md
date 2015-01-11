@@ -92,7 +92,7 @@ Object
 Function
   #name -> string (IE9+)
 ```
-[Example](http://goo.gl/VzmY3j):
+[Example](http://goo.gl/UN5ZDT):
 ```javascript
 var foo = {q: 1, w: 2}
   , bar = {e: 3, r: 4}
@@ -1245,6 +1245,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.4** - *2015.01.11* - Enabled CSP support
+
 **0.4.3** - *2015.01.10* - Added `Function` instances `name` property for IE9+
 
 **0.4.2** - *2015.01.10*
