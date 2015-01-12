@@ -451,12 +451,12 @@ function iterResult(done, value){
 function isIterable(it){
   var O      = Object(it)
     , Symbol = global[SYMBOL]
-    , hasExt = !!(Symbol && Symbol[ITERATOR] && Symbol[ITERATOR] in O);
+    , hasExt = (Symbol && Symbol[ITERATOR] || FF_ITERATOR) in O;
   return hasExt || SYMBOL_ITERATOR in O || has(Iterators, classof(O));
 }
 function getIterator(it){
   var Symbol  = global[SYMBOL]
-    , ext     = Symbol && Symbol[ITERATOR] && it[Symbol[ITERATOR]]
+    , ext     = it[Symbol && Symbol[ITERATOR] || FF_ITERATOR]
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[classof(it)];
   return assertObject(getIter.call(it));
 }
