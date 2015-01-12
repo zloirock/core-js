@@ -2355,4 +2355,4 @@ if(framework)ArrayUnscopables.turn = true;
   } catch(e){}
   $define(GLOBAL + FORCED, {console: _console});
 }(global.console || {}, true);
-}(typeof window != 'undefined' && window.Math === Math ? window : global, false);
+}(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), false);

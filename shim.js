@@ -1657,4 +1657,4 @@ $define(GLOBAL + BIND, {
                   'reduce,reduceRight,copyWithin,fill,turn');
   $define(STATIC, ARRAY, arrayStatics);
 }({});
-}(typeof window != 'undefined' && window.Math === Math ? window : global, true);
+}(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), true);

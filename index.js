@@ -2091,4 +2091,4 @@ if(framework)ArrayUnscopables.turn = true;
   };
   core.addLocale = addLocale;
 }(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
-}(typeof window != 'undefined' && window.Math === Math ? window : global, true);
+}(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), true);

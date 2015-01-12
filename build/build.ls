@@ -34,5 +34,5 @@ module.exports = (opt, next)-> let @ = opt
     !function(global, framework, undefined){
     'use strict';
     #{scripts * '\n'}
-    }(typeof window != 'undefined' && window.Math === Math ? window : global, #{!@library});
+    }(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), #{!@library});
     """
