@@ -729,18 +729,36 @@ for(var key in person)console.log(key); // => only 'getName'
 Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
 var {toString} = {};
-console.log([]::toString()); // => '[object Array]'
+[]::toString() // => '[object Array]'
 
 function sum(){
   var {reduce} = [];
   return arguments::reduce((a, b)=> a + b);
 }
-console.log(sum(1, 2, 3, 4, 5)); // => 15
+sum(1, 2, 3, 4, 5) // => 15
 ```
-Methods from [Dict module](#dict) override `@@referenceGet` method, [example](http://goo.gl/vgIKJ2):
+Virtual `size` property for dictionaries [example](http://goo.gl/uAg4vC):
+```javascript
+let size = {
+  [Symbol.referenceGet](it){
+    return Object.keys(it).length;
+  },
+  [Symbol.referenceSet](it, length){
+    for(let key of Object.keys(it).slice(length))delete it[key];
+  }
+}
+
+{q: 1, w: 2, e: 3}::size // => 3
+var dict = {q: 1, w: 2, e: 3};
+dict::size = 2;
+dict // => {q: 1, w: 2};
+```
+Methods from [Dict module](#dict) override `@@referenceGet` method, [example](http://goo.gl/H4S6d4):
 ```javascript
 var {filter, map} = Dict;
-var dict = {q: 1, w: 2, e: 3}::filter((v, k) => k != 'w')::map(v => v * v); // => {"q":1,"e":9}
+var dict = {q: 1, w: 2, e: 3}
+  ::filter((v, k) => k != 'w')
+  ::map(v => v * v); // => {"q":1,"e":9}
 ```
 ### Mozilla JavaScript: Array generics
 Module `array_statics`.
@@ -757,7 +775,7 @@ Array.join('abcdef', '+'); // => 'a+b+c+d+e+f'
 var form = document.getElementsByClassName('form__input');
 Array.reduce(form, function(memo, it){
   memo[it.name] = it.value;
-  return memo; 
+  return memo;
 }, {}); // => {name: 'Vasya', age: '42', sex: 'yes, please'}
 ```
 ### setTimeout / setInterval
