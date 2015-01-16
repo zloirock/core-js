@@ -1263,6 +1263,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.5** - *2015.01.16* - Some fixes
+
 **0.4.4** - *2015.01.11* - Enabled CSP support
 
 **0.4.3** - *2015.01.10* - Added `Function` instances `name` property for IE9+
