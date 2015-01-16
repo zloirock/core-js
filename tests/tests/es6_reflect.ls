@@ -24,6 +24,9 @@ test 'Reflect.construct' !->
   eq Reflect.construct(C, <[foo bar baz]>).qux, \foobarbaz, \basic
   C.apply = 42
   eq Reflect.construct(C, <[foo bar baz]>).qux, \foobarbaz, 'works with redefined apply'
+  inst = Reflect.construct((-> @x = 42), [], Array)
+  eq inst.x, 42, 'constructor with newTarget'
+  ok inst instanceof Array, 'prototype with newTarget'
 
 test 'Reflect.defineProperty' !->
   ok isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function'

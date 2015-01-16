@@ -3797,7 +3797,7 @@
     eq(Reflect.apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
   });
   test('Reflect.construct', function(){
-    var C;
+    var C, inst;
     ok(isFunction(Reflect.construct), 'Reflect.construct is function');
     C = function(a, b, c){
       return this.qux = a + b + c;
@@ -3805,6 +3805,11 @@
     eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
     C.apply = 42;
     eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
+    inst = Reflect.construct(function(){
+      return this.x = 42;
+    }, [], Array);
+    eq(inst.x, 42, 'constructor with newTarget');
+    ok(inst instanceof Array, 'prototype with newTarget');
   });
   test('Reflect.defineProperty', function(){
     var O;
