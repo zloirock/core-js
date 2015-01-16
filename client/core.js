@@ -488,6 +488,7 @@ var NODE = cof(process) == PROCESS
   , core = {}
   , path = framework ? global : core
   , old  = global.core
+  , exportGlobal
   // type bitmap
   , FORCED = 1
   , GLOBAL = 2
@@ -529,9 +530,10 @@ function $define(type, name, source){
 // CommonJS export
 if(typeof module != 'undefined' && module.exports)module.exports = core;
 // RequireJS export
-if(isFunction(define) && define.amd)define(function(){return core});
+else if(isFunction(define) && define.amd)define(function(){return core});
 // Export to global object
-if(!NODE || framework){
+else exportGlobal = true;
+if(exportGlobal || framework){
   core.noConflict = function(){
     global.core = old;
     return core;
