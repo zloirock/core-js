@@ -665,6 +665,10 @@ $define(GLOBAL + FORCED, {global: global});
   function asinh(x){
     return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
   }
+  // 20.2.2.14 Math.expm1(x)
+  function exp1m(x){
+    return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
+  }
   
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
@@ -715,9 +719,7 @@ $define(GLOBAL + FORCED, {global: global});
       return (exp(x = +x) + exp(-x)) / 2;
     },
     // 20.2.2.14 Math.expm1(x)
-    expm1: function(x){
-      return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
-    },
+    expm1: exp1m,
     // 20.2.2.16 Math.fround(x)
     // TODO: fallback for IE9-
     fround: function(x){
@@ -769,7 +771,9 @@ $define(GLOBAL + FORCED, {global: global});
     },
     // 20.2.2.33 Math.tanh(x)
     tanh: function(x){
-      return isFinite(x = +x) ? x == 0 ? x : (exp(x) - exp(-x)) / (exp(x) + exp(-x)) : sign(x);
+      var a = exp1m(x = +x)
+        , b = exp1m(-x);
+      return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
     },
     // 20.2.2.34 Math.trunc(x)
     trunc: trunc

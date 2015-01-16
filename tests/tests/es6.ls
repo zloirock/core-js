@@ -396,6 +396,7 @@ test 'Math.tanh' !->
   eq tanh(Infinity), 1
   eq tanh(90), 1
   ok epsilon tanh(10), 0.9999999958776927
+  #eq tanh(710), 1 #buggy v8 implementation
 test 'Math.trunc' !->
   # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
   {trunc} = Math
