@@ -148,8 +148,8 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-function construct(target, argumentsList){
-  var instance = create(target[PROTOTYPE])
+function construct(target, argumentsList /*, newTarget*/){
+  var instance = create((arguments.length < 3 ? target : assertFunction(arguments[2]))[PROTOTYPE])
     , result   = apply.call(target, instance, argumentsList);
   return isObject(result) ? result : instance;
 }

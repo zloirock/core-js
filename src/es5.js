@@ -117,7 +117,7 @@
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        return (this instanceof bound ? construct : invoke)(fn, args, that);
+        return this instanceof bound ? construct(fn, args) : invoke(fn, args, that);
       }
       return bound;
     }

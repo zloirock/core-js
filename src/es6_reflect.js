@@ -47,7 +47,7 @@
   var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
     apply: ctx(call, apply, 3),
-    // 26.1.2 Reflect.construct(target, argumentsList)
+    // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
     construct: construct,
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),

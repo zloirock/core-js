@@ -161,8 +161,8 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-function construct(target, argumentsList){
-  var instance = create(target[PROTOTYPE])
+function construct(target, argumentsList /*, newTarget*/){
+  var instance = create((arguments.length < 3 ? target : assertFunction(arguments[2]))[PROTOTYPE])
     , result   = apply.call(target, instance, argumentsList);
   return isObject(result) ? result : instance;
 }
@@ -662,7 +662,7 @@ if(!NODE || framework){
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        return (this instanceof bound ? construct : invoke)(fn, args, that);
+        return this instanceof bound ? construct(fn, args) : invoke(fn, args, that);
       }
       return bound;
     }
@@ -1750,7 +1750,7 @@ $define(GLOBAL + BIND, {
   var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
     apply: ctx(call, apply, 3),
-    // 26.1.2 Reflect.construct(target, argumentsList)
+    // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
     construct: construct,
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),
