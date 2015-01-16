@@ -361,10 +361,6 @@
   wrapObjectMethod('keys');
   wrapObjectMethod('getOwnPropertyNames');
   
-  function WrappedRegExp(pattern, flags){
-    return new RegExp(cof(pattern) == REGEXP && flags !== undefined
-      ? pattern.source : pattern, flags);
-  }
   if(framework){
     // 19.1.3.6 Object.prototype.toString()
     tmp[SYMBOL_TAG] = DOT;
@@ -386,6 +382,11 @@
       }
     });
     
+    var _RegExp = RegExp;
+    var WrappedRegExp = function RegExp(pattern, flags){
+      return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
+        ? pattern.source : pattern, flags);
+    }
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
       forEach.call(getNames(RegExp), function(key){
