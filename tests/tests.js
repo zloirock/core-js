@@ -2194,6 +2194,7 @@
     eq(acosh(Infinity), Infinity);
     ok(epsilon(acosh(1234), 7.811163220849231));
     ok(epsilon(acosh(8.88), 2.8737631531629235));
+    ok(acosh(1e+160), 369.10676205960726);
   });
   test('Math.asinh', function(){
     var asinh;

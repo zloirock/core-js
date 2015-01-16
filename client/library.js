@@ -845,6 +845,7 @@ $define(GLOBAL + FORCED, {global: global});
     , sign = Math.sign || function sign(x){
         return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
       }
+    , E    = Math.E
     , pow  = Math.pow
     , abs  = Math.abs
     , exp  = Math.exp
@@ -915,7 +916,7 @@ $define(GLOBAL + FORCED, {global: global});
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
-      return (x = +x) < 1 ? NaN : log(x + sqrt(x * x - 1));
+      return (x = +x) < 1 ? NaN : isFinite(x) ? log(x / E + sqrt(x + 1) * sqrt(x - 1) / E) + 1 : x;
     },
     // 20.2.2.5 Math.asinh(x)
     asinh: asinh,

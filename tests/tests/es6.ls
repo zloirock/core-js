@@ -138,6 +138,8 @@ test 'Math.acosh' !->
   eq acosh(Infinity), Infinity
   ok epsilon acosh(1234), 7.811163220849231
   ok epsilon acosh(8.88), 2.8737631531629235
+  ok acosh(1e+160), 369.10676205960726
+  #ok epsilon acosh(Number.MAX_VALUE), 710.475860073944 #buggy v8 implementation
 test 'Math.asinh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
   {asinh} = Math
