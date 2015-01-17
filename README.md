@@ -1,4 +1,6 @@
 # Core.js
+
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 Alternative modular compact (max. ~23kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting).
 
 [Example](http://goo.gl/mfHYm2):
