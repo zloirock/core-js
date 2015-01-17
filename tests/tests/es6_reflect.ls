@@ -17,6 +17,7 @@ test 'Reflect.apply' !->
   C = (a, b, c)-> a + b + c
   C.apply = 42
   eq Reflect.apply(C, null, <[foo bar baz]>), \foobarbaz, 'works with redefined apply'
+  throws (-> Reflect.apply 42, null, []), TypeError, 'throws on primitive'
 
 test 'Reflect.construct' !->
   ok isFunction(Reflect.construct), 'Reflect.construct is function'
@@ -27,6 +28,7 @@ test 'Reflect.construct' !->
   inst = Reflect.construct((-> @x = 42), [], Array)
   eq inst.x, 42, 'constructor with newTarget'
   ok inst instanceof Array, 'prototype with newTarget'
+  throws (-> Reflect.construct 42, []), TypeError, 'throws on primitive'
 
 test 'Reflect.defineProperty' !->
   ok isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function'
@@ -38,6 +40,7 @@ test 'Reflect.defineProperty' !->
     Reflect.defineProperty O, \foo, {value: 123, enumerable: on}
     deq Object.getOwnPropertyDescriptor(O, \foo), {value: 123, enumerable: on, configurable: no, writable: no}
     eq Reflect.defineProperty(O, \foo, {value: 42}), no
+  throws (-> Reflect.defineProperty 42, \foo, {value: 42}), TypeError, 'throws on primitive'
 
 test 'Reflect.deleteProperty' !->
   ok isFunction(Reflect.deleteProperty), 'Reflect.deleteProperty is function'
@@ -46,6 +49,7 @@ test 'Reflect.deleteProperty' !->
   ok \bar not in O
   if MODERN
     eq Reflect.deleteProperty(Object.defineProperty({}, \foo, {value: 42}), \foo), no
+  throws (-> Reflect.deleteProperty 42, \foo), TypeError, 'throws on primitive'
 
 test 'Reflect.enumerate' !->
   ok isFunction(Reflect.enumerate), 'Reflect.enumerate is function'
@@ -59,6 +63,7 @@ test 'Reflect.enumerate' !->
   deq Array.from(iterator), <[q e]>, 'ignore holes'
   obj = {q: 1, w: 2, e: 3} with {a: 4, s: 5, d: 6}
   deq Array.from(Reflect.enumerate obj).sort!, <[a d e q s w]>, 'works with prototype'
+  throws (-> Reflect.enumerate 42), TypeError, 'throws on primitive'
 
 test 'Reflect.get' !->
   ok isFunction(Reflect.get), 'Reflect.get is function'
@@ -76,16 +81,20 @@ test 'Reflect.get' !->
     eq Reflect.get(target, \z, receiver), 3,        'get z'
     eq Reflect.get(target, \w, receiver), receiver, 'get w'
     eq Reflect.get(target, \u, receiver), void,     'get u'
+  
+  throws (-> Reflect.get 42 \constructor), TypeError, 'throws on primitive'
 
 test 'Reflect.getOwnPropertyDescriptor' !->
   ok isFunction(Reflect.getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function'
   obj = {baz: 789}
   desc = Reflect.getOwnPropertyDescriptor obj, \baz
   eq desc.value, 789
+  throws (-> Reflect.getOwnPropertyDescriptor 42 \constructor), TypeError, 'throws on primitive'
 
 test 'Reflect.getPrototypeOf' !->
   ok isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function'
   eq Reflect.getPrototypeOf([]), Array::
+  throws (-> Reflect.getPrototypeOf 42), TypeError, 'throws on primitive'
 
 test 'Reflect.has' !->
   ok isFunction(Reflect.has), 'Reflect.has is function'
@@ -93,12 +102,14 @@ test 'Reflect.has' !->
   eq Reflect.has(O, \qux), on
   eq Reflect.has(O, \qwe), no
   eq Reflect.has(O, \toString), on
+  throws (-> Reflect.has 42, \constructor), TypeError, 'throws on primitive'
 
 test 'Reflect.isExtensible' !->
   ok isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function'
   ok Reflect.isExtensible {}
   if MODERN
     ok !Reflect.isExtensible Object.preventExtensions {}
+  throws (-> Reflect.isExtensible 42), TypeError, 'throws on primitive'
   
 test 'Reflect.ownKeys' !->
   ok isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function'
@@ -114,6 +125,7 @@ test 'Reflect.ownKeys' !->
   O2 = ^^O1
   keys = Reflect.ownKeys O2
   eq keys.length, 0, 'ownKeys return only own keys'
+  throws (-> Reflect.ownKeys 42), TypeError, 'throws on primitive'
 
 test 'Reflect.preventExtensions' !->
   ok isFunction(Reflect.preventExtensions), 'Reflect.preventExtensions is function'
@@ -121,6 +133,7 @@ test 'Reflect.preventExtensions' !->
   ok Reflect.preventExtensions(obj), on
   if MODERN
     ok !Object.isExtensible obj
+  throws (-> Reflect.preventExtensions 42), TypeError, 'throws on primitive'
 
 test 'Reflect.set' !->
   ok isFunction(Reflect.set), 'Reflect.set is function'
@@ -169,6 +182,7 @@ test 'Reflect.set' !->
 
     eq Reflect.set(target, \c, 2, target), no, 'set c'
     eq target.c, 1, 'set c'
+  throws (-> Reflect.set 42, \q, 42), TypeError, 'throws on primitive'
 
 if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   ok isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function'
@@ -176,4 +190,4 @@ if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   ok Reflect.setPrototypeOf(obj, Array::), on
   ok obj instanceof Array
   throws (-> Reflect.setPrototypeOf {}, 42), TypeError
-  throws (-> Reflect.setPrototypeOf 42, {}), TypeError
+  throws (-> Reflect.setPrototypeOf 42, {}), TypeError, 'throws on primitive'

@@ -180,6 +180,7 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function ownKeys(it){
+  assertObject(it);
   return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
 }
 // 19.1.2.1 Object.assign(target, source, ...)

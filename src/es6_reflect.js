@@ -43,6 +43,7 @@
     desc.value = V;
     return defineProperty(receiver, propertyKey, desc), true;
   }
+  var isExtensible = Object.isExtensible || returnIt;
   
   var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
@@ -63,16 +64,20 @@
     // 26.1.6 Reflect.get(target, propertyKey [, receiver])
     get: reflectGet,
     // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
-    getOwnPropertyDescriptor: getOwnDescriptor,
+    getOwnPropertyDescriptor: function(target, propertyKey){
+      return getOwnDescriptor(assertObject(target), propertyKey);
+    },
     // 26.1.8 Reflect.getPrototypeOf(target)
-    getPrototypeOf: getPrototypeOf,
+    getPrototypeOf: function(target){
+      return getPrototypeOf(assertObject(target));
+    },
     // 26.1.9 Reflect.has(target, propertyKey)
     has: function(target, propertyKey){
       return propertyKey in target;
     },
     // 26.1.10 Reflect.isExtensible(target)
-    isExtensible: Object.isExtensible || function(target){
-      return !!assertObject(target);
+    isExtensible: function(target){
+      return !!isExtensible(assertObject(target));
     },
     // 26.1.11 Reflect.ownKeys(target)
     ownKeys: ownKeys,

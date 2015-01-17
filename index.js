@@ -193,6 +193,7 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function ownKeys(it){
+  assertObject(it);
   return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
 }
 // 19.1.2.1 Object.assign(target, source, ...)
@@ -1537,6 +1538,7 @@ $define(GLOBAL + BIND, {
     desc.value = V;
     return defineProperty(receiver, propertyKey, desc), true;
   }
+  var isExtensible = Object.isExtensible || returnIt;
   
   var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
@@ -1557,16 +1559,20 @@ $define(GLOBAL + BIND, {
     // 26.1.6 Reflect.get(target, propertyKey [, receiver])
     get: reflectGet,
     // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
-    getOwnPropertyDescriptor: getOwnDescriptor,
+    getOwnPropertyDescriptor: function(target, propertyKey){
+      return getOwnDescriptor(assertObject(target), propertyKey);
+    },
     // 26.1.8 Reflect.getPrototypeOf(target)
-    getPrototypeOf: getPrototypeOf,
+    getPrototypeOf: function(target){
+      return getPrototypeOf(assertObject(target));
+    },
     // 26.1.9 Reflect.has(target, propertyKey)
     has: function(target, propertyKey){
       return propertyKey in target;
     },
     // 26.1.10 Reflect.isExtensible(target)
-    isExtensible: Object.isExtensible || function(target){
-      return !!assertObject(target);
+    isExtensible: function(target){
+      return !!isExtensible(assertObject(target));
     },
     // 26.1.11 Reflect.ownKeys(target)
     ownKeys: ownKeys,

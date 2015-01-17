@@ -3796,6 +3796,9 @@
     };
     C.apply = 42;
     eq(Reflect.apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
+    throws(function(){
+      return Reflect.apply(42, null, []);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.construct', function(){
     var C, inst;
@@ -3811,6 +3814,9 @@
     }, [], Array);
     eq(inst.x, 42, 'constructor with newTarget');
     ok(inst instanceof Array, 'prototype with newTarget');
+    throws(function(){
+      return Reflect.construct(42, []);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.defineProperty', function(){
     var O;
@@ -3836,6 +3842,11 @@
         value: 42
       }), false);
     }
+    throws(function(){
+      return Reflect.defineProperty(42, 'foo', {
+        value: 42
+      });
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.deleteProperty', function(){
     var O;
@@ -3850,6 +3861,9 @@
         value: 42
       }), 'foo'), false);
     }
+    throws(function(){
+      return Reflect.deleteProperty(42, 'foo');
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.enumerate', function(){
     var obj, iterator, ref$;
@@ -3875,6 +3889,9 @@
       e: 3
     }), ref$.a = 4, ref$.s = 5, ref$.d = 6, ref$);
     deq(Array.from(Reflect.enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
+    throws(function(){
+      return Reflect.enumerate(42);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.get', function(){
     var target, receiver;
@@ -3906,6 +3923,9 @@
       eq(Reflect.get(target, 'w', receiver), receiver, 'get w');
       eq(Reflect.get(target, 'u', receiver), void 8, 'get u');
     }
+    throws(function(){
+      return Reflect.get(42, 'constructor');
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.getOwnPropertyDescriptor', function(){
     var obj, desc;
@@ -3915,10 +3935,16 @@
     };
     desc = Reflect.getOwnPropertyDescriptor(obj, 'baz');
     eq(desc.value, 789);
+    throws(function(){
+      return Reflect.getOwnPropertyDescriptor(42, 'constructor');
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.getPrototypeOf', function(){
     ok(isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function');
     eq(Reflect.getPrototypeOf([]), Array.prototype);
+    throws(function(){
+      return Reflect.getPrototypeOf(42);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.has', function(){
     var O;
@@ -3929,6 +3955,9 @@
     eq(Reflect.has(O, 'qux'), true);
     eq(Reflect.has(O, 'qwe'), false);
     eq(Reflect.has(O, 'toString'), true);
+    throws(function(){
+      return Reflect.has(42, 'constructor');
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.isExtensible', function(){
     ok(isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function');
@@ -3936,6 +3965,9 @@
     if (MODERN) {
       ok(!Reflect.isExtensible(Object.preventExtensions({})));
     }
+    throws(function(){
+      return Reflect.isExtensible(42);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.ownKeys', function(){
     var O1, sym, keys, O2;
@@ -3956,6 +3988,9 @@
     O2 = clone$(O1);
     keys = Reflect.ownKeys(O2);
     eq(keys.length, 0, 'ownKeys return only own keys');
+    throws(function(){
+      return Reflect.ownKeys(42);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.preventExtensions', function(){
     var obj;
@@ -3965,6 +4000,9 @@
     if (MODERN) {
       ok(!Object.isExtensible(obj));
     }
+    throws(function(){
+      return Reflect.preventExtensions(42);
+    }, TypeError, 'throws on primitive');
   });
   test('Reflect.set', function(){
     var obj, target, receiver, out;
@@ -4025,6 +4063,9 @@
       eq(Reflect.set(target, 'c', 2, target), false, 'set c');
       eq(target.c, 1, 'set c');
     }
+    throws(function(){
+      return Reflect.set(42, 'q', 42);
+    }, TypeError, 'throws on primitive');
   });
   if ('__proto__' in Object.prototype) {
     test('Reflect.setPrototypeOf', function(){
@@ -4038,7 +4079,7 @@
       }, TypeError);
       throws(function(){
         return Reflect.setPrototypeOf(42, {});
-      }, TypeError);
+      }, TypeError, 'throws on primitive');
     });
   }
   function in$(x, xs){
