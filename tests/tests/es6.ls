@@ -388,6 +388,7 @@ test 'Math.sinh' !->
   eq sinh(-Infinity), -Infinity
   ok epsilon sinh(-5), -74.20321057778875
   ok epsilon sinh(2), 3.6268604078470186
+  eq sinh(-2e-17), -2e-17
 test 'Math.tanh' !->
   # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
   {tanh} = Math

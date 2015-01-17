@@ -2459,6 +2459,7 @@
     eq(sinh(-Infinity), -Infinity);
     ok(epsilon(sinh(-5), -74.20321057778875));
     ok(epsilon(sinh(2), 3.6268604078470186));
+    eq(sinh(-2e-17), -2e-17);
   });
   test('Math.tanh', function(){
     var tanh;
