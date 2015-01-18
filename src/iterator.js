@@ -14,8 +14,8 @@
     } else IteratorPrototype = proto;
   }
   
-  function setFrom(Constructor){
-    if(Constructor)hidden(Constructor, 'from', function(iterable){
+  function setFrom(Constructor, from){
+    if(Constructor)hidden(Constructor, 'from', from || function(iterable){
       return new Constructor(iterable);
     });
   }
@@ -24,8 +24,8 @@
   setFrom(WeakMap);
   setFrom(WeakSet);
   setFrom(Dict);
-  hidden(String, 'from', function(iterable){
-    return Array.from(iterable).join('');
+  setFrom(String, function(iterable){
+    return core.Array.from(iterable).join('');
   });
   
   function Iterator(iterable){
