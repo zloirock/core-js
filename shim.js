@@ -179,7 +179,8 @@ var create           = Object.create
   , getSymbols       = Object.getOwnPropertySymbols
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object;
+  , ES5Object        = Object
+  , Dict;
 function toObject(it){
   return ES5Object(assertDefined(it));
 }
