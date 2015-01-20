@@ -4095,8 +4095,10 @@
 }).call(this);
 
 (function(){
-  var defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, that, toString$ = {}.toString;
+  var eq, deq, defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, that, toString$ = {}.toString;
   QUnit.module('ES6 Symbol');
+  eq = strictEqual;
+  deq = deepEqual;
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, create = Object.create;
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
@@ -4156,6 +4158,28 @@
       ok(getOwnPropertyDescriptor(O, sym).enumerable === false, 'Symbol.set set enumerable: false value');
     }
   });
+  test('Object.getOwnPropertySymbols', function(){
+    var getOwnPropertySymbols, getOwnPropertyNames, obj, foo, ref$;
+    getOwnPropertySymbols = Object.getOwnPropertySymbols, getOwnPropertyNames = Object.getOwnPropertyNames;
+    ok(isFunction(getOwnPropertySymbols), 'Is function');
+    obj = {
+      q: 1,
+      w: 2,
+      e: 3
+    };
+    obj[Symbol()] = 42;
+    obj[Symbol()] = 43;
+    deq(getOwnPropertyNames(obj), ['q', 'w', 'e']);
+    eq(getOwnPropertySymbols(obj).length, 2);
+    foo = (ref$ = clone$(obj), ref$.a = 1, ref$.s = 2, ref$.d = 3, ref$);
+    foo[Symbol()] = 44;
+    deq(getOwnPropertyNames(foo), ['a', 's', 'd']);
+    eq(getOwnPropertySymbols(foo).length, 1);
+  });
+  function clone$(it){
+    function fun(){} fun.prototype = it;
+    return new fun;
+  }
 }).call(this);
 
 (function(){

@@ -1,4 +1,8 @@
 QUnit.module 'ES6 Symbol'
+
+eq = strictEqual
+deq = deepEqual
+
 {defineProperty, getOwnPropertyDescriptor, create} = Object
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
@@ -37,3 +41,16 @@ test '.set' !->
   ok O[sym] is 42, 'Symbol.set set value'
   if !isNative(Symbol) && isNative defineProperty
     ok getOwnPropertyDescriptor(O, sym).enumerable is false, 'Symbol.set set enumerable: false value'
+
+test 'Object.getOwnPropertySymbols' !->
+  {getOwnPropertySymbols, getOwnPropertyNames} = Object
+  ok isFunction(getOwnPropertySymbols), 'Is function'
+  obj = {q: 1, w: 2, e: 3}
+  obj[Symbol()] = 42
+  obj[Symbol()] = 43
+  deq getOwnPropertyNames(obj), <[q w e]>
+  eq getOwnPropertySymbols(obj).length, 2
+  foo = obj with {a: 1, s: 2, d: 3}
+  foo[Symbol()] = 44
+  deq getOwnPropertyNames(foo), <[a s d]>
+  eq getOwnPropertySymbols(foo).length, 1

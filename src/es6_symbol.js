@@ -1,10 +1,11 @@
 // ECMAScript 6 symbols shim
-!function(TAG, SymbolRegistry, setter){
+!function(TAG, SymbolRegistry, AllSymbols, setter){
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
       assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
       var tag = uid(description);
+      AllSymbols[tag] = true;
       DESC && setter && defineProperty(ObjectProto, tag, {
         configurable: true,
         set: function(value){
@@ -56,6 +57,16 @@
   
   setToStringTag(Symbol, SYMBOL);
   
-  // 26.1.11 Reflect.ownKeys(target)
-  $define(GLOBAL, {Reflect: {ownKeys: ownKeys}});
-}(safeSymbol('tag'), {}, true);
+  $define(STATIC + FORCED * !isNative(Symbol), OBJECT, {
+    getOwnPropertyNames: function(it){
+      var names = getNames(toObject(it)), result = [], key, i = 0;
+      while(names.length > i)has(AllSymbols, key = names[i++]) || result.push(key);
+      return result;
+    },
+    getOwnPropertySymbols: function(it){
+      var names = getNames(toObject(it)), result = [], key, i = 0;
+      while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(key);
+      return result;
+    }
+  });
+}(safeSymbol('tag'), {}, {}, true);
