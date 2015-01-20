@@ -1068,7 +1068,6 @@ Module `binding`.
 ```javascript
 Function
   #part(...args | _) -> fn(...args)
-  #by(object | _, ...args | _) -> boundFn(...args)
   #only(num, that /* = @ */) -> (fn | boundFn)(...args)
 Object
   #[_](key) -> boundFn
@@ -1086,11 +1085,6 @@ fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
-```
-Method `Function#by` is analogue of `Function#bind` with the ability to use placeholder:
-```javascript
-var fn = console.log.by(console, _, 2, _, 4);
-fn(1, 3, 5); // => 1, 2, 3, 4, 5
 ```
 Method `Object#[_]` extracts bound method from object, [examples](http://goo.gl/dQsSTi):
 ```javascript

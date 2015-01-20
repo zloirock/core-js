@@ -2,24 +2,6 @@ QUnit.module \Binding
 isFunction = -> typeof! it  is \Function
 DESC = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 {slice} = Array::
-test 'Function#by' !->
-  $ = _
-  ok isFunction(Function::by), 'Is function'
-  array = [1 2 3]
-  push = array.push.by array
-  ok isFunction push
-  ok push(4) is 4
-  deepEqual array, [1 2 3 4]
-  foo = bar : (a, b, c, d)->
-    ok @ is foo
-    deepEqual slice.call(&), [1 2 3 4]
-  bar = foo.bar.by foo, 1, $, 3 
-  bar 2 4
-  o = {a: \1}
-  fn = (b, c)-> @a + b + c
-  ok fn.by(o, \2)(\3) is \123
-  ok fn.by($)(o, \2, \3) is \123
-  ok fn.by($, \2)(o, \3) is \123
 test 'Function#part' !->
   ok isFunction(Function::part), 'Is function'
   ok (-> typeof! it is \String)part(\qwe)!

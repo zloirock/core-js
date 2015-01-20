@@ -4,24 +4,6 @@
 
   $define(PROTO + FORCED, FUNCTION, {
     part: part,
-    by: function(that){
-      var fn     = this
-        , _      = path._
-        , holder = false
-        , length = arguments.length
-        , isThat = that === _
-        , i      = +!isThat
-        , indent = i
-        , it, args;
-      if(isThat){
-        it = fn;
-        fn = call;
-      } else it = that;
-      if(length < 2)return ctx(fn, it, -1);
-      args = Array(length - indent);
-      while(length > i)if((args[i - indent] = arguments[i++]) === _)holder = true;
-      return partial(fn, args, length, holder, _, true, it);
-    },
     only: function(numberArguments, that /* = @ */){
       var fn     = assertFunction(this)
         , n      = toLength(numberArguments)

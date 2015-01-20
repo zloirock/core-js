@@ -818,33 +818,6 @@
   };
   DESC = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
   slice = Array.prototype.slice;
-  test('Function#by', function(){
-    var $, array, push, foo, bar, o, fn;
-    $ = _;
-    ok(isFunction(Function.prototype.by), 'Is function');
-    array = [1, 2, 3];
-    push = array.push.by(array);
-    ok(isFunction(push));
-    ok(push(4) === 4);
-    deepEqual(array, [1, 2, 3, 4]);
-    foo = {
-      bar: function(a, b, c, d){
-        ok(this === foo);
-        return deepEqual(slice.call(arguments), [1, 2, 3, 4]);
-      }
-    };
-    bar = foo.bar.by(foo, 1, $, 3);
-    bar(2, 4);
-    o = {
-      a: '1'
-    };
-    fn = function(b, c){
-      return this.a + b + c;
-    };
-    ok(fn.by(o, '2')('3') === '123');
-    ok(fn.by($)(o, '2', '3') === '123');
-    ok(fn.by($, '2')(o, '3') === '123');
-  });
   test('Function#part', function(){
     var obj, $, fn, part;
     ok(isFunction(Function.prototype.part), 'Is function');
