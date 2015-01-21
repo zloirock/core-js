@@ -2,7 +2,7 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Alternative modular compact (max. ~23kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting).
+Alternative modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting).
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -436,7 +436,7 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 ```
-Module `dom_itarable`, [individual example](http://goo.gl/JTRTQY):
+Module `dom_iterable`, [individual example](http://goo.gl/JTRTQY):
 ```javascript
 NodeList
   #@@iterator() -> iterator
@@ -479,6 +479,7 @@ for(var [key, val] of set.entries()){
   console.log(key);                             // => 1, 2, 3
   console.log(val);                             // => 1, 2, 3
 }
+
 for(var x of document.querySelectorAll('*'))console.log(x.id);
 ```
 Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
