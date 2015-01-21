@@ -387,23 +387,23 @@
       }
     });
     
-    var _RegExp = RegExp;
-    var WrappedRegExp = function RegExp(pattern, flags){
-      return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
-        ? pattern.source : pattern, flags);
-    }
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
-      forEach.call(getNames(RegExp), function(key){
-        key in WrappedRegExp || defineProperty(WrappedRegExp, key, {
+      var _RegExp = RegExp;
+      RegExp = function RegExp(pattern, flags){
+        return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
+          ? pattern.source : pattern, flags);
+      }
+      forEach.call(getNames(_RegExp), function(key){
+        key in RegExp || defineProperty(RegExp, key, {
           configurable: true,
-          get: function(){ return RegExp[key] },
-          set: function(it){ RegExp[key] = it }
+          get: function(){ return _RegExp[key] },
+          set: function(it){ _RegExp[key] = it }
         });
       });
-      RegExpProto[CONSTRUCTOR] = WrappedRegExp;
-      WrappedRegExp[PROTOTYPE] = RegExpProto;
-      hidden(global, REGEXP, WrappedRegExp);
+      RegExpProto[CONSTRUCTOR] = RegExp;
+      RegExp[PROTOTYPE] = RegExpProto;
+      hidden(global, REGEXP, RegExp);
     }
     
     // 21.2.5.3 get RegExp.prototype.flags()
@@ -418,4 +418,7 @@
     });
     SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
+  
+  setSpecies(RegExp);
+  setSpecies(Array);
 }(RegExp[PROTOTYPE], isFinite, {}, 'name');

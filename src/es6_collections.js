@@ -70,6 +70,7 @@
       if(buggyZero || chain !== inst)fixSVZ(ADDER, true);
     }
     setToStringTag(C, NAME);
+    setSpecies(C);
     
     O[NAME] = C;
     $define(GLOBAL + WRAP + FORCED * !isNative(C), O);

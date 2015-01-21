@@ -62,6 +62,10 @@
       def.state = 2;
       notify(def);
     }
+    function getConstructor(C){
+      var S = assertObject(C)[SYMBOL_SPECIES];
+      return S != undefined ? S : C;
+    }
     // 25.4.3.1 Promise(executor)
     Promise = function(executor){
       assertFunction(executor);
@@ -77,10 +81,11 @@
     assignHidden(Promise[PROTOTYPE], {
       // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
+        var S = assertObject(assertObject(this)[CONSTRUCTOR])[SYMBOL_SPECIES];
         var react = {
           ok:   isFunction(onFulfilled) ? onFulfilled : true,
           fail: isFunction(onRejected)  ? onRejected  : false
-        } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
+        } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
           react.res = assertFunction(resolve);
           react.rej = assertFunction(reject);
         }), def = this[DEF];
@@ -96,7 +101,7 @@
     assignHidden(Promise, {
       // 25.4.4.1 Promise.all(iterable)
       all: function(iterable){
-        var Promise = this
+        var Promise = getConstructor(this)
           , values  = [];
         return new Promise(function(resolve, reject){
           forOf(iterable, false, push, values);
@@ -113,7 +118,7 @@
       },
       // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
-        var Promise = this;
+        var Promise = getConstructor(this);
         return new Promise(function(resolve, reject){
           forOf(iterable, false, function(promise){
             Promise.resolve(promise).then(resolve, reject);
@@ -122,19 +127,20 @@
       },
       // 25.4.4.5 Promise.reject(r)
       reject: function(r){
-        return new this(function(resolve, reject){
+        return new (getConstructor(this))(function(resolve, reject){
           reject(r);
         });
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
-          ? x : new this(function(resolve, reject){
+        return isObject(x) && DEF in x && getPrototypeOf(x) === this[PROTOTYPE]
+          ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
       }
     });
   }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);
+  setSpecies(Promise);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(global[PROMISE]);

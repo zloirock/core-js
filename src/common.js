@@ -379,7 +379,14 @@ function assignHidden(target, src){
 }
 
 var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
-  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {};
+  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
+  , SYMBOL_SPECIES     = getWellKnownSymbol('species');
+function setSpecies(C){
+  if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
+    configurable: true,
+    get: returnThis
+  });
+}
 
 // Iterators
 var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)

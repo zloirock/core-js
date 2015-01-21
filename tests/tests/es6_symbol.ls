@@ -6,9 +6,13 @@ deq = deepEqual
 {defineProperty, getOwnPropertyDescriptor, create} = Object
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
-that = global? && global || window
+
+descriptors = isNative defineProperty
+
+G = global? && global || window
+
 test 'Symbol' !->
-  ok isFunction(that.Symbol), 'Is function'
+  ok isFunction(G.Symbol), 'Is function'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -16,7 +20,7 @@ test 'Symbol' !->
   O[s1] = 42
   ok O[s1] is 42, 'Symbol() work as key'
   ok O[s2] isnt 42, 'Various symbols from one description are various keys'
-  if isNative defineProperty
+  if descriptors
     count = 0
     for i of O => count++
     ok count is 0, 'object[Symbol()] is not enumerable'
@@ -39,7 +43,7 @@ test '.set' !->
   sym = Symbol!
   ok set(O, sym, 42) is O, 'Symbol.set return object'
   ok O[sym] is 42, 'Symbol.set set value'
-  if !isNative(Symbol) && isNative defineProperty
+  if !isNative(Symbol) && descriptors
     ok getOwnPropertyDescriptor(O, sym).enumerable is false, 'Symbol.set set enumerable: false value'
 
 test 'Object.getOwnPropertySymbols' !->
@@ -54,3 +58,9 @@ test 'Object.getOwnPropertySymbols' !->
   foo[Symbol()] = 44
   deq getOwnPropertyNames(foo), <[a s d]>
   eq getOwnPropertySymbols(foo).length, 1
+
+if descriptors => for key in <[Array RegExp Map Set WeakMap WeakSet Promise]> 
+  test "#key@@species" !->
+    eq G[key][Symbol.species], G[key], "#key@@species === #key"
+    C = Object.create G[key]
+    eq C[Symbol.species], C, "#key sub"

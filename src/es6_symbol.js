@@ -31,6 +31,8 @@
     iterator: SYMBOL_ITERATOR,
     // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
+    // 19.4.2.10 Symbol.species
+    species: SYMBOL_SPECIES,
     // 19.4.2.13 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
     // 19.4.2.14 Symbol.unscopables
@@ -45,11 +47,10 @@
   // 19.4.2.6 Symbol.match
   // 19.4.2.8 Symbol.replace
   // 19.4.2.9 Symbol.search
-  // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
-  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,' +
-    'species,split,toPrimitive'), function(it){
+  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,split,toPrimitive'),
+    function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );

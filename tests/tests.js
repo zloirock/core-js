@@ -4068,7 +4068,7 @@
 }).call(this);
 
 (function(){
-  var eq, deq, defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, that, toString$ = {}.toString;
+  var eq, deq, defineProperty, getOwnPropertyDescriptor, create, isFunction, isNative, descriptors, G, i$, ref$, len$, key, toString$ = {}.toString;
   QUnit.module('ES6 Symbol');
   eq = strictEqual;
   deq = deepEqual;
@@ -4079,10 +4079,11 @@
   isNative = function(it){
     return /\[native code\]\s*\}\s*$/.test(it);
   };
-  that = (typeof global != 'undefined' && global !== null) && global || window;
+  descriptors = isNative(defineProperty);
+  G = (typeof global != 'undefined' && global !== null) && global || window;
   test('Symbol', function(){
     var s1, s2, O, count, i;
-    ok(isFunction(that.Symbol), 'Is function');
+    ok(isFunction(G.Symbol), 'Is function');
     s1 = Symbol('foo');
     s2 = Symbol('foo');
     ok(s1 !== s2, 'Symbol("foo") !== Symbol("foo")');
@@ -4090,7 +4091,7 @@
     O[s1] = 42;
     ok(O[s1] === 42, 'Symbol() work as key');
     ok(O[s2] !== 42, 'Various symbols from one description are various keys');
-    if (isNative(defineProperty)) {
+    if (descriptors) {
       count = 0;
       for (i in O) {
         count++;
@@ -4127,7 +4128,7 @@
     sym = Symbol();
     ok(set(O, sym, 42) === O, 'Symbol.set return object');
     ok(O[sym] === 42, 'Symbol.set set value');
-    if (!isNative(Symbol) && isNative(defineProperty)) {
+    if (!isNative(Symbol) && descriptors) {
       ok(getOwnPropertyDescriptor(O, sym).enumerable === false, 'Symbol.set set enumerable: false value');
     }
   });
@@ -4149,9 +4150,21 @@
     deq(getOwnPropertyNames(foo), ['a', 's', 'd']);
     eq(getOwnPropertySymbols(foo).length, 1);
   });
+  if (descriptors) {
+    for (i$ = 0, len$ = (ref$ = ['Array', 'RegExp', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise']).length; i$ < len$; ++i$) {
+      key = ref$[i$];
+      test(key + "@@species", fn$);
+    }
+  }
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;
+  }
+  function fn$(){
+    var C;
+    eq(G[key][Symbol.species], G[key], key + "@@species === " + key);
+    C = Object.create(G[key]);
+    eq(C[Symbol.species], C, key + " sub");
   }
 }).call(this);
 

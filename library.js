@@ -392,7 +392,14 @@ function assignHidden(target, src){
 }
 
 var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
-  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {};
+  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
+  , SYMBOL_SPECIES     = getWellKnownSymbol('species');
+function setSpecies(C){
+  if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
+    configurable: true,
+    get: returnThis
+  });
+}
 
 // Iterators
 var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
@@ -582,6 +589,8 @@ $define(GLOBAL + FORCED, {global: global});
     iterator: SYMBOL_ITERATOR,
     // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
+    // 19.4.2.10 Symbol.species
+    species: SYMBOL_SPECIES,
     // 19.4.2.13 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
     // 19.4.2.14 Symbol.unscopables
@@ -596,11 +605,10 @@ $define(GLOBAL + FORCED, {global: global});
   // 19.4.2.6 Symbol.match
   // 19.4.2.8 Symbol.replace
   // 19.4.2.9 Symbol.search
-  // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
-  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,' +
-    'species,split,toPrimitive'), function(it){
+  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,split,toPrimitive'),
+    function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );
@@ -1015,23 +1023,23 @@ $define(GLOBAL + FORCED, {global: global});
       }
     });
     
-    var _RegExp = RegExp;
-    var WrappedRegExp = function RegExp(pattern, flags){
-      return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
-        ? pattern.source : pattern, flags);
-    }
     // RegExp allows a regex with flags as the pattern
     if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
-      forEach.call(getNames(RegExp), function(key){
-        key in WrappedRegExp || defineProperty(WrappedRegExp, key, {
+      var _RegExp = RegExp;
+      RegExp = function RegExp(pattern, flags){
+        return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
+          ? pattern.source : pattern, flags);
+      }
+      forEach.call(getNames(_RegExp), function(key){
+        key in RegExp || defineProperty(RegExp, key, {
           configurable: true,
-          get: function(){ return RegExp[key] },
-          set: function(it){ RegExp[key] = it }
+          get: function(){ return _RegExp[key] },
+          set: function(it){ _RegExp[key] = it }
         });
       });
-      RegExpProto[CONSTRUCTOR] = WrappedRegExp;
-      WrappedRegExp[PROTOTYPE] = RegExpProto;
-      hidden(global, REGEXP, WrappedRegExp);
+      RegExpProto[CONSTRUCTOR] = RegExp;
+      RegExp[PROTOTYPE] = RegExpProto;
+      hidden(global, REGEXP, RegExp);
     }
     
     // 21.2.5.3 get RegExp.prototype.flags()
@@ -1046,6 +1054,9 @@ $define(GLOBAL + FORCED, {global: global});
     });
     SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
+  
+  setSpecies(RegExp);
+  setSpecies(Array);
 }(RegExp[PROTOTYPE], isFinite, {}, 'name');
 
 /******************************************************************************
@@ -1189,6 +1200,10 @@ $define(GLOBAL + BIND, {
       def.state = 2;
       notify(def);
     }
+    function getConstructor(C){
+      var S = assertObject(C)[SYMBOL_SPECIES];
+      return S != undefined ? S : C;
+    }
     // 25.4.3.1 Promise(executor)
     Promise = function(executor){
       assertFunction(executor);
@@ -1204,10 +1219,11 @@ $define(GLOBAL + BIND, {
     assignHidden(Promise[PROTOTYPE], {
       // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
+        var S = assertObject(assertObject(this)[CONSTRUCTOR])[SYMBOL_SPECIES];
         var react = {
           ok:   isFunction(onFulfilled) ? onFulfilled : true,
           fail: isFunction(onRejected)  ? onRejected  : false
-        } , P = react.P = new this[CONSTRUCTOR](function(resolve, reject){
+        } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
           react.res = assertFunction(resolve);
           react.rej = assertFunction(reject);
         }), def = this[DEF];
@@ -1223,7 +1239,7 @@ $define(GLOBAL + BIND, {
     assignHidden(Promise, {
       // 25.4.4.1 Promise.all(iterable)
       all: function(iterable){
-        var Promise = this
+        var Promise = getConstructor(this)
           , values  = [];
         return new Promise(function(resolve, reject){
           forOf(iterable, false, push, values);
@@ -1240,7 +1256,7 @@ $define(GLOBAL + BIND, {
       },
       // 25.4.4.4 Promise.race(iterable)
       race: function(iterable){
-        var Promise = this;
+        var Promise = getConstructor(this);
         return new Promise(function(resolve, reject){
           forOf(iterable, false, function(promise){
             Promise.resolve(promise).then(resolve, reject);
@@ -1249,20 +1265,21 @@ $define(GLOBAL + BIND, {
       },
       // 25.4.4.5 Promise.reject(r)
       reject: function(r){
-        return new this(function(resolve, reject){
+        return new (getConstructor(this))(function(resolve, reject){
           reject(r);
         });
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && getPrototypeOf(x) === this[PROTOTYPE]
-          ? x : new this(function(resolve, reject){
+        return isObject(x) && DEF in x && getPrototypeOf(x) === this[PROTOTYPE]
+          ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
       }
     });
   }(nextTick || setImmediate, safeSymbol('def'));
   setToStringTag(Promise, PROMISE);
+  setSpecies(Promise);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
 }(global[PROMISE]);
 
@@ -1342,6 +1359,7 @@ $define(GLOBAL + BIND, {
       if(buggyZero || chain !== inst)fixSVZ(ADDER, true);
     }
     setToStringTag(C, NAME);
+    setSpecies(C);
     
     O[NAME] = C;
     $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
