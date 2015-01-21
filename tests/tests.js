@@ -1487,6 +1487,19 @@
 
 (function(){
   var isFunction, toString$ = {}.toString;
+  QUnit.module('DOM iterable');
+  isFunction = function(it){
+    return toString$.call(it).slice(8, -1) === 'Function';
+  };
+  if (typeof NodeList != 'undefined' && NodeList !== null) {
+    test('NodeList.prototype@@iterator', function(){
+      ok(isFunction(NodeList.prototype[Symbol.iterator]), 'Is function');
+    });
+  }
+}).call(this);
+
+(function(){
+  var isFunction, toString$ = {}.toString;
   QUnit.module('ES5');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
