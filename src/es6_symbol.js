@@ -59,11 +59,13 @@
   setToStringTag(Symbol, SYMBOL);
   
   $define(STATIC + FORCED * !isNative(Symbol), OBJECT, {
+    // 19.1.2.7 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
       while(names.length > i)has(AllSymbols, key = names[i++]) || result.push(key);
       return result;
     },
+    // 19.1.2.8 Object.getOwnPropertySymbols(O)
     getOwnPropertySymbols: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
       while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(key);

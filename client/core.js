@@ -1,5 +1,5 @@
 /**
- * Core.js 0.4.5
+ * Core.js 0.4.6
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -834,11 +834,13 @@ $define(GLOBAL + FORCED, {global: global});
   setToStringTag(Symbol, SYMBOL);
   
   $define(STATIC + FORCED * !isNative(Symbol), OBJECT, {
+    // 19.1.2.7 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
       while(names.length > i)has(AllSymbols, key = names[i++]) || result.push(key);
       return result;
     },
+    // 19.1.2.8 Object.getOwnPropertySymbols(O)
     getOwnPropertySymbols: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
       while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(key);
@@ -1900,6 +1902,17 @@ $define(GLOBAL + BIND, {
   setMapMethods(Map);
   setMapMethods(WeakMap);
 }('reference');
+
+/******************************************************************************
+ * Module : dom_itarable                                                      *
+ ******************************************************************************/
+
+!function(NodeList){
+  if(framework && NodeList && !(SYMBOL_ITERATOR in NodeList[PROTOTYPE])){
+    hidden(NodeList[PROTOTYPE], SYMBOL_ITERATOR, Iterators[ARRAY]);
+  }
+  Iterators.NodeList = Iterators[ARRAY];
+}(global.NodeList);
 
 /******************************************************************************
  * Module : dict                                                              *

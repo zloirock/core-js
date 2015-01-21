@@ -241,6 +241,8 @@ Symbol(description?) -> symbol
   .useSetter() -> void
   .pure(description?) -> symbol || string
   .set(object, key, val) -> object
+Object
+  .getOwnPropertySymbols(object) -> array
 ```
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
@@ -281,7 +283,16 @@ var s2 = Symbol('s2')
 o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
-`Reflect.ownKeys` from [`Reflect`](#ecmascript-6-reflect) module returns all object keys - strings & symbols.
+Methods for getting own object keys, [example](http://goo.gl/mKVOQJ):
+```javascript
+var O = {a: 1};
+Object.defineProperty(O, 'b', {value: 2});
+O[Symbol('c')] = 3;
+Object.keys(O);                  // => ['a']
+Object.getOwnPropertyNames(O);   // => ['a', 'b']
+Object.getOwnPropertySymbols(O); // => [Symbol(c)]
+Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
+```
 ### ECMAScript 6: Collections
 Module `es6_collections`. About iterators from this module [here](#ecmascript-6-iterators).
 
@@ -425,6 +436,11 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 ```
+Module `dom_itarable`, [individual example](http://goo.gl/JTRTQY):
+```javascript
+NodeList
+  #@@iterator() -> iterator
+```
 [Example](http://goo.gl/3s27dC):
 ```javascript
 var string = 'a𠮷b';
@@ -463,6 +479,7 @@ for(var [key, val] of set.entries()){
   console.log(key);                             // => 1, 2, 3
   console.log(val);                             // => 1, 2, 3
 }
+for(var x of document.querySelectorAll('*'))console.log(x.id);
 ```
 Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
@@ -1260,6 +1277,13 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.6** - *2015.01.21*
+  * added `Object.getOwnPropertySymbols`
+  * added `NodeList.prototype[@@iterator]`
+  * added basic `@@species` logic - getter in native constructors
+  * removed `Function#by`
+  * some fixes
+
 **0.4.5** - *2015.01.16* - Some fixes
 
 **0.4.4** - *2015.01.11* - Enabled CSP support
