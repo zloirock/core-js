@@ -3788,7 +3788,7 @@
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.construct', function(){
-    var C, inst;
+    var C, inst, f, e;
     ok(isFunction(Reflect.construct), 'Reflect.construct is function');
     C = function(a, b, c){
       return this.qux = a + b + c;
@@ -3804,6 +3804,16 @@
     throws(function(){
       return Reflect.construct(42, []);
     }, TypeError, 'throws on primitive');
+    f = function(){};
+    f.prototype = 42;
+    ok((function(){
+      try {
+        return Object.getPrototypeOf(Reflect.construct(f, [])) === Object.prototype;
+      } catch (e$) {
+        e = e$;
+        return false;
+      }
+    }()));
   });
   test('Reflect.defineProperty', function(){
     var O;

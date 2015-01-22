@@ -29,6 +29,10 @@ test 'Reflect.construct' !->
   eq inst.x, 42, 'constructor with newTarget'
   ok inst instanceof Array, 'prototype with newTarget'
   throws (-> Reflect.construct 42, []), TypeError, 'throws on primitive'
+  f = (->)
+  f:: = 42
+  ok try Object.getPrototypeOf(Reflect.construct f, []) is Object::
+  catch => no
 
 test 'Reflect.defineProperty' !->
   ok isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function'
