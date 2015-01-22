@@ -145,7 +145,8 @@ function invoke(fn, args, that){
   } return              fn.apply(that, args);
 }
 function construct(target, argumentsList /*, newTarget*/){
-  var instance = create((arguments.length < 3 ? target : assertFunction(arguments[2]))[PROTOTYPE])
+  var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
+    , instance = create(isObject(proto) ? proto : ObjectProto)
     , result   = apply.call(target, instance, argumentsList);
   return isObject(result) ? result : instance;
 }
