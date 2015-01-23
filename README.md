@@ -269,7 +269,22 @@ var symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
-By default, `Symbol` polyfill define setter in `Object.prototype`. You can disable it. [Example](http://goo.gl/N5UD7J):
+Methods for getting own object keys, [example](http://goo.gl/mKVOQJ):
+```javascript
+var O = {a: 1};
+Object.defineProperty(O, 'b', {value: 2});
+O[Symbol('c')] = 3;
+Object.keys(O);                  // => ['a']
+Object.getOwnPropertyNames(O);   // => ['a', 'b']
+Object.getOwnPropertySymbols(O); // => [Symbol(c)]
+Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
+```
+**Caveats**:
+
+* We can't add new primitive type, `Symbol` returns object.
+* By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+
+You can disable defining setter in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
 ```javascript
 Symbol.useSimple();
 var s1 = Symbol('s1')
@@ -282,16 +297,6 @@ var s2 = Symbol('s2')
   , o2 = {};
 o2[s2] = true;
 for(var key in o2)log(key); // nothing
-```
-Methods for getting own object keys, [example](http://goo.gl/mKVOQJ):
-```javascript
-var O = {a: 1};
-Object.defineProperty(O, 'b', {value: 2});
-O[Symbol('c')] = 3;
-Object.keys(O);                  // => ['a']
-Object.getOwnPropertyNames(O);   // => ['a', 'b']
-Object.getOwnPropertySymbols(O); // => [Symbol(c)]
-Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
 ```
 ### ECMAScript 6: Collections
 Module `es6_collections`. About iterators from this module [here](#ecmascript-6-iterators).
@@ -409,7 +414,7 @@ console.log(wset.has([2])); // => false
 wset.delete(b);
 console.log(wset.has(b));   // => false
 ```
-
+**Caveat**: frozen objects can't be collection keys.
 ### ECMAScript 6: Iterators
 Module `es6`:
 ```javascript
