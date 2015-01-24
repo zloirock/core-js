@@ -414,7 +414,7 @@ console.log(wset.has([2])); // => false
 wset.delete(b);
 console.log(wset.has(b));   // => false
 ```
-**Caveat**: frozen objects can't be collection keys.
+**Caveat**: frozen objects can't be `WeakMap` keys in IE11 (don't wanna fully replace native implementation).
 ### ECMAScript 6: Iterators
 Module `es6`:
 ```javascript
@@ -1283,9 +1283,11 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.7** - *2015.01.25* - Added support frozen objects as [collections](#ecmascript-6-collections) keys
+
 **0.4.6** - *2015.01.21*
-  * added `Object.getOwnPropertySymbols`
-  * added `NodeList.prototype[@@iterator]`
+  * added [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols)
+  * added [`NodeList.prototype[@@iterator]`](#ecmascript-6-iterators)
   * added basic `@@species` logic - getter in native constructors
   * removed `Function#by`
   * some fixes
