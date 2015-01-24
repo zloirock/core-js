@@ -174,6 +174,7 @@ var create           = Object.create
   , getKeys          = Object.keys
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
+  , isFrozen         = Object.isFrozen
   , has              = ctx(call, ObjectProto[HAS_OWN], 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object
@@ -658,7 +659,7 @@ if(exportGlobal || framework){
     // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
     isSealed: isPrimitive, // <- cap
     // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
-    isFrozen: isPrimitive, // <- cap
+    isFrozen: isFrozen = isFrozen || isPrimitive, // <- cap
     // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
     isExtensible: isObject // <- cap
   });
@@ -1510,7 +1511,7 @@ $define(GLOBAL + BIND, {
 // ECMAScript 6 collections shim
 !function(){
   var UID   = safeSymbol('uid')
-    , DATA  = safeSymbol('data')
+    , O1    = safeSymbol('o1')
     , WEAK  = safeSymbol('weak')
     , LAST  = safeSymbol('last')
     , FIRST = safeSymbol('first')
@@ -1543,7 +1544,7 @@ $define(GLOBAL + BIND, {
         : function(iterable){
             var that = this;
             assertInstance(that, C, NAME);
-            set(that, DATA, create(null));
+            set(that, O1, create(null));
             set(that, SIZE, 0);
             set(that, LAST, undefined);
             set(that, FIRST, undefined);
@@ -1606,6 +1607,7 @@ $define(GLOBAL + BIND, {
   function fastKey(it, create){
     // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+    if(isFrozen(it))return -1;
     // if it hasn't object id - add next
     if(!has(it, UID)){
       if(create)hidden(it, UID, ++uid);
@@ -1614,48 +1616,57 @@ $define(GLOBAL + BIND, {
     // return object id with 'O' prefix
     return 'O' + it[UID];
   }
-  
+  function getEntry(that, key){
+    var index = fastKey(key)
+      , entry = that[FIRST];
+    if(~index)return that[O1][index];
+    if(entry)do {
+      if(entry.k == key)return entry;
+    } while(entry = entry.n);
+  }
   function def(that, key, value){
-    var index = fastKey(key, true)
-      , data  = that[DATA]
-      , last  = that[LAST]
-      , entry;
-    if(index in data)data[index].v = value;
+    var last  = that[LAST]
+      , entry = getEntry(that, key)
+      , index;
+    if(entry)entry.v = value;
     else {
-      entry = data[index] = {k: key, v: value, p: last};
+      index = fastKey(key, true);
+      that[LAST] = entry = {k: key, v: value, p: last, i: index, r: false, n: undefined};
       if(!that[FIRST])that[FIRST] = entry;
       if(last)last.n = entry;
-      that[LAST] = entry;
       that[SIZE]++;
+      if(~index)that[O1][index] = entry;
     } return that;
-  }
-  function del(that, index){
-    var data  = that[DATA]
-      , entry = data[index]
-      , next  = entry.n
-      , prev  = entry.p;
-    delete data[index];
-    entry.r = true;
-    if(prev)prev.n = next;
-    if(next)next.p = prev;
-    if(that[FIRST] == entry)that[FIRST] = next;
-    if(that[LAST] == entry)that[LAST] = prev;
-    that[SIZE]--;
   }
 
   var collectionMethods = {
     // 23.1.3.1 Map.prototype.clear()
     // 23.2.3.2 Set.prototype.clear()
     clear: function(){
-      for(var index in this[DATA])del(this, index);
+      var data  = this[O1]
+        , entry = this[FIRST];
+      if(entry)do {
+        entry.r = true;
+        delete data[entry.i];
+      } while(entry = entry.n);
+      this[SIZE] = 0;
     },
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
     'delete': function(key){
-      var index    = fastKey(key)
-        , contains = index in this[DATA];
-      if(contains)del(this, index);
-      return contains;
+      var entry = getEntry(this, key);
+      if(entry){
+        var that = this
+          , next = entry.n
+          , prev = entry.p;
+        delete that[O1][entry.i];
+        entry.r = true;
+        if(prev)prev.n = next;
+        if(next)next.p = prev;
+        if(that[FIRST] == entry)that[FIRST] = next;
+        if(that[LAST] == entry)that[LAST] = prev;
+        that[SIZE]--;
+      } return !!entry;
     },
     // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
     // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
@@ -1670,7 +1681,7 @@ $define(GLOBAL + BIND, {
     // 23.1.3.7 Map.prototype.has(key)
     // 23.2.3.7 Set.prototype.has(value)
     has: function(key){
-      return fastKey(key) in this[DATA];
+      return !!getEntry(this, key);
     }
   }
   
@@ -1678,7 +1689,7 @@ $define(GLOBAL + BIND, {
   Map = getCollection(Map, MAP, {
     // 23.1.3.6 Map.prototype.get(key)
     get: function(key){
-      var entry = this[DATA][fastKey(key)];
+      var entry = getEntry(this, key);
       return entry && entry.v;
     },
     // 23.1.3.9 Map.prototype.set(key, value)
@@ -1695,7 +1706,7 @@ $define(GLOBAL + BIND, {
     }
   }, collectionMethods);
   
-  function setWeak(that, key, value){
+  function defWeak(that, key, value){
     has(assertObject(key), WEAK) || hidden(key, WEAK, {});
     key[WEAK][that[UID]] = value;
     return that;
@@ -1722,7 +1733,7 @@ $define(GLOBAL + BIND, {
     },
     // 23.3.3.5 WeakMap.prototype.set(key, value)
     set: function(key, value){
-      return setWeak(this, key, value);
+      return defWeak(this, key, value);
     }
   }, weakMethods, true, true);
   
@@ -1730,7 +1741,7 @@ $define(GLOBAL + BIND, {
   WeakSet = getCollection(WeakSet, WEAKSET, {
     // 23.4.3.1 WeakSet.prototype.add(value)
     add: function(value){
-      return setWeak(this, value, true);
+      return defWeak(this, value, true);
     }
   }, weakMethods, false, true);
 }();

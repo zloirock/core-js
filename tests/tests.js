@@ -3092,13 +3092,13 @@
 }).call(this);
 
 (function(){
-  var isFunction, same, getOwnPropertyDescriptor, descriptors, eq, deq, iterator, toStringTag, isIterator, that, toString$ = {}.toString;
+  var isFunction, same, getOwnPropertyDescriptor, freeze, descriptors, eq, deq, iterator, toStringTag, isIterator, that, toString$ = {}.toString;
   QUnit.module('ES6 Collections');
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   same = Object.is;
-  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   descriptors = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
   eq = strictEqual;
   deq = deepEqual;
@@ -3118,16 +3118,23 @@
     ok(new Map instanceof Map, 'new Map instanceof Map');
     eq(new Map([1, 2, 3].entries()).size, 3, 'Init from iterator #1');
     eq(new Map(new Map([1, 2, 3].entries())).size, 3, 'Init from iterator #2');
+    eq(new Map([[freeze({}), 1], [2, 3]]).size, 2, 'Support frozen objects');
   });
   test('Map#clear', function(){
     var M;
     ok(isFunction(Map.prototype.clear), 'Is function');
+    M = new Map;
+    M.clear();
+    eq(M.size, 0);
     M = new Map().set(1, 2).set(2, 3).set(1, 4);
     M.clear();
     eq(M.size, 0);
+    M = new Map().set(1, 2).set(freeze({}), 3);
+    M.clear();
+    eq(M.size, 0, 'Support frozen objects');
   });
   test('Map#delete', function(){
-    var a, M;
+    var a, M, f;
     ok(isFunction(Map.prototype['delete']), 'Is function');
     a = [];
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
@@ -3139,6 +3146,10 @@
     M['delete']([]);
     eq(M.size, 4);
     M['delete'](a);
+    eq(M.size, 3);
+    M.set(freeze(f = {}), 42);
+    eq(M.size, 4);
+    M['delete'](f);
     eq(M.size, 3);
   });
   test('Map#forEach', function(){
@@ -3183,29 +3194,33 @@
     eq(s, '1');
   });
   test('Map#get', function(){
-    var o, M;
+    var o, f, M;
     ok(isFunction(Map.prototype.get), 'Is function');
     o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    f = freeze({});
+    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
     eq(M.get(NaN), 1);
     eq(M.get(4), void 8);
     eq(M.get({}), void 8);
     eq(M.get(o), o);
+    eq(M.get(f), 42);
     eq(M.get(2), 5);
   });
   test('Map#has', function(){
-    var o, M;
+    var o, f, M;
     ok(isFunction(Map.prototype.has), 'Is function');
     o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    f = freeze({});
+    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
     ok(M.has(NaN));
     ok(M.has(o));
     ok(M.has(2));
+    ok(M.has(f));
     ok(!M.has(4));
     ok(!M.has({}));
   });
   test('Map#set', function(){
-    var o, M, chain;
+    var o, M, chain, f;
     ok(isFunction(Map.prototype.set), 'Is function');
     o = {};
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
@@ -3226,6 +3241,8 @@
     eq(M.size, 7);
     eq(M.get(o), 27);
     eq(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size, 1);
+    M = new Map().set(freeze(f = {}), 42);
+    eq(M.get(f), 42);
   });
   test('Map#size', function(){
     var size, sizeDesc;
@@ -3384,6 +3401,7 @@
     ok(new Set instanceof Set, 'new Set instanceof Set');
     eq(new Set([1, 2, 3, 2, 1].values()).size, 3, 'Init from iterator #1');
     eq(new Set([1, 2, 3, 2, 1]).size, 3, 'Init Set from iterator #2');
+    eq(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
     S = new Set([1, 2, 3, 2, 1]);
     eq(S.size, 3);
     r = [];
@@ -3397,7 +3415,7 @@
     }
   });
   test('Set#add', function(){
-    var a, S, chain;
+    var a, S, chain, f;
     ok(isFunction(Set.prototype.add), 'Is function');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
@@ -3413,16 +3431,24 @@
     eq(S.size, 6);
     S.add(4);
     eq(S.size, 7);
+    S = new Set().add(freeze(f = {}));
+    ok(S.has(f));
   });
   test('Set#clear', function(){
     var S;
     ok(isFunction(Set.prototype.clear), 'Is function');
+    S = new Set;
+    S.clear();
+    eq(S.size, 0);
     S = new Set([1, 2, 3, 2, 1]);
     S.clear();
     eq(S.size, 0);
+    S = new Set([1, freeze({})]);
+    S.clear();
+    eq(S.size, 0, 'Support frozen objects');
   });
   test('Set#delete', function(){
-    var a, S;
+    var a, S, f;
     ok(isFunction(Set.prototype['delete']), 'Is function');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
@@ -3434,6 +3460,10 @@
     S['delete']([]);
     eq(S.size, 4);
     S['delete'](a);
+    eq(S.size, 3);
+    S.add(freeze(f = {}));
+    eq(S.size, 4);
+    S['delete'](f);
     eq(S.size, 3);
   });
   test('Set#forEach', function(){
@@ -3472,12 +3502,14 @@
     eq(s, '0');
   });
   test('Set#has', function(){
-    var a, S;
+    var a, f, S;
     ok(isFunction(Set.prototype.has), 'Is function');
     a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
+    f = freeze({});
+    S = new Set([NaN, 2, 3, 2, 1, f, a]);
     ok(S.has(NaN));
     ok(S.has(a));
+    ok(S.has(f));
     ok(S.has(2));
     ok(!S.has(4));
     ok(!S.has([]));

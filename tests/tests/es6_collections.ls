@@ -1,7 +1,7 @@
 QUnit.module 'ES6 Collections'
 isFunction = -> typeof! it is \Function
 same = Object.is
-{getOwnPropertyDescriptor} = Object
+{getOwnPropertyDescriptor, freeze} = Object
 
 descriptors = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 
@@ -26,11 +26,18 @@ test 'Map' !->
   ok new Map instanceof Map, 'new Map instanceof Map'
   eq new Map([1 2 3]entries!).size, 3, 'Init from iterator #1'
   eq new Map(new Map [1 2 3]entries!).size, 3, 'Init from iterator #2'
+  eq new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
 test 'Map#clear' !->
   ok isFunction(Map::clear), 'Is function'
+  M = new Map
+  M.clear!
+  eq M.size, 0
   M = new Map!set 1 2 .set 2 3 .set 1 4
   M.clear!
   eq M.size, 0
+  M = new Map!set 1 2 .set freeze({}), 3
+  M.clear!
+  eq M.size, 0, 'Support frozen objects'
 test 'Map#delete' !->
   ok isFunction(Map::delete), 'Is function'
   a = []
@@ -43,6 +50,10 @@ test 'Map#delete' !->
   M.delete []
   eq M.size, 4
   M.delete a
+  eq M.size, 3
+  M.set freeze(f = {}), 42
+  eq M.size, 4
+  M.delete f
   eq M.size, 3
 test 'Map#forEach' !->
   ok isFunction(Map::forEach), 'Is function'
@@ -75,19 +86,23 @@ test 'Map#forEach' !->
 test 'Map#get' !->
   ok isFunction(Map::get), 'Is function'
   o = {}
-  M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
+  f = freeze {}
+  M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
   eq M.get(NaN), 1
   eq M.get(4), void
   eq M.get({}), void
   eq M.get(o), o
+  eq M.get(f), 42
   eq M.get(2), 5
 test 'Map#has' !->
   ok isFunction(Map::has), 'Is function'
   o = {}
-  M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
+  f = freeze {}
+  M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
   ok M.has NaN
   ok M.has o
   ok M.has 2
+  ok M.has f
   ok not M.has 4
   ok not M.has {}
 test 'Map#set' !->
@@ -111,6 +126,8 @@ test 'Map#set' !->
   eq M.size, 7
   eq M.get(o), 27
   eq new Map!set(NaN, 2)set(NaN, 3)set(NaN, 4)size, 1
+  M = new Map!set freeze(f = {}), 42
+  eq M.get(f), 42
 test 'Map#size' !->
   size = new Map!set 2 1 .size
   eq typeof size, \number, 'size is number'
@@ -201,6 +218,7 @@ test 'Set' !->
   ok new Set instanceof Set, 'new Set instanceof Set'
   eq new Set([1 2 3 2 1]values!).size, 3, 'Init from iterator #1'
   eq new Set([1 2 3 2 1]).size, 3, 'Init Set from iterator #2'
+  eq new Set([freeze({}), 1]).size, 2, 'Support frozen objects'
   S = new Set [1 2 3 2 1]
   eq S.size, 3
   r = []
@@ -224,11 +242,19 @@ test 'Set#add' !->
   eq S.size, 6
   S.add 4
   eq S.size, 7
+  S = new Set!add freeze f = {}
+  ok S.has f
 test 'Set#clear' !->
   ok isFunction(Set::clear), 'Is function'
+  S = new Set
+  S.clear!
+  eq S.size, 0
   S = new Set [1 2 3 2 1]
   S.clear!
   eq S.size, 0
+  S = new Set [1 freeze {}]
+  S.clear!
+  eq S.size, 0, 'Support frozen objects'
 test 'Set#delete' !->
   ok isFunction(Set::delete), 'Is function'
   a = []
@@ -241,6 +267,10 @@ test 'Set#delete' !->
   S.delete []
   eq S.size, 4
   S.delete a
+  eq S.size, 3
+  S.add freeze(f = {})
+  eq S.size, 4
+  S.delete f
   eq S.size, 3
 test 'Set#forEach' !->
   ok isFunction(Set::forEach), 'Is function'
@@ -272,9 +302,11 @@ test 'Set#forEach' !->
 test 'Set#has' !->
   ok isFunction(Set::has), 'Is function'
   a = []
-  S = new Set [NaN, 2 3 2 1 a]
+  f = freeze {}
+  S = new Set [NaN, 2 3 2 1 f, a]
   ok S.has NaN
   ok S.has a
+  ok S.has f
   ok S.has 2
   ok not S.has 4
   ok not S.has []

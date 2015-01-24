@@ -105,7 +105,7 @@
     // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
     isSealed: isPrimitive, // <- cap
     // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
-    isFrozen: isPrimitive, // <- cap
+    isFrozen: isFrozen = isFrozen || isPrimitive, // <- cap
     // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
     isExtensible: isObject // <- cap
   });
