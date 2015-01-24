@@ -398,6 +398,16 @@ test 'WeakMap' !->
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   eq new WeakMap([[a = {}, b = {}]].values!).get(a), b, 'Init WeakMap from iterator #1'
   eq new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
+  /* IE11 bug
+  eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
+  M = new WeakMap
+  M.set freeze(f = {}), 42
+  eq M.has(f), on
+  eq M.get(f), 42
+  M.delete f
+  eq M.has(f), no
+  eq M.get(f), void
+  */
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap!
@@ -405,7 +415,7 @@ test 'WeakMap#delete' !->
     .set b = {}, 21
   ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
-  ok !M.has(a) && M.has(b), 'WeakMap has`nt value after .delete()'
+  ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
 test 'WeakMap#get' !->
   ok isFunction(WeakMap::get), 'Is function'
   M = new WeakMap!
@@ -437,18 +447,24 @@ test 'WeakSet' !->
   ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
   ok new WeakSet([a = {}].values!).has(a), 'Init WeakSet from iterator #1'
   ok new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2'
+  ok new WeakSet([freeze f = {}]).has(f), 'Support frozen objects'
+  S = new WeakSet
+  S.add freeze f = {}
+  eq S.has(f), on
+  S.delete f
+  eq S.has(f), no
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
 test 'WeakSet#delete' !->
   ok isFunction(WeakSet::delete), 'Is function'
-  M = new WeakSet!
+  S = new WeakSet!
     .add a = {}
     .add b = {}
-  ok M.has(a) && M.has(b), 'WeakSet has values before .delete()'
-  M.delete a
-  ok !M.has(a) && M.has(b), 'WeakSet has`nt value after .delete()'
+  ok S.has(a) && S.has(b), 'WeakSet has values before .delete()'
+  S.delete a
+  ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
 test 'WeakSet#has' !->
   ok isFunction(WeakSet::has), 'Is function'
   M = new WeakSet!

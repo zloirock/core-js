@@ -1,8 +1,9 @@
 // ECMAScript 6 collections shim
 !function(){
   var UID   = safeSymbol('uid')
-    , O1    = safeSymbol('o1')
+    , O1    = safeSymbol('O1')
     , WEAK  = safeSymbol('weak')
+    , LEAK  = safeSymbol('leak')
     , LAST  = safeSymbol('last')
     , FIRST = safeSymbol('first')
     , SIZE  = DESC ? safeSymbol('size') : 'size'
@@ -97,11 +98,11 @@
   function fastKey(it, create){
     // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
-    if(isFrozen(it))return -1;
+    if(isFrozen(it))return 'F';
     // if it hasn't object id - add next
     if(!has(it, UID)){
       if(create)hidden(it, UID, ++uid);
-      else return '';
+      else return 'E';
     }
     // return object id with 'O' prefix
     return 'O' + it[UID];
@@ -109,7 +110,7 @@
   function getEntry(that, key){
     var index = fastKey(key)
       , entry = that[FIRST];
-    if(~index)return that[O1][index];
+    if(index != 'F')return that[O1][index];
     if(entry)do {
       if(entry.k == key)return entry;
     } while(entry = entry.n);
@@ -125,7 +126,7 @@
       if(!that[FIRST])that[FIRST] = entry;
       if(last)last.n = entry;
       that[SIZE]++;
-      if(~index)that[O1][index] = entry;
+      if(index != 'F')that[O1][index] = entry;
     } return that;
   }
 
@@ -197,29 +198,41 @@
   }, collectionMethods);
   
   function defWeak(that, key, value){
-    has(assertObject(key), WEAK) || hidden(key, WEAK, {});
-    key[WEAK][that[UID]] = value;
-    return that;
+    if(isFrozen(assertObject(key)))leakStore(that).set(key, value);
+    else {
+      has(key, WEAK) || hidden(key, WEAK, {});
+      key[WEAK][that[UID]] = value;
+    } return that;
   }
-  function hasWeak(key){
-    return isObject(key) && has(key, WEAK) && has(key[WEAK], this[UID]);
+  function leakStore(that){
+    return that[LEAK] || hidden(that, LEAK, new Map)[LEAK];
   }
+  
   var weakMethods = {
     // 23.3.3.2 WeakMap.prototype.delete(key)
     // 23.4.3.3 WeakSet.prototype.delete(value)
     'delete': function(key){
-      return hasWeak.call(this, key) && delete key[WEAK][this[UID]];
+      if(!isObject(key))return false;
+      if(isFrozen(key))return leakStore(this)['delete'](key);
+      return has(key, WEAK) && has(key[WEAK], this[UID]) && delete key[WEAK][this[UID]];
     },
     // 23.3.3.4 WeakMap.prototype.has(key)
     // 23.4.3.4 WeakSet.prototype.has(value)
-    has: hasWeak
+    has: function(key){
+      if(!isObject(key))return false;
+      if(isFrozen(key))return leakStore(this).has(key);
+      return has(key, WEAK) && has(key[WEAK], this[UID]);
+    }
   };
   
   // 23.3 WeakMap Objects
   WeakMap = getCollection(WeakMap, WEAKMAP, {
     // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
-      if(isObject(key) && has(key, WEAK))return key[WEAK][this[UID]];
+      if(isObject(key)){
+        if(isFrozen(key))return leakStore(this).get(key);
+        return has(key, WEAK) ? key[WEAK][this[UID]] : undefined;
+      }
     },
     // 23.3.3.5 WeakMap.prototype.set(key, value)
     set: function(key, value){
