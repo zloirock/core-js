@@ -398,7 +398,7 @@ test 'WeakMap' !->
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   eq new WeakMap([[a = {}, b = {}]].values!).get(a), b, 'Init WeakMap from iterator #1'
   eq new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
-  /* IE11 bug
+  #/* IE11 bug
   eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
@@ -407,7 +407,7 @@ test 'WeakMap' !->
   M.delete f
   eq M.has(f), no
   eq M.get(f), void
-  */
+  #*/
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap!

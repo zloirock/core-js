@@ -1517,7 +1517,8 @@ $define(GLOBAL + BIND, {
     , LAST  = safeSymbol('last')
     , FIRST = safeSymbol('first')
     , SIZE  = DESC ? safeSymbol('size') : 'size'
-    , uid   = 0;
+    , uid   = 0
+    , tmp   = {};
   
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER = isMap ? 'set' : 'add'
@@ -1659,10 +1660,10 @@ $define(GLOBAL + BIND, {
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
     'delete': function(key){
-      var entry = getEntry(this, key);
+      var that  = this
+        , entry = getEntry(that, key);
       if(entry){
-        var that = this
-          , next = entry.n
+        var next = entry.n
           , prev = entry.p;
         delete that[O1][entry.i];
         entry.r = true;
@@ -1753,6 +1754,17 @@ $define(GLOBAL + BIND, {
       return defWeak(this, key, value);
     }
   }, weakMethods, true, true);
+  
+  // IE11 WeakMap frozen keys fix
+  if(framework && DESC && new WeakMap([[Object.freeze(tmp), 7]]).get(tmp) != 7){
+    forEach.call(array('delete,has,get,set'), function(key){
+      var method = WeakMap[PROTOTYPE][key];
+      hidden(WeakMap[PROTOTYPE], key, function(a, b){
+        if(isObject(a) && isFrozen(a))return leakStore(this)[key](a, b);
+        return method.call(this, a, b);
+      });
+    });
+  }
   
   // 23.4 WeakSet Objects
   WeakSet = getCollection(WeakSet, WEAKSET, {

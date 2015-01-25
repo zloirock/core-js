@@ -3660,7 +3660,7 @@
     });
   });
   test('WeakMap', function(){
-    var a, b;
+    var a, b, f, M;
     ok(isFunction(that.WeakMap), 'Is function');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
@@ -3669,16 +3669,14 @@
     ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
     eq(new WeakMap([[a = {}, b = {}]].values()).get(a), b, 'Init WeakMap from iterator #1');
     eq(new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2');
-    /* IE11 bug
-    eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
-    M = new WeakMap
-    M.set freeze(f = {}), 42
-    eq M.has(f), on
-    eq M.get(f), 42
-    M.delete f
-    eq M.has(f), no
-    eq M.get(f), void
-    */
+    eq(new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects');
+    M = new WeakMap;
+    M.set(freeze(f = {}), 42);
+    eq(M.has(f), true);
+    eq(M.get(f), 42);
+    M['delete'](f);
+    eq(M.has(f), false);
+    eq(M.get(f), void 8);
   });
   test('WeakMap#delete', function(){
     var M, a, b;
