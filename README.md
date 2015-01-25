@@ -1282,7 +1282,7 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
-**0.4.8** - *2015.01.25* - [Collections](#ecmascript-6-collections) fixes
+**0.4.8** - *2015.01.25* - Some [collections](#ecmascript-6-collections) fixes
 
 **0.4.7** - *2015.01.25* - Added support frozen objects as [collections](#ecmascript-6-collections) keys
 

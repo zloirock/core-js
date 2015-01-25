@@ -1530,10 +1530,10 @@ $define(GLOBAL + BIND, {
     }
     function fixSVZ(key, chain){
       var method = proto[key];
-      framework && hidden(proto, key, function(a, b){
+      if(framework)proto[key] = function(a, b){
         var result = method.call(this, a === 0 ? 0 : a, b);
         return chain ? this : result;
-      });
+      };
     }
     if(!isNative(C) || !(isWeak || (!BUGGY_ITERATORS && has(proto, 'entries')))){
       // create collection constructor
@@ -1568,6 +1568,7 @@ $define(GLOBAL + BIND, {
           return initFromIterable(new Native, iterable);
         }
         C[PROTOTYPE] = proto;
+        if(framework)proto[CONSTRUCTOR] = C;
       }
       isWeak || inst[FOR_EACH](function(val, key){
         buggyZero = 1 / key === -Infinity;
@@ -1593,11 +1594,16 @@ $define(GLOBAL + BIND, {
       set(this, ITER, {o: iterated, k: kind});
     }, function(){
       var iter  = this[ITER]
-        , O     = iter.o
         , kind  = iter.k
         , entry = iter.l;
+      // revert to the last existing entry
       while(entry && entry.r)entry = entry.p;
-      if(!O || !(iter.l = entry = entry ? entry.n : O[FIRST]))return iter.o = undefined, iterResult(1);
+      // get next entry
+      if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
+        // or finish the iteration
+        return iter.o = undefined, iterResult(1);
+      }
+      // return step by kind
       if(kind == KEY)  return iterResult(0, entry.k);
       if(kind == VALUE)return iterResult(0, entry.v);
                        return iterResult(0, [entry.k, entry.v]);   
@@ -1607,40 +1613,46 @@ $define(GLOBAL + BIND, {
   }
   
   function fastKey(it, create){
-    // return it with 'S' prefix if it's string or with 'P' prefix for over primitives
+    // return primitive with prefix
     if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+    // can't set id to frozen object
     if(isFrozen(it))return 'F';
-    // if it hasn't object id - add next
     if(!has(it, UID)){
-      if(create)hidden(it, UID, ++uid);
-      else return 'E';
-    }
-    // return object id with 'O' prefix
-    return 'O' + it[UID];
+      // not necessary to add id
+      if(!create)return 'E';
+      // add missing object id
+      hidden(it, UID, ++uid);
+    // return object id with prefix
+    } return 'O' + it[UID];
   }
   function getEntry(that, key){
+    // fast case
     var index = fastKey(key), entry;
     if(index != 'F')return that[O1][index];
+    // frozen object case
     for(entry = that[FIRST]; entry; entry = entry.n){
       if(entry.k == key)return entry;
     }
   }
   function def(that, key, value){
     var entry = getEntry(that, key)
-      , previous, index;
+      , prev, index;
+    // change existing entry
     if(entry)entry.v = value;
+    // create new entry
     else {
       that[LAST] = entry = {
         i: index = fastKey(key, true), // <- index
         k: key,                        // <- key
         v: value,                      // <- value
-        p: previous = that[LAST],      // <- previous entry
+        p: prev = that[LAST],          // <- previous entry
         n: undefined,                  // <- next entry
         r: false                       // <- removed
       };
       if(!that[FIRST])that[FIRST] = entry;
-      if(previous)previous.n = entry;
+      if(prev)prev.n = entry;
       that[SIZE]++;
+      // add to index
       if(index != 'F')that[O1][index] = entry;
     } return that;
   }
@@ -1681,6 +1693,7 @@ $define(GLOBAL + BIND, {
         , entry;
       while(entry = entry ? entry.n : this[FIRST]){
         f(entry.v, entry.k, this);
+        // revert to the last existing entry
         while(entry && entry.r)entry = entry.p;
       }
     },
@@ -1759,12 +1772,12 @@ $define(GLOBAL + BIND, {
   if(framework && DESC && new WeakMap([[Object.freeze(tmp), 7]]).get(tmp) != 7){
     forEach.call(array('delete,has,get,set'), function(key){
       var method = WeakMap[PROTOTYPE][key];
-      hidden(WeakMap[PROTOTYPE], key, function(a, b){
+      WeakMap[PROTOTYPE][key] = function(a, b){
         if(isObject(a) && isFrozen(a)){
           var result = leakStore(this)[key](a, b);
           return key == 'set' ? this : result;
         } return method.call(this, a, b);
-      });
+      };
     });
   }
   
