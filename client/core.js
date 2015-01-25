@@ -1618,23 +1618,27 @@ $define(GLOBAL + BIND, {
     return 'O' + it[UID];
   }
   function getEntry(that, key){
-    var index = fastKey(key)
-      , entry = that[FIRST];
+    var index = fastKey(key), entry;
     if(index != 'F')return that[O1][index];
-    if(entry)do {
+    for(entry = that[FIRST]; entry; entry = entry.n){
       if(entry.k == key)return entry;
-    } while(entry = entry.n);
+    }
   }
   function def(that, key, value){
-    var last  = that[LAST]
-      , entry = getEntry(that, key)
-      , index;
+    var entry = getEntry(that, key)
+      , previous, index;
     if(entry)entry.v = value;
     else {
-      index = fastKey(key, true);
-      that[LAST] = entry = {k: key, v: value, p: last, i: index, r: false, n: undefined};
+      that[LAST] = entry = {
+        i: index = fastKey(key, true), // <- index
+        k: key,                        // <- key
+        v: value,                      // <- value
+        p: previous = that[LAST],      // <- previous entry
+        n: undefined,                  // <- next entry
+        r: false                       // <- removed
+      };
       if(!that[FIRST])that[FIRST] = entry;
-      if(last)last.n = entry;
+      if(previous)previous.n = entry;
       that[SIZE]++;
       if(index != 'F')that[O1][index] = entry;
     } return that;
@@ -1644,13 +1648,10 @@ $define(GLOBAL + BIND, {
     // 23.1.3.1 Map.prototype.clear()
     // 23.2.3.2 Set.prototype.clear()
     clear: function(){
-      var data  = this[O1]
-        , entry = this[FIRST];
-      if(entry)do {
+      for(var data = this[O1], entry = this[FIRST]; entry; entry = entry.n){
         entry.r = true;
         delete data[entry.i];
-      } while(entry = entry.n);
-      this[SIZE] = 0;
+      } this[SIZE] = 0;
     },
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
@@ -1741,7 +1742,7 @@ $define(GLOBAL + BIND, {
     get: function(key){
       if(isObject(key)){
         if(isFrozen(key))return leakStore(this).get(key);
-        return has(key, WEAK) ? key[WEAK][this[UID]] : undefined;
+        if(has(key, WEAK))return key[WEAK][this[UID]];
       }
     },
     // 23.3.3.5 WeakMap.prototype.set(key, value)
