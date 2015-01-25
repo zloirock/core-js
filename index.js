@@ -1431,10 +1431,13 @@ $define(GLOBAL + BIND, {
     // 23.1.3.1 Map.prototype.clear()
     // 23.2.3.2 Set.prototype.clear()
     clear: function(){
-      for(var data = this[O1], entry = this[FIRST]; entry; entry = entry.n){
+      for(var that = this, data = that[O1], entry = that[FIRST]; entry; entry = entry.n){
         entry.r = true;
+        entry.p = entry.n = undefined;
         delete data[entry.i];
-      } this[SIZE] = 0;
+      }
+      that[FIRST] = that[LAST] = undefined;
+      that[SIZE] = 0;
     },
     // 23.1.3.3 Map.prototype.delete(key)
     // 23.2.3.4 Set.prototype.delete(value)
