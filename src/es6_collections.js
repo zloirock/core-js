@@ -250,8 +250,10 @@
     forEach.call(array('delete,has,get,set'), function(key){
       var method = WeakMap[PROTOTYPE][key];
       hidden(WeakMap[PROTOTYPE], key, function(a, b){
-        if(isObject(a) && isFrozen(a))return leakStore(this)[key](a, b);
-        return method.call(this, a, b);
+        if(isObject(a) && isFrozen(a)){
+          var result = leakStore(this)[key](a, b);
+          return key == 'set' ? this : result;
+        } return method.call(this, a, b);
       });
     });
   }
