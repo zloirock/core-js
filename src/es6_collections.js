@@ -25,7 +25,7 @@
         return chain ? this : result;
       };
     }
-    if(!isNative(C) || !(isWeak || (!BUGGY_ITERATORS && has(proto, 'entries')))){
+    if(!isNative(C) || !(isWeak || (!BUGGY_ITERATORS && has(proto, FOR_EACH) && has(proto, 'entries')))){
       // create collection constructor
       C = isWeak
         ? function(iterable){
@@ -263,9 +263,11 @@
     forEach.call(array('delete,has,get,set'), function(key){
       var method = WeakMap[PROTOTYPE][key];
       WeakMap[PROTOTYPE][key] = function(a, b){
+        // store frozen objects on leaky map
         if(isObject(a) && isFrozen(a)){
           var result = leakStore(this)[key](a, b);
           return key == 'set' ? this : result;
+        // store all the rest on native weakmap
         } return method.call(this, a, b);
       };
     });
