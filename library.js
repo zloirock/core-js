@@ -1,5 +1,5 @@
 /**
- * Core.js 0.4.9
+ * Core.js 0.4.10
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -564,15 +564,16 @@ $define(GLOBAL + FORCED, {global: global});
   if(!isNative(Symbol)){
     Symbol = function(description){
       assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
-      var tag = uid(description);
-      AllSymbols[tag] = true;
+      var tag = uid(description)
+        , sym = set(create(Symbol[PROTOTYPE]), TAG, tag);
+      AllSymbols[tag] = sym;
       DESC && setter && defineProperty(ObjectProto, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
         }
       });
-      return set(create(Symbol[PROTOTYPE]), TAG, tag);
+      return sym;
     }
     hidden(Symbol[PROTOTYPE], TO_STRING, function(){
       return this[TAG];
@@ -628,7 +629,7 @@ $define(GLOBAL + FORCED, {global: global});
     // 19.1.2.8 Object.getOwnPropertySymbols(O)
     getOwnPropertySymbols: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
-      while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(key);
+      while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(AllSymbols[key]);
       return result;
     }
   });

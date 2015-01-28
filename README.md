@@ -1282,6 +1282,8 @@ var core = require('core-js/library');
 require('core-js/shim');
 ```
 ## Changelog
+**0.4.10** - *2015.01.28* - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns wrapped key
+
 **0.4.9** - *2015.01.27* - FF20-24 fix
 
 **0.4.8** - *2015.01.25* - Some [collections](#ecmascript-6-collections) fixes
