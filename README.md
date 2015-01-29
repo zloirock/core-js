@@ -2,23 +2,23 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Alternative modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting).
+Modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
-console.log(Array.from(new Set([1, 2, 3, 2, 1]))); // => [1, 2, 3]
-console.log('*'.repeat(10));                       // => '**********'
-Promise.resolve(32).then(console.log);             // => 32
-setImmediate(console.log, 42);                     // => 42
+Array.from(new Set([1, 2, 3, 2, 1]));  // => [1, 2, 3]
+'*'.repeat(10);                        // => '**********'
+Promise.resolve(32).then(console.log); // => 32
+setImmediate(console.log, 42);         // => 42
 ```
 
-[Without extension of native objects](http://goo.gl/WBhs43):
+[Without global namespace pollution](http://goo.gl/WBhs43):
 ```javascript
-var log  = core.console.log;
-log(core.Array.from(new core.Set([1, 2, 3, 2, 1]))); // => [1, 2, 3]
-log(core.String.repeat('*', 10));                    // => '**********'
-core.Promise.resolve(32).then(log);                  // => 32
-core.setImmediate(log, 42);                          // => 42
+var core = require('core-js/library');
+core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+core.String.repeat('*', 10);                    // => '**********'
+core.Promise.resolve(32).then(console.log);     // => 32
+core.setImmediate(console.log, 42);             // => 42
 ```
 - [API](#api)
   - [ECMAScript 5](#ecmascript-5)
@@ -41,7 +41,7 @@ core.setImmediate(log, 42);                          // => 42
   - [Array](#array)
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
-- [Install](#install)
+- [Installation, usage and custom build](#installation-usage-and-custom-build)
 - [Changelog](#changelog)
 
 ## API:
@@ -1094,7 +1094,7 @@ Function
 Object
   #[_](key) -> boundFn
 ```
-`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without extension of native objects) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
+`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without global namespace pollution) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
 var fn1 = console.log.part(1, 2);
 fn1(3, 4);    // => 1, 2, 3, 4
@@ -1254,35 +1254,35 @@ String
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
 
-## Install
+## Installation, usage and custom build
 ```
 // Node.js:
 npm i core-js
 // Bower:
 bower install core.js
 ```
-Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without extension of native objects](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
+Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without global namespace pollution](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
 
-Custom builds:
+Custom build:
 ```
 npm i -g grunt-cli
 npm i core-js
 cd node_modules/core-js && npm i
 grunt build:date,console,library --path=custom uglify
 ```
-Where `date` and `console` are module names, `library` is flag for not extension of native objects and `custom` is target file name.
+Where `date` and `console` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
 
 Require in Node.js:
 ```javascript
 // Dafault
 require('core-js');
-// Without extension of native objects
+// Without global namespace pollution
 var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
 ## Changelog
-**0.4.10** - *2015.01.28* - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns wrapped key
+**0.4.10** - *2015.01.28* - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
 
 **0.4.9** - *2015.01.27* - FF20-24 fix
 
