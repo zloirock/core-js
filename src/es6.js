@@ -366,6 +366,13 @@
   wrapObjectMethod('keys');
   wrapObjectMethod('getOwnPropertyNames');
   
+  function assertRegExpWrapper(fn){
+    return function(){
+      assert(cof(this) === REGEXP);
+      return fn(this);
+    }
+  }
+    
   if(framework){
     // 19.1.3.6 Object.prototype.toString()
     tmp[SYMBOL_TAG] = DOT;
@@ -409,7 +416,18 @@
     // 21.2.5.3 get RegExp.prototype.flags()
     if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
       configurable: true,
-      get: createReplacer(/^.*\/(\w*)$/, '$1')
+      get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
+    });
+    
+    // 21.2.5.12 get RegExp.prototype.sticky()
+    // 21.2.5.15 get RegExp.prototype.unicode()
+    forEach.call(array('sticky,unicode'), function(key){
+      key in /./ || defineProperty(RegExpProto, key, DESC ? {
+        configurable: true,
+        get: assertRegExpWrapper(function(){
+          return false;
+        })
+      } : descriptor(5, false));
     });
     
     // 22.1.3.31 Array.prototype[@@unscopables]
