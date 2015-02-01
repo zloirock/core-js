@@ -756,6 +756,12 @@ if descriptors => test 'RegExp#flags' !->
   eq /./mig.flags, \gim, '/./mig.flags is "gim"'
   eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'
 
+test 'RegExp#{sticky, unicode}' !->
+  ok \sticky of RegExp::
+  ok \unicode of RegExp::
+  eq /./.sticky, no
+  eq /./.unicode, no
+
 if descriptors => test 'RegExp allows a regex with flags as the pattern' !->
   a = /a/g
   b = new RegExp a
