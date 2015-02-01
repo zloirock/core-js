@@ -51,9 +51,6 @@ test '.classof' !->
   class Class
     @::[Symbol.toStringTag] = \Class
   ok classof(new Class) is \Class, 'classof user class is [Symbol.toStringTag]'
-  class BadClass
-    @::[Symbol.toStringTag] = \Array
-  ok classof(new BadClass) is '~Array', 'safe [[Class]]'
 test '.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'

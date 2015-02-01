@@ -82,9 +82,6 @@ test 'Object#toString' !->
   class Class
     @::[Symbol.toStringTag] = \Class
   eq '' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]'
-  class BadClass
-    @::[Symbol.toStringTag] = \Array
-  eq '' + new BadClass, '[object ~Array]', 'safe [[Class]]'
 test 'Number.EPSILON' !->
   {EPSILON} = Number
   ok \EPSILON of Number, 'EPSILON in Number'

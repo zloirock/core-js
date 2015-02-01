@@ -67,10 +67,7 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var buildIn = {
-  Undefined: 1, Null: 1, Array: 1, String: 1, Arguments: 1,
-  Function: 1, Error: 1, Boolean: 1, Number: 1, Date: 1, RegExp:1 
-} , toString = ObjectProto[TO_STRING];
+var toString = ObjectProto[TO_STRING];
 function setToStringTag(it, tag, stat){
   if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
@@ -80,7 +77,7 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && (tag = it[SYMBOL_TAG]) ? has(buildIn, tag) ? '~' + tag : tag : klass;
+  return klass == OBJECT && (tag = it[SYMBOL_TAG]) ? tag : klass;
 }
 
 // Function

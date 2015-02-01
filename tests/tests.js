@@ -2026,7 +2026,7 @@
     });
   }
   test('Object#toString', function(){
-    var toString, Class, BadClass;
+    var toString, Class;
     toString = Object.prototype.toString;
     eq(toString.call(true), '[object Boolean]', 'classof bool is `Boolean`');
     eq(toString.call('string'), '[object String]', 'classof string is `String`');
@@ -2064,14 +2064,6 @@
       return Class;
     }());
     eq('' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]');
-    BadClass = (function(){
-      BadClass.displayName = 'BadClass';
-      var prototype = BadClass.prototype, constructor = BadClass;
-      BadClass.prototype[Symbol.toStringTag] = 'Array';
-      function BadClass(){}
-      return BadClass;
-    }());
-    eq('' + new BadClass, '[object ~Array]', 'safe [[Class]]');
   });
   test('Number.EPSILON', function(){
     var EPSILON;
@@ -4695,7 +4687,7 @@
     ok(isObject(new function(){}), 'isObject constructor instance return true');
   });
   test('.classof', function(){
-    var classof, Class, BadClass;
+    var classof, Class;
     classof = Object.classof;
     ok(isFunction(classof), 'Is function');
     ok(classof(void 8) === 'Undefined', 'classof undefined is `Undefined`');
@@ -4736,14 +4728,6 @@
       return Class;
     }());
     ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
-    BadClass = (function(){
-      BadClass.displayName = 'BadClass';
-      var prototype = BadClass.prototype, constructor = BadClass;
-      BadClass.prototype[Symbol.toStringTag] = 'Array';
-      function BadClass(){}
-      return BadClass;
-    }());
-    ok(classof(new BadClass) === '~Array', 'safe [[Class]]');
   });
   test('.make', function(){
     var make, object, foo;
