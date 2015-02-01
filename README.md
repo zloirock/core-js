@@ -14,7 +14,7 @@ setImmediate(console.log, 42);         // => 42
 
 [Without global namespace pollution](http://goo.gl/WBhs43):
 ```javascript
-var core = require('core-js/library');
+var core = require('core-js/library'); // With a modular system, otherwise use global `core`
 core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 core.String.repeat('*', 10);                    // => '**********'
 core.Promise.resolve(32).then(console.log);     // => 32
@@ -91,7 +91,7 @@ Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
   .setPrototypeOf(target, proto | null) -> target, sham(ie11+)
-  #toString() -> string, fix for @@toStringTag support
+  #toString() -> string, ES6 fix: @@toStringTag support
 Function
   #name -> string (IE9+)
 ```
@@ -164,10 +164,10 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
-RegExp
+[new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags
   #flags -> str (getter, IE9+)
 ```
-[Example](http://goo.gl/gbP8Io):
+[Example](http://goo.gl/sdNGeJ):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -182,8 +182,10 @@ RegExp
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 
 var name = 'Bob';
-String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!'
+String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!' (ES6 template string syntax)
 String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
+
+RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;    // => ''
 /foo/gim.flags; // => 'gim'
@@ -720,7 +722,7 @@ WeakMap
   #@@referenceSet ==== #set
   #@@referenceDelete ==== #delete
 ```
-Private properties [example](http://goo.gl/sO0KHa) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
+Private properties [example](http://goo.gl/cA6wnp) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
 ```javascript
 var Person = (NAME => class {
   constructor(name){
@@ -733,9 +735,9 @@ var Person = (NAME => class {
 
 var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key); // => only 'getName'
+console.log(Reflect.ownKeys(person));   // => []
 ```
-The same [example](http://goo.gl/3rVNTP) with the `private` keyword:
+The same [example](http://goo.gl/juKxyx) with the `private` keyword:
 ```javascript
 class Person {
   private NAME
@@ -749,7 +751,7 @@ class Person {
 
 var person = new Person('Vasya');
 console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key); // => only 'getName'
+console.log(Reflect.ownKeys(person));   // => []
 ```
 Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
