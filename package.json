@@ -25,6 +25,7 @@
   "scripts": {
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter"
   },
+  "license": "MIT",
   "keywords": [
     "ES6",
     "ECMAScript 6",
