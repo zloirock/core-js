@@ -259,7 +259,7 @@
   }, weakMethods, true, true);
   
   // IE11 WeakMap frozen keys fix
-  if(framework && DESC && new WeakMap([[Object.freeze(tmp), 7]]).get(tmp) != 7){
+  if(framework && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
     forEach.call(array('delete,has,get,set'), function(key){
       var method = WeakMap[PROTOTYPE][key];
       WeakMap[PROTOTYPE][key] = function(a, b){

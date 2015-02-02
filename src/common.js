@@ -43,6 +43,7 @@ var OBJECT          = 'Object'
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
+  , isFinite        = global.isFinite
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
   , document        = global.document
@@ -57,7 +58,7 @@ var OBJECT          = 'Object'
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it != null && (typeof it == 'object' || typeof it == 'function');
+  return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
 function isFunction(it){
   return typeof it == 'function';
@@ -274,6 +275,8 @@ function generic(A, B){
 
 // Math
 var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
+  , pow    = Math.pow
+  , abs    = Math.abs
   , ceil   = Math.ceil
   , floor  = Math.floor
   , max    = Math.max

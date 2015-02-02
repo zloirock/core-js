@@ -56,6 +56,7 @@ var OBJECT          = 'Object'
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
+  , isFinite        = global.isFinite
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
   , document        = global.document
@@ -70,7 +71,7 @@ var OBJECT          = 'Object'
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
-  return it != null && (typeof it == 'object' || typeof it == 'function');
+  return it !== null && (typeof it == 'object' || typeof it == 'function');
 }
 function isFunction(it){
   return typeof it == 'function';
@@ -287,6 +288,8 @@ function generic(A, B){
 
 // Math
 var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
+  , pow    = Math.pow
+  , abs    = Math.abs
   , ceil   = Math.ceil
   , floor  = Math.floor
   , max    = Math.max
@@ -546,13 +549,7 @@ if(exportGlobal || framework){
 }
 
 /******************************************************************************
- * Module : global                                                            *
- ******************************************************************************/
-
-$define(GLOBAL + FORCED, {global: global});
-
-/******************************************************************************
- * Module : es6_symbol                                                        *
+ * Module : es6.symbol                                                        *
  ******************************************************************************/
 
 // ECMAScript 6 symbols shim
@@ -633,29 +630,10 @@ $define(GLOBAL + FORCED, {global: global});
 }(safeSymbol('tag'), {}, {}, true);
 
 /******************************************************************************
- * Module : es6                                                               *
+ * Module : es6.object                                                        *
  ******************************************************************************/
 
-// ECMAScript 6 shim
-!function(RegExpProto, isFinite, tmp, NAME){
-  var RangeError = global.RangeError
-      // 20.1.2.3 Number.isInteger(number)
-    , isInteger = Number.isInteger || function(it){
-        return !isObject(it) && isFinite(it) && floor(it) === it;
-      }
-      // 20.2.2.28 Math.sign(x)
-    , sign = Math.sign || function sign(x){
-        return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
-      }
-    , E    = Math.E
-    , pow  = Math.pow
-    , abs  = Math.abs
-    , exp  = Math.exp
-    , log  = Math.log
-    , sqrt = Math.sqrt
-    , fcc  = String.fromCharCode
-    , at   = createPointAt(true);
-  
+!function(tmp){
   var objectStatic = {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -681,15 +659,65 @@ $define(GLOBAL + FORCED, {global: global});
   }();
   $define(STATIC, OBJECT, objectStatic);
   
-  // 20.2.2.5 Math.asinh(x)
-  function asinh(x){
-    return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
-  }
-  // 20.2.2.14 Math.expm1(x)
-  function expm1(x){
-    return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
+  if(framework){
+    // 19.1.3.6 Object.prototype.toString()
+    tmp[SYMBOL_TAG] = DOT;
+    if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
+      return '[object ' + classof(this) + ']';
+    });
   }
   
+  // 20.2.1.9 Math[@@toStringTag]
+  setToStringTag(Math, MATH, true);
+  // 24.3.3 JSON[@@toStringTag]
+  setToStringTag(global.JSON, 'JSON', true);
+}({});
+
+/******************************************************************************
+ * Module : es6.object.statics-accept-primitives                              *
+ ******************************************************************************/
+
+!function(){
+  // Object static methods accept primitives
+  function wrapObjectMethod(key, MODE){
+    var fn  = Object[key]
+      , exp = core[OBJECT][key]
+      , f   = 0
+      , o   = {};
+    if(!exp || isNative(exp)){
+      o[key] = MODE == 1 ? function(it){
+        return isObject(it) ? fn(it) : it;
+      } : MODE == 2 ? function(it){
+        return isObject(it) ? fn(it) : true;
+      } : MODE == 3 ? function(it){
+        return isObject(it) ? fn(it) : false;
+      } : MODE == 4 ? function(it, key){
+        return fn(toObject(it), key);
+      } : function(it){
+        return fn(toObject(it));
+      };
+      try { fn(DOT) }
+      catch(e){ f = 1 }
+      $define(STATIC + FORCED * f, OBJECT, o);
+    }
+  }
+  wrapObjectMethod('freeze', 1);
+  wrapObjectMethod('seal', 1);
+  wrapObjectMethod('preventExtensions', 1);
+  wrapObjectMethod('isFrozen', 2);
+  wrapObjectMethod('isSealed', 2);
+  wrapObjectMethod('isExtensible', 3);
+  wrapObjectMethod('getOwnPropertyDescriptor', 4);
+  wrapObjectMethod('getPrototypeOf');
+  wrapObjectMethod('keys');
+  wrapObjectMethod('getOwnPropertyNames');
+}();
+
+/******************************************************************************
+ * Module : es6.number                                                        *
+ ******************************************************************************/
+
+!function(isInteger){
   $define(STATIC, NUMBER, {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
@@ -714,7 +742,35 @@ $define(GLOBAL + FORCED, {global: global});
     // 20.1.2.13 Number.parseInt(string, radix)
     parseInt: parseInt
   });
+// 20.1.2.3 Number.isInteger(number)
+}(Number.isInteger || function(it){
+  return !isObject(it) && isFinite(it) && floor(it) === it;
+});
+
+/******************************************************************************
+ * Module : es6.math                                                          *
+ ******************************************************************************/
+
+// ECMAScript 6 shim
+!function(){
+  // 20.2.2.28 Math.sign(x)
+  var E    = Math.E
+    , exp  = Math.exp
+    , log  = Math.log
+    , sqrt = Math.sqrt
+    , sign = Math.sign || function(x){
+        return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
+      };
   
+  // 20.2.2.5 Math.asinh(x)
+  function asinh(x){
+    return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
+  }
+  // 20.2.2.14 Math.expm1(x)
+  function expm1(x){
+    return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
+  }
+    
   $define(STATIC, MATH, {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
@@ -798,12 +854,17 @@ $define(GLOBAL + FORCED, {global: global});
     // 20.2.2.34 Math.trunc(x)
     trunc: trunc
   });
-  // 20.2.1.9 Math[@@toStringTag]
-  setToStringTag(Math, MATH, true);
-  
+}();
+
+/******************************************************************************
+ * Module : es6.string                                                        *
+ ******************************************************************************/
+
+!function(RangeError, fromCharCode){
   function assertNotRegExp(it){
     if(cof(it) == REGEXP)throw TypeError();
   }
+  
   $define(STATIC, STRING, {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     fromCodePoint: function(x){
@@ -815,8 +876,8 @@ $define(GLOBAL + FORCED, {global: global});
         code = +arguments[i++];
         if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
         res.push(code < 0x10000
-          ? fcc(code)
-          : fcc(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
+          ? fromCharCode(code)
+          : fromCharCode(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
         );
       } return res.join('');
     },
@@ -833,6 +894,7 @@ $define(GLOBAL + FORCED, {global: global});
       } return res.join('');
     }
   });
+  
   $define(PROTO, STRING, {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     codePointAt: createPointAt(false),
@@ -869,21 +931,13 @@ $define(GLOBAL + FORCED, {global: global});
       return that.slice(index, index + searchString.length) === searchString;
     }
   });
-  // 21.1.3.27 String.prototype[@@iterator]()
-  defineStdIterators(String, STRING, function(iterated){
-    set(this, ITER, {o: String(iterated), i: 0});
-  // 21.1.5.2.1 %StringIteratorPrototype%.next()
-  }, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , index = iter.i
-      , point;
-    if(index >= O.length)return iterResult(1);
-    point = at.call(O, index);
-    iter.i += point.length;
-    return iterResult(0, point);
-  });
-  
+}(global.RangeError, String.fromCharCode);
+
+/******************************************************************************
+ * Module : es6.array                                                         *
+ ******************************************************************************/
+
+!function(){
   $define(STATIC, ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
@@ -913,6 +967,7 @@ $define(GLOBAL + FORCED, {global: global});
       return result;
     }
   });
+  
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0, end = @length */){
@@ -951,6 +1006,23 @@ $define(GLOBAL + FORCED, {global: global});
     // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
     findIndex: createArrayMethod(6)
   });
+  
+  if(framework){
+    // 22.1.3.31 Array.prototype[@@unscopables]
+    forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
+      ArrayUnscopables[it] = true;
+    });
+    SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
+  }  
+  
+  setSpecies(Array);
+}();
+
+/******************************************************************************
+ * Module : es6.iterators                                                     *
+ ******************************************************************************/
+
+!function(at){
   // 22.1.3.4 Array.prototype.entries()
   // 22.1.3.13 Array.prototype.keys()
   // 22.1.3.29 Array.prototype.values()
@@ -972,115 +1044,24 @@ $define(GLOBAL + FORCED, {global: global});
   // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
   Iterators[ARGUMENTS] = Iterators[ARRAY];
   
-  // 24.3.3 JSON[@@toStringTag]
-  setToStringTag(global.JSON, 'JSON', true);
-  
-  // Object static methods accept primitives
-  function wrapObjectMethod(key, MODE){
-    var fn  = Object[key]
-      , exp = core[OBJECT][key]
-      , f   = 0
-      , o   = {};
-    if(!exp || isNative(exp)){
-      o[key] =
-        MODE == 1 ? function(it){ return isObject(it) ? fn(it) : it } :
-        MODE == 2 ? function(it){ return isObject(it) ? fn(it) : true } :
-        MODE == 3 ? function(it){ return isObject(it) ? fn(it) : false } :
-        MODE == 4 ? function(it, key){ return fn(toObject(it), key) } :
-                    function(it){ return fn(toObject(it)) }
-      try { fn(DOT) }
-      catch(e){ f = 1}
-      $define(STATIC + FORCED * f, OBJECT, o);
-    }
-  }
-  wrapObjectMethod('freeze', 1);
-  wrapObjectMethod('seal', 1);
-  wrapObjectMethod('preventExtensions', 1);
-  wrapObjectMethod('isFrozen', 2);
-  wrapObjectMethod('isSealed', 2);
-  wrapObjectMethod('isExtensible', 3);
-  wrapObjectMethod('getOwnPropertyDescriptor', 4);
-  wrapObjectMethod('getPrototypeOf');
-  wrapObjectMethod('keys');
-  wrapObjectMethod('getOwnPropertyNames');
-  
-  function assertRegExpWrapper(fn){
-    return function(){
-      assert(cof(this) === REGEXP);
-      return fn(this);
-    }
-  }
-    
-  if(framework){
-    // 19.1.3.6 Object.prototype.toString()
-    tmp[SYMBOL_TAG] = DOT;
-    if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
-      return '[object ' + classof(this) + ']';
-    });
-    
-    // 19.2.4.2 name
-    NAME in FunctionProto || defineProperty(FunctionProto, NAME, {
-      configurable: true,
-      get: function(){
-        var match = String(this).match(/^\s*function ([^ (]*)/)
-          , name  = match ? match[1] : '';
-        has(this, NAME) || defineProperty(this, NAME, descriptor(5, name));
-        return name;
-      },
-      set: function(value){
-        has(this, NAME) || defineProperty(this, NAME, descriptor(0, value));
-      }
-    });
-    
-    // RegExp allows a regex with flags as the pattern
-    if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
-      var _RegExp = RegExp;
-      RegExp = function RegExp(pattern, flags){
-        return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
-          ? pattern.source : pattern, flags);
-      }
-      forEach.call(getNames(_RegExp), function(key){
-        key in RegExp || defineProperty(RegExp, key, {
-          configurable: true,
-          get: function(){ return _RegExp[key] },
-          set: function(it){ _RegExp[key] = it }
-        });
-      });
-      RegExpProto[CONSTRUCTOR] = RegExp;
-      RegExp[PROTOTYPE] = RegExpProto;
-      hidden(global, REGEXP, RegExp);
-    }
-    
-    // 21.2.5.3 get RegExp.prototype.flags()
-    if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
-      configurable: true,
-      get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
-    });
-    
-    // 21.2.5.12 get RegExp.prototype.sticky()
-    // 21.2.5.15 get RegExp.prototype.unicode()
-    forEach.call(array('sticky,unicode'), function(key){
-      key in /./ || defineProperty(RegExpProto, key, DESC ? {
-        configurable: true,
-        get: assertRegExpWrapper(function(){
-          return false;
-        })
-      } : descriptor(5, false));
-    });
-    
-    // 22.1.3.31 Array.prototype[@@unscopables]
-    forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
-      ArrayUnscopables[it] = true;
-    });
-    SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
-  }
-  
-  setSpecies(RegExp);
-  setSpecies(Array);
-}(RegExp[PROTOTYPE], isFinite, {}, 'name');
+  // 21.1.3.27 String.prototype[@@iterator]()
+  defineStdIterators(String, STRING, function(iterated){
+    set(this, ITER, {o: String(iterated), i: 0});
+  // 21.1.5.2.1 %StringIteratorPrototype%.next()
+  }, function(){
+    var iter  = this[ITER]
+      , O     = iter.o
+      , index = iter.i
+      , point;
+    if(index >= O.length)return iterResult(1);
+    point = at.call(O, index);
+    iter.i += point.length;
+    return iterResult(0, point);
+  });
+}(createPointAt(true));
 
 /******************************************************************************
- * Module : immediate                                                         *
+ * Module : web.immediate                                                     *
  ******************************************************************************/
 
 // setImmediate shim
@@ -1143,7 +1124,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // Rest old browsers
   } else {
     defer = function(id){
-      setTimeout(part.call(run, id), 0);
+      setTimeout(run, 0, id);
     }
   }
 }('onreadystatechange');
@@ -1153,7 +1134,7 @@ $define(GLOBAL + BIND, {
 });
 
 /******************************************************************************
- * Module : es6_promise                                                       *
+ * Module : es6.promise                                                       *
  ******************************************************************************/
 
 // ES6 promises shim
@@ -1304,7 +1285,7 @@ $define(GLOBAL + BIND, {
 }(global[PROMISE]);
 
 /******************************************************************************
- * Module : es6_collections                                                   *
+ * Module : es6.collections                                                   *
  ******************************************************************************/
 
 // ECMAScript 6 collections shim
@@ -1568,7 +1549,7 @@ $define(GLOBAL + BIND, {
   }, weakMethods, true, true);
   
   // IE11 WeakMap frozen keys fix
-  if(framework && DESC && new WeakMap([[Object.freeze(tmp), 7]]).get(tmp) != 7){
+  if(framework && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
     forEach.call(array('delete,has,get,set'), function(key){
       var method = WeakMap[PROTOTYPE][key];
       WeakMap[PROTOTYPE][key] = function(a, b){
@@ -1592,7 +1573,7 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
- * Module : es6_reflect                                                       *
+ * Module : es6.reflect                                                       *
  ******************************************************************************/
 
 !function(){
@@ -1693,7 +1674,7 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
- * Module : es7                                                               *
+ * Module : es7.proposals                                                     *
  ******************************************************************************/
 
 !function(){
@@ -1731,7 +1712,7 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
- * Module : es7_refs                                                          *
+ * Module : es7.abstract-refs                                                 *
  ******************************************************************************/
 
 // https://github.com/zenparsing/es-abstract-refs
@@ -1761,18 +1742,7 @@ $define(GLOBAL + BIND, {
 }('reference');
 
 /******************************************************************************
- * Module : dom_itarable                                                      *
- ******************************************************************************/
-
-!function(NodeList){
-  if(framework && NodeList && !(SYMBOL_ITERATOR in NodeList[PROTOTYPE])){
-    hidden(NodeList[PROTOTYPE], SYMBOL_ITERATOR, Iterators[ARRAY]);
-  }
-  Iterators.NodeList = Iterators[ARRAY];
-}(global.NodeList);
-
-/******************************************************************************
- * Module : dict                                                              *
+ * Module : core.dict                                                         *
  ******************************************************************************/
 
 !function(DICT){
@@ -1913,7 +1883,7 @@ $define(GLOBAL + BIND, {
 }('Dict');
 
 /******************************************************************************
- * Module : $for                                                              *
+ * Module : core.$for                                                         *
  ******************************************************************************/
 
 !function(ENTRIES, FN){  
@@ -1978,7 +1948,7 @@ $define(GLOBAL + BIND, {
 }('entries', safeSymbol('fn'));
 
 /******************************************************************************
- * Module : binding                                                           *
+ * Module : core.binding                                                      *
  ******************************************************************************/
 
 !function(_, toLocaleString){
@@ -2020,7 +1990,7 @@ $define(GLOBAL + BIND, {
 }(DESC ? uid('tie') : TO_LOCALE, ObjectProto[TO_LOCALE]);
 
 /******************************************************************************
- * Module : object                                                            *
+ * Module : core.object                                                       *
  ******************************************************************************/
 
 !function(){
@@ -2042,7 +2012,7 @@ $define(GLOBAL + BIND, {
 }();
 
 /******************************************************************************
- * Module : array                                                             *
+ * Module : core.array                                                        *
  ******************************************************************************/
 
 $define(PROTO + FORCED, ARRAY, {
@@ -2059,25 +2029,7 @@ $define(PROTO + FORCED, ARRAY, {
 if(framework)ArrayUnscopables.turn = true;
 
 /******************************************************************************
- * Module : array_statics                                                     *
- ******************************************************************************/
-
-// JavaScript 1.6 / Strawman array statics shim
-!function(arrayStatics){
-  function setArrayStatics(keys, length){
-    forEach.call(array(keys), function(key){
-      if(key in ArrayProto)arrayStatics[key] = ctx(call, ArrayProto[key], length);
-    });
-  }
-  setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
-  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
-  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
-                  'reduce,reduceRight,copyWithin,fill,turn');
-  $define(STATIC, ARRAY, arrayStatics);
-}({});
-
-/******************************************************************************
- * Module : number                                                            *
+ * Module : core.number                                                       *
  ******************************************************************************/
 
 !function(numberMethods){  
@@ -2121,7 +2073,7 @@ if(framework)ArrayUnscopables.turn = true;
 }({});
 
 /******************************************************************************
- * Module : string                                                            *
+ * Module : core.string                                                       *
  ******************************************************************************/
 
 !function(){
@@ -2140,7 +2092,7 @@ if(framework)ArrayUnscopables.turn = true;
 }();
 
 /******************************************************************************
- * Module : date                                                              *
+ * Module : core.date                                                         *
  ******************************************************************************/
 
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, MONTH, YEAR){
@@ -2204,4 +2156,39 @@ if(framework)ArrayUnscopables.turn = true;
   };
   core.addLocale = addLocale;
 }(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Month', 'FullYear');
+
+/******************************************************************************
+ * Module : core.global                                                       *
+ ******************************************************************************/
+
+$define(GLOBAL + FORCED, {global: global});
+
+/******************************************************************************
+ * Module : js.array.statics                                                  *
+ ******************************************************************************/
+
+// JavaScript 1.6 / Strawman array statics shim
+!function(arrayStatics){
+  function setArrayStatics(keys, length){
+    forEach.call(array(keys), function(key){
+      if(key in ArrayProto)arrayStatics[key] = ctx(call, ArrayProto[key], length);
+    });
+  }
+  setArrayStatics('pop,reverse,shift,keys,values,entries', 1);
+  setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
+  setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
+                  'reduce,reduceRight,copyWithin,fill,turn');
+  $define(STATIC, ARRAY, arrayStatics);
+}({});
+
+/******************************************************************************
+ * Module : web.dom.itarable                                                  *
+ ******************************************************************************/
+
+!function(NodeList){
+  if(framework && NodeList && !(SYMBOL_ITERATOR in NodeList[PROTOTYPE])){
+    hidden(NodeList[PROTOTYPE], SYMBOL_ITERATOR, Iterators[ARRAY]);
+  }
+  Iterators.NodeList = Iterators[ARRAY];
+}(global.NodeList);
 }(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), false);

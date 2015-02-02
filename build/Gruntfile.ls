@@ -19,7 +19,7 @@ module.exports = (grunt)->
       tests:
         files: './tests/tests/*'
         tasks: \livescript
-  grunt.registerTask \build (options = 'old_shim,new_shim,core')->
+  grunt.registerTask \build (options = 'shim,core')->
     options .= split \, .turn ((memo, it)-> memo[it] = on), {}
     grunt.option(\path) || grunt.option \path './custom'
     done = @async!
@@ -27,27 +27,27 @@ module.exports = (grunt)->
     fs.writeFile grunt.option(\path) + '.js', it, done
   grunt.registerTask \node ->
     grunt.option \path './index'
-    grunt.task.run <[build:new_shim,core]>
+    grunt.task.run <[build:shim.modern,core]>
   grunt.registerTask \library ->
     grunt.option \path './library'
-    grunt.task.run <[build:new_shim,core,library]>
+    grunt.task.run <[build:shim.modern,core,library]>
   grunt.registerTask \shim ->
     grunt.option \path './shim'
-    grunt.task.run <[build:new_shim]>
+    grunt.task.run <[build:shim.modern]>
   grunt.registerTask \experimental ->
     grunt.option \path './index'
-    grunt.task.run <[build:new_shim,core,exp]>
+    grunt.task.run <[build:shim.modern,core,exp]>
   grunt.registerTask \client ->
     grunt.option \path './client/core'
-    grunt.task.run <[build:old_shim,new_shim,core uglify]>
+    grunt.task.run <[build:shim,core uglify]>
   grunt.registerTask \client-library ->
     grunt.option \path './client/library'
-    grunt.task.run <[build:old_shim,new_shim,core,library uglify]>
+    grunt.task.run <[build:shim,core,library uglify]>
   grunt.registerTask \client-shim ->
     grunt.option \path './client/shim'
-    grunt.task.run <[build:old_shim,new_shim uglify]>
+    grunt.task.run <[build:shim uglify]>
   grunt.registerTask \client-experimental ->
     grunt.option \path './client/core'
-    grunt.task.run <[build:old_shim,new_shim,core,exp uglify]>
+    grunt.task.run <[build:shim,core,exp uglify]>
   grunt.registerTask \e <[experimental client-experimental]>
   grunt.registerTask \default <[node library shim client client-library client-shim]>

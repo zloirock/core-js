@@ -58,7 +58,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // Rest old browsers
   } else {
     defer = function(id){
-      setTimeout(part.call(run, id), 0);
+      setTimeout(run, 0, id);
     }
   }
 }('onreadystatechange');
