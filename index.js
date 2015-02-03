@@ -91,7 +91,7 @@ function cof(it){
 }
 function classof(it){
   var klass = cof(it), tag;
-  return klass == OBJECT && (tag = it[SYMBOL_TAG]) ? tag : klass;
+  return klass == OBJECT && typeof (tag = it[SYMBOL_TAG]) == 'string' ? tag : klass;
 }
 
 // Function
