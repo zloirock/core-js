@@ -54,7 +54,12 @@ var OBJECT          = 'Object'
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , DOT             = '.';
+  , DOT             = '.'
+  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  , CONSOLE_METHODS = 'assert,clear,count,debug,dir,dirxml,error,exception,' +
+      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
+      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
+      'timelineEnd,timeStamp,trace,warn';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){

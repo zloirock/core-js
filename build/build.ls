@@ -33,6 +33,7 @@ modules  = <[
   web.dom.itarable
   web.timers
   web.console
+  core.log
 ]>
 
 es6 = <[
@@ -76,6 +77,7 @@ core = <[
   core.number
   core.string
   core.date
+  core.log
 ]>
 exp  = <[
   core.iterator
