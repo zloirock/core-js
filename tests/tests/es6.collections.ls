@@ -1,18 +1,14 @@
 QUnit.module 'ES6 Collections'
-isFunction = -> typeof! it is \Function
-same = Object.is
-{getOwnPropertyDescriptor, freeze} = Object
 
-descriptors = /\[native code\]\s*\}\s*$/.test Object.defineProperty
+isFunction = -> typeof! it is \Function
+isIterator = -> typeof it is \object && isFunction it.next
+
+same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
+{getOwnPropertyDescriptor, freeze} = Object
 
 eq = strictEqual
 deq = deepEqual
 
-{iterator, toStringTag} = Symbol
-
-isIterator = ->
-  return typeof it is \object  && typeof it.next is \function
-  
 that = global? && global || window
 
 test 'Map' !->
@@ -132,7 +128,7 @@ test 'Map#size' !->
   size = new Map!set 2 1 .size
   eq typeof size, \number, 'size is number'
   eq size, 1, 'size is correct'
-  if descriptors
+  if /\[native code\]\s*\}\s*$/.test Object.defineProperty
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
@@ -153,7 +149,7 @@ test 'Map & -0' !->
   map.forEach (val, key)->
     ok !same key, -0
 test 'Map#@@toStringTag' !->
-  eq Map::[Symbol.toStringTag], \Map, 'Map::@@toStringTag is `Map`'
+  eq Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
 
 test 'Map Iterator' !->
   map = new Map [[\a 1], [\b 2], [\c 3], [\d 4]]
@@ -174,7 +170,7 @@ test 'Map#keys' !->
   ok typeof Map::keys is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Map Iterator'
+  eq iter[Symbol?toStringTag], 'Map Iterator'
   deq iter.next!, {value: \a, done: no}
   deq iter.next!, {value: \s, done: no}
   deq iter.next!, {value: \d, done: no}
@@ -183,7 +179,7 @@ test 'Map#values' !->
   ok typeof Map::values is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Map Iterator'
+  eq iter[Symbol?toStringTag], 'Map Iterator'
   deq iter.next!, {value: \q, done: no}
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
@@ -192,17 +188,17 @@ test 'Map#entries' !->
   ok typeof Map::entries is \function, 'Is function'
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Map Iterator'
+  eq iter[Symbol?toStringTag], 'Map Iterator'
   deq iter.next!, {value: [\a \q], done: no}
   deq iter.next!, {value: [\s \w], done: no}
   deq iter.next!, {value: [\d \e], done: no}
   deq iter.next!, {value: void, done: on}
 test 'Map#@@iterator' !->
-  ok typeof Map::[iterator] is \function, 'Is function'
-  eq Map::[iterator], Map::entries
-  iter = new Map([[\a \q],[\s \w],[\d \e]])[iterator]!
+  ok typeof Map::[Symbol?iterator] is \function, 'Is function'
+  eq Map::[Symbol?iterator], Map::entries
+  iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Map Iterator'
+  eq iter[Symbol?toStringTag], 'Map Iterator'
   deq iter.next!, {value: [\a \q], done: no}
   deq iter.next!, {value: [\s \w], done: no}
   deq iter.next!, {value: [\d \e], done: no}
@@ -314,7 +310,7 @@ test 'Set#size' !->
   size = new Set([1]).size
   eq typeof size, \number, 'size is number'
   eq size, 1, 'size is correct'
-  if descriptors
+  if /\[native code\]\s*\}\s*$/.test Object.defineProperty
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'
@@ -333,7 +329,7 @@ test 'Set & -0' !->
   set.forEach (key)->
     ok !same key, -0
 test 'Set#@@toStringTag' !->
-  eq Set::[Symbol.toStringTag], \Set, 'Set::@@toStringTag is `Set`'
+  eq Set::[Symbol?toStringTag], \Set, 'Set::@@toStringTag is `Set`'
 
 test 'Set Iterator' !->
   set = new Set <[a b c d]>
@@ -355,7 +351,7 @@ test 'Set#keys' !->
   eq Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Set Iterator'
+  eq iter[Symbol?toStringTag], 'Set Iterator'
   deq iter.next!, {value: \q, done: no}
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
@@ -364,7 +360,7 @@ test 'Set#values' !->
   ok typeof Set::values is \function, 'Is function'
   iter = new Set(<[q w e]>)values!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Set Iterator'
+  eq iter[Symbol?toStringTag], 'Set Iterator'
   deq iter.next!, {value: \q, done: no}
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
@@ -373,17 +369,17 @@ test 'Set#entries' !->
   ok typeof Set::entries is \function, 'Is function'
   iter = new Set(<[q w e]>)entries!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Set Iterator'
+  eq iter[Symbol?toStringTag], 'Set Iterator'
   deq iter.next!, {value: [\q \q], done: no}
   deq iter.next!, {value: [\w \w], done: no}
   deq iter.next!, {value: [\e \e], done: no}
   deq iter.next!, {value: void, done: on}
 test 'Set#@@iterator' !->
-  ok typeof Set::[iterator] is \function, 'Is function'
-  eq Set::[iterator], Set::values
-  iter = new Set(<[q w e]>)[iterator]!
+  ok typeof Set::[Symbol?iterator] is \function, 'Is function'
+  eq Set::[Symbol?iterator], Set::values
+  iter = new Set(<[q w e]>)[Symbol?iterator]!
   ok isIterator(iter), 'Return iterator'
-  eq iter[toStringTag], 'Set Iterator'
+  eq iter[Symbol?toStringTag], 'Set Iterator'
   deq iter.next!, {value: \q, done: no}
   deq iter.next!, {value: \w, done: no}
   deq iter.next!, {value: \e, done: no}
@@ -437,7 +433,7 @@ test 'WeakMap#set' !->
   ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
   ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
 test 'WeakMap#@@toStringTag' !->
-  eq WeakMap::[Symbol.toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'
+  eq WeakMap::[Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'
 
 test 'WeakSet' !->
   ok isFunction(that.WeakSet), 'Is function'
@@ -474,4 +470,4 @@ test 'WeakSet#has' !->
   M.delete a
   ok not M.has(a), 'WeakSet has`nt value after .delete()'
 test 'WeakSet::@@toStringTag' !->
-  eq WeakSet::[Symbol.toStringTag], \WeakSet, 'WeakSet::@@toStringTag is `WeakSet`'
+  eq WeakSet::[Symbol?toStringTag], \WeakSet, 'WeakSet::@@toStringTag is `WeakSet`'

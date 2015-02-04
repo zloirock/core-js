@@ -1,4 +1,4 @@
-QUnit.module \Array
+QUnit.module 'core-js Array'
 isFunction = -> typeof! it is \Function
 test '#turn' !->
   ok isFunction(Array::turn), 'Is function'

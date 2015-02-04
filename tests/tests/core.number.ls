@@ -1,4 +1,4 @@
-QUnit.module \Number
+QUnit.module 'core-js Number'
 isFunction = -> typeof! it is \Function
 test '#@@iterator' !->
   {iterator, toStringTag} = Symbol

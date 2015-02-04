@@ -1,8 +1,6 @@
-QUnit.module \Immediate
+QUnit.module 'web.immediate'
 
 isFunction = -> typeof! it  is \Function
-
-G = global? && global || window
 
 eq = strictEqual
 
@@ -11,8 +9,8 @@ timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (re
 test 'setImmediate / clearImmediate' !->
   it.expect 6
   
-  ok isFunction(G.setImmediate), 'setImmediate is function'
-  ok isFunction(G.clearImmediate), 'clearImmediate is function'
+  ok isFunction(setImmediate), 'setImmediate is function'
+  ok isFunction(clearImmediate), 'clearImmediate is function'
     
   var def
   timeLimitedPromise(1e3, (res)-> setImmediate ->

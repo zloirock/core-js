@@ -1,8 +1,7 @@
-QUnit.module \Dict
+QUnit.module 'core-js Dict'
 isFunction = -> typeof! it is \Function
 {keys, create, assign} = Object
 {from} = Array
-{toStringTag} = Symbol
 global = @
 test 'Dict' !->
   ok isFunction(global.Dict), 'Is function'
@@ -185,7 +184,7 @@ test '.values' !->
   {values} = Dict
   ok isFunction(values), 'Is function'
   iter = values {}
-  ok iter[toStringTag] is 'Dict Iterator'
+  ok iter[Symbol?toStringTag] is 'Dict Iterator'
   ok \next of iter
   deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
   deepEqual from(values(new String \qwe)), <[q w e]>
@@ -194,7 +193,7 @@ test '.keys' !->
   {keys} = Dict
   ok isFunction(keys), 'Is function'
   iter = keys {}
-  ok iter[toStringTag] is 'Dict Iterator'
+  ok iter[Symbol?toStringTag] is 'Dict Iterator'
   ok \next of iter
   deepEqual from(keys({q:1, w:2, e:3})), <[q w e]>
   deepEqual from(keys(new String \qwe)), <[0 1 2]>
@@ -203,7 +202,7 @@ test '.entries' !->
   {entries} = Dict
   ok isFunction(entries), 'Is function'
   iter = entries {}
-  ok iter[toStringTag] is 'Dict Iterator'
+  ok iter[Symbol?toStringTag] is 'Dict Iterator'
   ok \next of iter
   deepEqual from(entries({q:1, w:2, e:3})),[[\q 1] [\w 2] [\e 3]]
   deepEqual from(entries(new String \qwe)), [[\0 \q] [\1 \w] [\2 \e]]

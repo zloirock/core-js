@@ -1,7 +1,5 @@
-QUnit.module \Object
+QUnit.module 'core-js Object'
 isFunction = -> typeof! it is \Function
-{getPrototypeOf,  defineProperty, getOwnPropertyDescriptor} = Object
-DESCRIPTORS = /\[native code\]\s*\}\s*$/.test defineProperty
 test '.isObject' !->
   {isObject} = Object
   ok isFunction(isObject), 'Is function'
@@ -55,7 +53,7 @@ test '.make' !->
   {make} = Object
   ok isFunction(make), 'Is function'
   object = make foo = {q:1}, {w:2}
-  ok getPrototypeOf(object) is foo
+  ok Object.getPrototypeOf(object) is foo
   ok object.w is 2
 test '.define' !->
   {define} = Object
@@ -63,8 +61,8 @@ test '.define' !->
   foo = q:1
   ok foo is define foo, w:2
   ok foo.w is 2
-  if DESCRIPTORS
+  if /\[native code\]\s*\}\s*$/.test Object.defineProperty
     foo = q:1
-    foo2 = defineProperty {}, \w, get: -> @q + 1
+    foo2 = Object.defineProperty {}, \w, get: -> @q + 1
     define foo, foo2
     ok foo.w is 2

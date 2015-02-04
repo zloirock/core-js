@@ -1,7 +1,5 @@
-QUnit.module \Binding
+QUnit.module 'core-js binding'
 isFunction = -> typeof! it  is \Function
-DESC = /\[native code\]\s*\}\s*$/.test Object.defineProperty
-{slice} = Array::
 test 'Function#part' !->
   ok isFunction(Function::part), 'Is function'
   ok (-> typeof! it is \String)part(\qwe)!
@@ -43,6 +41,6 @@ test '#[_]' !->
   ok ![1 \q]every /\d/[_] \test
   foo = bar : (a, b)->
     ok @ is foo
-    deepEqual slice.call(&), [1 2]
+    deepEqual Array::slice.call(&), [1 2]
   bar = foo[_] \bar
   bar 1 2 

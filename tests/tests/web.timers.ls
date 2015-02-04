@@ -1,6 +1,4 @@
-QUnit.module \Timers
-
-G = global? && global || window
+QUnit.module 'web.timers'
 
 eq = strictEqual
 
@@ -9,12 +7,12 @@ timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (re
 test 'setTimeout / clearTimeout' !->
   it.expect 2
   
-  timeLimitedPromise(1e3, (res)-> G.setTimeout(((a, b)-> res a +  b), 10 \a \b))
+  timeLimitedPromise(1e3, (res)-> setTimeout(((a, b)-> res a +  b), 10 \a \b))
     .then  -> eq it, \ab, 'setTimeout works with additional args'
     .catch -> ok no 'setTimeout works with additional args'
     .then it.async!
   
-  timeLimitedPromise(50, (res)-> clearTimeout G.setTimeout res, 10)
+  timeLimitedPromise(50, (res)-> clearTimeout setTimeout res, 10)
     .then  -> ok no 'clearImmediate works with wraped setTimeout'
     .catch -> ok on 'clearImmediate works with wraped setTimeout'
     .then it.async!
@@ -22,7 +20,7 @@ test 'setTimeout / clearTimeout' !->
 test 'setInterval / clearInterval' !->
   it.expect 1
   i = 0
-  timeLimitedPromise(1e4, (res, rej)-> interval = G.setInterval(((a, b)->
+  timeLimitedPromise(1e4, (res, rej)-> interval = setInterval(((a, b)->
     if a + b isnt \ab or i > 2 => rej {a, b, i}
     if i++ is 2
       clearInterval interval

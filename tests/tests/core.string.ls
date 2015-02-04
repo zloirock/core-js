@@ -1,4 +1,4 @@
-QUnit.module \String
+QUnit.module 'core-js String'
 isFunction = -> typeof! it is \Function
 test '#escapeHTML' !->
   ok isFunction(String::escapeHTML), 'Is function'

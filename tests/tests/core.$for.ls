@@ -1,13 +1,12 @@
-QUnit.module \$for
+QUnit.module 'core-js $for'
 {from} = Array
-{iterator} = Symbol
 test '$for' !->
   ok typeof $for is \function, 'Is function'
-  ok iterator of $for::
+  ok Symbol?iterator of $for::
   set = new Set <[1 2 3 2 1]>
   iter = $for set
   ok iter instanceof $for
-  ok typeof! iter[iterator]! is 'Set Iterator'
+  ok typeof! iter[Symbol?iterator]! is 'Set Iterator'
   deepEqual <[1 2 3]>, from iter
 test '$for#filter' !->
   ok typeof $for::filter is \function, 'Is function'
@@ -111,6 +110,6 @@ test '$for.getIterator' !->
     getIterator O
     ok on
   catch => ok no
-  deepEqual Array.from(O), <[a b c]>
+  deepEqual from(O), <[a b c]>
   global.Symbol = _Symbol
   throws (!-> getIterator O), TypeError
