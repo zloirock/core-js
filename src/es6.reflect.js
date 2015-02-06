@@ -28,20 +28,34 @@
   function reflectGet(target, propertyKey/*, receiver*/){
     var receiver = arguments.length < 3 ? target : arguments[2]
       , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
-    if(desc)return desc.get ? desc.get.call(receiver) : desc.value;
-    return isObject(proto = getPrototypeOf(target)) ? reflectGet(proto, propertyKey, receiver) : undefined;
+    if(desc)return has(desc, 'value')
+      ? desc.value
+      : desc.get === undefined
+        ? undefined
+        : desc.get.call(receiver);
+    return isObject(proto = getPrototypeOf(target))
+      ? reflectGet(proto, propertyKey, receiver)
+      : undefined;
   }
   function reflectSet(target, propertyKey, V/*, receiver*/){
     var receiver = arguments.length < 4 ? target : arguments[3]
-      , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
-    if(desc){
-      if(desc.writable === false)return false;
-      if(desc.set)return desc.set.call(receiver, V), true;
+      , ownDesc  = getOwnDescriptor(assertObject(target), propertyKey)
+      , existingDescriptor, proto;
+    if(!ownDesc){
+      if(isObject(proto = getPrototypeOf(target))){
+        return reflectSet(proto, propertyKey, V, receiver);
+      }
+      ownDesc = descriptor(0);
     }
-    if(isObject(proto = getPrototypeOf(target)))return reflectSet(proto, propertyKey, V, receiver);
-    desc = getOwnDescriptor(receiver, propertyKey) || descriptor(0);
-    desc.value = V;
-    return defineProperty(receiver, propertyKey, desc), true;
+    if(has(ownDesc, 'value')){
+      if(ownDesc.writable === false || !isObject(receiver))return false;
+      existingDescriptor = getOwnDescriptor(receiver, propertyKey) || descriptor(0);
+      existingDescriptor.value = V;
+      return defineProperty(receiver, propertyKey, existingDescriptor), true;
+    }
+    return ownDesc.set === undefined
+      ? false
+      : (ownDesc.set.call(receiver, V), true);
   }
   var isExtensible = Object.isExtensible || returnIt;
   
