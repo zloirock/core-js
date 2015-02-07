@@ -11,7 +11,10 @@
       , O     = iter.o
       , kind  = iter.k
       , index = iter.i++;
-    if(!O || index >= O.length)return iter.o = undefined, iterResult(1);
+    if(!O || index >= O.length){
+      iter.o = undefined;
+      return iterResult(1);
+    }
     if(kind == KEY)  return iterResult(0, index);
     if(kind == VALUE)return iterResult(0, O[index]);
                      return iterResult(0, [index, O[index]]);

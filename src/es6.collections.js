@@ -91,7 +91,8 @@
       // get next entry
       if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
         // or finish the iteration
-        return iter.o = undefined, iterResult(1);
+        iter.o = undefined;
+        return iterResult(1);
       }
       // return step by kind
       if(kind == KEY)  return iterResult(0, entry.k);

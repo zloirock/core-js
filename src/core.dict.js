@@ -17,13 +17,16 @@
     set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, DICT, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , keys  = iter.a
-      , kind  = iter.k
+    var iter = this[ITER]
+      , O    = iter.o
+      , keys = iter.a
+      , kind = iter.k
       , key;
     do {
-      if(iter.i >= keys.length)return iterResult(1);
+      if(iter.i >= keys.length){
+        iter.o = undefined;
+        return iterResult(1);
+      }
     } while(!has(O, key = keys[iter.i++]));
     if(kind == KEY)  return iterResult(0, key);
     if(kind == VALUE)return iterResult(0, O[key]);
