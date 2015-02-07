@@ -31,9 +31,13 @@ test 'Map#clear' !->
   M = new Map!set 1 2 .set 2 3 .set 1 4
   M.clear!
   eq M.size, 0
-  M = new Map!set 1 2 .set freeze({}), 3
+  ok !M.has 1
+  ok !M.has 2
+  M = new Map!set 1 2 .set f = freeze({}), 3
   M.clear!
   eq M.size, 0, 'Support frozen objects'
+  ok !M.has 1
+  ok !M.has f
 test 'Map#delete' !->
   ok isFunction(Map::delete), 'Is function'
   a = []
@@ -248,9 +252,14 @@ test 'Set#clear' !->
   S = new Set [1 2 3 2 1]
   S.clear!
   eq S.size, 0
-  S = new Set [1 freeze {}]
+  ok !S.has 1
+  ok !S.has 2
+  ok !S.has 3
+  S = new Set [1 f = freeze {}]
   S.clear!
   eq S.size, 0, 'Support frozen objects'
+  ok !S.has 1
+  ok !S.has f
 test 'Set#delete' !->
   ok isFunction(Set::delete), 'Is function'
   a = []
