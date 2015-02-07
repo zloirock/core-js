@@ -1322,9 +1322,10 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `es7` is equal `es7.proposals,es7.abstract-refs`
 * `core` is equal `core.global,core.$for,core.delay,core.dict,core.binding,core.array,core.object,core.number,core.string,core.date,core.log`
 
+#### Default builds:
 * `core-js/index` builds as `shim.modern,core`
 * `core-js/shim` builds as `shim.modern`
-* `core-js/library` builds as `shim,core,library`
+* `core-js/library` builds as `shim.modern,core,library`
 * `core-js/client/core` builds as `shim,core`
 * `core-js/client/shim` builds as `shim`
 * `core-js/client/library` builds as `shim,core,library`
