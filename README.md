@@ -1301,6 +1301,7 @@ require('core-js');
 var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
+```
 
 #### Custom build:
 ```
@@ -1326,7 +1327,7 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `core-js/client/core` builds as `shim,core`
 * `core-js/client/shim` builds as `shim`
 * `core-js/client/library` builds as `shim,core,library`
-```
+
 ## Changelog
 **0.5.0** - *2015.02.08*
   * systematization of modules
