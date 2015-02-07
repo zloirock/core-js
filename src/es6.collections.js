@@ -153,7 +153,7 @@
     clear: function(){
       for(var that = this, data = that[O1], entry = that[FIRST]; entry; entry = entry.n){
         entry.r = true;
-        entry.p = entry.n = undefined;
+        if(entry.p)entry.p = entry.p.n = undefined;
         delete data[entry.i];
       }
       that[FIRST] = that[LAST] = undefined;
