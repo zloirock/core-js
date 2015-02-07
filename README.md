@@ -41,6 +41,7 @@ core.setImmediate(core.log, 42);                // => 42
   - [Array](#array)
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
+  - [delay](#delay)
 - [Installation, usage and custom build](#installation-usage-and-custom-build)
 - [Changelog](#changelog)
 
