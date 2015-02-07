@@ -6,10 +6,10 @@ Modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes 
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
-Array.from(new Set([1, 2, 3, 2, 1]));  // => [1, 2, 3]
-'*'.repeat(10);                        // => '**********'
-Promise.resolve(32).then(console.log); // => 32
-setImmediate(console.log, 42);         // => 42
+Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+'*'.repeat(10);                       // => '**********'
+Promise.resolve(32).then(log);        // => 32
+setImmediate(log, 42);                // => 42
 ```
 
 [Without global namespace pollution](http://goo.gl/WBhs43):
@@ -17,8 +17,8 @@ setImmediate(console.log, 42);         // => 42
 var core = require('core-js/library'); // With a modular system, otherwise use global `core`
 core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 core.String.repeat('*', 10);                    // => '**********'
-core.Promise.resolve(32).then(console.log);     // => 32
-core.setImmediate(console.log, 42);             // => 42
+core.Promise.resolve(32).then(core.log);        // => 32
+core.setImmediate(core.log, 42);                // => 42
 ```
 - [API](#api)
   - [ECMAScript 5](#ecmascript-5)
@@ -84,8 +84,8 @@ Date
 ```
 
 ### ECMAScript 6
-Module `es6`. About iterators from this module [here](#ecmascript-6-iterators). [Symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections) and [promises](#ecmascript-6-promises) in separate modules.
 #### ECMAScript 6: Object
+Modules `es6.object` and `es6.function`.
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -119,8 +119,14 @@ O[Symbol.toStringTag] = 'Foo';
 
 (function foo(){}).name // => 'foo'
 ```
+Module `es6.object.statics-accept-primitives`. In ES6 most `Object` static methods should work with primitives. [Example](http://goo.gl/WfdbpK):
+```javascript
+Object.keys('qwe'); // => ['0', '1', '2']
+Object.getPrototypeOf('qwe') === String.prototype; // => true
+```
 #### ECMAScript 6: Array
 ```javascript
+Module `es6.array`.
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
   .of(...args) -> array
@@ -155,6 +161,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String & RegExp
+Modules `es6.string` and `es6.regexp`.
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -191,6 +198,7 @@ RegExp(/./g, 'm'); // => /./m
 /foo/gim.flags; // => 'gim'
 ```
 #### ECMAScript 6: Number & Math
+Modules `es6.number` and `es6.math`.
 ```javascript
 Number
   .EPSILON -> num
@@ -223,7 +231,7 @@ Math
 ```
 
 ### ECMAScript 6: Symbols
-Module `es6_symbol`.
+Module `es6.symbol`.
 ```javascript
 Symbol(description?) -> symbol
   .hasInstance -> @@hasInstance
@@ -260,10 +268,10 @@ var Person = (function(){
 })();
 
 var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-console.log(person['name']);            // => undefined
-console.log(person[Symbol('name')]);    // => undefined, symbols are uniq
-for(var key in person)console.log(key); // => only 'getName', symbols are not enumerable
+log(person.getName());          // => 'Vasya'
+log(person['name']);            // => undefined
+log(person[Symbol('name')]);    // => undefined, symbols are uniq
+for(var key in person)log(key); // => only 'getName', symbols are not enumerable
 ```
 `Symbol.for` & `Symbol.keyFor` [example](http://goo.gl/0pdJjX):
 ```javascript
@@ -301,7 +309,7 @@ o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
 ### ECMAScript 6: Collections
-Module `es6_collections`. About iterators from this module [here](#ecmascript-6-iterators).
+Module `es6.collections`. About iterators from this module [here](#ecmascript-6-iterators).
 
 #### Map
 ```javascript
@@ -321,18 +329,18 @@ var a = [1];
 var map = new Map([['a', 1], [42, 2]]);
 map.set(a, 3).set(true, 4);
 
-console.log(map.size);        // => 4
-console.log(map.has(a));      // => true
-console.log(map.has([1]));    // => false
-console.log(map.get(a));      // => 3
+log(map.size);        // => 4
+log(map.has(a));      // => true
+log(map.has([1]));    // => false
+log(map.get(a));      // => 3
 map.forEach(function(val, key){
-  console.log(val);           // => 1, 2, 3, 4
-  console.log(key);           // => 'a', 42, [1], true
+  log(val);           // => 1, 2, 3, 4
+  log(key);           // => 'a', 42, [1], true
 });
 map.delete(a);
-console.log(map.size);        // => 3
-console.log(map.get(a));      // => undefined
-console.log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
+log(map.size);        // => 3
+log(map.get(a));      // => undefined
+log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
 ```
 #### Set
 ```javascript
@@ -348,15 +356,15 @@ new Set(iterable?) -> set
 ```javascript
 var set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
-console.log(set.size);        // => 5
-console.log(set.has('b'));    // => true
+log(set.size);        // => 5
+log(set.has('b'));    // => true
 set.forEach(function(it){
-  console.log(it);            // => 'a', 'b', 'c', 'd', 'e'
+  log(it);            // => 'a', 'b', 'c', 'd', 'e'
 });
 set.delete('b');
-console.log(set.size);        // => 4
-console.log(set.has('b'));    // => false
-console.log(Array.from(set)); // => ['a', 'c', 'd', 'e']
+log(set.size);        // => 4
+log(set.has('b'));    // => false
+log(Array.from(set)); // => ['a', 'c', 'd', 'e']
 ```
 #### WeakMap
 ```javascript
@@ -374,11 +382,11 @@ var a = [1]
 
 var wmap = new WeakMap([[a, 1], [b, 2]]);
 wmap.set(c, 3).set(b, 4);
-console.log(wmap.has(a));   // => true
-console.log(wmap.has([1])); // => false
-console.log(wmap.get(a));   // => 1
+log(wmap.has(a));   // => true
+log(wmap.has([1])); // => false
+log(wmap.get(a));   // => 1
 wmap.delete(a);
-console.log(wmap.get(a));   // => undefined
+log(wmap.get(a));   // => undefined
 
 // Private properties store:
 var Person = (function(){
@@ -393,8 +401,8 @@ var Person = (function(){
 })();
 
 var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key); // => only 'getName'
+log(person.getName());          // => 'Vasya'
+for(var key in person)log(key); // => only 'getName'
 ```
 #### WeakSet
 ```javascript
@@ -411,13 +419,13 @@ var a = [1]
 
 var wset = new WeakSet([a, b, a]);
 wset.add(c).add(b).add(c);
-console.log(wset.has(b));   // => true
-console.log(wset.has([2])); // => false
+log(wset.has(b));   // => true
+log(wset.has([2])); // => false
 wset.delete(b);
-console.log(wset.has(b));   // => false
+log(wset.has(b));   // => false
 ```
 ### ECMAScript 6: Iterators
-Module `es6`:
+Module `es6.iterators`:
 ```javascript
 String
   #@@iterator() -> iterator
@@ -429,7 +437,7 @@ Array
 Arguments
   #@@iterator() -> iterator (sham, available only in core-js methods)
 ```
-Module `es6_collections`:
+Module `es6.collections`:
 ```javascript
 Set
   #values() -> iterator
@@ -442,7 +450,7 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 ```
-Module `dom_iterable`, [individual example](http://goo.gl/JTRTQY):
+Module `web.dom.iterable`, [individual example](http://goo.gl/JTRTQY):
 ```javascript
 NodeList
   #@@iterator() -> iterator
@@ -451,42 +459,42 @@ NodeList
 ```javascript
 var string = 'a𠮷b';
 
-for(var val of string)console.log(val);         // => 'a', '𠮷', 'b'
+for(var val of string)log(val);         // => 'a', '𠮷', 'b'
 
 var array = ['a', 'b', 'c'];
 
-for(var val of array)console.log(val);          // => 'a', 'b', 'c'
-for(var val of array.values())console.log(val); // => 'a', 'b', 'c'
-for(var key of array.keys())console.log(key);   // => 0, 1, 2
+for(var val of array)log(val);          // => 'a', 'b', 'c'
+for(var val of array.values())log(val); // => 'a', 'b', 'c'
+for(var key of array.keys())log(key);   // => 0, 1, 2
 for(var [key, val] of array.entries()){
-  console.log(key);                             // => 0, 1, 2
-  console.log(val);                             // => 'a', 'b', 'c'
+  log(key);                             // => 0, 1, 2
+  log(val);                             // => 'a', 'b', 'c'
 }
 
 var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
 
 for(var [key, val] of map){
-  console.log(key);                             // => 'a', 'b', 'c'
-  console.log(val);                             // => 1, 2, 3
+  log(key);                             // => 'a', 'b', 'c'
+  log(val);                             // => 1, 2, 3
 }
-for(var val of map.values())console.log(val);   // => 1, 2, 3
-for(var key of map.keys())console.log(key);     // => 'a', 'b', 'c'
+for(var val of map.values())log(val);   // => 1, 2, 3
+for(var key of map.keys())log(key);     // => 'a', 'b', 'c'
 for(var [key, val] of map.entries()){
-  console.log(key);                             // => 'a', 'b', 'c'
-  console.log(val);                             // => 1, 2, 3
+  log(key);                             // => 'a', 'b', 'c'
+  log(val);                             // => 1, 2, 3
 }
 
 var set = new Set([1, 2, 3, 2, 1]);
 
-for(var val of set)console.log(val);            // => 1, 2, 3
-for(var val of set.values())console.log(val);   // => 1, 2, 3
-for(var key of set.keys())console.log(key);     // => 1, 2, 3
+for(var val of set)log(val);            // => 1, 2, 3
+for(var val of set.values())log(val);   // => 1, 2, 3
+for(var key of set.keys())log(key);     // => 1, 2, 3
 for(var [key, val] of set.entries()){
-  console.log(key);                             // => 1, 2, 3
-  console.log(val);                             // => 1, 2, 3
+  log(key);                             // => 1, 2, 3
+  log(val);                             // => 1, 2, 3
 }
 
-for(var x of document.querySelectorAll('*'))console.log(x.id);
+for(var x of document.querySelectorAll('*'))log(x.id);
 ```
 Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
@@ -501,18 +509,18 @@ $for(iterable, entries) -> iterator ($for)
 [Examples](http://goo.gl/Jtz0oG):
 ```javascript
 $for(new Set([1, 2, 3, 2, 1])).of(function(it){
-  console.log(it); // => 1, 2, 3
+  log(it); // => 1, 2, 3
 });
 
 $for([1, 2, 3].entries(), true).of(function(key, value){
-  console.log(key);   // => 0, 1, 2
-  console.log(value); // => 1, 2, 3
+  log(key);   // => 0, 1, 2
+  log(value); // => 1, 2, 3
 });
 
 $for('abc').of(console.log, console); // => 'a', 'b', 'c'
 
 $for([1, 2, 3, 4, 5]).of(function(it){
-  console.log(it); // => 1, 2, 3
+  log(it); // => 1, 2, 3
   if(it == 3)return false;
 });
 
@@ -545,7 +553,7 @@ var map2 = new Map($for(map1, true).filter(function(k, v){
 ```
 
 ### ECMAScript 6: Promises
-Module `es6_promise`.
+Module `es6.promise`.
 ```javascript
 new Promise(executor(resolve(var), reject(var))) -> promise
   #then(resolved(var), rejected(var)) -> promise
@@ -557,7 +565,6 @@ new Promise(executor(resolve(var), reject(var))) -> promise
 ```
 Basic [example](http://goo.gl/vGrtUC):
 ```javascript
-var log = console.log.bind(console);
 function sleepRandom(time){
   return new Promise(function(resolve, reject){
     setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3);
@@ -635,7 +642,7 @@ async function sleepError(time, msg){
 })();
 ```
 ### ECMAScript 6: Reflect
-Module `es6_reflect`.
+Module `es6.reflect`.
 ```javascript
 Reflect
   .apply(target, thisArgument, argumentsList) -> var
@@ -658,17 +665,17 @@ Reflect
 var O = {a: 1};
 Object.defineProperty(O, 'b', {value: 2});
 O[Symbol('c')] = 3;
-console.log(Reflect.ownKeys(O)); // => ['a', 'b', Symbol(c)]
+Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
 
 function C(a, b){
   this.c = a + b;
 }
 
 var instance = Reflect.construct(C, [20, 22]);
-console.log(instance.c); // => 42
+instance.c; // => 42
 ```
 ### ECMAScript 7
-Module `es7`.
+Module `es7.proposals`.
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at)
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues)
@@ -705,7 +712,7 @@ Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
 ### ECMAScript 7: Abstract References
-Module `es7_refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several translators, such as [6to5](https://github.com/6to5/6to5).
+Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several translators, such as [6to5](https://github.com/6to5/6to5).
 ```javascript
 Symbol
   .referenceGet -> @@referenceGet
@@ -734,8 +741,8 @@ var Person = (NAME => class {
 })(new WeakMap);
 
 var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-console.log(Reflect.ownKeys(person));   // => []
+log(person.getName());        // => 'Vasya'
+log(Reflect.ownKeys(person)); // => []
 ```
 The same [example](http://goo.gl/juKxyx) with the `private` keyword:
 ```javascript
@@ -750,8 +757,8 @@ class Person {
 }
 
 var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-console.log(Reflect.ownKeys(person));   // => []
+log(person.getName());        // => 'Vasya'
+log(Reflect.ownKeys(person)); // => []
 ```
 Virtual methods [example](http://goo.gl/GJmEfl):
 ```javascript
@@ -788,7 +795,7 @@ var dict = {q: 1, w: 2, e: 3}
   ::map(v => v * v); // => {"q":1,"e":9}
 ```
 ### Mozilla JavaScript: Array generics
-Module `array_statics`.
+Module `js.array.statics`.
 ```javascript
 Array
   .{...ArrayPrototype methods}
@@ -806,7 +813,7 @@ Array.reduce(form, function(memo, it){
 }, {}); // => {name: 'Vasya', age: '42', sex: 'yes, please'}
 ```
 ### setTimeout / setInterval
-Module `timers`. Additional arguments fix for IE9-.
+Module `web.timers`. Additional arguments fix for IE9-.
 ```javascript
 setTimeout(fn(...args), time, ...args) -> id
 setInterval(fn(...args), time, ...args) -> id
@@ -818,7 +825,7 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 ### setImmediate
-Module `immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
+Module `web.immediate`. [setImmediate](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```javascript
 setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
@@ -826,41 +833,50 @@ clearImmediate(id) -> void
 [Example](http://goo.gl/6nXGrx):
 ```javascript
 setImmediate(function(arg1, arg2){
-  console.log(arg1, arg2); // => Message will be displayed with minimum delay
+  log(arg1, arg2); // => Message will be displayed with minimum delay
 }, 'Message will be displayed', 'with minimum delay');
 
 clearImmediate(setImmediate(function(){
-  console.log('Message will not be displayed');
+  log('Message will not be displayed');
 }));
 ```
 ### Console
-Module `console`. Console cap for old browsers and some additional functionality.
+Module `web.console`. Console cap for old browsers and some additional functionality.
 ```javascript
 console
   .{...console API}
-  .enable() -> void
-  .disable() -> void
 ```
 ```javascript
 // Before:
 if(window.console && console.log)console.log(42);
 // After:
 console.log(42);
-
+```
+Module `core.log`. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable ouput.
+```javascript
+log ==== log.log
+  .{...console API}
+  .enable() -> void
+  .disable() -> void
+```
+```javascript
 // Before:
-setTimeout(console.log.bind(console, 42), 1000);
-[1, 2, 3].forEach(console.log, console);
+setTimeout(console.warn.bind(console, 42), 1000);
+[1, 2, 3].forEach(console.warn, console);
 // After:
-setTimeout(console.log, 1000, 42);
-[1, 2, 3].forEach(console.log);
+setTimeout(log.warn, 1000, 42);
+[1, 2, 3].forEach(log.warn);
 
-console.disable();
-console.warn('Console is disabled, you will not see this message.');
-console.enable();
-console.warn('Console is enabled again.');
+// log is shortcut for log.log
+setImmediate(log, 42); // => 42
+
+log.disable();
+log.warn('Console is disabled, you will not see this message.');
+log.enable();
+log.warn('Console is enabled again.');
 ```
 ### Object
-Module `object`.
+Module `core.object`.
 ```javascript
 Object
   .isObject(var) -> bool
@@ -965,7 +981,7 @@ console.log(vector.xy);  // => 15.811388300841896
 console.log(vector.xyz); // => 25.495097567963924
 ```
 ### Dict
-Module `dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
+Module `core.dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```javascript
 [new] Dict(itarable (entries) | object ?) -> dict
   .isDict(var) -> bool
@@ -1088,7 +1104,7 @@ Dict.turn(dict, function(memo, it, key){
 }, []); // => ['a1', 'c3']
 ```
 ### Partial application
-Module `binding`.
+Module `core.binding`.
 ```javascript
 Function
   #part(...args | _) -> fn(...args)
@@ -1130,7 +1146,7 @@ Method `Function#only` limits number of arguments. [Example](http://goo.gl/ROgBs
 [1, 2, 3].forEach(log.only(1)); // => 1, 2, 3
 ```
 ### Date formatting
-Module `date`. Much more simple and compact (~60 lines with `en` & `ru` locales) than [Intl](https://github.com/andyearnshaw/Intl.js) or [Moment.js](http://momentjs.com/). Use them if you need extended work with `Date`.
+Module `core.date`. Much more simple and compact (~60 lines with `en` & `ru` locales) than [Intl](https://github.com/andyearnshaw/Intl.js) or [Moment.js](http://momentjs.com/). Use them if you need extended work with `Date`.
 ```javascript
 Date
   #format(str, key?) -> str
@@ -1179,7 +1195,7 @@ new Date().format('M Y');              // => 'Ноябрь 2014'
 });
 ```
 ### Array
-Module `array`.
+Module `core.array`.
 ```javascript
 Array
   #turn(fn(memo, val, index, @), memo = []) -> memo
@@ -1196,7 +1212,7 @@ Method `Array#turn` reduce array to object, [example](http://goo.gl/zZbvq7):
 }); // => [1, 9, 25]
 ```
 ### Number
-Module `number`.
+Module `core.number`.
 ```javascript
 Number
   #@@iterator() -> iterator
@@ -1244,7 +1260,7 @@ var array = [1, 2, 3, 4, 5];
 array[array.length.random().floor()]; // => Random element, for example, 4
 ```
 ### Escaping characters
-Module `string`.
+Module `core.string`.
 ```javascript
 String
   #escapeHTML() -> str
@@ -1254,6 +1270,18 @@ String
 ```javascript
 '<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
+```
+### delay
+Module `core.delay`. [Promise](#ecmascript-6-promises)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
+```javascript
+delay(1e3).then(() => log('after 1 sec'));
+
+(async () => {
+  await delay(3e3);
+  log('after 3 sec');
+  
+  while(await delay(3e3))log('each 3 sec');
+})();
 ```
 
 ## Installation, usage and custom build
@@ -1265,15 +1293,6 @@ bower install core.js
 ```
 Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without global namespace pollution](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
 
-Custom build:
-```
-npm i -g grunt-cli
-npm i core-js
-cd node_modules/core-js && npm i
-grunt build:date,console,library --path=custom uglify
-```
-Where `date` and `console` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
-
 Require in Node.js:
 ```javascript
 // Dafault
@@ -1282,8 +1301,40 @@ require('core-js');
 var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
+
+#### Custom build:
+```
+npm i -g grunt-cli
+npm i core-js
+cd node_modules/core-js && npm i
+grunt build:core.date,web.console,library --path=custom uglify
+```
+Where `core.date` and `web.console` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
+
+#### Reductions:
+* `shim` is equal `shim.old,shim.modern`
+* `shim.old` is equal `es5,web.timers,web.console`
+* `shim.modern` is equal `es6,es7,js.array.statics,web.immediate,web.dom.itarable`
+* `web` is equal `web.timers,web.console,web.immediate,web.dom.itarable`
+* `es6` is equal `es6.object,es6.object.statics-accept-primitives,es6.function,es6.number,es6.math,es6.string,es6.array,es6.iterators,es6.regexp,es6.collections,es6.promise,es6.symbol,es6.reflect`
+* `es7` is equal `es7.proposals,es7.abstract-refs`
+* `core` is equal `core.global,core.$for,core.delay,core.dict,core.binding,core.array,core.object,core.number,core.string,core.date,core.log`
+
+* `core-js/index` builds as `shim.modern,core`
+* `core-js/shim` builds as `shim.modern`
+* `core-js/library` builds as `shim,core,library`
+* `core-js/client/core` builds as `shim,core`
+* `core-js/client/shim` builds as `shim`
+* `core-js/client/library` builds as `shim,core,library`
 ```
 ## Changelog
+**0.5.0** - *2015.02.08*
+  * systematization of modules
+  * splitted [`es6` module](#ecmascript-6)
+  * splitted [`console` module](#console): `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
+  * added [`delay` method](#delay)
+  * some fixes
+
 **0.4.10** - *2015.01.28* - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
 
 **0.4.9** - *2015.01.27* - FF20-24 fix
@@ -1313,7 +1364,7 @@ require('core-js/shim');
 **0.4.1** - *2015.01.05* - Some fixes
 
 **0.4.0** - *2015.01.03*
-  * added [`es6_reflect`](#ecmascript-6-reflect) module:
+  * added [`es6.reflect`](#ecmascript-6-reflect) module:
     * added `Reflect.apply`
     * added `Reflect.construct`
     * added `Reflect.defineProperty`
@@ -1342,7 +1393,7 @@ require('core-js/shim');
 **0.3.0** - *2014.12.23* - Optimize [`Map` & `Set`](#ecmascript-6-collections)
   * use entries chain on hash table
   * fast & correct iteration
-  * iterators moved to [`es6`](#ecmascript-6) and [`es6_collections`](#ecmascript-6-collections) modules
+  * iterators moved to [`es6`](#ecmascript-6) and [`es6.collections`](#ecmascript-6-collections) modules
 
 **0.2.5** - *2014.12.20*
   * `console` no longer shortcut for `console.log` (compatibility problems)
@@ -1374,7 +1425,7 @@ require('core-js/shim');
 **0.2.1** - *2014.12.12* - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
 
 **0.2.0** - *2014.12.06*
-  * added [`es7`](#ecmascript-7), [`es7_refs`](#ecmascript-7-abstract-references) modules
+  * added [`es7.proposals`](#ecmascript-7) and [`es7.abstract-refs`](#ecmascript-7-abstract-references) modules
   * added [`String#at`](#ecmascript-7)
   * added real [String Iterator](#ecmascript-6-iterators), older versions used Array Iterator
   * added [abstract references](#ecmascript-7-abstract-references) support:

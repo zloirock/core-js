@@ -1,5 +1,5 @@
 /**
- * Core.js 0.4.10
+ * Core.js 0.5.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -67,7 +67,12 @@ var OBJECT          = 'Object'
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , DOT             = '.';
+  , DOT             = '.'
+  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  , CONSOLE_METHODS = 'assert,clear,count,debug,dir,dirxml,error,exception,' +
+      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
+      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
+      'timelineEnd,timeStamp,trace,warn';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -383,7 +388,11 @@ function getWellKnownSymbol(name, setter){
   return (Symbol && Symbol[name]) || (setter ? Symbol : safeSymbol)(SYMBOL + DOT + name);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESC   = !!function(){try{return defineProperty({}, DOT, ObjectProto)}catch(e){}}()
+var DESC = !!function(){
+      try {
+        return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
+      } catch(e){}
+    }()
   , sid    = 0
   , hidden = createDefiner(1)
   , set    = Symbol ? simpleSet : hidden
@@ -1252,7 +1261,10 @@ if(exportGlobal || framework){
       , O     = iter.o
       , kind  = iter.k
       , index = iter.i++;
-    if(!O || index >= O.length)return iter.o = undefined, iterResult(1);
+    if(!O || index >= O.length){
+      iter.o = undefined;
+      return iterResult(1);
+    }
     if(kind == KEY)  return iterResult(0, index);
     if(kind == VALUE)return iterResult(0, O[index]);
                      return iterResult(0, [index, O[index]]);
@@ -1598,7 +1610,8 @@ $define(GLOBAL + BIND, {
       // get next entry
       if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
         // or finish the iteration
-        return iter.o = undefined, iterResult(1);
+        iter.o = undefined;
+        return iterResult(1);
       }
       // return step by kind
       if(kind == KEY)  return iterResult(0, entry.k);
@@ -1660,7 +1673,7 @@ $define(GLOBAL + BIND, {
     clear: function(){
       for(var that = this, data = that[O1], entry = that[FIRST]; entry; entry = entry.n){
         entry.r = true;
-        entry.p = entry.n = undefined;
+        if(entry.p)entry.p = entry.p.n = undefined;
         delete data[entry.i];
       }
       that[FIRST] = that[LAST] = undefined;
@@ -1823,20 +1836,34 @@ $define(GLOBAL + BIND, {
   function reflectGet(target, propertyKey/*, receiver*/){
     var receiver = arguments.length < 3 ? target : arguments[2]
       , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
-    if(desc)return desc.get ? desc.get.call(receiver) : desc.value;
-    return isObject(proto = getPrototypeOf(target)) ? reflectGet(proto, propertyKey, receiver) : undefined;
+    if(desc)return has(desc, 'value')
+      ? desc.value
+      : desc.get === undefined
+        ? undefined
+        : desc.get.call(receiver);
+    return isObject(proto = getPrototypeOf(target))
+      ? reflectGet(proto, propertyKey, receiver)
+      : undefined;
   }
   function reflectSet(target, propertyKey, V/*, receiver*/){
     var receiver = arguments.length < 4 ? target : arguments[3]
-      , desc = getOwnDescriptor(assertObject(target), propertyKey), proto;
-    if(desc){
-      if(desc.writable === false)return false;
-      if(desc.set)return desc.set.call(receiver, V), true;
+      , ownDesc  = getOwnDescriptor(assertObject(target), propertyKey)
+      , existingDescriptor, proto;
+    if(!ownDesc){
+      if(isObject(proto = getPrototypeOf(target))){
+        return reflectSet(proto, propertyKey, V, receiver);
+      }
+      ownDesc = descriptor(0);
     }
-    if(isObject(proto = getPrototypeOf(target)))return reflectSet(proto, propertyKey, V, receiver);
-    desc = getOwnDescriptor(receiver, propertyKey) || descriptor(0);
-    desc.value = V;
-    return defineProperty(receiver, propertyKey, desc), true;
+    if(has(ownDesc, 'value')){
+      if(ownDesc.writable === false || !isObject(receiver))return false;
+      existingDescriptor = getOwnDescriptor(receiver, propertyKey) || descriptor(0);
+      existingDescriptor.value = V;
+      return defineProperty(receiver, propertyKey, existingDescriptor), true;
+    }
+    return ownDesc.set === undefined
+      ? false
+      : (ownDesc.set.call(receiver, V), true);
   }
   var isExtensible = Object.isExtensible || returnIt;
   
@@ -1981,13 +2008,16 @@ $define(GLOBAL + BIND, {
     set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
   }
   createIterator(DictIterator, DICT, function(){
-    var iter  = this[ITER]
-      , O     = iter.o
-      , keys  = iter.a
-      , kind  = iter.k
+    var iter = this[ITER]
+      , O    = iter.o
+      , keys = iter.a
+      , kind = iter.k
       , key;
     do {
-      if(iter.i >= keys.length)return iterResult(1);
+      if(iter.i >= keys.length){
+        iter.o = undefined;
+        return iterResult(1);
+      }
     } while(!has(O, key = keys[iter.i++]));
     if(kind == KEY)  return iterResult(0, key);
     if(kind == VALUE)return iterResult(0, O[key]);
@@ -2163,6 +2193,19 @@ $define(GLOBAL + BIND, {
   
   $define(GLOBAL + FORCED, {$for: $for});
 }('entries', safeSymbol('fn'));
+
+/******************************************************************************
+ * Module : core.delay                                                        *
+ ******************************************************************************/
+
+// https://esdiscuss.org/topic/promise-returning-delay-function
+$define(GLOBAL + FORCED, {
+  delay: function(time){
+    return new Promise(function(resolve){
+      setTimeout(resolve, time, true);
+    });
+  }
+});
 
 /******************************************************************************
  * Module : core.binding                                                      *
@@ -2431,28 +2474,31 @@ $define(GLOBAL + FORCED, {global: global});
  * Module : web.console                                                       *
  ******************************************************************************/
 
-!function(console, enabled){
-  var _console = {
-    enable: function(){ enabled = true },
-    disable: function(){ enabled = false }
-  };
-  // Methods from:
-  // https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-  // https://developer.mozilla.org/en-US/docs/Web/API/console
-  forEach.call(array('assert,clear,count,debug,dir,dirxml,error,exception,group,' +
-      'groupCollapsed,groupEnd,info,isIndependentlyComposed,log,markTimeline,profile,' +
-      'profileEnd,table,time,timeEnd,timeline,timelineEnd,timeStamp,trace,warn'),
-    function(key){
-      var fn = console[key];
-      _console[key] = function(){
-        if(enabled && fn)return apply.call(fn, console, arguments);
-      };
+!function(cap){
+  forEach.call(array(CONSOLE_METHODS), function(key){
+    cap[key] = function(){};
+  });
+  $define(GLOBAL, {console: {}});
+  $define(STATIC, 'console', cap);
+}({});
+
+/******************************************************************************
+ * Module : core.log                                                          *
+ ******************************************************************************/
+
+!function(log, console, enabled){
+  forEach.call(array(CONSOLE_METHODS), function(key){
+    log[key] = function(){
+      if(enabled && key in console)return apply.call(console[key], console, arguments);
+    };
+  });
+  $define(GLOBAL + FORCED, {log: assign(log.log, log, {
+    enable: function(){
+      enabled = true;
+    },
+    disable: function(){
+      enabled = false;
     }
-  );
-  // console methods in some browsers are not configurable
-  try {
-    framework && delete global.console;
-  } catch(e){}
-  $define(GLOBAL + FORCED, {console: _console});
-}(global.console || {}, true);
+  })});
+}({}, global.console || {}, true);
 }(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), false);

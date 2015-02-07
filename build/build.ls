@@ -10,6 +10,7 @@ modules  = <[
   es6.math
   es6.string
   es6.array
+  core.iterator
   es6.iterators
   es6.regexp
   web.immediate
@@ -20,7 +21,6 @@ modules  = <[
   es7.abstract-refs
   core.dict
   core.$for
-  core.iterator
   core.delay
   core.binding
   core.object
@@ -55,6 +55,12 @@ es7 = <[
   es7.proposals
   es7.abstract-refs
 ]>
+web = <[
+  web.dom.itarable
+  web.timers
+  web.immediate
+  web.console
+]>
 shim_old = <[
   es5
   web.timers
@@ -70,18 +76,18 @@ shim_modern = <[
 core = <[
   core.global
   core.$for
+  core.delay
   core.dict
   core.binding
-  core.object
   core.array
+  core.object
   core.number
   core.string
   core.date
   core.log
 ]>
-exp  = <[
+exp = <[
   core.iterator
-  core.delay
 ]>
 x78 = '*'repeat 78
 module.exports = (opt, next)-> let @ = opt
@@ -89,12 +95,14 @@ module.exports = (opt, next)-> let @ = opt
   if @shim               => @ <<< {+\shim.old, +\shim.modern}
   if @\shim.old          => for shim_old    => @[..] = on
   if @\shim.modern       => for shim_modern => @[..] = on
+  if @web                => for web         => @[..] = on
   if @core               => for core        => @[..] = on
   if @exp                => for exp         => @[..] = on
   if @es6                => for es6         => @[..] = on
   if @es7                => for es7         => @[..] = on
-  if @\core.delay        => @\es6.promise = on
-  if @\es7.abstract-refs => @\es6.symbol  = on
+  if @\es6.collections   => @\es6.iterators = on
+  if @\es7.abstract-refs => @\es6.symbol    = on
+  if @\core.delay        => @\es6.promise   = on
   if @\es6.promise       => @ <<< {+\web.immediate, +\es6.iterators}
   if @library            => @ <<< {-\es6.function, -\es6.regexp}
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
