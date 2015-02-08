@@ -1,8 +1,8 @@
-# Core.js
+# core-js
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional functionality such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
+Modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional features such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -20,6 +20,9 @@ core.String.repeat('*', 10);                    // => '**********'
 core.Promise.resolve(32).then(core.log);        // => 32
 core.setImmediate(core.log, 42);                // => 42
 ```
+
+[![NPM](https://nodei.co/npm/core-js.png?downloads=true)](https://www.npmjs.org/package/core-js/)
+
 - [API](#api)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
@@ -120,7 +123,7 @@ O[Symbol.toStringTag] = 'Foo';
 
 (function foo(){}).name // => 'foo'
 ```
-Module `es6.object.statics-accept-primitives`. In ES6 most `Object` static methods should work with primitives. [Example](http://goo.gl/WfdbpK):
+Module `es6.object.statics-accept-primitives`. In ES6 most `Object` static methods should work with primitives. [Example](http://goo.gl/35lPSi):
 ```javascript
 Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
@@ -497,7 +500,7 @@ for(var [key, val] of set.entries()){
 
 for(var x of document.querySelectorAll('*'))log(x.id);
 ```
-Module `$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
+Module `core.$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
 $for(iterable, entries) -> iterator ($for)
   #of(fn(value, key?), that) -> void
@@ -713,7 +716,7 @@ Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
 ### ECMAScript 7: Abstract References
-Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several translators, such as [6to5](https://github.com/6to5/6to5).
+Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several transpilers, such as [6to5](https://github.com/6to5/6to5).
 ```javascript
 Symbol
   .referenceGet -> @@referenceGet
@@ -853,7 +856,7 @@ if(window.console && console.log)console.log(42);
 // After:
 console.log(42);
 ```
-Module `core.log`. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable ouput.
+Module `core.log`. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
 ```javascript
 log ==== log.log
   .{...console API}
@@ -1381,7 +1384,7 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
     * added `Reflect.preventExtensions`
     * added `Reflect.set`
     * added `Reflect.setPrototypeOf`
-  * core.js methods now can use external `Symbol.iterator` polyfill
+  * core-js methods now can use external `Symbol.iterator` polyfill
   * some fixes
 
 **0.3.3** - *2014.12.28*
