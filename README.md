@@ -1334,6 +1334,8 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `core-js/client/library` builds as `shim,core,library`
 
 ## Changelog
+**0.5.1** - *2015.02.09* - Some fixes
+
 **0.5.0** - *2015.02.08*
   * systematization of modules
   * splitted [`es6` module](#ecmascript-6)

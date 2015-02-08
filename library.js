@@ -1,5 +1,5 @@
 /**
- * Core.js 0.5.0
+ * Core.js 0.5.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -91,12 +91,12 @@ function setToStringTag(it, tag, stat){
   if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
-  return it == undefined ? it === undefined
-    ? 'Undefined' : 'Null' : toString.call(it).slice(8, -1);
+  return toString.call(it).slice(8, -1);
 }
 function classof(it){
-  var klass = cof(it), tag;
-  return klass == OBJECT && typeof (tag = it[SYMBOL_TAG]) == 'string' ? tag : klass;
+  var O, T;
+  return it == undefined ? it === undefined ? 'Undefined' : 'Null'
+    : typeof (T = (O = Object(it))[SYMBOL_TAG]) == 'string' ? T : cof(O);
 }
 
 // Function
