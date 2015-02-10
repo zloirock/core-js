@@ -1146,7 +1146,7 @@
     ok(rez.q === 42) && rez.w === 33;
   });
   test('Object.getPrototypeOf', function(){
-    var create, getPrototypeOf, fn, obj;
+    var create, getPrototypeOf, fn, obj, foo, bar;
     create = Object.create, getPrototypeOf = Object.getPrototypeOf;
     ok(isFunction(getPrototypeOf), 'Is function');
     ok(getPrototypeOf({}) === Object.prototype);
@@ -1162,6 +1162,12 @@
     })) === obj);
     ok(getPrototypeOf(create(null)) === null);
     ok(getPrototypeOf(getPrototypeOf({})) === null);
+    foo = function(){};
+    foo.prototype.foo = 'foo';
+    bar = function(){};
+    bar.prototype = create(foo.prototype);
+    bar.prototype.constructor = bar;
+    strictEqual(getPrototypeOf(bar.prototype).foo, 'foo');
   });
   test('Object.getOwnPropertyNames', function(){
     var getOwnPropertyNames, fn1, fn2;

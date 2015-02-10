@@ -90,7 +90,7 @@
         result = new Empty();
         Empty[PROTOTYPE] = null;
         // add "__proto__" for Object.getPrototypeOf shim
-        if(result[CONSTRUCTOR][PROTOTYPE] !== O)result[$PROTO] = O;
+        result[$PROTO] = O;
       } else result = createDict();
       return Properties === undefined ? result : defineProperties(result, Properties);
     },

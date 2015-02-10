@@ -24,6 +24,14 @@ test 'Object.getPrototypeOf' !->
   ok getPrototypeOf(create obj = q:1) is obj
   ok getPrototypeOf(create null) is null
   ok getPrototypeOf(getPrototypeOf {}) is null
+  
+  foo = ->
+  foo::foo = \foo
+  bar = ->
+  bar:: = create foo::
+  bar::constructor = bar
+  strictEqual getPrototypeOf(bar::).foo, \foo
+
 test 'Object.getOwnPropertyNames' !->
   {getOwnPropertyNames} = Object
   ok isFunction(getOwnPropertyNames), 'Is function'
