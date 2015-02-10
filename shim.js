@@ -1,5 +1,5 @@
 /**
- * Core.js 0.5.1
+ * Core.js 0.5.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -56,6 +56,7 @@ var OBJECT          = 'Object'
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
+  , parseInt        = global.parseInt
   , isFinite        = global.isFinite
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
@@ -971,16 +972,14 @@ if(exportGlobal || framework){
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
       var O       = Object(assertDefined(arrayLike))
-        , result  = new (generic(this, Array))
         , mapfn   = arguments[1]
-        , that    = arguments[2]
         , mapping = mapfn !== undefined
-        , f       = mapping ? ctx(mapfn, that, 2) : undefined
+        , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
         , index   = 0
-        , length;
-      if(isIterable(O))for(var iter = getIterator(O), step; !(step = iter.next()).done; index++){
+        , length, result, iter, step;
+      if(isIterable(O))for(iter = getIterator(O), result = new (generic(this, Array)); !(step = iter.next()).done; index++){
         result[index] = mapping ? f(step.value, index) : step.value;
-      } else for(length = toLength(O.length); length > index; index++){
+      } else for(result = new (generic(this, Array))(length = toLength(O.length)); length > index; index++){
         result[index] = mapping ? f(O[index], index) : O[index];
       }
       result.length = index;

@@ -43,6 +43,7 @@ var OBJECT          = 'Object'
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
+  , parseInt        = global.parseInt
   , isFinite        = global.isFinite
   , process         = global[PROCESS]
   , nextTick        = process && process.nextTick
