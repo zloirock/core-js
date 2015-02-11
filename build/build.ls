@@ -106,7 +106,7 @@ module.exports = (opt, next)-> let @ = opt
   if @\es7.abstract-refs => @\es6.symbol    = on
   if @\core.delay        => @\es6.promise   = on
   if @\es6.promise       => @ <<< {+\web.immediate, +\es6.iterators}
-  if @library            => @ <<< {-\es6.function, -\es6.regexp}
+  if @library            => @ <<< {-\es6.function, -\es6.regexp, -\es6.number.constructor}
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _
     error, data <- readFile "src/#name.js"
