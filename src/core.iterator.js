@@ -5,13 +5,13 @@
     }
   }
   if(SYMBOL_ITERATOR in ArrayProto){
-    var proto = getPrototypeOf(getPrototypeOf([][SYMBOL_ITERATOR]()));
-    if(proto == ObjectProto){
+    var P = getPrototypeOf(getPrototypeOf([].keys()));
+    if(P == ObjectProto || !isFunction(P[SYMBOL_ITERATOR]) || P[SYMBOL_ITERATOR]() !== P){
       fixIteratorPrototype(Array);
       fixIteratorPrototype(Set);
       fixIteratorPrototype(Map);
       fixIteratorPrototype(String);
-    } else IteratorPrototype = proto;
+    } else IteratorPrototype = P;
   }
   
   function setFrom(Constructor, from){
