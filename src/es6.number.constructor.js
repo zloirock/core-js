@@ -22,4 +22,4 @@ if(DESC && !(Number('0o1') && Number('0b1')))!function(binar, octal, _Number, Nu
   Number[PROTOTYPE] = NumberProto;
   NumberProto[CONSTRUCTOR] = Number;
   hidden(global, NUMBER, Number);
-}(/^0b([01]+)$/, /^0o([0-7]+)$/, Number, Number[PROTOTYPE]);
+}(/^0b([01]+)$/i, /^0o([0-7]+)$/i, Number, Number[PROTOTYPE]);
