@@ -27,9 +27,6 @@
       });
     }
   }
-  function lz(num){
-    return num > 9 ? num : '0' + num;
-  }
   function addLocale(lang, locale){
     function split(index){
       var result = [];

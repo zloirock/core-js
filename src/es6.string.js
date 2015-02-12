@@ -1,4 +1,4 @@
-!function(RangeError, fromCharCode){
+!function(fromCharCode){
   function assertNotRegExp(it){
     if(cof(it) == REGEXP)throw TypeError();
   }
@@ -69,4 +69,4 @@
       return that.slice(index, index + searchString.length) === searchString;
     }
   });
-}(global.RangeError, String.fromCharCode);
+}(String.fromCharCode);

@@ -1501,6 +1501,16 @@
     ok(isFunction(now), 'Is function');
     ok(+new Date - now() < 10, 'Date.now() ~ +new Date');
   });
+  test('Date#toISOString', function(){
+    ok(isFunction(Date.prototype.toISOString), 'Is function');
+    strictEqual(new Date(0).toISOString(), '1970-01-01T00:00:00.000Z');
+    strictEqual(new Date(1e12 + 1).toISOString(), '2001-09-09T01:46:40.001Z');
+    strictEqual(new Date(1e15 + 1).toISOString(), '+033658-09-27T01:46:40.001Z');
+    strictEqual(new Date(-1e15 + 1).toISOString(), '-029719-04-05T22:13:20.001Z');
+    throws(function(){
+      return new Date(NaN).toISOString();
+    }, RangeError);
+  });
   function in$(x, xs){
     var i = -1, l = xs.length >>> 0;
     while (++i < l) if (x === xs[i]) return true;

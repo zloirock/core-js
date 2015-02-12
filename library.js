@@ -53,6 +53,7 @@ var OBJECT          = 'Object'
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
+  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
@@ -319,6 +320,9 @@ function toLength(it){
 function toIndex(index, length){
   var index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
+}
+function lz(num){
+  return num > 9 ? num : '0' + num;
 }
 
 function createReplacer(regExp, replace, isStatic){
@@ -870,7 +874,7 @@ if(exportGlobal || framework){
  * Module : es6.string                                                        *
  ******************************************************************************/
 
-!function(RangeError, fromCharCode){
+!function(fromCharCode){
   function assertNotRegExp(it){
     if(cof(it) == REGEXP)throw TypeError();
   }
@@ -941,7 +945,7 @@ if(exportGlobal || framework){
       return that.slice(index, index + searchString.length) === searchString;
     }
   });
-}(global.RangeError, String.fromCharCode);
+}(String.fromCharCode);
 
 /******************************************************************************
  * Module : es6.array                                                         *
@@ -2165,9 +2169,6 @@ if(framework)ArrayUnscopables.turn = true;
         } return part;
       });
     }
-  }
-  function lz(num){
-    return num > 9 ? num : '0' + num;
   }
   function addLocale(lang, locale){
     function split(index){

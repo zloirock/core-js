@@ -40,6 +40,7 @@ var OBJECT          = 'Object'
   , Symbol          = global[SYMBOL]
   , Math            = global[MATH]
   , TypeError       = global.TypeError
+  , RangeError      = global.RangeError
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
@@ -306,6 +307,9 @@ function toLength(it){
 function toIndex(index, length){
   var index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
+}
+function lz(num){
+  return num > 9 ? num : '0' + num;
 }
 
 function createReplacer(regExp, replace, isStatic){
