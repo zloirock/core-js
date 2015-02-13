@@ -7,12 +7,14 @@ check = (a, b)->
   sameEq Number(a), b, "Number #{typeof a} #a -> #b"
   x = new Number a
   ok x is Object(x), "new Number #{typeof a} #a is object"
-  eq typeof! x, \Number, "new Number #{typeof a} #a is Number instance"
+  eq typeof! x, \Number, "classof new Number #{typeof a} #a is Number"
   sameEq x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
 
 test 'regression' !->
-  ok typeof! global.Number is \Function, 'Is function'
-    
+  ok typeof! global.Number is \Function, 'Number is function'
+  eq Number.length, 1, 'Number.length is 1'
+  if \name of Number => eq Number.name, \Number, 'Number.name is "Number" (can fail if compressed)'
+  
   check 42, 42
   check 42.42, 42.42
   check new Number(42), 42
@@ -50,15 +52,15 @@ test 'regression' !->
   i = 1
   eq new Number(toString: -> ++i).valueOf!, 2, 'new Number call toString only once #1'
   eq i, 2, 'new Number call toString only once #2'
-  throws (-> Number Object.create null), TypeError, "Number throws on object w/o valueOf and toString"
-  throws (-> Number valueOf: 1, toString: 2), TypeError, "Number throws on object then valueOf and toString are not functions"
-  throws (-> new Number Object.create null), TypeError, "new Number throws on object w/o valueOf and toString"
-  throws (-> new Number valueOf: 1, toString: 2), TypeError, "new Number throws on object then valueOf and toString are not functions"
+  throws (-> Number Object.create null), TypeError, 'Number throws on object w/o valueOf and toString'
+  throws (-> Number valueOf: 1, toString: 2), TypeError, 'Number throws on object then valueOf and toString are not functions'
+  throws (-> new Number Object.create null), TypeError, 'new Number throws on object w/o valueOf and toString'
+  throws (-> new Number valueOf: 1, toString: 2), TypeError, 'new Number throws on object then valueOf and toString are not functions'
   
   for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
     ok .. of Number, "#{..} in Number"
 
-# vvv check it for test Number constructor with octal and binary 
+# vvv check it for test Number constructor with octal and binary
 if no and /\[native code\]\s*\}\s*$/.test Object.defineProperty
   test \binary !->
     check \0b1, 1

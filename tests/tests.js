@@ -2897,12 +2897,16 @@
     sameEq(Number(a), b, "Number " + typeof a + " " + a + " -> " + b);
     x = new Number(a);
     ok(x === Object(x), "new Number " + typeof a + " " + a + " is object");
-    eq(toString$.call(x).slice(8, -1), 'Number', "new Number " + typeof a + " " + a + " is Number instance");
+    eq(toString$.call(x).slice(8, -1), 'Number', "classof new Number " + typeof a + " " + a + " is Number");
     return sameEq(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
   };
   test('regression', function(){
     var i, i$, x$, ref$, len$;
-    ok(toString$.call(global.Number).slice(8, -1) === 'Function', 'Is function');
+    ok(toString$.call(global.Number).slice(8, -1) === 'Function', 'Number is function');
+    eq(Number.length, 1, 'Number.length is 1');
+    if ('name' in Number) {
+      eq(Number.name, 'Number', 'Number.name is "Number" (can fail if compressed)');
+    }
     check(42, 42);
     check(42.42, 42.42);
     check(new Number(42), 42);
@@ -2990,22 +2994,22 @@
     eq(i, 2, 'new Number call toString only once #2');
     throws(function(){
       return Number(Object.create(null));
-    }, TypeError, "Number throws on object w/o valueOf and toString");
+    }, TypeError, 'Number throws on object w/o valueOf and toString');
     throws(function(){
       return Number({
         valueOf: 1,
         toString: 2
       });
-    }, TypeError, "Number throws on object then valueOf and toString are not functions");
+    }, TypeError, 'Number throws on object then valueOf and toString are not functions');
     throws(function(){
       return new Number(Object.create(null));
-    }, TypeError, "new Number throws on object w/o valueOf and toString");
+    }, TypeError, 'new Number throws on object w/o valueOf and toString');
     throws(function(){
       return new Number({
         valueOf: 1,
         toString: 2
       });
-    }, TypeError, "new Number throws on object then valueOf and toString are not functions");
+    }, TypeError, 'new Number throws on object then valueOf and toString are not functions');
     for (i$ = 0, len$ = (ref$ = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(x$ in Number, x$ + " in Number");

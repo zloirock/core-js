@@ -1,10 +1,9 @@
-if(DESC && !(Number('0o1') && Number('0b1')))!function(binar, octal, _Number, NumberProto){
+if(DESC && !(Number('0o1') && Number('0b1')))!function(regex, _Number, NumberProto){
   function toNumber(it){
-    var m;
     if(isObject(it))it = toPrimitive(it);
     if(typeof it == 'string'){
-      if(m = it.match(binar))return parseInt(m[1], 2);
-      if(m = it.match(octal))return parseInt(m[1], 8);
+      var m = it.match(regex);
+      if(m)return parseInt(m[2], m[1] == 'b' ? 2 : 8);
     } return +it;
   }
   function toPrimitive(it){
@@ -22,4 +21,4 @@ if(DESC && !(Number('0o1') && Number('0b1')))!function(binar, octal, _Number, Nu
   Number[PROTOTYPE] = NumberProto;
   NumberProto[CONSTRUCTOR] = Number;
   hidden(global, NUMBER, Number);
-}(/^0b([01]+)$/i, /^0o([0-7]+)$/i, Number, Number[PROTOTYPE]);
+}(/^0(b|o)([0-7]*)$/i, Number, Number[PROTOTYPE]);
