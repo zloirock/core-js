@@ -41,6 +41,7 @@ es6 = <[
   es6.object
   es6.object.statics-accept-primitives
   es6.function
+  es6.number.constructor
   es6.number
   es6.math
   es6.string
@@ -88,7 +89,6 @@ core = <[
   core.log
 ]>
 exp = <[
-  es6.number.constructor
   core.iterator
 ]>
 x78 = '*'repeat 78

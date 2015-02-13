@@ -61,7 +61,7 @@ test 'regression' !->
     ok .. of Number, "#{..} in Number"
 
 # vvv check it for test Number constructor with octal and binary
-if no and /\[native code\]\s*\}\s*$/.test Object.defineProperty
+if /\[native code\]\s*\}\s*$/.test Object.defineProperty
   test \binary !->
     check \0b1, 1
     check \0B1, 1

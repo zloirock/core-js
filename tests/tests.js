@@ -3015,7 +3015,7 @@
       ok(x$ in Number, x$ + " in Number");
     }
   });
-  if (false && /\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+  if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
     test('binary', function(){
       check('0b1', 1);
       check('0B1', 1);
