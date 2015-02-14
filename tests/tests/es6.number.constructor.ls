@@ -60,18 +60,16 @@ test 'regression' !->
   for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
     ok .. of Number, "#{..} in Number"
 
-# vvv check it for test Number constructor with octal and binary
-if /\[native code\]\s*\}\s*$/.test Object.defineProperty
-  test \binary !->
-    check \0b1, 1
-    check \0B1, 1
-    check \0b234, NaN
-    check {valueOf: -> \0b11}, 3
-    check {toString: -> \0b111}, 7
+test \binary !->
+  check \0b1, 1
+  check \0B1, 1
+  check \0b234, NaN
+  check {valueOf: -> \0b11}, 3
+  check {toString: -> \0b111}, 7
 
-  test \octal !->
-    check \0o7, 7
-    check \0O7, 7
-    check \0o89a, NaN
-    check {valueOf: -> \0o77}, 63
-    check {toString: -> \0o777}, 511
+test \octal !->
+  check \0o7, 7
+  check \0O7, 7
+  check \0o89a, NaN
+  check {valueOf: -> \0o77}, 63
+  check {toString: -> \0o777}, 511

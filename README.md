@@ -85,6 +85,7 @@ String
   #trim() -> str
 Date
   .now() -> int
+  #toISOString() -> string
 ```
 
 ### ECMAScript 6
@@ -202,6 +203,11 @@ RegExp(/./g, 'm'); // => /./m
 /foo/gim.flags; // => 'gim'
 ```
 #### ECMAScript 6: Number & Math
+Module `es6.number.constructor`. `Number` constructor support binary and octal literals, [example](http://goo.gl/jRd6b3):
+```javascript
+Number('0b1010101'); // => 85
+Number('0o7654321'); // => 2054353
+```
 Modules `es6.number` and `es6.math`.
 ```javascript
 Number
@@ -1321,7 +1327,7 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `shim.old` is equal `es5,web.timers,web.console`
 * `shim.modern` is equal `es6,es7,js.array.statics,web.immediate,web.dom.itarable`
 * `web` is equal `web.timers,web.console,web.immediate,web.dom.itarable`
-* `es6` is equal `es6.object,es6.object.statics-accept-primitives,es6.function,es6.number,es6.math,es6.string,es6.array,es6.iterators,es6.regexp,es6.collections,es6.promise,es6.symbol,es6.reflect`
+* `es6` is equal `es6.object,es6.object.statics-accept-primitives,es6.function,es6.number.constructor,es6.number,es6.math,es6.string,es6.array,es6.iterators,es6.regexp,es6.collections,es6.promise,es6.symbol,es6.reflect`
 * `es7` is equal `es7.proposals,es7.abstract-refs`
 * `core` is equal `core.global,core.$for,core.delay,core.dict,core.binding,core.array,core.object,core.number,core.string,core.date,core.log`
 
@@ -1334,6 +1340,10 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `core-js/client/library` builds as `shim,core,library`
 
 ## Changelog
+**0.5.3** - *2015.02.14*
+  * added [support binary and octal literals](#ecmascript-6-number--math) to `Number` constructor
+  * added [`Date#toISOString`](#ecmascript-5)
+
 **0.5.2** - *2015.02.10* - Some fixes
 
 **0.5.1** - *2015.02.09* - Some fixes
