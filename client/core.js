@@ -516,7 +516,8 @@ var NODE = cof(process) == PROCESS
   , STATIC = 4
   , PROTO  = 8
   , BIND   = 16
-  , WRAP   = 32;
+  , WRAP   = 32
+  , SIMPLE = 64;
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
@@ -530,8 +531,10 @@ function $define(type, name, source){
       && (!isFunction(target[key]) || isNative(target[key]));
     // export native or passed
     out = (own ? target : source)[key];
+    // prevent global pollution for namespaces
+    if(!framework && isGlobal && !isFunction(target[key]))exp = source[key];
     // bind timers to global for call from export context
-    if(type & BIND && own)exp = ctx(out, global);
+    else if(type & BIND && own)exp = ctx(out, global);
     // wrap global constructors for prevent change them in library
     else if(type & WRAP && !framework && target[key] == out){
       exp = function(param){
@@ -539,13 +542,13 @@ function $define(type, name, source){
       }
       exp[PROTOTYPE] = out[PROTOTYPE];
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
-    // export
-    if(exports[key] != out)hidden(exports, key, exp);
     // extend global
     if(framework && target && !own){
-      if(isGlobal)target[key] = out;
+      if(isGlobal || type & SIMPLE)target[key] = out;
       else delete target[key] && hidden(target, key, out);
     }
+    // export
+    if(exports[key] != out)hidden(exports, key, exp);
   }
 }
 // CommonJS export
@@ -2595,7 +2598,7 @@ $define(GLOBAL + FORCED, {global: global});
     cap[key] = function(){};
   });
   $define(GLOBAL, {console: {}});
-  $define(STATIC, 'console', cap);
+  $define(STATIC + SIMPLE, 'console', cap);
 }({});
 
 /******************************************************************************

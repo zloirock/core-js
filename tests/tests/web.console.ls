@@ -6,4 +6,8 @@ if typeof! @process isnt 'process'
   test 'console.{..} available' !->
     for methods => ok .. of console, "console.#{..} available"
   test 'call console.{..}' !->
-    for methods => ok (try console[..] \foo; on), "call console.#{..}"
+    for m in methods => ok (try
+      if m is \profileEnd => console[m]!
+      else console[m] \foo
+      on
+    ), "call console.#m"

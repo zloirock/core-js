@@ -102,7 +102,7 @@ module.exports = (opt, next)-> let @ = opt
   if @exp                => for exp         => @[..] = on
   if @es6                => for es6         => @[..] = on
   if @es7                => for es7         => @[..] = on
-  if @library            => @ <<< {-\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
+  if @library            => @ <<< {-\es6.function, -\es6.regexp, -\es6.number.constructor, -\web.console, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
   if @\es7.abstract-refs => @\es6.symbol      = on

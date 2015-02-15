@@ -3,5 +3,5 @@
     cap[key] = function(){};
   });
   $define(GLOBAL, {console: {}});
-  $define(STATIC, 'console', cap);
+  $define(STATIC + SIMPLE, 'console', cap);
 }({});

@@ -7,9 +7,17 @@ test 'is object' !->
 test 'log.{..} are functions' !->
   for methods => ok isFunction(log[..]), "log.#{..} is function"
 test 'call log.{..}' !->
-  for methods => ok (try log[..] \foo; on), "call log.#{..}"
+  for m in methods => ok (try 
+    if m is \profileEnd => log[m]!
+    else log[m] \foo
+    on
+  ), "call log.#m"
 test 'call unbound log.#{..}' !->
-  for methods => ok (try log[..].call void \foo; on), "call unbound log.#{..}"
+  for m in methods => ok (try 
+    if m is \profileEnd => log[m].call void
+    else log[m].call void \foo
+    on
+  ), "call unbound log.#m"
 test 'log.{enable, disable}' !->
   {enable, disable} = log
   ok isFunction(enable), 'log.enable is function'
