@@ -722,7 +722,7 @@ Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
 ### ECMAScript 7: Abstract References
-Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several transpilers, such as [6to5](https://github.com/6to5/6to5).
+Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several transpilers, such as [babel](https://github.com/babel/babel).
 ```javascript
 Symbol
   .referenceGet -> @@referenceGet
