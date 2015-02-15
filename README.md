@@ -1340,6 +1340,8 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `core-js/client/library` builds as `shim,core,library`
 
 ## Changelog
+**0.5.4** - *2015.02.15* - Some fixes
+
 **0.5.3** - *2015.02.14*
   * added [support binary and octal literals](#ecmascript-6-number--math) to `Number` constructor
   * added [`Date#toISOString`](#ecmascript-5)
