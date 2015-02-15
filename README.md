@@ -299,7 +299,7 @@ Object.getOwnPropertyNames(O);   // => ['a', 'b']
 Object.getOwnPropertySymbols(O); // => [Symbol(c)]
 Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
 ```
-**Caveats**:
+#### Caveats when using `Symbol` polyfill:
 
 * We can't add new primitive type, `Symbol` returns object.
 * By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
@@ -434,6 +434,11 @@ log(wset.has([2])); // => false
 wset.delete(b);
 log(wset.has(b));   // => false
 ```
+#### Caveats when using collections polyfill:
+
+* Frozen objects as collection keys are supported, but not recomended - it's slow and, for weak-collectios, leak.
+* Weak-collectios polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
+
 ### ECMAScript 6: Iterators
 Module `es6.iterators`:
 ```javascript
