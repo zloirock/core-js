@@ -95,7 +95,7 @@ Modules `es6.object` and `es6.function`.
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
-  .setPrototypeOf(target, proto | null) -> target, sham(ie11+)
+  .setPrototypeOf(target, proto | null) -> target, sham (required __proto__)
   #toString() -> string, ES6 fix: @@toStringTag support
 Function
   #name -> string (IE9+)
@@ -130,16 +130,16 @@ Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
 ```
 #### ECMAScript 6: Array
-```javascript
 Module `es6.array`.
+```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
   .of(...args) -> array
   #copyWithin(target = 0, start = 0, end = @length) -> @
-  #fill(var, start = 0, end = @length) -> @
-  #find(fn(val, index, @), that) -> var
-  #findIndex(fn(val, index, @), that) -> int
-  #@@unscopables -> object
+  #fill(val, start = 0, end = @length) -> @
+  #find(fn(val, index, @), that) -> val
+  #findIndex(fn(val, index, @), that) -> index
+  #@@unscopables -> object (cap)
 ```
 [Example](http://goo.gl/nxmJTe):
 ```javascript
@@ -177,7 +177,7 @@ String
   #repeat(num) -> str
   #codePointAt(pos) -> uint
 [new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags
-  #flags -> str (getter, IE9+)
+  #flags -> str (IE9+)
 ```
 [Example](http://goo.gl/sdNGeJ):
 ```javascript
@@ -289,7 +289,7 @@ var symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
-Methods for getting own object keys, [example](http://goo.gl/mKVOQJ):
+[Example](http://goo.gl/mKVOQJ) with methods for getting own object keys:
 ```javascript
 var O = {a: 1};
 Object.defineProperty(O, 'b', {value: 2});
@@ -330,7 +330,7 @@ new Map(iterable (entries) ?) -> map
   #get(key) -> val
   #has(key) -> bool
   #set(key, val) -> @
-  #size
+  #size -> uint
 ```
 [Example](http://goo.gl/RDbROF):
 ```javascript
@@ -360,7 +360,7 @@ new Set(iterable?) -> set
   #delete(key) -> bool
   #forEach(fn(el, el, @), that) -> void
   #has(key) -> bool
-  #size
+  #size -> uint
 ```
 [Example](http://goo.gl/7XYya3):
 ```javascript
@@ -436,7 +436,7 @@ log(wset.has(b));   // => false
 ```
 #### Caveats when using collections polyfill:
 
-* Frozen objects as collection keys are supported, but not recomended - it's slow and, for weak-collectios, leak.
+* Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collectios, leak.
 * Weak-collectios polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
 ### ECMAScript 6: Iterators
@@ -465,12 +465,12 @@ Map
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
 ```
-Module `web.dom.iterable`, [individual example](http://goo.gl/JTRTQY):
+Module `web.dom.iterable`:
 ```javascript
 NodeList
   #@@iterator() -> iterator
 ```
-[Example](http://goo.gl/3s27dC):
+[Example](http://goo.gl/nzHVQF):
 ```javascript
 var string = 'a𠮷b';
 
@@ -509,7 +509,9 @@ for(var [key, val] of set.entries()){
   log(val);                             // => 1, 2, 3
 }
 
-for(var x of document.querySelectorAll('*'))log(x.id);
+for(var x of document.querySelectorAll('*')){
+  log(x.id);
+}
 ```
 Module `core.$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
