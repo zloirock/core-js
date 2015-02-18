@@ -25,15 +25,11 @@
     // https://gist.github.com/WebReflection/9353781
     getOwnPropertyDescriptors: function(object){
       var O      = toObject(object)
-        , keys   = ownKeys(O)
-        , length = keys.length
-        , i      = 0
-        , result = {}
-        , key;
-      while(length > i){
-        defineProperty(result, key = keys[i++],
-          descriptor(0, getOwnDescriptor(O, key)));
-      } return result;
+        , result = {};
+      forEach.call(ownKeys(O), function(key){
+        defineProperty(result, key, descriptor(0, getOwnDescriptor(O, key)));
+      });
+      return result;
     },
     // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues
     values:  createObjectToArray(false),
