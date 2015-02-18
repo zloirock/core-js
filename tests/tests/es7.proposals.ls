@@ -3,6 +3,7 @@
 QUnit.module \ES7
 
 strict = typeof (-> @).call(void) is \undefined
+descriptors = /\[native code\]\s*\}\s*$/.test Object.defineProperty
 
 isFunction = -> typeof! it is \Function
 
@@ -114,6 +115,23 @@ test 'String#at' !->
   if strict
     throws (-> String::at.call null, 0), TypeError
     throws (-> String::at.call void, 0), TypeError
+
+test 'Object.getOwnPropertyDescriptors' !->
+  {getOwnPropertyDescriptors} = Object
+  ok isFunction(getOwnPropertyDescriptors), 'Is function'
+  
+  O = create {q: 1}, e: value: 3
+  O.w = 2
+  s = Symbol \s
+  O[s] = 4
+  
+  descs = getOwnPropertyDescriptors O
+  
+  eq descs.q, void
+  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
+  if descriptors => deepEqual descs.e, {-enumerable, -configurable, -writable, value: 3}
+  else deepEqual descs.e, {+enumerable, +configurable, +writable, value: 3}
+  eq descs[s].value, 4
 
 test 'Object.values' !->
   {values} = Object
