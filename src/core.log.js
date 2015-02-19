@@ -1,4 +1,4 @@
-!function(log, console, enabled){
+!function(log, enabled){
   forEach.call(array(CONSOLE_METHODS), function(key){
     log[key] = function(){
       if(enabled && key in console)return apply.call(console[key], console, arguments);
@@ -12,4 +12,4 @@
       enabled = false;
     }
   })});
-}({}, global.console || {}, true);
+}({}, true);

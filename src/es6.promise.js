@@ -9,13 +9,30 @@
       if(isObject(it))then = it.then;
       return isFunction(then) ? then : false;
     }
-    function notify(record){
+    function hasOnRejected(promise){
+      var chain = promise[RECORD].c
+        , i     = 0
+        , react;
+      while(chain.length > i){
+        react = chain[i++];
+        if(react.fail || hasOnRejected(react.P))return true;
+      }
+    }
+    function notify(record, reject){
       var chain = record.c;
-      chain.length && asap(function(){
+      if(reject || chain.length)asap(function(){
         var value = record.v
           , ok    = record.s == 1
           , i     = 0;
-        while(chain.length > i)!function(react){
+        if(reject && !hasOnRejected(record.p)){
+          if(NODE){
+            if(!process.emit('unhandledRejection', value, record.p)){
+              // default node.js behavior
+            }
+          } else if(isFunction(console.error)){
+            console.error('Unhandled promise rejection', value);
+          }
+        } else while(chain.length > i)!function(react){
           var cb = ok ? react.ok : react.fail
             , ret, then;
           try {
@@ -60,7 +77,7 @@
       record = record.r || record; // unwrap
       record.v = value;
       record.s = 2;
-      notify(record);
+      notify(record, true);
     }
     function getConstructor(C){
       var S = assertObject(C)[SYMBOL_SPECIES];
@@ -71,6 +88,7 @@
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
       var record = {
+        p: this,      // promise
         c: [],        // chain
         s: 0,         // state
         d: false,     // done
