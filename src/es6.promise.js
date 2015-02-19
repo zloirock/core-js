@@ -3,30 +3,30 @@
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(function(){})) == test
-  || function(asap, DEF){
-    function isThenable(o){
+  || function(asap, RECORD){
+    function isThenable(it){
       var then;
-      if(isObject(o))then = o.then;
+      if(isObject(it))then = it.then;
       return isFunction(then) ? then : false;
     }
-    function notify(def){
-      var chain = def.chain;
+    function notify(record){
+      var chain = record.c;
       chain.length && asap(function(){
-        var msg = def.msg
-          , ok  = def.state == 1
-          , i   = 0;
+        var value = record.v
+          , ok    = record.s == 1
+          , i     = 0;
         while(chain.length > i)!function(react){
           var cb = ok ? react.ok : react.fail
             , ret, then;
           try {
             if(cb){
-              ret = cb === true ? msg : cb(msg);
+              ret = cb === true ? value : cb(value);
               if(ret === react.P){
                 react.rej(TypeError(PROMISE + '-chain cycle'));
               } else if(then = isThenable(ret)){
                 then.call(ret, react.res, react.rej);
               } else react.res(ret);
-            } else react.rej(msg);
+            } else react.rej(value);
           } catch(err){
             react.rej(err);
           }
@@ -34,33 +34,33 @@
         chain.length = 0;
       });
     }
-    function resolve(msg){
-      var def = this
+    function resolve(value){
+      var record = this
         , then, wrapper;
-      if(def.done)return;
-      def.done = true;
-      def = def.def || def; // unwrap
+      if(record.d)return;
+      record.d = true;
+      record = record.r || record; // unwrap
       try {
-        if(then = isThenable(msg)){
-          wrapper = {def: def, done: false}; // wrap
-          then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
+        if(then = isThenable(value)){
+          wrapper = {r: record, d: false}; // wrap
+          then.call(value, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
-          def.msg = msg;
-          def.state = 1;
-          notify(def);
+          record.v = value;
+          record.s = 1;
+          notify(record);
         }
       } catch(err){
-        reject.call(wrapper || {def: def, done: false}, err); // wrap
+        reject.call(wrapper || {r: record, d: false}, err); // wrap
       }
     }
-    function reject(msg){
-      var def = this;
-      if(def.done)return;
-      def.done = true;
-      def = def.def || def; // unwrap
-      def.msg = msg;
-      def.state = 2;
-      notify(def);
+    function reject(value){
+      var record = this;
+      if(record.d)return;
+      record.d = true;
+      record = record.r || record; // unwrap
+      record.v = value;
+      record.s = 2;
+      notify(record);
     }
     function getConstructor(C){
       var S = assertObject(C)[SYMBOL_SPECIES];
@@ -70,12 +70,17 @@
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: [], state: 0, done: false, msg: undefined};
-      hidden(this, DEF, def);
+      var record = {
+        c: [],        // chain
+        s: 0,         // state
+        d: false,     // done
+        v: undefined  // value
+      };
+      hidden(this, RECORD, record);
       try {
-        executor(ctx(resolve, def, 1), ctx(reject, def, 1));
+        executor(ctx(resolve, record, 1), ctx(reject, record, 1));
       } catch(err){
-        reject.call(def, err);
+        reject.call(record, err);
       }
     }
     assignHidden(Promise[PROTOTYPE], {
@@ -88,9 +93,9 @@
         } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
           react.res = assertFunction(resolve);
           react.rej = assertFunction(reject);
-        }), def = this[DEF];
-        def.chain.push(react);
-        def.state && notify(def);
+        }), record = this[RECORD];
+        record.c.push(react);
+        record.s && notify(record);
         return P;
       },
       // 25.4.5.1 Promise.prototype.catch(onRejected)
@@ -133,13 +138,13 @@
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && DEF in x && getPrototypeOf(x) === this[PROTOTYPE]
+        return isObject(x) && RECORD in x && getPrototypeOf(x) === this[PROTOTYPE]
           ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
       }
     });
-  }(nextTick || setImmediate, safeSymbol('def'));
+  }(nextTick || setImmediate, safeSymbol('record'));
   setToStringTag(Promise, PROMISE);
   setSpecies(Promise);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
