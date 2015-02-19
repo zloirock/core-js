@@ -9,34 +9,42 @@
       if(isObject(it))then = it.then;
       return isFunction(then) ? then : false;
     }
-    function hasOnRejected(promise){
-      var chain = promise[RECORD].c
-        , i     = 0
+    function handledRejectionOrHasOnRejected(promise){
+      var record = promise[RECORD]
+        , chain  = record.c
+        , i      = 0
         , react;
+      if(record.h)return true;
       while(chain.length > i){
         react = chain[i++];
-        if(react.fail || hasOnRejected(react.P))return true;
+        if(react.fail || handledRejectionOrHasOnRejected(react.P))return true;
       }
     }
     function notify(record, reject){
       var chain = record.c;
       if(reject || chain.length)asap(function(){
-        var value = record.v
-          , ok    = record.s == 1
-          , i     = 0;
-        if(reject && !hasOnRejected(record.p)){
-          if(NODE){
-            if(!process.emit('unhandledRejection', value, record.p)){
-              // default node.js behavior
+        var promise = record.p
+          , value   = record.v
+          , ok      = record.s == 1
+          , i       = 0;
+        if(reject && !handledRejectionOrHasOnRejected(promise)){
+          setTimeout(function(){
+            if(!handledRejectionOrHasOnRejected(promise)){
+              if(NODE){
+                if(!process.emit('unhandledRejection', value, promise)){
+                  // default node.js behavior
+                }
+              } else if(isFunction(console.error)){
+                console.error('Unhandled promise rejection', value);
+              }
             }
-          } else if(isFunction(console.error)){
-            console.error('Unhandled promise rejection', value);
-          }
+          }, 1e3);
         } else while(chain.length > i)!function(react){
           var cb = ok ? react.ok : react.fail
             , ret, then;
           try {
             if(cb){
+              if(!ok)record.h = true;
               ret = cb === true ? value : cb(value);
               if(ret === react.P){
                 react.rej(TypeError(PROMISE + '-chain cycle'));
@@ -92,7 +100,8 @@
         c: [],        // chain
         s: 0,         // state
         d: false,     // done
-        v: undefined  // value
+        v: undefined, // value
+        h: false      // handled rejection
       };
       hidden(this, RECORD, record);
       try {
