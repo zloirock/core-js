@@ -83,10 +83,11 @@
     this[I] = toLength(i);
   };
   createIterator(LimitIterator, WRAPPER, function(){
+    var iterator = this[ITER];
     if(--this[I] < 0){
       if(RETURN in iterator)iterator[RETURN]();
       return iterResult(1);
-    } return this[ITER].next();
+    } return iterator.next();
   });
   
   assignHidden(IteratorPrototype, {
