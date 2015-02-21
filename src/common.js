@@ -23,6 +23,7 @@ var OBJECT          = 'Object'
   , FOR_EACH        = 'forEach'
   , ITERATOR        = 'iterator'
   , FF_ITERATOR     = '@@' + ITERATOR
+  , RETURN          = 'return'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -489,7 +490,10 @@ function forOf(iterable, entries, fn, that){
   var iterator = getIterator(iterable)
     , f        = ctx(fn, that, entries ? 2 : 1)
     , step;
-  while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false)return;
+  while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
+    if(RETURN in iterator)iterator[RETURN]();
+    return;
+  }
 }
 
 // core
