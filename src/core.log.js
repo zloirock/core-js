@@ -1,5 +1,9 @@
 !function(log, enabled){
-  forEach.call(array(CONSOLE_METHODS), function(key){
+  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  forEach.call(array('assert,clear,count,debug,dir,dirxml,error,exception,' +
+      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
+      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
+      'timelineEnd,timeStamp,trace,warn'), function(key){
     log[key] = function(){
       if(enabled && key in console)return apply.call(console[key], console, arguments);
     };

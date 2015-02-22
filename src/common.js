@@ -57,12 +57,7 @@ var OBJECT          = 'Object'
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , DOT             = '.'
-  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-  , CONSOLE_METHODS = 'assert,clear,count,debug,dir,dirxml,error,exception,' +
-      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
-      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
-      'timelineEnd,timeStamp,trace,warn';
+  , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -530,8 +525,7 @@ var NODE = cof(process) == PROCESS
   , STATIC = 4
   , PROTO  = 8
   , BIND   = 16
-  , WRAP   = 32
-  , SIMPLE = 64;
+  , WRAP   = 32;
 function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
@@ -558,7 +552,7 @@ function $define(type, name, source){
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // extend global
     if(framework && target && !own){
-      if(isGlobal || type & SIMPLE)target[key] = out;
+      if(isGlobal)target[key] = out;
       else delete target[key] && hidden(target, key, out);
     }
     // export

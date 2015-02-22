@@ -34,7 +34,6 @@ modules  = <[
   js.array.statics
   web.dom.itarable
   web.timers
-  web.console
   core.log
 ]>
 
@@ -63,12 +62,10 @@ web = <[
   web.dom.itarable
   web.timers
   web.immediate
-  web.console
 ]>
 shim_old = <[
   es5
   web.timers
-  web.console
 ]>
 shim_modern = <[
   es6
@@ -104,7 +101,7 @@ module.exports = (opt, next)-> let @ = opt
   if @exp                => for exp         => @[..] = on
   if @es6                => for es6         => @[..] = on
   if @es7                => for es7         => @[..] = on
-  if @library            => @ <<< {-\es6.function, -\es6.regexp, -\es6.number.constructor, -\web.console, -\core.iterator}
+  if @library            => @ <<< {-\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
   if @\es7.abstract-refs => @\es6.symbol      = on
