@@ -495,9 +495,9 @@ function safeIterClose(exec, iterator){
   }
 }
 function forOf(iterable, entries, fn, that){
-  var f = ctx(fn, that, entries ? 2 : 1)
-    , step;
   safeIterClose(function(iterator){
+    var f = ctx(fn, that, entries ? 2 : 1)
+      , step;
     while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
       if(RETURN in iterator)iterator[RETURN]();
       return;
