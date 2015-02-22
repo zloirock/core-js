@@ -85,7 +85,7 @@
   createIterator(LimitIterator, WRAPPER, function(){
     var iterator = this[ITER];
     if(--this[I] < 0){
-      if(RETURN in iterator)iterator[RETURN]();
+      closeIterator(iterator);
       return iterResult(1);
     } return iterator.next();
   });

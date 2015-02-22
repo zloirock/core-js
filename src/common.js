@@ -23,7 +23,6 @@ var OBJECT          = 'Object'
   , FOR_EACH        = 'forEach'
   , ITERATOR        = 'iterator'
   , FF_ITERATOR     = '@@' + ITERATOR
-  , RETURN          = 'return'
   , PROCESS         = 'process'
   , CREATE_ELEMENT  = 'createElement'
   // Aliases global objects and prototypes
@@ -486,20 +485,26 @@ function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
 }
 function checkDangerIterClosing(fn){
-  var danger = true
-  var O = {next: function(){ throw 1 }};
+  var danger = true;
+  var O = {
+    next: function(){ throw 1 },
+    'return': function(){ danger = false }
+  };
   O[SYMBOL_ITERATOR] = returnThis;
-  O[RETURN] = function(){ danger = false };
   try {
     fn(O);
   } catch(e){}
   return danger;
 }
+function closeIterator(iterator){
+  var ret = iterator['return'];
+  if(ret !== undefined)ret.call(iterator);
+}
 function safeIterClose(exec, iterator){
   try {
     exec(iterator);
   } catch(e){
-    if(RETURN in iterator)iterator[RETURN]();
+    closeIterator(iterator);
     throw e;
   }
 }
@@ -508,8 +513,7 @@ function forOf(iterable, entries, fn, that){
     var f = ctx(fn, that, entries ? 2 : 1)
       , step;
     while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
-      if(RETURN in iterator)iterator[RETURN]();
-      return;
+      return closeIterator(iterator);
     }
   }, getIterator(iterable));
 }
