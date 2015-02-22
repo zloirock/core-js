@@ -10,7 +10,8 @@ modules  = <[
   es6.number
   es6.math
   es6.string
-  es6.array
+  es6.array.statics
+  es6.array.prototype
   core.iterator
   es6.iterators
   es6.regexp
@@ -45,7 +46,8 @@ es6 = <[
   es6.number
   es6.math
   es6.string
-  es6.array
+  es6.array.statics
+  es6.array.prototype
   es6.iterators
   es6.regexp
   es6.collections
