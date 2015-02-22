@@ -23,6 +23,18 @@ test 'Array.from' !->
   deq from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
   throws (-> from null), TypeError
   throws (-> from void), TypeError
+  # return #default
+  done = on
+  iter = [1 2 3]values!
+  iter.return = -> done := no
+  from iter, -> return no
+  ok done, '.return #default'
+  # return #throw
+  done = no
+  iter = [1 2 3]values!
+  iter.return = -> done := on
+  try => from iter, -> throw 42
+  ok done, '.return #throw'
 test 'Array.of' !->
   ok isFunction(Array.of), 'Is function'
   deq Array.of(1), [1]

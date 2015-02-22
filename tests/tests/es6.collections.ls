@@ -23,6 +23,12 @@ test 'Map' !->
   eq new Map([1 2 3]entries!).size, 3, 'Init from iterator #1'
   eq new Map(new Map [1 2 3]entries!).size, 3, 'Init from iterator #2'
   eq new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
+  # return #throw
+  done = no
+  iter = [null, 1, 2]values!
+  iter.return = -> done := on
+  try => new Map iter
+  ok done, '.return #throw'
 test 'Map#clear' !->
   ok isFunction(Map::clear), 'Is function'
   M = new Map
@@ -226,6 +232,15 @@ test 'Set' !->
   deq r, [1 2 3]
   eq new Set([NaN, NaN, NaN])size, 1
   if Array.from => deq Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
+  # return #throw
+  done = no
+  iter = {
+    next: -> throw 42
+    (Symbol?iterator): -> @
+    return: -> done := on
+  }
+  try => new Set iter
+  ok done, '.return #throw'
 test 'Set#add' !->
   ok isFunction(Set::add), 'Is function'
   a = []
@@ -403,7 +418,6 @@ test 'WeakMap' !->
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   eq new WeakMap([[a = {}, b = {}]].values!).get(a), b, 'Init WeakMap from iterator #1'
   eq new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
-  #/* IE11 bug
   eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
@@ -412,7 +426,12 @@ test 'WeakMap' !->
   M.delete f
   eq M.has(f), no
   eq M.get(f), void
-  #*/
+  # return #throw
+  done = no
+  iter = [null, 1, 2]values!
+  iter.return = -> done := on
+  try => new WeakMap iter
+  ok done, '.return #throw'
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap!
@@ -458,6 +477,12 @@ test 'WeakSet' !->
   eq S.has(f), on
   S.delete f
   eq S.has(f), no
+  # return #throw
+  done = no
+  iter = [null, 1, 2]values!
+  iter.return = -> done := on
+  try => new WeakSet iter
+  ok done, '.return #throw'
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'

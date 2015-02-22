@@ -18,6 +18,12 @@ test 'Dict' !->
   deepEqual keys(dict3), <[1 2]>
   ok dict3.1 is 1
   ok dict3.2 is 2
+  # return #throw
+  done = no
+  iter = [null, 1, 2]values!
+  iter.return = -> done := on
+  try => new Dict iter
+  ok done, '.return #throw'
 test '.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'

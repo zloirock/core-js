@@ -62,6 +62,24 @@ test '$for#of' !->
     ok key is 0
     ok val is 1
   , o = {}
+  # return #default
+  done = on
+  iter = [1 2 3]values!
+  iter.return = -> done := no
+  $for(iter).of ->
+  ok done, '.return #default'
+  # return #break
+  done = no
+  iter = [1 2 3]values!
+  iter.return = -> done := on
+  $for(iter).of -> return no
+  ok done, '.return #break'
+  # return #throw
+  done = no
+  iter = [1 2 3]values!
+  iter.return = -> done := on
+  try => $for(iter).of -> throw 42
+  ok done, '.return #throw'
 test '$for chaining' !->
   deepEqual([2, 10], $for [1 2 3]
     .map (^ 2)

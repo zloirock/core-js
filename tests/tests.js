@@ -61,7 +61,7 @@
     }, o = {});
   });
   test('$for#of', function(){
-    var set, counter1, string1, counter2, string2, o;
+    var set, counter1, string1, counter2, string2, o, done, iter;
     ok(typeof $for.prototype.of === 'function', 'Is function');
     set = new Set(['1', '2', '3', '2', '1']);
     counter1 = 0;
@@ -85,6 +85,33 @@
       ok(key === 0);
       return ok(val === 1);
     }, o = {});
+    done = true;
+    iter = [1, 2, 3].values();
+    iter['return'] = function(){
+      return done = false;
+    };
+    $for(iter).of(function(){});
+    ok(done, '.return #default');
+    done = false;
+    iter = [1, 2, 3].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    $for(iter).of(function(){
+      return false;
+    });
+    ok(done, '.return #break');
+    done = false;
+    iter = [1, 2, 3].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      $for(iter).of(function(){
+        throw 42;
+      });
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('$for chaining', function(){
     deepEqual([2, 10], $for([1, 2, 3]).map((function(it){
@@ -352,7 +379,7 @@
   from = Array.from;
   global = this;
   test('Dict', function(){
-    var dict1, dict2, dict3;
+    var dict1, dict2, dict3, done, iter;
     ok(isFunction(global.Dict), 'Is function');
     dict1 = Dict();
     ok(!(dict1 instanceof Object));
@@ -370,6 +397,15 @@
     deepEqual(keys(dict3), ['1', '2']);
     ok(dict3[1] === 1);
     ok(dict3[2] === 2);
+    done = false;
+    iter = [null, 1, 2].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      new Dict(iter);
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('.every', function(){
     var every, obj, ctx;
@@ -1663,7 +1699,7 @@
     return toString$.call(it).slice(8, -1) === 'Function';
   };
   test('Array.from', function(){
-    var from, al, ctx;
+    var from, al, ctx, done, iter;
     from = Array.from;
     ok(isFunction(from), 'Is function');
     deq(from('123'), ['1', '2', '3']);
@@ -1700,6 +1736,26 @@
     throws(function(){
       return from(void 8);
     }, TypeError);
+    done = true;
+    iter = [1, 2, 3].values();
+    iter['return'] = function(){
+      return done = false;
+    };
+    from(iter, function(){
+      return false;
+    });
+    ok(done, '.return #default');
+    done = false;
+    iter = [1, 2, 3].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      from(iter, function(){
+        throw 42;
+      });
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('Array.of', function(){
     ok(isFunction(Array.of), 'Is function');
@@ -1730,6 +1786,7 @@
   deq = deepEqual;
   that = (typeof global != 'undefined' && global !== null) && global || window;
   test('Map', function(){
+    var done, iter;
     ok(isFunction(that.Map), 'Is function');
     ok('clear' in Map.prototype, 'clear in Map.prototype');
     ok('delete' in Map.prototype, 'delete in Map.prototype');
@@ -1741,6 +1798,15 @@
     eq(new Map([1, 2, 3].entries()).size, 3, 'Init from iterator #1');
     eq(new Map(new Map([1, 2, 3].entries())).size, 3, 'Init from iterator #2');
     eq(new Map([[freeze({}), 1], [2, 3]]).size, 2, 'Support frozen objects');
+    done = false;
+    iter = [null, 1, 2].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      new Map(iter);
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('Map#clear', function(){
     var M, f;
@@ -2017,7 +2083,7 @@
     });
   });
   test('Set', function(){
-    var S, r;
+    var S, r, done, iter, ref$;
     ok(isFunction(that.Set), 'Is function');
     ok('add' in Set.prototype, 'add in Set.prototype');
     ok('clear' in Set.prototype, 'clear in Set.prototype');
@@ -2039,6 +2105,20 @@
     if (Array.from) {
       deq(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
     }
+    done = false;
+    iter = (ref$ = {
+      next: function(){
+        throw 42;
+      }
+    }, ref$[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
+      return this;
+    }, ref$['return'] = function(){
+      return done = true;
+    }, ref$);
+    try {
+      new Set(iter);
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('Set#add', function(){
     var a, S, chain, f;
@@ -2291,7 +2371,7 @@
     });
   });
   test('WeakMap', function(){
-    var a, b, f, M;
+    var a, b, f, M, done, iter;
     ok(isFunction(that.WeakMap), 'Is function');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
@@ -2308,6 +2388,15 @@
     M['delete'](f);
     eq(M.has(f), false);
     eq(M.get(f), void 8);
+    done = false;
+    iter = [null, 1, 2].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      new WeakMap(iter);
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('WeakMap#delete', function(){
     var M, a, b;
@@ -2355,7 +2444,7 @@
     eq(WeakMap.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
   });
   test('WeakSet', function(){
-    var a, f, S;
+    var a, f, S, done, iter;
     ok(isFunction(that.WeakSet), 'Is function');
     ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
     ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
@@ -2369,6 +2458,15 @@
     eq(S.has(f), true);
     S['delete'](f);
     eq(S.has(f), false);
+    done = false;
+    iter = [null, 1, 2].values();
+    iter['return'] = function(){
+      return done = true;
+    };
+    try {
+      new WeakSet(iter);
+    } catch (e$) {}
+    ok(done, '.return #throw');
   });
   test('WeakSet#add', function(){
     var a, e;
