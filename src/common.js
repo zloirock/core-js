@@ -415,7 +415,6 @@ var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-  , NATIVE_ITERATORS = SYMBOL_ITERATOR in ArrayProto
     // Safari define byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
@@ -485,6 +484,16 @@ function getIterator(it){
 }
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
+}
+function checkDangerIterClosing(fn){
+  var danger = true
+  var O = {next: function(){ throw 1 }};
+  O[SYMBOL_ITERATOR] = returnThis;
+  O[RETURN] = function(){ danger = false };
+  try {
+    fn(O);
+  } catch(e){}
+  return danger;
 }
 function safeIterClose(exec, iterator){
   try {

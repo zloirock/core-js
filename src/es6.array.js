@@ -1,5 +1,5 @@
 !function(){
-  $define(STATIC, ARRAY, {
+  $define(STATIC + FORCED * checkDangerIterClosing(Array.from), ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
       var O       = Object(assertDefined(arrayLike))
@@ -23,7 +23,10 @@
       }
       result.length = index;
       return result;
-    },
+    }
+  });
+  
+  $define(STATIC, ARRAY, {
     // 22.1.2.3 Array.of( ...items)
     of: function(/* ...args */){
       var index  = 0

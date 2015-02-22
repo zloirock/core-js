@@ -52,7 +52,7 @@
         , chain  = inst[ADDER](isWeak ? {} : -0, 1)
         , buggyZero;
       // wrap to init collections from iterable
-      if(!NATIVE_ITERATORS || !C.length){
+      if(checkDangerIterClosing(function(O){ new C(O) })){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);
