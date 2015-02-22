@@ -7,11 +7,19 @@
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
         , index   = 0
-        , length, result, iter, step;
-      if(isIterable(O))for(iter = getIterator(O), result = new (generic(this, Array)); !(step = iter.next()).done; index++){
-        result[index] = mapping ? f(step.value, index) : step.value;
-      } else for(result = new (generic(this, Array))(length = toLength(O.length)); length > index; index++){
-        result[index] = mapping ? f(O[index], index) : O[index];
+        , length, result, step;
+      if(isIterable(O)){
+        result = new (generic(this, Array));
+        safeIterClose(function(iterator){
+          for(; !(step = iterator.next()).done; index++){
+            result[index] = mapping ? f(step.value, index) : step.value;
+          }
+        }, getIterator(O));
+      } else {
+        result = new (generic(this, Array))(length = toLength(O.length));
+        for(; length > index; index++){
+          result[index] = mapping ? f(O[index], index) : O[index];
+        }
       }
       result.length = index;
       return result;

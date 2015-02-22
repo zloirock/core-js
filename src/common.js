@@ -486,14 +486,23 @@ function getIterator(it){
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
 }
-function forOf(iterable, entries, fn, that){
-  var iterator = getIterator(iterable)
-    , f        = ctx(fn, that, entries ? 2 : 1)
-    , step;
-  while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
+function safeIterClose(exec, iterator){
+  try {
+    exec(iterator);
+  } catch(e){
     if(RETURN in iterator)iterator[RETURN]();
-    return;
+    throw e;
   }
+}
+function forOf(iterable, entries, fn, that){
+  var f = ctx(fn, that, entries ? 2 : 1)
+    , step;
+  safeIterClose(function(iterator){
+    while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
+      if(RETURN in iterator)iterator[RETURN]();
+      return;
+    }
+  }, getIterator(iterable));
 }
 
 // core
