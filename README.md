@@ -90,7 +90,7 @@ Date
 
 ### ECMAScript 6
 #### ECMAScript 6: Object
-Modules `es6.object` and `es6.function`.
+Modules `es6.object.statics`, `es6.object.prototype` and `es6.function`.
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -130,7 +130,7 @@ Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
 ```
 #### ECMAScript 6: Array
-Module `es6.array`.
+Modules `es6.array.statics` and `es6.array.prototype`.
 ```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
@@ -208,7 +208,7 @@ Module `es6.number.constructor`. `Number` constructor support binary and octal l
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
 ```
-Modules `es6.number` and `es6.math`.
+Modules `es6.number.statics` and `es6.math`.
 ```javascript
 Number
   .EPSILON -> num
@@ -436,8 +436,8 @@ log(wset.has(b));   // => false
 ```
 #### Caveats when using collections polyfill:
 
-* Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collectios, leak.
-* Weak-collectios polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
+* Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collections, leak.
+* Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
 ### ECMAScript 6: Iterators
 Module `es6.iterators`:
@@ -695,6 +695,7 @@ instance.c; // => 42
 Module `es7.proposals`.
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at)
+* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781)
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues)
 * `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100)
 
@@ -704,6 +705,7 @@ Array
 String
   #at(index) -> string
 Object
+  .getOwnPropertyDescriptors(object) -> object
   .values(object) -> array
   .entries(object) -> array
 RegExp
@@ -722,6 +724,11 @@ Array(1).includes(undefined); // => true
 
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
+
+// Shallow object cloning with prototype and descriptors:
+var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
+// Mixin:
+Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
 Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
 Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
@@ -858,18 +865,7 @@ clearImmediate(setImmediate(function(){
 }));
 ```
 ### Console
-Module `web.console`. Console cap for old browsers and some additional functionality.
-```javascript
-console
-  .{...console API}
-```
-```javascript
-// Before:
-if(window.console && console.log)console.log(42);
-// After:
-console.log(42);
-```
-Module `core.log`. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
+Module `core.log`. Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
 ```javascript
 log ==== log.log
   .{...console API}
@@ -877,6 +873,11 @@ log ==== log.log
   .disable() -> void
 ```
 ```javascript
+// Before:
+if(window.console && console.warn)console.warn(42);
+// After:
+log.warn(42);
+
 // Before:
 setTimeout(console.warn.bind(console, 42), 1000);
 [1, 2, 3].forEach(console.warn, console);
@@ -1325,18 +1326,16 @@ require('core-js/shim');
 npm i -g grunt-cli
 npm i core-js
 cd node_modules/core-js && npm i
-grunt build:core.date,web.console,library --path=custom uglify
+grunt build:core.dict,es6.collections,library --path=custom uglify
 ```
-Where `core.date` and `web.console` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
+Where `core.dict` and `es6.collections` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
 
-#### Reductions:
+Available namespaces: for example, `es6.array` contains `es6.array.statics` and `es6.array.prototype`, `es6` contains all modules whose names start with `es6`.
+
+Other reductions:
 * `shim` is equal `shim.old,shim.modern`
 * `shim.old` is equal `es5,web.timers,web.console`
 * `shim.modern` is equal `es6,es7,js.array.statics,web.immediate,web.dom.itarable`
-* `web` is equal `web.timers,web.console,web.immediate,web.dom.itarable`
-* `es6` is equal `es6.object,es6.object.statics-accept-primitives,es6.function,es6.number.constructor,es6.number,es6.math,es6.string,es6.array,es6.iterators,es6.regexp,es6.collections,es6.promise,es6.symbol,es6.reflect`
-* `es7` is equal `es7.proposals,es7.abstract-refs`
-* `core` is equal `core.global,core.$for,core.delay,core.dict,core.binding,core.array,core.object,core.number,core.string,core.date,core.log`
 
 #### Default builds:
 * `core-js/index` builds as `shim.modern,core`
@@ -1347,6 +1346,14 @@ Where `core.date` and `web.console` are module names, `library` is flag for buil
 * `core-js/client/library` builds as `shim,core,library`
 
 ## Changelog
+**0.6.0** - *2015.02.22*
+  * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
+  * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
+  * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
+  * removed `console` cap - creates too many problems - you can use [`core.log`](#console) module as that
+  * restructuring namespaces
+  * some fixes
+
 **0.5.4** - *2015.02.15* - Some fixes
 
 **0.5.3** - *2015.02.14*

@@ -1,5 +1,5 @@
 /**
- * Core.js 0.5.4
+ * Core.js 0.6.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -65,16 +65,12 @@ var OBJECT          = 'Object'
   , html            = document && document.documentElement
   , navigator       = global.navigator
   , define          = global.define
+  , console         = global.console || {}
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
   , Infinity        = 1 / 0
-  , DOT             = '.'
-  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-  , CONSOLE_METHODS = 'assert,clear,count,debug,dir,dirxml,error,exception,' +
-      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
-      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
-      'timelineEnd,timeStamp,trace,warn';
+  , DOT             = '.';
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -409,7 +405,9 @@ function assignHidden(target, src){
 
 var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
   , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
-  , SYMBOL_SPECIES     = getWellKnownSymbol('species');
+  , SYMBOL_TAG         = getWellKnownSymbol(TO_STRING_TAG)
+  , SYMBOL_SPECIES     = getWellKnownSymbol('species')
+  , SYMBOL_ITERATOR;
 function setSpecies(C){
   if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
     configurable: true,
@@ -417,16 +415,79 @@ function setSpecies(C){
   });
 }
 
-// Iterators
-var SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR)
-  , SYMBOL_TAG      = getWellKnownSymbol(TO_STRING_TAG)
-  , SUPPORT_FF_ITER = FF_ITERATOR in ArrayProto
-  , ITER  = safeSymbol('iter')
+/******************************************************************************
+ * Module : common.export                                                     *
+ ******************************************************************************/
+
+var NODE = cof(process) == PROCESS
+  , core = {}
+  , path = framework ? global : core
+  , old  = global.core
+  , exportGlobal
+  // type bitmap
+  , FORCED = 1
+  , GLOBAL = 2
+  , STATIC = 4
+  , PROTO  = 8
+  , BIND   = 16
+  , WRAP   = 32;
+function $define(type, name, source){
+  var key, own, out, exp
+    , isGlobal = type & GLOBAL
+    , target   = isGlobal ? global : (type & STATIC)
+        ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
+    , exports  = isGlobal ? core : core[name] || (core[name] = {});
+  if(isGlobal)source = name;
+  for(key in source){
+    // there is a similar native
+    own = !(type & FORCED) && target && key in target
+      && (!isFunction(target[key]) || isNative(target[key]));
+    // export native or passed
+    out = (own ? target : source)[key];
+    // prevent global pollution for namespaces
+    if(!framework && isGlobal && !isFunction(target[key]))exp = source[key];
+    // bind timers to global for call from export context
+    else if(type & BIND && own)exp = ctx(out, global);
+    // wrap global constructors for prevent change them in library
+    else if(type & WRAP && !framework && target[key] == out){
+      exp = function(param){
+        return this instanceof out ? new out(param) : out(param);
+      }
+      exp[PROTOTYPE] = out[PROTOTYPE];
+    } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
+    // extend global
+    if(framework && target && !own){
+      if(isGlobal)target[key] = out;
+      else delete target[key] && hidden(target, key, out);
+    }
+    // export
+    if(exports[key] != out)hidden(exports, key, exp);
+  }
+}
+// CommonJS export
+if(typeof module != 'undefined' && module.exports)module.exports = core;
+// RequireJS export
+else if(isFunction(define) && define.amd)define(function(){return core});
+// Export to global object
+else exportGlobal = true;
+if(exportGlobal || framework){
+  core.noConflict = function(){
+    global.core = old;
+    return core;
+  }
+  global.core = core;
+}
+
+/******************************************************************************
+ * Module : common.iterators                                                  *
+ ******************************************************************************/
+
+SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR);
+var ITER  = safeSymbol('iter')
   , KEY   = 1
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-  , NATIVE_ITERATORS = SYMBOL_ITERATOR in ArrayProto
     // Safari define byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
@@ -434,7 +495,7 @@ setIterator(IteratorPrototype, returnThis);
 function setIterator(O, value){
   hidden(O, SYMBOL_ITERATOR, value);
   // Add iterator for FF iterator protocol
-  SUPPORT_FF_ITER && hidden(O, FF_ITERATOR, value);
+  FF_ITERATOR in ArrayProto && hidden(O, FF_ITERATOR, value);
 }
 function createIterator(Constructor, NAME, next, proto){
   Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
@@ -497,72 +558,38 @@ function getIterator(it){
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
 }
+function checkDangerIterClosing(fn){
+  var danger = true;
+  var O = {
+    next: function(){ throw 1 },
+    'return': function(){ danger = false }
+  };
+  O[SYMBOL_ITERATOR] = returnThis;
+  try {
+    fn(O);
+  } catch(e){}
+  return danger;
+}
+function closeIterator(iterator){
+  var ret = iterator['return'];
+  if(ret !== undefined)ret.call(iterator);
+}
+function safeIterClose(exec, iterator){
+  try {
+    exec(iterator);
+  } catch(e){
+    closeIterator(iterator);
+    throw e;
+  }
+}
 function forOf(iterable, entries, fn, that){
-  var iterator = getIterator(iterable)
-    , f        = ctx(fn, that, entries ? 2 : 1)
-    , step;
-  while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false)return;
-}
-
-// core
-var NODE = cof(process) == PROCESS
-  , core = {}
-  , path = framework ? global : core
-  , old  = global.core
-  , exportGlobal
-  // type bitmap
-  , FORCED = 1
-  , GLOBAL = 2
-  , STATIC = 4
-  , PROTO  = 8
-  , BIND   = 16
-  , WRAP   = 32
-  , SIMPLE = 64;
-function $define(type, name, source){
-  var key, own, out, exp
-    , isGlobal = type & GLOBAL
-    , target   = isGlobal ? global : (type & STATIC)
-        ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
-    , exports  = isGlobal ? core : core[name] || (core[name] = {});
-  if(isGlobal)source = name;
-  for(key in source){
-    // there is a similar native
-    own = !(type & FORCED) && target && key in target
-      && (!isFunction(target[key]) || isNative(target[key]));
-    // export native or passed
-    out = (own ? target : source)[key];
-    // prevent global pollution for namespaces
-    if(!framework && isGlobal && !isFunction(target[key]))exp = source[key];
-    // bind timers to global for call from export context
-    else if(type & BIND && own)exp = ctx(out, global);
-    // wrap global constructors for prevent change them in library
-    else if(type & WRAP && !framework && target[key] == out){
-      exp = function(param){
-        return this instanceof out ? new out(param) : out(param);
-      }
-      exp[PROTOTYPE] = out[PROTOTYPE];
-    } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
-    // extend global
-    if(framework && target && !own){
-      if(isGlobal || type & SIMPLE)target[key] = out;
-      else delete target[key] && hidden(target, key, out);
+  safeIterClose(function(iterator){
+    var f = ctx(fn, that, entries ? 2 : 1)
+      , step;
+    while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
+      return closeIterator(iterator);
     }
-    // export
-    if(exports[key] != out)hidden(exports, key, exp);
-  }
-}
-// CommonJS export
-if(typeof module != 'undefined' && module.exports)module.exports = core;
-// RequireJS export
-else if(isFunction(define) && define.amd)define(function(){return core});
-// Export to global object
-else exportGlobal = true;
-if(exportGlobal || framework){
-  core.noConflict = function(){
-    global.core = old;
-    return core;
-  }
-  global.core = core;
+  }, getIterator(iterable));
 }
 
 /******************************************************************************
@@ -830,7 +857,7 @@ if(exportGlobal || framework){
         : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.4 Symbol.iterator
-    iterator: SYMBOL_ITERATOR,
+    iterator: SYMBOL_ITERATOR || getWellKnownSymbol(ITERATOR),
     // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.species
@@ -874,13 +901,18 @@ if(exportGlobal || framework){
       return result;
     }
   });
+  
+  // 20.2.1.9 Math[@@toStringTag]
+  setToStringTag(Math, MATH, true);
+  // 24.3.3 JSON[@@toStringTag]
+  setToStringTag(global.JSON, 'JSON', true);
 }(safeSymbol('tag'), {}, {}, true);
 
 /******************************************************************************
- * Module : es6.object                                                        *
+ * Module : es6.object.statics                                                *
  ******************************************************************************/
 
-!function(tmp){
+!function(){
   var objectStatic = {
     // 19.1.3.1 Object.assign(target, source)
     assign: assign,
@@ -905,19 +937,18 @@ if(exportGlobal || framework){
     }
   }();
   $define(STATIC, OBJECT, objectStatic);
-  
-  if(framework){
-    // 19.1.3.6 Object.prototype.toString()
-    tmp[SYMBOL_TAG] = DOT;
-    if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
-      return '[object ' + classof(this) + ']';
-    });
-  }
-  
-  // 20.2.1.9 Math[@@toStringTag]
-  setToStringTag(Math, MATH, true);
-  // 24.3.3 JSON[@@toStringTag]
-  setToStringTag(global.JSON, 'JSON', true);
+}();
+
+/******************************************************************************
+ * Module : es6.object.prototype                                              *
+ ******************************************************************************/
+
+!function(tmp){
+  // 19.1.3.6 Object.prototype.toString()
+  tmp[SYMBOL_TAG] = DOT;
+  if(cof(tmp) != DOT)hidden(ObjectProto, TO_STRING, function(){
+    return '[object ' + classof(this) + ']';
+  });
 }({});
 
 /******************************************************************************
@@ -1014,7 +1045,7 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
 }(Number, Number[PROTOTYPE]);
 
 /******************************************************************************
- * Module : es6.number                                                        *
+ * Module : es6.number.statics                                                *
  ******************************************************************************/
 
 !function(isInteger){
@@ -1234,11 +1265,11 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
 }(String.fromCharCode);
 
 /******************************************************************************
- * Module : es6.array                                                         *
+ * Module : es6.array.statics                                                 *
  ******************************************************************************/
 
 !function(){
-  $define(STATIC, ARRAY, {
+  $define(STATIC + FORCED * checkDangerIterClosing(Array.from), ARRAY, {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
       var O       = Object(assertDefined(arrayLike))
@@ -1246,15 +1277,26 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
         , index   = 0
-        , length, result, iter, step;
-      if(isIterable(O))for(iter = getIterator(O), result = new (generic(this, Array)); !(step = iter.next()).done; index++){
-        result[index] = mapping ? f(step.value, index) : step.value;
-      } else for(result = new (generic(this, Array))(length = toLength(O.length)); length > index; index++){
-        result[index] = mapping ? f(O[index], index) : O[index];
+        , length, result, step;
+      if(isIterable(O)){
+        result = new (generic(this, Array));
+        safeIterClose(function(iterator){
+          for(; !(step = iterator.next()).done; index++){
+            result[index] = mapping ? f(step.value, index) : step.value;
+          }
+        }, getIterator(O));
+      } else {
+        result = new (generic(this, Array))(length = toLength(O.length));
+        for(; length > index; index++){
+          result[index] = mapping ? f(O[index], index) : O[index];
+        }
       }
       result.length = index;
       return result;
-    },
+    }
+  });
+  
+  $define(STATIC, ARRAY, {
     // 22.1.2.3 Array.of( ...items)
     of: function(/* ...args */){
       var index  = 0
@@ -1266,6 +1308,14 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
     }
   });
   
+  setSpecies(Array);
+}();
+
+/******************************************************************************
+ * Module : es6.array.prototype                                               *
+ ******************************************************************************/
+
+!function(){
   $define(PROTO, ARRAY, {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0, end = @length */){
@@ -1311,9 +1361,7 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
       ArrayUnscopables[it] = true;
     });
     SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
-  }  
-  
-  setSpecies(Array);
+  }
 }();
 
 /******************************************************************************
@@ -1395,17 +1443,6 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
   if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
     configurable: true,
     get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
-  });
-  
-  // 21.2.5.12 get RegExp.prototype.sticky()
-  // 21.2.5.15 get RegExp.prototype.unicode()
-  forEach.call(array('sticky,unicode'), function(key){
-    key in /./ || defineProperty(RegExpProto, key, DESC ? {
-      configurable: true,
-      get: assertRegExpWrapper(function(){
-        return false;
-      })
-    } : descriptor(5, false));
   });
   
   setSpecies(RegExp);
@@ -1493,30 +1530,55 @@ $define(GLOBAL + BIND, {
 !function(Promise, test){
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(function(){})) == test
-  || function(asap, DEF){
-    function isThenable(o){
+  || function(asap, RECORD){
+    function isThenable(it){
       var then;
-      if(isObject(o))then = o.then;
+      if(isObject(it))then = it.then;
       return isFunction(then) ? then : false;
     }
-    function notify(def){
-      var chain = def.chain;
-      chain.length && asap(function(){
-        var msg = def.msg
-          , ok  = def.state == 1
-          , i   = 0;
-        while(chain.length > i)!function(react){
+    function handledRejectionOrHasOnRejected(promise){
+      var record = promise[RECORD]
+        , chain  = record.c
+        , i      = 0
+        , react;
+      if(record.h)return true;
+      while(chain.length > i){
+        react = chain[i++];
+        if(react.fail || handledRejectionOrHasOnRejected(react.P))return true;
+      }
+    }
+    function notify(record, reject){
+      var chain = record.c;
+      if(reject || chain.length)asap(function(){
+        var promise = record.p
+          , value   = record.v
+          , ok      = record.s == 1
+          , i       = 0;
+        if(reject && !handledRejectionOrHasOnRejected(promise)){
+          setTimeout(function(){
+            if(!handledRejectionOrHasOnRejected(promise)){
+              if(NODE){
+                if(!process.emit('unhandledRejection', value, promise)){
+                  // default node.js behavior
+                }
+              } else if(isFunction(console.error)){
+                console.error('Unhandled promise rejection', value);
+              }
+            }
+          }, 1e3);
+        } else while(chain.length > i)!function(react){
           var cb = ok ? react.ok : react.fail
             , ret, then;
           try {
             if(cb){
-              ret = cb === true ? msg : cb(msg);
+              if(!ok)record.h = true;
+              ret = cb === true ? value : cb(value);
               if(ret === react.P){
                 react.rej(TypeError(PROMISE + '-chain cycle'));
               } else if(then = isThenable(ret)){
                 then.call(ret, react.res, react.rej);
               } else react.res(ret);
-            } else react.rej(msg);
+            } else react.rej(value);
           } catch(err){
             react.rej(err);
           }
@@ -1524,33 +1586,33 @@ $define(GLOBAL + BIND, {
         chain.length = 0;
       });
     }
-    function resolve(msg){
-      var def = this
+    function resolve(value){
+      var record = this
         , then, wrapper;
-      if(def.done)return;
-      def.done = true;
-      def = def.def || def; // unwrap
+      if(record.d)return;
+      record.d = true;
+      record = record.r || record; // unwrap
       try {
-        if(then = isThenable(msg)){
-          wrapper = {def: def, done: false}; // wrap
-          then.call(msg, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
+        if(then = isThenable(value)){
+          wrapper = {r: record, d: false}; // wrap
+          then.call(value, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
         } else {
-          def.msg = msg;
-          def.state = 1;
-          notify(def);
+          record.v = value;
+          record.s = 1;
+          notify(record);
         }
       } catch(err){
-        reject.call(wrapper || {def: def, done: false}, err); // wrap
+        reject.call(wrapper || {r: record, d: false}, err); // wrap
       }
     }
-    function reject(msg){
-      var def = this;
-      if(def.done)return;
-      def.done = true;
-      def = def.def || def; // unwrap
-      def.msg = msg;
-      def.state = 2;
-      notify(def);
+    function reject(value){
+      var record = this;
+      if(record.d)return;
+      record.d = true;
+      record = record.r || record; // unwrap
+      record.v = value;
+      record.s = 2;
+      notify(record, true);
     }
     function getConstructor(C){
       var S = assertObject(C)[SYMBOL_SPECIES];
@@ -1560,12 +1622,19 @@ $define(GLOBAL + BIND, {
     Promise = function(executor){
       assertFunction(executor);
       assertInstance(this, Promise, PROMISE);
-      var def = {chain: [], state: 0, done: false, msg: undefined};
-      hidden(this, DEF, def);
+      var record = {
+        p: this,      // promise
+        c: [],        // chain
+        s: 0,         // state
+        d: false,     // done
+        v: undefined, // value
+        h: false      // handled rejection
+      };
+      hidden(this, RECORD, record);
       try {
-        executor(ctx(resolve, def, 1), ctx(reject, def, 1));
+        executor(ctx(resolve, record, 1), ctx(reject, record, 1));
       } catch(err){
-        reject.call(def, err);
+        reject.call(record, err);
       }
     }
     assignHidden(Promise[PROTOTYPE], {
@@ -1578,9 +1647,9 @@ $define(GLOBAL + BIND, {
         } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
           react.res = assertFunction(resolve);
           react.rej = assertFunction(reject);
-        }), def = this[DEF];
-        def.chain.push(react);
-        def.state && notify(def);
+        }), record = this[RECORD];
+        record.c.push(react);
+        record.s && notify(record);
         return P;
       },
       // 25.4.5.1 Promise.prototype.catch(onRejected)
@@ -1623,13 +1692,13 @@ $define(GLOBAL + BIND, {
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && DEF in x && getPrototypeOf(x) === this[PROTOTYPE]
+        return isObject(x) && RECORD in x && getPrototypeOf(x) === this[PROTOTYPE]
           ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
       }
     });
-  }(nextTick || setImmediate, safeSymbol('def'));
+  }(nextTick || setImmediate, safeSymbol('record'));
   setToStringTag(Promise, PROMISE);
   setSpecies(Promise);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
@@ -1693,7 +1762,7 @@ $define(GLOBAL + BIND, {
         , chain  = inst[ADDER](isWeak ? {} : -0, 1)
         , buggyZero;
       // wrap to init collections from iterable
-      if(!NATIVE_ITERATORS || !C.length){
+      if(checkDangerIterClosing(function(O){ new C(O) })){
         C = function(iterable){
           assertInstance(this, C, NAME);
           return initFromIterable(new Native, iterable);
@@ -2067,8 +2136,17 @@ $define(GLOBAL + BIND, {
     }
   }
   $define(STATIC, OBJECT, {
+    // https://gist.github.com/WebReflection/9353781
+    getOwnPropertyDescriptors: function(object){
+      var O      = toObject(object)
+        , result = {};
+      forEach.call(ownKeys(O), function(key){
+        defineProperty(result, key, descriptor(0, getOwnDescriptor(O, key)));
+      });
+      return result;
+    },
     // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues
-    values: createObjectToArray(false),
+    values:  createObjectToArray(false),
     entries: createObjectToArray(true)
   });
   $define(STATIC, REGEXP, {
@@ -2116,10 +2194,9 @@ $define(GLOBAL + BIND, {
     var dict = create(null);
     if(iterable != undefined){
       if(isIterable(iterable)){
-        for(var iter = getIterator(iterable), step, value; !(step = iter.next()).done;){
-          value = step.value;
-          dict[value[0]] = value[1];
-        }
+        forOf(iterable, true, function(key, value){
+          dict[key] = value;
+        });
       } else assign(dict, iterable);
     }
     return dict;
@@ -2590,23 +2667,15 @@ $define(GLOBAL + FORCED, {global: global});
 }(!!navigator && /MSIE .\./.test(navigator.userAgent));
 
 /******************************************************************************
- * Module : web.console                                                       *
- ******************************************************************************/
-
-!function(cap){
-  forEach.call(array(CONSOLE_METHODS), function(key){
-    cap[key] = function(){};
-  });
-  $define(GLOBAL, {console: {}});
-  $define(STATIC + SIMPLE, 'console', cap);
-}({});
-
-/******************************************************************************
  * Module : core.log                                                          *
  ******************************************************************************/
 
-!function(log, console, enabled){
-  forEach.call(array(CONSOLE_METHODS), function(key){
+!function(log, enabled){
+  // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+  forEach.call(array('assert,clear,count,debug,dir,dirxml,error,exception,' +
+      'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
+      'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
+      'timelineEnd,timeStamp,trace,warn'), function(key){
     log[key] = function(){
       if(enabled && key in console)return apply.call(console[key], console, arguments);
     };
@@ -2619,5 +2688,5 @@ $define(GLOBAL + FORCED, {global: global});
       enabled = false;
     }
   })});
-}({}, global.console || {}, true);
+}({}, true);
 }(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), true);

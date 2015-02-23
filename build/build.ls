@@ -66,7 +66,7 @@ module.exports = (opt, next)-> let @ = opt
   for ns of @
     if @[ns]
       for name in modules
-        if name.indexOf(ns) is 0 and name not in exp
+        if name.indexOf("#ns.") is 0 and name not in exp
           @[name] = on
   @common = @\common.export = on
   if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
