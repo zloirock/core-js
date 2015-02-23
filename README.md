@@ -1334,7 +1334,7 @@ Available namespaces: for example, `es6.array` contains `es6.array.statics` and 
 
 Other reductions:
 * `shim` is equal `shim.old,shim.modern`
-* `shim.old` is equal `es5,web.timers,web.console`
+* `shim.old` is equal `es5,web.timers`
 * `shim.modern` is equal `es6,es7,js.array.statics,web.immediate,web.dom.itarable`
 
 #### Default builds:
@@ -1351,7 +1351,7 @@ Other reductions:
   * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
   * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
   * removed `console` cap - creates too many problems - you can use [`core.log`](#console) module as that
-  * restructuring namespaces
+  * restructuring [namespaces](#custom-build)
   * some fixes
 
 **0.5.4** - *2015.02.15* - Some fixes
@@ -1495,6 +1495,6 @@ Other reductions:
   * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
   * [removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 
-**0.1.2** - *2014.11.19* - Map & Set bug fix
+**0.1.2** - *2014.11.19* - `Map` & `Set` bug fix
 
 **0.1.1** - *2014.11.18* - Public release
