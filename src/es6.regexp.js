@@ -30,16 +30,5 @@
     get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
   });
   
-  // 21.2.5.12 get RegExp.prototype.sticky()
-  // 21.2.5.15 get RegExp.prototype.unicode()
-  forEach.call(array('sticky,unicode'), function(key){
-    key in /./ || defineProperty(RegExpProto, key, DESC ? {
-      configurable: true,
-      get: assertRegExpWrapper(function(){
-        return false;
-      })
-    } : descriptor(5, false));
-  });
-  
   setSpecies(RegExp);
 }(RegExp[PROTOTYPE], RegExp);

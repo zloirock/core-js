@@ -24,9 +24,3 @@ if /\[native code\]\s*\}\s*$/.test Object.defineProperty
     eq /./gmi.flags, \gim, '/./gmi.flags is "gim"'
     eq /./mig.flags, \gim, '/./mig.flags is "gim"'
     eq /./mgi.flags, \gim, '/./mgi.flags is "gim"'
-
-test 'RegExp#{sticky, unicode}' !->
-  ok \sticky of RegExp::
-  ok \unicode of RegExp::
-  eq /./.sticky, no
-  eq /./.unicode, no
