@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Number'
+QUnit.module 'ES6 Number statics'
 
 eq = strictEqual
 isFunction = -> typeof! it is \Function

@@ -29,7 +29,7 @@
         : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.4 Symbol.iterator
-    iterator: SYMBOL_ITERATOR,
+    iterator: SYMBOL_ITERATOR || getWellKnownSymbol(ITERATOR),
     // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
     // 19.4.2.10 Symbol.species
@@ -73,4 +73,9 @@
       return result;
     }
   });
+  
+  // 20.2.1.9 Math[@@toStringTag]
+  setToStringTag(Math, MATH, true);
+  // 24.3.3 JSON[@@toStringTag]
+  setToStringTag(global.JSON, 'JSON', true);
 }(safeSymbol('tag'), {}, {}, true);

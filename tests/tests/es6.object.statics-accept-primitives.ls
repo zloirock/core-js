@@ -1,4 +1,4 @@
-QUnit.module 'Object static methods accept primitives'
+QUnit.module 'ES6 Object static methods accept primitives'
 
 eq = strictEqual
 

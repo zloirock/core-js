@@ -38,4 +38,4 @@ test 'setImmediate / clearImmediate' !->
   do inc = -> setImmediate ->
     x := x + 1
     if Date.now! - now < 5e3 => inc!
-    else console.log "setImmediate: #{x / 5} per second"
+    else console?log "setImmediate: #{x / 5} per second"
