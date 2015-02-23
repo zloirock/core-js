@@ -1346,7 +1346,7 @@ Other reductions:
 * `core-js/client/library` builds as `shim,core,library`
 
 ## Changelog
-**0.6.0** - *2015.02.22*
+**0.6.0** - *2015.02.23*
   * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
   * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
   * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
