@@ -1,5 +1,5 @@
 /**
- * Core.js 0.6.0
+ * Core.js 0.6.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -157,12 +157,6 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
-}
-function construct(target, argumentsList /*, newTarget*/){
-  var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
-    , instance = create(isObject(proto) ? proto : ObjectProto)
-    , result   = apply.call(target, instance, argumentsList);
-  return isObject(result) ? result : instance;
 }
 
 // Object:
@@ -409,7 +403,7 @@ var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
   , SYMBOL_SPECIES     = getWellKnownSymbol('species')
   , SYMBOL_ITERATOR;
 function setSpecies(C){
-  if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
+  if(DESC && (framework || !isNative(C)))defineProperty(C, SYMBOL_SPECIES, {
     configurable: true,
     get: returnThis
   });
@@ -488,7 +482,7 @@ var ITER  = safeSymbol('iter')
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-    // Safari define byggy iterators w/o `next`
+    // Safari has byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);
@@ -1419,7 +1413,7 @@ $define(GLOBAL + BIND, {
             initFromIterable(that, iterable);
           };
       assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
-      isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
+      isWeak || !DESC || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return assertDefined(this[SIZE]);
       }});
     } else {
@@ -1728,7 +1722,12 @@ $define(GLOBAL + BIND, {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
     apply: ctx(call, apply, 3),
     // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-    construct: construct,
+    construct: function(target, argumentsList /*, newTarget*/){
+      var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
+        , instance = create(isObject(proto) ? proto : ObjectProto)
+        , result   = apply.call(target, instance, argumentsList);
+      return isObject(result) ? result : instance;
+    },
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),
     // 26.1.4 Reflect.deleteProperty(target, propertyKey)

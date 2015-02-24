@@ -4,7 +4,7 @@ var ITER  = safeSymbol('iter')
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-    // Safari define byggy iterators w/o `next`
+    // Safari has byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);

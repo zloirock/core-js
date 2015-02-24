@@ -1,5 +1,5 @@
 /**
- * Core.js 0.6.0
+ * Core.js 0.6.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -157,12 +157,6 @@ function invoke(fn, args, that){
     case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
-}
-function construct(target, argumentsList /*, newTarget*/){
-  var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
-    , instance = create(isObject(proto) ? proto : ObjectProto)
-    , result   = apply.call(target, instance, argumentsList);
-  return isObject(result) ? result : instance;
 }
 
 // Object:
@@ -409,7 +403,7 @@ var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
   , SYMBOL_SPECIES     = getWellKnownSymbol('species')
   , SYMBOL_ITERATOR;
 function setSpecies(C){
-  if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
+  if(DESC && (framework || !isNative(C)))defineProperty(C, SYMBOL_SPECIES, {
     configurable: true,
     get: returnThis
   });
@@ -488,7 +482,7 @@ var ITER  = safeSymbol('iter')
   , VALUE = 2
   , Iterators = {}
   , IteratorPrototype = {}
-    // Safari define byggy iterators w/o `next`
+    // Safari has byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);
@@ -597,26 +591,32 @@ function forOf(iterable, entries, fn, that){
  ******************************************************************************/
 
 // ECMAScript 5 shim
-!function(IS_ENUMERABLE, Empty, _classof, $PROTO){  
+!function(_defineProperty, IS_ENUMERABLE, Empty, _classof, $PROTO){
   if(!DESC){
+    var defineDOM = false;
+    try {
+      defineDOM = defineProperty(document.createElement('div'), 'x',
+        {get: function(){return 8}}
+      ).x == 8;
+    } catch(e){}
+    defineProperty = function(O, P, A){
+      if(defineDOM)try {
+        return _defineProperty(O, P, A);
+      } catch(e){}
+      if('get' in A || 'set' in A)throw TypeError('Accessors not supported!');
+      if('value' in A)assertObject(O)[P] = A.value;
+      return O;
+    };
     getOwnDescriptor = function(O, P){
       if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
-    };
-    defineProperty = function(O, P, Attributes){
-      if('value' in Attributes)assertObject(O)[P] = Attributes.value;
-      return O;
     };
     defineProperties = function(O, Properties){
       assertObject(O);
       var keys   = getKeys(Properties)
         , length = keys.length
         , i = 0
-        , P, Attributes;
-      while(length > i){
-        P          = keys[i++];
-        Attributes = Properties[P];
-        if('value' in Attributes)O[P] = Attributes.value;
-      }
+        , P;
+      while(length > i)defineProperty(O, P = keys[i++], Properties[P]);
       return O;
     };
   }
@@ -715,8 +715,9 @@ function forOf(iterable, entries, fn, that){
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        return this instanceof bound ? construct(fn, args) : invoke(fn, args, that);
+        return invoke(fn, args, this instanceof bound ? this : that);
       }
+      bound[PROTOTYPE] = fn[PROTOTYPE];
       return bound;
     }
   });
@@ -820,7 +821,7 @@ function forOf(iterable, entries, fn, that){
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}('propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
+}(defineProperty, 'propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
 
 /******************************************************************************
  * Module : es6.symbol                                                        *
@@ -997,7 +998,7 @@ function forOf(iterable, entries, fn, that){
 
 !function(NAME){
   // 19.2.4.2 name
-  NAME in FunctionProto || defineProperty(FunctionProto, NAME, {
+  NAME in FunctionProto || (DESC && defineProperty(FunctionProto, NAME, {
     configurable: true,
     get: function(){
       var match = String(this).match(/^\s*function ([^ (]*)/)
@@ -1008,7 +1009,7 @@ function forOf(iterable, entries, fn, that){
     set: function(value){
       has(this, NAME) || defineProperty(this, NAME, descriptor(0, value));
     }
-  });
+  }));
 }('name');
 
 /******************************************************************************
@@ -1413,16 +1414,9 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
  * Module : es6.regexp                                                        *
  ******************************************************************************/
 
-!function(RegExpProto, _RegExp){
-  function assertRegExpWrapper(fn){
-    return function(){
-      assert(cof(this) === REGEXP);
-      return fn(this);
-    }
-  }
-  
+DESC && !function(RegExpProto, _RegExp){  
   // RegExp allows a regex with flags as the pattern
-  if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
+  if(!function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
     RegExp = function RegExp(pattern, flags){
       return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
         ? pattern.source : pattern, flags);
@@ -1442,7 +1436,7 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
   // 21.2.5.3 get RegExp.prototype.flags()
   if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
     configurable: true,
-    get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
+    get: createReplacer(/^.*\/(\w*)$/, '$1')
   });
   
   setSpecies(RegExp);
@@ -1753,7 +1747,7 @@ $define(GLOBAL + BIND, {
             initFromIterable(that, iterable);
           };
       assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
-      isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
+      isWeak || !DESC || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return assertDefined(this[SIZE]);
       }});
     } else {
@@ -2062,7 +2056,12 @@ $define(GLOBAL + BIND, {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
     apply: ctx(call, apply, 3),
     // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-    construct: construct,
+    construct: function(target, argumentsList /*, newTarget*/){
+      var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
+        , instance = create(isObject(proto) ? proto : ObjectProto)
+        , result   = apply.call(target, instance, argumentsList);
+      return isObject(result) ? result : instance;
+    },
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),
     // 26.1.4 Reflect.deleteProperty(target, propertyKey)
