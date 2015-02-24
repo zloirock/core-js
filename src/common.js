@@ -145,12 +145,6 @@ function invoke(fn, args, that){
                       : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
   } return              fn.apply(that, args);
 }
-function construct(target, argumentsList /*, newTarget*/){
-  var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
-    , instance = create(isObject(proto) ? proto : ObjectProto)
-    , result   = apply.call(target, instance, argumentsList);
-  return isObject(result) ? result : instance;
-}
 
 // Object:
 var create           = Object.create
@@ -396,7 +390,7 @@ var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
   , SYMBOL_SPECIES     = getWellKnownSymbol('species')
   , SYMBOL_ITERATOR;
 function setSpecies(C){
-  if(framework || !isNative(C))defineProperty(C, SYMBOL_SPECIES, {
+  if(DESC && (framework || !isNative(C)))defineProperty(C, SYMBOL_SPECIES, {
     configurable: true,
     get: returnThis
   });

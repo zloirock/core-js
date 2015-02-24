@@ -63,7 +63,12 @@
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
     apply: ctx(call, apply, 3),
     // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-    construct: construct,
+    construct: function(target, argumentsList /*, newTarget*/){
+      var proto    = assertFunction(arguments.length < 3 ? target : arguments[2])[PROTOTYPE]
+        , instance = create(isObject(proto) ? proto : ObjectProto)
+        , result   = apply.call(target, instance, argumentsList);
+      return isObject(result) ? result : instance;
+    },
     // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
     defineProperty: wrap(defineProperty),
     // 26.1.4 Reflect.deleteProperty(target, propertyKey)

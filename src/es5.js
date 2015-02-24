@@ -1,24 +1,30 @@
 // ECMAScript 5 shim
-!function(IS_ENUMERABLE, Empty, _classof, $PROTO){  
+!function(_defineProperty, IS_ENUMERABLE, Empty, _classof, $PROTO){
   if(!DESC){
+    var defineDOM = false;
+    try {
+      defineDOM = defineProperty(document.createElement('div'), 'x',
+        {get: function(){return 8}}
+      ).x == 8;
+    } catch(e){}
+    defineProperty = function(O, P, A){
+      if(defineDOM)try {
+        return _defineProperty(O, P, A);
+      } catch(e){}
+      if('get' in A || 'set' in A)throw TypeError('Accessors not supported!');
+      if('value' in A)assertObject(O)[P] = A.value;
+      return O;
+    };
     getOwnDescriptor = function(O, P){
       if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
-    };
-    defineProperty = function(O, P, Attributes){
-      if('value' in Attributes)assertObject(O)[P] = Attributes.value;
-      return O;
     };
     defineProperties = function(O, Properties){
       assertObject(O);
       var keys   = getKeys(Properties)
         , length = keys.length
         , i = 0
-        , P, Attributes;
-      while(length > i){
-        P          = keys[i++];
-        Attributes = Properties[P];
-        if('value' in Attributes)O[P] = Attributes.value;
-      }
+        , P;
+      while(length > i)defineProperty(O, P = keys[i++], Properties[P]);
       return O;
     };
   }
@@ -117,8 +123,9 @@
         , partArgs = slice.call(arguments, 1);
       function bound(/* args... */){
         var args = partArgs.concat(slice.call(arguments));
-        return this instanceof bound ? construct(fn, args) : invoke(fn, args, that);
+        return invoke(fn, args, this instanceof bound ? this : that);
       }
+      bound[PROTOTYPE] = fn[PROTOTYPE];
       return bound;
     }
   });
@@ -222,4 +229,4 @@
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}('propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
+}(defineProperty, 'propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));

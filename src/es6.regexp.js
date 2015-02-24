@@ -1,13 +1,6 @@
-!function(RegExpProto, _RegExp){
-  function assertRegExpWrapper(fn){
-    return function(){
-      assert(cof(this) === REGEXP);
-      return fn(this);
-    }
-  }
-  
+DESC && !function(RegExpProto, _RegExp){  
   // RegExp allows a regex with flags as the pattern
-  if(DESC && !function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
+  if(!function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
     RegExp = function RegExp(pattern, flags){
       return new _RegExp(cof(pattern) == REGEXP && flags !== undefined
         ? pattern.source : pattern, flags);
@@ -27,7 +20,7 @@
   // 21.2.5.3 get RegExp.prototype.flags()
   if(/./g.flags != 'g')defineProperty(RegExpProto, 'flags', {
     configurable: true,
-    get: assertRegExpWrapper(createReplacer(/^.*\/(\w*)$/, '$1', true))
+    get: createReplacer(/^.*\/(\w*)$/, '$1')
   });
   
   setSpecies(RegExp);

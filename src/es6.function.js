@@ -1,6 +1,6 @@
 !function(NAME){
   // 19.2.4.2 name
-  NAME in FunctionProto || defineProperty(FunctionProto, NAME, {
+  NAME in FunctionProto || (DESC && defineProperty(FunctionProto, NAME, {
     configurable: true,
     get: function(){
       var match = String(this).match(/^\s*function ([^ (]*)/)
@@ -11,5 +11,5 @@
     set: function(value){
       has(this, NAME) || defineProperty(this, NAME, descriptor(0, value));
     }
-  });
+  }));
 }('name');

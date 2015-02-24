@@ -43,7 +43,7 @@
             initFromIterable(that, iterable);
           };
       assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
-      isWeak || defineProperty(C[PROTOTYPE], 'size', {get: function(){
+      isWeak || !DESC || defineProperty(C[PROTOTYPE], 'size', {get: function(){
         return assertDefined(this[SIZE]);
       }});
     } else {
