@@ -1,5 +1,5 @@
 // ECMAScript 5 shim
-!function(_defineProperty, IS_ENUMERABLE, Empty, _classof, $PROTO){
+!function(_defineProperty, _getOwnDescriptor, IS_ENUMERABLE, Empty, _classof, $PROTO){
   if(!DESC){
     var defineDOM = false;
     try {
@@ -16,6 +16,9 @@
       return O;
     };
     getOwnDescriptor = function(O, P){
+      if(_getOwnDescriptor && defineDOM)try {
+        return _getOwnDescriptor(O, P);
+      } catch(e){}
       if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
     };
     defineProperties = function(O, Properties){
@@ -229,4 +232,4 @@
     var cof = _classof(it);
     return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
   }
-}(defineProperty, 'propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
+}(defineProperty, getOwnDescriptor, 'propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
