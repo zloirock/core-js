@@ -34,7 +34,7 @@
                 if(!process.emit('unhandledRejection', value, promise)){
                   // default node.js behavior
                 }
-              } else if(isFunction(console.error)){
+              } else if(global.console && isFunction(console.error)){
                 console.error('Unhandled promise rejection', value);
               }
             }

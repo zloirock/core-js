@@ -5,7 +5,9 @@
       'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
       'timelineEnd,timeStamp,trace,warn'), function(key){
     log[key] = function(){
-      if(enabled && key in console)return apply.call(console[key], console, arguments);
+      if(enabled && global.console && isFunction(console[key])){
+        return apply.call(console[key], console, arguments);
+      }
     };
   });
   $define(GLOBAL + FORCED, {log: assign(log.log, log, {

@@ -52,7 +52,6 @@ var OBJECT          = 'Object'
   , html            = document && document.documentElement
   , navigator       = global.navigator
   , define          = global.define
-  , console         = global.console || {}
   , ArrayProto      = Array[PROTOTYPE]
   , ObjectProto     = Object[PROTOTYPE]
   , FunctionProto   = Function[PROTOTYPE]
