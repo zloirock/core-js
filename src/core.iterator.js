@@ -100,6 +100,9 @@
     skip: function(i){
       return new SkipIterator(this, i);
     },
+    reverse: function(){
+      return Array.from(this).reverse().values();
+    },
     filter: function(fn, that){
       return new FilterIterator(this, fn, that, false);
     },
