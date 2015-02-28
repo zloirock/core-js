@@ -1,28 +1,34 @@
 // ECMAScript 5 shim
-!function(_defineProperty, _getOwnDescriptor, IS_ENUMERABLE, Empty, _classof, $PROTO){
+!function(){
+  var indexOf           = ArrayProto.indexOf
+    , _classof          = classof
+    , _defineProperty   = defineProperty
+    , _getOwnDescriptor = getOwnDescriptor
+    , IE_PROTO          = safeSymbol('__proto__')
+    , IE8_DOM_DEFINE    = false;
+  
   if(!DESC){
-    var defineDOM = false;
     try {
-      defineDOM = defineProperty(document.createElement('div'), 'x',
+      IE8_DOM_DEFINE = defineProperty(document.createElement('div'), 'x',
         {get: function(){return 8}}
       ).x == 8;
     } catch(e){}
     defineProperty = function(O, P, A){
-      if(defineDOM)try {
+      if(IE8_DOM_DEFINE)try {
         return _defineProperty(O, P, A);
       } catch(e){}
       if('get' in A || 'set' in A)throw TypeError('Accessors not supported!');
-      if('value' in A)assertObject(O)[P] = A.value;
+      if('value' in A)assert.obj(O)[P] = A.value;
       return O;
     };
     getOwnDescriptor = function(O, P){
-      if(_getOwnDescriptor && defineDOM)try {
+      if(IE8_DOM_DEFINE)try {
         return _getOwnDescriptor(O, P);
       } catch(e){}
-      if(has(O, P))return descriptor(!ObjectProto[IS_ENUMERABLE].call(O, P), O[P]);
+      if(has(O, P))return descriptor(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
     };
     defineProperties = function(O, Properties){
-      assertObject(O);
+      assert.obj(O);
       var keys   = getKeys(Properties)
         , length = keys.length
         , i = 0
@@ -31,7 +37,7 @@
       return O;
     };
   }
-  $define(STATIC + FORCED * !DESC, OBJECT, {
+  $define(STATIC + FORCED * !DESC, 'Object', {
     // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
     getOwnPropertyDescriptor: getOwnDescriptor,
     // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -41,15 +47,15 @@
   });
   
     // IE 8- don't enum bug keys
-  var keys1 = [CONSTRUCTOR, HAS_OWN, 'isPrototypeOf', IS_ENUMERABLE, TO_LOCALE, TO_STRING, 'valueOf']
+  var keys1 = array('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf')
     // Additional keys for getOwnPropertyNames
-    , keys2 = keys1.concat('length', PROTOTYPE)
+    , keys2 = keys1.concat('length', 'prototype')
     , keysLen1 = keys1.length;
   
   // Create object with `null` prototype: use iframe Object with cleared prototype
   function createDict(){
     // Thrash, waste and sodomy: IE GC bug
-    var iframe = document[CREATE_ELEMENT]('iframe')
+    var iframe = document.createElement('iframe')
       , i      = keysLen1
       , iframeDocument;
     iframe.style.display = 'none';
@@ -62,7 +68,7 @@
     iframeDocument.write('<script>document.F=Object</script>');
     iframeDocument.close();
     createDict = iframeDocument.F;
-    while(i--)delete createDict[PROTOTYPE][keys1[i]];
+    while(i--)delete createDict.prototype[keys1[i]];
     return createDict();
   }
   function createGetKeys(names, length, isNames){
@@ -71,7 +77,7 @@
         , i      = 0
         , result = []
         , key;
-      for(key in O)if(key != $PROTO)has(O, key) && result.push(key);
+      for(key in O)if(key != IE_PROTO)has(O, key) && result.push(key);
       // Don't enum bug & hidden keys
       while(length > i)if(has(O, key = names[i++])){
         ~indexOf.call(result, key) || result.push(key);
@@ -80,13 +86,14 @@
     }
   }
   function isPrimitive(it){ return !isObject(it) }
-  $define(STATIC, OBJECT, {
+  function Empty(){}
+  $define(STATIC, 'Object', {
     // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
     getPrototypeOf: getPrototypeOf = getPrototypeOf || function(O){
-      O = Object(assertDefined(O));
-      if(has(O, $PROTO))return O[$PROTO];
-      if(isFunction(O[CONSTRUCTOR]) && O instanceof O[CONSTRUCTOR]){
-        return O[CONSTRUCTOR][PROTOTYPE];
+      O = Object(assert.def(O));
+      if(has(O, IE_PROTO))return O[IE_PROTO];
+      if(isFunction(O.constructor) && O instanceof O.constructor){
+        return O.constructor.prototype;
       } return O instanceof Object ? ObjectProto : null;
     },
     // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
@@ -95,11 +102,11 @@
     create: create = create || function(O, /*?*/Properties){
       var result
       if(O !== null){
-        Empty[PROTOTYPE] = assertObject(O);
+        Empty.prototype = assert.obj(O);
         result = new Empty();
-        Empty[PROTOTYPE] = null;
+        Empty.prototype = null;
         // add "__proto__" for Object.getPrototypeOf shim
-        result[$PROTO] = O;
+        result[IE_PROTO] = O;
       } else result = createDict();
       return Properties === undefined ? result : defineProperties(result, Properties);
     },
@@ -120,15 +127,15 @@
   });
   
   // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
-  $define(PROTO, FUNCTION, {
+  $define(PROTO, 'Function', {
     bind: function(that /*, args... */){
-      var fn       = assertFunction(this)
-        , partArgs = slice.call(arguments, 1);
+      var fn       = assert.fn(this)
+        , partArgs = ArrayProto.slice.call(arguments, 1);
       function bound(/* args... */){
-        var args = partArgs.concat(slice.call(arguments));
+        var args = partArgs.concat(ArrayProto.slice.call(arguments));
         return invoke(fn, args, this instanceof bound ? this : that);
       }
-      bound[PROTOTYPE] = fn[PROTOTYPE];
+      bound.prototype = fn.prototype;
       return bound;
     }
   });
@@ -139,26 +146,25 @@
       return fn.apply(ES5Object(this), arguments);
     }
   }
-  if(!(0 in Object(DOT) && DOT[0] == DOT)){
+  if(!(0 in Object('z') && 'z'[0] == 'z')){
     ES5Object = function(it){
-      return cof(it) == STRING ? it.split('') : Object(it);
+      return cof(it) == 'String' ? it.split('') : Object(it);
     }
-    slice = arrayMethodFix(slice);
   }
-  $define(PROTO + FORCED * (ES5Object != Object), ARRAY, {
-    slice: slice,
+  $define(PROTO + FORCED * (ES5Object != Object), 'Array', {
+    slice: arrayMethodFix(ArrayProto.slice),
     join: arrayMethodFix(ArrayProto.join)
   });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-  $define(STATIC, ARRAY, {
+  $define(STATIC, 'Array', {
     isArray: function(arg){
-      return cof(arg) == ARRAY
+      return cof(arg) == 'Array'
     }
   });
   function createArrayReduce(isRight){
     return function(callbackfn, memo){
-      assertFunction(callbackfn);
+      assert.fn(callbackfn);
       var O      = toObject(this)
         , length = toLength(O.length)
         , index  = isRight ? length - 1 : 0
@@ -170,7 +176,7 @@
           break;
         }
         index += i;
-        assert(isRight ? index >= 0 : length > index, REDUCE_ERROR);
+        assert(isRight ? index >= 0 : length > index, assert.REDUCE);
       }
       for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
         memo = callbackfn(memo, O[index], index, this);
@@ -178,7 +184,7 @@
       return memo;
     }
   }
-  $define(PROTO, ARRAY, {
+  $define(PROTO, 'Array', {
     // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
     forEach: forEach = forEach || createArrayMethod(0),
     // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
@@ -208,15 +214,15 @@
   });
   
   // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-  $define(PROTO, STRING, {trim: createReplacer(/^\s*([\s\S]*\S)?\s*$/, '$1')});
+  $define(PROTO, 'String', {trim: createReplacer(/^\s*([\s\S]*\S)?\s*$/, '$1')});
   
   // 20.3.3.1 / 15.9.4.4 Date.now()
-  $define(STATIC, DATE, {now: function(){
+  $define(STATIC, 'Date', {now: function(){
     return +new Date;
   }});
   
   // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
-  $define(PROTO, DATE, {toISOString: function(){
+  $define(PROTO, 'Date', {toISOString: function(){
     if(!isFinite(this))throw RangeError('Invalid time value');
     var d = this
       , y = d.getUTCFullYear()
@@ -228,8 +234,8 @@
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
   }});
   
-  if(_classof(function(){return arguments}()) == OBJECT)classof = function(it){
+  if(_classof(function(){return arguments}()) == 'Object')classof = function(it){
     var cof = _classof(it);
-    return cof == OBJECT && isFunction(it.callee) ? ARGUMENTS : cof;
+    return cof == 'Object' && isFunction(it.callee) ? 'Arguments' : cof;
   }
-}(defineProperty, getOwnDescriptor, 'propertyIsEnumerable', function(){}, classof, safeSymbol(PROTOTYPE));
+}();

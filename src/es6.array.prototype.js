@@ -1,8 +1,8 @@
 !function(){
-  $define(PROTO, ARRAY, {
+  $define(PROTO, 'Array', {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0, end = @length */){
-      var O     = Object(assertDefined(this))
+      var O     = Object(assert.def(this))
         , len   = toLength(O.length)
         , to    = toIndex(target, len)
         , from  = toIndex(start, len)
@@ -24,7 +24,7 @@
     },
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value /*, start = 0, end = @length */){
-      var O      = Object(assertDefined(this))
+      var O      = Object(assert.def(this))
         , length = toLength(O.length)
         , index  = toIndex(arguments[1], length)
         , end    = arguments[2]

@@ -1,5 +1,9 @@
-!function(isInteger){
-  $define(STATIC, NUMBER, {
+!function(){
+  function isInteger(it){
+    return !isObject(it) && isFinite(it) && floor(it) === it;
+  }
+  var MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991
+  $define(STATIC, 'Number', {
     // 20.1.2.1 Number.EPSILON
     EPSILON: pow(2, -52),
     // 20.1.2.2 Number.isFinite(number)
@@ -24,6 +28,4 @@
     parseInt: parseInt
   });
 // 20.1.2.3 Number.isInteger(number)
-}(Number.isInteger || function(it){
-  return !isObject(it) && isFinite(it) && floor(it) === it;
-});
+}();

@@ -8,7 +8,7 @@
   createIterator($for, 'Wrapper', function(){
     return this[ITER].next();
   });
-  var $forProto = $for[PROTOTYPE];
+  var $forProto = $for.prototype;
   setIterator($forProto, function(){
     return this[ITER]; // unwrap
   });
@@ -20,7 +20,7 @@
       this[FN]      = ctx(fn, that, I[ENTRIES] ? 2 : 1);
     }
     createIterator(Iter, 'Chain', next, $forProto);
-    setIterator(Iter[PROTOTYPE], returnThis); // override $forProto iterator
+    setIterator(Iter.prototype, returnThis); // override $forProto iterator
     return Iter;
   }
   
@@ -42,7 +42,7 @@
     },
     array: function(fn, that){
       var result = [];
-      forOf(fn != undefined ? this.map(fn, that) : this, false, push, result);
+      forOf(fn != undefined ? this.map(fn, that) : this, false, result.push, result);
       return result;
     },
     filter: function(fn, that){

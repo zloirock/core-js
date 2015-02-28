@@ -12,7 +12,7 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
   function toPrimitive(it){
     var fn, val;
     if(isFunction(fn = it.valueOf) && !isObject(val = fn.call(it)))return val;
-    if(isFunction(fn = it[TO_STRING]) && !isObject(val = fn.call(it)))return val;
+    if(isFunction(fn = it.toString) && !isObject(val = fn.call(it)))return val;
     throw TypeError("Can't convert object to number");
   }
   Number = function Number(it){
@@ -22,7 +22,7 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
   : array('MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'), function(key){
     key in Number || defineProperty(Number, key, getOwnDescriptor(_Number, key));
   });
-  Number[PROTOTYPE] = NumberProto;
-  NumberProto[CONSTRUCTOR] = Number;
-  hidden(global, NUMBER, Number);
-}(Number, Number[PROTOTYPE]);
+  Number.prototype = NumberProto;
+  NumberProto.constructor = Number;
+  hidden(global, 'Number', Number);
+}(Number, Number.prototype);

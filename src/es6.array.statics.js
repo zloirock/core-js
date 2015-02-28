@@ -1,8 +1,8 @@
 !function(){
-  $define(STATIC + FORCED * checkDangerIterClosing(Array.from), ARRAY, {
+  $define(STATIC + FORCED * checkDangerIterClosing(Array.from), 'Array', {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
-      var O       = Object(assertDefined(arrayLike))
+      var O       = Object(assert.def(arrayLike))
         , mapfn   = arguments[1]
         , mapping = mapfn !== undefined
         , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
@@ -26,7 +26,7 @@
     }
   });
   
-  $define(STATIC, ARRAY, {
+  $define(STATIC, 'Array', {
     // 22.1.2.3 Array.of( ...items)
     of: function(/* ...args */){
       var index  = 0

@@ -1,62 +1,20 @@
-  // Shortcuts for [[Class]] & property names
-var OBJECT          = 'Object'
-  , FUNCTION        = 'Function'
-  , ARRAY           = 'Array'
-  , STRING          = 'String'
-  , NUMBER          = 'Number'
-  , REGEXP          = 'RegExp'
-  , DATE            = 'Date'
-  , MAP             = 'Map'
-  , SET             = 'Set'
-  , WEAKMAP         = 'WeakMap'
-  , WEAKSET         = 'WeakSet'
-  , SYMBOL          = 'Symbol'
-  , PROMISE         = 'Promise'
-  , MATH            = 'Math'
-  , ARGUMENTS       = 'Arguments'
-  , PROTOTYPE       = 'prototype'
-  , CONSTRUCTOR     = 'constructor'
-  , TO_STRING       = 'toString'
-  , TO_STRING_TAG   = TO_STRING + 'Tag'
-  , TO_LOCALE       = 'toLocaleString'
-  , HAS_OWN         = 'hasOwnProperty'
-  , FOR_EACH        = 'forEach'
-  , ITERATOR        = 'iterator'
-  , FF_ITERATOR     = '@@' + ITERATOR
-  , PROCESS         = 'process'
-  , CREATE_ELEMENT  = 'createElement'
-  // Aliases global objects and prototypes
-  , Function        = global[FUNCTION]
-  , Object          = global[OBJECT]
-  , Array           = global[ARRAY]
-  , String          = global[STRING]
-  , Number          = global[NUMBER]
-  , RegExp          = global[REGEXP]
-  , Date            = global[DATE]
-  , Map             = global[MAP]
-  , Set             = global[SET]
-  , WeakMap         = global[WEAKMAP]
-  , WeakSet         = global[WEAKSET]
-  , Symbol          = global[SYMBOL]
-  , Math            = global[MATH]
-  , TypeError       = global.TypeError
-  , RangeError      = global.RangeError
+// Aliases global objects and prototypes
+var Object          = global.Object
+  , Array           = global.Array
+  , String          = global.String
+  , Number          = global.Number
+  , Symbol          = global.Symbol
+  , Math            = global.Math
   , setTimeout      = global.setTimeout
   , setImmediate    = global.setImmediate
   , clearImmediate  = global.clearImmediate
-  , parseInt        = global.parseInt
-  , isFinite        = global.isFinite
-  , process         = global[PROCESS]
+  , process         = global.process
   , nextTick        = process && process.nextTick
   , document        = global.document
   , html            = document && document.documentElement
-  , navigator       = global.navigator
-  , define          = global.define
-  , ArrayProto      = Array[PROTOTYPE]
-  , ObjectProto     = Object[PROTOTYPE]
-  , FunctionProto   = Function[PROTOTYPE]
-  , Infinity        = 1 / 0
-  , DOT             = '.';
+  , ArrayProto      = Array.prototype
+  , ObjectProto     = Object.prototype
+  , FunctionProto   = Function.prototype;
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -70,9 +28,9 @@ var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = ObjectProto[TO_STRING];
+var toString = ObjectProto.toString;
 function setToStringTag(it, tag, stat){
-  if(it && !has(it = stat ? it : it[PROTOTYPE], SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
+  if(it && !has(it = stat ? it : it.prototype, SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
 function cof(it){
   return toString.call(it).slice(8, -1);
@@ -84,12 +42,10 @@ function classof(it){
 }
 
 // Function
-var call  = FunctionProto.call
-  , apply = FunctionProto.apply
-  , REFERENCE_GET;
+var call = FunctionProto.call;
 // Partial apply
 function part(/* ...args */){
-  var fn     = assertFunction(this)
+  var fn     = assert.fn(this)
     , length = arguments.length
     , args   = Array(length)
     , i      = 0
@@ -109,7 +65,7 @@ function part(/* ...args */){
 }
 // Optional / simple context binding
 function ctx(fn, that, length){
-  assertFunction(fn);
+  assert.fn(fn);
   if(~length && that === undefined)return fn;
   switch(length){
     case 1: return function(a){
@@ -156,12 +112,12 @@ var create           = Object.create
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
   , isFrozen         = Object.isFrozen
-  , has              = ctx(call, ObjectProto[HAS_OWN], 2)
+  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object
   , Dict;
 function toObject(it){
-  return ES5Object(assertDefined(it));
+  return ES5Object(assert.def(it));
 }
 function returnIt(it){
   return it;
@@ -173,12 +129,12 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function ownKeys(it){
-  assertObject(it);
+  assert.obj(it);
   return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
 }
 // 19.1.2.1 Object.assign(target, source, ...)
 var assign = Object.assign || function(target, source){
-  var T = Object(assertDefined(target))
+  var T = Object(assert.def(target))
     , l = arguments.length
     , i = 1;
   while(l > i){
@@ -205,73 +161,14 @@ function keyOf(object, el){
 function array(it){
   return String(it).split(',');
 }
-var push    = ArrayProto.push
-  , unshift = ArrayProto.unshift
-  , slice   = ArrayProto.slice
-  , splice  = ArrayProto.splice
-  , indexOf = ArrayProto.indexOf
-  , forEach = ArrayProto[FOR_EACH];
-/*
- * 0 -> forEach
- * 1 -> map
- * 2 -> filter
- * 3 -> some
- * 4 -> every
- * 5 -> find
- * 6 -> findIndex
- */
-function createArrayMethod(type){
-  var isMap       = type == 1
-    , isFilter    = type == 2
-    , isSome      = type == 3
-    , isEvery     = type == 4
-    , isFindIndex = type == 6
-    , noholes     = type == 5 || isFindIndex;
-  return function(callbackfn/*, that = undefined */){
-    var O      = Object(assertDefined(this))
-      , that   = arguments[1]
-      , self   = ES5Object(O)
-      , f      = ctx(callbackfn, that, 3)
-      , length = toLength(self.length)
-      , index  = 0
-      , result = isMap ? Array(length) : isFilter ? [] : undefined
-      , val, res;
-    for(;length > index; index++)if(noholes || index in self){
-      val = self[index];
-      res = f(val, index, O);
-      if(type){
-        if(isMap)result[index] = res;             // map
-        else if(res)switch(type){
-          case 3: return true;                    // some
-          case 5: return val;                     // find
-          case 6: return index;                   // findIndex
-          case 2: result.push(val);               // filter
-        } else if(isEvery)return false;           // every
-      }
-    }
-    return isFindIndex ? -1 : isSome || isEvery ? isEvery : result;
-  }
-}
-function createArrayContains(isContains){
-  return function(el /*, fromIndex = 0 */){
-    var O      = toObject(this)
-      , length = toLength(O.length)
-      , index  = toIndex(arguments[1], length);
-    if(isContains && el != el){
-      for(;length > index; index++)if(sameNaN(O[index]))return isContains || index;
-    } else for(;length > index; index++)if(isContains || index in O){
-      if(O[index] === el)return isContains || index;
-    } return !isContains && -1;
-  }
-}
+var forEach = ArrayProto.forEach;
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof vs isFunction
   return typeof A == 'function' ? A : B;
 }
 
 // Math
-var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
-  , pow    = Math.pow
+var pow    = Math.pow
   , abs    = Math.abs
   , ceil   = Math.ceil
   , floor  = Math.floor
@@ -291,7 +188,7 @@ function toInteger(it){
 }
 // 7.1.15 ToLength
 function toLength(it){
-  return it > 0 ? min(toInteger(it), MAX_SAFE_INTEGER) : 0;
+  return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
 }
 function toIndex(index, length){
   var index = toInteger(index);
@@ -308,40 +205,6 @@ function createReplacer(regExp, replace, isStatic){
   return function(it){
     return String(isStatic ? it : this).replace(regExp, replacer);
   }
-}
-function createPointAt(toString){
-  return function(pos){
-    var s = String(assertDefined(this))
-      , i = toInteger(pos)
-      , l = s.length
-      , a, b;
-    if(i < 0 || i >= l)return toString ? '' : undefined;
-    a = s.charCodeAt(i);
-    return a < 0xd800 || a > 0xdbff || i + 1 === l || (b = s.charCodeAt(i + 1)) < 0xdc00 || b > 0xdfff
-      ? toString ? s.charAt(i) : a
-      : toString ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
-  }
-}
-
-// Assertion & errors
-var REDUCE_ERROR = 'Reduce of empty object with no initial value';
-function assert(condition, msg1, msg2){
-  if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
-}
-function assertDefined(it){
-  if(it == undefined)throw TypeError('Function called on null or undefined');
-  return it;
-}
-function assertFunction(it){
-  assert(isFunction(it), it, ' is not a function!');
-  return it;
-}
-function assertObject(it){
-  assert(isObject(it), it, ' is not an object!');
-  return it;
-}
-function assertInstance(it, Constructor, name){
-  assert(it instanceof Constructor, name, ": use the 'new' operator!");
 }
 
 // Property descriptors & Symbol
@@ -363,10 +226,7 @@ function createDefiner(bitmap){
   } : simpleSet;
 }
 function uid(key){
-  return SYMBOL + '(' + key + ')_' + (++sid + random())[TO_STRING](36);
-}
-function getWellKnownSymbol(name, setter){
-  return (Symbol && Symbol[name]) || (setter ? Symbol : safeSymbol)(SYMBOL + DOT + name);
+  return 'Symbol(' + key + ')_' + (++sid + random()).toString(36);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){
@@ -385,11 +245,10 @@ function assignHidden(target, src){
 
 var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
   , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
-  , SYMBOL_TAG         = getWellKnownSymbol(TO_STRING_TAG)
-  , SYMBOL_SPECIES     = getWellKnownSymbol('species')
+  , SYMBOL_TAG         = getWellKnownSymbol('toStringTag')
   , SYMBOL_ITERATOR;
 function setSpecies(C){
-  if(DESC && (framework || !isNative(C)))defineProperty(C, SYMBOL_SPECIES, {
+  if(DESC && (framework || !isNative(C)))defineProperty(C, getWellKnownSymbol('species'), {
     configurable: true,
     get: returnThis
   });

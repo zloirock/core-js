@@ -1,8 +1,7 @@
-SYMBOL_ITERATOR = getWellKnownSymbol(ITERATOR);
-var ITER  = safeSymbol('iter')
-  , KEY   = 1
-  , VALUE = 2
-  , Iterators = {}
+SYMBOL_ITERATOR = getWellKnownSymbol('iterator');
+var FF_ITERATOR = '@@iterator'
+  , ITER        = safeSymbol('iter')
+  , Iterators   = {}
   , IteratorPrototype = {}
     // Safari has byggy iterators w/o `next`
   , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
@@ -14,11 +13,11 @@ function setIterator(O, value){
   FF_ITERATOR in ArrayProto && hidden(O, FF_ITERATOR, value);
 }
 function createIterator(Constructor, NAME, next, proto){
-  Constructor[PROTOTYPE] = create(proto || IteratorPrototype, {next: descriptor(1, next)});
+  Constructor.prototype = create(proto || IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 }
 function defineIterator(Constructor, NAME, value, DEFAULT){
-  var proto = Constructor[PROTOTYPE]
+  var proto = Constructor.prototype
     , iter  = get(proto, SYMBOL_ITERATOR) || get(proto, FF_ITERATOR) || (DEFAULT && get(proto, DEFAULT)) || value;
   if(framework){
     // Define iterator
@@ -37,23 +36,29 @@ function defineIterator(Constructor, NAME, value, DEFAULT){
   Iterators[NAME + ' Iterator'] = returnThis;
   return iter;
 }
-function defineStdIterators(Base, NAME, Constructor, next, DEFAULT, IS_SET){
+function defineStdIterators(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
   function createIter(kind){
     return function(){
       return new Constructor(this, kind);
     }
   }
   createIterator(Constructor, NAME, next);
-  var entries = createIter(KEY+VALUE)
-    , values  = createIter(VALUE);
-  if(DEFAULT == VALUE)values = defineIterator(Base, NAME, values, 'values');
+  var entries = createIter('key+value')
+    , values  = createIter('value')
+    , proto   = Base.prototype
+    , methods, key;
+  if(DEFAULT == 'value')values = defineIterator(Base, NAME, values, 'values');
   else entries = defineIterator(Base, NAME, entries, 'entries');
   if(DEFAULT){
-    $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, {
+    methods = {
       entries: entries,
-      keys: IS_SET ? values : createIter(KEY),
+      keys: IS_SET ? values : createIter('key'),
       values: values
-    });
+    }
+    $define(PROTO + FORCED * BUGGY_ITERATORS, NAME, methods);
+    if(FORCE)for(key in methods){
+      if(!(key in proto))hidden(proto, key, methods[key]);
+    }
   }
 }
 function iterResult(done, value){
@@ -61,15 +66,15 @@ function iterResult(done, value){
 }
 function isIterable(it){
   var O      = Object(it)
-    , Symbol = global[SYMBOL]
-    , hasExt = (Symbol && Symbol[ITERATOR] || FF_ITERATOR) in O;
+    , Symbol = global.Symbol
+    , hasExt = (Symbol && Symbol.iterator || FF_ITERATOR) in O;
   return hasExt || SYMBOL_ITERATOR in O || has(Iterators, classof(O));
 }
 function getIterator(it){
-  var Symbol  = global[SYMBOL]
-    , ext     = it[Symbol && Symbol[ITERATOR] || FF_ITERATOR]
+  var Symbol  = global.Symbol
+    , ext     = it[Symbol && Symbol.iterator || FF_ITERATOR]
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[classof(it)];
-  return assertObject(getIter.call(it));
+  return assert.obj(getIter.call(it));
 }
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);

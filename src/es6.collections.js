@@ -12,7 +12,7 @@
   
   function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
     var ADDER = isMap ? 'set' : 'add'
-      , proto = C && C[PROTOTYPE]
+      , proto = C && C.prototype
       , O     = {};
     function initFromIterable(that, iterable){
       if(iterable != undefined)forOf(iterable, isMap, that[ADDER], that);
@@ -25,26 +25,24 @@
         return chain ? this : result;
       };
     }
-    if(!isNative(C) || !(isWeak || (!BUGGY_ITERATORS && has(proto, FOR_EACH) && has(proto, 'entries')))){
+    if(!isFunction(C) || !(isWeak || (!BUGGY_ITERATORS && proto.forEach && proto.entries))){
       // create collection constructor
       C = isWeak
         ? function(iterable){
-            assertInstance(this, C, NAME);
-            set(this, UID, uid++);
+            set(assert.inst(this, C, NAME), UID, uid++);
             initFromIterable(this, iterable);
           }
         : function(iterable){
-            var that = this;
-            assertInstance(that, C, NAME);
+            var that = assert.inst(this, C, NAME);
             set(that, O1, create(null));
             set(that, SIZE, 0);
             set(that, LAST, undefined);
             set(that, FIRST, undefined);
             initFromIterable(that, iterable);
           };
-      assignHidden(assignHidden(C[PROTOTYPE], methods), commonMethods);
-      isWeak || !DESC || defineProperty(C[PROTOTYPE], 'size', {get: function(){
-        return assertDefined(this[SIZE]);
+      assignHidden(assignHidden(C.prototype, methods), commonMethods);
+      isWeak || !DESC || defineProperty(C.prototype, 'size', {get: function(){
+        return assert.def(this[SIZE]);
       }});
     } else {
       var Native = C
@@ -54,13 +52,13 @@
       // wrap to init collections from iterable
       if(checkDangerIterClosing(function(O){ new C(O) })){
         C = function(iterable){
-          assertInstance(this, C, NAME);
+          assert.inst(this, C, NAME);
           return initFromIterable(new Native, iterable);
         }
-        C[PROTOTYPE] = proto;
-        if(framework)proto[CONSTRUCTOR] = C;
+        C.prototype = proto;
+        if(framework)proto.constructor = C;
       }
-      isWeak || inst[FOR_EACH](function(val, key){
+      isWeak || inst.forEach(function(val, key){
         buggyZero = 1 / key === -Infinity;
       });
       // fix converting -0 key to +0
@@ -95,10 +93,10 @@
         return iterResult(1);
       }
       // return step by kind
-      if(kind == KEY)  return iterResult(0, entry.k);
-      if(kind == VALUE)return iterResult(0, entry.v);
-                       return iterResult(0, [entry.k, entry.v]);   
-    }, isMap ? KEY+VALUE : VALUE, !isMap);
+      if(kind == 'key')   return iterResult(0, entry.k);
+      if(kind == 'value') return iterResult(0, entry.v);
+                          return iterResult(0, [entry.k, entry.v]);   
+    }, isMap ? 'key+value' : 'value', !isMap, true);
     
     return C;
   }
@@ -196,7 +194,7 @@
   }
   
   // 23.1 Map Objects
-  Map = getCollection(Map, MAP, {
+  var Map = getCollection(global.Map, 'Map', {
     // 23.1.3.6 Map.prototype.get(key)
     get: function(key){
       var entry = getEntry(this, key);
@@ -209,7 +207,7 @@
   }, collectionMethods, true);
   
   // 23.2 Set Objects
-  Set = getCollection(Set, SET, {
+  getCollection(global.Set, 'Set', {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
       return def(this, value = value === 0 ? 0 : value, value);
@@ -217,7 +215,7 @@
   }, collectionMethods);
   
   function defWeak(that, key, value){
-    if(isFrozen(assertObject(key)))leakStore(that).set(key, value);
+    if(isFrozen(assert.obj(key)))leakStore(that).set(key, value);
     else {
       has(key, WEAK) || hidden(key, WEAK, {});
       key[WEAK][that[UID]] = value;
@@ -245,7 +243,7 @@
   };
   
   // 23.3 WeakMap Objects
-  WeakMap = getCollection(WeakMap, WEAKMAP, {
+  var WeakMap = getCollection(global.WeakMap, 'WeakMap', {
     // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key)){
@@ -262,8 +260,8 @@
   // IE11 WeakMap frozen keys fix
   if(framework && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
     forEach.call(array('delete,has,get,set'), function(key){
-      var method = WeakMap[PROTOTYPE][key];
-      WeakMap[PROTOTYPE][key] = function(a, b){
+      var method = WeakMap.prototype[key];
+      WeakMap.prototype[key] = function(a, b){
         // store frozen objects on leaky map
         if(isObject(a) && isFrozen(a)){
           var result = leakStore(this)[key](a, b);
@@ -275,7 +273,7 @@
   }
   
   // 23.4 WeakSet Objects
-  WeakSet = getCollection(WeakSet, WEAKSET, {
+  getCollection(global.WeakSet, 'WeakSet', {
     // 23.4.3.1 WeakSet.prototype.add(value)
     add: function(value){
       return defWeak(this, value, true);

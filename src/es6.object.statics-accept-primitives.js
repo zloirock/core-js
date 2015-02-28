@@ -2,7 +2,7 @@
   // Object static methods accept primitives
   function wrapObjectMethod(key, MODE){
     var fn  = Object[key]
-      , exp = core[OBJECT][key]
+      , exp = core.Object[key]
       , f   = 0
       , o   = {};
     if(!exp || isNative(exp)){
@@ -17,9 +17,9 @@
       } : function(it){
         return fn(toObject(it));
       };
-      try { fn(DOT) }
+      try { fn('z') }
       catch(e){ f = 1 }
-      $define(STATIC + FORCED * f, OBJECT, o);
+      $define(STATIC + FORCED * f, 'Object', o);
     }
   }
   wrapObjectMethod('freeze', 1);

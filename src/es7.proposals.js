@@ -1,9 +1,9 @@
 !function(){
-  $define(PROTO, ARRAY, {
+  $define(PROTO, 'Array', {
     // https://github.com/domenic/Array.prototype.includes
     includes: createArrayContains(true)
   });
-  $define(PROTO, STRING, {
+  $define(PROTO, 'String', {
     // https://github.com/mathiasbynens/String.prototype.at
     at: createPointAt(true)
   });
@@ -21,7 +21,7 @@
       return result;
     }
   }
-  $define(STATIC, OBJECT, {
+  $define(STATIC, 'Object', {
     // https://gist.github.com/WebReflection/9353781
     getOwnPropertyDescriptors: function(object){
       var O      = toObject(object)
@@ -35,7 +35,7 @@
     values:  createObjectToArray(false),
     entries: createObjectToArray(true)
   });
-  $define(STATIC, REGEXP, {
+  $define(STATIC, 'RegExp', {
     // https://gist.github.com/kangax/9698100
     escape: createReplacer(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
   });

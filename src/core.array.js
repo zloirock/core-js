@@ -1,6 +1,6 @@
-$define(PROTO + FORCED, ARRAY, {
+$define(PROTO + FORCED, 'Array', {
   turn: function(fn, target /* = [] */){
-    assertFunction(fn);
+    assert.fn(fn);
     var memo   = target == undefined ? [] : Object(target)
       , O      = ES5Object(this)
       , length = toLength(O.length)

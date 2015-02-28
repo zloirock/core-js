@@ -3,9 +3,9 @@
   // 19.4.1.1 Symbol([description])
   if(!isNative(Symbol)){
     Symbol = function(description){
-      assert(!(this instanceof Symbol), SYMBOL + ' is not a ' + CONSTRUCTOR);
+      assert(!(this instanceof Symbol), 'Symbol is not a constructor');
       var tag = uid(description)
-        , sym = set(create(Symbol[PROTOTYPE]), TAG, tag);
+        , sym = set(create(Symbol.prototype), TAG, tag);
       AllSymbols[tag] = sym;
       DESC && setter && defineProperty(ObjectProto, tag, {
         configurable: true,
@@ -15,7 +15,7 @@
       });
       return sym;
     }
-    hidden(Symbol[PROTOTYPE], TO_STRING, function(){
+    hidden(Symbol.prototype, 'toString', function(){
       return this[TAG];
     });
   }
@@ -28,16 +28,10 @@
         ? SymbolRegistry[key]
         : SymbolRegistry[key] = Symbol(key);
     },
-    // 19.4.2.4 Symbol.iterator
-    iterator: SYMBOL_ITERATOR || getWellKnownSymbol(ITERATOR),
     // 19.4.2.5 Symbol.keyFor(sym)
     keyFor: part.call(keyOf, SymbolRegistry),
-    // 19.4.2.10 Symbol.species
-    species: SYMBOL_SPECIES,
     // 19.4.2.13 Symbol.toStringTag
-    toStringTag: SYMBOL_TAG = getWellKnownSymbol(TO_STRING_TAG, true),
-    // 19.4.2.14 Symbol.unscopables
-    unscopables: SYMBOL_UNSCOPABLES,
+    toStringTag: SYMBOL_TAG = getWellKnownSymbol('toStringTag', true, true),
     pure: safeSymbol,
     set: set,
     useSetter: function(){setter = true},
@@ -45,21 +39,24 @@
   };
   // 19.4.2.2 Symbol.hasInstance
   // 19.4.2.3 Symbol.isConcatSpreadable
+  // 19.4.2.4 Symbol.iterator
   // 19.4.2.6 Symbol.match
   // 19.4.2.8 Symbol.replace
   // 19.4.2.9 Symbol.search
+  // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
-  forEach.call(array('hasInstance,isConcatSpreadable,match,replace,search,split,toPrimitive'),
+  // 19.4.2.14 Symbol.unscopables
+  forEach.call(array('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,unscopables'),
     function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );
-  $define(STATIC, SYMBOL, symbolStatics);
+  $define(STATIC, 'Symbol', symbolStatics);
   
-  setToStringTag(Symbol, SYMBOL);
+  setToStringTag(Symbol, 'Symbol');
   
-  $define(STATIC + FORCED * !isNative(Symbol), OBJECT, {
+  $define(STATIC + FORCED * !isNative(Symbol), 'Object', {
     // 19.1.2.7 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
@@ -75,7 +72,7 @@
   });
   
   // 20.2.1.9 Math[@@toStringTag]
-  setToStringTag(Math, MATH, true);
+  setToStringTag(Math, 'Math', true);
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
 }(safeSymbol('tag'), {}, {}, true);

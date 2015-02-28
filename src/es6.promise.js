@@ -1,6 +1,8 @@
 // ES6 promises shim
 // Based on https://github.com/getify/native-promise-only/
-!function(Promise, test){
+!function(PROMISE, Promise){
+  var SYMBOL_SPECIES = getWellKnownSymbol('species')
+    , test;
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(function(){})) == test
   || function(asap, RECORD){
@@ -88,20 +90,19 @@
       notify(record, true);
     }
     function getConstructor(C){
-      var S = assertObject(C)[SYMBOL_SPECIES];
+      var S = assert.obj(C)[SYMBOL_SPECIES];
       return S != undefined ? S : C;
     }
     // 25.4.3.1 Promise(executor)
     Promise = function(executor){
-      assertFunction(executor);
-      assertInstance(this, Promise, PROMISE);
+      assert.fn(executor);
       var record = {
-        p: this,      // promise
-        c: [],        // chain
-        s: 0,         // state
-        d: false,     // done
-        v: undefined, // value
-        h: false      // handled rejection
+        p: assert.inst(this, Promise, PROMISE), // <- promise
+        c: [],                                  // <- chain
+        s: 0,                                   // <- state
+        d: false,                               // <- done
+        v: undefined,                           // <- value
+        h: false                                // <- handled rejection
       };
       hidden(this, RECORD, record);
       try {
@@ -110,16 +111,16 @@
         reject.call(record, err);
       }
     }
-    assignHidden(Promise[PROTOTYPE], {
+    assignHidden(Promise.prototype, {
       // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
-        var S = assertObject(assertObject(this)[CONSTRUCTOR])[SYMBOL_SPECIES];
+        var S = assert.obj(assert.obj(this).constructor)[SYMBOL_SPECIES];
         var react = {
           ok:   isFunction(onFulfilled) ? onFulfilled : true,
           fail: isFunction(onRejected)  ? onRejected  : false
         } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
-          react.res = assertFunction(resolve);
-          react.rej = assertFunction(reject);
+          react.res = assert.fn(resolve);
+          react.rej = assert.fn(reject);
         }), record = this[RECORD];
         record.c.push(react);
         record.s && notify(record);
@@ -136,7 +137,7 @@
         var Promise = getConstructor(this)
           , values  = [];
         return new Promise(function(resolve, reject){
-          forOf(iterable, false, push, values);
+          forOf(iterable, false, values.push, values);
           var remaining = values.length
             , results   = Array(remaining);
           if(remaining)forEach.call(values, function(promise, index){
@@ -165,7 +166,7 @@
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && RECORD in x && getPrototypeOf(x) === this[PROTOTYPE]
+        return isObject(x) && RECORD in x && getPrototypeOf(x) === this.prototype
           ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
@@ -175,4 +176,4 @@
   setToStringTag(Promise, PROMISE);
   setSpecies(Promise);
   $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
-}(global[PROMISE]);
+}('Promise', global.Promise);

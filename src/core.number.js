@@ -1,4 +1,4 @@
-!function(numberMethods){  
+!function(NUMBER, numberMethods){  
   function NumberIterator(iterated){
     set(this, ITER, {l: toLength(iterated), i: 0});
   }
@@ -36,4 +36,4 @@
   );
   
   $define(PROTO + FORCED, NUMBER, numberMethods);
-}({});
+}('Number', {});

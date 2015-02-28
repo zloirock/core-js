@@ -1,10 +1,10 @@
 // https://github.com/zenparsing/es-abstract-refs
-!function(REFERENCE){
-  REFERENCE_GET = getWellKnownSymbol(REFERENCE+'Get', true);
-  var REFERENCE_SET = getWellKnownSymbol(REFERENCE+SET, true)
-    , REFERENCE_DELETE = getWellKnownSymbol(REFERENCE+'Delete', true);
+!function(){
+  var REFERENCE_GET = getWellKnownSymbol('referenceGet', true)
+    , REFERENCE_SET = getWellKnownSymbol('referenceSet', true)
+    , REFERENCE_DELETE = getWellKnownSymbol('referenceDelete', true);
   
-  $define(STATIC, SYMBOL, {
+  $define(STATIC, 'Symbol', {
     referenceGet: REFERENCE_GET,
     referenceSet: REFERENCE_SET,
     referenceDelete: REFERENCE_DELETE
@@ -14,12 +14,12 @@
   
   function setMapMethods(Constructor){
     if(Constructor){
-      var MapProto = Constructor[PROTOTYPE];
+      var MapProto = Constructor.prototype;
       hidden(MapProto, REFERENCE_GET, MapProto.get);
       hidden(MapProto, REFERENCE_SET, MapProto.set);
       hidden(MapProto, REFERENCE_DELETE, MapProto['delete']);
     }
   }
-  setMapMethods(Map);
-  setMapMethods(WeakMap);
-}('reference');
+  setMapMethods(core.Map || global.Map);
+  setMapMethods(core.WeakMap || global.WeakMap);
+}();

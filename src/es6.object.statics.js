@@ -15,12 +15,12 @@
       set({}, ArrayProto);
     } catch(e){ buggy = true }
     objectStatic.setPrototypeOf = setPrototypeOf = setPrototypeOf || function(O, proto){
-      assertObject(O);
+      assert.obj(O);
       assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
       if(buggy)O.__proto__ = proto;
       else set(O, proto);
       return O;
     }
   }();
-  $define(STATIC, OBJECT, objectStatic);
+  $define(STATIC, 'Object', objectStatic);
 }();

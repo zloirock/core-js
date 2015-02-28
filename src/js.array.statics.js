@@ -9,5 +9,5 @@
   setArrayStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
   setArrayStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
                   'reduce,reduceRight,copyWithin,fill,turn');
-  $define(STATIC, ARRAY, arrayStatics);
+  $define(STATIC, 'Array', arrayStatics);
 }({});

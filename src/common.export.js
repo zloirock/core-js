@@ -1,7 +1,8 @@
-var NODE = cof(process) == PROCESS
-  , core = {}
-  , path = framework ? global : core
-  , old  = global.core
+var NODE   = cof(process) == 'process'
+  , core   = {}
+  , path   = framework ? global : core
+  , old    = global.core
+  , define = global.define
   , exportGlobal
   // type bitmap
   , FORCED = 1
@@ -14,7 +15,7 @@ function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
     , target   = isGlobal ? global : (type & STATIC)
-        ? global[name] : (global[name] || ObjectProto)[PROTOTYPE]
+        ? global[name] : (global[name] || ObjectProto).prototype
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
@@ -32,7 +33,7 @@ function $define(type, name, source){
       exp = function(param){
         return this instanceof out ? new out(param) : out(param);
       }
-      exp[PROTOTYPE] = out[PROTOTYPE];
+      exp.prototype = out.prototype;
     } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
     // extend global
     if(framework && target && !own){

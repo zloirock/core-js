@@ -48,9 +48,9 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
     channel.port1.onmessage = listner;
     defer = ctx(port.postMessage, port, 1);
   // IE8-
-  } else if(document && ONREADYSTATECHANGE in document[CREATE_ELEMENT]('script')){
+  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
     defer = function(id){
-      html.appendChild(document[CREATE_ELEMENT]('script'))[ONREADYSTATECHANGE] = function(){
+      html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
         html.removeChild(this);
         run(id);
       }

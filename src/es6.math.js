@@ -1,5 +1,5 @@
 // ECMAScript 6 shim
-!function(){
+!function(Infinity){
   // 20.2.2.28 Math.sign(x)
   var E    = Math.E
     , exp  = Math.exp
@@ -18,7 +18,7 @@
     return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
   }
     
-  $define(STATIC, MATH, {
+  $define(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
       return (x = +x) < 1 ? NaN : isFinite(x) ? log(x / E + sqrt(x + 1) * sqrt(x - 1) / E) + 1 : x;
@@ -35,7 +35,7 @@
     },
     // 20.2.2.11 Math.clz32(x)
     clz32: function(x){
-      return (x >>>= 0) ? 32 - x[TO_STRING](2).length : 32;
+      return (x >>>= 0) ? 32 - x.toString(2).length : 32;
     },
     // 20.2.2.12 Math.cosh(x)
     cosh: function(x){
@@ -101,4 +101,4 @@
     // 20.2.2.34 Math.trunc(x)
     trunc: trunc
   });
-}();
+}(Infinity);

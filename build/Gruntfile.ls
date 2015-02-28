@@ -19,12 +19,10 @@ module.exports = (grunt)->
       tests:
         files: './tests/tests/*'
         tasks: \livescript
-  grunt.registerTask \build (options = 'shim,core')->
-    options .= split \, .turn ((memo, it)-> memo[it] = on), {}
-    grunt.option(\path) || grunt.option \path './custom'
+  grunt.registerTask \build (options)->
     done = @async!
-    <- build options
-    fs.writeFile grunt.option(\path) + '.js', it, done
+    <- build (options || 'shim,core').split(\,), (grunt.option(\blacklist) || '').split(\,)
+    fs.writeFile (grunt.option(\path) || './custom') + '.js', it, done
   grunt.registerTask \node ->
     grunt.option \path './index'
     grunt.task.run <[build:shim.modern,core]>

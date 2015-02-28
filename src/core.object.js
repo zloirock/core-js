@@ -6,7 +6,7 @@
     while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));
     return target;
   };
-  $define(STATIC + FORCED, OBJECT, {
+  $define(STATIC + FORCED, 'Object', {
     isObject: isObject,
     classof: classof,
     define: define,

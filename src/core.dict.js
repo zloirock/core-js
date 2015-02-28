@@ -10,7 +10,7 @@
     }
     return dict;
   }
-  Dict[PROTOTYPE] = null;
+  Dict.prototype = null;
   
   function DictIterator(iterated, kind){
     set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
@@ -27,9 +27,9 @@
         return iterResult(1);
       }
     } while(!has(O, key = keys[iter.i++]));
-    if(kind == KEY)  return iterResult(0, key);
-    if(kind == VALUE)return iterResult(0, O[key]);
-                     return iterResult(0, [key, O[key]]);
+    if(kind == 'key')   return iterResult(0, key);
+    if(kind == 'value') return iterResult(0, O[key]);
+                        return iterResult(0, [key, O[key]]);
   });
   function createDictIter(kind){
     return function(it){
@@ -74,7 +74,7 @@
   }
   function createDictReduce(isTurn){
     return function(object, mapfn, init){
-      assertFunction(mapfn);
+      assert.fn(mapfn);
       var O      = toObject(object)
         , keys   = getKeys(O)
         , length = keys.length
@@ -82,7 +82,7 @@
         , memo, key, result;
       if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
       else if(arguments.length < 3){
-        assert(length, REDUCE_ERROR);
+        assert(length, assert.REDUCE);
         memo = O[keys[i++]];
       } else memo = Object(init);
       while(length > i)if(has(O, key = keys[i++])){
@@ -100,9 +100,9 @@
   }
   
   var dictMethods = {
-    keys:    createDictIter(KEY),
-    values:  createDictIter(VALUE),
-    entries: createDictIter(KEY+VALUE),
+    keys:    createDictIter('key'),
+    values:  createDictIter('value'),
+    entries: createDictIter('key+value'),
     forEach: createDictMethod(0),
     map:     createDictMethod(1),
     filter:  createDictMethod(2),
@@ -120,11 +120,11 @@
     get: get,
     set: createDefiner(0),
     isDict: function(it){
-      return isObject(it) && getPrototypeOf(it) === Dict[PROTOTYPE];
+      return isObject(it) && getPrototypeOf(it) === Dict.prototype;
     }
   };
-  
-  if(REFERENCE_GET)for(var key in dictMethods)!function(fn){
+  var REFERENCE_GET = getWellKnownSymbol('referenceGet', true);
+  for(var key in dictMethods)!function(fn){
     function method(){
       for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
       return invoke(fn, args);

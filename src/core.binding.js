@@ -2,10 +2,10 @@
   // Placeholder
   core._ = path._ = path._ || {};
 
-  $define(PROTO + FORCED, FUNCTION, {
+  $define(PROTO + FORCED, 'Function', {
     part: part,
     only: function(numberArguments, that /* = @ */){
-      var fn     = assertFunction(this)
+      var fn     = assert.fn(this)
         , n      = toLength(numberArguments)
         , isThat = arguments.length > 1;
       return function(/* ...args */){
@@ -27,11 +27,11 @@
     })[_](key);
   }
   
-  hidden(path._, TO_STRING, function(){
+  hidden(path._, 'toString', function(){
     return _;
   });
   
   hidden(ObjectProto, _, tie);
   DESC || hidden(ArrayProto, _, tie);
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-}(DESC ? uid('tie') : TO_LOCALE, ObjectProto[TO_LOCALE]);
+}(DESC ? uid('tie') : 'toLocaleString', ObjectProto.toLocaleString);

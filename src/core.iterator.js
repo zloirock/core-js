@@ -1,6 +1,6 @@
 !function(WRAPPER, ENTRIES, FN, I){
   function fixIteratorPrototype(Constructor){
-    if(Constructor && SYMBOL_ITERATOR in Constructor[PROTOTYPE]){
+    if(Constructor && SYMBOL_ITERATOR in Constructor.prototype){
       getPrototypeOf(new Constructor()[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
     }
   }
@@ -8,8 +8,8 @@
     var P = getPrototypeOf(getPrototypeOf([].keys()));
     if(P == ObjectProto || !isFunction(P[SYMBOL_ITERATOR]) || P[SYMBOL_ITERATOR]() !== P){
       fixIteratorPrototype(Array);
-      fixIteratorPrototype(Set);
-      fixIteratorPrototype(Map);
+      fixIteratorPrototype(global.Set);
+      fixIteratorPrototype(global.Map);
       fixIteratorPrototype(String);
     } else IteratorPrototype = P;
   }
@@ -19,10 +19,10 @@
       return new Constructor(iterable);
     });
   }
-  setFrom(Map);
-  setFrom(Set);
-  setFrom(WeakMap);
-  setFrom(WeakSet);
+  setFrom(global.Map);
+  setFrom(global.Set);
+  setFrom(global.WeakMap);
+  setFrom(global.WeakSet);
   setFrom(Dict);
   setFrom(String, function(iterable){
     return core.Array.from(iterable).join('');
@@ -33,7 +33,7 @@
     var iterator = getIterator(iterable);
     return iterator instanceof Iterator ? iterator : new WrapperIterator(iterator);
   }
-  Iterator[PROTOTYPE] = IteratorPrototype;
+  Iterator.prototype = IteratorPrototype;
   
   function WrapperIterator(iterator){
     this[ITER] = iterator;
@@ -41,7 +41,7 @@
   createIterator(WrapperIterator, WRAPPER, function(){
     return this[ITER].next();
   })
-  setIterator(WrapperIterator[PROTOTYPE], function(){
+  setIterator(WrapperIterator.prototype, function(){
     return this[ITER]; // unwrap
   });
   

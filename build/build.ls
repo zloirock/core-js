@@ -1,8 +1,13 @@
 require! './config': {banner}, fs: {readFile}
 modules  = <[
+  common.assert
+  common.wks
   common
   common.export
   common.iterators
+  common.array-methods
+  common.array-includes
+  common.string-at
   es5
   es6.symbol
   es6.object.statics
@@ -58,7 +63,7 @@ exp = <[
 ]>
 
 x78 = '*'repeat 78
-module.exports = (opt, next)-> let @ = opt
+module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)-> memo[it] = on), {}
   if @shim         => @ <<< {+\shim.old, +\shim.modern}
   if @\shim.old    => for <[es5 web.timers]> => @[..] = on
   if @\shim.modern => for <[es6 es7 js.array.statics web.immediate web.dom.itarable]> => @[..] = on
@@ -66,9 +71,13 @@ module.exports = (opt, next)-> let @ = opt
   for ns of @
     if @[ns]
       for name in modules
-        if name.indexOf("#ns.") is 0 and name not in exp
+        if name.startsWith("#ns.") and name not in exp
           @[name] = on
-  @common = @\common.export = on
+  for ns in blacklist
+    for name in modules
+      if name is ns or name.startsWith("#ns.")
+        @[name] = no
+  @common = @\common.assert = @\common.export = @\common.wks = @\common.string-at = @\common.array-methods = @\common.array-includes = on
   if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
@@ -92,5 +101,5 @@ module.exports = (opt, next)-> let @ = opt
     !function(global, framework, undefined){
     'use strict';
     #{scripts * '\n'}
-    }(typeof self != 'undefined' && self.Math === Math ? self : Function('return this')(), #{!@library});
+    }(typeof self != 'undefined' ? self : Function('return this')(), #{!@library});
     """
