@@ -15,7 +15,7 @@
     var a = +this
       , b = lim == undefined ? 0 : +lim
       , m = min(a, b);
-    return random() * (max(a, b) - m) + m;
+    return Math.random() * (max(a, b) - m) + m;
   };
 
   forEach.call(array(

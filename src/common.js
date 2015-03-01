@@ -1,7 +1,5 @@
 // Aliases global objects and prototypes
-var Object          = global.Object
-  , Array           = global.Array
-  , String          = global.String
+var global          = typeof self != 'undefined' ? self : Function('return this')()
   , Number          = global.Number
   , Symbol          = global.Symbol
   , Math            = global.Math
@@ -43,26 +41,6 @@ function classof(it){
 
 // Function
 var call = FunctionProto.call;
-// Partial apply
-function part(/* ...args */){
-  var fn     = assert.fn(this)
-    , length = arguments.length
-    , args   = Array(length)
-    , i      = 0
-    , _      = path._
-    , holder = false;
-  while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
-  return function(/* ...args */){
-    var that    = this
-      , _length = arguments.length
-      , i = 0, j = 0, _args;
-    if(!holder && !_length)return invoke(fn, args, that);
-    _args = args.slice();
-    if(holder)for(;length > i; i++)if(_args[i] === _)_args[i] = arguments[j++];
-    while(_length > j)_args.push(arguments[j++]);
-    return invoke(fn, _args, that);
-  }
-}
 // Optional / simple context binding
 function ctx(fn, that, length){
   assert.fn(fn);
@@ -81,25 +59,6 @@ function ctx(fn, that, length){
       return fn.apply(that, arguments);
   }
 }
-// Fast apply
-// http://jsperf.lnkit.com/fast-apply/5
-function invoke(fn, args, that){
-  var un = that === undefined;
-  switch(args.length | 0){
-    case 0: return un ? fn()
-                      : fn.call(that);
-    case 1: return un ? fn(args[0])
-                      : fn.call(that, args[0]);
-    case 2: return un ? fn(args[0], args[1])
-                      : fn.call(that, args[0], args[1]);
-    case 3: return un ? fn(args[0], args[1], args[2])
-                      : fn.call(that, args[0], args[1], args[2]);
-    case 4: return un ? fn(args[0], args[1], args[2], args[3])
-                      : fn.call(that, args[0], args[1], args[2], args[3]);
-    case 5: return un ? fn(args[0], args[1], args[2], args[3], args[4])
-                      : fn.call(that, args[0], args[1], args[2], args[3], args[4]);
-  } return              fn.apply(that, args);
-}
 
 // Object:
 var create           = Object.create
@@ -114,8 +73,7 @@ var create           = Object.create
   , isFrozen         = Object.isFrozen
   , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
   // Dummy, fix for not array-like ES3 string in es5 module
-  , ES5Object        = Object
-  , Dict;
+  , ES5Object        = Object;
 function toObject(it){
   return ES5Object(assert.def(it));
 }
@@ -131,21 +89,6 @@ function get(object, key){
 function ownKeys(it){
   assert.obj(it);
   return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
-}
-// 19.1.2.1 Object.assign(target, source, ...)
-var assign = Object.assign || function(target, source){
-  var T = Object(assert.def(target))
-    , l = arguments.length
-    , i = 1;
-  while(l > i){
-    var S      = ES5Object(arguments[i++])
-      , keys   = getKeys(S)
-      , length = keys.length
-      , j      = 0
-      , key;
-    while(length > j)T[key = keys[j++]] = S[key];
-  }
-  return T;
 }
 function keyOf(object, el){
   var O      = toObject(object)
@@ -168,14 +111,11 @@ function generic(A, B){
 }
 
 // Math
-var pow    = Math.pow
-  , abs    = Math.abs
-  , ceil   = Math.ceil
-  , floor  = Math.floor
-  , max    = Math.max
-  , min    = Math.min
-  , random = Math.random
-  , trunc  = Math.trunc || function(it){
+var ceil  = Math.ceil
+  , floor = Math.floor
+  , max   = Math.max
+  , min   = Math.min
+  , trunc = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
     }
 // 20.1.2.4 Number.isNaN(number)
@@ -193,18 +133,6 @@ function toLength(it){
 function toIndex(index, length){
   var index = toInteger(index);
   return index < 0 ? max(index + length, 0) : min(index, length);
-}
-function lz(num){
-  return num > 9 ? num : '0' + num;
-}
-
-function createReplacer(regExp, replace, isStatic){
-  var replacer = isObject(replace) ? function(part){
-    return replace[part];
-  } : replace;
-  return function(it){
-    return String(isStatic ? it : this).replace(regExp, replacer);
-  }
 }
 
 // Property descriptors & Symbol
@@ -226,7 +154,7 @@ function createDefiner(bitmap){
   } : simpleSet;
 }
 function uid(key){
-  return 'Symbol(' + key + ')_' + (++sid + random()).toString(36);
+  return 'Symbol(' + key + ')_' + (++sid + Math.random()).toString(36);
 }
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){

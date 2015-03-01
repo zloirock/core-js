@@ -200,7 +200,7 @@
     // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
     reduceRight: createArrayReduce(true),
     // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-    indexOf: indexOf = indexOf || createArrayContains(false),
+    indexOf: indexOf = indexOf || createArrayIncludes(false),
     // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
     lastIndexOf: function(el, fromIndex /* = @[*-1] */){
       var O      = toObject(this)
@@ -221,6 +221,9 @@
     return +new Date;
   }});
   
+  function lz(num){
+    return num > 9 ? num : '0' + num;
+  }
   // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
   $define(PROTO, 'Date', {toISOString: function(){
     if(!isFinite(this))throw RangeError('Invalid time value');
@@ -228,7 +231,7 @@
       , y = d.getUTCFullYear()
       , m = d.getUTCMilliseconds()
       , s = y < 0 ? '-' : y > 9999 ? '+' : '';
-    return s + ('00000' + abs(y)).slice(s ? -6 : -4) +
+    return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
       '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
       'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';

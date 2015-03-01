@@ -1,7 +1,9 @@
 // ECMAScript 6 shim
-!function(Infinity){
+!function(Math, Infinity){
   // 20.2.2.28 Math.sign(x)
   var E    = Math.E
+    , pow  = Math.pow
+    , abs  = Math.abs
     , exp  = Math.exp
     , log  = Math.log
     , sqrt = Math.sqrt
@@ -101,4 +103,4 @@
     // 20.2.2.34 Math.trunc(x)
     trunc: trunc
   });
-}(Infinity);
+}(Math, Infinity);

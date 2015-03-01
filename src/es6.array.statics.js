@@ -1,4 +1,4 @@
-!function(){
+!function(Array){
   $define(STATIC + FORCED * checkDangerIterClosing(Array.from), 'Array', {
     // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
     from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
@@ -39,4 +39,4 @@
   });
   
   setSpecies(Array);
-}();
+}(Array);

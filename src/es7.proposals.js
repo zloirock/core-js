@@ -1,7 +1,7 @@
 !function(){
   $define(PROTO, 'Array', {
     // https://github.com/domenic/Array.prototype.includes
-    includes: createArrayContains(true)
+    includes: createArrayIncludes(true)
   });
   $define(PROTO, 'String', {
     // https://github.com/mathiasbynens/String.prototype.at

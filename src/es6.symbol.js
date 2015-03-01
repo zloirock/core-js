@@ -29,7 +29,7 @@
         : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.5 Symbol.keyFor(sym)
-    keyFor: part.call(keyOf, SymbolRegistry),
+    keyFor: partial.call(keyOf, SymbolRegistry),
     // 19.4.2.13 Symbol.toStringTag
     toStringTag: SYMBOL_TAG = getWellKnownSymbol('toStringTag', true, true),
     pure: safeSymbol,

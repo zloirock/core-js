@@ -32,7 +32,7 @@ isFunction(setImmediate) && isFunction(clearImmediate) || function(ONREADYSTATEC
   // Node.js 0.8-
   if(NODE){
     defer = function(id){
-      nextTick(part.call(run, id));
+      nextTick(partial.call(run, id));
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object

@@ -3,8 +3,12 @@ modules  = <[
   common.assert
   common.wks
   common
+  common.invoke
+  common.partial
+  common.assign
   common.export
   common.iterators
+  common.replacer
   common.array-methods
   common.array-includes
   common.string-at
@@ -77,7 +81,8 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
     for name in modules
       if name is ns or name.startsWith("#ns.")
         @[name] = no
-  @common = @\common.assert = @\common.export = @\common.wks = @\common.string-at = @\common.array-methods = @\common.array-includes = on
+  @common = on
+  <[assert export wks string-at array-methods array-includes replacer assign invoke partial]>forEach !~> @"common.#it" = on
   if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
@@ -98,8 +103,8 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
     """
   next """
     #banner
-    !function(global, framework, undefined){
+    !function(framework, undefined){
     'use strict';
     #{scripts * '\n'}
-    }(typeof self != 'undefined' ? self : Function('return this')(), #{!@library});
+    }(#{!@library});
     """

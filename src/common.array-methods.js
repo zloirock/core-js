@@ -14,9 +14,8 @@ function createArrayMethod(type){
     , NO_HOLES    = type == 5 || isFindIndex;
   return function(callbackfn/*, that = undefined */){
     var O      = Object(assert.def(this))
-      , that   = arguments[1]
       , self   = ES5Object(O)
-      , f      = ctx(callbackfn, that, 3)
+      , f      = ctx(callbackfn, arguments[1], 3)
       , length = toLength(self.length)
       , index  = 0
       , result = isMap ? Array(length) : isFilter ? [] : undefined

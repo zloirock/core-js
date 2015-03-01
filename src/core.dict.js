@@ -1,5 +1,5 @@
 !function(DICT){
-  Dict = function(iterable){
+  function Dict(iterable){
     var dict = create(null);
     if(iterable != undefined){
       if(isIterable(iterable)){

@@ -23,9 +23,9 @@
   setFrom(global.Set);
   setFrom(global.WeakMap);
   setFrom(global.WeakSet);
-  setFrom(Dict);
+  setFrom(global.Dict);
   setFrom(String, function(iterable){
-    return core.Array.from(iterable).join('');
+    return Array.from(iterable).join('');
   });
   
   function Iterator(iterable){
