@@ -1,4 +1,4 @@
-var NODE   = cof(process) == 'process'
+var NODE   = cof(global.process) == 'process'
   , core   = {}
   , path   = framework ? global : core
   , old    = global.core
@@ -15,13 +15,12 @@ function $define(type, name, source){
   var key, own, out, exp
     , isGlobal = type & GLOBAL
     , target   = isGlobal ? global : (type & STATIC)
-        ? global[name] : (global[name] || ObjectProto).prototype
+        ? global[name] : (global[name] || {}).prototype
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
     // there is a similar native
-    own = !(type & FORCED) && target && key in target
-      && (!isFunction(target[key]) || isNative(target[key]));
+    own = !(type & FORCED) && target && key in target;
     // export native or passed
     out = (own ? target : source)[key];
     // prevent global pollution for namespaces
@@ -34,7 +33,7 @@ function $define(type, name, source){
         return this instanceof out ? new out(param) : out(param);
       }
       exp.prototype = out.prototype;
-    } else exp = type & PROTO && isFunction(out) ? ctx(call, out) : out;
+    } else exp = type & PROTO && isFunction(out) ? ctx(Function.call, out) : out;
     // extend global
     if(framework && target && !own){
       if(isGlobal)target[key] = out;

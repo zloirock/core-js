@@ -6,12 +6,14 @@ modules  = <[
   common.invoke
   common.partial
   common.assign
+  common.keyof
   common.export
   common.iterators
   common.replacer
   common.array-methods
   common.array-includes
   common.string-at
+  common.task
   es5
   es6.symbol
   es6.object.statics
@@ -27,7 +29,6 @@ modules  = <[
   core.iterator
   es6.iterators
   es6.regexp
-  web.immediate
   es6.promise
   es6.collections
   es6.reflect
@@ -44,6 +45,7 @@ modules  = <[
   core.date
   core.global
   js.array.statics
+  web.immediate
   web.dom.itarable
   web.timers
   core.log
@@ -82,13 +84,14 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
       if name is ns or name.startsWith("#ns.")
         @[name] = no
   @common = on
-  <[assert export wks string-at array-methods array-includes replacer assign invoke partial]>forEach !~> @"common.#it" = on
+  <[assert export wks string-at array-methods array-includes replacer assign keyof invoke partial]>forEach !~> @"common.#it" = on
   if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
   if @\es7.abstract-refs => @\es6.symbol      = on
   if @\core.delay        => @\es6.promise     = on
-  if @\es6.promise       => @ <<< {+\web.immediate, +\es6.iterators}
+  if @\web.immediate     => @\common.task     = on
+  if @\es6.promise       => @ <<< {+\common.task, +\es6.iterators}
   for common-iterators => if @[..] => @\common.iterators = on
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _

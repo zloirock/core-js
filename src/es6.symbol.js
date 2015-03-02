@@ -1,13 +1,14 @@
 // ECMAScript 6 symbols shim
-!function(TAG, SymbolRegistry, AllSymbols, setter){
+!function(Symbol, shim, TAG, SymbolRegistry, AllSymbols, setter){
   // 19.4.1.1 Symbol([description])
-  if(!isNative(Symbol)){
+  if(!isFunction(Symbol)){
+    shim = 1;
     Symbol = function(description){
       assert(!(this instanceof Symbol), 'Symbol is not a constructor');
       var tag = uid(description)
         , sym = set(create(Symbol.prototype), TAG, tag);
       AllSymbols[tag] = sym;
-      DESC && setter && defineProperty(ObjectProto, tag, {
+      DESC && setter && defineProperty(Object.prototype, tag, {
         configurable: true,
         set: function(value){
           hidden(this, tag, value);
@@ -20,7 +21,7 @@
     });
   }
   $define(GLOBAL + WRAP, {Symbol: Symbol});
-  
+    
   var symbolStatics = {
     // 19.4.2.1 Symbol.for(key)
     'for': function(key){
@@ -29,13 +30,11 @@
         : SymbolRegistry[key] = Symbol(key);
     },
     // 19.4.2.5 Symbol.keyFor(sym)
-    keyFor: partial.call(keyOf, SymbolRegistry),
-    // 19.4.2.13 Symbol.toStringTag
-    toStringTag: SYMBOL_TAG = getWellKnownSymbol('toStringTag', true, true),
+    keyFor: partial.call(keyOf, SymbolRegistry, 0),
     pure: safeSymbol,
     set: set,
-    useSetter: function(){setter = true},
-    useSimple: function(){setter = false}
+    useSetter: function(){ setter = true },
+    useSimple: function(){ setter = false }
   };
   // 19.4.2.2 Symbol.hasInstance
   // 19.4.2.3 Symbol.isConcatSpreadable
@@ -46,17 +45,19 @@
   // 19.4.2.10 Symbol.species
   // 19.4.2.11 Symbol.split
   // 19.4.2.12 Symbol.toPrimitive
+  // 19.4.2.13 Symbol.toStringTag
   // 19.4.2.14 Symbol.unscopables
-  forEach.call(array('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,unscopables'),
+  forEach.call(array('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'),
     function(it){
       symbolStatics[it] = getWellKnownSymbol(it);
     }
   );
+  
   $define(STATIC, 'Symbol', symbolStatics);
   
   setToStringTag(Symbol, 'Symbol');
   
-  $define(STATIC + FORCED * !isNative(Symbol), 'Object', {
+  $define(STATIC + FORCED * shim, 'Object', {
     // 19.1.2.7 Object.getOwnPropertyNames(O)
     getOwnPropertyNames: function(it){
       var names = getNames(toObject(it)), result = [], key, i = 0;
@@ -75,4 +76,4 @@
   setToStringTag(Math, 'Math', true);
   // 24.3.3 JSON[@@toStringTag]
   setToStringTag(global.JSON, 'JSON', true);
-}(safeSymbol('tag'), {}, {}, true);
+}(global.Symbol, 0, safeSymbol('tag'), {}, {}, true);

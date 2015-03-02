@@ -1,4 +1,4 @@
-Number('0o1') && Number('0b1') || function(_Number, NumberProto){
+Number('0o1') && Number('0b1') || function(Number, N, NumberProto){
   function toNumber(it){
     if(isObject(it))it = toPrimitive(it);
     if(typeof it == 'string' && it.length > 2 && it.charCodeAt(0) == 48){
@@ -16,13 +16,13 @@ Number('0o1') && Number('0b1') || function(_Number, NumberProto){
     throw TypeError("Can't convert object to number");
   }
   Number = function Number(it){
-    return this instanceof Number ? new _Number(toNumber(it)) : toNumber(it);
+    return this instanceof Number ? new N(toNumber(it)) : toNumber(it);
   }
-  forEach.call(DESC ? getNames(_Number)
+  forEach.call(DESC ? getNames(N)
   : array('MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'), function(key){
-    key in Number || defineProperty(Number, key, getOwnDescriptor(_Number, key));
+    key in Number || defineProperty(Number, key, getOwnDescriptor(N, key));
   });
   Number.prototype = NumberProto;
   NumberProto.constructor = Number;
   hidden(global, 'Number', Number);
-}(Number, Number.prototype);
+}(Number, Number, Number.prototype);

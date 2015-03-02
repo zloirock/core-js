@@ -1,6 +1,8 @@
 // ECMAScript 5 shim
 !function(){
-  var indexOf           = ArrayProto.indexOf
+  var ObjectProto       = Object.prototype
+    , A                 = []
+    , indexOf           = A.indexOf
     , _classof          = classof
     , _defineProperty   = defineProperty
     , _getOwnDescriptor = getOwnDescriptor
@@ -130,9 +132,9 @@
   $define(PROTO, 'Function', {
     bind: function(that /*, args... */){
       var fn       = assert.fn(this)
-        , partArgs = ArrayProto.slice.call(arguments, 1);
+        , partArgs = A.slice.call(arguments, 1);
       function bound(/* args... */){
-        var args = partArgs.concat(ArrayProto.slice.call(arguments));
+        var args = partArgs.concat(A.slice.call(arguments));
         return invoke(fn, args, this instanceof bound ? this : that);
       }
       bound.prototype = fn.prototype;
@@ -152,8 +154,8 @@
     }
   }
   $define(PROTO + FORCED * (ES5Object != Object), 'Array', {
-    slice: arrayMethodFix(ArrayProto.slice),
-    join: arrayMethodFix(ArrayProto.join)
+    slice: arrayMethodFix(A.slice),
+    join: arrayMethodFix(A.join)
   });
   
   // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
@@ -206,7 +208,7 @@
       var O      = toObject(this)
         , length = toLength(O.length)
         , index  = length - 1;
-      if(arguments.length > 1)index = min(index, toInteger(fromIndex));
+      if(arguments.length > 1)index = Math.min(index, toInteger(fromIndex));
       if(index < 0)index = toLength(length + index);
       for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
       return -1;

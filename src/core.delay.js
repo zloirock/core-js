@@ -2,7 +2,7 @@
 $define(GLOBAL + FORCED, {
   delay: function(time){
     return new Promise(function(resolve){
-      setTimeout(resolve, time, true);
+      setTimeout(partial.call(resolve, true), time);
     });
   }
 });

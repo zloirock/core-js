@@ -1,18 +1,7 @@
 // Aliases global objects and prototypes
-var global          = typeof self != 'undefined' ? self : Function('return this')()
-  , Number          = global.Number
-  , Symbol          = global.Symbol
-  , Math            = global.Math
-  , setTimeout      = global.setTimeout
-  , setImmediate    = global.setImmediate
-  , clearImmediate  = global.clearImmediate
-  , process         = global.process
-  , nextTick        = process && process.nextTick
-  , document        = global.document
-  , html            = document && document.documentElement
-  , ArrayProto      = Array.prototype
-  , ObjectProto     = Object.prototype
-  , FunctionProto   = Function.prototype;
+var global   = typeof self != 'undefined' ? self : Function('return this')()
+  , document = global.document
+  , html     = document && document.documentElement;
 
 // http://jsperf.com/core-js-isobject
 function isObject(it){
@@ -21,12 +10,10 @@ function isObject(it){
 function isFunction(it){
   return typeof it == 'function';
 }
-// Native function?
-var isNative = ctx(/./.test, /\[native code\]\s*\}\s*$/, 1);
 
 // Object internal [[Class]] or toStringTag
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring
-var toString = ObjectProto.toString;
+var toString = {}.toString;
 function setToStringTag(it, tag, stat){
   if(it && !has(it = stat ? it : it.prototype, SYMBOL_TAG))hidden(it, SYMBOL_TAG, tag);
 }
@@ -39,8 +26,6 @@ function classof(it){
     : typeof (T = (O = Object(it))[SYMBOL_TAG]) == 'string' ? T : cof(O);
 }
 
-// Function
-var call = FunctionProto.call;
 // Optional / simple context binding
 function ctx(fn, that, length){
   assert.fn(fn);
@@ -71,7 +56,7 @@ var create           = Object.create
   , getNames         = Object.getOwnPropertyNames
   , getSymbols       = Object.getOwnPropertySymbols
   , isFrozen         = Object.isFrozen
-  , has              = ctx(call, ObjectProto.hasOwnProperty, 2)
+  , has              = ctx(Function.call, {}.hasOwnProperty, 2)
   // Dummy, fix for not array-like ES3 string in es5 module
   , ES5Object        = Object;
 function toObject(it){
@@ -83,20 +68,12 @@ function returnIt(it){
 function returnThis(){
   return this;
 }
-function get(object, key){
+function get(object, key){ // <- ???
   if(has(object, key))return object[key];
 }
 function ownKeys(it){
   assert.obj(it);
   return getSymbols ? getNames(it).concat(getSymbols(it)) : getNames(it);
-}
-function keyOf(object, el){
-  var O      = toObject(object)
-    , keys   = getKeys(O)
-    , length = keys.length
-    , index  = 0
-    , key;
-  while(length > index)if(O[key = keys[index++]] === el)return key;
 }
 
 // Array
@@ -104,8 +81,8 @@ function keyOf(object, el){
 function array(it){
   return String(it).split(',');
 }
-var forEach = ArrayProto.forEach;
-function generic(A, B){
+var forEach = [].forEach;
+function generic(A, B){ // <- ???
   // strange IE quirks mode bug -> use typeof vs isFunction
   return typeof A == 'function' ? A : B;
 }
@@ -132,7 +109,7 @@ function toLength(it){
 }
 function toIndex(index, length){
   var index = toInteger(index);
-  return index < 0 ? max(index + length, 0) : min(index, length);
+  return index < 0 ? Math.max(index + length, 0) : min(index, length);
 }
 
 // Property descriptors & Symbol
@@ -164,19 +141,16 @@ var DESC = !!function(){
     }()
   , sid    = 0
   , hidden = createDefiner(1)
-  , set    = Symbol ? simpleSet : hidden
-  , safeSymbol = Symbol || uid;
+  , set    = global.Symbol ? simpleSet : hidden
+  , safeSymbol = global.Symbol || uid;
 function assignHidden(target, src){
   for(var key in src)hidden(target, key, src[key]);
   return target;
 }
 
-var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
-  , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
-  , SYMBOL_TAG         = getWellKnownSymbol('toStringTag')
-  , SYMBOL_ITERATOR;
+var SYMBOL_TAG = getWellKnownSymbol('toStringTag');
 function setSpecies(C){
-  if(DESC && (framework || !isNative(C)))defineProperty(C, getWellKnownSymbol('species'), {
+  if(DESC && framework)defineProperty(C, getWellKnownSymbol('species'), {
     configurable: true,
     get: returnThis
   });

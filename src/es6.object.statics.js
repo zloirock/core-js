@@ -9,10 +9,10 @@
   };
   // 19.1.3.19 Object.setPrototypeOf(O, proto)
   // Works with __proto__ only. Old v8 can't works with null proto objects.
-  '__proto__' in ObjectProto && function(buggy, set){
+  '__proto__' in {} && function(buggy, set){
     try {
-      set = ctx(call, getOwnDescriptor(ObjectProto, '__proto__').set, 2);
-      set({}, ArrayProto);
+      set = ctx(Function.call, getOwnDescriptor(Object.prototype, '__proto__').set, 2);
+      set({}, []);
     } catch(e){ buggy = true }
     objectStatic.setPrototypeOf = setPrototypeOf = setPrototypeOf || function(O, proto){
       assert.obj(O);

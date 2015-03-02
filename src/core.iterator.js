@@ -4,9 +4,9 @@
       getPrototypeOf(new Constructor()[SYMBOL_ITERATOR]()).__proto__ = IteratorPrototype;
     }
   }
-  if(SYMBOL_ITERATOR in ArrayProto){
+  if(SYMBOL_ITERATOR in []){
     var P = getPrototypeOf(getPrototypeOf([].keys()));
-    if(P == ObjectProto || !isFunction(P[SYMBOL_ITERATOR]) || P[SYMBOL_ITERATOR]() !== P){
+    if(P == Object.prototype || !isFunction(P[SYMBOL_ITERATOR]) || P[SYMBOL_ITERATOR]() !== P){
       fixIteratorPrototype(Array);
       fixIteratorPrototype(global.Set);
       fixIteratorPrototype(global.Map);

@@ -6,7 +6,7 @@
       'timelineEnd,timeStamp,trace,warn'), function(key){
     log[key] = function(){
       if(enabled && global.console && isFunction(console[key])){
-        return FunctionProto.apply.call(console[key], console, arguments);
+        return Function.apply.call(console[key], console, arguments);
       }
     };
   });

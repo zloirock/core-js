@@ -10,8 +10,10 @@
     , uid   = 0
     , tmp   = {};
   
-  function getCollection(C, NAME, methods, commonMethods, isMap, isWeak){
-    var ADDER = isMap ? 'set' : 'add'
+  function getCollection(NAME, methods, commonMethods, isMap, isWeak){
+    var Base  = global[NAME]
+      , C     = Base
+      , ADDER = isMap ? 'set' : 'add'
       , proto = C && C.prototype
       , O     = {};
     function initFromIterable(that, iterable){
@@ -74,7 +76,7 @@
     setSpecies(C);
     
     O[NAME] = C;
-    $define(GLOBAL + WRAP + FORCED * !isNative(C), O);
+    $define(GLOBAL + WRAP + FORCED * (C != Base), O);
     
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
@@ -194,7 +196,7 @@
   }
   
   // 23.1 Map Objects
-  var Map = getCollection(global.Map, 'Map', {
+  var Map = getCollection('Map', {
     // 23.1.3.6 Map.prototype.get(key)
     get: function(key){
       var entry = getEntry(this, key);
@@ -207,7 +209,7 @@
   }, collectionMethods, true);
   
   // 23.2 Set Objects
-  getCollection(global.Set, 'Set', {
+  getCollection('Set', {
     // 23.2.3.1 Set.prototype.add(value)
     add: function(value){
       return def(this, value = value === 0 ? 0 : value, value);
@@ -243,7 +245,7 @@
   };
   
   // 23.3 WeakMap Objects
-  var WeakMap = getCollection(global.WeakMap, 'WeakMap', {
+  var WeakMap = getCollection('WeakMap', {
     // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
       if(isObject(key)){
@@ -273,7 +275,7 @@
   }
   
   // 23.4 WeakSet Objects
-  getCollection(global.WeakSet, 'WeakSet', {
+  getCollection('WeakSet', {
     // 23.4.3.1 WeakSet.prototype.add(value)
     add: function(value){
       return defWeak(this, value, true);

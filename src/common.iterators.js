@@ -1,16 +1,16 @@
-SYMBOL_ITERATOR = getWellKnownSymbol('iterator');
-var FF_ITERATOR = '@@iterator'
-  , ITER        = safeSymbol('iter')
-  , Iterators   = {}
+var SYMBOL_ITERATOR   = getWellKnownSymbol('iterator')
+  , FF_ITERATOR       = '@@iterator'
+  , ITER              = safeSymbol('iter')
+  , Iterators         = {}
   , IteratorPrototype = {}
     // Safari has byggy iterators w/o `next`
-  , BUGGY_ITERATORS = 'keys' in ArrayProto && !('next' in [].keys());
+  , BUGGY_ITERATORS   = 'keys' in [] && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, returnThis);
 function setIterator(O, value){
   hidden(O, SYMBOL_ITERATOR, value);
   // Add iterator for FF iterator protocol
-  FF_ITERATOR in ArrayProto && hidden(O, FF_ITERATOR, value);
+  if(FF_ITERATOR in [])hidden(O, FF_ITERATOR, value);
 }
 function createIterator(Constructor, NAME, next, proto){
   Constructor.prototype = create(proto || IteratorPrototype, {next: descriptor(1, next)});

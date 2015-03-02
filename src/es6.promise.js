@@ -1,7 +1,10 @@
 // ES6 promises shim
 // Based on https://github.com/getify/native-promise-only/
-!function(PROMISE, Promise){
-  var SYMBOL_SPECIES = getWellKnownSymbol('species')
+!function(){
+  var PROMISE = 'Promise'
+    , Promise = global[PROMISE]
+    , Base    = Promise
+    , SYMBOL_SPECIES = getWellKnownSymbol('species')
     , test;
   isFunction(Promise) && isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(function(){})) == test
@@ -172,8 +175,8 @@
           });
       }
     });
-  }(nextTick || setImmediate, safeSymbol('record'));
+  }(global.process && process.nextTick || task.set, safeSymbol('record'));
   setToStringTag(Promise, PROMISE);
   setSpecies(Promise);
-  $define(GLOBAL + FORCED * !isNative(Promise), {Promise: Promise});
-}('Promise', global.Promise);
+  $define(GLOBAL + FORCED * (Promise != Base), {Promise: Promise});
+}();

@@ -8,7 +8,7 @@
         , from  = toIndex(start, len)
         , end   = arguments[2]
         , fin   = end === undefined ? len : toIndex(end, len)
-        , count = min(fin - from, len - to)
+        , count = Math.min(fin - from, len - to)
         , inc   = 1;
       if(from < to && to < from + count){
         inc  = -1;
@@ -39,6 +39,9 @@
   });
   
   if(framework){
+    var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
+      , ArrayProto         = Array.prototype
+      , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
     // 22.1.3.31 Array.prototype[@@unscopables]
     forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
       ArrayUnscopables[it] = true;

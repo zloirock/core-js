@@ -9,7 +9,7 @@
         , n      = toLength(numberArguments)
         , isThat = arguments.length > 1;
       return function(/* ...args */){
-        var length = min(n, arguments.length)
+        var length = Math.min(n, arguments.length)
           , args   = Array(length)
           , i      = 0;
         while(length > i)args[i] = arguments[i++];
@@ -31,7 +31,7 @@
     return _;
   });
   
-  hidden(ObjectProto, _, tie);
-  DESC || hidden(ArrayProto, _, tie);
+  hidden(Object.prototype, _, tie);
+  DESC || hidden(Array.prototype, _, tie);
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-}(DESC ? uid('tie') : 'toLocaleString', ObjectProto.toLocaleString);
+}(DESC ? uid('tie') : 'toLocaleString', {}.toLocaleString);

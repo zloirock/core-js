@@ -123,7 +123,7 @@
       return isObject(it) && getPrototypeOf(it) === Dict.prototype;
     }
   };
-  var REFERENCE_GET = getWellKnownSymbol('referenceGet', true);
+  var REFERENCE_GET = getWellKnownSymbol('referenceGet');
   for(var key in dictMethods)!function(fn){
     function method(){
       for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);

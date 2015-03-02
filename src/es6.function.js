@@ -1,4 +1,4 @@
-!function(NAME){
+!function(NAME, FunctionProto){
   // 19.2.4.2 name
   NAME in FunctionProto || (DESC && defineProperty(FunctionProto, NAME, {
     configurable: true,
@@ -12,4 +12,4 @@
       has(this, NAME) || defineProperty(this, NAME, descriptor(0, value));
     }
   }));
-}('name');
+}('name', Function.prototype);

@@ -1,8 +1,8 @@
 // https://github.com/zenparsing/es-abstract-refs
 !function(){
-  var REFERENCE_GET = getWellKnownSymbol('referenceGet', true)
-    , REFERENCE_SET = getWellKnownSymbol('referenceSet', true)
-    , REFERENCE_DELETE = getWellKnownSymbol('referenceDelete', true);
+  var REFERENCE_GET = getWellKnownSymbol('referenceGet')
+    , REFERENCE_SET = getWellKnownSymbol('referenceSet')
+    , REFERENCE_DELETE = getWellKnownSymbol('referenceDelete');
   
   $define(STATIC, 'Symbol', {
     referenceGet: REFERENCE_GET,
@@ -10,7 +10,7 @@
     referenceDelete: REFERENCE_DELETE
   });
   
-  hidden(FunctionProto, REFERENCE_GET, returnThis);
+  hidden(Function.prototype, REFERENCE_GET, returnThis);
   
   function setMapMethods(Constructor){
     if(Constructor){

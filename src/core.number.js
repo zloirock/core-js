@@ -14,7 +14,7 @@
   numberMethods.random = function(lim /* = 0 */){
     var a = +this
       , b = lim == undefined ? 0 : +lim
-      , m = min(a, b);
+      , m = Math.min(a, b);
     return Math.random() * (max(a, b) - m) + m;
   };
 

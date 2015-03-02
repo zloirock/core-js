@@ -58,15 +58,15 @@
       : (ownDesc.set.call(receiver, V), true);
   }
   var isExtensible = Object.isExtensible || returnIt
-    , apply = FunctionProto.apply;
+    , apply = Function.apply;
   
   var reflect = {
     // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-    apply: ctx(call, apply, 3),
+    apply: ctx(Function.call, apply, 3),
     // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
     construct: function(target, argumentsList /*, newTarget*/){
       var proto    = assert.fn(arguments.length < 3 ? target : arguments[2]).prototype
-        , instance = create(isObject(proto) ? proto : ObjectProto)
+        , instance = create(isObject(proto) ? proto : Object.prototype)
         , result   = apply.call(target, instance, argumentsList);
       return isObject(result) ? result : instance;
     },
