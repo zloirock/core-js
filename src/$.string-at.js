@@ -1,7 +1,7 @@
 function createPointAt(toString){
   return function(pos){
     var s = String(assert.def(this))
-      , i = toInteger(pos)
+      , i = $.toInteger(pos)
       , l = s.length
       , a, b;
     if(i < 0 || i >= l)return toString ? '' : undefined;

@@ -1,6 +1,6 @@
 function keyOf(object, el){
-  var O      = toObject(object)
-    , keys   = getKeys(O)
+  var O      = $.toObject(object)
+    , keys   = $.getKeys(O)
     , length = keys.length
     , index  = 0
     , key;

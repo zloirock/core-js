@@ -1,6 +1,7 @@
 !function(NodeList){
+  var SYMBOL_ITERATOR = wks('iterator');
   if(framework && NodeList && !(SYMBOL_ITERATOR in NodeList.prototype)){
-    hidden(NodeList.prototype, SYMBOL_ITERATOR, Iterators.Array);
+    $.hide(NodeList.prototype, SYMBOL_ITERATOR, Iter.Iterators.Array);
   }
-  Iterators.NodeList = Iterators.Array;
-}(global.NodeList);
+  Iter.Iterators.NodeList = Iter.Iterators.Array;
+}($.g.NodeList);

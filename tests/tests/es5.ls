@@ -107,6 +107,8 @@ test 'Function#bind' !->
   ok 42   is (-> @a)bind(obj)!
   ok void is new ((->)bind obj)!a
   ok 42   is (-> it)bind(null 42)!
+  fn = RegExp::test.bind /a/
+  ok fn \a
 test 'Array.isArray' !->
   {isArray} = Array
   ok isFunction(isArray), 'Is function'

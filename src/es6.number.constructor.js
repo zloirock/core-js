@@ -1,6 +1,6 @@
 Number('0o1') && Number('0b1') || function(Number, N, NumberProto){
   function toNumber(it){
-    if(isObject(it))it = toPrimitive(it);
+    if($.isObject(it))it = toPrimitive(it);
     if(typeof it == 'string' && it.length > 2 && it.charCodeAt(0) == 48){
       var binary = false;
       switch(it.charCodeAt(1)){
@@ -11,18 +11,18 @@ Number('0o1') && Number('0b1') || function(Number, N, NumberProto){
   }
   function toPrimitive(it){
     var fn, val;
-    if(isFunction(fn = it.valueOf) && !isObject(val = fn.call(it)))return val;
-    if(isFunction(fn = it.toString) && !isObject(val = fn.call(it)))return val;
+    if($.isFunction(fn = it.valueOf) && !$.isObject(val = fn.call(it)))return val;
+    if($.isFunction(fn = it.toString) && !$.isObject(val = fn.call(it)))return val;
     throw TypeError("Can't convert object to number");
   }
   Number = function Number(it){
     return this instanceof Number ? new N(toNumber(it)) : toNumber(it);
   }
-  forEach.call(DESC ? getNames(N)
-  : array('MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'), function(key){
-    key in Number || defineProperty(Number, key, getOwnDescriptor(N, key));
+  $.each.call($.DESC ? $.getNames(N)
+  : $.a('MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'), function(key){
+    key in Number || $.setDesc(Number, key, $.getDesc(N, key));
   });
   Number.prototype = NumberProto;
   NumberProto.constructor = Number;
-  hidden(global, 'Number', Number);
+  $.hide($.g, 'Number', Number);
 }(Number, Number, Number.prototype);

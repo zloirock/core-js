@@ -1,17 +1,17 @@
 !function(){
   function define(target, mixin){
-    var keys   = ownKeys(toObject(mixin))
+    var keys   = $.ownKeys($.toObject(mixin))
       , length = keys.length
       , i = 0, key;
-    while(length > i)defineProperty(target, key = keys[i++], getOwnDescriptor(mixin, key));
+    while(length > i)$.setDesc(target, key = keys[i++], $.getDesc(mixin, key));
     return target;
   };
-  $define(STATIC + FORCED, 'Object', {
-    isObject: isObject,
-    classof: classof,
+  $def(STATIC + FORCED, 'Object', {
+    isObject: $.isObject,
+    classof: cof.classof,
     define: define,
     make: function(proto, mixin){
-      return define(create(proto), mixin);
+      return define($.create(proto), mixin);
     }
   });
 }();

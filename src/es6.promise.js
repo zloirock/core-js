@@ -2,17 +2,17 @@
 // Based on https://github.com/getify/native-promise-only/
 !function(){
   var PROMISE = 'Promise'
-    , Promise = global[PROMISE]
+    , Promise = $.g[PROMISE]
     , Base    = Promise
-    , SYMBOL_SPECIES = getWellKnownSymbol('species')
+    , SYMBOL_SPECIES = wks('species')
     , test;
-  isFunction(Promise) && isFunction(Promise.resolve)
+  $.isFunction(Promise) && $.isFunction(Promise.resolve)
   && Promise.resolve(test = new Promise(function(){})) == test
   || function(asap, RECORD){
     function isThenable(it){
       var then;
-      if(isObject(it))then = it.then;
-      return isFunction(then) ? then : false;
+      if($.isObject(it))then = it.then;
+      return $.isFunction(then) ? then : false;
     }
     function handledRejectionOrHasOnRejected(promise){
       var record = promise[RECORD]
@@ -39,7 +39,7 @@
                 if(!process.emit('unhandledRejection', value, promise)){
                   // default node.js behavior
                 }
-              } else if(global.console && isFunction(console.error)){
+              } else if($.g.console && $.isFunction(console.error)){
                 console.error('Unhandled promise rejection', value);
               }
             }
@@ -73,7 +73,7 @@
       try {
         if(then = isThenable(value)){
           wrapper = {r: record, d: false}; // wrap
-          then.call(value, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
+          then.call(value, $.ctx(resolve, wrapper, 1), $.ctx(reject, wrapper, 1));
         } else {
           record.v = value;
           record.s = 1;
@@ -107,20 +107,20 @@
         v: undefined,                           // <- value
         h: false                                // <- handled rejection
       };
-      hidden(this, RECORD, record);
+      $.hide(this, RECORD, record);
       try {
-        executor(ctx(resolve, record, 1), ctx(reject, record, 1));
+        executor($.ctx(resolve, record, 1), $.ctx(reject, record, 1));
       } catch(err){
         reject.call(record, err);
       }
     }
-    assignHidden(Promise.prototype, {
+    $.mix(Promise.prototype, {
       // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
       then: function(onFulfilled, onRejected){
         var S = assert.obj(assert.obj(this).constructor)[SYMBOL_SPECIES];
         var react = {
-          ok:   isFunction(onFulfilled) ? onFulfilled : true,
-          fail: isFunction(onRejected)  ? onRejected  : false
+          ok:   $.isFunction(onFulfilled) ? onFulfilled : true,
+          fail: $.isFunction(onRejected)  ? onRejected  : false
         } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
           react.res = assert.fn(resolve);
           react.rej = assert.fn(reject);
@@ -134,16 +134,16 @@
         return this.then(undefined, onRejected);
       }
     });
-    assignHidden(Promise, {
+    $.mix(Promise, {
       // 25.4.4.1 Promise.all(iterable)
       all: function(iterable){
         var Promise = getConstructor(this)
           , values  = [];
         return new Promise(function(resolve, reject){
-          forOf(iterable, false, values.push, values);
+          Iter.forOf(iterable, false, values.push, values);
           var remaining = values.length
             , results   = Array(remaining);
-          if(remaining)forEach.call(values, function(promise, index){
+          if(remaining)$.forEach.call(values, function(promise, index){
             Promise.resolve(promise).then(function(value){
               results[index] = value;
               --remaining || resolve(results);
@@ -156,7 +156,7 @@
       race: function(iterable){
         var Promise = getConstructor(this);
         return new Promise(function(resolve, reject){
-          forOf(iterable, false, function(promise){
+          Iter.forOf(iterable, false, function(promise){
             Promise.resolve(promise).then(resolve, reject);
           });
         });
@@ -169,14 +169,14 @@
       },
       // 25.4.4.6 Promise.resolve(x)
       resolve: function(x){
-        return isObject(x) && RECORD in x && getPrototypeOf(x) === this.prototype
+        return $.isObject(x) && RECORD in x && $.getProto(x) === this.prototype
           ? x : new (getConstructor(this))(function(resolve, reject){
             resolve(x);
           });
       }
     });
-  }(global.process && process.nextTick || task.set, safeSymbol('record'));
-  setToStringTag(Promise, PROMISE);
+  }($.g.process && process.nextTick || task.set, uid.safe('record'));
+  cof.set(Promise, PROMISE);
   setSpecies(Promise);
-  $define(GLOBAL + FORCED * (Promise != Base), {Promise: Promise});
+  $def(GLOBAL + FORCED * (Promise != Base), {Promise: Promise});
 }();

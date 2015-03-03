@@ -1,1 +1,1 @@
-$define(GLOBAL + FORCED, {global: global});
+$def(GLOBAL + FORCED, {global: global});

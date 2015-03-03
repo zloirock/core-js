@@ -1,17 +1,17 @@
 !function(){
-  $define(PROTO, 'Array', {
+  $def(PROTO, 'Array', {
     // https://github.com/domenic/Array.prototype.includes
     includes: createArrayIncludes(true)
   });
-  $define(PROTO, 'String', {
+  $def(PROTO, 'String', {
     // https://github.com/mathiasbynens/String.prototype.at
     at: createPointAt(true)
   });
   
   function createObjectToArray(isEntries){
     return function(object){
-      var O      = toObject(object)
-        , keys   = getKeys(object)
+      var O      = $.toObject(object)
+        , keys   = $.getKeys(object)
         , length = keys.length
         , i      = 0
         , result = Array(length)
@@ -21,13 +21,13 @@
       return result;
     }
   }
-  $define(STATIC, 'Object', {
+  $def(STATIC, 'Object', {
     // https://gist.github.com/WebReflection/9353781
     getOwnPropertyDescriptors: function(object){
-      var O      = toObject(object)
+      var O      = $.toObject(object)
         , result = {};
-      forEach.call(ownKeys(O), function(key){
-        defineProperty(result, key, descriptor(0, getOwnDescriptor(O, key)));
+      $.each.call($.ownKeys(O), function(key){
+        $.setDesc(result, key, $.desc(0, $.getDesc(O, key)));
       });
       return result;
     },
@@ -35,7 +35,7 @@
     values:  createObjectToArray(false),
     entries: createObjectToArray(true)
   });
-  $define(STATIC, 'RegExp', {
+  $def(STATIC, 'RegExp', {
     // https://gist.github.com/kangax/9698100
     escape: createReplacer(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
   });

@@ -20,7 +20,7 @@
     return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
   }
     
-  $define(STATIC, 'Math', {
+  $def(STATIC, 'Math', {
     // 20.2.2.3 Math.acosh(x)
     acosh: function(x){
       return (x = +x) < 1 ? NaN : isFinite(x) ? log(x / E + sqrt(x + 1) * sqrt(x - 1) / E) + 1 : x;
@@ -101,6 +101,6 @@
       return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
     },
     // 20.2.2.34 Math.trunc(x)
-    trunc: trunc
+    trunc: $.trunc
   });
 }(Math, Infinity);

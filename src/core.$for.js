@@ -1,48 +1,48 @@
-!function(ENTRIES, FN){  
+!function(ENTRIES, FN, ITER){
   function $for(iterable, entries){
     if(!(this instanceof $for))return new $for(iterable, entries);
-    this[ITER]    = getIterator(iterable);
+    this[ITER]    = Iter.get(iterable);
     this[ENTRIES] = !!entries;
   }
   
-  createIterator($for, 'Wrapper', function(){
+  Iter.create($for, 'Wrapper', function(){
     return this[ITER].next();
   });
   var $forProto = $for.prototype;
-  setIterator($forProto, function(){
+  Iter.set($forProto, function(){
     return this[ITER]; // unwrap
   });
   
   function createChainIterator(next){
-    function Iter(I, fn, that){
-      this[ITER]    = getIterator(I);
-      this[ENTRIES] = I[ENTRIES];
-      this[FN]      = ctx(fn, that, I[ENTRIES] ? 2 : 1);
+    function Iterator(iter, fn, that){
+      this[ITER]    = Iter.get(iter);
+      this[ENTRIES] = iter[ENTRIES];
+      this[FN]      = $.ctx(fn, that, iter[ENTRIES] ? 2 : 1);
     }
-    createIterator(Iter, 'Chain', next, $forProto);
-    setIterator(Iter.prototype, returnThis); // override $forProto iterator
-    return Iter;
+    Iter.create(Iterator, 'Chain', next, $forProto);
+    Iter.set(Iterator.prototype, $.that); // override $forProto iterator
+    return Iterator;
   }
   
   var MapIter = createChainIterator(function(){
     var step = this[ITER].next();
-    return step.done ? step : iterResult(0, stepCall(this[FN], step.value, this[ENTRIES]));
+    return step.done ? step : Iter.step(0, Iter.stepCall(this[FN], step.value, this[ENTRIES]));
   });
   
   var FilterIter = createChainIterator(function(){
     for(;;){
       var step = this[ITER].next();
-      if(step.done || stepCall(this[FN], step.value, this[ENTRIES]))return step;
+      if(step.done || Iter.stepCall(this[FN], step.value, this[ENTRIES]))return step;
     }
   });
   
-  assignHidden($forProto, {
+  $.mix($forProto, {
     of: function(fn, that){
-      forOf(this, this[ENTRIES], fn, that);
+      Iter.forOf(this, this[ENTRIES], fn, that);
     },
     array: function(fn, that){
       var result = [];
-      forOf(fn != undefined ? this.map(fn, that) : this, false, result.push, result);
+      Iter.forOf(fn != undefined ? this.map(fn, that) : this, false, result.push, result);
       return result;
     },
     filter: function(fn, that){
@@ -53,8 +53,8 @@
     }
   });
   
-  $for.isIterable  = isIterable;
-  $for.getIterator = getIterator;
+  $for.isIterable  = Iter.is;
+  $for.getIterator = Iter.get;
   
-  $define(GLOBAL + FORCED, {$for: $for});
-}('entries', safeSymbol('fn'));
+  $def(GLOBAL + FORCED, {$for: $for});
+}('entries', uid.safe('fn'), uid.safe('iter'));

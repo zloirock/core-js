@@ -11,16 +11,16 @@
   // Works with __proto__ only. Old v8 can't works with null proto objects.
   '__proto__' in {} && function(buggy, set){
     try {
-      set = ctx(Function.call, getOwnDescriptor(Object.prototype, '__proto__').set, 2);
+      set = $.ctx(Function.call, $.getDesc(Object.prototype, '__proto__').set, 2);
       set({}, []);
     } catch(e){ buggy = true }
-    objectStatic.setPrototypeOf = setPrototypeOf = setPrototypeOf || function(O, proto){
+    objectStatic.setPrototypeOf = $.setProto = $.setProto || function(O, proto){
       assert.obj(O);
-      assert(proto === null || isObject(proto), proto, ": can't set as prototype!");
+      assert(proto === null || $.isObject(proto), proto, ": can't set as prototype!");
       if(buggy)O.__proto__ = proto;
       else set(O, proto);
       return O;
     }
   }();
-  $define(STATIC, 'Object', objectStatic);
+  $def(STATIC, 'Object', objectStatic);
 }();

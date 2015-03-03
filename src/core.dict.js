@@ -1,9 +1,9 @@
-!function(DICT){
+!function(DICT, ITER){
   function Dict(iterable){
-    var dict = create(null);
+    var dict = $.create(null);
     if(iterable != undefined){
-      if(isIterable(iterable)){
-        forOf(iterable, true, function(key, value){
+      if(Iter.is(iterable)){
+        Iter.forOf(iterable, true, function(key, value){
           dict[key] = value;
         });
       } else assign(dict, iterable);
@@ -11,11 +11,11 @@
     return dict;
   }
   Dict.prototype = null;
-  
+    
   function DictIterator(iterated, kind){
-    set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
+    $.set(this, ITER, {o: $.toObject(iterated), a: $.getKeys(iterated), i: 0, k: kind});
   }
-  createIterator(DictIterator, DICT, function(){
+  Iter.create(DictIterator, DICT, function(){
     var iter = this[ITER]
       , O    = iter.o
       , keys = iter.a
@@ -24,17 +24,21 @@
     do {
       if(iter.i >= keys.length){
         iter.o = undefined;
-        return iterResult(1);
+        return Iter.step(1);
       }
-    } while(!has(O, key = keys[iter.i++]));
-    if(kind == 'key')   return iterResult(0, key);
-    if(kind == 'value') return iterResult(0, O[key]);
-                        return iterResult(0, [key, O[key]]);
+    } while(!$.has(O, key = keys[iter.i++]));
+    if(kind == 'key')   return Iter.step(0, key);
+    if(kind == 'value') return Iter.step(0, O[key]);
+                        return Iter.step(0, [key, O[key]]);
   });
   function createDictIter(kind){
     return function(it){
       return new DictIterator(it, kind);
     }
+  }
+  function generic(A, B){
+    // strange IE quirks mode bug -> use typeof instead of isFunction
+    return typeof A == 'function' ? A : B;
   }
   
   /*
@@ -51,11 +55,11 @@
     var isMap    = type == 1
       , isEvery  = type == 4;
     return function(object, callbackfn, that /* = undefined */){
-      var f      = ctx(callbackfn, that, 3)
-        , O      = toObject(object)
+      var f      = $.ctx(callbackfn, that, 3)
+        , O      = $.toObject(object)
         , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
         , key, val, res;
-      for(key in O)if(has(O, key)){
+      for(key in O)if($.has(O, key)){
         val = O[key];
         res = f(val, key, object);
         if(type){
@@ -75,8 +79,8 @@
   function createDictReduce(isTurn){
     return function(object, mapfn, init){
       assert.fn(mapfn);
-      var O      = toObject(object)
-        , keys   = getKeys(O)
+      var O      = $.toObject(object)
+        , keys   = $.getKeys(O)
         , length = keys.length
         , i      = 0
         , memo, key, result;
@@ -85,7 +89,7 @@
         assert(length, assert.REDUCE);
         memo = O[keys[i++]];
       } else memo = Object(init);
-      while(length > i)if(has(O, key = keys[i++])){
+      while(length > i)if($.has(O, key = keys[i++])){
         result = mapfn(memo, O[key], key, object);
         if(isTurn){
           if(result === false)break;
@@ -96,7 +100,7 @@
   }
   var findKey = createDictMethod(6);
   function includes(object, el){
-    return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
+    return (el == el ? keyOf(object, el) : findKey(object, $.isNaN)) !== undefined;
   }
   
   var dictMethods = {
@@ -116,14 +120,16 @@
     keyOf:   keyOf,
     includes:includes,
     // Has / get / set own property
-    has: has,
-    get: get,
-    set: createDefiner(0),
+    has: $.has,
+    get: function(object, key){
+      if($.has(object, key))return object[key];
+    },
+    set: $.def,
     isDict: function(it){
-      return isObject(it) && getPrototypeOf(it) === Dict.prototype;
+      return $.isObject(it) && $.getProto(it) === Dict.prototype;
     }
   };
-  var REFERENCE_GET = getWellKnownSymbol('referenceGet');
+  var REFERENCE_GET = wks('referenceGet');
   for(var key in dictMethods)!function(fn){
     function method(){
       for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
@@ -134,5 +140,5 @@
     }
   }(dictMethods[key]);
   
-  $define(GLOBAL + FORCED, {Dict: assignHidden(Dict, dictMethods)});
-}('Dict');
+  $def(GLOBAL + FORCED, {Dict: $.mix(Dict, dictMethods)});
+}('Dict', uid.safe('iter'));

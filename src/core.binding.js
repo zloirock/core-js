@@ -1,12 +1,12 @@
 !function(_, toLocaleString){
   // Placeholder
-  core._ = path._ = path._ || {};
+  $.core._ = $.path._ = $.path._ || {};
 
-  $define(PROTO + FORCED, 'Function', {
+  $def(PROTO + FORCED, 'Function', {
     part: partial,
     only: function(numberArguments, that /* = @ */){
       var fn     = assert.fn(this)
-        , n      = toLength(numberArguments)
+        , n      = $.toLength(numberArguments)
         , isThat = arguments.length > 1;
       return function(/* ...args */){
         var length = Math.min(n, arguments.length)
@@ -21,17 +21,17 @@
   function tie(key){
     var that  = this
       , bound = {};
-    return hidden(that, _, function(key){
+    return $.hide(that, _, function(key){
       if(key === undefined || !(key in that))return toLocaleString.call(that);
-      return has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
+      return $.has(bound, key) ? bound[key] : (bound[key] = $.ctx(that[key], that, -1));
     })[_](key);
   }
   
-  hidden(path._, 'toString', function(){
+  $.hide($.path._, 'toString', function(){
     return _;
   });
   
-  hidden(Object.prototype, _, tie);
-  DESC || hidden(Array.prototype, _, tie);
+  $.hide(Object.prototype, _, tie);
+  $.DESC || $.hide(Array.prototype, _, tie);
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-}(DESC ? uid('tie') : 'toLocaleString', {}.toLocaleString);
+}($.DESC ? uid('tie') : 'toLocaleString', {}.toLocaleString);

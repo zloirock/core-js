@@ -1,11 +1,11 @@
 !function(){
   function isInteger(it){
-    return !isObject(it) && isFinite(it) && floor(it) === it;
+    return !$.isObject(it) && isFinite(it) && floor(it) === it;
   }
   var MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991
     , abs   = Math.abs
     , floor = Math.floor;
-  $define(STATIC, 'Number', {
+  $def(STATIC, 'Number', {
     // 20.1.2.1 Number.EPSILON
     EPSILON: Math.pow(2, -52),
     // 20.1.2.2 Number.isFinite(number)
@@ -15,7 +15,7 @@
     // 20.1.2.3 Number.isInteger(number)
     isInteger: isInteger,
     // 20.1.2.4 Number.isNaN(number)
-    isNaN: sameNaN,
+    isNaN: $.isNaN,
     // 20.1.2.5 Number.isSafeInteger(number)
     isSafeInteger: function(number){
       return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;

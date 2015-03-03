@@ -1329,7 +1329,7 @@
     equal(isExtensible({}), true);
   });
   test('Function#bind', function(){
-    var obj;
+    var obj, fn;
     ok(isFunction(Function.prototype.bind), 'Is function');
     obj = {
       a: 42
@@ -1341,6 +1341,8 @@
     ok(42 === function(it){
       return it;
     }.bind(null, 42)());
+    fn = RegExp.prototype.test.bind(/a/);
+    ok(fn('a'));
   });
   test('Array.isArray', function(){
     var isArray;

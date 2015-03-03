@@ -2,7 +2,7 @@
   function createFormat(prefix){
     return function(template, locale /* = current */){
       var that = this
-        , dict = locales[has(locales, locale) ? locale : current];
+        , dict = locales[$.has(locales, locale) ? locale : current];
       function get(unit){
         return that[prefix + unit]();
       }
@@ -33,15 +33,15 @@
   function addLocale(lang, locale){
     function split(index){
       var result = [];
-      forEach.call(array(locale.months), function(it){
+      $.each.call($.a(locale.months), function(it){
         result.push(it.replace(flexioRegExp, '$' + index));
       });
       return result;
     }
-    locales[lang] = [array(locale.weekdays), split(1), split(2)];
-    return core;
+    locales[lang] = [$.a(locale.weekdays), split(1), split(2)];
+    return $.core;
   }
-  $define(PROTO + FORCED, DATE, {
+  $def(PROTO + FORCED, DATE, {
     format:    createFormat('get'),
     formatUTC: createFormat('getUTC')
   });
@@ -54,8 +54,8 @@
     months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,' +
             'Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
-  core.locale = function(locale){
-    return has(locales, locale) ? current = locale : current;
+  $.core.locale = function(locale){
+    return $.has(locales, locale) ? current = locale : current;
   };
-  core.addLocale = addLocale;
+  $.core.addLocale = addLocale;
 }(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');

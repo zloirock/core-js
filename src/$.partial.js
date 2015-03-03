@@ -3,7 +3,7 @@ function partial(/* ...args */){
     , length = arguments.length
     , args   = Array(length)
     , i      = 0
-    , _      = path._
+    , _      = $.path._
     , holder = false;
   while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
   return function(/* ...args */){

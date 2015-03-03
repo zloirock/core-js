@@ -1,12 +1,12 @@
 var task = {
-  set:   global.setImmediate,
-  clear: global.clearImmediate
+  set:   $.g.setImmediate,
+  clear: $.g.clearImmediate
 };
 // Node.js 0.9+ & IE10+ has setImmediate, else:
-isFunction(task.set) && isFunction(task.clear) || function(ONREADYSTATECHANGE){
-  var postMessage      = global.postMessage
-    , addEventListener = global.addEventListener
-    , MessageChannel   = global.MessageChannel
+$.isFunction(task.set) && $.isFunction(task.clear) || function(ONREADYSTATECHANGE){
+  var postMessage      = $.g.postMessage
+    , addEventListener = $.g.addEventListener
+    , MessageChannel   = $.g.MessageChannel
     , counter          = 0
     , queue            = {}
     , defer, channel, port;
@@ -14,7 +14,7 @@ isFunction(task.set) && isFunction(task.clear) || function(ONREADYSTATECHANGE){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
-      invoke(isFunction(fn) ? fn : Function(fn), args);
+      invoke($.isFunction(fn) ? fn : Function(fn), args);
     }
     defer(counter);
     return counter;
@@ -23,7 +23,7 @@ isFunction(task.set) && isFunction(task.clear) || function(ONREADYSTATECHANGE){
     delete queue[id];
   }
   function run(id){
-    if(has(queue, id)){
+    if($.has(queue, id)){
       var fn = queue[id];
       delete queue[id];
       fn();
@@ -39,22 +39,22 @@ isFunction(task.set) && isFunction(task.clear) || function(ONREADYSTATECHANGE){
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
+  } else if(addEventListener && $.isFunction(postMessage) && !$.g.importScripts){
     defer = function(id){
       postMessage(id, '*');
     }
     addEventListener('message', listner, false);
   // WebWorkers
-  } else if(isFunction(MessageChannel)){
+  } else if($.isFunction(MessageChannel)){
     channel = new MessageChannel;
     port    = channel.port2;
     channel.port1.onmessage = listner;
-    defer = ctx(port.postMessage, port, 1);
+    defer = $.ctx(port.postMessage, port, 1);
   // IE8-
-  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
+  } else if($.g.document && ONREADYSTATECHANGE in document.createElement('script')){
     defer = function(id){
-      html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
-        html.removeChild(this);
+      $.html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
+        $.html.removeChild(this);
         run(id);
       }
     }

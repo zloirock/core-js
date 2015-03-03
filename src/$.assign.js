@@ -4,8 +4,8 @@ var assign = Object.assign || function(target, source){
     , l = arguments.length
     , i = 1;
   while(l > i){
-    var S      = ES5Object(arguments[i++])
-      , keys   = getKeys(S)
+    var S      = $.ES5Object(arguments[i++])
+      , keys   = $.getKeys(S)
       , length = keys.length
       , j      = 0
       , key;

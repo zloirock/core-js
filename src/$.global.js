@@ -1,0 +1,1 @@
+var global = typeof self != 'undefined' ? self : Function('return this')()

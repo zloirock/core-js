@@ -1,19 +1,23 @@
 require! './config': {banner}, fs: {readFile}
 modules  = <[
-  common.assert
-  common.wks
-  common
-  common.invoke
-  common.partial
-  common.assign
-  common.keyof
-  common.export
-  common.iterators
-  common.replacer
-  common.array-methods
-  common.array-includes
-  common.string-at
-  common.task
+  $.global
+  $.uid
+  $
+  $.assert
+  $.wks
+  $.cof
+  $.invoke
+  $.partial
+  $.assign
+  $.keyof
+  $.export
+  $.iterators
+  $.replacer
+  $.array-methods
+  $.array-includes
+  $.string-at
+  $.task
+  $.species
   es5
   es6.symbol
   es6.object.statics
@@ -51,7 +55,7 @@ modules  = <[
   core.log
 ]>
 
-common-iterators = <[
+$-iterators = <[
   core.$for
   core.dict
   core.iterator
@@ -83,16 +87,16 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
     for name in modules
       if name is ns or name.startsWith("#ns.")
         @[name] = no
-  @common = on
-  <[assert export wks string-at array-methods array-includes replacer assign keyof invoke partial]>forEach !~> @"common.#it" = on
+  @$ = on
+  <[global assert uid export wks cof string-at array-methods array-includes replacer assign keyof invoke partial species]>forEach !~> @"$.#it" = on
   if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   if @\core.iterator     => @\es6.collections = on
   if @\es6.collections   => @\es6.iterators   = on
   if @\es7.abstract-refs => @\es6.symbol      = on
   if @\core.delay        => @\es6.promise     = on
-  if @\web.immediate     => @\common.task     = on
-  if @\es6.promise       => @ <<< {+\common.task, +\es6.iterators}
-  for common-iterators => if @[..] => @\common.iterators = on
+  if @\web.immediate     => @\$.task     = on
+  if @\es6.promise       => @ <<< {+\$.task, +\es6.iterators}
+  for $-iterators => if @[..] => @\$.iterators = on
   scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
     resolve, reject <- new Promise _
     error, data <- readFile "src/#name.js"

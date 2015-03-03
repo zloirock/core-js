@@ -1,13 +1,13 @@
 !function(){
-  $define(PROTO, 'Array', {
+  $def(PROTO, 'Array', {
     // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
     copyWithin: function(target /* = 0 */, start /* = 0, end = @length */){
       var O     = Object(assert.def(this))
-        , len   = toLength(O.length)
-        , to    = toIndex(target, len)
-        , from  = toIndex(start, len)
+        , len   = $.toLength(O.length)
+        , to    = $.toIndex(target, len)
+        , from  = $.toIndex(start, len)
         , end   = arguments[2]
-        , fin   = end === undefined ? len : toIndex(end, len)
+        , fin   = end === undefined ? len : $.toIndex(end, len)
         , count = Math.min(fin - from, len - to)
         , inc   = 1;
       if(from < to && to < from + count){
@@ -25,10 +25,10 @@
     // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
     fill: function(value /*, start = 0, end = @length */){
       var O      = Object(assert.def(this))
-        , length = toLength(O.length)
-        , index  = toIndex(arguments[1], length)
+        , length = $.toLength(O.length)
+        , index  = $.toIndex(arguments[1], length)
         , end    = arguments[2]
-        , endPos = end === undefined ? length : toIndex(end, length);
+        , endPos = end === undefined ? length : $.toIndex(end, length);
       while(endPos > index)O[index++] = value;
       return O;
     },
@@ -39,13 +39,13 @@
   });
   
   if(framework){
-    var SYMBOL_UNSCOPABLES = getWellKnownSymbol('unscopables')
+    var SYMBOL_UNSCOPABLES = wks('unscopables')
       , ArrayProto         = Array.prototype
       , ArrayUnscopables   = ArrayProto[SYMBOL_UNSCOPABLES] || {}
     // 22.1.3.31 Array.prototype[@@unscopables]
-    forEach.call(array('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
+    $.each.call($.a('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
       ArrayUnscopables[it] = true;
     });
-    SYMBOL_UNSCOPABLES in ArrayProto || hidden(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
+    SYMBOL_UNSCOPABLES in ArrayProto || $.hide(ArrayProto, SYMBOL_UNSCOPABLES, ArrayUnscopables);
   }
 }();

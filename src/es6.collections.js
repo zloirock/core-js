@@ -1,23 +1,25 @@
 // ECMAScript 6 collections shim
 !function(){
-  var UID   = safeSymbol('uid')
-    , O1    = safeSymbol('O1')
-    , WEAK  = safeSymbol('weak')
-    , LEAK  = safeSymbol('leak')
-    , LAST  = safeSymbol('last')
-    , FIRST = safeSymbol('first')
-    , SIZE  = DESC ? safeSymbol('size') : 'size'
-    , uid   = 0
+  var isFrozen = Object.isFrozen || $.core.Object.isFrozen
+    , CID   = uid.safe('cid')
+    , O1    = uid.safe('O1')
+    , WEAK  = uid.safe('weak')
+    , LEAK  = uid.safe('leak')
+    , LAST  = uid.safe('last')
+    , FIRST = uid.safe('first')
+    , ITER  = uid.safe('iter')
+    , SIZE  = $.DESC ? uid.safe('size') : 'size'
+    , cid   = 0
     , tmp   = {};
   
   function getCollection(NAME, methods, commonMethods, isMap, isWeak){
-    var Base  = global[NAME]
+    var Base  = $.g[NAME]
       , C     = Base
       , ADDER = isMap ? 'set' : 'add'
       , proto = C && C.prototype
       , O     = {};
     function initFromIterable(that, iterable){
-      if(iterable != undefined)forOf(iterable, isMap, that[ADDER], that);
+      if(iterable != undefined)Iter.forOf(iterable, isMap, that[ADDER], that);
       return that;
     }
     function fixSVZ(key, chain){
@@ -27,23 +29,33 @@
         return chain ? this : result;
       };
     }
-    if(!isFunction(C) || !(isWeak || (!BUGGY_ITERATORS && proto.forEach && proto.entries))){
+    function checkIter(){
+      var done = false;
+      var O = {next: function(){
+        done = true;
+        return Iter.step(1, 0);
+      }};
+      O[SYMBOL_ITERATOR] = $.that;
+      try { new C(O) } catch(e){}
+      return done;
+    }
+    if(!$.isFunction(C) || !(isWeak || (!Iter.BUGGY && proto.forEach && proto.entries))){
       // create collection constructor
       C = isWeak
         ? function(iterable){
-            set(assert.inst(this, C, NAME), UID, uid++);
+            $.set(assert.inst(this, C, NAME), CID, cid++);
             initFromIterable(this, iterable);
           }
         : function(iterable){
             var that = assert.inst(this, C, NAME);
-            set(that, O1, create(null));
-            set(that, SIZE, 0);
-            set(that, LAST, undefined);
-            set(that, FIRST, undefined);
+            $.set(that, O1, $.create(null));
+            $.set(that, SIZE, 0);
+            $.set(that, LAST, undefined);
+            $.set(that, FIRST, undefined);
             initFromIterable(that, iterable);
           };
-      assignHidden(assignHidden(C.prototype, methods), commonMethods);
-      isWeak || !DESC || defineProperty(C.prototype, 'size', {get: function(){
+      $.mix($.mix(C.prototype, methods), commonMethods);
+      isWeak || !$.DESC || $.setDesc(C.prototype, 'size', {get: function(){
         return assert.def(this[SIZE]);
       }});
     } else {
@@ -52,7 +64,7 @@
         , chain  = inst[ADDER](isWeak ? {} : -0, 1)
         , buggyZero;
       // wrap to init collections from iterable
-      if(checkDangerIterClosing(function(O){ new C(O) })){
+      if(Iter.DANGER_CLOSING || !checkIter()){
         C = function(iterable){
           assert.inst(this, C, NAME);
           return initFromIterable(new Native, iterable);
@@ -72,16 +84,16 @@
       // + fix .add & .set for chaining
       if(buggyZero || chain !== inst)fixSVZ(ADDER, true);
     }
-    setToStringTag(C, NAME);
+    cof.set(C, NAME);
     setSpecies(C);
     
     O[NAME] = C;
-    $define(GLOBAL + WRAP + FORCED * (C != Base), O);
+    $def(GLOBAL + WRAP + FORCED * (C != Base), O);
     
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-    isWeak || defineStdIterators(C, NAME, function(iterated, kind){
-      set(this, ITER, {o: iterated, k: kind});
+    isWeak || Iter.std(C, NAME, function(iterated, kind){
+      $.set(this, ITER, {o: iterated, k: kind});
     }, function(){
       var iter  = this[ITER]
         , kind  = iter.k
@@ -92,12 +104,12 @@
       if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
         // or finish the iteration
         iter.o = undefined;
-        return iterResult(1);
+        return Iter.step(1);
       }
       // return step by kind
-      if(kind == 'key')   return iterResult(0, entry.k);
-      if(kind == 'value') return iterResult(0, entry.v);
-                          return iterResult(0, [entry.k, entry.v]);   
+      if(kind == 'key')   return Iter.step(0, entry.k);
+      if(kind == 'value') return Iter.step(0, entry.v);
+                          return Iter.step(0, [entry.k, entry.v]);   
     }, isMap ? 'key+value' : 'value', !isMap, true);
     
     return C;
@@ -105,16 +117,16 @@
   
   function fastKey(it, create){
     // return primitive with prefix
-    if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+    if(!$.isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
     // can't set id to frozen object
     if(isFrozen(it))return 'F';
-    if(!has(it, UID)){
+    if(!$.has(it, CID)){
       // not necessary to add id
       if(!create)return 'E';
       // add missing object id
-      hidden(it, UID, ++uid);
+      $.hide(it, CID, ++cid);
     // return object id with prefix
-    } return 'O' + it[UID];
+    } return 'O' + it[CID];
   }
   function getEntry(that, key){
     // fast case
@@ -180,7 +192,7 @@
     // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
     // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
     forEach: function(callbackfn /*, that = undefined */){
-      var f = ctx(callbackfn, arguments[1], 3)
+      var f = $.ctx(callbackfn, arguments[1], 3)
         , entry;
       while(entry = entry ? entry.n : this[FIRST]){
         f(entry.v, entry.k, this);
@@ -219,28 +231,28 @@
   function defWeak(that, key, value){
     if(isFrozen(assert.obj(key)))leakStore(that).set(key, value);
     else {
-      has(key, WEAK) || hidden(key, WEAK, {});
-      key[WEAK][that[UID]] = value;
+      $.has(key, WEAK) || $.hide(key, WEAK, {});
+      key[WEAK][that[CID]] = value;
     } return that;
   }
   function leakStore(that){
-    return that[LEAK] || hidden(that, LEAK, new Map)[LEAK];
+    return that[LEAK] || $.hide(that, LEAK, new Map)[LEAK];
   }
   
   var weakMethods = {
     // 23.3.3.2 WeakMap.prototype.delete(key)
     // 23.4.3.3 WeakSet.prototype.delete(value)
     'delete': function(key){
-      if(!isObject(key))return false;
+      if(!$.isObject(key))return false;
       if(isFrozen(key))return leakStore(this)['delete'](key);
-      return has(key, WEAK) && has(key[WEAK], this[UID]) && delete key[WEAK][this[UID]];
+      return $.has(key, WEAK) && $.has(key[WEAK], this[CID]) && delete key[WEAK][this[CID]];
     },
     // 23.3.3.4 WeakMap.prototype.has(key)
     // 23.4.3.4 WeakSet.prototype.has(value)
     has: function(key){
-      if(!isObject(key))return false;
+      if(!$.isObject(key))return false;
       if(isFrozen(key))return leakStore(this).has(key);
-      return has(key, WEAK) && has(key[WEAK], this[UID]);
+      return $.has(key, WEAK) && $.has(key[WEAK], this[CID]);
     }
   };
   
@@ -248,9 +260,9 @@
   var WeakMap = getCollection('WeakMap', {
     // 23.3.3.3 WeakMap.prototype.get(key)
     get: function(key){
-      if(isObject(key)){
+      if($.isObject(key)){
         if(isFrozen(key))return leakStore(this).get(key);
-        if(has(key, WEAK))return key[WEAK][this[UID]];
+        if($.has(key, WEAK))return key[WEAK][this[CID]];
       }
     },
     // 23.3.3.5 WeakMap.prototype.set(key, value)
@@ -261,11 +273,11 @@
   
   // IE11 WeakMap frozen keys fix
   if(framework && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
-    forEach.call(array('delete,has,get,set'), function(key){
+    $.each.call($.a('delete,has,get,set'), function(key){
       var method = WeakMap.prototype[key];
       WeakMap.prototype[key] = function(a, b){
         // store frozen objects on leaky map
-        if(isObject(a) && isFrozen(a)){
+        if($.isObject(a) && isFrozen(a)){
           var result = leakStore(this)[key](a, b);
           return key == 'set' ? this : result;
         // store all the rest on native weakmap

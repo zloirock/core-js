@@ -3,7 +3,7 @@
     if(cof(it) == 'RegExp')throw TypeError();
   }
   
-  $define(STATIC, 'String', {
+  $def(STATIC, 'String', {
     // 21.1.2.2 String.fromCodePoint(...codePoints)
     fromCodePoint: function(x){
       var res = []
@@ -12,7 +12,7 @@
         , code
       while(len > i){
         code = +arguments[i++];
-        if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
+        if($.toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
         res.push(code < 0x10000
           ? fromCharCode(code)
           : fromCharCode(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
@@ -21,8 +21,8 @@
     },
     // 21.1.2.4 String.raw(callSite, ...substitutions)
     raw: function(callSite){
-      var raw = toObject(callSite.raw)
-        , len = toLength(raw.length)
+      var raw = $.toObject(callSite.raw)
+        , len = $.toLength(raw.length)
         , sln = arguments.length
         , res = []
         , i   = 0;
@@ -33,7 +33,7 @@
     }
   });
   
-  $define(PROTO, 'String', {
+  $def(PROTO, 'String', {
     // 21.1.3.3 String.prototype.codePointAt(pos)
     codePointAt: createPointAt(false),
     // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
@@ -41,8 +41,8 @@
       assertNotRegExp(searchString);
       var that = String(assert.def(this))
         , endPosition = arguments[1]
-        , len = toLength(that.length)
-        , end = endPosition === undefined ? len : min(toLength(endPosition), len);
+        , len = $.toLength(that.length)
+        , end = endPosition === undefined ? len : min($.toLength(endPosition), len);
       searchString += '';
       return that.slice(end - searchString.length, end) === searchString;
     },
@@ -55,7 +55,7 @@
     repeat: function(count){
       var str = String(assert.def(this))
         , res = ''
-        , n   = toInteger(count);
+        , n   = $.toInteger(count);
       if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
       for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
       return res;
@@ -64,7 +64,7 @@
     startsWith: function(searchString /*, position = 0 */){
       assertNotRegExp(searchString);
       var that  = String(assert.def(this))
-        , index = toLength(min(arguments[1], that.length));
+        , index = $.toLength(min(arguments[1], that.length));
       searchString += '';
       return that.slice(index, index + searchString.length) === searchString;
     }
