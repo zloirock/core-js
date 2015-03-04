@@ -8,6 +8,7 @@
   },
   "main": "index.js",
   "devDependencies": {
+    "browserify": "9.0.x",
     "LiveScript": "1.3.x",
     "grunt": "0.4.x",
     "load-grunt-tasks": "0.4.x",
