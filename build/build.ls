@@ -1,4 +1,5 @@
-require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify}
+require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '../library': core}
+{startsWith, repeat} = core.String
 modules  = <[
   $.library
   es5
@@ -42,8 +43,8 @@ exp = <[
   core.iterator
 ]>
 
-x78 = '*'repeat 78
-module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)-> memo[it] = on), {}
+x78 = repeat '*' 78
+module.exports = (options, blacklist, next)-> let @ = core.Array.turn options, ((memo, it)-> memo[it] = on), {}
   if @shim         => @ <<< {+\shim.old, +\shim.modern}
   if @\shim.old    => for <[es5 web.timers]> => @[..] = on
   if @\shim.modern => for <[es6 es7 js.array.statics web.immediate web.dom.itarable]> => @[..] = on
@@ -51,11 +52,11 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
   for ns of @
     if @[ns]
       for name in modules
-        if name.startsWith("#ns.") and name not in exp
+        if startsWith(name, "#ns.") and name not in exp
           @[name] = on
   for ns in blacklist
     for name in modules
-      if name is ns or name.startsWith("#ns.")
+      if name is ns or startsWith name, "#ns."
         @[name] = no
   if @library  => @ <<< {+\$.library, -\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   err <-! writeFile './tmp.js', modules.filter(~> @[it]).map(->"require('./src/#it');").join('\n')

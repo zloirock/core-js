@@ -1,4 +1,4 @@
-require! <[./core-stable ./build fs ./config]>
+require! <[./build fs ./config]>
 module.exports = (grunt)->
   require \load-grunt-tasks <| grunt
   grunt.initConfig do
