@@ -1,5 +1,8 @@
-function partial(/* ...args */){
-  var fn     = assert.fn(this)
+'use strict';
+var $      = require('./$')
+  , invoke = require('./$.invoke');
+module.exports = function partial(/* ...args */){
+  var fn     = $.assert.fn(this)
     , length = arguments.length
     , args   = Array(length)
     , i      = 0

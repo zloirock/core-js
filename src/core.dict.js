@@ -1,144 +1,150 @@
-!function(DICT, ITER){
-  function Dict(iterable){
-    var dict = $.create(null);
-    if(iterable != undefined){
-      if(Iter.is(iterable)){
-        Iter.forOf(iterable, true, function(key, value){
-          dict[key] = value;
-        });
-      } else assign(dict, iterable);
-    }
-    return dict;
+var $             = require('./$')
+  , $def          = require('./$.def')
+  , assign        = require('./$.assign')
+  , keyOf         = require('./$.keyof')
+  , invoke        = require('./$.invoke')
+  , Iter          = require('./$.iter')
+  , ITER          = require('./$.uid').safe('iter')
+  , REFERENCE_GET = require('./$.wks')('referenceGet');
+
+function Dict(iterable){
+  var dict = $.create(null);
+  if(iterable != undefined){
+    if(Iter.is(iterable)){
+      Iter.forOf(iterable, true, function(key, value){
+        dict[key] = value;
+      });
+    } else assign(dict, iterable);
   }
-  Dict.prototype = null;
-    
-  function DictIterator(iterated, kind){
-    $.set(this, ITER, {o: $.toObject(iterated), a: $.getKeys(iterated), i: 0, k: kind});
-  }
-  Iter.create(DictIterator, DICT, function(){
-    var iter = this[ITER]
-      , O    = iter.o
-      , keys = iter.a
-      , kind = iter.k
-      , key;
-    do {
-      if(iter.i >= keys.length){
-        iter.o = undefined;
-        return Iter.step(1);
-      }
-    } while(!$.has(O, key = keys[iter.i++]));
-    if(kind == 'key')   return Iter.step(0, key);
-    if(kind == 'value') return Iter.step(0, O[key]);
-                        return Iter.step(0, [key, O[key]]);
-  });
-  function createDictIter(kind){
-    return function(it){
-      return new DictIterator(it, kind);
-    }
-  }
-  function generic(A, B){
-    // strange IE quirks mode bug -> use typeof instead of isFunction
-    return typeof A == 'function' ? A : B;
-  }
+  return dict;
+}
+Dict.prototype = null;
   
-  /*
-   * 0 -> forEach
-   * 1 -> map
-   * 2 -> filter
-   * 3 -> some
-   * 4 -> every
-   * 5 -> find
-   * 6 -> findKey
-   * 7 -> mapPairs
-   */
-  function createDictMethod(type){
-    var isMap    = type == 1
-      , isEvery  = type == 4;
-    return function(object, callbackfn, that /* = undefined */){
-      var f      = $.ctx(callbackfn, that, 3)
-        , O      = $.toObject(object)
-        , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
-        , key, val, res;
-      for(key in O)if($.has(O, key)){
-        val = O[key];
-        res = f(val, key, object);
-        if(type){
-          if(isMap)result[key] = res;             // map
-          else if(res)switch(type){
-            case 2: result[key] = val; break      // filter
-            case 3: return true;                  // some
-            case 5: return val;                   // find
-            case 6: return key;                   // findKey
-            case 7: result[res[0]] = res[1];      // mapPairs
-          } else if(isEvery)return false;         // every
-        }
+function DictIterator(iterated, kind){
+  $.set(this, ITER, {o: $.toObject(iterated), a: $.getKeys(iterated), i: 0, k: kind});
+}
+Iter.create(DictIterator, 'Dict', function(){
+  var iter = this[ITER]
+    , O    = iter.o
+    , keys = iter.a
+    , kind = iter.k
+    , key;
+  do {
+    if(iter.i >= keys.length){
+      iter.o = undefined;
+      return Iter.step(1);
+    }
+  } while(!$.has(O, key = keys[iter.i++]));
+  if(kind == 'key')   return Iter.step(0, key);
+  if(kind == 'value') return Iter.step(0, O[key]);
+                      return Iter.step(0, [key, O[key]]);
+});
+function createDictIter(kind){
+  return function(it){
+    return new DictIterator(it, kind);
+  }
+}
+function generic(A, B){
+  // strange IE quirks mode bug -> use typeof instead of isFunction
+  return typeof A == 'function' ? A : B;
+}
+
+/*
+ * 0 -> forEach
+ * 1 -> map
+ * 2 -> filter
+ * 3 -> some
+ * 4 -> every
+ * 5 -> find
+ * 6 -> findKey
+ * 7 -> mapPairs
+ */
+function createDictMethod(type){
+  var isMap    = type == 1
+    , isEvery  = type == 4;
+  return function(object, callbackfn, that /* = undefined */){
+    var f      = $.ctx(callbackfn, that, 3)
+      , O      = $.toObject(object)
+      , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
+      , key, val, res;
+    for(key in O)if($.has(O, key)){
+      val = O[key];
+      res = f(val, key, object);
+      if(type){
+        if(isMap)result[key] = res;             // map
+        else if(res)switch(type){
+          case 2: result[key] = val; break      // filter
+          case 3: return true;                  // some
+          case 5: return val;                   // find
+          case 6: return key;                   // findKey
+          case 7: result[res[0]] = res[1];      // mapPairs
+        } else if(isEvery)return false;         // every
       }
-      return type == 3 || isEvery ? isEvery : result;
     }
+    return type == 3 || isEvery ? isEvery : result;
   }
-  function createDictReduce(isTurn){
-    return function(object, mapfn, init){
-      assert.fn(mapfn);
-      var O      = $.toObject(object)
-        , keys   = $.getKeys(O)
-        , length = keys.length
-        , i      = 0
-        , memo, key, result;
-      if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
-      else if(arguments.length < 3){
-        assert(length, assert.REDUCE);
-        memo = O[keys[i++]];
-      } else memo = Object(init);
-      while(length > i)if($.has(O, key = keys[i++])){
-        result = mapfn(memo, O[key], key, object);
-        if(isTurn){
-          if(result === false)break;
-        } else memo = result;
-      }
-      return memo;
+}
+function createDictReduce(isTurn){
+  return function(object, mapfn, init){
+    $.assert.fn(mapfn);
+    var O      = $.toObject(object)
+      , keys   = $.getKeys(O)
+      , length = keys.length
+      , i      = 0
+      , memo, key, result;
+    if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
+    else if(arguments.length < 3){
+      $.assert(length, $.assert.REDUCE);
+      memo = O[keys[i++]];
+    } else memo = Object(init);
+    while(length > i)if($.has(O, key = keys[i++])){
+      result = mapfn(memo, O[key], key, object);
+      if(isTurn){
+        if(result === false)break;
+      } else memo = result;
     }
+    return memo;
   }
-  var findKey = createDictMethod(6);
-  function includes(object, el){
-    return (el == el ? keyOf(object, el) : findKey(object, $.isNaN)) !== undefined;
+}
+var findKey = createDictMethod(6);
+function includes(object, el){
+  return (el == el ? keyOf(object, el) : findKey(object, $.isNaN)) !== undefined;
+}
+
+var dictMethods = {
+  keys:    createDictIter('key'),
+  values:  createDictIter('value'),
+  entries: createDictIter('key+value'),
+  forEach: createDictMethod(0),
+  map:     createDictMethod(1),
+  filter:  createDictMethod(2),
+  some:    createDictMethod(3),
+  every:   createDictMethod(4),
+  find:    createDictMethod(5),
+  findKey: findKey,
+  mapPairs:createDictMethod(7),
+  reduce:  createDictReduce(false),
+  turn:    createDictReduce(true),
+  keyOf:   keyOf,
+  includes:includes,
+  // Has / get / set own property
+  has: $.has,
+  get: function(object, key){
+    if($.has(object, key))return object[key];
+  },
+  set: $.def,
+  isDict: function(it){
+    return $.isObject(it) && $.getProto(it) === Dict.prototype;
   }
-  
-  var dictMethods = {
-    keys:    createDictIter('key'),
-    values:  createDictIter('value'),
-    entries: createDictIter('key+value'),
-    forEach: createDictMethod(0),
-    map:     createDictMethod(1),
-    filter:  createDictMethod(2),
-    some:    createDictMethod(3),
-    every:   createDictMethod(4),
-    find:    createDictMethod(5),
-    findKey: findKey,
-    mapPairs:createDictMethod(7),
-    reduce:  createDictReduce(false),
-    turn:    createDictReduce(true),
-    keyOf:   keyOf,
-    includes:includes,
-    // Has / get / set own property
-    has: $.has,
-    get: function(object, key){
-      if($.has(object, key))return object[key];
-    },
-    set: $.def,
-    isDict: function(it){
-      return $.isObject(it) && $.getProto(it) === Dict.prototype;
-    }
-  };
-  var REFERENCE_GET = wks('referenceGet');
-  for(var key in dictMethods)!function(fn){
-    function method(){
-      for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
-      return invoke(fn, args);
-    }
-    fn[REFERENCE_GET] = function(){
-      return method;
-    }
-  }(dictMethods[key]);
-  
-  $def(GLOBAL + FORCED, {Dict: $.mix(Dict, dictMethods)});
-}('Dict', uid.safe('iter'));
+};
+for(var key in dictMethods)!function(fn){
+  function method(){
+    for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
+    return invoke(fn, args);
+  }
+  fn[REFERENCE_GET] = function(){
+    return method;
+  }
+}(dictMethods[key]);
+
+$def($def.G + $def.F, {Dict: $.mix(Dict, dictMethods)});

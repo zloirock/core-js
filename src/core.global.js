@@ -1,1 +1,2 @@
-$def(GLOBAL + FORCED, {global: global});
+var $def = require('./$.def');
+$def($def.G + $def.F, {global: require('./$.global')});

@@ -1,5 +1,6 @@
-var wellKnownSymbols = {};
-function wks(name){
-  return wellKnownSymbols[name] || (wellKnownSymbols[name] =
-    ($.g.Symbol && $.g.Symbol[name]) || uid.safe('Symbol.' + name));
+var global = require('./$.global')
+  , store  = {};
+module.exports = function(name){
+  return store[name] || (store[name] =
+    (global.Symbol && global.Symbol[name]) || require('./$.uid').safe('Symbol.' + name));
 }

@@ -1,4 +1,6 @@
-function createReplacer(regExp, replace, isStatic){
+'use strict';
+var $ = require('./$');
+module.exports = function(regExp, replace, isStatic){
   var replacer = $.isObject(replace) ? function(part){
     return replace[part];
   } : replace;

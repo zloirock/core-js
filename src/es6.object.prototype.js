@@ -1,7 +1,9 @@
-!function(tmp){
-  // 19.1.3.6 Object.prototype.toString()
-  tmp[wks('toStringTag')] = 'z';
-  if(cof(tmp) != 'z')$.hide(Object.prototype, 'toString', function(){
-    return '[object ' + cof.classof(this) + ']';
-  });
-}({});
+'use strict';
+// 19.1.3.6 Object.prototype.toString()
+var $   = require('./$')
+  , cof = require('./$.cof')
+  , tmp = {};
+tmp[require('./$.wks')('toStringTag')] = 'z';
+if($.framework && cof(tmp) != 'z')$.hide(Object.prototype, 'toString', function(){
+  return '[object ' + cof.classof(this) + ']';
+});

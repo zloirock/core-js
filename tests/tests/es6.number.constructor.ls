@@ -11,7 +11,7 @@ check = (a, b)->
   sameEq x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
 
 test 'regression' !->
-  ok typeof! global.Number is \Function, 'Number is function'
+  ok typeof! Number is \Function, 'Number is function'
   eq Number.length, 1, 'Number.length is 1'
   if \name of Number => eq Number.name, \Number, 'Number.name is "Number" (can fail if compressed)'
   

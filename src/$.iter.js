@@ -1,6 +1,11 @@
+'use strict';
+var $                 = require('./$')
+  , cof               = require('./$.cof')
+  , $def              = require('./$.def')
+  , invoke            = require('./$.invoke')
 // Safari has byggy iterators w/o `next`
-var BUGGY             = 'keys' in [] && !('next' in [].keys())
-  , SYMBOL_ITERATOR   = wks('iterator')
+  , BUGGY             = 'keys' in [] && !('next' in [].keys())
+  , SYMBOL_ITERATOR   = require('./$.wks')('iterator')
   , FF_ITERATOR       = '@@iterator'
   , Iterators         = {}
   , IteratorPrototype = {};
@@ -18,7 +23,7 @@ function createIterator(Constructor, NAME, next, proto){
 function defineIterator(Constructor, NAME, value, DEFAULT){
   var proto = Constructor.prototype
     , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || (DEFAULT && proto[DEFAULT]) || value;
-  if(framework){
+  if($.framework){
     // Define iterator
     setIterator(proto, iter);
     if(iter !== value){
@@ -39,7 +44,7 @@ function getIterator(it){
   var Symbol  = $.g.Symbol
     , ext     = it[Symbol && Symbol.iterator || FF_ITERATOR]
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[cof.classof(it)];
-  return assert.obj(getIter.call(it));
+  return $.assert.obj(getIter.call(it));
 }
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
@@ -102,7 +107,7 @@ var Iter = {
         keys: IS_SET ? values : createIter('key'),
         values: values
       }
-      $def(PROTO + FORCED * BUGGY, NAME, methods);
+      $def($def.P + $def.F * BUGGY, NAME, methods);
       if(FORCE)for(key in methods){
         if(!(key in proto))$.hide(proto, key, methods[key]);
       }
@@ -118,3 +123,4 @@ var Iter = {
     }, getIterator(iterable));
   }
 };
+module.exports = Iter;

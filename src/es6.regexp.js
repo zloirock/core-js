@@ -1,4 +1,6 @@
-$.DESC && !function(RegExp, _RegExp, RegExpProto){
+var $   = require('./$')
+  , cof = require('./$.cof');
+$.framework && $.DESC && !function(RegExp, _RegExp, RegExpProto){
   // RegExp allows a regex with flags as the pattern
   if(!function(){try{return RegExp(/a/g, 'i') == '/a/i'}catch(e){}}()){
     RegExp = function RegExp(pattern, flags){
@@ -20,8 +22,8 @@ $.DESC && !function(RegExp, _RegExp, RegExpProto){
   // 21.2.5.3 get RegExp.prototype.flags()
   if(/./g.flags != 'g')$.setDesc(RegExpProto, 'flags', {
     configurable: true,
-    get: createReplacer(/^.*\/(\w*)$/, '$1')
+    get: require('./$.replacer')(/^.*\/(\w*)$/, '$1')
   });
   
-  setSpecies(RegExp);
+  require('./$.species')(RegExp);
 }(RegExp, RegExp, RegExp.prototype);

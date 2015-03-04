@@ -1,23 +1,6 @@
-require! './config': {banner}, fs: {readFile}
+require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify}
 modules  = <[
-  $.global
-  $.uid
-  $
-  $.assert
-  $.wks
-  $.cof
-  $.invoke
-  $.partial
-  $.assign
-  $.keyof
-  $.export
-  $.iterators
-  $.replacer
-  $.array-methods
-  $.array-includes
-  $.string-at
-  $.task
-  $.species
+  $.library
   es5
   es6.symbol
   es6.object.statics
@@ -55,19 +38,6 @@ modules  = <[
   core.log
 ]>
 
-$-iterators = <[
-  core.$for
-  core.dict
-  core.iterator
-  core.number
-  es6.array.statics
-  es6.collections
-  es6.iterators
-  es6.promise
-  es6.reflect
-  web.dom.itarable
-]>
-
 exp = <[
   core.iterator
 ]>
@@ -87,31 +57,24 @@ module.exports = (options, blacklist, next)-> let @ = options.turn ((memo, it)->
     for name in modules
       if name is ns or name.startsWith("#ns.")
         @[name] = no
-  @$ = on
-  <[global assert uid export wks cof string-at array-methods array-includes replacer assign keyof invoke partial species]>forEach !~> @"$.#it" = on
-  if @library            => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
-  if @\core.iterator     => @\es6.collections = on
-  if @\es6.collections   => @\es6.iterators   = on
-  if @\es7.abstract-refs => @\es6.symbol      = on
-  if @\core.delay        => @\es6.promise     = on
-  if @\web.immediate     => @\$.task     = on
-  if @\es6.promise       => @ <<< {+\$.task, +\es6.iterators}
-  for $-iterators => if @[..] => @\$.iterators = on
-  scripts = [] <~ Promise.all modules.filter(~> @[it]).map (name)->
-    resolve, reject <- new Promise _
-    error, data <- readFile "src/#name.js"
-    if error => reject error else resolve {name, data}
-  .then _, console.error
-  scripts .= map ({name, data})-> """
-    \n/#x78
-     * Module : #name #{' 'repeat 65 - name.length}*
-     #x78/\n
-    #data
-    """
+  if @library  => @ <<< {+\$.library, -\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
+  err <-! writeFile './tmp.js', modules.filter(~> @[it]).map(->"require('./src/#it');").join('\n')
+  if err => console.error err
+  err, script <-! browserify(['./tmp']).bundle
+  if err => console.error err
+  err <-! unlink './tmp.js'
   next """
     #banner
-    !function(framework, undefined){
-    'use strict';
-    #{scripts * '\n'}
-    }(#{!@library});
+    !function(undefined){
+    var __e = null, __g = null;
+    
+    #script
+    
+    // CommonJS export
+    if(typeof module != 'undefined' && module.exports)module.exports = __e;
+    // RequireJS export
+    else if(typeof define == 'function' && define.amd)define(function(){return __e});
+    // Export to global object
+    else __g.core = __e;
+    }();
     """

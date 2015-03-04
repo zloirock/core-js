@@ -1,6 +1,8 @@
+'use strict';
 // false -> indexOf
 // true  -> includes
-function createArrayIncludes(isContains){
+var $ = require('./$');
+module.exports = function(isContains){
   return function(el /*, fromIndex = 0 */){
     var O      = $.toObject(this)
       , length = $.toLength(O.length)

@@ -1,4 +1,5 @@
-function keyOf(object, el){
+var $ = require('./$');
+module.exports = function(object, el){
   var O      = $.toObject(object)
     , keys   = $.getKeys(O)
     , length = keys.length

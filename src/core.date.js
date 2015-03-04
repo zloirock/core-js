@@ -1,3 +1,5 @@
+var $    = require('./$')
+  , $def = require('./$.def');
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
   function createFormat(prefix){
     return function(template, locale /* = current */){
@@ -41,7 +43,7 @@
     locales[lang] = [$.a(locale.weekdays), split(1), split(2)];
     return $.core;
   }
-  $def(PROTO + FORCED, DATE, {
+  $def($def.P + $def.F, DATE, {
     format:    createFormat('get'),
     formatUTC: createFormat('getUTC')
   });

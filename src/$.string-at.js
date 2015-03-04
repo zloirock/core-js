@@ -1,6 +1,8 @@
-function createPointAt(toString){
+'use strict';
+var $ = require('./$');
+module.exports = function(toString){
   return function(pos){
-    var s = String(assert.def(this))
+    var s = String($.assert.def(this))
       , i = $.toInteger(pos)
       , l = s.length
       , a, b;

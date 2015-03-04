@@ -3025,7 +3025,7 @@
   };
   test('regression', function(){
     var i, i$, x$, ref$, len$;
-    ok(toString$.call(global.Number).slice(8, -1) === 'Function', 'Number is function');
+    ok(toString$.call(Number).slice(8, -1) === 'Function', 'Number is function');
     eq(Number.length, 1, 'Number.length is 1');
     if ('name' in Number) {
       eq(Number.name, 'Number', 'Number.name is "Number" (can fail if compressed)');

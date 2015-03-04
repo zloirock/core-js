@@ -1,1 +1,1 @@
-var global = typeof self != 'undefined' ? self : Function('return this')()
+module.exports = typeof self != 'undefined' ? self : Function('return this')();

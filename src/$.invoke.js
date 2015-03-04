@@ -1,6 +1,6 @@
 // Fast apply
 // http://jsperf.lnkit.com/fast-apply/5
-function invoke(fn, args, that){
+module.exports = function(fn, args, that){
   var un = that === undefined;
   switch(args.length | 0){
     case 0: return un ? fn()

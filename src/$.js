@@ -1,8 +1,8 @@
-// Object:
-var defineProperty = Object.defineProperty
-  , hasOwnProperty = {}.hasOwnProperty;
-// Math
-var ceil  = Math.ceil
+'use strict';
+var global         = require('./$.global')
+  , defineProperty = Object.defineProperty
+  , hasOwnProperty = {}.hasOwnProperty
+  , ceil  = Math.ceil
   , floor = Math.floor
   , max   = Math.max
   , min   = Math.min
@@ -33,21 +33,47 @@ function createDefiner(bitmap){
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){try {
   return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
-} catch(e){}}()
-var hide = createDefiner(1);
-var core = {};
+} catch(e){}}();
+var hide = createDefiner(1)
+  , core = {};
+
+function isObject(it){
+  return it !== null && (typeof it == 'object' || typeof it == 'function');
+}
+function isFunction(it){
+  return typeof it == 'function';
+}
+
+function assert(condition, msg1, msg2){
+  if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
+};
+assert.def = function(it){
+  if(it == undefined)throw TypeError('Function called on null or undefined');
+  return it;
+};
+assert.fn = function(it){
+  if(!isFunction(it))throw TypeError(it + ' is not a function!');
+  return it;
+};
+assert.obj = function(it){
+  if(!isObject(it))throw TypeError(it + ' is not an object!');
+  return it;
+};
+assert.inst = function(it, Constructor, name){
+  if(!(it instanceof Constructor))throw TypeError(name + ": use the 'new' operator!");
+  return it;
+};
+assert.REDUCE = 'Reduce of empty object with no initial value';
+
 var $ = {
   g: global,
-  path: framework ? global : core,
+  framework: true,
+  path: global,
   core: core,
   html: global.document && document.documentElement,
   // http://jsperf.com/core-js-isobject
-  isObject: function(it){
-    return it !== null && (typeof it == 'object' || typeof it == 'function');
-  },
-  isFunction: function(it){
-    return typeof it == 'function';
-  },
+  isObject: isObject,
+  isFunction: isFunction,
   // Optional / simple context binding
   ctx: function(fn, that, length){
     assert.fn(fn);
@@ -120,5 +146,7 @@ var $ = {
   a: function(it){
     return String(it).split(',');
   },
-  each: [].forEach
+  each: [].forEach,
+  assert: assert
 };
+module.exports = $;

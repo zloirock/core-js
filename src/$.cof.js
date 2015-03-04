@@ -1,5 +1,6 @@
-var toString = {}.toString;
-var SYMBOL_TAG = wks('toStringTag');
+var $          = require('./$')
+  , toString   = {}.toString
+  , SYMBOL_TAG = require('./$.wks')('toStringTag');
 function cof(it){
   return toString.call(it).slice(8, -1);
 }
@@ -11,3 +12,4 @@ cof.classof = function(it){
 cof.set = function(it, tag, stat){
   if(it && !$.has(it = stat ? it : it.prototype, SYMBOL_TAG))$.hide(it, SYMBOL_TAG, tag);
 }
+module.exports = cof;

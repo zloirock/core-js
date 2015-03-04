@@ -1,39 +1,45 @@
-!function(NUMBER, methods, ITER){  
-  function NumberIterator(iterated){
-    $.set(this, ITER, {l: $.toLength(iterated), i: 0});
-  }
-  Iter.create(NumberIterator, NUMBER, function(){
-    var iter = this[ITER]
-      , i    = iter.i++;
-    return i < iter.l ? Iter.step(0, i) : Iter.step(1);
-  });
-  Iter.define(Number, NUMBER, function(){
-    return new NumberIterator(this);
-  });
-  
-  methods.random = function(lim /* = 0 */){
-    var a = +this
-      , b = lim == undefined ? 0 : +lim
-      , m = Math.min(a, b);
-    return Math.random() * (Math.max(a, b) - m) + m;
-  };
+'use strict';
+var $       = require('./$')
+  , $def    = require('./$.def')
+  , invoke  = require('./$.invoke')
+  , Iter    = require('./$.iter')
+  , ITER    = require('./$.uid').safe('iter')
+  , NUMBER  = 'Number'
+  , methods = {};
+function NumberIterator(iterated){
+  $.set(this, ITER, {l: $.toLength(iterated), i: 0});
+}
+Iter.create(NumberIterator, NUMBER, function(){
+  var iter = this[ITER]
+    , i    = iter.i++;
+  return i < iter.l ? Iter.step(0, i) : Iter.step(1);
+});
+Iter.define(Number, NUMBER, function(){
+  return new NumberIterator(this);
+});
 
-  $.each.call($.a(
-      // ES3:
-      'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-      // ES6:
-      'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-    ), function(key){
-      var fn = Math[key];
-      if(fn)methods[key] = function(/* ...args */){
-        // ie9- dont support strict mode & convert `this` to object -> convert it to number
-        var args = [+this]
-          , i    = 0;
-        while(arguments.length > i)args.push(arguments[i++]);
-        return invoke(fn, args);
-      }
+methods.random = function(lim /* = 0 */){
+  var a = +this
+    , b = lim == undefined ? 0 : +lim
+    , m = Math.min(a, b);
+  return Math.random() * (Math.max(a, b) - m) + m;
+};
+
+$.each.call($.a(
+    // ES3:
+    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
+    // ES6:
+    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+  ), function(key){
+    var fn = Math[key];
+    if(fn)methods[key] = function(/* ...args */){
+      // ie9- dont support strict mode & convert `this` to object -> convert it to number
+      var args = [+this]
+        , i    = 0;
+      while(arguments.length > i)args.push(arguments[i++]);
+      return invoke(fn, args);
     }
-  );
-  
-  $def(PROTO + FORCED, NUMBER, methods);
-}('Number', {}, uid.safe('iter'));
+  }
+);
+
+$def($def.P + $def.F, NUMBER, methods);

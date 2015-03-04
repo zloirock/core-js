@@ -1,3 +1,4 @@
+'use strict';
 // 0 -> forEach
 // 1 -> map
 // 2 -> filter
@@ -5,7 +6,8 @@
 // 4 -> every
 // 5 -> find
 // 6 -> findIndex
-function createArrayMethod(type){
+var $ = require('./$');
+module.exports = function(type){
   var isMap       = type == 1
     , isFilter    = type == 2
     , isSome      = type == 3
@@ -13,7 +15,7 @@ function createArrayMethod(type){
     , isFindIndex = type == 6
     , NO_HOLES    = type == 5 || isFindIndex;
   return function(callbackfn/*, that = undefined */){
-    var O      = Object(assert.def(this))
+    var O      = Object($.assert.def(this))
       , self   = $.ES5Object(O)
       , f      = $.ctx(callbackfn, arguments[1], 3)
       , length = $.toLength(self.length)

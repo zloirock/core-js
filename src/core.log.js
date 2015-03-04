@@ -1,3 +1,5 @@
+var $    = require('./$')
+  , $def = require('./$.def');
 !function(log, enabled){
   // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
   $.each.call($.a('assert,clear,count,debug,dir,dirxml,error,exception,' +
@@ -10,7 +12,7 @@
       }
     };
   });
-  $def(GLOBAL + FORCED, {log: assign(log.log, log, {
+  $def($def.G + $def.F, {log: require('./$.assign')(log.log, log, {
     enable: function(){
       enabled = true;
     },

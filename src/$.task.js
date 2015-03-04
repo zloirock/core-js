@@ -1,16 +1,19 @@
-var task = {
-  set:   $.g.setImmediate,
-  clear: $.g.clearImmediate
-};
-// Node.js 0.9+ & IE10+ has setImmediate, else:
-$.isFunction(task.set) && $.isFunction(task.clear) || function(ONREADYSTATECHANGE){
+'use strict';
+var $       = require('./$')
+  , cof     = require('./$.cof')
+  , invoke  = require('./$.invoke')
+  , partial = require('./$.partial')
+  , setTask = $.g.setImmediate
+  , clrTask = $.g.clearImmediate;
+// Node.js 0.9+ & IE10+ has setImmediate, otherwise:
+$.isFunction(setTask) && $.isFunction(clrTask) || function(ONREADYSTATECHANGE){
   var postMessage      = $.g.postMessage
     , addEventListener = $.g.addEventListener
     , MessageChannel   = $.g.MessageChannel
     , counter          = 0
     , queue            = {}
     , defer, channel, port;
-  task.set = function(fn){
+  setTask = function(fn){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
@@ -19,7 +22,7 @@ $.isFunction(task.set) && $.isFunction(task.clear) || function(ONREADYSTATECHANG
     defer(counter);
     return counter;
   }
-  task.clear = function(id){
+  clrTask = function(id){
     delete queue[id];
   }
   function run(id){
@@ -33,9 +36,9 @@ $.isFunction(task.set) && $.isFunction(task.clear) || function(ONREADYSTATECHANG
     run(event.data);
   }
   // Node.js 0.8-
-  if(NODE){
+  if(cof($.g.process) == 'process'){
     defer = function(id){
-      process.nextTick(partial.call(run, id));
+      $.g.process.nextTick(partial.call(run, id));
     }
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
@@ -65,3 +68,7 @@ $.isFunction(task.set) && $.isFunction(task.clear) || function(ONREADYSTATECHANG
     }
   }
 }('onreadystatechange');
+module.exports = {
+  set:   setTask,
+  clear: clrTask
+};
