@@ -29,12 +29,13 @@ function $def(type, name, source){
     // bind timers to global for call from export context
     else if(type & $def.B && own)exp = $.ctx(out, global);
     // wrap global constructors for prevent change them in library
-    else if(type & $def.W && !$.FW && target[key] == out){
+    else if(type & $def.W && !$.FW && target[key] == out)!function(out){
       exp = function(param){
         return this instanceof out ? new out(param) : out(param);
       }
       exp.prototype = out.prototype;
-    } else exp = type & $def.P && isFunction(out) ? $.ctx(Function.call, out) : out;
+    }(out);
+    else exp = type & $def.P && isFunction(out) ? $.ctx(Function.call, out) : out;
     // extend global
     if($.FW && target && !own){
       if(isGlobal)target[key] = out;
