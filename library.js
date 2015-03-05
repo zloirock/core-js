@@ -1,2 +1,2 @@
-module.exports = require('./src/$.library');
+module.exports = require('./as-library');
 require('./');
