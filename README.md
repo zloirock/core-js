@@ -2,7 +2,7 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Modular compact (max. ~26kb w/o gzip) standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics), [console cap](#console). Some additional features such as [dictionaries](#dict), [extended partial application](#partial-application), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
+Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict), [extended partial application](#partial-application), [console cap](#console), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -23,6 +23,10 @@ core.setImmediate(core.log, 42);                // => 42
 
 [![NPM](https://nodei.co/npm/core-js.png?downloads=true)](https://www.npmjs.org/package/core-js/)
 
+- [Usage](#usage)
+  - [Basic](#basic)
+  - [CommonJS](#commonjs)
+  - [Custom build](#custom-build)
 - [API](#api)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
@@ -45,9 +49,55 @@ core.setImmediate(core.log, 42);                // => 42
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
   - [delay](#delay)
-- [Installation, usage and custom build](#installation-usage-and-custom-build)
 - [Changelog](#changelog)
 
+## Usage
+### Basic
+```
+npm i core-js
+bower install core.js
+```
+
+```javascript
+// Default
+require('core-js');
+// Without global namespace pollution
+var core = require('core-js/library');
+// Shim only
+require('core-js/shim');
+```
+If you need support IE8- or need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
+
+### CommonJS
+You can require only needed modules.
+
+```js
+require('core-js/es5'); // if you need support IE8-, require `es5` before other modules
+require('core-js/es6/collections');
+require('core-js/es6/array/statics');
+Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+
+// or, w/o global namespace pollution:
+
+var core = require('core-js/as-library');
+require('core-js/es5');
+require('core-js/es6/collections');
+require('core-js/es6/array/statics');
+core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+```
+Available namespaces: for example, `core-js/es6/array` contains `es6.array.statics` and `es6.array.prototype` modules, `core-js/es6` contains all modules whose names start with `es6`.
+
+Caveat: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise possible conflicts.
+### Custom build
+```
+npm i -g grunt-cli
+npm i core-js
+cd node_modules/core-js && npm i
+grunt build:core.dict,es6 --blacklist=es6.promise,es6.math --library=on --path=custom uglify
+```
+Where `core.dict` and `es6` are modules (namespaces) names, which will be added to the build, `es6.promise` and `es6.math` are modules (namespaces) names, which will be excluded from the build, `--library=on` is flag for build without global namespace pollution and `custom` is target file name.
+
+Available namespaces: for example, `es6.array` contains `es6.array.statics` and `es6.array.prototype` modules, `es6` contains all modules whose names start with `es6`.
 ## API:
 ### ECMAScript 5
 Module `es5`, nothing new - without examples.
@@ -705,9 +755,9 @@ Array
 String
   #at(index) -> string
 Object
-  .getOwnPropertyDescriptors(object) -> object
   .values(object) -> array
   .entries(object) -> array
+  .getOwnPropertyDescriptors(object) -> object
 RegExp
   .escape(str) -> str
 ```
@@ -725,13 +775,13 @@ Array(1).includes(undefined); // => true
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 
+Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
+Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
+
 // Shallow object cloning with prototype and descriptors:
 var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-
-Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
-Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
 
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 ```
@@ -1302,53 +1352,12 @@ delay(1e3).then(() => log('after 1 sec'));
 })();
 ```
 
-## Installation, usage and custom build
-```
-// Node.js:
-npm i core-js
-// Bower:
-bower install core.js
-```
-Browser builds: [default](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [without global namespace pollution](https://github.com/zloirock/core-js/raw/master/client/core.min.js), [shim only](https://github.com/zloirock/core-js/raw/master/client/shim.min.js).
-
-Require in Node.js:
-```javascript
-// Dafault
-require('core-js');
-// Without global namespace pollution
-var core = require('core-js/library');
-// Shim only
-require('core-js/shim');
-```
-
-#### Custom build:
-```
-npm i -g grunt-cli
-npm i core-js
-cd node_modules/core-js && npm i
-grunt build:core.dict,es6.collections,library --path=custom uglify
-```
-Where `core.dict` and `es6.collections` are module names, `library` is flag for build without global namespace pollution and `custom` is target file name.
-
-Available namespaces: for example, `es6.array` contains `es6.array.statics` and `es6.array.prototype`, `es6` contains all modules whose names start with `es6`.
-
-Other reductions:
-* `shim` is equal `shim.old,shim.modern`
-* `shim.old` is equal `es5,web.timers`
-* `shim.modern` is equal `es6,es7,js.array.statics,web.immediate,web.dom.itarable`
-
-#### Default builds:
-* `core-js/index` builds as `shim.modern,core`
-* `core-js/shim` builds as `shim.modern`
-* `core-js/library` builds as `shim.modern,core,library`
-* `core-js/client/core` builds as `shim,core`
-* `core-js/client/shim` builds as `shim`
-* `core-js/client/library` builds as `shim,core,library`
-
 ## Changelog
-**0.6.1** - *2015.02.24* - Fixed support [`Object.defineProperty`](#ecmascript-5) with accessors on DOM elements on IE8
+#### 0.7.0 - 2015.03.06 - Rewritten and splitted into [CommonJS modules](#commonjs)
 
-**0.6.0** - *2015.02.23*
+#### 0.6.1 - 2015.02.24 - Fixed support [`Object.defineProperty`](#ecmascript-5) with accessors on DOM elements on IE8
+
+#### 0.6.0 - 2015.02.23
   * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
   * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
   * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
@@ -1356,52 +1365,52 @@ Other reductions:
   * restructuring [namespaces](#custom-build)
   * some fixes
 
-**0.5.4** - *2015.02.15* - Some fixes
+#### 0.5.4 - 2015.02.15 - Some fixes
 
-**0.5.3** - *2015.02.14*
+#### 0.5.3 - 2015.02.14
   * added [support binary and octal literals](#ecmascript-6-number--math) to `Number` constructor
   * added [`Date#toISOString`](#ecmascript-5)
 
-**0.5.2** - *2015.02.10* - Some fixes
+#### 0.5.2 - 2015.02.10 - Some fixes
 
-**0.5.1** - *2015.02.09* - Some fixes
+#### 0.5.1 - 2015.02.09 - Some fixes
 
-**0.5.0** - *2015.02.08*
+#### 0.5.0 - 2015.02.08
   * systematization of modules
   * splitted [`es6` module](#ecmascript-6)
   * splitted [`console` module](#console): `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
   * added [`delay` method](#delay)
   * some fixes
 
-**0.4.10** - *2015.01.28* - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
+#### 0.4.10 - 2015.01.28 - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
 
-**0.4.9** - *2015.01.27* - FF20-24 fix
+#### 0.4.9 - 2015.01.27 - FF20-24 fix
 
-**0.4.8** - *2015.01.25* - Some [collections](#ecmascript-6-collections) fixes
+#### 0.4.8 - 2015.01.25 - Some [collections](#ecmascript-6-collections) fixes
 
-**0.4.7** - *2015.01.25* - Added support frozen objects as [collections](#ecmascript-6-collections) keys
+#### 0.4.7 - 2015.01.25 - Added support frozen objects as [collections](#ecmascript-6-collections) keys
 
-**0.4.6** - *2015.01.21*
+#### 0.4.6 - 2015.01.21
   * added [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols)
   * added [`NodeList.prototype[@@iterator]`](#ecmascript-6-iterators)
   * added basic `@@species` logic - getter in native constructors
   * removed `Function#by`
   * some fixes
 
-**0.4.5** - *2015.01.16* - Some fixes
+#### 0.4.5 - 2015.01.16 - Some fixes
 
-**0.4.4** - *2015.01.11* - Enabled CSP support
+#### 0.4.4 - 2015.01.11 - Enabled CSP support
 
-**0.4.3** - *2015.01.10* - Added `Function` instances `name` property for IE9+
+#### 0.4.3 - 2015.01.10 - Added `Function` instances `name` property for IE9+
 
-**0.4.2** - *2015.01.10*
+#### 0.4.2 - 2015.01.10
   * `Object` static methods accept primitives
   * `RegExp` constructor can alter flags (IE9+)
   * added `Array.prototype[Symbol.unscopables]`
 
-**0.4.1** - *2015.01.05* - Some fixes
+#### 0.4.1 - 2015.01.05 - Some fixes
 
-**0.4.0** - *2015.01.03*
+#### 0.4.0 - 2015.01.03
   * added [`es6.reflect`](#ecmascript-6-reflect) module:
     * added `Reflect.apply`
     * added `Reflect.construct`
@@ -1419,29 +1428,29 @@ Other reductions:
   * core-js methods now can use external `Symbol.iterator` polyfill
   * some fixes
 
-**0.3.3** - *2014.12.28*
+#### 0.3.3 - 2014.12.28
   * [console cap](#console) excluded from node.js default builds
 
-**0.3.2** - *2014.12.25*
+#### 0.3.2 - 2014.12.25
   * added cap for [ES5](#ecmascript-5) freeze-family methods
   * fixed `console` bug
 
-**0.3.1** - *2014.12.23* - Some fixes
+#### 0.3.1 - 2014.12.23 - Some fixes
 
-**0.3.0** - *2014.12.23* - Optimize [`Map` & `Set`](#ecmascript-6-collections)
+#### 0.3.0 - 2014.12.23 - Optimize [`Map` & `Set`](#ecmascript-6-collections)
   * use entries chain on hash table
   * fast & correct iteration
   * iterators moved to [`es6`](#ecmascript-6) and [`es6.collections`](#ecmascript-6-collections) modules
 
-**0.2.5** - *2014.12.20*
+#### 0.2.5 - 2014.12.20
   * `console` no longer shortcut for `console.log` (compatibility problems)
   * some fixes
 
-**0.2.4** - *2014.12.17* - Better compliance of ES6
+#### 0.2.4 - 2014.12.17 - Better compliance of ES6
   * some fixes
   * added [`Math.fround`](#ecmascript-6-number--math) (IE10+)
 
-**0.2.3** - *2014.12.15* - [Symbols](#ecmascript-6-symbols):
+#### 0.2.3 - 2014.12.15 - [Symbols](#ecmascript-6-symbols):
   * added option to disable addition setter to `Object.prototype` for Symbol polyfill:
     * added `Symbol.useSimple`
     * added `Symbol.useSetter`
@@ -1456,13 +1465,13 @@ Other reductions:
     * added `Symbol.toPrimitive`
     * added `Symbol.unscopables`
 
-**0.2.2** - *2014.12.13* - ES6:
+#### 0.2.2 - 2014.12.13 - ES6:
   * added [`RegExp#flags`](#ecmascript-6-string--regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
   * added [`String.raw`](#ecmascript-6-string--regexp)
 
-**0.2.1** - *2014.12.12* - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
+#### 0.2.1 - 2014.12.12 - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
 
-**0.2.0** - *2014.12.06*
+#### 0.2.0 - 2014.12.06
   * added [`es7.proposals`](#ecmascript-7) and [`es7.abstract-refs`](#ecmascript-7-abstract-references) modules
   * added [`String#at`](#ecmascript-7)
   * added real [String Iterator](#ecmascript-6-iterators), older versions used Array Iterator
@@ -1481,15 +1490,15 @@ Other reductions:
   * removed deprecated `.contains` methods
   * some fixes
 
-**0.1.5** - *2014.12.01* - ES6:
+#### 0.1.5 - 2014.12.01 - ES6:
   * added [`Array#copyWithin`](#ecmascript-6-array)
   * added [`String#codePointAt`](#ecmascript-6-string--regexp)
   * added [`String.fromCodePoint`](#ecmascript-6-string--regexp)
 
-**0.1.4** - *2014.11.27*
+#### 0.1.4 - 2014.11.27
   * added [`Dict.mapPairs`](#dict)
 
-**0.1.3** - *2014.11.20* - [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
+#### 0.1.3 - 2014.11.20 - [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
   * [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
     * `String#contains` -> [`String#includes`](#ecmascript-6-string--regexp)
     * `Array#contains` -> [`Array#includes`](#ecmascript-7)
@@ -1497,6 +1506,6 @@ Other reductions:
   * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
   * [removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 
-**0.1.2** - *2014.11.19* - `Map` & `Set` bug fix
+#### 0.1.2 - 2014.11.19 - `Map` & `Set` bug fix
 
-**0.1.1** - *2014.11.18* - Public release
+#### 0.1.1 - 2014.11.18 - Public release
