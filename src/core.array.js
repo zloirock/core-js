@@ -13,4 +13,4 @@ $def($def.P + $def.F, 'Array', {
     return memo;
   }
 });
-if($.framework && UNSCOPABLES in [])[][UNSCOPABLES].turn = true;
+if($.FW && UNSCOPABLES in [])[][UNSCOPABLES].turn = true;

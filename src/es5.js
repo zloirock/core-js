@@ -5,14 +5,19 @@ var $                = require('./$')
   , arrayMethod      = require('./$.array-methods')
   , IE_PROTO         = require('./$.uid').safe('__proto__')
   , assert           = $.assert
+  , assertObject     = assert.obj
   , ObjectProto      = Object.prototype
   , A                = []
   , slice            = A.slice
   , indexOf          = A.indexOf
   , classof          = cof.classof
   , defineProperties = Object.defineProperties
+  , has              = $.has
   , defineProperty   = $.setDesc
   , getOwnDescriptor = $.getDesc
+  , isFunction       = $.isFunction
+  , toObject         = $.toObject
+  , toLength         = $.toLength
   , IE8_DOM_DEFINE   = false;
 
 if(!$.DESC){
@@ -26,17 +31,17 @@ if(!$.DESC){
       return defineProperty(O, P, A);
     } catch(e){}
     if('get' in A || 'set' in A)throw TypeError('Accessors not supported!');
-    if('value' in A)$.assert.obj(O)[P] = A.value;
+    if('value' in A)assertObject(O)[P] = A.value;
     return O;
   };
   $.getDesc = function(O, P){
     if(IE8_DOM_DEFINE)try {
       return getOwnDescriptor(O, P);
     } catch(e){}
-    if($.has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+    if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
   };
   defineProperties = function(O, Properties){
-    assert.obj(O);
+    assertObject(O);
     var keys   = $.getKeys(Properties)
       , length = keys.length
       , i = 0
@@ -81,13 +86,13 @@ function createDict(){
 }
 function createGetKeys(names, length, isNames){
   return function(object){
-    var O      = $.toObject(object)
+    var O      = toObject(object)
       , i      = 0
       , result = []
       , key;
-    for(key in O)if(key != IE_PROTO)$.has(O, key) && result.push(key);
+    for(key in O)if(key != IE_PROTO)has(O, key) && result.push(key);
     // Don't enum bug & hidden keys
-    while(length > i)if($.has(O, key = names[i++])){
+    while(length > i)if(has(O, key = names[i++])){
       ~indexOf.call(result, key) || result.push(key);
     }
     return result;
@@ -99,8 +104,8 @@ $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
     O = Object(assert.def(O));
-    if($.has(O, IE_PROTO))return O[IE_PROTO];
-    if($.isFunction(O.constructor) && O instanceof O.constructor){
+    if(has(O, IE_PROTO))return O[IE_PROTO];
+    if(isFunction(O.constructor) && O instanceof O.constructor){
       return O.constructor.prototype;
     } return O instanceof Object ? ObjectProto : null;
   },
@@ -110,7 +115,7 @@ $def($def.S, 'Object', {
   create: $.create = $.create || function(O, /*?*/Properties){
     var result
     if(O !== null){
-      Empty.prototype = assert.obj(O);
+      Empty.prototype = assertObject(O);
       result = new Empty();
       Empty.prototype = null;
       // add "__proto__" for Object.getPrototypeOf shim
@@ -173,8 +178,8 @@ $def($def.S, 'Array', {
 function createArrayReduce(isRight){
   return function(callbackfn, memo){
     assert.fn(callbackfn);
-    var O      = $.toObject(this)
-      , length = $.toLength(O.length)
+    var O      = toObject(this)
+      , length = toLength(O.length)
       , index  = isRight ? length - 1 : 0
       , i      = isRight ? -1 : 1;
     if(2 > arguments.length)for(;;){
@@ -211,11 +216,11 @@ $def($def.P, 'Array', {
   indexOf: indexOf = indexOf || require('./$.array-includes')(false),
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
   lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-    var O      = $.toObject(this)
-      , length = $.toLength(O.length)
+    var O      = toObject(this)
+      , length = toLength(O.length)
       , index  = length - 1;
     if(arguments.length > 1)index = Math.min(index, $.toInteger(fromIndex));
-    if(index < 0)index = $.toLength(length + index);
+    if(index < 0)index = toLength(length + index);
     for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
     return -1;
   }
@@ -247,5 +252,5 @@ $def($def.P, 'Date', {toISOString: function(){
 
 if(classof(function(){return arguments}()) == 'Object')cof.classof = function(it){
   var cof = classof(it);
-  return cof == 'Object' && $.isFunction(it.callee) ? 'Arguments' : cof;
+  return cof == 'Object' && isFunction(it.callee) ? 'Arguments' : cof;
 }

@@ -67,7 +67,7 @@ assert.REDUCE = 'Reduce of empty object with no initial value';
 
 var $ = {
   g: global,
-  framework: true,
+  FW: true,
   path: global,
   core: core,
   html: global.document && document.documentElement,

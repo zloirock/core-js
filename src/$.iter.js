@@ -23,7 +23,7 @@ function createIterator(Constructor, NAME, next, proto){
 function defineIterator(Constructor, NAME, value, DEFAULT){
   var proto = Constructor.prototype
     , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || (DEFAULT && proto[DEFAULT]) || value;
-  if($.framework){
+  if($.FW){
     // Define iterator
     setIterator(proto, iter);
     if(iter !== value){

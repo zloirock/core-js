@@ -1,11 +1,13 @@
 'use strict';
-var $      = require('./$')
-  , assert = $.assert
-  , cof    = require('./$.cof')
-  , $def   = require('./$.def')
-  , min    = Math.min
-  , STRING = 'String'
-  , String = $.g[STRING]
+var $         = require('./$')
+  , cof       = require('./$.cof')
+  , $def      = require('./$.def')
+  , assert    = $.assert
+  , toLength  = $.toLength
+  , assertDef = assert.def
+  , min       = Math.min
+  , STRING    = 'String'
+  , String    = $.g[STRING]
   , fromCharCode = String.fromCharCode;
 function assertNotRegExp(it){
   if(cof(it) == 'RegExp')throw TypeError();
@@ -30,7 +32,7 @@ $def($def.S, STRING, {
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   raw: function(callSite){
     var raw = $.toObject(callSite.raw)
-      , len = $.toLength(raw.length)
+      , len = toLength(raw.length)
       , sln = arguments.length
       , res = []
       , i   = 0;
@@ -47,21 +49,21 @@ $def($def.P, STRING, {
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
   endsWith: function(searchString /*, endPosition = @length */){
     assertNotRegExp(searchString);
-    var that = String(assert.def(this))
+    var that = String(assertDef(this))
       , endPosition = arguments[1]
-      , len = $.toLength(that.length)
-      , end = endPosition === undefined ? len : min($.toLength(endPosition), len);
+      , len = toLength(that.length)
+      , end = endPosition === undefined ? len : min(toLength(endPosition), len);
     searchString += '';
     return that.slice(end - searchString.length, end) === searchString;
   },
   // 21.1.3.7 String.prototype.includes(searchString, position = 0)
   includes: function(searchString /*, position = 0 */){
     assertNotRegExp(searchString);
-    return !!~String(assert.def(this)).indexOf(searchString, arguments[1]);
+    return !!~String(assertDef(this)).indexOf(searchString, arguments[1]);
   },
   // 21.1.3.13 String.prototype.repeat(count)
   repeat: function(count){
-    var str = String(assert.def(this))
+    var str = String(assertDef(this))
       , res = ''
       , n   = $.toInteger(count);
     if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
@@ -71,8 +73,8 @@ $def($def.P, STRING, {
   // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
   startsWith: function(searchString /*, position = 0 */){
     assertNotRegExp(searchString);
-    var that  = String(assert.def(this))
-      , index = $.toLength(min(arguments[1], that.length));
+    var that  = String(assertDef(this))
+      , index = toLength(min(arguments[1], that.length));
     searchString += '';
     return that.slice(index, index + searchString.length) === searchString;
   }

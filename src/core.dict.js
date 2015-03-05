@@ -3,9 +3,14 @@ var $             = require('./$')
   , assign        = require('./$.assign')
   , keyOf         = require('./$.keyof')
   , invoke        = require('./$.invoke')
-  , Iter          = require('./$.iter')
   , ITER          = require('./$.uid').safe('iter')
-  , REFERENCE_GET = require('./$.wks')('referenceGet');
+  , REFERENCE_GET = require('./$.wks')('referenceGet')
+  , Iter          = require('./$.iter')
+  , step          = Iter.step
+  , getKeys       = $.getKeys
+  , toObject      = $.toObject
+  , has           = $.has
+  , assert        = $.assert;
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -21,7 +26,7 @@ function Dict(iterable){
 Dict.prototype = null;
   
 function DictIterator(iterated, kind){
-  $.set(this, ITER, {o: $.toObject(iterated), a: $.getKeys(iterated), i: 0, k: kind});
+  $.set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
 }
 Iter.create(DictIterator, 'Dict', function(){
   var iter = this[ITER]
@@ -32,12 +37,12 @@ Iter.create(DictIterator, 'Dict', function(){
   do {
     if(iter.i >= keys.length){
       iter.o = undefined;
-      return Iter.step(1);
+      return step(1);
     }
-  } while(!$.has(O, key = keys[iter.i++]));
-  if(kind == 'key')   return Iter.step(0, key);
-  if(kind == 'value') return Iter.step(0, O[key]);
-                      return Iter.step(0, [key, O[key]]);
+  } while(!has(O, key = keys[iter.i++]));
+  if(kind == 'key')   return step(0, key);
+  if(kind == 'value') return step(0, O[key]);
+                      return step(0, [key, O[key]]);
 });
 function createDictIter(kind){
   return function(it){
@@ -59,47 +64,47 @@ function generic(A, B){
  * 6 -> findKey
  * 7 -> mapPairs
  */
-function createDictMethod(type){
-  var isMap    = type == 1
-    , isEvery  = type == 4;
+function createDictMethod(TYPE){
+  var IS_MAP   = TYPE == 1
+    , IS_EVERY = TYPE == 4;
   return function(object, callbackfn, that /* = undefined */){
     var f      = $.ctx(callbackfn, that, 3)
-      , O      = $.toObject(object)
-      , result = isMap || type == 7 || type == 2 ? new (generic(this, Dict)) : undefined
+      , O      = toObject(object)
+      , result = IS_MAP || TYPE == 7 || TYPE == 2 ? new (generic(this, Dict)) : undefined
       , key, val, res;
-    for(key in O)if($.has(O, key)){
+    for(key in O)if(has(O, key)){
       val = O[key];
       res = f(val, key, object);
-      if(type){
-        if(isMap)result[key] = res;             // map
-        else if(res)switch(type){
+      if(TYPE){
+        if(IS_MAP)result[key] = res;            // map
+        else if(res)switch(TYPE){
           case 2: result[key] = val; break      // filter
           case 3: return true;                  // some
           case 5: return val;                   // find
           case 6: return key;                   // findKey
           case 7: result[res[0]] = res[1];      // mapPairs
-        } else if(isEvery)return false;         // every
+        } else if(IS_EVERY)return false;        // every
       }
     }
-    return type == 3 || isEvery ? isEvery : result;
+    return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
   }
 }
-function createDictReduce(isTurn){
+function createDictReduce(IS_TURN){
   return function(object, mapfn, init){
-    $.assert.fn(mapfn);
-    var O      = $.toObject(object)
-      , keys   = $.getKeys(O)
+    assert.fn(mapfn);
+    var O      = toObject(object)
+      , keys   = getKeys(O)
       , length = keys.length
       , i      = 0
       , memo, key, result;
-    if(isTurn)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
+    if(IS_TURN)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
     else if(arguments.length < 3){
-      $.assert(length, $.assert.REDUCE);
+      assert(length, assert.REDUCE);
       memo = O[keys[i++]];
     } else memo = Object(init);
-    while(length > i)if($.has(O, key = keys[i++])){
+    while(length > i)if(has(O, key = keys[i++])){
       result = mapfn(memo, O[key], key, object);
-      if(isTurn){
+      if(IS_TURN){
         if(result === false)break;
       } else memo = result;
     }
@@ -128,9 +133,9 @@ var dictMethods = {
   keyOf:   keyOf,
   includes:includes,
   // Has / get / set own property
-  has: $.has,
+  has: has,
   get: function(object, key){
-    if($.has(object, key))return object[key];
+    if(has(object, key))return object[key];
   },
   set: $.def,
   isDict: function(it){

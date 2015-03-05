@@ -1,23 +1,31 @@
 'use strict';
 require('./es6.iterators');
 var $       = require('./$')
-  , assert  = $.assert
   , cof     = require('./$.cof')
-  , uid     = require('./$.uid')
   , $def    = require('./$.def')
-  , Iter    = require('./$.iter')
+  , forOf   = require('./$.iter').forOf
+  , SPECIES = require('./$.wks')('species')
+  , RECORD  = require('./$.uid').safe('record')
   , PROMISE = 'Promise'
-  , Promise = $.g[PROMISE]
+  , global  = $.g
+  , assert  = $.assert
+  , ctx     = $.ctx
+  , process = global.process
+  , asap    = process && process.nextTick || require('./$.task').set
+  , Promise = global[PROMISE]
   , Base    = Promise
-  , SYMBOL_SPECIES = require('./$.wks')('species')
+  , isFunction = $.isFunction
+  , isObject   = $.isObject
+  , assertFn   = assert.fn
+  , assertObj  = assert.obj
   , test;
-$.isFunction(Promise) && $.isFunction(Promise.resolve)
+isFunction(Promise) && isFunction(Promise.resolve)
 && Promise.resolve(test = new Promise(function(){})) == test
-|| function(asap, RECORD){
+|| function(){
   function isThenable(it){
     var then;
-    if($.isObject(it))then = it.then;
-    return $.isFunction(then) ? then : false;
+    if(isObject(it))then = it.then;
+    return isFunction(then) ? then : false;
   }
   function handledRejectionOrHasOnRejected(promise){
     var record = promise[RECORD]
@@ -40,11 +48,11 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
       if(reject && !handledRejectionOrHasOnRejected(promise)){
         setTimeout(function(){
           if(!handledRejectionOrHasOnRejected(promise)){
-            if(cof($.g.process) == 'process'){
-              if(!$.g.process.emit('unhandledRejection', value, promise)){
+            if(cof(process) == 'process'){
+              if(!process.emit('unhandledRejection', value, promise)){
                 // default node.js behavior
               }
-            } else if($.g.console && $.isFunction(console.error)){
+            } else if(global.console && isFunction(console.error)){
               console.error('Unhandled promise rejection', value);
             }
           }
@@ -78,7 +86,7 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
     try {
       if(then = isThenable(value)){
         wrapper = {r: record, d: false}; // wrap
-        then.call(value, $.ctx(resolve, wrapper, 1), $.ctx(reject, wrapper, 1));
+        then.call(value, ctx(resolve, wrapper, 1), ctx(reject, wrapper, 1));
       } else {
         record.v = value;
         record.s = 1;
@@ -98,12 +106,12 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
     notify(record, true);
   }
   function getConstructor(C){
-    var S = assert.obj(C)[SYMBOL_SPECIES];
+    var S = assertObj(C)[SPECIES];
     return S != undefined ? S : C;
   }
   // 25.4.3.1 Promise(executor)
   Promise = function(executor){
-    assert.fn(executor);
+    assertFn(executor);
     var record = {
       p: assert.inst(this, Promise, PROMISE), // <- promise
       c: [],                                  // <- chain
@@ -114,7 +122,7 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
     };
     $.hide(this, RECORD, record);
     try {
-      executor($.ctx(resolve, record, 1), $.ctx(reject, record, 1));
+      executor(ctx(resolve, record, 1), ctx(reject, record, 1));
     } catch(err){
       reject.call(record, err);
     }
@@ -122,13 +130,13 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
   $.mix(Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function(onFulfilled, onRejected){
-      var S = assert.obj(assert.obj(this).constructor)[SYMBOL_SPECIES];
+      var S = assertObj(assertObj(this).constructor)[SPECIES];
       var react = {
-        ok:   $.isFunction(onFulfilled) ? onFulfilled : true,
-        fail: $.isFunction(onRejected)  ? onRejected  : false
+        ok:   isFunction(onFulfilled) ? onFulfilled : true,
+        fail: isFunction(onRejected)  ? onRejected  : false
       } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
-        react.res = assert.fn(resolve);
-        react.rej = assert.fn(reject);
+        react.res = assertFn(resolve);
+        react.rej = assertFn(reject);
       }), record = this[RECORD];
       record.c.push(react);
       record.s && notify(record);
@@ -145,10 +153,10 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
       var Promise = getConstructor(this)
         , values  = [];
       return new Promise(function(resolve, reject){
-        Iter.forOf(iterable, false, values.push, values);
+        forOf(iterable, false, values.push, values);
         var remaining = values.length
           , results   = Array(remaining);
-        if(remaining)$.forEach.call(values, function(promise, index){
+        if(remaining)$.each.call(values, function(promise, index){
           Promise.resolve(promise).then(function(value){
             results[index] = value;
             --remaining || resolve(results);
@@ -161,7 +169,7 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
     race: function(iterable){
       var Promise = getConstructor(this);
       return new Promise(function(resolve, reject){
-        Iter.forOf(iterable, false, function(promise){
+        forOf(iterable, false, function(promise){
           Promise.resolve(promise).then(resolve, reject);
         });
       });
@@ -174,13 +182,13 @@ $.isFunction(Promise) && $.isFunction(Promise.resolve)
     },
     // 25.4.4.6 Promise.resolve(x)
     resolve: function(x){
-      return $.isObject(x) && RECORD in x && $.getProto(x) === this.prototype
+      return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
         ? x : new (getConstructor(this))(function(resolve, reject){
           resolve(x);
         });
     }
   });
-}($.g.process && $.g.process.nextTick || require('./$.task').set, uid.safe('record'));
+}();
 cof.set(Promise, PROMISE);
 require('./$.species')(Promise);
 $def($def.G + $def.F * (Promise != Base), {Promise: Promise});

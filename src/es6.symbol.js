@@ -1,20 +1,22 @@
 'use strict';
 // ECMAScript 6 symbols shim
-var $       = require('./$')
-  , assert  = $.assert
-  , cof     = require('./$.cof')
-  , uid     = require('./$.uid')
-  , $def    = require('./$.def')
-  , partial = require('./$.partial')
-  , Symbol  = $.g.Symbol
-  , shim    = 0
-  , setter  = true
-  , TAG     = uid.safe('tag')
+var $        = require('./$')
+  , setTag   = require('./$.cof').set
+  , uid      = require('./$.uid')
+  , $def     = require('./$.def')
+  , assert   = $.assert
+  , has      = $.has
+  , hide     = $.hide
+  , getNames = $.getNames
+  , toObject = $.toObject
+  , Symbol   = $.g.Symbol
+  , Base     = Symbol
+  , setter   = true
+  , TAG      = uid.safe('tag')
   , SymbolRegistry = {}
-  , AllSymbols = {};
+  , AllSymbols     = {};
 // 19.4.1.1 Symbol([description])
 if(!$.isFunction(Symbol)){
-  shim = 1;
   Symbol = function(description){
     $.assert(!(this instanceof Symbol), 'Symbol is not a constructor');
     var tag = uid(description)
@@ -23,26 +25,26 @@ if(!$.isFunction(Symbol)){
     $.DESC && setter && $.setDesc(Object.prototype, tag, {
       configurable: true,
       set: function(value){
-        $.hide(this, tag, value);
+        hide(this, tag, value);
       }
     });
     return sym;
   }
-  $.hide(Symbol.prototype, 'toString', function(){
+  hide(Symbol.prototype, 'toString', function(){
     return this[TAG];
   });
 }
 $def($def.G + $def.W, {Symbol: Symbol});
-  
+
 var symbolStatics = {
   // 19.4.2.1 Symbol.for(key)
   'for': function(key){
-    return $.has(SymbolRegistry, key += '')
+    return has(SymbolRegistry, key += '')
       ? SymbolRegistry[key]
       : SymbolRegistry[key] = Symbol(key);
   },
   // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: partial.call(require('./$.keyof'), SymbolRegistry, 0),
+  keyFor: require('./$.partial').call(require('./$.keyof'), SymbolRegistry, 0),
   pure: uid.safe,
   set: $.set,
   useSetter: function(){ setter = true },
@@ -67,24 +69,23 @@ $.each.call($.a('hasInstance,isConcatSpreadable,iterator,match,replace,search,sp
 
 $def($def.S, 'Symbol', symbolStatics);
 
-cof.set(Symbol, 'Symbol');
-
-$def($def.S + $def.F * shim, 'Object', {
+$def($def.S + $def.F * (Symbol != Base), 'Object', {
   // 19.1.2.7 Object.getOwnPropertyNames(O)
   getOwnPropertyNames: function(it){
-    var names = $.getNames($.toObject(it)), result = [], key, i = 0;
-    while(names.length > i)$.has(AllSymbols, key = names[i++]) || result.push(key);
+    var names = getNames(toObject(it)), result = [], key, i = 0;
+    while(names.length > i)has(AllSymbols, key = names[i++]) || result.push(key);
     return result;
   },
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
   getOwnPropertySymbols: function(it){
-    var names = $.getNames($.toObject(it)), result = [], key, i = 0;
-    while(names.length > i)$.has(AllSymbols, key = names[i++]) && result.push(AllSymbols[key]);
+    var names = getNames(toObject(it)), result = [], key, i = 0;
+    while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(AllSymbols[key]);
     return result;
   }
 });
 
+setTag(Symbol, 'Symbol');
 // 20.2.1.9 Math[@@toStringTag]
-cof.set(Math, 'Math', true);
+setTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
-cof.set($.g.JSON, 'JSON', true);
+setTag($.g.JSON, 'JSON', true);

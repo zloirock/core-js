@@ -1,7 +1,9 @@
 var $    = require('./$')
   , at   = require('./$.string-at')(true)
+  , ITER = require('./$.uid').safe('iter')
   , Iter = require('./$.iter')
-  , ITER = require('./$.uid').safe('iter');
+  , step = Iter.step
+  , Iterators = Iter.Iterators;
 // 22.1.3.4 Array.prototype.entries()
 // 22.1.3.13 Array.prototype.keys()
 // 22.1.3.29 Array.prototype.values()
@@ -16,15 +18,15 @@ Iter.std(Array, 'Array', function(iterated, kind){
     , index = iter.i++;
   if(!O || index >= O.length){
     iter.o = undefined;
-    return Iter.step(1);
+    return step(1);
   }
-  if(kind == 'key')   return Iter.step(0, index);
-  if(kind == 'value') return Iter.step(0, O[index]);
-                      return Iter.step(0, [index, O[index]]);
+  if(kind == 'key')   return step(0, index);
+  if(kind == 'value') return step(0, O[index]);
+                      return step(0, [index, O[index]]);
 }, 'value');
 
 // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
-Iter.Iterators.Arguments = Iter.Iterators.Array;
+Iterators.Arguments = Iterators.Array;
 
 // 21.1.3.27 String.prototype[@@iterator]()
 Iter.std(String, 'String', function(iterated){
@@ -35,8 +37,8 @@ Iter.std(String, 'String', function(iterated){
     , O     = iter.o
     , index = iter.i
     , point;
-  if(index >= O.length)return Iter.step(1);
+  if(index >= O.length)return step(1);
   point = at.call(O, index);
   iter.i += point.length;
-  return Iter.step(0, point);
+  return step(0, point);
 });

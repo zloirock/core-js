@@ -1,6 +1,6 @@
 require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '../library': core}
 {startsWith, repeat} = core.String
-modules  = <[
+list = <[
   $.library
   es5
   es6.symbol
@@ -44,33 +44,30 @@ exp = <[
 ]>
 
 x78 = repeat '*' 78
-module.exports = (options, blacklist, next)-> let @ = core.Array.turn options, ((memo, it)-> memo[it] = on), {}
-  if @shim         => @ <<< {+\shim.old, +\shim.modern}
-  if @\shim.old    => for <[es5 web.timers]> => @[..] = on
-  if @\shim.modern => for <[es6 es7 js.array.statics web.immediate web.dom.itarable]> => @[..] = on
-  if @exp          => for exp => @[..] = on
+module.exports = ({modules, blacklist, library}, next)-> let @ = core.Array.turn modules, ((memo, it)-> memo[it] = on), {}
+  if @exp => for exp => @[..] = on
   for ns of @
     if @[ns]
-      for name in modules
+      for name in list
         if startsWith(name, "#ns.") and name not in exp
           @[name] = on
   for ns in blacklist
-    for name in modules
+    for name in list
       if name is ns or startsWith name, "#ns."
         @[name] = no
-  if @library  => @ <<< {+\$.library, -\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
-  err <-! writeFile './tmp.js', modules.filter(~> @[it]).map(->"require('./src/#it');").join('\n')
+  if library  => @ <<< {+\$.library, -\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
+  err <-! writeFile './__tmp__.js', list.filter(~> @[it]).map(->"require('./src/#it');").join '\n'
   if err => console.error err
-  err, script <-! browserify(['./tmp']).bundle
+  err, script <-! browserify(['./__tmp__']).bundle
   if err => console.error err
-  err <-! unlink './tmp.js'
+  err <-! unlink './__tmp__.js'
+  if err => console.error err
   next """
     #banner
     !function(undefined){
     var __e = null, __g = null;
     
     #script
-    
     // CommonJS export
     if(typeof module != 'undefined' && module.exports)module.exports = __e;
     // RequireJS export

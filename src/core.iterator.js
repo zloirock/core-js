@@ -5,6 +5,7 @@ var $        = require('./$')
   , Iter     = require('./$.iter')
   , safe     = require('./$.uid').safe
   , ITERATOR = require('./$.wks')('iterator')
+  , global   = $.g
   , WRAPPER  = 'Wrapper'
   , ENTRIES  = safe('entries')
   , FN       = safe('fn')
@@ -19,8 +20,8 @@ if(ITERATOR in []){
   var P = $.getProto($.getProto([].keys()));
   if(P == Object.prototype || !$.isFunction(P[ITERATOR]) || P[ITERATOR]() !== P){
     fixIteratorPrototype(Array);
-    fixIteratorPrototype($.g.Set);
-    fixIteratorPrototype($.g.Map);
+    fixIteratorPrototype(global.Set);
+    fixIteratorPrototype(global.Map);
     fixIteratorPrototype(String);
   } else Iter.prototype = P;
 }
@@ -30,11 +31,11 @@ function setFrom(Constructor, from){
     return new Constructor(iterable);
   });
 }
-setFrom($.g.Map);
-setFrom($.g.Set);
-setFrom($.g.WeakMap);
-setFrom($.g.WeakSet);
-setFrom($.g.Dict);
+setFrom(global.Map);
+setFrom(global.Set);
+setFrom(global.WeakMap);
+setFrom(global.WeakSet);
+setFrom(global.Dict);
 setFrom(String, function(iterable){
   return Array.from(iterable).join('');
 });

@@ -1,6 +1,6 @@
 var $          = require('./$')
-  , toString   = {}.toString
-  , SYMBOL_TAG = require('./$.wks')('toStringTag');
+  , SYMBOL_TAG = require('./$.wks')('toStringTag')
+  , toString   = {}.toString;
 function cof(it){
   return toString.call(it).slice(8, -1);
 }

@@ -19,4 +19,4 @@ require('./src/es7.abstract-refs');
 require('./src/js.array.statics');
 require('./src/web.immediate');
 require('./src/web.dom.itarable');
-module.exports = core;
+module.exports = global.core;

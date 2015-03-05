@@ -3,7 +3,7 @@ var $       = require('./$')
   , NAME    = 'name'
   , FnProto = Function.prototype;
 // 19.2.4.2 name
-NAME in FnProto || ($.framework && $.DESC && $.setDesc(FnProto, NAME, {
+NAME in FnProto || ($.FW && $.DESC && $.setDesc(FnProto, NAME, {
   configurable: true,
   get: function(){
     var match = String(this).match(/^\s*function ([^ (]*)/)

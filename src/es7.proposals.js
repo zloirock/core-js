@@ -1,5 +1,7 @@
-var $    = require('./$')
-  , $def = require('./$.def');
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , toObject = $.toObject;
+
 $def($def.P, 'Array', {
   // https://github.com/domenic/Array.prototype.includes
   includes: require('./$.array-includes')(true)
@@ -11,7 +13,7 @@ $def($def.P, 'String', {
 
 function createObjectToArray(isEntries){
   return function(object){
-    var O      = $.toObject(object)
+    var O      = toObject(object)
       , keys   = $.getKeys(object)
       , length = keys.length
       , i      = 0
@@ -25,7 +27,7 @@ function createObjectToArray(isEntries){
 $def($def.S, 'Object', {
   // https://gist.github.com/WebReflection/9353781
   getOwnPropertyDescriptors: function(object){
-    var O      = $.toObject(object)
+    var O      = toObject(object)
       , result = {};
     $.each.call($.ownKeys(O), function(key){
       $.setDesc(result, key, $.desc(0, $.getDesc(O, key)));

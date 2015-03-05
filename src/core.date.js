@@ -1,5 +1,6 @@
 var $    = require('./$')
-  , $def = require('./$.def');
+  , $def = require('./$.def')
+  , core = $.core;
 !function(formatRegExp, flexioRegExp, locales, current, SECONDS, MINUTES, HOURS, DATE, MONTH, YEAR){
   function createFormat(prefix){
     return function(template, locale /* = current */){
@@ -41,7 +42,7 @@ var $    = require('./$')
       return result;
     }
     locales[lang] = [$.a(locale.weekdays), split(1), split(2)];
-    return $.core;
+    return core;
   }
   $def($def.P + $def.F, DATE, {
     format:    createFormat('get'),
@@ -56,8 +57,8 @@ var $    = require('./$')
     months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,' +
             'Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
   });
-  $.core.locale = function(locale){
+  core.locale = function(locale){
     return $.has(locales, locale) ? current = locale : current;
   };
-  $.core.addLocale = addLocale;
+  core.addLocale = addLocale;
 }(/\b\w\w?\b/g, /:(.*)\|(.*)$/, {}, 'en', 'Seconds', 'Minutes', 'Hours', 'Date', 'Month', 'FullYear');

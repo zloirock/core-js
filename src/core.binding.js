@@ -1,10 +1,10 @@
 'use strict';
 var $      = require('./$')
-  , uid    = require('./$.uid')
   , $def   = require('./$.def')
   , invoke = require('./$.invoke')
+  , hide   = $.hide
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-  , _      = $.DESC ? uid('tie') : 'toLocaleString'
+  , _      = $.DESC ? require('./$.uid')('tie') : 'toLocaleString'
   , toLocaleString = {}.toLocaleString;
 
 // Placeholder
@@ -29,15 +29,15 @@ $def($def.P + $def.F, 'Function', {
 function tie(key){
   var that  = this
     , bound = {};
-  return $.hide(that, _, function(key){
+  return hide(that, _, function(key){
     if(key === undefined || !(key in that))return toLocaleString.call(that);
     return $.has(bound, key) ? bound[key] : (bound[key] = $.ctx(that[key], that, -1));
   })[_](key);
 }
 
-$.hide($.path._, 'toString', function(){
+hide($.path._, 'toString', function(){
   return _;
 });
 
-$.hide(Object.prototype, _, tie);
-$.DESC || $.hide(Array.prototype, _, tie);
+hide(Object.prototype, _, tie);
+$.DESC || hide(Array.prototype, _, tie);

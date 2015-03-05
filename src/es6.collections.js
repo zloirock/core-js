@@ -30,7 +30,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
   }
   function fixSVZ(key, chain){
     var method = proto[key];
-    if($.framework)proto[key] = function(a, b){
+    if($.FW)proto[key] = function(a, b){
       var result = method.call(this, a === 0 ? 0 : a, b);
       return chain ? this : result;
     };
@@ -76,7 +76,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
         return initFromIterable(new Native, iterable);
       }
       C.prototype = proto;
-      if($.framework)proto.constructor = C;
+      if($.FW)proto.constructor = C;
     }
     isWeak || inst.forEach(function(val, key){
       buggyZero = 1 / key === -Infinity;
@@ -278,7 +278,7 @@ var WeakMap = getCollection('WeakMap', {
 }, weakMethods, true, true);
 
 // IE11 WeakMap frozen keys fix
-if($.framework && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
+if($.FW && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
   $.each.call($.a('delete,has,get,set'), function(key){
     var method = WeakMap.prototype[key];
     WeakMap.prototype[key] = function(a, b){

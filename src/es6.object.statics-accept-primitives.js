@@ -1,20 +1,21 @@
-var $    = require('./$')
-  , $def = require('./$.def');
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , isObject = $.isObject
+  , toObject = $.toObject;
 function wrapObjectMethod(key, MODE){
-  var fn  = Object[key]
-    , exp = $.core.Object[key]
+  var fn  = ($.core.Object || {})[key] || Object[key]
     , f   = 0
     , o   = {};
   o[key] = MODE == 1 ? function(it){
-    return $.isObject(it) ? fn(it) : it;
+    return isObject(it) ? fn(it) : it;
   } : MODE == 2 ? function(it){
-    return $.isObject(it) ? fn(it) : true;
+    return isObject(it) ? fn(it) : true;
   } : MODE == 3 ? function(it){
-    return $.isObject(it) ? fn(it) : false;
+    return isObject(it) ? fn(it) : false;
   } : MODE == 4 ? function(it, key){
-    return fn($.toObject(it), key);
+    return fn(toObject(it), key);
   } : function(it){
-    return fn($.toObject(it));
+    return fn(toObject(it));
   };
   try { fn('z') }
   catch(e){ f = 1 }

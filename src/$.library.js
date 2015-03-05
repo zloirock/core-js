@@ -1,4 +1,4 @@
-var $ = require('./$');
-$.framework = false;
-$.path      = $.core;
+var $  = require('./$');
+$.FW   = false;
+$.path = $.core;
 module.exports = $.core;

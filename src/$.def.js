@@ -1,9 +1,10 @@
-var $      = require('./$')
-  , global = $.g
-  , core   = $.core;
+var $          = require('./$')
+  , global     = $.g
+  , core       = $.core
+  , isFunction = $.isFunction;
 if(typeof __e != 'undefined')__e = core;
 if(typeof __g != 'undefined')__g = global;
-if($.framework)global.core = core;
+if($.FW)global.core = core;
 // type bitmap
 $def.F = 1;  // forced
 $def.G = 2;  // global
@@ -24,18 +25,18 @@ function $def(type, name, source){
     // export native or passed
     out = (own ? target : source)[key];
     // prevent global pollution for namespaces
-    if(!$.framework && isGlobal && !$.isFunction(target[key]))exp = source[key];
+    if(!$.FW && isGlobal && !isFunction(target[key]))exp = source[key];
     // bind timers to global for call from export context
     else if(type & $def.B && own)exp = $.ctx(out, global);
     // wrap global constructors for prevent change them in library
-    else if(type & $def.W && !$.framework && target[key] == out){
+    else if(type & $def.W && !$.FW && target[key] == out){
       exp = function(param){
         return this instanceof out ? new out(param) : out(param);
       }
       exp.prototype = out.prototype;
-    } else exp = type & $def.P && $.isFunction(out) ? $.ctx(Function.call, out) : out;
+    } else exp = type & $def.P && isFunction(out) ? $.ctx(Function.call, out) : out;
     // extend global
-    if($.framework && target && !own){
+    if($.FW && target && !own){
       if(isGlobal)target[key] = out;
       else delete target[key] && $.hide(target, key, out);
     }

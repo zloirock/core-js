@@ -1,5 +1,6 @@
-var $    = require('./$')
-  , $def = require('./$.def');
+var $      = require('./$')
+  , $def   = require('./$.def')
+  , assert = $.assert;
 var objectStatic = {
   // 19.1.3.1 Object.assign(target, source)
   assign: require('./$.assign'),
@@ -16,8 +17,8 @@ var objectStatic = {
     set({}, []);
   } catch(e){ buggy = true }
   objectStatic.setPrototypeOf = $.setProto = $.setProto || function(O, proto){
-    $.assert.obj(O);
-    $.assert(proto === null || $.isObject(proto), proto, ": can't set as prototype!");
+    assert.obj(O);
+    assert(proto === null || $.isObject(proto), proto, ": can't set as prototype!");
     if(buggy)O.__proto__ = proto;
     else set(O, proto);
     return O;
