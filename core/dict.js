@@ -1,2 +1,2 @@
 require('../src/core.dict');
-module.exports = require('../src/$').core;
+module.exports = require('../src/$').core.Dict;
