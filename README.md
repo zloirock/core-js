@@ -1353,11 +1353,11 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
-#### 0.7.0 - 2015.03.06 - Rewritten and splitted into [CommonJS modules](#commonjs)
+##### 0.7.0 - 2015.03.06 - Rewritten and splitted into [CommonJS modules](#commonjs)
 
-#### 0.6.1 - 2015.02.24 - Fixed support [`Object.defineProperty`](#ecmascript-5) with accessors on DOM elements on IE8
+##### 0.6.1 - 2015.02.24 - Fixed support [`Object.defineProperty`](#ecmascript-5) with accessors on DOM elements on IE8
 
-#### 0.6.0 - 2015.02.23
+##### 0.6.0 - 2015.02.23
   * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
   * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
   * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
@@ -1365,52 +1365,52 @@ delay(1e3).then(() => log('after 1 sec'));
   * restructuring [namespaces](#custom-build)
   * some fixes
 
-#### 0.5.4 - 2015.02.15 - Some fixes
+##### 0.5.4 - 2015.02.15 - Some fixes
 
-#### 0.5.3 - 2015.02.14
+##### 0.5.3 - 2015.02.14
   * added [support binary and octal literals](#ecmascript-6-number--math) to `Number` constructor
   * added [`Date#toISOString`](#ecmascript-5)
 
-#### 0.5.2 - 2015.02.10 - Some fixes
+##### 0.5.2 - 2015.02.10 - Some fixes
 
-#### 0.5.1 - 2015.02.09 - Some fixes
+##### 0.5.1 - 2015.02.09 - Some fixes
 
-#### 0.5.0 - 2015.02.08
+##### 0.5.0 - 2015.02.08
   * systematization of modules
   * splitted [`es6` module](#ecmascript-6)
   * splitted [`console` module](#console): `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
   * added [`delay` method](#delay)
   * some fixes
 
-#### 0.4.10 - 2015.01.28 - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
+##### 0.4.10 - 2015.01.28 - [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
 
-#### 0.4.9 - 2015.01.27 - FF20-24 fix
+##### 0.4.9 - 2015.01.27 - FF20-24 fix
 
-#### 0.4.8 - 2015.01.25 - Some [collections](#ecmascript-6-collections) fixes
+##### 0.4.8 - 2015.01.25 - Some [collections](#ecmascript-6-collections) fixes
 
-#### 0.4.7 - 2015.01.25 - Added support frozen objects as [collections](#ecmascript-6-collections) keys
+##### 0.4.7 - 2015.01.25 - Added support frozen objects as [collections](#ecmascript-6-collections) keys
 
-#### 0.4.6 - 2015.01.21
+##### 0.4.6 - 2015.01.21
   * added [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols)
   * added [`NodeList.prototype[@@iterator]`](#ecmascript-6-iterators)
   * added basic `@@species` logic - getter in native constructors
   * removed `Function#by`
   * some fixes
 
-#### 0.4.5 - 2015.01.16 - Some fixes
+##### 0.4.5 - 2015.01.16 - Some fixes
 
-#### 0.4.4 - 2015.01.11 - Enabled CSP support
+##### 0.4.4 - 2015.01.11 - Enabled CSP support
 
-#### 0.4.3 - 2015.01.10 - Added `Function` instances `name` property for IE9+
+##### 0.4.3 - 2015.01.10 - Added `Function` instances `name` property for IE9+
 
-#### 0.4.2 - 2015.01.10
+##### 0.4.2 - 2015.01.10
   * `Object` static methods accept primitives
   * `RegExp` constructor can alter flags (IE9+)
   * added `Array.prototype[Symbol.unscopables]`
 
-#### 0.4.1 - 2015.01.05 - Some fixes
+##### 0.4.1 - 2015.01.05 - Some fixes
 
-#### 0.4.0 - 2015.01.03
+##### 0.4.0 - 2015.01.03
   * added [`es6.reflect`](#ecmascript-6-reflect) module:
     * added `Reflect.apply`
     * added `Reflect.construct`
@@ -1428,29 +1428,29 @@ delay(1e3).then(() => log('after 1 sec'));
   * core-js methods now can use external `Symbol.iterator` polyfill
   * some fixes
 
-#### 0.3.3 - 2014.12.28
+##### 0.3.3 - 2014.12.28
   * [console cap](#console) excluded from node.js default builds
 
-#### 0.3.2 - 2014.12.25
+##### 0.3.2 - 2014.12.25
   * added cap for [ES5](#ecmascript-5) freeze-family methods
   * fixed `console` bug
 
-#### 0.3.1 - 2014.12.23 - Some fixes
+##### 0.3.1 - 2014.12.23 - Some fixes
 
-#### 0.3.0 - 2014.12.23 - Optimize [`Map` & `Set`](#ecmascript-6-collections)
+##### 0.3.0 - 2014.12.23 - Optimize [`Map` & `Set`](#ecmascript-6-collections)
   * use entries chain on hash table
   * fast & correct iteration
   * iterators moved to [`es6`](#ecmascript-6) and [`es6.collections`](#ecmascript-6-collections) modules
 
-#### 0.2.5 - 2014.12.20
+##### 0.2.5 - 2014.12.20
   * `console` no longer shortcut for `console.log` (compatibility problems)
   * some fixes
 
-#### 0.2.4 - 2014.12.17 - Better compliance of ES6
+##### 0.2.4 - 2014.12.17 - Better compliance of ES6
   * some fixes
   * added [`Math.fround`](#ecmascript-6-number--math) (IE10+)
 
-#### 0.2.3 - 2014.12.15 - [Symbols](#ecmascript-6-symbols):
+##### 0.2.3 - 2014.12.15 - [Symbols](#ecmascript-6-symbols):
   * added option to disable addition setter to `Object.prototype` for Symbol polyfill:
     * added `Symbol.useSimple`
     * added `Symbol.useSetter`
@@ -1465,13 +1465,13 @@ delay(1e3).then(() => log('after 1 sec'));
     * added `Symbol.toPrimitive`
     * added `Symbol.unscopables`
 
-#### 0.2.2 - 2014.12.13 - ES6:
+##### 0.2.2 - 2014.12.13 - ES6:
   * added [`RegExp#flags`](#ecmascript-6-string--regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
   * added [`String.raw`](#ecmascript-6-string--regexp)
 
-#### 0.2.1 - 2014.12.12 - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
+##### 0.2.1 - 2014.12.12 - Repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
 
-#### 0.2.0 - 2014.12.06
+##### 0.2.0 - 2014.12.06
   * added [`es7.proposals`](#ecmascript-7) and [`es7.abstract-refs`](#ecmascript-7-abstract-references) modules
   * added [`String#at`](#ecmascript-7)
   * added real [String Iterator](#ecmascript-6-iterators), older versions used Array Iterator
@@ -1490,15 +1490,15 @@ delay(1e3).then(() => log('after 1 sec'));
   * removed deprecated `.contains` methods
   * some fixes
 
-#### 0.1.5 - 2014.12.01 - ES6:
+##### 0.1.5 - 2014.12.01 - ES6:
   * added [`Array#copyWithin`](#ecmascript-6-array)
   * added [`String#codePointAt`](#ecmascript-6-string--regexp)
   * added [`String.fromCodePoint`](#ecmascript-6-string--regexp)
 
-#### 0.1.4 - 2014.11.27
+##### 0.1.4 - 2014.11.27
   * added [`Dict.mapPairs`](#dict)
 
-#### 0.1.3 - 2014.11.20 - [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
+##### 0.1.3 - 2014.11.20 - [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
   * [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
     * `String#contains` -> [`String#includes`](#ecmascript-6-string--regexp)
     * `Array#contains` -> [`Array#includes`](#ecmascript-7)
@@ -1506,6 +1506,6 @@ delay(1e3).then(() => log('after 1 sec'));
   * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
   * [removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 
-#### 0.1.2 - 2014.11.19 - `Map` & `Set` bug fix
+##### 0.1.2 - 2014.11.19 - `Map` & `Set` bug fix
 
-#### 0.1.1 - 2014.11.18 - Public release
+##### 0.1.1 - 2014.11.18 - Public release
