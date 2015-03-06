@@ -2,7 +2,7 @@
 require('./es6.collections');
 var $        = require('./$')
   , $def     = require('./$.def')
-  , Iter     = require('./$.iter')
+  , $iter    = require('./$.iter')
   , safe     = require('./$.uid').safe
   , ITERATOR = require('./$.wks')('iterator')
   , global   = $.g
@@ -13,7 +13,7 @@ var $        = require('./$')
   , ITER     = safe('iter');
 function fixIteratorPrototype(Constructor){
   if(Constructor && ITERATOR in Constructor.prototype){
-    $.getProto(new Constructor()[ITERATOR]()).__proto__ = Iter.prototype;
+    $.getProto(new Constructor()[ITERATOR]()).__proto__ = $iter.prototype;
   }
 }
 if(ITERATOR in []){
@@ -23,7 +23,7 @@ if(ITERATOR in []){
     fixIteratorPrototype(global.Set);
     fixIteratorPrototype(global.Map);
     fixIteratorPrototype(String);
-  } else Iter.prototype = P;
+  } else $iter.prototype = P;
 }
 
 function setFrom(Constructor, from){
@@ -41,49 +41,49 @@ setFrom(String, function(iterable){
 });
 
 function Iterator(iterable){
-  if(!Iter.is(iterable) && 'next' in iterable)return new WrapperIterator(iterable);
-  var iterator = Iter.get(iterable);
+  if(!$iter.is(iterable) && 'next' in iterable)return new WrapperIterator(iterable);
+  var iterator = $iter.get(iterable);
   return iterator instanceof Iterator ? iterator : new WrapperIterator(iterator);
 }
-Iterator.prototype = Iter.prototype;
+Iterator.prototype = $iter.prototype;
 
 function WrapperIterator(iterator){
   this[ITER] = iterator;
 }
-Iter.create(WrapperIterator, WRAPPER, function(){
+$iter.create(WrapperIterator, WRAPPER, function(){
   return this[ITER].next();
 })
-Iter.set(WrapperIterator.prototype, function(){
+$iter.set(WrapperIterator.prototype, function(){
   return this[ITER]; // unwrap
 });
 
 function MapIterator(iterator, fn, that, entries){
-  this[ITER]    = Iter.get(iterator);
+  this[ITER]    = $iter.get(iterator);
   this[ENTRIES] = entries;
   this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
 };
-Iter.create(MapIterator, WRAPPER, function(){
+$iter.create(MapIterator, WRAPPER, function(){
   var step = this[ITER].next();
-  return step.done ? step : Iter.step(0, Iter.stepCall(this[FN], step.value, this[ENTRIES]));
+  return step.done ? step : $iter.step(0, $iter.stepCall(this[FN], step.value, this[ENTRIES]));
 });
 
 function FilterIterator(iterator, fn, that, entries){
-  this[ITER]    = Iter.get(iterator);
+  this[ITER]    = $iter.get(iterator);
   this[ENTRIES] = entries;
   this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
 };
-Iter.create(FilterIterator, WRAPPER, function(){
+$iter.create(FilterIterator, WRAPPER, function(){
   for(;;){
     var step = this[ITER].next();
-    if(step.done || Iter.stepCall(this[FN], step.value, this[ENTRIES]))return step;
+    if(step.done || $iter.stepCall(this[FN], step.value, this[ENTRIES]))return step;
   }
 });
 
 function SkipIterator(iterator, i){
-  this[ITER]  = Iter.get(iterator);
+  this[ITER]  = $iter.get(iterator);
   this[INDEX] = $.toLength(i);
 };
-Iter.create(SkipIterator, WRAPPER, function(){
+$iter.create(SkipIterator, WRAPPER, function(){
   for(;;){
     var step = this[ITER].next();
     if(step.done || !this[INDEX] || !this[INDEX]--)return step;
@@ -91,18 +91,18 @@ Iter.create(SkipIterator, WRAPPER, function(){
 });
 
 function LimitIterator(iterator, i){
-  this[ITER]  = Iter.get(iterator);
+  this[ITER]  = $iter.get(iterator);
   this[INDEX] = $.toLength(i);
 };
-Iter.create(LimitIterator, WRAPPER, function(){
+$iter.create(LimitIterator, WRAPPER, function(){
   var iterator = this[ITER];
   if(--this[INDEX] < 0){
-    Iter.close(iterator);
-    return Iter.step(1);
+    $iter.close(iterator);
+    return $iter.step(1);
   } return iterator.next();
 });
 
-$.mix(Iter.prototype, {
+$.mix($iter.prototype, {
   to: function(to){
     return to.from(this);
   },
@@ -128,10 +128,10 @@ $.mix(Iter.prototype, {
     return new MapIterator(this, fn, that, true);
   },
   forEach: function(fn, that){
-    Iter.forOf(this, false, fn, that);
+    $iter.forOf(this, false, fn, that);
   },
   forEachPairs: function(fn, that){
-    Iter.forOf(this, true, fn, that);
+    $iter.forOf(this, true, fn, that);
   }
 });
 

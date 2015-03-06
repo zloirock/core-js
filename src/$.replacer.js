@@ -1,6 +1,6 @@
 'use strict';
 module.exports = function(regExp, replace, isStatic){
-  var replacer = require('./$').isObject(replace) ? function(part){
+  var replacer = replace === Object(replace) ? function(part){
     return replace[part];
   } : replace;
   return function(it){

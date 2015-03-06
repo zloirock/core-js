@@ -1,5 +1,4 @@
 // https://github.com/zenparsing/es-abstract-refs
-require('./es6.symbol');
 var $                = require('./$')
   , wks              = require('./$.wks')
   , $def             = require('./$.def')

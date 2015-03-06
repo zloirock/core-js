@@ -3,8 +3,9 @@ require('./es6.iterators');
 var $        = require('./$')
   , cof      = require('./$.cof')
   , $def     = require('./$.def')
-  , Iter     = require('./$.iter')
   , safe     = require('./$.uid').safe
+  , $iter    = require('./$.iter')
+  , step     = $iter.step
   , assert   = $.assert
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , CID      = safe('cid')
@@ -25,7 +26,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     , proto = C && C.prototype
     , O     = {};
   function initFromIterable(that, iterable){
-    if(iterable != undefined)Iter.forOf(iterable, isMap, that[ADDER], that);
+    if(iterable != undefined)$iter.forOf(iterable, isMap, that[ADDER], that);
     return that;
   }
   function fixSVZ(key, chain){
@@ -39,13 +40,13 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     var done = false;
     var O = {next: function(){
       done = true;
-      return Iter.step(1, 0);
+      return step(1);
     }};
     O[SYMBOL_ITERATOR] = $.that;
     try { new C(O) } catch(e){}
     return done;
   }
-  if(!$.isFunction(C) || !(isWeak || (!Iter.BUGGY && proto.forEach && proto.entries))){
+  if(!$.isFunction(C) || !(isWeak || (!$iter.BUGGY && proto.forEach && proto.entries))){
     // create collection constructor
     C = isWeak
       ? function(iterable){
@@ -70,7 +71,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       , chain  = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
     // wrap to init collections from iterable
-    if(Iter.DANGER_CLOSING || !checkIter()){
+    if($iter.DANGER_CLOSING || !checkIter()){
       C = function(iterable){
         assert.inst(this, C, NAME);
         return initFromIterable(new Native, iterable);
@@ -98,7 +99,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
   
   // add .keys, .values, .entries, [@@iterator]
   // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-  isWeak || Iter.std(C, NAME, function(iterated, kind){
+  isWeak || $iter.std(C, NAME, function(iterated, kind){
     $.set(this, ITER, {o: iterated, k: kind});
   }, function(){
     var iter  = this[ITER]
@@ -110,12 +111,12 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
       // or finish the iteration
       iter.o = undefined;
-      return Iter.step(1);
+      return step(1);
     }
     // return step by kind
-    if(kind == 'key')   return Iter.step(0, entry.k);
-    if(kind == 'value') return Iter.step(0, entry.v);
-                        return Iter.step(0, [entry.k, entry.v]);   
+    if(kind == 'key')   return step(0, entry.k);
+    if(kind == 'value') return step(0, entry.v);
+                        return step(0, [entry.k, entry.v]);   
   }, isMap ? 'key+value' : 'value', !isMap, true);
   
   return C;

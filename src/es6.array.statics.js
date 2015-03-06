@@ -1,12 +1,12 @@
 require('./es6.iterators');
-var $    = require('./$')
-  , $def = require('./$.def')
-  , Iter = require('./$.iter');
+var $     = require('./$')
+  , $def  = require('./$.def')
+  , $iter = require('./$.iter');
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof instead of isFunction
   return typeof A == 'function' ? A : B;
 }
-$def($def.S + $def.F * Iter.DANGER_CLOSING, 'Array', {
+$def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
     var O       = Object($.assert.def(arrayLike))
@@ -15,13 +15,13 @@ $def($def.S + $def.F * Iter.DANGER_CLOSING, 'Array', {
       , f       = mapping ? $.ctx(mapfn, arguments[2], 2) : undefined
       , index   = 0
       , length, result, step;
-    if(Iter.is(O)){
+    if($iter.is(O)){
       result = new (generic(this, Array));
-      Iter.exec(function(iterator){
+      $iter.exec(function(iterator){
         for(; !(step = iterator.next()).done; index++){
           result[index] = mapping ? f(step.value, index) : step.value;
         }
-      }, Iter.get(O));
+      }, $iter.get(O));
     } else {
       result = new (generic(this, Array))(length = $.toLength(O.length));
       for(; length > index; index++){

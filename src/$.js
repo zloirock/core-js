@@ -118,7 +118,6 @@ var $ = {
   },
   create:     Object.create,
   getProto:   Object.getPrototypeOf,
-  setProto:   Object.setPrototypeOf,
   DESC:       DESC,
   desc:       desc,
   getDesc:    Object.getOwnPropertyDescriptor,

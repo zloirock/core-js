@@ -1,22 +1,22 @@
 'use strict';
 var $      = require('./$')
   , invoke = require('./$.invoke');
-module.exports = function partial(/* ...args */){
+module.exports = function(/* ...pargs */){
   var fn     = $.assert.fn(this)
     , length = arguments.length
-    , args   = Array(length)
+    , pargs  = Array(length)
     , i      = 0
     , _      = $.path._
     , holder = false;
-  while(length > i)if((args[i] = arguments[i++]) === _)holder = true;
+  while(length > i)if((pargs[i] = arguments[i++]) === _)holder = true;
   return function(/* ...args */){
     var that    = this
       , _length = arguments.length
-      , i = 0, j = 0, _args;
-    if(!holder && !_length)return invoke(fn, args, that);
-    _args = args.slice();
-    if(holder)for(;length > i; i++)if(_args[i] === _)_args[i] = arguments[j++];
-    while(_length > j)_args.push(arguments[j++]);
-    return invoke(fn, _args, that);
+      , i = 0, j = 0, args;
+    if(!holder && !_length)return invoke(fn, pargs, that);
+    args = pargs.slice();
+    if(holder)for(;length > i; i++)if(args[i] === _)args[i] = arguments[j++];
+    while(_length > j)args.push(arguments[j++]);
+    return invoke(fn, args, that);
   }
 }

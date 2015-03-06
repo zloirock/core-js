@@ -2,19 +2,20 @@
 var $       = require('./$')
   , $def    = require('./$.def')
   , invoke  = require('./$.invoke')
-  , Iter    = require('./$.iter')
   , ITER    = require('./$.uid').safe('iter')
+  , $iter   = require('./$.iter')
+  , step    = $iter.step
   , NUMBER  = 'Number'
   , methods = {};
 function NumberIterator(iterated){
   $.set(this, ITER, {l: $.toLength(iterated), i: 0});
 }
-Iter.create(NumberIterator, NUMBER, function(){
+$iter.create(NumberIterator, NUMBER, function(){
   var iter = this[ITER]
     , i    = iter.i++;
-  return i < iter.l ? Iter.step(0, i) : Iter.step(1);
+  return i < iter.l ? step(0, i) : step(1);
 });
-Iter.define(Number, NUMBER, function(){
+$iter.define(Number, NUMBER, function(){
   return new NumberIterator(this);
 });
 

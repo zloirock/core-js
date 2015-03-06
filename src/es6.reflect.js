@@ -1,15 +1,15 @@
-var $      = require('./$')
-  , $def   = require('./$.def')
-  , ITER   = require('./$.uid').safe('iter')
-  , Iter   = require('./$.iter')
-  , step   = Iter.step
-  , assert = $.assert
+var $         = require('./$')
+  , $def      = require('./$.def')
+  , setProto  = require('./$.set-proto')
+  , $iter     = require('./$.iter')
+  , ITER      = require('./$.uid').safe('iter')
+  , step      = $iter.step
+  , assert    = $.assert
   , assertObj = assert.obj
   , isObject  = $.isObject
   , getDesc   = $.getDesc
   , setDesc   = $.setDesc
   , getProto  = $.getProto
-  , setProto  = $.setProto
   , apply     = Function.apply
   , isExtensible = Object.isExtensible || $.it;
 function Enumerate(iterated){
@@ -17,7 +17,7 @@ function Enumerate(iterated){
   for(key in iterated)keys.push(key);
   $.set(this, ITER, {o: iterated, a: keys, i: 0});
 }
-Iter.create(Enumerate, 'Object', function(){
+$iter.create(Enumerate, 'Object', function(){
   var iter = this[ITER]
     , keys = iter.a
     , key;
@@ -118,7 +118,7 @@ var reflect = {
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 if(setProto)reflect.setPrototypeOf = function(target, proto){
   return setProto(assertObj(target), proto), true;
-};
+}
 
 $def($def.G, {Reflect: {}});
 $def($def.S, 'Reflect', reflect);

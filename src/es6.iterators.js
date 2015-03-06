@@ -1,14 +1,14 @@
-var $    = require('./$')
-  , at   = require('./$.string-at')(true)
-  , ITER = require('./$.uid').safe('iter')
-  , Iter = require('./$.iter')
-  , step = Iter.step
-  , Iterators = Iter.Iterators;
+var $     = require('./$')
+  , at    = require('./$.string-at')(true)
+  , ITER  = require('./$.uid').safe('iter')
+  , $iter = require('./$.iter')
+  , step  = $iter.step
+  , Iterators = $iter.Iterators;
 // 22.1.3.4 Array.prototype.entries()
 // 22.1.3.13 Array.prototype.keys()
 // 22.1.3.29 Array.prototype.values()
 // 22.1.3.30 Array.prototype[@@iterator]()
-Iter.std(Array, 'Array', function(iterated, kind){
+$iter.std(Array, 'Array', function(iterated, kind){
   $.set(this, ITER, {o: $.toObject(iterated), i: 0, k: kind});
 // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
 }, function(){
@@ -29,7 +29,7 @@ Iter.std(Array, 'Array', function(iterated, kind){
 Iterators.Arguments = Iterators.Array;
 
 // 21.1.3.27 String.prototype[@@iterator]()
-Iter.std(String, 'String', function(iterated){
+$iter.std(String, 'String', function(iterated){
   $.set(this, ITER, {o: String(iterated), i: 0});
 // 21.1.5.2.1 %StringIteratorPrototype%.next()
 }, function(){

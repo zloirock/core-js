@@ -17,7 +17,7 @@ function setIterator(O, value){
   if(FF_ITERATOR in [])$.hide(O, FF_ITERATOR, value);
 }
 function createIterator(Constructor, NAME, next, proto){
-  Constructor.prototype = $.create(proto || Iter.prototype, {next: $.desc(1, next)});
+  Constructor.prototype = $.create(proto || $iter.prototype, {next: $.desc(1, next)});
   cof.set(Constructor, NAME + ' Iterator');
 }
 function defineIterator(Constructor, NAME, value, DEFAULT){
@@ -67,7 +67,7 @@ try {
   iter['return'] = function(){ DANGER_CLOSING = false };
   Array.from(iter, function(){ throw 2 });
 } catch(e){}
-var Iter = {
+var $iter = {
   BUGGY: BUGGY,
   DANGER_CLOSING: DANGER_CLOSING,
   Iterators: Iterators,
@@ -123,4 +123,4 @@ var Iter = {
     }, getIterator(iterable));
   }
 };
-module.exports = Iter;
+module.exports = $iter;

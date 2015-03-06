@@ -1,6 +1,5 @@
-var $      = require('./$')
-  , $def   = require('./$.def')
-  , assert = $.assert;
+var $def     = require('./$.def')
+  , setProto = require('./$.set-proto');
 var objectStatic = {
   // 19.1.3.1 Object.assign(target, source)
   assign: require('./$.assign'),
@@ -10,18 +9,5 @@ var objectStatic = {
   }
 };
 // 19.1.3.19 Object.setPrototypeOf(O, proto)
-// Works with __proto__ only. Old v8 can't works with null proto objects.
-'__proto__' in {} && function(buggy, set){
-  try {
-    set = $.ctx(Function.call, $.getDesc(Object.prototype, '__proto__').set, 2);
-    set({}, []);
-  } catch(e){ buggy = true }
-  objectStatic.setPrototypeOf = $.setProto = $.setProto || function(O, proto){
-    assert.obj(O);
-    assert(proto === null || $.isObject(proto), proto, ": can't set as prototype!");
-    if(buggy)O.__proto__ = proto;
-    else set(O, proto);
-    return O;
-  }
-}();
+if(setProto)objectStatic.setPrototypeOf = setProto;
 $def($def.S, 'Object', objectStatic);

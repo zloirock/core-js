@@ -5,8 +5,8 @@ var $             = require('./$')
   , invoke        = require('./$.invoke')
   , ITER          = require('./$.uid').safe('iter')
   , REFERENCE_GET = require('./$.wks')('referenceGet')
-  , Iter          = require('./$.iter')
-  , step          = Iter.step
+  , $iter         = require('./$.iter')
+  , step          = $iter.step
   , getKeys       = $.getKeys
   , toObject      = $.toObject
   , has           = $.has
@@ -15,8 +15,8 @@ var $             = require('./$')
 function Dict(iterable){
   var dict = $.create(null);
   if(iterable != undefined){
-    if(Iter.is(iterable)){
-      Iter.forOf(iterable, true, function(key, value){
+    if($iter.is(iterable)){
+      $iter.forOf(iterable, true, function(key, value){
         dict[key] = value;
       });
     } else assign(dict, iterable);
@@ -28,7 +28,7 @@ Dict.prototype = null;
 function DictIterator(iterated, kind){
   $.set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
 }
-Iter.create(DictIterator, 'Dict', function(){
+$iter.create(DictIterator, 'Dict', function(){
   var iter = this[ITER]
     , O    = iter.o
     , keys = iter.a

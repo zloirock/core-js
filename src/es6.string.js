@@ -2,9 +2,8 @@
 var $         = require('./$')
   , cof       = require('./$.cof')
   , $def      = require('./$.def')
-  , assert    = $.assert
+  , assertDef = $.assert.def
   , toLength  = $.toLength
-  , assertDef = assert.def
   , min       = Math.min
   , STRING    = 'String'
   , String    = $.g[STRING]
