@@ -1,8 +1,10 @@
 'use strict';
 var $                 = require('./$')
+  , ctx               = require('./$.ctx')
   , cof               = require('./$.cof')
   , $def              = require('./$.def')
   , invoke            = require('./$.invoke')
+  , assertObject      = require('./$.assert').obj
 // Safari has byggy iterators w/o `next`
   , BUGGY             = 'keys' in [] && !('next' in [].keys())
   , SYMBOL_ITERATOR   = require('./$.wks')('iterator')
@@ -44,7 +46,7 @@ function getIterator(it){
   var Symbol  = $.g.Symbol
     , ext     = it[Symbol && Symbol.iterator || FF_ITERATOR]
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[cof.classof(it)];
-  return $.assert.obj(getIter.call(it));
+  return assertObject(getIter.call(it));
 }
 function stepCall(fn, value, entries){
   return entries ? invoke(fn, value) : fn(value);
@@ -115,7 +117,7 @@ var $iter = module.exports = {
   },
   forOf: function(iterable, entries, fn, that){
     safeIterExec(function(iterator){
-      var f = $.ctx(fn, that, entries ? 2 : 1)
+      var f = ctx(fn, that, entries ? 2 : 1)
         , step;
       while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
         return closeIterator(iterator);

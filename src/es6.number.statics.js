@@ -17,7 +17,9 @@ $def($def.S, 'Number', {
   // 20.1.2.3 Number.isInteger(number)
   isInteger: isInteger,
   // 20.1.2.4 Number.isNaN(number)
-  isNaN: $.isNaN,
+  isNaN: function(number){
+    return number != number;
+  },
   // 20.1.2.5 Number.isSafeInteger(number)
   isSafeInteger: function(number){
     return isInteger(number) && abs(number) <= MAX_SAFE_INTEGER;

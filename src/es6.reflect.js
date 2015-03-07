@@ -4,13 +4,13 @@ var $         = require('./$')
   , $iter     = require('./$.iter')
   , ITER      = require('./$.uid').safe('iter')
   , step      = $iter.step
-  , assert    = $.assert
-  , assertObj = assert.obj
+  , assert    = require('./$.assert')
   , isObject  = $.isObject
   , getDesc   = $.getDesc
   , setDesc   = $.setDesc
   , getProto  = $.getProto
   , apply     = Function.apply
+  , assertObject = assert.obj
   , isExtensible = Object.isExtensible || $.it;
 function Enumerate(iterated){
   var keys = [], key;
@@ -29,7 +29,7 @@ $iter.create(Enumerate, 'Object', function(){
 
 function wrap(fn){
   return function(it){
-    assertObj(it);
+    assertObject(it);
     try {
       return fn.apply(undefined, arguments), true;
     } catch(e){
@@ -40,7 +40,7 @@ function wrap(fn){
 
 function reflectGet(target, propertyKey/*, receiver*/){
   var receiver = arguments.length < 3 ? target : arguments[2]
-    , desc = getDesc(assertObj(target), propertyKey), proto;
+    , desc = getDesc(assertObject(target), propertyKey), proto;
   if(desc)return $.has(desc, 'value')
     ? desc.value
     : desc.get === undefined
@@ -52,7 +52,7 @@ function reflectGet(target, propertyKey/*, receiver*/){
 }
 function reflectSet(target, propertyKey, V/*, receiver*/){
   var receiver = arguments.length < 4 ? target : arguments[3]
-    , ownDesc  = getDesc(assertObj(target), propertyKey)
+    , ownDesc  = getDesc(assertObject(target), propertyKey)
     , existingDescriptor, proto;
   if(!ownDesc){
     if(isObject(proto = getProto(target))){
@@ -71,7 +71,7 @@ function reflectSet(target, propertyKey, V/*, receiver*/){
 
 var reflect = {
   // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-  apply: $.ctx(Function.call, apply, 3),
+  apply: require('./$.ctx')(Function.call, apply, 3),
   // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
   construct: function(target, argumentsList /*, newTarget*/){
     var proto    = assert.fn(arguments.length < 3 ? target : arguments[2]).prototype
@@ -83,22 +83,22 @@ var reflect = {
   defineProperty: wrap(setDesc),
   // 26.1.4 Reflect.deleteProperty(target, propertyKey)
   deleteProperty: function(target, propertyKey){
-    var desc = getDesc(assertObj(target), propertyKey);
+    var desc = getDesc(assertObject(target), propertyKey);
     return desc && !desc.configurable ? false : delete target[propertyKey];
   },
   // 26.1.5 Reflect.enumerate(target)
   enumerate: function(target){
-    return new Enumerate(assertObj(target));
+    return new Enumerate(assertObject(target));
   },
   // 26.1.6 Reflect.get(target, propertyKey [, receiver])
   get: reflectGet,
   // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
   getOwnPropertyDescriptor: function(target, propertyKey){
-    return getDesc(assertObj(target), propertyKey);
+    return getDesc(assertObject(target), propertyKey);
   },
   // 26.1.8 Reflect.getPrototypeOf(target)
   getPrototypeOf: function(target){
-    return getProto(assertObj(target));
+    return getProto(assertObject(target));
   },
   // 26.1.9 Reflect.has(target, propertyKey)
   has: function(target, propertyKey){
@@ -106,10 +106,10 @@ var reflect = {
   },
   // 26.1.10 Reflect.isExtensible(target)
   isExtensible: function(target){
-    return !!isExtensible(assertObj(target));
+    return !!isExtensible(assertObject(target));
   },
   // 26.1.11 Reflect.ownKeys(target)
-  ownKeys: $.ownKeys,
+  ownKeys: require('./$.own-keys'),
   // 26.1.12 Reflect.preventExtensions(target)
   preventExtensions: wrap(Object.preventExtensions || $.it),
   // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
@@ -117,7 +117,7 @@ var reflect = {
 }
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 if(setProto)reflect.setPrototypeOf = function(target, proto){
-  return setProto(assertObj(target), proto), true;
+  return setProto(assertObject(target), proto), true;
 }
 
 $def($def.G, {Reflect: {}});

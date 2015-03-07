@@ -1,16 +1,17 @@
 var $             = require('./$')
+  , ctx           = require('./$.ctx')
   , $def          = require('./$.def')
   , assign        = require('./$.assign')
   , keyOf         = require('./$.keyof')
   , invoke        = require('./$.invoke')
   , ITER          = require('./$.uid').safe('iter')
   , REFERENCE_GET = require('./$.wks')('referenceGet')
+  , assert        = require('./$.assert')
   , $iter         = require('./$.iter')
   , step          = $iter.step
   , getKeys       = $.getKeys
   , toObject      = $.toObject
-  , has           = $.has
-  , assert        = $.assert;
+  , has           = $.has;
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -68,7 +69,7 @@ function createDictMethod(TYPE){
   var IS_MAP   = TYPE == 1
     , IS_EVERY = TYPE == 4;
   return function(object, callbackfn, that /* = undefined */){
-    var f      = $.ctx(callbackfn, that, 3)
+    var f      = ctx(callbackfn, that, 3)
       , O      = toObject(object)
       , result = IS_MAP || TYPE == 7 || TYPE == 2 ? new (generic(this, Dict)) : undefined
       , key, val, res;
@@ -99,7 +100,7 @@ function createDictReduce(IS_TURN){
       , memo, key, result;
     if(IS_TURN)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
     else if(arguments.length < 3){
-      assert(length, assert.REDUCE);
+      assert(length, 'Reduce of empty object with no initial value');
       memo = O[keys[i++]];
     } else memo = Object(init);
     while(length > i)if(has(O, key = keys[i++])){
@@ -112,8 +113,11 @@ function createDictReduce(IS_TURN){
   }
 }
 var findKey = createDictMethod(6);
+function sameNaN(it){
+  return it != it;
+}
 function includes(object, el){
-  return (el == el ? keyOf(object, el) : findKey(object, $.isNaN)) !== undefined;
+  return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
 }
 
 var dictMethods = {

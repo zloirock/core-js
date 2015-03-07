@@ -4,7 +4,7 @@ var $        = require('./$')
   , setTag   = require('./$.cof').set
   , uid      = require('./$.uid')
   , $def     = require('./$.def')
-  , assert   = $.assert
+  , assert   = require('./$.assert')
   , has      = $.has
   , hide     = $.hide
   , getNames = $.getNames
@@ -18,7 +18,7 @@ var $        = require('./$')
 // 19.4.1.1 Symbol([description])
 if(!$.isFunction(Symbol)){
   Symbol = function(description){
-    $.assert(!(this instanceof Symbol), 'Symbol is not a constructor');
+    assert(!(this instanceof Symbol), 'Symbol is not a constructor');
     var tag = uid(description)
       , sym = $.set($.create(Symbol.prototype), TAG, tag);
     AllSymbols[tag] = sym;

@@ -4,7 +4,7 @@ var $       = require('./$')
   , statics = {};
 function setStatics(keys, length){
   $.each.call($.a(keys), function(key){
-    if(key in [])statics[key] = $.ctx(Function.call, [][key], length);
+    if(key in [])statics[key] = require('./$.ctx')(Function.call, [][key], length);
   });
 }
 setStatics('pop,reverse,shift,keys,values,entries', 1);

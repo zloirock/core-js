@@ -1,9 +1,11 @@
 'use strict';
-var $ = require('./$');
+var $             = require('./$')
+  , toInteger     = $.toInteger
+  , assertDefined = $.assertDefined;
 module.exports = function(toString){
   return function(pos){
-    var s = String($.assert.def(this))
-      , i = $.toInteger(pos)
+    var s = String(assertDefined(this))
+      , i = toInteger(pos)
       , l = s.length
       , a, b;
     if(i < 0 || i >= l)return toString ? '' : undefined;

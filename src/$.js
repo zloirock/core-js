@@ -6,10 +6,7 @@ var global = typeof self != 'undefined' ? self : Function('return this')()
   , ceil  = Math.ceil
   , floor = Math.floor
   , max   = Math.max
-  , min   = Math.min
-  , trunc = Math.trunc || function(it){
-      return (it > 0 ? floor : ceil)(it);
-    }
+  , min   = Math.min;
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){try {
   return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
@@ -17,7 +14,7 @@ var DESC = !!function(){try {
 var hide = createDefiner(1);
 // 7.1.4 ToInteger
 function toInteger(it){
-  return isNaN(it) ? 0 : trunc(it);
+  return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
 }
 function desc(bitmap, value){
   return {
@@ -43,27 +40,10 @@ function isObject(it){
 function isFunction(it){
   return typeof it == 'function';
 }
-
-function assert(condition, msg1, msg2){
-  if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
-};
-assert.def = function(it){
-  if(it == undefined)throw TypeError('Function called on null or undefined');
+function assertDefined(it){
+  if(it == undefined)throw TypeError("Can't convert null or undefined to object");
   return it;
-};
-assert.fn = function(it){
-  if(!isFunction(it))throw TypeError(it + ' is not a function!');
-  return it;
-};
-assert.obj = function(it){
-  if(!isObject(it))throw TypeError(it + ' is not an object!');
-  return it;
-};
-assert.inst = function(it, Constructor, name){
-  if(!(it instanceof Constructor))throw TypeError(name + ": use the 'new' operator!");
-  return it;
-};
-assert.REDUCE = 'Reduce of empty object with no initial value';
+}
 
 var $ = module.exports = {
   g: global,
@@ -74,24 +54,6 @@ var $ = module.exports = {
   // http://jsperf.com/core-js-isobject
   isObject:   isObject,
   isFunction: isFunction,
-  // Optional / simple context binding
-  ctx: function(fn, that, length){
-    assert.fn(fn);
-    if(~length && that === undefined)return fn;
-    switch(length){
-      case 1: return function(a){
-        return fn.call(that, a);
-      }
-      case 2: return function(a, b){
-        return fn.call(that, a, b);
-      }
-      case 3: return function(a, b, c){
-        return fn.call(that, a, b, c);
-      }
-    } return function(/* ...args */){
-        return fn.apply(that, arguments);
-    }
-  },
   it: function(it){
     return it;
   },
@@ -108,11 +70,6 @@ var $ = module.exports = {
     var index = toInteger(index);
     return index < 0 ? max(index + length, 0) : min(index, length);
   },
-  trunc: trunc,
-  // 20.1.2.4 Number.isNaN(number)
-  isNaN: function(number){
-    return number != number;
-  },
   has: function(it, key){
     return hasOwnProperty.call(it, key);
   },
@@ -125,14 +82,11 @@ var $ = module.exports = {
   getKeys:    Object.keys,
   getNames:   Object.getOwnPropertyNames,
   getSymbols: Object.getOwnPropertySymbols,
-  ownKeys: function(it){
-    assert.obj(it);
-    return $.getSymbols ? $.getNames(it).concat($.getSymbols(it)) : $.getNames(it);
-  },
   // Dummy, fix for not array-like ES3 string in es5 module
+  assertDefined: assertDefined,
   ES5Object: Object,
   toObject: function(it){
-    return $.ES5Object(assert.def(it));
+    return $.ES5Object(assertDefined(it));
   },
   hide: hide,
   def: createDefiner(0),
@@ -145,8 +99,7 @@ var $ = module.exports = {
   a: function(it){
     return String(it).split(',');
   },
-  each: [].forEach,
-  assert: assert
+  each: [].forEach
 };
 if(typeof __e != 'undefined')__e = core;
 if(typeof __g != 'undefined')__g = global;

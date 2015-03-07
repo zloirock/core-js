@@ -1,9 +1,9 @@
 // Works with __proto__ only. Old v8 can't works with null proto objects.
 var $      = require('./$')
-  , assert = $.assert;
+  , assert = require('./$.assert');
 module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function(buggy, set){
   try {
-    set = $.ctx(Function.call, $.getDesc(Object.prototype, '__proto__').set, 2);
+    set = require('./$.ctx')(Function.call, $.getDesc(Object.prototype, '__proto__').set, 2);
     set({}, []);
   } catch(e){ buggy = true }
   return function(O, proto){

@@ -1,13 +1,13 @@
 'use strict';
-var $         = require('./$')
-  , cof       = require('./$.cof')
-  , $def      = require('./$.def')
-  , assertDef = $.assert.def
-  , toLength  = $.toLength
-  , min       = Math.min
-  , STRING    = 'String'
-  , String    = $.g[STRING]
-  , fromCharCode = String.fromCharCode;
+var $        = require('./$')
+  , cof      = require('./$.cof')
+  , $def     = require('./$.def')
+  , toLength = $.toLength
+  , min      = Math.min
+  , STRING   = 'String'
+  , String   = $.g[STRING]
+  , assertDefined = $.assertDefined
+  , fromCharCode  = String.fromCharCode;
 function assertNotRegExp(it){
   if(cof(it) == 'RegExp')throw TypeError();
 }
@@ -48,7 +48,7 @@ $def($def.P, STRING, {
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
   endsWith: function(searchString /*, endPosition = @length */){
     assertNotRegExp(searchString);
-    var that = String(assertDef(this))
+    var that = String(assertDefined(this))
       , endPosition = arguments[1]
       , len = toLength(that.length)
       , end = endPosition === undefined ? len : min(toLength(endPosition), len);
@@ -58,11 +58,11 @@ $def($def.P, STRING, {
   // 21.1.3.7 String.prototype.includes(searchString, position = 0)
   includes: function(searchString /*, position = 0 */){
     assertNotRegExp(searchString);
-    return !!~String(assertDef(this)).indexOf(searchString, arguments[1]);
+    return !!~String(assertDefined(this)).indexOf(searchString, arguments[1]);
   },
   // 21.1.3.13 String.prototype.repeat(count)
   repeat: function(count){
-    var str = String(assertDef(this))
+    var str = String(assertDefined(this))
       , res = ''
       , n   = $.toInteger(count);
     if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
@@ -72,7 +72,7 @@ $def($def.P, STRING, {
   // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
   startsWith: function(searchString /*, position = 0 */){
     assertNotRegExp(searchString);
-    var that  = String(assertDef(this))
+    var that  = String(assertDefined(this))
       , index = toLength(min(arguments[1], that.length));
     searchString += '';
     return that.slice(index, index + searchString.length) === searchString;

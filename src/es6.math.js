@@ -1,14 +1,14 @@
-var $    = require('./$')
-  , $def = require('./$.def')
-  , Math = $.g.Math
-  , E    = Math.E
-  , pow  = Math.pow
-  , abs  = Math.abs
-  , exp  = Math.exp
-  , log  = Math.log
-  , sqrt = Math.sqrt
-  , Infinity = 1 / 0
-  , sign = Math.sign || function(x){
+var Infinity = 1 / 0
+  , $def  = require('./$.def')
+  , E     = Math.E
+  , pow   = Math.pow
+  , abs   = Math.abs
+  , exp   = Math.exp
+  , log   = Math.log
+  , sqrt  = Math.sqrt
+  , ceil  = Math.ceil
+  , floor = Math.floor
+  , sign  = Math.sign || function(x){
       return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
     };
 
@@ -102,5 +102,7 @@ $def($def.S, 'Math', {
     return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
   },
   // 20.2.2.34 Math.trunc(x)
-  trunc: $.trunc
+  trunc: function(it){
+    return (it > 0 ? floor : ceil)(it);
+  }
 });

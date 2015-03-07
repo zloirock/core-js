@@ -1,7 +1,8 @@
 var $    = require('./$')
-  , $def = require('./$.def');
+  , $def = require('./$.def')
+  , ownKeys = require('./$.own-keys');
 function define(target, mixin){
-  var keys   = $.ownKeys($.toObject(mixin))
+  var keys   = ownKeys($.toObject(mixin))
     , length = keys.length
     , i = 0, key;
   while(length > i)$.setDesc(target, key = keys[i++], $.getDesc(mixin, key));

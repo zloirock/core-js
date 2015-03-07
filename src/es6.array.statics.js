@@ -1,7 +1,9 @@
 require('./es6.iterators');
 var $     = require('./$')
+  , ctx   = require('./$.ctx')
   , $def  = require('./$.def')
-  , $iter = require('./$.iter');
+  , $iter = require('./$.iter')
+  , assertDefined = $.assertDefined;
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof instead of isFunction
   return typeof A == 'function' ? A : B;
@@ -9,10 +11,10 @@ function generic(A, B){
 $def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
-    var O       = Object($.assert.def(arrayLike))
+    var O       = Object(assertDefined(arrayLike))
       , mapfn   = arguments[1]
       , mapping = mapfn !== undefined
-      , f       = mapping ? $.ctx(mapfn, arguments[2], 2) : undefined
+      , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
       , index   = 0
       , length, result, step;
     if($iter.is(O)){

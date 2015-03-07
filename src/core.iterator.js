@@ -1,6 +1,7 @@
 'use strict';
 require('./es6.collections');
 var $        = require('./$')
+  , ctx      = require('./$.ctx')
   , $def     = require('./$.def')
   , $iter    = require('./$.iter')
   , safe     = require('./$.uid').safe
@@ -64,7 +65,7 @@ $iter.set(WrapperIterator.prototype, function(){
 function MapIterator(iterator, fn, that, entries){
   this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
-  this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
+  this[FN]      = ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(MapIterator, WRAPPER, function(){
   var step = this[ITER].next();
@@ -74,7 +75,7 @@ $iter.create(MapIterator, WRAPPER, function(){
 function FilterIterator(iterator, fn, that, entries){
   this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
-  this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
+  this[FN]      = ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(FilterIterator, WRAPPER, function(){
   for(;;){

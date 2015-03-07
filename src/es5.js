@@ -4,7 +4,7 @@ var $                = require('./$')
   , invoke           = require('./$.invoke')
   , arrayMethod      = require('./$.array-methods')
   , IE_PROTO         = require('./$.uid').safe('__proto__')
-  , assert           = $.assert
+  , assert           = require('./$.assert')
   , assertObject     = assert.obj
   , ObjectProto      = Object.prototype
   , A                = []
@@ -189,7 +189,7 @@ function createArrayReduce(isRight){
         break;
       }
       index += i;
-      assert(isRight ? index >= 0 : length > index, assert.REDUCE);
+      assert(isRight ? index >= 0 : length > index, 'Reduce of empty array with no initial value');
     }
     for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
       memo = callbackfn(memo, O[index], index, this);

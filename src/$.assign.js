@@ -1,7 +1,7 @@
 var $ = require('./$');
 // 19.1.2.1 Object.assign(target, source, ...)
 module.exports = Object.assign || function(target, source){
-  var T = Object($.assert.def(target))
+  var T = Object($.assertDefined(target))
     , l = arguments.length
     , i = 1;
   while(l > i){

@@ -1,10 +1,10 @@
 'use strict';
 var $       = require('./$')
+  , ctx     = require('./$.ctx')
   , cof     = require('./$.cof')
   , invoke  = require('./$.invoke')
   , global             = $.g
   , isFunction         = $.isFunction
-  , ctx                = $.ctx
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
   , postMessage        = global.postMessage

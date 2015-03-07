@@ -1,12 +1,13 @@
 'use strict';
 require('./es6.iterators');
 var $        = require('./$')
+  , ctx      = require('./$.ctx')
   , cof      = require('./$.cof')
   , $def     = require('./$.def')
   , safe     = require('./$.uid').safe
   , $iter    = require('./$.iter')
+  , assert   = require('./$.assert')
   , step     = $iter.step
-  , assert   = $.assert
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , CID      = safe('cid')
   , O1       = safe('O1')
@@ -199,7 +200,7 @@ var collectionMethods = {
   // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
   // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
   forEach: function(callbackfn /*, that = undefined */){
-    var f = $.ctx(callbackfn, arguments[1], 3)
+    var f = ctx(callbackfn, arguments[1], 3)
       , entry;
     while(entry = entry ? entry.n : this[FIRST]){
       f(entry.v, entry.k, this);

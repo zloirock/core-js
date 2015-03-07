@@ -1,6 +1,7 @@
 'use strict';
 require('./es6.iterators');
 var $       = require('./$')
+  , ctx     = require('./$.ctx')
   , safe    = require('./$.uid').safe
   , $def    = require('./$.def')
   , $iter   = require('./$.iter')
@@ -25,7 +26,7 @@ function createChainIterator(next){
   function Iterator(iter, fn, that){
     this[ITER]    = $iter.get(iter);
     this[ENTRIES] = iter[ENTRIES];
-    this[FN]      = $.ctx(fn, that, iter[ENTRIES] ? 2 : 1);
+    this[FN]      = ctx(fn, that, iter[ENTRIES] ? 2 : 1);
   }
   $iter.create(Iterator, 'Chain', next, $forProto);
   $iter.set(Iterator.prototype, $.that); // override $forProto iterator

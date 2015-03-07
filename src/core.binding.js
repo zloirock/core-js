@@ -1,7 +1,9 @@
 'use strict';
 var $      = require('./$')
+  , ctx    = require('./$.ctx')
   , $def   = require('./$.def')
   , invoke = require('./$.invoke')
+  , assertFunction = require('./$.assert').fn
   , hide   = $.hide
   // IE8- dirty hack - redefined toLocaleString is not enumerable
   , _      = $.DESC ? require('./$.uid')('tie') : 'toLocaleString'
@@ -13,7 +15,7 @@ $.core._ = $.path._ = $.path._ || {};
 $def($def.P + $def.F, 'Function', {
   part: require('./$.partial'),
   only: function(numberArguments, that /* = @ */){
-    var fn     = $.assert.fn(this)
+    var fn     = assertFunction(this)
       , n      = $.toLength(numberArguments)
       , isThat = arguments.length > 1;
     return function(/* ...args */){
@@ -31,7 +33,7 @@ function tie(key){
     , bound = {};
   return hide(that, _, function(key){
     if(key === undefined || !(key in that))return toLocaleString.call(that);
-    return $.has(bound, key) ? bound[key] : (bound[key] = $.ctx(that[key], that, -1));
+    return $.has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
   })[_](key);
 }
 

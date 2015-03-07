@@ -2,6 +2,11 @@ var $          = require('./$')
   , global     = $.g
   , core       = $.core
   , isFunction = $.isFunction;
+function ctx(fn, that){
+  return function(){
+    return fn.apply(that, arguments);
+  }
+}
 if($.FW)global.core = core;
 // type bitmap
 $def.F = 1;  // forced
@@ -25,7 +30,7 @@ function $def(type, name, source){
     // prevent global pollution for namespaces
     if(!$.FW && isGlobal && !isFunction(target[key]))exp = source[key];
     // bind timers to global for call from export context
-    else if(type & $def.B && own)exp = $.ctx(out, global);
+    else if(type & $def.B && own)exp = ctx(out, global);
     // wrap global constructors for prevent change them in library
     else if(type & $def.W && !$.FW && target[key] == out)!function(out){
       exp = function(param){
@@ -33,7 +38,7 @@ function $def(type, name, source){
       }
       exp.prototype = out.prototype;
     }(out);
-    else exp = type & $def.P && isFunction(out) ? $.ctx(Function.call, out) : out;
+    else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
     // extend global
     if($.FW && target && !own){
       if(isGlobal)target[key] = out;

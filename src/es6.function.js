@@ -1,9 +1,9 @@
 'use strict';
-var $       = require('./$')
-  , NAME    = 'name'
-  , FnProto = Function.prototype;
+var $    = require('./$')
+  , NAME = 'name'
+  , FunctionProto = Function.prototype;
 // 19.2.4.2 name
-NAME in FnProto || ($.FW && $.DESC && $.setDesc(FnProto, NAME, {
+NAME in FunctionProto || ($.FW && $.DESC && $.setDesc(FunctionProto, NAME, {
   configurable: true,
   get: function(){
     var match = String(this).match(/^\s*function ([^ (]*)/)

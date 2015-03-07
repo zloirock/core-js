@@ -1,23 +1,23 @@
 'use strict';
 require('./es6.iterators');
 var $       = require('./$')
+  , ctx     = require('./$.ctx')
   , cof     = require('./$.cof')
   , $def    = require('./$.def')
+  , assert  = require('./$.assert')
   , forOf   = require('./$.iter').forOf
   , SPECIES = require('./$.wks')('species')
   , RECORD  = require('./$.uid').safe('record')
   , PROMISE = 'Promise'
   , global  = $.g
-  , assert  = $.assert
-  , ctx     = $.ctx
   , process = global.process
   , asap    = process && process.nextTick || require('./$.task').set
   , Promise = global[PROMISE]
   , Base    = Promise
-  , isFunction = $.isFunction
-  , isObject   = $.isObject
-  , assertFn   = assert.fn
-  , assertObj  = assert.obj
+  , isFunction     = $.isFunction
+  , isObject       = $.isObject
+  , assertFunction = assert.fn
+  , assertObject   = assert.obj
   , test;
 isFunction(Promise) && isFunction(Promise.resolve)
 && Promise.resolve(test = new Promise(function(){})) == test
@@ -106,12 +106,12 @@ isFunction(Promise) && isFunction(Promise.resolve)
     notify(record, true);
   }
   function getConstructor(C){
-    var S = assertObj(C)[SPECIES];
+    var S = assertObject(C)[SPECIES];
     return S != undefined ? S : C;
   }
   // 25.4.3.1 Promise(executor)
   Promise = function(executor){
-    assertFn(executor);
+    assertFunction(executor);
     var record = {
       p: assert.inst(this, Promise, PROMISE), // <- promise
       c: [],                                  // <- chain
@@ -130,13 +130,13 @@ isFunction(Promise) && isFunction(Promise.resolve)
   $.mix(Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function(onFulfilled, onRejected){
-      var S = assertObj(assertObj(this).constructor)[SPECIES];
+      var S = assertObject(assertObject(this).constructor)[SPECIES];
       var react = {
         ok:   isFunction(onFulfilled) ? onFulfilled : true,
         fail: isFunction(onRejected)  ? onRejected  : false
       } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
-        react.res = assertFn(resolve);
-        react.rej = assertFn(reject);
+        react.res = assertFunction(resolve);
+        react.rej = assertFunction(reject);
       }), record = this[RECORD];
       record.c.push(react);
       record.s && notify(record);
