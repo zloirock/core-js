@@ -2,8 +2,6 @@ var $          = require('./$')
   , global     = $.g
   , core       = $.core
   , isFunction = $.isFunction;
-if(typeof __e != 'undefined')__e = core;
-if(typeof __g != 'undefined')__g = global;
 if($.FW)global.core = core;
 // type bitmap
 $def.F = 1;  // forced
@@ -20,7 +18,7 @@ function $def(type, name, source){
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
-    // there is a similar native
+    // contains in native
     own = !(type & $def.F) && target && key in target;
     // export native or passed
     out = (own ? target : source)[key];

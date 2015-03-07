@@ -1,4 +1,4 @@
-var global = require('./$.global')
+var global = require('./$').g
   , store  = {};
 module.exports = function(name){
   return store[name] || (store[name] =

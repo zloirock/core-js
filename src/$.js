@@ -1,5 +1,6 @@
 'use strict';
-var global         = require('./$.global')
+var global = typeof self != 'undefined' ? self : Function('return this')()
+  , core   = {}
   , defineProperty = Object.defineProperty
   , hasOwnProperty = {}.hasOwnProperty
   , ceil  = Math.ceil
@@ -9,6 +10,11 @@ var global         = require('./$.global')
   , trunc = Math.trunc || function(it){
       return (it > 0 ? floor : ceil)(it);
     }
+// The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
+var DESC = !!function(){try {
+  return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
+} catch(e){}}();
+var hide = createDefiner(1);
 // 7.1.4 ToInteger
 function toInteger(it){
   return isNaN(it) ? 0 : trunc(it);
@@ -30,12 +36,6 @@ function createDefiner(bitmap){
     return $.setDesc(object, key, desc(bitmap, value));
   } : simpleSet;
 }
-// The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESC = !!function(){try {
-  return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
-} catch(e){}}();
-var hide = createDefiner(1)
-  , core = {};
 
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
@@ -65,14 +65,14 @@ assert.inst = function(it, Constructor, name){
 };
 assert.REDUCE = 'Reduce of empty object with no initial value';
 
-var $ = {
+var $ = module.exports = {
   g: global,
   FW: true,
   path: global,
   core: core,
   html: global.document && document.documentElement,
   // http://jsperf.com/core-js-isobject
-  isObject: isObject,
+  isObject:   isObject,
   isFunction: isFunction,
   // Optional / simple context binding
   ctx: function(fn, that, length){
@@ -148,4 +148,5 @@ var $ = {
   each: [].forEach,
   assert: assert
 };
-module.exports = $;
+if(typeof __e != 'undefined')__e = core;
+if(typeof __g != 'undefined')__g = global;

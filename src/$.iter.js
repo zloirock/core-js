@@ -67,7 +67,7 @@ try {
   iter['return'] = function(){ DANGER_CLOSING = false };
   Array.from(iter, function(){ throw 2 });
 } catch(e){}
-var $iter = {
+var $iter = module.exports = {
   BUGGY: BUGGY,
   DANGER_CLOSING: DANGER_CLOSING,
   Iterators: Iterators,
@@ -123,4 +123,3 @@ var $iter = {
     }, getIterator(iterable));
   }
 };
-module.exports = $iter;
