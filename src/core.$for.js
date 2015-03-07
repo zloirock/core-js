@@ -1,4 +1,5 @@
 'use strict';
+require('./es6.iterators');
 var $       = require('./$')
   , safe    = require('./$.uid').safe
   , $def    = require('./$.def')

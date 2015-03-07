@@ -10,14 +10,18 @@ var $        = require('./$')
   , ENTRIES  = safe('entries')
   , FN       = safe('fn')
   , INDEX    = safe('index')
-  , ITER     = safe('iter');
+  , ITER     = safe('iter')
+  , getProto = $.getProto
+  , toLength = $.toLength
+  , stepCall = $iter.stepCall
+  , getIterator = $iter.get;
 function fixIteratorPrototype(Constructor){
   if(Constructor && ITERATOR in Constructor.prototype){
-    $.getProto(new Constructor()[ITERATOR]()).__proto__ = $iter.prototype;
+    getProto(new Constructor()[ITERATOR]()).__proto__ = $iter.prototype;
   }
 }
 if(ITERATOR in []){
-  var P = $.getProto($.getProto([].keys()));
+  var P = getProto(getProto([].keys()));
   if(P == Object.prototype || !$.isFunction(P[ITERATOR]) || P[ITERATOR]() !== P){
     fixIteratorPrototype(Array);
     fixIteratorPrototype(global.Set);
@@ -42,7 +46,7 @@ setFrom(String, function(iterable){
 
 function Iterator(iterable){
   if(!$iter.is(iterable) && 'next' in iterable)return new WrapperIterator(iterable);
-  var iterator = $iter.get(iterable);
+  var iterator = getIterator(iterable);
   return iterator instanceof Iterator ? iterator : new WrapperIterator(iterator);
 }
 Iterator.prototype = $iter.prototype;
@@ -58,30 +62,30 @@ $iter.set(WrapperIterator.prototype, function(){
 });
 
 function MapIterator(iterator, fn, that, entries){
-  this[ITER]    = $iter.get(iterator);
+  this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
   this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(MapIterator, WRAPPER, function(){
   var step = this[ITER].next();
-  return step.done ? step : $iter.step(0, $iter.stepCall(this[FN], step.value, this[ENTRIES]));
+  return step.done ? step : $iter.step(0, stepCall(this[FN], step.value, this[ENTRIES]));
 });
 
 function FilterIterator(iterator, fn, that, entries){
-  this[ITER]    = $iter.get(iterator);
+  this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
   this[FN]      = $.ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(FilterIterator, WRAPPER, function(){
   for(;;){
     var step = this[ITER].next();
-    if(step.done || $iter.stepCall(this[FN], step.value, this[ENTRIES]))return step;
+    if(step.done || stepCall(this[FN], step.value, this[ENTRIES]))return step;
   }
 });
 
 function SkipIterator(iterator, i){
-  this[ITER]  = $iter.get(iterator);
-  this[INDEX] = $.toLength(i);
+  this[ITER]  = getIterator(iterator);
+  this[INDEX] = toLength(i);
 };
 $iter.create(SkipIterator, WRAPPER, function(){
   for(;;){
@@ -91,8 +95,8 @@ $iter.create(SkipIterator, WRAPPER, function(){
 });
 
 function LimitIterator(iterator, i){
-  this[ITER]  = $iter.get(iterator);
-  this[INDEX] = $.toLength(i);
+  this[ITER]  = getIterator(iterator);
+  this[INDEX] = toLength(i);
 };
 $iter.create(LimitIterator, WRAPPER, function(){
   var iterator = this[ITER];
