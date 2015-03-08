@@ -68,8 +68,9 @@ function MapIterator(iterator, fn, that, entries){
   this[FN]      = ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(MapIterator, WRAPPER, function(){
-  var step = this[ITER].next();
-  return step.done ? step : $iter.step(0, stepCall(this[ITER], this[FN], step.value, this[ENTRIES]));
+  var iter = this[ITER]
+    , step = iter.next();
+  return step.done ? step : $iter.step(0, stepCall(iter, this[FN], step.value, this[ENTRIES]));
 });
 
 function FilterIterator(iterator, fn, that, entries){
@@ -78,9 +79,10 @@ function FilterIterator(iterator, fn, that, entries){
   this[FN]      = ctx(fn, that, entries ? 2 : 1);
 };
 $iter.create(FilterIterator, WRAPPER, function(){
+  var iter = this[ITER];
   for(;;){
-    var step = this[ITER].next();
-    if(step.done || stepCall(this[ITER], this[FN], step.value, this[ENTRIES]))return step;
+    var step = iter.next();
+    if(step.done || stepCall(iter, this[FN], step.value, this[ENTRIES]))return step;
   }
 });
 

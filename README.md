@@ -69,7 +69,7 @@ require('core-js/shim');
 If you need support IE8- or need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
 
 ### CommonJS
-You can require only needed modules. *Warning! It's an experimental feature, API can be changed.*
+You can require only needed modules. **Warning! It's an experimental feature, API can be changed.**
 
 ```js
 require('core-js/es5'); // if you need support IE8-, require `es5` before other modules
@@ -1353,6 +1353,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.7.2 - 2015.03.09
+  * some fixes
+
 ##### 0.7.1 - 2015.03.07
   * some fixes
 
