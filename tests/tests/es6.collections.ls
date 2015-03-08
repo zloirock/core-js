@@ -234,12 +234,12 @@ test 'Set' !->
   if Array.from => deq Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
   # return #throw
   done = no
-  iter = {
-    next: -> throw 42
-    (Symbol?iterator): -> @
-    return: -> done := on
-  }
+  iter = [null, 1, 2]values!
+  iter.return = -> done := on
+  _add = Set::add
+  Set::add = -> throw 42
   try => new Set iter
+  Set::add = _add
   ok done, '.return #throw'
 test 'Set#add' !->
   ok isFunction(Set::add), 'Is function'

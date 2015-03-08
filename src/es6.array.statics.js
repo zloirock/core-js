@@ -3,6 +3,7 @@ var $     = require('./$')
   , ctx   = require('./$.ctx')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
+  , stepCall = $iter.stepCall
   , assertDefined = $.assertDefined;
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof instead of isFunction
@@ -16,14 +17,13 @@ $def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
       , mapping = mapfn !== undefined
       , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
       , index   = 0
-      , length, result, step;
+      , length, result, step, iterator;
     if($iter.is(O)){
-      result = new (generic(this, Array));
-      $iter.exec(function(iterator){
-        for(; !(step = iterator.next()).done; index++){
-          result[index] = mapping ? f(step.value, index) : step.value;
-        }
-      }, $iter.get(O));
+      iterator = $iter.get(O);
+      result   = new (generic(this, Array));
+      for(; !(step = iterator.next()).done; index++){
+        result[index] = mapping ? stepCall(iterator, f, [step.value, index], true) : step.value;
+      }
     } else {
       result = new (generic(this, Array))(length = $.toLength(O.length));
       for(; length > index; index++){

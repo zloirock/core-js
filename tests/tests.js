@@ -2085,7 +2085,7 @@
     });
   });
   test('Set', function(){
-    var S, r, done, iter, ref$;
+    var S, r, done, iter, _add;
     ok(isFunction(that.Set), 'Is function');
     ok('add' in Set.prototype, 'add in Set.prototype');
     ok('clear' in Set.prototype, 'clear in Set.prototype');
@@ -2108,18 +2108,18 @@
       deq(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
     }
     done = false;
-    iter = (ref$ = {
-      next: function(){
-        throw 42;
-      }
-    }, ref$[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
-      return this;
-    }, ref$['return'] = function(){
+    iter = [null, 1, 2].values();
+    iter['return'] = function(){
       return done = true;
-    }, ref$);
+    };
+    _add = Set.prototype.add;
+    Set.prototype.add = function(){
+      throw 42;
+    };
     try {
       new Set(iter);
     } catch (e$) {}
+    Set.prototype.add = _add;
     ok(done, '.return #throw');
   });
   test('Set#add', function(){

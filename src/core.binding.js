@@ -3,10 +3,10 @@ var $      = require('./$')
   , ctx    = require('./$.ctx')
   , $def   = require('./$.def')
   , invoke = require('./$.invoke')
-  , assertFunction = require('./$.assert').fn
   , hide   = $.hide
+  , assertFunction = require('./$.assert').fn
   // IE8- dirty hack - redefined toLocaleString is not enumerable
-  , _      = $.DESC ? require('./$.uid')('tie') : 'toLocaleString'
+  , _ = $.DESC ? require('./$.uid')('tie') : 'toLocaleString'
   , toLocaleString = {}.toLocaleString;
 
 // Placeholder

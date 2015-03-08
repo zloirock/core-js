@@ -69,7 +69,7 @@ function MapIterator(iterator, fn, that, entries){
 };
 $iter.create(MapIterator, WRAPPER, function(){
   var step = this[ITER].next();
-  return step.done ? step : $iter.step(0, stepCall(this[FN], step.value, this[ENTRIES]));
+  return step.done ? step : $iter.step(0, stepCall(this[ITER], this[FN], step.value, this[ENTRIES]));
 });
 
 function FilterIterator(iterator, fn, that, entries){
@@ -80,7 +80,7 @@ function FilterIterator(iterator, fn, that, entries){
 $iter.create(FilterIterator, WRAPPER, function(){
   for(;;){
     var step = this[ITER].next();
-    if(step.done || stepCall(this[FN], step.value, this[ENTRIES]))return step;
+    if(step.done || stepCall(this[ITER], this[FN], step.value, this[ENTRIES]))return step;
   }
 });
 

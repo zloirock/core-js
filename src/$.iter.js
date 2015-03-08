@@ -3,7 +3,6 @@ var $                 = require('./$')
   , ctx               = require('./$.ctx')
   , cof               = require('./$.cof')
   , $def              = require('./$.def')
-  , invoke            = require('./$.invoke')
   , assertObject      = require('./$.assert').obj
 // Safari has byggy iterators w/o `next`
   , BUGGY             = 'keys' in [] && !('next' in [].keys())
@@ -48,16 +47,13 @@ function getIterator(it){
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[cof.classof(it)];
   return assertObject(getIter.call(it));
 }
-function stepCall(fn, value, entries){
-  return entries ? invoke(fn, value) : fn(value);
-}
 function closeIterator(iterator){
   var ret = iterator['return'];
   if(ret !== undefined)ret.call(iterator);
 }
-function safeIterExec(exec, iterator){
+function stepCall(iterator, fn, value, entries){
   try {
-    return exec(iterator);
+    return entries ? fn(value[0], value[1]) : fn(value);
   } catch(e){
     closeIterator(iterator);
     throw e;
@@ -79,7 +75,6 @@ var $iter = module.exports = {
   },
   stepCall: stepCall,
   close: closeIterator,
-  exec: safeIterExec,
   is: function(it){
     var O      = Object(it)
       , Symbol = $.g.Symbol
@@ -116,12 +111,13 @@ var $iter = module.exports = {
     }
   },
   forOf: function(iterable, entries, fn, that){
-    safeIterExec(function(iterator){
-      var f = ctx(fn, that, entries ? 2 : 1)
-        , step;
-      while(!(step = iterator.next()).done)if(stepCall(f, step.value, entries) === false){
+    var iterator = getIterator(iterable)
+      , f = ctx(fn, that, entries ? 2 : 1)
+      , step;
+    while(!(step = iterator.next()).done){
+      if(stepCall(iterator, f, step.value, entries) === false){
         return closeIterator(iterator);
       }
-    }, getIterator(iterable));
+    }
   }
 };
