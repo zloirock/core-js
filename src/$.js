@@ -41,7 +41,7 @@ function isFunction(it){
   return typeof it == 'function';
 }
 function assertDefined(it){
-  if(it == undefined)throw TypeError("Can't convert null or undefined to object");
+  if(it == undefined)throw TypeError("Can't call method on  " + it);
   return it;
 }
 

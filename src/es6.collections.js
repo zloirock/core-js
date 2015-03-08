@@ -7,6 +7,11 @@ var $        = require('./$')
   , safe     = require('./$.uid').safe
   , $iter    = require('./$.iter')
   , assert   = require('./$.assert')
+  , assertInstanse = assert.inst
+  , has      = $.has
+  , set      = $.set
+  , isObject = $.isObject
+  , hide     = $.hide
   , step     = $iter.step
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , CID      = safe('cid')
@@ -51,15 +56,15 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     // create collection constructor
     C = isWeak
       ? function(iterable){
-          $.set(assert.inst(this, C, NAME), CID, cid++);
+          set(assertInstanse(this, C, NAME), CID, cid++);
           initFromIterable(this, iterable);
         }
       : function(iterable){
-          var that = assert.inst(this, C, NAME);
-          $.set(that, O1, $.create(null));
-          $.set(that, SIZE, 0);
-          $.set(that, LAST, undefined);
-          $.set(that, FIRST, undefined);
+          var that = assertInstanse(this, C, NAME);
+          set(that, O1, $.create(null));
+          set(that, SIZE, 0);
+          set(that, LAST, undefined);
+          set(that, FIRST, undefined);
           initFromIterable(that, iterable);
         };
     $.mix($.mix(C.prototype, methods), commonMethods);
@@ -74,7 +79,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     // wrap to init collections from iterable
     if($iter.DANGER_CLOSING || !checkIter()){
       C = function(iterable){
-        assert.inst(this, C, NAME);
+        assertInstanse(this, C, NAME);
         return initFromIterable(new Native, iterable);
       }
       C.prototype = proto;
@@ -101,7 +106,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
   // add .keys, .values, .entries, [@@iterator]
   // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
   isWeak || $iter.std(C, NAME, function(iterated, kind){
-    $.set(this, ITER, {o: iterated, k: kind});
+    set(this, ITER, {o: iterated, k: kind});
   }, function(){
     var iter  = this[ITER]
       , kind  = iter.k
@@ -125,14 +130,14 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
 
 function fastKey(it, create){
   // return primitive with prefix
-  if(!$.isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+  if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
   // can't set id to frozen object
   if(isFrozen(it))return 'F';
-  if(!$.has(it, CID)){
+  if(!has(it, CID)){
     // not necessary to add id
     if(!create)return 'E';
     // add missing object id
-    $.hide(it, CID, ++cid);
+    hide(it, CID, ++cid);
   // return object id with prefix
   } return 'O' + it[CID];
 }
@@ -239,28 +244,28 @@ getCollection('Set', {
 function defWeak(that, key, value){
   if(isFrozen(assert.obj(key)))leakStore(that).set(key, value);
   else {
-    $.has(key, WEAK) || $.hide(key, WEAK, {});
+    has(key, WEAK) || hide(key, WEAK, {});
     key[WEAK][that[CID]] = value;
   } return that;
 }
 function leakStore(that){
-  return that[LEAK] || $.hide(that, LEAK, new Map)[LEAK];
+  return that[LEAK] || hide(that, LEAK, new Map)[LEAK];
 }
 
 var weakMethods = {
   // 23.3.3.2 WeakMap.prototype.delete(key)
   // 23.4.3.3 WeakSet.prototype.delete(value)
   'delete': function(key){
-    if(!$.isObject(key))return false;
+    if(!isObject(key))return false;
     if(isFrozen(key))return leakStore(this)['delete'](key);
-    return $.has(key, WEAK) && $.has(key[WEAK], this[CID]) && delete key[WEAK][this[CID]];
+    return has(key, WEAK) && has(key[WEAK], this[CID]) && delete key[WEAK][this[CID]];
   },
   // 23.3.3.4 WeakMap.prototype.has(key)
   // 23.4.3.4 WeakSet.prototype.has(value)
   has: function(key){
-    if(!$.isObject(key))return false;
+    if(!isObject(key))return false;
     if(isFrozen(key))return leakStore(this).has(key);
-    return $.has(key, WEAK) && $.has(key[WEAK], this[CID]);
+    return has(key, WEAK) && has(key[WEAK], this[CID]);
   }
 };
 
@@ -268,9 +273,9 @@ var weakMethods = {
 var WeakMap = getCollection('WeakMap', {
   // 23.3.3.3 WeakMap.prototype.get(key)
   get: function(key){
-    if($.isObject(key)){
+    if(isObject(key)){
       if(isFrozen(key))return leakStore(this).get(key);
-      if($.has(key, WEAK))return key[WEAK][this[CID]];
+      if(has(key, WEAK))return key[WEAK][this[CID]];
     }
   },
   // 23.3.3.5 WeakMap.prototype.set(key, value)
@@ -285,7 +290,7 @@ if($.FW && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
     var method = WeakMap.prototype[key];
     WeakMap.prototype[key] = function(a, b){
       // store frozen objects on leaky map
-      if($.isObject(a) && isFrozen(a)){
+      if(isObject(a) && isFrozen(a)){
         var result = leakStore(this)[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap
