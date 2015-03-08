@@ -1,8 +1,8 @@
 'use strict';
-var $       = require('./$')
-  , ctx     = require('./$.ctx')
-  , cof     = require('./$.cof')
-  , invoke  = require('./$.invoke')
+var $      = require('./$')
+  , ctx    = require('./$.ctx')
+  , cof    = require('./$.cof')
+  , invoke = require('./$.invoke')
   , global             = $.g
   , isFunction         = $.isFunction
   , setTask            = global.setImmediate

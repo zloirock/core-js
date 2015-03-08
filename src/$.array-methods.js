@@ -1,11 +1,11 @@
 'use strict';
-// 0 -> forEach
-// 1 -> map
-// 2 -> filter
-// 3 -> some
-// 4 -> every
-// 5 -> find
-// 6 -> findIndex
+// 0 -> Array#forEach
+// 1 -> Array#map
+// 2 -> Array#filter
+// 3 -> Array#some
+// 4 -> Array#every
+// 5 -> Array#find
+// 6 -> Array#findIndex
 var $   = require('./$')
   , ctx = require('./$.ctx');
 module.exports = function(TYPE){

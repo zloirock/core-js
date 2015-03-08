@@ -4,12 +4,12 @@ var $                 = require('./$')
   , cof               = require('./$.cof')
   , $def              = require('./$.def')
   , assertObject      = require('./$.assert').obj
-// Safari has byggy iterators w/o `next`
-  , BUGGY             = 'keys' in [] && !('next' in [].keys())
   , SYMBOL_ITERATOR   = require('./$.wks')('iterator')
   , FF_ITERATOR       = '@@iterator'
   , Iterators         = {}
   , IteratorPrototype = {};
+// Safari has byggy iterators w/o `next`
+var BUGGY = 'keys' in [] && !('next' in [].keys());
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 setIterator(IteratorPrototype, $.that);
 function setIterator(O, value){
@@ -101,8 +101,8 @@ var $iter = module.exports = {
     if(DEFAULT){
       methods = {
         entries: entries,
-        keys: IS_SET ? values : createIter('key'),
-        values: values
+        keys:    IS_SET ? values : createIter('key'),
+        values:  values
       }
       $def($def.P + $def.F * BUGGY, NAME, methods);
       if(FORCE)for(key in methods){

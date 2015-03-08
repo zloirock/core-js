@@ -55,16 +55,14 @@ function generic(A, B){
   return typeof A == 'function' ? A : B;
 }
 
-/*
- * 0 -> forEach
- * 1 -> map
- * 2 -> filter
- * 3 -> some
- * 4 -> every
- * 5 -> find
- * 6 -> findKey
- * 7 -> mapPairs
- */
+// 0 -> Dict.forEach
+// 1 -> Dict.map
+// 2 -> Dict.filter
+// 3 -> Dict.some
+// 4 -> Dict.every
+// 5 -> Dict.find
+// 6 -> Dict.findKey
+// 7 -> Dict.mapPairs
 function createDictMethod(TYPE){
   var IS_MAP   = TYPE == 1
     , IS_EVERY = TYPE == 4;
@@ -90,6 +88,9 @@ function createDictMethod(TYPE){
     return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
   }
 }
+
+// true  -> Dict.turn
+// false -> Dict.reduce
 function createDictReduce(IS_TURN){
   return function(object, mapfn, init){
     assert.fn(mapfn);
@@ -113,11 +114,11 @@ function createDictReduce(IS_TURN){
   }
 }
 var findKey = createDictMethod(6);
-function sameNaN(it){
-  return it != it;
-}
+
 function includes(object, el){
-  return (el == el ? keyOf(object, el) : findKey(object, sameNaN)) !== undefined;
+  return (el == el ? keyOf(object, el) : findKey(object, function(it){
+    return it != it;
+  })) !== undefined;
 }
 
 var dictMethods = {
