@@ -3,7 +3,7 @@ var $       = require('./$')
   , $def    = require('./$.def')
   , statics = {};
 function setStatics(keys, length){
-  $.each.call($.a(keys), function(key){
+  $.each.call(keys.split(','), function(key){
     if(key in [])statics[key] = require('./$.ctx')(Function.call, [][key], length);
   });
 }

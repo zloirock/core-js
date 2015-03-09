@@ -26,12 +26,12 @@ if($.FW && !(Number('0o1') && Number('0b1'))){
   Number = function Number(it){
     return this instanceof Number ? new Base(toNumber(it)) : toNumber(it);
   }
-  $.each.call($.DESC ? $.getNames(Base) : $.a(
+  $.each.call($.DESC ? $.getNames(Base) : (
       // ES3:
       'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
       // ES6:
       'EPSILON,isFinite,isInteger,isNaN,isSafeInteger,MAX_SAFE_INTEGER,MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
-    ), function(key){
+    ).split(','), function(key){
       if($.has(Base, key) && !$.has(Number, key))$.setDesc(Number, key, $.getDesc(Base, key));
   });
   Number.prototype = proto;

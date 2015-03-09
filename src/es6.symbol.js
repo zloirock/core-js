@@ -61,7 +61,7 @@ var symbolStatics = {
 // 19.4.2.12 Symbol.toPrimitive
 // 19.4.2.13 Symbol.toStringTag
 // 19.4.2.14 Symbol.unscopables
-$.each.call($.a('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'),
+$.each.call('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'.split(','),
   function(it){
     symbolStatics[it] = require('./$.wks')(it);
   }

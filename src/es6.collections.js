@@ -286,7 +286,7 @@ var WeakMap = getCollection('WeakMap', {
 
 // IE11 WeakMap frozen keys fix
 if($.FW && new WeakMap().set(Object.freeze(tmp), 7).get(tmp) != 7){
-  $.each.call($.a('delete,has,get,set'), function(key){
+  $.each.call(['delete', 'has', 'get', 'set'], function(key){
     var method = WeakMap.prototype[key];
     WeakMap.prototype[key] = function(a, b){
       // store frozen objects on leaky map

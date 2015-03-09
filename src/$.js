@@ -95,10 +95,6 @@ var $ = module.exports = {
     for(var key in src)hide(target, key, src[key]);
     return target;
   },
-  // $.a('str1,str2,str3') => ['str1', 'str2', 'str3']
-  a: function(it){
-    return String(it).split(',');
-  },
   each: [].forEach
 };
 if(typeof __e != 'undefined')__e = core;

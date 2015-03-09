@@ -49,7 +49,7 @@ $def($def.P, 'Array', {
 
 if($.FW){
   // 22.1.3.31 Array.prototype[@@unscopables]
-  $.each.call($.a('find,findIndex,fill,copyWithin,entries,keys,values'), function(it){
+  $.each.call('find,findIndex,fill,copyWithin,entries,keys,values'.split(','), function(it){
     ArrayUnscopables[it] = true;
   });
   UNSCOPABLES in ArrayProto || $.hide(ArrayProto, UNSCOPABLES, ArrayUnscopables);

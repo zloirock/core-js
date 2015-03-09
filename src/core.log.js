@@ -3,10 +3,10 @@ var $    = require('./$')
   , log  = {}
   , enabled = true;
 // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
-$.each.call($.a('assert,clear,count,debug,dir,dirxml,error,exception,' +
+$.each.call(('assert,clear,count,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
     'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
-    'timelineEnd,timeStamp,trace,warn'), function(key){
+    'timelineEnd,timeStamp,trace,warn').split(','), function(key){
   log[key] = function(){
     if(enabled && $.g.console && $.isFunction(console[key])){
       return Function.apply.call(console[key], console, arguments);

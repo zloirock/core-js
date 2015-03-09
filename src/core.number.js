@@ -26,12 +26,12 @@ methods.random = function(lim /* = 0 */){
   return Math.random() * (Math.max(a, b) - m) + m;
 };
 
-$.each.call($.a(
+$.each.call((
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6:
     'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-  ), function(key){
+  ).split(','), function(key){
     var fn = Math[key];
     if(fn)methods[key] = function(/* ...args */){
       // ie9- dont support strict mode & convert `this` to object -> convert it to number

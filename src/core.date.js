@@ -45,12 +45,12 @@ function lz(num){
 function addLocale(lang, locale){
   function split(index){
     var result = [];
-    $.each.call($.a(locale.months), function(it){
+    $.each.call(locale.months.split(','), function(it){
       result.push(it.replace(flexioRegExp, '$' + index));
     });
     return result;
   }
-  locales[lang] = [$.a(locale.weekdays), split(1), split(2)];
+  locales[lang] = [locale.weekdays.split(','), split(1), split(2)];
   return core;
 }
 $def($def.P + $def.F, DATE, {

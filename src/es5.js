@@ -60,7 +60,7 @@ $def($def.S + $def.F * !$.DESC, 'Object', {
 });
 
   // IE 8- don't enum bug keys
-var keys1 = $.a('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf')
+var keys1 = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
   // Additional keys for getOwnPropertyNames
   , keys2 = keys1.concat('length', 'prototype')
   , keysLen1 = keys1.length;
