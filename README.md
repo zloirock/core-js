@@ -1042,11 +1042,11 @@ Vector3D.prototype = Object.make(Vector2D.prototype, {
 });
 
 var vector = new Vector3D(9, 12, 20);
-console.log(vector.xy);  // => 15
-console.log(vector.xyz); // => 25
+log(vector.xy);  // => 15
+log(vector.xyz); // => 25
 vector.y++;
-console.log(vector.xy);  // => 15.811388300841896
-console.log(vector.xyz); // => 25.495097567963924
+log(vector.xy);  // => 15.811388300841896
+log(vector.xyz); // => 25.495097567963924
 ```
 ### Dict
 Module `core.dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
@@ -1095,14 +1095,14 @@ Dict.isDict(Dict()); // => true
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
-for(var key of Dict.keys(dict))console.log(key); // => 'a', 'b', 'c'
+for(var key of Dict.keys(dict))log(key); // => 'a', 'b', 'c'
 
 for(var [key, val] of Dict.entries(dict)){
-  console.log(key); // => 'a', 'b', 'c'
-  console.log(val); // => 1, 2, 3
+  log(key); // => 'a', 'b', 'c'
+  log(val); // => 1, 2, 3
 }
 
-$for(Dict.values(dict)).of(console.log); // => 1, 2, 3
+$for(Dict.values(dict)).of(log); // => 1, 2, 3
 
 new Map(Dict.entries(dict)); // => Map {a: 1, b: 2, c: 3}
 
@@ -1180,15 +1180,15 @@ Function
 Object
   #[_](key) -> boundFn
 ```
-`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without global namespace pollution) as placeholder. [Examples](http://goo.gl/p9ZJ8K):
+`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without global namespace pollution) as placeholder and not conflict with `Underscore` / `LoDash`. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
-var fn1 = console.log.part(1, 2);
+var fn1 = log.part(1, 2);
 fn1(3, 4);    // => 1, 2, 3, 4
 
-var fn2 = console.log.part(_, 2, _, 4);
+var fn2 = log.part(_, 2, _, 4);
 fn2(1, 3);    // => 1, 2, 3, 4
 
-var fn3 = console.log.part(1, _, _, 4);
+var fn3 = log.part(1, _, _, 4);
 fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
@@ -1289,9 +1289,9 @@ Number
 ```
 Number Iterator [examples](http://goo.gl/mkReUE):
 ```javascript
-for(var i of 3)console.log(i); // => 0, 1, 2
+for(var i of 3)log(i); // => 0, 1, 2
 
-$for(3).of(console.log); // => 0, 1, 2
+$for(3).of(log); // => 0, 1, 2
 
 Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
 
@@ -1444,7 +1444,7 @@ delay(1e3).then(() => log('after 1 sec'));
     * added `Reflect.preventExtensions`
     * added `Reflect.set`
     * added `Reflect.setPrototypeOf`
-  * core-js methods now can use external `Symbol.iterator` polyfill
+  * `core-js` methods now can use external `Symbol.iterator` polyfill
   * some fixes
 
 ##### 0.3.3 - 2014.12.28
