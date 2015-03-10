@@ -12,7 +12,9 @@ list = <[
   es6.number.statics
   es6.math
   es6.string
-  es6.array.statics
+  es6.array.from
+  es6.array.of
+  es6.array.species
   es6.array.prototype
   core.iterator
   es6.iterators

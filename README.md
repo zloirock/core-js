@@ -140,7 +140,7 @@ Date
 
 ### ECMAScript 6
 #### ECMAScript 6: Object
-Modules `es6.object.assign`, `es6.object.is`, `es6.object.set-prototype-of`, `es6.object.prototype` and `es6.function`.
+Modules `es6.object.statics`, `es6.object.prototype` and `es6.function`.
 ```javascript
 Object
   .assign(target, ...src) -> target
