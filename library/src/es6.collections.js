@@ -1,5 +1,5 @@
 'use strict';
-require('./es6.iterators');
+require('./web.dom.itarable');
 var $        = require('./$')
   , ctx      = require('./$.ctx')
   , cof      = require('./$.cof')

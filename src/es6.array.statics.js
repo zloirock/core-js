@@ -1,4 +1,4 @@
-require('./es6.iterators');
+require('./web.dom.itarable');
 var $     = require('./$')
   , ctx   = require('./$.ctx')
   , $def  = require('./$.def')

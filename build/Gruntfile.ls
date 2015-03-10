@@ -23,8 +23,7 @@ module.exports = (grunt)->
         src: <[src/** es5/** es6/** es7/** js/** web/** core/** index.js shim.js]>
         dest: './library/'
       * expand: on
-        flattern: on
-        cwd: './src/lib/'
+        cwd: './src/library/'
         src: <[src/*]>
         dest: './library/'
     watch:

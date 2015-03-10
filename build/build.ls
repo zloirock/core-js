@@ -2,7 +2,9 @@ require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '
 list = <[
   es5
   es6.symbol
-  es6.object.statics
+  es6.object.assign
+  es6.object.is
+  es6.object.set-prototype-of
   es6.object.prototype
   es6.object.statics-accept-primitives
   es6.function
