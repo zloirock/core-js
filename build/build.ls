@@ -22,7 +22,11 @@ list = <[
   es6.promise
   es6.collections
   es6.reflect
-  es7.proposals
+  es7.array.includes
+  es7.string.at
+  es7.regexp.escape
+  es7.object.get-own-property-descriptors
+  es7.object.to-array
   es7.abstract-refs
   core.dict
   core.$for
