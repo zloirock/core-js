@@ -1,7 +1,5 @@
-require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '../library': core}
-{startsWith, repeat} = core.String
+require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '../': core}
 list = <[
-  $.library
   es5
   es6.symbol
   es6.object.statics
@@ -43,24 +41,25 @@ exp = <[
   core.iterator
 ]>
 
-x78 = repeat '*' 78
-module.exports = ({modules, blacklist, library}, next)-> let @ = core.Array.turn modules, ((memo, it)-> memo[it] = on), {}
+x78 = '*'repeat 78
+module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((memo, it)-> memo[it] = on), {}
   if @exp => for exp => @[..] = on
   for ns of @
     if @[ns]
       for name in list
-        if startsWith(name, "#ns.") and name not in exp
+        if name.startsWith("#ns.") and name not in exp
           @[name] = on
   for ns in blacklist
     for name in list
-      if name is ns or startsWith name, "#ns."
+      if name is ns or name.startsWith "#ns."
         @[name] = no
-  if library  => @ <<< {+\$.library, -\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
-  err <-! writeFile './__tmp__.js', list.filter(~> @[it]).map(->"require('./src/#it');").join '\n'
+  if library  => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
+  PATH = ".#{ if library => '/library' else '' }/src/__tmp__"
+  err <-! writeFile "#PATH.js", list.filter(~> @[it]).map(-> "require('./#it');" ).join '\n'
   if err => console.error err
-  err, script <-! browserify(['./__tmp__']).bundle
+  err, script <-! browserify([PATH]).bundle
   if err => console.error err
-  err <-! unlink './__tmp__.js'
+  err <-! unlink "#PATH.js"
   if err => console.error err
   next """
     #banner

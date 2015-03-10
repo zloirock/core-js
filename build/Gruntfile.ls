@@ -1,6 +1,10 @@
 require! <[./build fs ./config]>
 module.exports = (grunt)->
-  require \load-grunt-tasks <| grunt
+  grunt.loadNpmTasks \grunt-contrib-clean
+  grunt.loadNpmTasks \grunt-contrib-copy
+  grunt.loadNpmTasks \grunt-contrib-uglify
+  grunt.loadNpmTasks \grunt-contrib-watch
+  grunt.loadNpmTasks \grunt-livescript
   grunt.initConfig do
     pkg: grunt.file.readJSON './package.json'
     uglify: build:
@@ -12,6 +16,17 @@ module.exports = (grunt)->
         banner: config.banner
         report: \gzip
     livescript: src: files: './tests/tests.js': './tests/tests/*'
+    clean: ['./library']
+    copy: lib: files:
+      * expand: on
+        cwd: './'
+        src: <[src/** es5/** es6/** es7/** js/** web/** core/** index.js shim.js]>
+        dest: './library/'
+      * expand: on
+        flattern: on
+        cwd: './src/lib/'
+        src: <[src/*]>
+        dest: './library/'
     watch:
       core:
         files: './src/*'
@@ -40,4 +55,4 @@ module.exports = (grunt)->
     grunt.option \library ''>
     grunt.option \path './client/core'
     grunt.task.run <[build:es5,es6,es7,js,web,core,exp uglify]>
-  grunt.registerTask \default <[client library shim]>
+  grunt.registerTask \default <[clean copy client library shim]>
