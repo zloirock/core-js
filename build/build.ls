@@ -11,7 +11,8 @@ list = <[
   es6.number.constructor
   es6.number.statics
   es6.math
-  es6.string
+  es6.string.statics
+  es6.string.prototype
   es6.array.from
   es6.array.of
   es6.array.species

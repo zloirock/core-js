@@ -4,45 +4,13 @@ var $        = require('./$')
   , $def     = require('./$.def')
   , toLength = $.toLength
   , min      = Math.min
-  , STRING   = 'String'
-  , String   = $.g[STRING]
-  , assertDefined = $.assertDefined
-  , fromCharCode  = String.fromCharCode;
+  , String   = $.g.String
+  , assertDefined = $.assertDefined;
 function assertNotRegExp(it){
   if(cof(it) == 'RegExp')throw TypeError();
 }
 
-$def($def.S, STRING, {
-  // 21.1.2.2 String.fromCodePoint(...codePoints)
-  fromCodePoint: function(x){
-    var res = []
-      , len = arguments.length
-      , i   = 0
-      , code
-    while(len > i){
-      code = +arguments[i++];
-      if($.toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
-      res.push(code < 0x10000
-        ? fromCharCode(code)
-        : fromCharCode(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
-      );
-    } return res.join('');
-  },
-  // 21.1.2.4 String.raw(callSite, ...substitutions)
-  raw: function(callSite){
-    var raw = $.toObject(callSite.raw)
-      , len = toLength(raw.length)
-      , sln = arguments.length
-      , res = []
-      , i   = 0;
-    while(len > i){
-      res.push(String(raw[i++]));
-      if(i < sln)res.push(String(arguments[i]));
-    } return res.join('');
-  }
-});
-
-$def($def.P, STRING, {
+$def($def.P, 'String', {
   // 21.1.3.3 String.prototype.codePointAt(pos)
   codePointAt: require('./$.string-at')(false),
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
