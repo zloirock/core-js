@@ -3,7 +3,6 @@ var $     = require('./$')
   , abs   = Math.abs
   , floor = Math.floor
   , MAX_SAFE_INTEGER = 0x1fffffffffffff // pow(2, 53) - 1 == 9007199254740991;
-// 20.1.2.3 Number.isInteger(number)
 function isInteger(it){
   return !$.isObject(it) && isFinite(it) && floor(it) === it;
 }

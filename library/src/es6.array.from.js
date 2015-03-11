@@ -11,12 +11,12 @@ $def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
     var O       = Object(assertDefined(arrayLike))
       , mapfn   = arguments[1]
       , mapping = mapfn !== undefined
-      // strange IE quirks mode bug -> use typeof instead of isFunction
       , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
       , index   = 0
       , length, result, step, iterator;
     if($iter.is(O)){
       iterator = $iter.get(O);
+      // strange IE quirks mode bug -> use typeof instead of isFunction
       result   = new (typeof this == 'function' ? this : Array);
       for(; !(step = iterator.next()).done; index++){
         result[index] = mapping ? stepCall(iterator, f, [step.value, index], true) : step.value;

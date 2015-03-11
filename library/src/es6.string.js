@@ -36,8 +36,8 @@ $def($def.S, STRING, {
       , res = []
       , i   = 0;
     while(len > i){
-     res.push(String(raw[i++]));
-     if(i < sln)res.push(String(arguments[i]));
+      res.push(String(raw[i++]));
+      if(i < sln)res.push(String(arguments[i]));
     } return res.join('');
   }
 });
