@@ -1,2 +1,2 @@
 require('../../src/es6.math');
-module.exports = require('../../src/$').core.Math.exp1m;
+module.exports = require('../../src/$').core.Math.expm1;
