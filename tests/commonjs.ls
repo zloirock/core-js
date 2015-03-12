@@ -38,7 +38,7 @@ ok require("#P/es6/number/is-safe-integer") 42
 ok require("#P/es6/number/max-safe-integer") is 0x1fffffffffffff
 ok require("#P/es6/number/min-safe-integer") is -0x1fffffffffffff
 ok require("#P/es6/number/parse-float")('1.5') is 1.5
-ok require("#P/es6/number/parse-int")('2') is 2
+ok require("#P/es6/number/parse-int")('2.1') is 2
 require("#P/es6/number/constructor")
 ok \isNaN of require("#P/es6/number/statics")
 ok \isNaN of require("#P/es6/number")
@@ -84,7 +84,6 @@ ok require("#P/es6/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
 ok require("#P/es6/string/repeat")(\q 3) is \qqq
 ok require("#P/es6/string/starts-with") \qwe, \qw
 ok \repeat of require("#P/es6/string/prototype")
-ok \raw of require("#P/es6/string/statics")
 ok \raw of require("#P/es6/string")
 ok require("#P/es6/symbol/has-instance")
 ok require("#P/es6/symbol/is-concat-spreadable")
@@ -127,4 +126,11 @@ ok require("#P/es7/symbol/reference-delete")
 ok \referenceGet of require("#P/es7/symbol")
 ok \Symbol of require("#P/es7/abstract-refs")
 ok \Symbol of require("#P/es7")
+ok typeof require("#P/web/set-timeout") is \function
+ok typeof require("#P/web/set-interval") is \function
+ok typeof require("#P/web/set-immediate") is \function
+ok typeof require("#P/web/clear-immediate") is \function
+ok \setTimeout of require("#P/web/timers")
+ok \setImmediate of require("#P/web/immediate")
+ok \setImmediate of require("#P/web")
 console.log \OK
