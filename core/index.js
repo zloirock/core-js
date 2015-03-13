@@ -1,4 +1,5 @@
 require('../src/core.dict');
+require('../src/core.iter-helpers');
 require('../src/core.$for');
 require('../src/core.delay');
 require('../src/core.binding');

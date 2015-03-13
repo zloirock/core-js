@@ -34,6 +34,7 @@ list = <[
   web.dom.itarable
   web.timers
   core.dict
+  core.iter-helpers
   core.$for
   core.delay
   core.binding

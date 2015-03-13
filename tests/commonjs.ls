@@ -161,7 +161,7 @@ ok \then of require("#P/core/delay")(1)
 ok require("#P/core/global") is global
 ok \warn of require("#P/core/log")
 ok \of of require("#P/core/$for")([])
-ok require("#P/core/$for/is-iterable")([])
-ok \next of require("#P/core/$for/get-iterator")([])
+ok require("#P/core/is-iterable")([])
+ok \next of require("#P/core/get-iterator")([])
 ok \delay of require("#P/core")
 console.log \OK
