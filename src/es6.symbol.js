@@ -4,7 +4,6 @@ var $        = require('./$')
   , setTag   = require('./$.cof').set
   , uid      = require('./$.uid')
   , $def     = require('./$.def')
-  , assert   = require('./$.assert')
   , has      = $.has
   , hide     = $.hide
   , getNames = $.getNames
@@ -18,7 +17,7 @@ var $        = require('./$')
 // 19.4.1.1 Symbol([description])
 if(!$.isFunction(Symbol)){
   Symbol = function(description){
-    assert(!(this instanceof Symbol), 'Symbol is not a constructor');
+    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
     var tag = uid(description)
       , sym = $.set($.create(Symbol.prototype), TAG, tag);
     AllSymbols[tag] = sym;
@@ -61,8 +60,13 @@ var symbolStatics = {
 // 19.4.2.12 Symbol.toPrimitive
 // 19.4.2.13 Symbol.toStringTag
 // 19.4.2.14 Symbol.unscopables
-$.each.call('hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'.split(','),
-  function(it){
+$.each.call((
+    // ES6:
+    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
+    'species,split,toPrimitive,toStringTag,unscopables,' +
+    // ES7 (in case, if ES7 modules required before):
+    'referenceGet,referenceSet,referenceDelete'
+  ).split(','), function(it){
     symbolStatics[it] = require('./$.wks')(it);
   }
 );

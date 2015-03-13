@@ -15,13 +15,14 @@ $def($def.S, 'Symbol', {
 
 hide(Function.prototype, REFERENCE_GET, $.that);
 
-function setMapMethods(Constructor){
-  if(Constructor){
-    var MapProto = Constructor.prototype;
+function setMapMethods(KEY){
+  var Map = $.core[KEY] || $.g[KEY], MapProto;
+  if(Map){
+    MapProto = Map.prototype;
     hide(MapProto, REFERENCE_GET,    MapProto.get);
     hide(MapProto, REFERENCE_SET,    MapProto.set);
     hide(MapProto, REFERENCE_DELETE, MapProto['delete']);
  }
 }
-setMapMethods($.core.Map || $.g.Map);
-setMapMethods($.core.WeakMap || $.g.WeakMap);
+setMapMethods('Map');
+setMapMethods('WeakMap');

@@ -30,21 +30,21 @@ list = <[
   es7.object.get-own-property-descriptors
   es7.object.to-array
   es7.abstract-refs
+  web.immediate
+  web.dom.itarable
+  web.timers
   core.dict
   core.$for
   core.delay
   core.binding
   core.object
-  core.array
+  core.array.turn
   core.number
-  core.string
+  core.string.escape-html
   core.date
   core.global
-  js.array.statics
-  web.immediate
-  web.dom.itarable
-  web.timers
   core.log
+  js.array.statics
 ]>
 
 exp = <[

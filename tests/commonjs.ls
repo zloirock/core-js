@@ -132,5 +132,36 @@ ok typeof require("#P/web/set-immediate") is \function
 ok typeof require("#P/web/clear-immediate") is \function
 ok \setTimeout of require("#P/web/timers")
 ok \setImmediate of require("#P/web/immediate")
+ok require("#P/web/dom/iterable")
+ok require("#P/web/dom")
 ok \setImmediate of require("#P/web")
+ok require("#P/core/array/turn")([1, 2, 3], (-> it.q++), {q: 0}).q is 3
+ok \turn of require("#P/core/array")
+ok require("#P/core/string/escape-html")('<br />') is '&lt;br /&gt;'
+ok require("#P/core/string/unescape-html")('&lt;br /&gt;') is '<br />'
+ok \escapeHTML of require("#P/core/string")
+ok require("#P/core/object/is-object") {}
+ok require("#P/core/object/classof")(null) is \Null
+ok require("#P/core/object/define")({}, {q: 42}).q is 42
+ok require("#P/core/object/make")([], {}) instanceof Array
+ok \isObject of require("#P/core/object")
+ok require("#P/core/function/only")((-> &length), 2)(2 3 4) is 2
+ok require("#P/core/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
+ok \part of require("#P/core/function")
+ok \_ of require("#P/core/binding")
+ok require("#P/core/_") is require("#P/core/binding")._
+ok typeof require("#P/core/date/format")(new Date) is \string
+ok typeof require("#P/core/date/format-utc")(new Date) is \string
+ok typeof require("#P/core/date/add-locale") is \function
+ok \format of require("#P/core/date")
+ok require("#P/core/number/random")(0) is 0
+ok \random of require("#P/core/number")
+ok \mapPairs of require("#P/core/dict")
+ok \then of require("#P/core/delay")(1)
+ok require("#P/core/global") is global
+ok \warn of require("#P/core/log")
+ok \of of require("#P/core/$for")([])
+ok require("#P/core/$for/is-iterable")([])
+ok \next of require("#P/core/$for/get-iterator")([])
+ok \delay of require("#P/core")
 console.log \OK
