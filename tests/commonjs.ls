@@ -126,6 +126,27 @@ ok require("#P/es7/symbol/reference-delete")
 ok \referenceGet of require("#P/es7/symbol")
 ok \Symbol of require("#P/es7/abstract-refs")
 ok \Symbol of require("#P/es7")
+ok typeof require("#P/js/array/concat") is \function
+ok typeof require("#P/js/array/every") is \function
+ok typeof require("#P/js/array/filter") is \function
+ok typeof require("#P/js/array/for-each") is \function
+ok typeof require("#P/js/array/index-of") is \function
+ok typeof require("#P/js/array/join") is \function
+ok typeof require("#P/js/array/last-index-of") is \function
+ok typeof require("#P/js/array/map") is \function
+ok typeof require("#P/js/array/pop") is \function
+ok typeof require("#P/js/array/push") is \function
+ok typeof require("#P/js/array/reduce") is \function
+ok typeof require("#P/js/array/reduce-right") is \function
+ok typeof require("#P/js/array/reverse") is \function
+ok typeof require("#P/js/array/shift") is \function
+ok typeof require("#P/js/array/slice") is \function
+ok typeof require("#P/js/array/some") is \function
+ok typeof require("#P/js/array/sort") is \function
+ok typeof require("#P/js/array/splice") is \function
+ok typeof require("#P/js/array/unshift") is \function
+ok \unshift of require("#P/js/array/statics")
+ok \unshift of require("#P/js/array")
 ok typeof require("#P/web/set-timeout") is \function
 ok typeof require("#P/web/set-interval") is \function
 ok typeof require("#P/web/set-immediate") is \function
