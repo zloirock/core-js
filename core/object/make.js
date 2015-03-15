@@ -1,2 +1,2 @@
-require('../../src/core.object');
-module.exports = require('../../src/$').core.Object.make;
+require('../../modules/core.object');
+module.exports = require('../../modules/$').core.Object.make;

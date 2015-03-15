@@ -1,2 +1,2 @@
-require('../../src/es7.array.includes');
-module.exports = require('../../src/$').core.Array.includes;
+require('../../modules/es7.array.includes');
+module.exports = require('../../modules/$').core.Array.includes;

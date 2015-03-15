@@ -1,7 +1,7 @@
-require('../../src/es6.object.assign');
-require('../../src/es6.object.is');
-require('../../src/es6.object.set-prototype-of');
-require('../../src/es6.object.prototype');
-require('../../src/es6.object.statics-accept-primitives');
-require('../../src/es6.symbol');
-module.exports = require('../../src/$').core.Object;
+require('../../modules/es6.object.assign');
+require('../../modules/es6.object.is');
+require('../../modules/es6.object.set-prototype-of');
+require('../../modules/es6.object.prototype');
+require('../../modules/es6.object.statics-accept-primitives');
+require('../../modules/es6.symbol');
+module.exports = require('../../modules/$').core.Object;

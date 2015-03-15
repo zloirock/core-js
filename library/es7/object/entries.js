@@ -1,2 +1,2 @@
-require('../../src/es7.object.to-array');
-module.exports = require('../../src/$').core.Object.entries;
+require('../../modules/es7.object.to-array');
+module.exports = require('../../modules/$').core.Object.entries;

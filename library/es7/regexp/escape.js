@@ -1,2 +1,2 @@
-require('../../src/es7.regexp.escape');
-module.exports = require('../../src/$').core.RegExp.escape;
+require('../../modules/es7.regexp.escape');
+module.exports = require('../../modules/$').core.RegExp.escape;

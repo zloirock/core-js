@@ -1,2 +1,2 @@
-require('../../src/core.binding');
-module.exports = require('../../src/$').core.Function.part;
+require('../../modules/core.binding');
+module.exports = require('../../modules/$').core.Function.part;

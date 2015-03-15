@@ -1,2 +1,2 @@
-require('../src/core.binding');
-module.exports = require('../src/$').core._;
+require('../modules/core.binding');
+module.exports = require('../modules/$').core._;

@@ -1,2 +1,2 @@
-require('../../src/es7.string.at');
-module.exports = require('../../src/$').core.String.at;
+require('../../modules/es7.string.at');
+module.exports = require('../../modules/$').core.String.at;

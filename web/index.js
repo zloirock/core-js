@@ -1,4 +1,4 @@
-require('../src/web.timers');
-require('../src/web.immediate');
-require('../src/web.dom.itarable');
-module.exports = require('../src/$').core;
+require('../modules/web.timers');
+require('../modules/web.immediate');
+require('../modules/web.dom.itarable');
+module.exports = require('../modules/$').core;

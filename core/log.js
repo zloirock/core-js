@@ -1,2 +1,2 @@
-require('../src/core.log');
-module.exports = require('../src/$').core.log;
+require('../modules/core.log');
+module.exports = require('../modules/$').core.log;

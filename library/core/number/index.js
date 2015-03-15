@@ -1,2 +1,2 @@
-require('../../src/core.number');
-module.exports = require('../../src/$').core.Number;
+require('../../modules/core.number');
+module.exports = require('../../modules/$').core.Number;

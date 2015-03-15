@@ -1,2 +1,2 @@
-require('../../src/es6.reflect');
-module.exports = require('../../src/$').core.Reflect.has;
+require('../../modules/es6.reflect');
+module.exports = require('../../modules/$').core.Reflect.has;

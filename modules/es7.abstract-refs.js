@@ -1,3 +1,4 @@
+require('./es6.collections');
 // https://github.com/zenparsing/es-abstract-refs
 var $                = require('./$')
   , wks              = require('./$.wks')
@@ -22,7 +23,7 @@ function setMapMethods(KEY){
     hide(MapProto, REFERENCE_GET,    MapProto.get);
     hide(MapProto, REFERENCE_SET,    MapProto.set);
     hide(MapProto, REFERENCE_DELETE, MapProto['delete']);
- }
+  }
 }
 setMapMethods('Map');
 setMapMethods('WeakMap');

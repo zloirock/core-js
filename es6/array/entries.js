@@ -1,2 +1,2 @@
-require('../../src/es6.iterators');
-module.exports = require('../../src/$').core.Array.entries;
+require('../../modules/es6.iterators');
+module.exports = require('../../modules/$').core.Array.entries;

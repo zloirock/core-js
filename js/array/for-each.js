@@ -1,2 +1,2 @@
-require('../../src/js.array.statics');
-module.exports = require('../../src/$').core.Array.forEach;
+require('../../modules/js.array.statics');
+module.exports = require('../../modules/$').core.Array.forEach;

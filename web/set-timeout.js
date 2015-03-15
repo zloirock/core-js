@@ -1,2 +1,2 @@
-require('../src/web.timers');
-module.exports = require('../src/$').core.setTimeout;
+require('../modules/web.timers');
+module.exports = require('../modules/$').core.setTimeout;

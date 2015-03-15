@@ -1,2 +1,2 @@
-require('../../src/es6.array.prototype');
-module.exports = require('../../src/$').core.Array;
+require('../../modules/es6.array.prototype');
+module.exports = require('../../modules/$').core.Array;

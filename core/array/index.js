@@ -1,2 +1,2 @@
-require('../../src/core.array.turn');
-module.exports = require('../../src/$').core.Array;
+require('../../modules/core.array.turn');
+module.exports = require('../../modules/$').core.Array;

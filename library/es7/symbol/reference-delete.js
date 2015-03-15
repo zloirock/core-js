@@ -1,2 +1,2 @@
-require('../../src/es7.abstract-refs');
-module.exports = require('../../src/$').core.Symbol.referenceDelete;
+require('../../modules/es7.abstract-refs');
+module.exports = require('../../modules/$').core.Symbol.referenceDelete;

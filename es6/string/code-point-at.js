@@ -1,2 +1,2 @@
-require('../../src/es6.string.prototype');
-module.exports = require('../../src/$').core.String.codePointAt;
+require('../../modules/es6.string.prototype');
+module.exports = require('../../modules/$').core.String.codePointAt;

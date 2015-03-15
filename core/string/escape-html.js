@@ -1,2 +1,2 @@
-require('../../src/core.string.escape-html');
-module.exports = require('../../src/$').core.String.escapeHTML;
+require('../../modules/core.string.escape-html');
+module.exports = require('../../modules/$').core.String.escapeHTML;

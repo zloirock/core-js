@@ -1,2 +1,2 @@
-require('../../src/core.date');
-module.exports = require('../../src/$').core.Date.format;
+require('../../modules/core.date');
+module.exports = require('../../modules/$').core.Date.format;

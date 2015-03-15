@@ -1,2 +1,2 @@
-require('../src/es5');
-module.exports = require('../src/$').core;
+require('../modules/es5');
+module.exports = require('../modules/$').core;

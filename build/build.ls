@@ -65,7 +65,7 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
       if name is ns or name.startsWith "#ns."
         @[name] = no
   if library  => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
-  PATH = ".#{ if library => '/library' else '' }/src/__tmp__"
+  PATH = ".#{ if library => '/library' else '' }/modules/__tmp#{ Math.random! }__"
   err <-! writeFile "#PATH.js", list.filter(~> @[it]).map(-> "require('./#it');" ).join '\n'
   if err => console.error err
   err, script <-! browserify([PATH]).bundle

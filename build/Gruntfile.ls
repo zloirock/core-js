@@ -20,15 +20,15 @@ module.exports = (grunt)->
     copy: lib: files:
       * expand: on
         cwd: './'
-        src: <[src/** es5/** es6/** es7/** js/** web/** core/** index.js shim.js]>
+        src: <[modules/** es5/** es6/** es7/** js/** web/** core/** index.js shim.js]>
         dest: './library/'
       * expand: on
-        cwd: './src/library/'
-        src: <[src/*]>
+        cwd: './modules/library/'
+        src: <[modules/*]>
         dest: './library/'
     watch:
       core:
-        files: './src/*'
+        files: './modules/*'
         tasks: \default
       tests:
         files: './tests/tests/*'

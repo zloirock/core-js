@@ -1,2 +1,2 @@
-require('../src/core.delay');
-module.exports = require('../src/$').core.delay;
+require('../modules/core.delay');
+module.exports = require('../modules/$').core.delay;

@@ -1,3 +1,3 @@
-require('../../src/es6.object.statics-accept-primitives');
-require('../../src/es6.symbol');
-module.exports = require('../../src/$').core.Object.getOwnPropertyNames;
+require('../../modules/es6.object.statics-accept-primitives');
+require('../../modules/es6.symbol');
+module.exports = require('../../modules/$').core.Object.getOwnPropertyNames;

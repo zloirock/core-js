@@ -1,2 +1,2 @@
-require('../src/core.global');
-module.exports = require('../src/$').core.global;
+require('../modules/core.global');
+module.exports = require('../modules/$').core.global;

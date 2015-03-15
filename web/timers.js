@@ -1,2 +1,2 @@
-require('../src/web.timers');
-module.exports = require('../src/$').core;
+require('../modules/web.timers');
+module.exports = require('../modules/$').core;

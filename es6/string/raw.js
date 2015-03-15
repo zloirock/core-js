@@ -1,2 +1,2 @@
-require('../../src/es6.string.raw');
-module.exports = require('../../src/$').core.String.raw;
+require('../../modules/es6.string.raw');
+module.exports = require('../../modules/$').core.String.raw;

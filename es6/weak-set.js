@@ -1,2 +1,2 @@
-require('../src/es6.collections');
-module.exports = require('../src/$').core.WeakSet;
+require('../modules/es6.collections');
+module.exports = require('../modules/$').core.WeakSet;
