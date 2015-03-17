@@ -1,4 +1,5 @@
 'use strict';
+require('./es6.string.iterator');
 require('./web.dom.itarable');
 var $       = require('./$')
   , ctx     = require('./$.ctx')

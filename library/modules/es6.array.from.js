@@ -1,4 +1,4 @@
-require('./es6.iterators');
+require('./es6.string.iterator');
 var $     = require('./$')
   , ctx   = require('./$.ctx')
   , $def  = require('./$.def')

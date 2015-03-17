@@ -10,6 +10,7 @@ ok Array.isArray require("#P/es6/array/from") 'qwe'
 ok \next of require("#P/es6/array/keys")([])
 ok Array.isArray require("#P/es6/array/of") \q \w \e
 ok \next of require("#P/es6/array/values")([])
+ok \next of require("#P/es6/string/iterator")([])
 ok \find of require("#P/es6/array/prototype")
 ok \from of require("#P/es6/array")
 ok require("#P/es6/math/acosh")(1) is 0
@@ -83,6 +84,7 @@ ok require("#P/es6/string/includes") \qwe, \w
 ok require("#P/es6/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
 ok require("#P/es6/string/repeat")(\q 3) is \qqq
 ok require("#P/es6/string/starts-with") \qwe, \qw
+ok \next of require("#P/es6/string/iterator") \qwe
 ok \repeat of require("#P/es6/string/prototype")
 ok \raw of require("#P/es6/string")
 ok require("#P/es6/symbol/has-instance")
@@ -100,7 +102,6 @@ ok typeof require("#P/es6/symbol/for") is \function
 ok typeof require("#P/es6/symbol/key-for") is \function
 ok \iterator of require("#P/es6/symbol")
 require("#P/es6/function")
-ok \Array of require("#P/es6/iterators")
 require("#P/es6/regexp")
 ok new (require("#P/es6/map"))([[1, 2], [3, 4]]).size is 2
 ok new (require("#P/es6/set"))([1, 2, 3, 2, 1]).size is 3

@@ -1,4 +1,4 @@
-require('./es6.iterators');
+require('./es6.array.iterator');
 var $         = require('./$')
   , Iterators = require('./$.iter').Iterators
   , ITERATOR  = require('./$.wks')('iterator')

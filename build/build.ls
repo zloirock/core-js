@@ -11,15 +11,16 @@ list = <[
   es6.number.constructor
   es6.number.statics
   es6.math
+  core.iterator
   es6.string.from-code-point
   es6.string.raw
+  es6.string.iterator
   es6.string.prototype
   es6.array.from
   es6.array.of
+  es6.array.iterator
   es6.array.species
   es6.array.prototype
-  core.iterator
-  es6.iterators
   es6.regexp
   es6.promise
   es6.collections
@@ -64,11 +65,11 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
     for name in list
       if name is ns or name.startsWith "#ns."
         @[name] = no
-  if library  => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
+  if library => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   PATH = ".#{ if library => '/library' else '' }/modules/__tmp#{ Math.random! }__"
   err <-! writeFile "#PATH.js", list.filter(~> @[it]).map(-> "require('./#it');" ).join '\n'
   if err => console.error err
-  err, script <-! browserify([PATH]).bundle
+  err, script <-! browserify(entries: [PATH], detectGlobals: no).bundle
   if err => console.error err
   err <-! unlink "#PATH.js"
   if err => console.error err
