@@ -45,11 +45,13 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
   }
   function checkIter(){
     var done = false;
-    var O = {next: function(){
-      done = true;
-      return step(1);
-    }};
-    O[SYMBOL_ITERATOR] = $.that;
+    var O = {
+      next: function(){
+        done = true;
+        return step(1);
+      }
+    };
+    O[require('./$.wks')('iterator')] = $.that;
     try { new C(O) } catch(e){}
     return done;
   }
