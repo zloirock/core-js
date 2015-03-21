@@ -6,9 +6,10 @@ var $       = require('./$')
   , cof     = require('./$.cof')
   , $def    = require('./$.def')
   , assert  = require('./$.assert')
-  , forOf   = require('./$.iter').forOf
+  , $iter   = require('./$.iter')
   , SPECIES = require('./$.wks')('species')
   , RECORD  = require('./$.uid').safe('record')
+  , forOf   = $iter.forOf
   , PROMISE = 'Promise'
   , global  = $.g
   , process = global.process
@@ -20,6 +21,10 @@ var $       = require('./$')
   , assertFunction = assert.fn
   , assertObject   = assert.obj
   , test;
+function getConstructor(C){
+  var S = assertObject(C)[SPECIES];
+  return S != undefined ? S : C;
+}
 isFunction(Promise) && isFunction(Promise.resolve)
 && Promise.resolve(test = new Promise(function(){})) == test
 || function(){
@@ -106,10 +111,6 @@ isFunction(Promise) && isFunction(Promise.resolve)
     record.s = 2;
     notify(record, true);
   }
-  function getConstructor(C){
-    var S = assertObject(C)[SPECIES];
-    return S != undefined ? S : C;
-  }
   // 25.4.3.1 Promise(executor)
   Promise = function(executor){
     assertFunction(executor);
@@ -149,32 +150,6 @@ isFunction(Promise) && isFunction(Promise.resolve)
     }
   });
   $.mix(Promise, {
-    // 25.4.4.1 Promise.all(iterable)
-    all: function(iterable){
-      var Promise = getConstructor(this)
-        , values  = [];
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, values.push, values);
-        var remaining = values.length
-          , results   = Array(remaining);
-        if(remaining)$.each.call(values, function(promise, index){
-          Promise.resolve(promise).then(function(value){
-            results[index] = value;
-            --remaining || resolve(results);
-          }, reject);
-        });
-        else resolve(results);
-      });
-    },
-    // 25.4.4.4 Promise.race(iterable)
-    race: function(iterable){
-      var Promise = getConstructor(this);
-      return new Promise(function(resolve, reject){
-        forOf(iterable, false, function(promise){
-          Promise.resolve(promise).then(resolve, reject);
-        });
-      });
-    },
     // 25.4.4.5 Promise.reject(r)
     reject: function(r){
       return new (getConstructor(this))(function(resolve, reject){
@@ -190,6 +165,36 @@ isFunction(Promise) && isFunction(Promise.resolve)
     }
   });
 }();
+$def($def.G + $def.W + $def.F * (Promise != Base), {Promise: Promise});
+$def($def.S + $def.F * ($iter.fail(function(iter){
+  Promise.all(iter);
+}) || $iter.DANGER_CLOSING), PROMISE, {
+  // 25.4.4.1 Promise.all(iterable)
+  all: function(iterable){
+    var Promise = getConstructor(this)
+      , values  = [];
+    return new Promise(function(resolve, reject){
+      forOf(iterable, false, values.push, values);
+      var remaining = values.length
+        , results   = Array(remaining);
+      if(remaining)$.each.call(values, function(promise, index){
+        Promise.resolve(promise).then(function(value){
+          results[index] = value;
+          --remaining || resolve(results);
+        }, reject);
+      });
+      else resolve(results);
+    });
+  },
+  // 25.4.4.4 Promise.race(iterable)
+  race: function(iterable){
+    var Promise = getConstructor(this);
+    return new Promise(function(resolve, reject){
+      forOf(iterable, false, function(promise){
+        Promise.resolve(promise).then(resolve, reject);
+      });
+    });
+  }
+});
 cof.set(Promise, PROMISE);
 require('./$.species')(Promise);
-$def($def.G + $def.F * (Promise != Base), {Promise: Promise});

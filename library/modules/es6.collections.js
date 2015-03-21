@@ -43,18 +43,6 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       return chain ? this : result;
     };
   }
-  function checkIter(){
-    var done = false;
-    var O = {
-      next: function(){
-        done = true;
-        return step(1);
-      }
-    };
-    O[require('./$.wks')('iterator')] = $.that;
-    try { new C(O) } catch(e){}
-    return done;
-  }
   if(!$.isFunction(C) || !(isWeak || (!$iter.BUGGY && proto.forEach && proto.entries))){
     // create collection constructor
     C = isWeak
@@ -80,7 +68,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       , chain  = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
     // wrap to init collections from iterable
-    if($iter.DANGER_CLOSING || !checkIter()){
+    if($iter.fail(function(iter){ new C(iter) }) || $iter.DANGER_CLOSING){
       C = function(iterable){
         assertInstanse(this, C, NAME);
         return initFromIterable(new Native, iterable);
