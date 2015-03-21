@@ -29,5 +29,5 @@ require('./modules/es7.object.to-array');
 require('./modules/es7.abstract-refs');
 require('./modules/js.array.statics');
 require('./modules/web.immediate');
-require('./modules/web.dom.itarable');
+require('./modules/web.dom.iterable');
 module.exports = require('./modules/$').core;

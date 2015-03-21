@@ -1,2 +1,2 @@
-require('../../modules/web.dom.itarable');
+require('../../modules/web.dom.iterable');
 module.exports = require('../../modules/$').core;

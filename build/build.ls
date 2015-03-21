@@ -32,7 +32,7 @@ list = <[
   es7.object.to-array
   es7.abstract-refs
   web.immediate
-  web.dom.itarable
+  web.dom.iterable
   web.timers
   core.dict
   core.iter-helpers
