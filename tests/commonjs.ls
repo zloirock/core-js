@@ -176,7 +176,8 @@ for P in <[.. ../library]>
   ok typeof require("#P/core/date/format-utc")(new Date) is \string
   ok typeof require("#P/core/date/add-locale") is \function
   ok \format of require("#P/core/date")
-  ok require("#P/core/number/random")(0) is 0
+  ok \next of require("#P/core/number/iterator")(1)
+  ok \pow of require("#P/core/number/math")
   ok \random of require("#P/core/number")
   ok \mapPairs of require("#P/core/dict")
   ok \then of require("#P/core/delay")(1)

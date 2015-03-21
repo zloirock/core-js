@@ -1,23 +1,7 @@
 'use strict';
-var $       = require('./$')
-  , $def    = require('./$.def')
+var $def    = require('./$.def')
   , invoke  = require('./$.invoke')
-  , ITER    = require('./$.uid').safe('iter')
-  , $iter   = require('./$.iter')
-  , step    = $iter.step
-  , NUMBER  = 'Number'
   , methods = {};
-function NumberIterator(iterated){
-  $.set(this, ITER, {l: $.toLength(iterated), i: 0});
-}
-$iter.create(NumberIterator, NUMBER, function(){
-  var iter = this[ITER]
-    , i    = iter.i++;
-  return i < iter.l ? step(0, i) : step(1);
-});
-$iter.define(Number, NUMBER, function(){
-  return new NumberIterator(this);
-});
 
 methods.random = function(lim /* = 0 */){
   var a = +this
@@ -26,7 +10,7 @@ methods.random = function(lim /* = 0 */){
   return Math.random() * (Math.max(a, b) - m) + m;
 };
 
-$.each.call((
+require('./$').each.call((
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6:
@@ -43,4 +27,4 @@ $.each.call((
   }
 );
 
-$def($def.P + $def.F, NUMBER, methods);
+$def($def.P + $def.F, 'Number', methods);

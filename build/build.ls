@@ -41,7 +41,8 @@ list = <[
   core.binding
   core.object
   core.array.turn
-  core.number
+  core.number.iterator
+  core.number.math
   core.string.escape-html
   core.date
   core.global
