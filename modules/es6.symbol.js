@@ -19,8 +19,7 @@ if(!$.isFunction(Symbol)){
   Symbol = function(description){
     if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
     var tag = uid(description)
-      , sym = $.set($.create(Symbol.prototype), TAG, tag);
-    AllSymbols[tag] = sym;
+      , sym = AllSymbols[tag] = $.set($.create(Symbol.prototype), TAG, tag);
     $.DESC && setter && $.setDesc(Object.prototype, tag, {
       configurable: true,
       set: function(value){

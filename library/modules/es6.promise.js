@@ -167,7 +167,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
 }();
 $def($def.G + $def.W + $def.F * (Promise != Base), {Promise: Promise});
 $def($def.S + $def.F * ($iter.fail(function(iter){
-  Promise.all(iter);
+  Promise.all(iter)['catch'](function(){});
 }) || $iter.DANGER_CLOSING), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function(iterable){

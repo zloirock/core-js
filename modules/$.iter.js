@@ -68,10 +68,10 @@ try {
 var $iter = module.exports = {
   BUGGY: BUGGY,
   DANGER_CLOSING: DANGER_CLOSING,
-  fail: function(fn){
+  fail: function(exec){
+    var fail = true
     try {
-      var fail = true
-        , arr  = [[{}, 1]]
+      var arr  = [[{}, 1]]
         , iter = arr[SYMBOL_ITERATOR]()
         , next = iter.next;
       iter.next = function(){
@@ -81,9 +81,9 @@ var $iter = module.exports = {
       arr[SYMBOL_ITERATOR] = function(){
         return iter;
       }
-      fn(arr);
-      return fail;
+      exec(arr);
     } catch(e){}
+    return fail;
   },
   Iterators: Iterators,
   prototype: IteratorPrototype,
