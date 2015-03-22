@@ -3694,6 +3694,46 @@
       return Reflect.getOwnPropertyDescriptor(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
+  test('Reflect.getOwnPropertyDescriptors', function(){
+    var getOwnPropertyDescriptors, create, O, s, descs;
+    getOwnPropertyDescriptors = Reflect.getOwnPropertyDescriptors;
+    create = Object.create;
+    ok(isFunction(getOwnPropertyDescriptors), 'Is function');
+    O = create({
+      q: 1
+    }, {
+      e: {
+        value: 3
+      }
+    });
+    O.w = 2;
+    s = Symbol('s');
+    O[s] = 4;
+    descs = getOwnPropertyDescriptors(O);
+    eq(descs.q, void 8);
+    deepEqual(descs.w, {
+      enumerable: true,
+      configurable: true,
+      writable: true,
+      value: 2
+    });
+    if (MODERN) {
+      deepEqual(descs.e, {
+        enumerable: false,
+        configurable: false,
+        writable: false,
+        value: 3
+      });
+    } else {
+      deepEqual(descs.e, {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: 3
+      });
+    }
+    eq(descs[s].value, 4);
+  });
   test('Reflect.getPrototypeOf', function(){
     ok(isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function');
     eq(Reflect.getPrototypeOf([]), Array.prototype);
