@@ -11,6 +11,7 @@ var $         = require('./$')
   , getProto  = $.getProto
   , apply     = Function.apply
   , assertObject = assert.obj
+  , ownKeys   = require('./$.own-keys')
   , isExtensible = Object.isExtensible || $.it;
 function Enumerate(iterated){
   var keys = [], key;
@@ -109,11 +110,20 @@ var reflect = {
     return !!isExtensible(assertObject(target));
   },
   // 26.1.11 Reflect.ownKeys(target)
-  ownKeys: require('./$.own-keys'),
+  ownKeys: ownKeys,
   // 26.1.12 Reflect.preventExtensions(target)
   preventExtensions: wrap(Object.preventExtensions || $.it),
   // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-  set: reflectSet
+  set: reflectSet,
+  // 26.1.14 Reflect.getOwnPropertyDescriptors(target)
+  getOwnPropertyDescriptors: function(object){
+    var O      = $.toObject(object)
+        , result = {};
+    $.each.call(ownKeys(O), function(key){
+      $.setDesc(result, key, $.desc(0, $.getDesc(O, key)));
+    });
+    return result;
+  }
 }
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 if(setProto)reflect.setPrototypeOf = function(target, proto){

@@ -95,6 +95,24 @@ test 'Reflect.getOwnPropertyDescriptor' !->
   eq desc.value, 789
   throws (-> Reflect.getOwnPropertyDescriptor 42 \constructor), TypeError, 'throws on primitive'
 
+test 'Reflect.getOwnPropertyDescriptors' !->
+  {getOwnPropertyDescriptors} = Reflect
+  {create} = Object
+  ok isFunction(getOwnPropertyDescriptors), 'Is function'
+
+  O = create {q: 1}, e: value: 3
+  O.w = 2
+  s = Symbol \s
+  O[s] = 4
+
+  descs = getOwnPropertyDescriptors O
+
+  eq descs.q, void
+  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
+  if MODERN => deepEqual descs.e, {-enumerable, -configurable, -writable, value: 3}
+  else deepEqual descs.e, {+enumerable, +configurable, +writable, value: 3}
+  eq descs[s].value, 4
+
 test 'Reflect.getPrototypeOf' !->
   ok isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function'
   eq Reflect.getPrototypeOf([]), Array::
