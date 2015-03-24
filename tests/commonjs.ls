@@ -126,9 +126,6 @@ for P in <[.. ../library]>
   ok require("#P/fn/symbol/unscopables")
   ok typeof require("#P/fn/symbol/for") is \function
   ok typeof require("#P/fn/symbol/key-for") is \function
-  ok require("#P/fn/symbol/reference-get")
-  ok require("#P/fn/symbol/reference-set")
-  ok require("#P/fn/symbol/reference-delete")
   ok \iterator of require("#P/fn/symbol")
   ok typeof require("#P/fn/date/format")(new Date) is \string
   ok typeof require("#P/fn/date/format-utc")(new Date) is \string
@@ -150,4 +147,45 @@ for P in <[.. ../library]>
   ok \of of require("#P/fn/$for")([])
   ok require("#P/fn/is-iterable")([])
   ok \next of require("#P/fn/get-iterator")([])
+  ################################################
+  ok \Array of require("#P/ns/es5")
+  ok \map of require("#P/ns/es6/array")
+  ok \Map of require("#P/ns/es6/collections")
+  require("#P/ns/es6/function")
+  ok typeof require("#P/ns/es6/map") is \function
+  ok \hypot of require("#P/ns/es6/math")
+  ok \MAX_SAFE_INTEGER of require("#P/ns/es6/number")
+  ok \assign of require("#P/ns/es6/object")
+  ok typeof require("#P/ns/es6/promise") is \function
+  ok \ownKeys of require("#P/ns/es6/reflect")
+  require("#P/ns/es6/regexp")
+  ok typeof require("#P/ns/es6/set")
+  ok \raw of require("#P/ns/es6/string")
+  ok typeof require("#P/ns/es6/symbol") is \function
+  ok typeof require("#P/ns/es6/weak-map") is \function
+  ok typeof require("#P/ns/es6/weak-set") is \function
+  ok \Map of require("#P/ns/es6")
+  ok \includes of require("#P/ns/es7/array")
+  ok \values of require("#P/ns/es7/object")
+  ok \escape of require("#P/ns/es7/regexp")
+  ok \at of require("#P/ns/es7/string")
+  ok \Array of require("#P/ns/es7")
+  ok \map of require("#P/ns/js/array")
+  ok \Array of require("#P/ns/js")
+  ok \setImmediate of require("#P/ns/web/timers")
+  require("#P/ns/web/dom")
+  ok \setImmediate of require("#P/ns/web")
+  ok typeof require("#P/ns/core/$for") is \function
+  ok require("#P/ns/core/_")
+  ok \turn of require("#P/ns/core/array")
+  ok \format of require("#P/ns/core/date")
+  ok typeof require("#P/ns/core/delay") is \function
+  ok typeof require("#P/ns/core/dict") is \function
+  ok \part of require("#P/ns/core/function")
+  ok require("#P/ns/core/global")
+  ok typeof require("#P/ns/core/log") is \function
+  ok \random of require("#P/ns/core/number")
+  ok \define of require("#P/ns/core/object")
+  ok \escapeHTML of require("#P/ns/core/string")
+  ok \Array of require("#P/ns/core")
 console.log \OK
