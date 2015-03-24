@@ -1,3 +1,4 @@
+require('../../modules/es6.string.iterator');
 require('../../modules/es6.array.from');
 require('../../modules/es6.array.of');
 require('../../modules/es6.array.species');

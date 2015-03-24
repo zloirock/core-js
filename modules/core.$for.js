@@ -1,6 +1,4 @@
 'use strict';
-require('./es6.string.iterator');
-require('./web.dom.iterable');
 var $       = require('./$')
   , ctx     = require('./$.ctx')
   , safe    = require('./$.uid').safe
