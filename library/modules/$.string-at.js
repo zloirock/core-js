@@ -1,6 +1,6 @@
 'use strict';
-// true  -> String#codePointAt
-// false -> String#at
+// true  -> String#at
+// false -> String#codePointAt
 var $ = require('./$');
 module.exports = function(TO_STRING){
   return function(pos){
