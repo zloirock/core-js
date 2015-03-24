@@ -53,10 +53,7 @@ function closeIterator(iterator){
 }
 function stepCall(iterator, fn, value, entries){
   try {
-    if(entries){
-      assertObject(value);
-      return fn(value[0], value[1]);
-    } return fn(value);
+    return entries ? fn(assertObject(value)[0], value[1]) : fn(value);
   } catch(e){
     closeIterator(iterator);
     throw e;
