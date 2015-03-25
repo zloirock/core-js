@@ -32,24 +32,24 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
       invoke(isFunction(fn) ? fn : Function(fn), args);
-    }
+    };
     defer(counter);
     return counter;
-  }
+  };
   clearTask = function(id){
     delete queue[id];
-  }
+  };
   // Node.js 0.8-
   if(cof(global.process) == 'process'){
     defer = function(id){
       global.process.nextTick(ctx(run, id, 1));
-    }
+    };
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
   } else if(addEventListener && isFunction(postMessage) && !$.g.importScripts){
     defer = function(id){
       postMessage(id, '*');
-    }
+    };
     addEventListener('message', listner, false);
   // WebWorkers
   } else if(isFunction(MessageChannel)){
@@ -63,13 +63,13 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
       $.html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
         $.html.removeChild(this);
         run.call(id);
-      }
-    }
+      };
+    };
   // Rest old browsers
   } else {
     defer = function(id){
       setTimeout(ctx(run, id, 1), 0);
-    }
+    };
   }
 }
 module.exports = {

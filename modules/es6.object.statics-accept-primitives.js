@@ -2,11 +2,11 @@ var $        = require('./$')
   , $def     = require('./$.def')
   , isObject = $.isObject
   , toObject = $.toObject;
-function wrapObjectMethod(key, MODE){
-  var fn  = ($.core.Object || {})[key] || Object[key]
+function wrapObjectMethod(METHOD, MODE){
+  var fn  = ($.core.Object || {})[METHOD] || Object[METHOD]
     , f   = 0
     , o   = {};
-  o[key] = MODE == 1 ? function(it){
+  o[METHOD] = MODE == 1 ? function(it){
     return isObject(it) ? fn(it) : it;
   } : MODE == 2 ? function(it){
     return isObject(it) ? fn(it) : true;
@@ -17,8 +17,8 @@ function wrapObjectMethod(key, MODE){
   } : function(it){
     return fn(toObject(it));
   };
-  try { fn('z') }
-  catch(e){ f = 1 }
+  try { fn('z'); }
+  catch(e){ f = 1; }
   $def($def.S + $def.F * f, 'Object', o);
 }
 wrapObjectMethod('freeze', 1);

@@ -1,0 +1,35 @@
+{
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "globals": {
+    "__e": true,
+    "__g": true
+  },
+  "rules": {
+    "max-len": [2, 100, 2],
+    "eol-last": 0,
+    "dot-notation": [2, {"allowKeywords": false}],
+    "quotes": [2, "single", "avoid-escape"],
+    "new-parens": 0,
+    "no-func-assign": 0,
+    "no-cond-assign": 0,
+    "no-underscore-dangle": 0,
+    "no-native-reassign": 0,
+    "no-shadow-restricted-names": 0,
+    "no-fallthrough": 0,
+    "no-new": 0,
+    "new-cap": 0,
+    "eqeqeq": 0,
+    "comma-spacing": 0,
+    "no-multi-spaces": 0,
+    "key-spacing": 0,
+    "strict": 0,
+    "global-strict": 0,
+    "no-mixed-requires": 0,
+    "no-loop-func": 0,
+    "no-unused-expressions": 0,
+    "curly": 0
+  }
+}

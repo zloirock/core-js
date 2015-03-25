@@ -23,15 +23,15 @@ var $                = require('./$')
 if(!$.DESC){
   try {
     IE8_DOM_DEFINE = defineProperty(document.createElement('div'), 'x',
-      {get: function(){return 8}}
+      {get: function(){ return 8; }}
     ).x == 8;
   } catch(e){}
-  $.setDesc = function(O, P, A){
+  $.setDesc = function(O, P, Attributes){
     if(IE8_DOM_DEFINE)try {
-      return defineProperty(O, P, A);
+      return defineProperty(O, P, Attributes);
     } catch(e){}
-    if('get' in A || 'set' in A)throw TypeError('Accessors not supported!');
-    if('value' in A)assertObject(O)[P] = A.value;
+    if('get' in Attributes || 'set' in Attributes)throw TypeError('Accessors not supported!');
+    if('value' in Attributes)assertObject(O)[P] = Attributes.value;
     return O;
   };
   $.getDesc = function(O, P){
@@ -55,12 +55,13 @@ $def($def.S + $def.F * !$.DESC, 'Object', {
   getOwnPropertyDescriptor: $.getDesc,
   // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
   defineProperty: $.setDesc,
-  // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties) 
+  // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
   defineProperties: defineProperties
 });
 
   // IE 8- don't enum bug keys
-var keys1 = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
+var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
+            'toLocaleString,toString,valueOf').split(',')
   // Additional keys for getOwnPropertyNames
   , keys2 = keys1.concat('length', 'prototype')
   , keysLen1 = keys1.length;
@@ -73,7 +74,7 @@ function createDict(){
     , iframeDocument;
   iframe.style.display = 'none';
   $.html.appendChild(iframe);
-  iframe.src = 'javascript:';
+  iframe.src = 'javascript:'; // eslint-disable-line no-script-url
   // createDict = iframe.contentWindow.Object;
   // html.removeChild(iframe);
   iframeDocument = iframe.contentWindow.document;
@@ -84,7 +85,7 @@ function createDict(){
   while(i--)delete createDict.prototype[keys1[i]];
   return createDict();
 }
-function createGetKeys(names, length, isNames){
+function createGetKeys(names, length){
   return function(object){
     var O      = toObject(object)
       , i      = 0
@@ -96,9 +97,9 @@ function createGetKeys(names, length, isNames){
       ~indexOf.call(result, key) || result.push(key);
     }
     return result;
-  }
+  };
 }
-function isPrimitive(it){ return !$.isObject(it) }
+function isPrimitive(it){ return !$.isObject(it); }
 function Empty(){}
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
@@ -113,7 +114,7 @@ $def($def.S, 'Object', {
   getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length, true),
   // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
   create: $.create = $.create || function(O, /*?*/Properties){
-    var result
+    var result;
     if(O !== null){
       Empty.prototype = assertObject(O);
       result = new Empty();
@@ -157,12 +158,12 @@ $def($def.P, 'Function', {
 function arrayMethodFix(fn){
   return function(){
     return fn.apply($.ES5Object(this), arguments);
-  }
+  };
 }
 if(!(0 in Object('z') && 'z'[0] == 'z')){
   $.ES5Object = function(it){
     return cof(it) == 'String' ? it.split('') : Object(it);
-  }
+  };
 }
 $def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
   slice: arrayMethodFix(slice),
@@ -172,7 +173,7 @@ $def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
 $def($def.S, 'Array', {
   isArray: function(arg){
-    return cof(arg) == 'Array'
+    return cof(arg) == 'Array';
   }
 });
 function createArrayReduce(isRight){
@@ -182,7 +183,7 @@ function createArrayReduce(isRight){
       , length = toLength(O.length)
       , index  = isRight ? length - 1 : 0
       , i      = isRight ? -1 : 1;
-    if(2 > arguments.length)for(;;){
+    if(arguments.length < 2)for(;;){
       if(index in O){
         memo = O[index];
         index += i;
@@ -195,7 +196,7 @@ function createArrayReduce(isRight){
       memo = callbackfn(memo, O[index], index, this);
     }
     return memo;
-  }
+  };
 }
 $def($def.P, 'Array', {
   // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
@@ -250,7 +251,7 @@ $def($def.P, 'Date', {toISOString: function(){
     ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
 }});
 
-if(classof(function(){return arguments}()) == 'Object')cof.classof = function(it){
-  var cof = classof(it);
-  return cof == 'Object' && isFunction(it.callee) ? 'Arguments' : cof;
-}
+if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
+  var tag = classof(it);
+  return tag == 'Object' && isFunction(it.callee) ? 'Arguments' : tag;
+};

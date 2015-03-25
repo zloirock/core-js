@@ -39,7 +39,9 @@ function createChainIterator(next){
 
 var MapIter = createChainIterator(function(){
   var step = this[ITER].next();
-  return step.done ? step : $iter.step(0, stepCall(this[ITER], this[FN], step.value, this[ENTRIES]));
+  return step.done
+    ? step
+    : $iter.step(0, stepCall(this[ITER], this[FN], step.value, this[ENTRIES]));
 });
 
 var FilterIter = createChainIterator(function(){

@@ -20,7 +20,7 @@ function asinh(x){
 function expm1(x){
   return (x = +x) == 0 ? x : x > -1e-6 && x < 1e-6 ? x + x * x / 2 : exp(x) - 1;
 }
-  
+
 $def($def.S, 'Math', {
   // 20.2.2.3 Math.acosh(x)
   acosh: function(x){
@@ -38,7 +38,7 @@ $def($def.S, 'Math', {
   },
   // 20.2.2.11 Math.clz32(x)
   clz32: function(x){
-    return (x >>>= 0) ? 32 - x.toString(2).length : 32;
+    return (x >>>= 0) ? 32 - x.toString(2).length : 32; // eslint-disable-line no-constant-condition
   },
   // 20.2.2.12 Math.cosh(x)
   cosh: function(x){
@@ -52,7 +52,7 @@ $def($def.S, 'Math', {
     return new Float32Array([x])[0];
   },
   // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-  hypot: function(value1, value2){
+  hypot: function(value1, value2){ // eslint-disable-line no-unused-vars
     var sum  = 0
       , len1 = arguments.length
       , len2 = len1

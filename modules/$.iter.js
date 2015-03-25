@@ -17,10 +17,6 @@ function setIterator(O, value){
   // Add iterator for FF iterator protocol
   if(FF_ITERATOR in [])$.hide(O, FF_ITERATOR, value);
 }
-function createIterator(Constructor, NAME, next, proto){
-  Constructor.prototype = $.create(proto || $iter.prototype, {next: $.desc(1, next)});
-  cof.set(Constructor, NAME + ' Iterator');
-}
 function defineIterator(Constructor, NAME, value, DEFAULT){
   var proto = Constructor.prototype
     , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || (DEFAULT && proto[DEFAULT]) || value;
@@ -60,16 +56,18 @@ function stepCall(iterator, fn, value, entries){
   }
 }
 var DANGER_CLOSING = true;
-try {
-  var iter = [1].keys();
-  iter['return'] = function(){ DANGER_CLOSING = false };
-  Array.from(iter, function(){ throw 2 });
-} catch(e){}
+!function(){
+  try {
+    var iter = [1].keys();
+    iter['return'] = function(){ DANGER_CLOSING = false; };
+    Array.from(iter, function(){ throw 2; });
+  } catch(e){}
+}();
 var $iter = module.exports = {
   BUGGY: BUGGY,
   DANGER_CLOSING: DANGER_CLOSING,
   fail: function(exec){
-    var fail = true
+    var fail = true;
     try {
       var arr  = [[{}, 1]]
         , iter = arr[SYMBOL_ITERATOR]()
@@ -77,10 +75,10 @@ var $iter = module.exports = {
       iter.next = function(){
         fail = false;
         return next.call(this);
-      }
+      };
       arr[SYMBOL_ITERATOR] = function(){
         return iter;
-      }
+      };
       exec(arr);
     } catch(e){}
     return fail;
@@ -100,15 +98,18 @@ var $iter = module.exports = {
   },
   get: getIterator,
   set: setIterator,
-  create: createIterator,
+  create: function(Constructor, NAME, next, proto){
+    Constructor.prototype = $.create(proto || $iter.prototype, {next: $.desc(1, next)});
+    cof.set(Constructor, NAME + ' Iterator');
+  },
   define: defineIterator,
   std: function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
     function createIter(kind){
       return function(){
         return new Constructor(this, kind);
-      }
+      };
     }
-    createIterator(Constructor, NAME, next);
+    $iter.create(Constructor, NAME, next);
     var entries = createIter('key+value')
       , values  = createIter('value')
       , proto   = Base.prototype
@@ -120,7 +121,7 @@ var $iter = module.exports = {
         entries: entries,
         keys:    IS_SET ? values : createIter('key'),
         values:  values
-      }
+      };
       $def($def.P + $def.F * BUGGY, NAME, methods);
       if(FORCE)for(key in methods){
         if(!(key in proto))$.hide(proto, key, methods[key]);

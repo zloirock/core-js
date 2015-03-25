@@ -1,4 +1,4 @@
-// https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues
+// http://goo.gl/XkBrjD
 var $    = require('./$')
   , $def = require('./$.def');
 function createObjectToArray(isEntries){
@@ -12,7 +12,7 @@ function createObjectToArray(isEntries){
     if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
     else while(length > i)result[i] = O[keys[i++]];
     return result;
-  }
+  };
 }
 $def($def.S, 'Object', {
   values:  createObjectToArray(false),

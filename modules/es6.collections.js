@@ -34,11 +34,11 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     if(iterable != undefined)$iter.forOf(iterable, isMap, that[ADDER], that);
     return that;
   }
-  function fixSVZ(key, chain){
-    var method = proto[key];
-    if($.FW)proto[key] = function(a, b){
+  function fixSVZ(KEY, CHAIN){
+    var method = proto[KEY];
+    if($.FW)proto[KEY] = function(a, b){
       var result = method.call(this, a === 0 ? 0 : a, b);
-      return chain ? this : result;
+      return CHAIN ? this : result;
     };
   }
   if(!$.isFunction(C) || !(isWeak || (!$iter.BUGGY && proto.forEach && proto.entries))){
@@ -66,11 +66,11 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       , chain  = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
     // wrap to init collections from iterable
-    if($iter.fail(function(iter){ new C(iter) }) || $iter.DANGER_CLOSING){
+    if($iter.fail(function(iter){ new C(iter); }) || $iter.DANGER_CLOSING){
       C = function(iterable){
         assertInstanse(this, C, NAME);
         return initFromIterable(new Native, iterable);
-      }
+      };
       C.prototype = proto;
       if($.FW)proto.constructor = C;
     }
@@ -88,10 +88,10 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
   }
   cof.set(C, NAME);
   require('./$.species')(C);
-  
+
   O[NAME] = C;
   $def($def.G + $def.W + $def.F * (C != Base), O);
-  
+
   // add .keys, .values, .entries, [@@iterator]
   // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
   isWeak || $iter.std(C, NAME, function(iterated, kind){
@@ -111,9 +111,9 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
     // return step by kind
     if(kind == 'key')   return step(0, entry.k);
     if(kind == 'value') return step(0, entry.v);
-                        return step(0, [entry.k, entry.v]);   
+                        return step(0, [entry.k, entry.v]);
   }, isMap ? 'key+value' : 'value', !isMap, true);
-  
+
   return C;
 }
 
@@ -207,7 +207,7 @@ var collectionMethods = {
   has: function(key){
     return !!getEntry(this, key);
   }
-}
+};
 
 // 23.1 Map Objects
 var Map = getCollection('Map', {
@@ -230,15 +230,15 @@ getCollection('Set', {
   }
 }, collectionMethods);
 
+function leakStore(that){
+  return that[LEAK] || hide(that, LEAK, new Map)[LEAK];
+}
 function defWeak(that, key, value){
   if(isFrozen(assert.obj(key)))leakStore(that).set(key, value);
   else {
     has(key, WEAK) || hide(key, WEAK, {});
     key[WEAK][that[CID]] = value;
   } return that;
-}
-function leakStore(that){
-  return that[LEAK] || hide(that, LEAK, new Map)[LEAK];
 }
 
 var weakMethods = {

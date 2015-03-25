@@ -31,11 +31,12 @@ function wrap(fn){
   return function(it){
     assertObject(it);
     try {
-      return fn.apply(undefined, arguments), true;
+      fn.apply(undefined, arguments);
+      return true;
     } catch(e){
       return false;
     }
-  }
+  };
 }
 
 function reflectGet(target, propertyKey/*, receiver*/){
@@ -64,7 +65,8 @@ function reflectSet(target, propertyKey, V/*, receiver*/){
     if(ownDesc.writable === false || !isObject(receiver))return false;
     existingDescriptor = getDesc(receiver, propertyKey) || $.desc(0);
     existingDescriptor.value = V;
-    return setDesc(receiver, propertyKey, existingDescriptor), true;
+    setDesc(receiver, propertyKey, existingDescriptor);
+    return true;
   }
   return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);
 }
@@ -114,11 +116,12 @@ var reflect = {
   preventExtensions: wrap(Object.preventExtensions || $.it),
   // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
   set: reflectSet
-}
+};
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 if(setProto)reflect.setPrototypeOf = function(target, proto){
-  return setProto(assertObject(target), proto), true;
-}
+  setProto(assertObject(target), proto);
+  return true;
+};
 
 $def($def.G, {Reflect: {}});
 $def($def.S, 'Reflect', reflect);

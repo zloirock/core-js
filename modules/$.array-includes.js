@@ -14,5 +14,5 @@ module.exports = function(IS_INCLUDES){
     } else for(;length > index; index++)if(IS_INCLUDES || index in O){
       if(O[index] === el)return IS_INCLUDES || index;
     } return !IS_INCLUDES && -1;
-  }
-}
+  };
+};

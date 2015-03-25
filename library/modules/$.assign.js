@@ -1,6 +1,6 @@
 var $ = require('./$');
 // 19.1.2.1 Object.assign(target, source, ...)
-module.exports = Object.assign || function(target, source){
+module.exports = Object.assign || function(target, source){ // eslint-disable-line no-unused-vars
   var T = Object($.assertDefined(target))
     , l = arguments.length
     , i = 1;
@@ -13,4 +13,4 @@ module.exports = Object.assign || function(target, source){
     while(length > j)T[key = keys[j++]] = S[key];
   }
   return T;
-}
+};

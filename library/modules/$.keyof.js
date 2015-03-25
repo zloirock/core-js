@@ -6,4 +6,4 @@ module.exports = function(object, el){
     , index  = 0
     , key;
   while(length > index)if(O[key = keys[index++]] === el)return key;
-}
+};

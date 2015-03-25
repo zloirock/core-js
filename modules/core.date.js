@@ -11,6 +11,9 @@ var $            = require('./$')
   , DATE         = 'Date'
   , MONTH        = 'Month'
   , YEAR         = 'FullYear';
+function lz(num){
+  return num > 9 ? num : '0' + num;
+}
 function createFormat(prefix){
   return function(template, locale /* = current */){
     var that = this
@@ -37,10 +40,7 @@ function createFormat(prefix){
         case 'YY' : return lz(get(YEAR) % 100);           // Year    : 14
       } return part;
     });
-  }
-}
-function lz(num){
-  return num > 9 ? num : '0' + num;
+  };
 }
 function addLocale(lang, locale){
   function split(index){

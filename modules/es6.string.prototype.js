@@ -33,7 +33,7 @@ $def($def.P, 'String', {
     var str = String(assertDefined(this))
       , res = ''
       , n   = $.toInteger(count);
-    if(0 > n || n == Infinity)throw RangeError("Count can't be negative");
+    if(n < 0 || n == Infinity)throw RangeError("Count can't be negative");
     for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
     return res;
   },

@@ -13,11 +13,11 @@ module.exports = function(/* ...pargs */){
   return function(/* ...args */){
     var that    = this
       , _length = arguments.length
-      , i = 0, j = 0, args;
+      , j = 0, k = 0, args;
     if(!holder && !_length)return invoke(fn, pargs, that);
     args = pargs.slice();
-    if(holder)for(;length > i; i++)if(args[i] === _)args[i] = arguments[j++];
-    while(_length > j)args.push(arguments[j++]);
+    if(holder)for(;length > j; j++)if(args[j] === _)args[j] = arguments[k++];
+    while(_length > k)args.push(arguments[k++]);
     return invoke(fn, args, that);
-  }
-}
+  };
+};

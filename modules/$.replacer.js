@@ -5,5 +5,5 @@ module.exports = function(regExp, replace, isStatic){
   } : replace;
   return function(it){
     return String(isStatic ? it : this).replace(regExp, replacer);
-  }
-}
+  };
+};

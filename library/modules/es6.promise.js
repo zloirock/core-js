@@ -42,20 +42,18 @@ isFunction(Promise) && isFunction(Promise.resolve)
       if(react.fail || handledRejectionOrHasOnRejected(react.P))return true;
     }
   }
-  function notify(record, reject){
+  function notify(record, isReject){
     var chain = record.c;
-    if(reject || chain.length)asap(function(){
+    if(isReject || chain.length)asap(function(){
       var promise = record.p
         , value   = record.v
         , ok      = record.s == 1
         , i       = 0;
-      if(reject && !handledRejectionOrHasOnRejected(promise)){
+      if(isReject && !handledRejectionOrHasOnRejected(promise)){
         setTimeout(function(){
           if(!handledRejectionOrHasOnRejected(promise)){
             if(cof(process) == 'process'){
-              if(!process.emit('unhandledRejection', value, promise)){
-                // default node.js behavior
-              }
+              process.emit('unhandledRejection', value, promise);
             } else if(global.console && isFunction(console.error)){
               console.error('Unhandled promise rejection', value);
             }
@@ -81,6 +79,15 @@ isFunction(Promise) && isFunction(Promise.resolve)
       chain.length = 0;
     });
   }
+  function reject(value){
+    var record = this;
+    if(record.d)return;
+    record.d = true;
+    record = record.r || record; // unwrap
+    record.v = value;
+    record.s = 2;
+    notify(record, true);
+  }
   function resolve(value){
     var record = this
       , then, wrapper;
@@ -100,15 +107,6 @@ isFunction(Promise) && isFunction(Promise.resolve)
       reject.call(wrapper || {r: record, d: false}, err); // wrap
     }
   }
-  function reject(value){
-    var record = this;
-    if(record.d)return;
-    record.d = true;
-    record = record.r || record; // unwrap
-    record.v = value;
-    record.s = 2;
-    notify(record, true);
-  }
   // 25.4.3.1 Promise(executor)
   Promise = function(executor){
     assertFunction(executor);
@@ -126,7 +124,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
     } catch(err){
       reject.call(record, err);
     }
-  }
+  };
   $.mix(Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function(onFulfilled, onRejected){
@@ -134,10 +132,12 @@ isFunction(Promise) && isFunction(Promise.resolve)
       var react = {
         ok:   isFunction(onFulfilled) ? onFulfilled : true,
         fail: isFunction(onRejected)  ? onRejected  : false
-      } , P = react.P = new (S != undefined ? S : Promise)(function(resolve, reject){
-        react.res = assertFunction(resolve);
-        react.rej = assertFunction(reject);
-      }), record = this[RECORD];
+      };
+      var P = react.P = new (S != undefined ? S : Promise)(function(res, rej){
+        react.res = assertFunction(res);
+        react.rej = assertFunction(rej);
+      });
+      var record = this[RECORD];
       record.c.push(react);
       record.s && notify(record);
       return P;
@@ -150,15 +150,15 @@ isFunction(Promise) && isFunction(Promise.resolve)
   $.mix(Promise, {
     // 25.4.4.5 Promise.reject(r)
     reject: function(r){
-      return new (getConstructor(this))(function(resolve, reject){
-        reject(r);
+      return new (getConstructor(this))(function(res, rej){
+        rej(r);
       });
     },
     // 25.4.4.6 Promise.resolve(x)
     resolve: function(x){
       return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
-        ? x : new (getConstructor(this))(function(resolve, reject){
-          resolve(x);
+        ? x : new (getConstructor(this))(function(res){
+          res(x);
         });
     }
   });
@@ -169,14 +169,14 @@ $def($def.S + $def.F * ($iter.fail(function(iter){
 }) || $iter.DANGER_CLOSING), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function(iterable){
-    var Promise = getConstructor(this)
-      , values  = [];
-    return new Promise(function(resolve, reject){
+    var C      = getConstructor(this)
+      , values = [];
+    return new C(function(resolve, reject){
       forOf(iterable, false, values.push, values);
       var remaining = values.length
         , results   = Array(remaining);
       if(remaining)$.each.call(values, function(promise, index){
-        Promise.resolve(promise).then(function(value){
+        C.resolve(promise).then(function(value){
           results[index] = value;
           --remaining || resolve(results);
         }, reject);
@@ -186,10 +186,10 @@ $def($def.S + $def.F * ($iter.fail(function(iter){
   },
   // 25.4.4.4 Promise.race(iterable)
   race: function(iterable){
-    var Promise = getConstructor(this);
-    return new Promise(function(resolve, reject){
+    var C = getConstructor(this);
+    return new C(function(resolve, reject){
       forOf(iterable, false, function(promise){
-        Promise.resolve(promise).then(resolve, reject);
+        C.resolve(promise).then(resolve, reject);
       });
     });
   }

@@ -18,7 +18,9 @@ var $        = require('./$')
   , getIterator = $iter.get;
 function fixIteratorPrototype(Constructor){
   if(Constructor && ITERATOR in Constructor.prototype){
+    /*eslint-disable no-proto*/
     getProto(new Constructor()[ITERATOR]()).__proto__ = $iter.prototype;
+    /*eslint-enable no-proto */
   }
 }
 if(ITERATOR in []){
@@ -45,19 +47,18 @@ setFrom(String, function(iterable){
   return Array.from(iterable).join('');
 });
 
+function WrapperIterator(iterator){
+  this[ITER] = iterator;
+}
 function Iterator(iterable){
   if(!$iter.is(iterable) && 'next' in iterable)return new WrapperIterator(iterable);
   var iterator = getIterator(iterable);
   return iterator instanceof Iterator ? iterator : new WrapperIterator(iterator);
 }
 Iterator.prototype = $iter.prototype;
-
-function WrapperIterator(iterator){
-  this[ITER] = iterator;
-}
 $iter.create(WrapperIterator, WRAPPER, function(){
   return this[ITER].next();
-})
+});
 $iter.set(WrapperIterator.prototype, function(){
   return this[ITER]; // unwrap
 });
@@ -66,7 +67,7 @@ function MapIterator(iterator, fn, that, entries){
   this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
   this[FN]      = ctx(fn, that, entries ? 2 : 1);
-};
+}
 $iter.create(MapIterator, WRAPPER, function(){
   var iter = this[ITER]
     , step = iter.next();
@@ -77,7 +78,7 @@ function FilterIterator(iterator, fn, that, entries){
   this[ITER]    = getIterator(iterator);
   this[ENTRIES] = entries;
   this[FN]      = ctx(fn, that, entries ? 2 : 1);
-};
+}
 $iter.create(FilterIterator, WRAPPER, function(){
   var iter = this[ITER];
   for(;;){
@@ -89,7 +90,7 @@ $iter.create(FilterIterator, WRAPPER, function(){
 function SkipIterator(iterator, i){
   this[ITER]  = getIterator(iterator);
   this[INDEX] = toLength(i);
-};
+}
 $iter.create(SkipIterator, WRAPPER, function(){
   for(;;){
     var step = this[ITER].next();
@@ -100,7 +101,7 @@ $iter.create(SkipIterator, WRAPPER, function(){
 function LimitIterator(iterator, i){
   this[ITER]  = getIterator(iterator);
   this[INDEX] = toLength(i);
-};
+}
 $iter.create(LimitIterator, WRAPPER, function(){
   var iterator = this[ITER];
   if(--this[INDEX] < 0){

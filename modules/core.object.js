@@ -1,5 +1,5 @@
-var $    = require('./$')
-  , $def = require('./$.def')
+var $       = require('./$')
+  , $def    = require('./$.def')
   , ownKeys = require('./$.own-keys');
 function define(target, mixin){
   var keys   = ownKeys($.toObject(mixin))
@@ -7,7 +7,7 @@ function define(target, mixin){
     , i = 0, key;
   while(length > i)$.setDesc(target, key = keys[i++], $.getDesc(mixin, key));
   return target;
-};
+}
 $def($def.S + $def.F, 'Object', {
   isObject: $.isObject,
   classof: require('./$.cof').classof,

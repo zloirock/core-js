@@ -1,7 +1,7 @@
 var $ = require('./$');
 function assert(condition, msg1, msg2){
   if(!condition)throw TypeError(msg2 ? msg1 + msg2 : msg1);
-};
+}
 assert.def = $.assertDefined;
 assert.fn = function(it){
   if(!$.isFunction(it))throw TypeError(it + ' is not a function!');

@@ -9,7 +9,7 @@ var global = typeof self != 'undefined' ? self : Function('return this')()
   , min   = Math.min;
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){try {
-  return defineProperty({}, 'a', {get: function(){ return 2 }}).a == 2;
+  return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
 } catch(e){}}();
 var hide = createDefiner(1);
 // 7.1.4 ToInteger
@@ -22,7 +22,7 @@ function desc(bitmap, value){
     configurable: !(bitmap & 2),
     writable    : !(bitmap & 4),
     value       : value
-  }
+  };
 }
 function simpleSet(object, key, value){
   object[key] = value;
@@ -30,7 +30,7 @@ function simpleSet(object, key, value){
 }
 function createDefiner(bitmap){
   return DESC ? function(object, key, value){
-    return $.setDesc(object, key, desc(bitmap, value));
+    return $.setDesc(object, key, desc(bitmap, value)); // eslint-disable-line no-use-before-define
   } : simpleSet;
 }
 
@@ -65,7 +65,7 @@ var $ = module.exports = require('./$.fw')({
     return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
   },
   toIndex: function(index, length){
-    var index = toInteger(index);
+    index = toInteger(index);
     return index < 0 ? max(index + length, 0) : min(index, length);
   },
   has: function(it, key){

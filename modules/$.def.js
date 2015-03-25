@@ -5,7 +5,7 @@ var $          = require('./$')
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
-  }
+  };
 }
 global.core = core;
 // type bitmap

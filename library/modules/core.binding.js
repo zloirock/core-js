@@ -24,14 +24,14 @@ $def($def.P + $def.F, 'Function', {
         , i      = 0;
       while(length > i)args[i] = arguments[i++];
       return invoke(fn, args, isThat ? that : this);
-    }
+    };
   }
 });
 
 function tie(key){
   var that  = this
     , bound = {};
-  return hide(that, _, function(key){
+  return hide(that, _, function(key){ // eslint-disable-line no-shadow
     if(key === undefined || !(key in that))return toLocaleString.call(that);
     return $.has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
   })[_](key);

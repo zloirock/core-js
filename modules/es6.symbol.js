@@ -27,7 +27,7 @@ if(!$.isFunction(Symbol)){
       }
     });
     return sym;
-  }
+  };
   hide(Symbol.prototype, 'toString', function(){
     return this[TAG];
   });
@@ -45,8 +45,8 @@ var symbolStatics = {
   keyFor: require('./$.partial').call(require('./$.keyof'), SymbolRegistry, 0),
   pure: uid.safe,
   set: $.set,
-  useSetter: function(){ setter = true },
-  useSimple: function(){ setter = false }
+  useSetter: function(){ setter = true; },
+  useSimple: function(){ setter = false; }
 };
 // 19.4.2.2 Symbol.hasInstance
 // 19.4.2.3 Symbol.isConcatSpreadable

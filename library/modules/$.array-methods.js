@@ -37,5 +37,5 @@ module.exports = function(TYPE){
       }
     }
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : result;
-  }
-}
+  };
+};

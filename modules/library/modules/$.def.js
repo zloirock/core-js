@@ -5,7 +5,7 @@ var $          = require('./$')
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
-  }
+  };
 }
 // type bitmap
 $def.F = 1;  // forced
@@ -31,11 +31,11 @@ function $def(type, name, source){
     // bind timers to global for call from export context
     else if(type & $def.B && own)exp = ctx(out, global);
     // wrap global constructors for prevent change them in library
-    else if(type & $def.W && target[key] == out)!function(out){
+    else if(type & $def.W && target[key] == out)!function(C){
       exp = function(param){
-        return this instanceof out ? new out(param) : out(param);
-      }
-      exp.prototype = out.prototype;
+        return this instanceof C ? new C(param) : C(param);
+      };
+      exp.prototype = C.prototype;
     }(out);
     else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
     // export

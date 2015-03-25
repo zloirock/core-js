@@ -25,7 +25,7 @@ function Dict(iterable){
   return dict;
 }
 Dict.prototype = null;
-  
+
 function DictIterator(iterated, kind){
   $.set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
 }
@@ -48,7 +48,7 @@ $iter.create(DictIterator, 'Dict', function(){
 function createDictIter(kind){
   return function(it){
     return new DictIterator(it, kind);
-  }
+  };
 }
 function generic(A, B){
   // strange IE quirks mode bug -> use typeof instead of isFunction
@@ -77,7 +77,7 @@ function createDictMethod(TYPE){
       if(TYPE){
         if(IS_MAP)result[key] = res;            // map
         else if(res)switch(TYPE){
-          case 2: result[key] = val; break      // filter
+          case 2: result[key] = val; break;     // filter
           case 3: return true;                  // some
           case 5: return val;                   // find
           case 6: return key;                   // findKey
@@ -86,7 +86,7 @@ function createDictMethod(TYPE){
       }
     }
     return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
-  }
+  };
 }
 
 // true  -> Dict.turn
@@ -111,7 +111,7 @@ function createDictReduce(IS_TURN){
       } else memo = result;
     }
     return memo;
-  }
+  };
 }
 var findKey = createDictMethod(6);
 
@@ -147,14 +147,15 @@ var dictMethods = {
     return $.isObject(it) && $.getProto(it) === Dict.prototype;
   }
 };
-for(var key in dictMethods)!function(fn){
+$.each.call(getKeys(dictMethods), function(key){
+  var fn = dictMethods[key];
   function method(){
-    for(var args = [this], i = 0; i < arguments.length;)args.push(arguments[i++]);
+    for(var args = [this], i = 0; i < arguments.length; )args.push(arguments[i++]);
     return invoke(fn, args);
   }
   fn[REFERENCE_GET] = function(){
     return method;
-  }
-}(dictMethods[key]);
+  };
+});
 
 $def($def.G + $def.F, {Dict: $.mix(Dict, dictMethods)});

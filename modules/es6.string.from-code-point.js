@@ -4,11 +4,11 @@ var $def    = require('./$.def')
 
 $def($def.S, 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
-  fromCodePoint: function(x){
+  fromCodePoint: function(x){ // eslint-disable-line no-unused-vars
     var res = []
       , len = arguments.length
       , i   = 0
-      , code
+      , code;
     while(len > i){
       code = +arguments[i++];
       if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');

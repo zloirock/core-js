@@ -4,4 +4,4 @@ module.exports = function(C){
     configurable: true,
     get: $.that
   });
-}
+};

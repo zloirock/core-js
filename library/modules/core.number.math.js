@@ -23,7 +23,7 @@ require('./$').each.call((
         , i    = 0;
       while(arguments.length > i)args.push(arguments[i++]);
       return invoke(fn, args);
-    }
+    };
   }
 );
 

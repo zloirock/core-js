@@ -22,9 +22,11 @@
     "karma-ie-launcher": "0.1.x",
     "karma-firefox-launcher": "0.1.x",
     "karma-opera-launcher": "0.1.x",
-    "promises-aplus-tests": "2.1.x"
+    "promises-aplus-tests": "2.1.x",
+    "eslint": "0.17.x"
   },
   "scripts": {
+    "lint": "eslint ns fn modules",
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter"
   },
   "license": "MIT",
