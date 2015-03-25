@@ -19,7 +19,7 @@ function setIterator(O, value){
 }
 function defineIterator(Constructor, NAME, value, DEFAULT){
   var proto = Constructor.prototype
-    , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || (DEFAULT && proto[DEFAULT]) || value;
+    , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || DEFAULT && proto[DEFAULT] || value;
   if($.FW){
     // Define iterator
     setIterator(proto, iter);

@@ -93,7 +93,7 @@ $def($def.S, 'Math', {
   sign: sign,
   // 20.2.2.30 Math.sinh(x)
   sinh: function(x){
-    return (abs(x = +x) < 1) ? (expm1(x) - expm1(-x)) / 2 : (exp(x - 1) - exp(-x - 1)) * (E / 2);
+    return abs(x = +x) < 1 ? (expm1(x) - expm1(-x)) / 2 : (exp(x - 1) - exp(-x - 1)) * (E / 2);
   },
   // 20.2.2.33 Math.tanh(x)
   tanh: function(x){

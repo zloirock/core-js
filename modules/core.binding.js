@@ -33,7 +33,7 @@ function tie(key){
     , bound = {};
   return hide(that, _, function(key){ // eslint-disable-line no-shadow
     if(key === undefined || !(key in that))return toLocaleString.call(that);
-    return $.has(bound, key) ? bound[key] : (bound[key] = ctx(that[key], that, -1));
+    return $.has(bound, key) ? bound[key] : bound[key] = ctx(that[key], that, -1);
   })[_](key);
 }
 

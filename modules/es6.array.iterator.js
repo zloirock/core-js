@@ -20,9 +20,9 @@ $iter.std(Array, 'Array', function(iterated, kind){
     iter.o = undefined;
     return step(1);
   }
-  if(kind == 'key')   return step(0, index);
-  if(kind == 'value') return step(0, O[index]);
-                      return step(0, [index, O[index]]);
+  if(kind == 'key'  )return step(0, index);
+  if(kind == 'value')return step(0, O[index]);
+  return step(0, [index, O[index]]);
 }, 'value');
 
 // argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)

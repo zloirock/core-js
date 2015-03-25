@@ -41,7 +41,7 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       return CHAIN ? this : result;
     };
   }
-  if(!$.isFunction(C) || !(isWeak || (!$iter.BUGGY && proto.forEach && proto.entries))){
+  if(!$.isFunction(C) || !(isWeak || !$iter.BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = isWeak
       ? function(iterable){
@@ -66,7 +66,9 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       , chain  = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
     // wrap to init collections from iterable
-    if($iter.fail(function(iter){ new C(iter); }) || $iter.DANGER_CLOSING){
+    if($iter.fail(function(iter){
+      new C(iter); // eslint-disable-line no-new
+    }) || $iter.DANGER_CLOSING){
       C = function(iterable){
         assertInstanse(this, C, NAME);
         return initFromIterable(new Native, iterable);
@@ -109,9 +111,9 @@ function getCollection(NAME, methods, commonMethods, isMap, isWeak){
       return step(1);
     }
     // return step by kind
-    if(kind == 'key')   return step(0, entry.k);
-    if(kind == 'value') return step(0, entry.v);
-                        return step(0, [entry.k, entry.v]);
+    if(kind == 'key'  )return step(0, entry.k);
+    if(kind == 'value')return step(0, entry.v);
+    return step(0, [entry.k, entry.v]);
   }, isMap ? 'key+value' : 'value', !isMap, true);
 
   return C;
@@ -143,9 +145,10 @@ function def(that, key, value){
   var entry = getEntry(that, key)
     , prev, index;
   // change existing entry
-  if(entry)entry.v = value;
+  if(entry){
+    entry.v = value;
   // create new entry
-  else {
+  } else {
     that[LAST] = entry = {
       i: index = fastKey(key, true), // <- index
       k: key,                        // <- key
@@ -234,8 +237,9 @@ function leakStore(that){
   return that[LEAK] || hide(that, LEAK, new Map)[LEAK];
 }
 function defWeak(that, key, value){
-  if(isFrozen(assert.obj(key)))leakStore(that).set(key, value);
-  else {
+  if(isFrozen(assert.obj(key))){
+    leakStore(that).set(key, value);
+  } else {
     has(key, WEAK) || hide(key, WEAK, {});
     key[WEAK][that[CID]] = value;
   } return that;

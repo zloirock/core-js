@@ -18,7 +18,7 @@ $def.W = 32; // wrap
 function $def(type, name, source){
   var key, own, out, exp
     , isGlobal = type & $def.G
-    , target   = isGlobal ? global : (type & $def.S)
+    , target   = isGlobal ? global : type & $def.S
         ? global[name] : (global[name] || {}).prototype
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;

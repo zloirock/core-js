@@ -41,9 +41,9 @@ $iter.create(DictIterator, 'Dict', function(){
       return step(1);
     }
   } while(!has(O, key = keys[iter.i++]));
-  if(kind == 'key')   return step(0, key);
-  if(kind == 'value') return step(0, O[key]);
-                      return step(0, [key, O[key]]);
+  if(kind == 'key'  )return step(0, key);
+  if(kind == 'value')return step(0, O[key]);
+  return step(0, [key, O[key]]);
 });
 function createDictIter(kind){
   return function(it){
@@ -99,8 +99,9 @@ function createDictReduce(IS_TURN){
       , length = keys.length
       , i      = 0
       , memo, key, result;
-    if(IS_TURN)memo = init == undefined ? new (generic(this, Dict)) : Object(init);
-    else if(arguments.length < 3){
+    if(IS_TURN){
+      memo = init == undefined ? new (generic(this, Dict)) : Object(init);
+    } else if(arguments.length < 3){
       assert(length, 'Reduce of empty object with no initial value');
       memo = O[keys[i++]];
     } else memo = Object(init);

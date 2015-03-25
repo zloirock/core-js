@@ -67,7 +67,7 @@ var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
   , keysLen1 = keys1.length;
 
 // Create object with `null` prototype: use iframe Object with cleared prototype
-function createDict(){
+var createDict = function(){
   // Thrash, waste and sodomy: IE GC bug
   var iframe = document.createElement('iframe')
     , i      = keysLen1
@@ -84,7 +84,7 @@ function createDict(){
   createDict = iframeDocument.F;
   while(i--)delete createDict.prototype[keys1[i]];
   return createDict();
-}
+};
 function createGetKeys(names, length){
   return function(object){
     var O      = toObject(object)

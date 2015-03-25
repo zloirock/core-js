@@ -15,7 +15,7 @@ $.each.call(('assert,clear,count,debug,dir,dirxml,error,exception,' +
 });
 $def($def.G + $def.F, {log: require('./$.assign')(log.log, log, {
   enable: function(){
-     enabled = true;
+    enabled = true;
   },
   disable: function(){
     enabled = false;

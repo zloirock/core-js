@@ -15,5 +15,5 @@ module.exports = function(fn, that, length){
     };
   } return function(/* ...args */){
       return fn.apply(that, arguments);
-  };
+    };
 };

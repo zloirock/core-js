@@ -8,9 +8,11 @@ var global = typeof self != 'undefined' ? self : Function('return this')()
   , max   = Math.max
   , min   = Math.min;
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESC = !!function(){try {
-  return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
-} catch(e){}}();
+var DESC = !!function(){
+  try {
+    return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
+  } catch(e){}
+}();
 var hide = createDefiner(1);
 // 7.1.4 ToInteger
 function toInteger(it){

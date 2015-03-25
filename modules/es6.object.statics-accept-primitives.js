@@ -17,8 +17,11 @@ function wrapObjectMethod(METHOD, MODE){
   } : function(it){
     return fn(toObject(it));
   };
-  try { fn('z'); }
-  catch(e){ f = 1; }
+  try {
+    fn('z');
+  } catch(e){
+    f = 1;
+  }
   $def($def.S + $def.F * f, 'Object', o);
 }
 wrapObjectMethod('freeze', 1);
