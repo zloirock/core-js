@@ -147,23 +147,23 @@ isFunction(Promise) && isFunction(Promise.resolve)
       return this.then(undefined, onRejected);
     }
   });
-  $.mix(Promise, {
-    // 25.4.4.5 Promise.reject(r)
-    reject: function(r){
-      return new (getConstructor(this))(function(res, rej){
-        rej(r);
-      });
-    },
-    // 25.4.4.6 Promise.resolve(x)
-    resolve: function(x){
-      return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
-        ? x : new (getConstructor(this))(function(res){
-          res(x);
-        });
-    }
-  });
 }();
 $def($def.G + $def.W + $def.F * (Promise != Base), {Promise: Promise});
+$def($def.S, PROMISE, {
+  // 25.4.4.5 Promise.reject(r)
+  reject: function(r){
+    return new (getConstructor(this))(function(res, rej){
+      rej(r);
+    });
+  },
+  // 25.4.4.6 Promise.resolve(x)
+  resolve: function(x){
+    return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
+      ? x : new (getConstructor(this))(function(res){
+        res(x);
+      });
+  }
+});
 $def($def.S + $def.F * ($iter.fail(function(iter){
   Promise.all(iter)['catch'](function(){});
 }) || $iter.DANGER_CLOSING), PROMISE, {
