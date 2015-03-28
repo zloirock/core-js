@@ -45,7 +45,7 @@ function getIterator(it){
 }
 function closeIterator(iterator){
   var ret = iterator['return'];
-  if(ret !== undefined)ret.call(iterator);
+  if(ret !== undefined)assertObject(ret.call(iterator));
 }
 function stepCall(iterator, fn, value, entries){
   try {

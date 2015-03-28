@@ -88,14 +88,20 @@
     done = true;
     iter = [1, 2, 3].values();
     iter['return'] = function(){
-      return done = false;
+      done = false;
+      return {
+        done: true
+      };
     };
     $for(iter).of(function(){});
     ok(done, '.return #default');
     done = false;
     iter = [1, 2, 3].values();
     iter['return'] = function(){
-      return done = true;
+      done = true;
+      return {
+        done: true
+      };
     };
     $for(iter).of(function(){
       return false;
@@ -104,7 +110,10 @@
     done = false;
     iter = [1, 2, 3].values();
     iter['return'] = function(){
-      return done = true;
+      done = true;
+      return {
+        done: true
+      };
     };
     try {
       $for(iter).of(function(){

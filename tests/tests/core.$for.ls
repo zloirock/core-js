@@ -65,19 +65,25 @@ test '$for#of' !->
   # return #default
   done = on
   iter = [1 2 3]values!
-  iter.return = -> done := no
+  iter.return = ->
+    done := no
+    {done: on}
   $for(iter).of ->
   ok done, '.return #default'
   # return #break
   done = no
   iter = [1 2 3]values!
-  iter.return = -> done := on
+  iter.return = ->
+    done := on
+    {done: on}
   $for(iter).of -> return no
   ok done, '.return #break'
   # return #throw
   done = no
   iter = [1 2 3]values!
-  iter.return = -> done := on
+  iter.return = ->
+    done := on
+    {done: on}
   try => $for(iter).of -> throw 42
   ok done, '.return #throw'
 test '$for chaining' !->
