@@ -20,7 +20,7 @@ module.exports = (grunt)->
     copy: lib: files:
       * expand: on
         cwd: './'
-        src: <[modules/** ns/** fn/** index.js shim.js]>
+        src: <[modules/** es5/** es6/** es7/** js/** web/** core/** fn/** index.js shim.js]>
         dest: './library/'
       * expand: on
         cwd: './modules/library/'

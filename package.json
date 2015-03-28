@@ -26,7 +26,7 @@
     "eslint": "0.17.x"
   },
   "scripts": {
-    "lint": "eslint ns fn modules",
+    "lint": "eslint es5 es6 es7 js web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter"
   },
   "license": "MIT",
