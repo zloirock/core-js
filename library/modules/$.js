@@ -11,7 +11,7 @@ var global = typeof self != 'undefined' ? self : Function('return this')()
 var DESC = !!function(){
   try {
     return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
-  } catch(e){}
+  } catch(e){ /* empty */ }
 }();
 var hide = createDefiner(1);
 // 7.1.4 ToInteger

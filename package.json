@@ -23,7 +23,7 @@
     "karma-firefox-launcher": "0.1.x",
     "karma-opera-launcher": "0.1.x",
     "promises-aplus-tests": "2.1.x",
-    "eslint": "0.17.x"
+    "eslint": "0.18.x"
   },
   "scripts": {
     "lint": "eslint es5 es6 es7 js web core fn modules",

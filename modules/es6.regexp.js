@@ -5,7 +5,7 @@ var $      = require('./$')
   , proto  = RegExp.prototype;
 if($.FW && $.DESC){
   // RegExp allows a regex with flags as the pattern
-  if(!function(){try{ return RegExp(/a/g, 'i') == '/a/i'; }catch(e){}}()){
+  if(!function(){try{ return RegExp(/a/g, 'i') == '/a/i'; }catch(e){ /* empty */ }}()){
     RegExp = function RegExp(pattern, flags){
       return new Base(cof(pattern) == 'RegExp' && flags !== undefined
         ? pattern.source : pattern, flags);

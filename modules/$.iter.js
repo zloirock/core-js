@@ -61,7 +61,7 @@ var DANGER_CLOSING = true;
     var iter = [1].keys();
     iter['return'] = function(){ DANGER_CLOSING = false; };
     Array.from(iter, function(){ throw 2; });
-  } catch(e){}
+  } catch(e){ /* empty */ }
 }();
 var $iter = module.exports = {
   BUGGY: BUGGY,
@@ -80,7 +80,7 @@ var $iter = module.exports = {
         return iter;
       };
       exec(arr);
-    } catch(e){}
+    } catch(e){ /* empty */ }
     return fail;
   },
   Iterators: Iterators,

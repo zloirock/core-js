@@ -25,11 +25,11 @@ if(!$.DESC){
     IE8_DOM_DEFINE = defineProperty(document.createElement('div'), 'x',
       {get: function(){ return 8; }}
     ).x == 8;
-  } catch(e){}
+  } catch(e){ /* empty */ }
   $.setDesc = function(O, P, Attributes){
     if(IE8_DOM_DEFINE)try {
       return defineProperty(O, P, Attributes);
-    } catch(e){}
+    } catch(e){ /* empty */ }
     if('get' in Attributes || 'set' in Attributes)throw TypeError('Accessors not supported!');
     if('value' in Attributes)assertObject(O)[P] = Attributes.value;
     return O;
@@ -37,7 +37,7 @@ if(!$.DESC){
   $.getDesc = function(O, P){
     if(IE8_DOM_DEFINE)try {
       return getOwnDescriptor(O, P);
-    } catch(e){}
+    } catch(e){ /* empty */ }
     if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
   };
   defineProperties = function(O, Properties){
