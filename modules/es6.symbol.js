@@ -71,7 +71,7 @@ $.each.call((
     'referenceGet,referenceSet,referenceDelete'
   ).split(','), function(it){
     var sym = require('./$.wks')(it);
-    symbolStatics[it] = typeof sym == 'symbol' ? sym : wrap(sym);
+    symbolStatics[it] = Symbol === Base ? sym : wrap(sym);
   }
 );
 
