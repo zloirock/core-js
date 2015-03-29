@@ -10,23 +10,27 @@ var $        = require('./$')
   , toObject = $.toObject
   , Symbol   = $.g.Symbol
   , Base     = Symbol
-  , setter   = true
+  , setter   = false
   , TAG      = uid.safe('tag')
   , SymbolRegistry = {}
   , AllSymbols     = {};
+
+function wrap(tag){
+  var sym = AllSymbols[tag] = $.set($.create(Symbol.prototype), TAG, tag);
+  $.DESC && setter && $.setDesc(Object.prototype, tag, {
+    configurable: true,
+    set: function(value){
+      hide(this, tag, value);
+    }
+  });
+  return sym;
+}
+
 // 19.4.1.1 Symbol([description])
 if(!$.isFunction(Symbol)){
   Symbol = function(description){
     if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
-    var tag = uid(description)
-      , sym = AllSymbols[tag] = $.set($.create(Symbol.prototype), TAG, tag);
-    $.DESC && setter && $.setDesc(Object.prototype, tag, {
-      configurable: true,
-      set: function(value){
-        hide(this, tag, value);
-      }
-    });
-    return sym;
+    return wrap(uid(description));
   };
   hide(Symbol.prototype, 'toString', function(){
     return this[TAG];
@@ -66,9 +70,12 @@ $.each.call((
     // ES7 (in case, if ES7 modules required before):
     'referenceGet,referenceSet,referenceDelete'
   ).split(','), function(it){
-    symbolStatics[it] = require('./$.wks')(it);
+    var sym = require('./$.wks')(it);
+    symbolStatics[it] = typeof sym == 'symbol' ? sym : wrap(sym);
   }
 );
+
+setter = true;
 
 $def($def.S, 'Symbol', symbolStatics);
 
