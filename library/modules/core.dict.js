@@ -114,28 +114,26 @@ function createDictReduce(IS_TURN){
 }
 var findKey = createDictMethod(6);
 
-function includes(object, el){
-  return (el == el ? keyOf(object, el) : findKey(object, function(it){
-    return it != it;
-  })) !== undefined;
-}
-
-var dictMethods = {
-  keys:    createDictIter('key'),
-  values:  createDictIter('value'),
-  entries: createDictIter('key+value'),
-  forEach: createDictMethod(0),
-  map:     createDictMethod(1),
-  filter:  createDictMethod(2),
-  some:    createDictMethod(3),
-  every:   createDictMethod(4),
-  find:    createDictMethod(5),
-  findKey: findKey,
-  mapPairs:createDictMethod(7),
-  reduce:  createDictReduce(false),
-  turn:    createDictReduce(true),
-  keyOf:   keyOf,
-  includes:includes,
+$def($def.G + $def.F, {Dict: $.mix(Dict, {
+  keys:     createDictIter('key'),
+  values:   createDictIter('value'),
+  entries:  createDictIter('key+value'),
+  forEach:  createDictMethod(0),
+  map:      createDictMethod(1),
+  filter:   createDictMethod(2),
+  some:     createDictMethod(3),
+  every:    createDictMethod(4),
+  find:     createDictMethod(5),
+  findKey:  findKey,
+  mapPairs: createDictMethod(7),
+  reduce:   createDictReduce(false),
+  turn:     createDictReduce(true),
+  keyOf:    keyOf,
+  includes: function(object, el){
+    return (el == el ? keyOf(object, el) : findKey(object, function(it){
+      return it != it;
+    })) !== undefined;
+  },
   // Has / get / set own property
   has: has,
   get: function(object, key){
@@ -145,6 +143,4 @@ var dictMethods = {
   isDict: function(it){
     return $.isObject(it) && $.getProto(it) === Dict.prototype;
   }
-};
-
-$def($def.G + $def.F, {Dict: $.mix(Dict, dictMethods)});
+})});
