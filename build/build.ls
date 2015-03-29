@@ -5,7 +5,7 @@ list = <[
   es6.object.assign
   es6.object.is
   es6.object.set-prototype-of
-  es6.object.prototype
+  es6.object.to-string
   es6.object.statics-accept-primitives
   es6.function
   es6.number.constructor
