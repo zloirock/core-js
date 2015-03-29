@@ -26,7 +26,6 @@ require('./modules/es7.string.at');
 require('./modules/es7.regexp.escape');
 require('./modules/es7.object.get-own-property-descriptors');
 require('./modules/es7.object.to-array');
-require('./modules/es7.abstract-refs');
 require('./modules/js.array.statics');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');

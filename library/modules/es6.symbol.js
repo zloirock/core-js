@@ -64,11 +64,8 @@ var symbolStatics = {
 // 19.4.2.13 Symbol.toStringTag
 // 19.4.2.14 Symbol.unscopables
 $.each.call((
-    // ES6:
     'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
-    'species,split,toPrimitive,toStringTag,unscopables,' +
-    // ES7 (in case, if ES7 modules required before):
-    'referenceGet,referenceSet,referenceDelete'
+    'species,split,toPrimitive,toStringTag,unscopables'
   ).split(','), function(it){
     var sym = require('./$.wks')(it);
     symbolStatics[it] = Symbol === Base ? sym : wrap(sym);

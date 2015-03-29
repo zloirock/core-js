@@ -1,17 +1,15 @@
-var $             = require('./$')
-  , ctx           = require('./$.ctx')
-  , $def          = require('./$.def')
-  , assign        = require('./$.assign')
-  , keyOf         = require('./$.keyof')
-  , invoke        = require('./$.invoke')
-  , ITER          = require('./$.uid').safe('iter')
-  , REFERENCE_GET = require('./$.wks')('referenceGet')
-  , assert        = require('./$.assert')
-  , $iter         = require('./$.iter')
-  , step          = $iter.step
-  , getKeys       = $.getKeys
-  , toObject      = $.toObject
-  , has           = $.has;
+var $        = require('./$')
+  , ctx      = require('./$.ctx')
+  , $def     = require('./$.def')
+  , assign   = require('./$.assign')
+  , keyOf    = require('./$.keyof')
+  , ITER     = require('./$.uid').safe('iter')
+  , assert   = require('./$.assert')
+  , $iter    = require('./$.iter')
+  , step     = $iter.step
+  , getKeys  = $.getKeys
+  , toObject = $.toObject
+  , has      = $.has;
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -148,15 +146,5 @@ var dictMethods = {
     return $.isObject(it) && $.getProto(it) === Dict.prototype;
   }
 };
-$.each.call(getKeys(dictMethods), function(key){
-  var fn = dictMethods[key];
-  function method(){
-    for(var args = [this], i = 0; i < arguments.length; )args.push(arguments[i++]);
-    return invoke(fn, args);
-  }
-  fn[REFERENCE_GET] = function(){
-    return method;
-  };
-});
 
 $def($def.G + $def.F, {Dict: $.mix(Dict, dictMethods)});
