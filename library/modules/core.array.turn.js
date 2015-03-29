@@ -1,7 +1,6 @@
 'use strict';
 var $              = require('./$')
   , $def           = require('./$.def')
-  , UNSCOPABLES    = require('./$.wks')('unscopables')
   , assertFunction = require('./$.assert').fn;
 $def($def.P + $def.F, 'Array', {
   turn: function(fn, target /* = [] */){
@@ -14,4 +13,4 @@ $def($def.P + $def.F, 'Array', {
     return memo;
   }
 });
-if($.FW && UNSCOPABLES in [])[][UNSCOPABLES].turn = true;
+require('./$.unscope')('turn');

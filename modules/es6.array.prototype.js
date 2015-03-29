@@ -1,13 +1,11 @@
 'use strict';
 var $                = require('./$')
   , $def             = require('./$.def')
+  , setUnscope       = require('./$.unscope')
   , arrayMethod      = require('./$.array-methods')
-  , UNSCOPABLES      = require('./$.wks')('unscopables')
   , assertDefined    = $.assertDefined
   , toIndex          = $.toIndex
-  , toLength         = $.toLength
-  , ArrayProto       = Array.prototype
-  , ArrayUnscopables = ArrayProto[UNSCOPABLES] || {};
+  , toLength         = $.toLength;
 $def($def.P, 'Array', {
   // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
   copyWithin: function(target/* = 0 */, start /* = 0, end = @length */){
@@ -47,10 +45,7 @@ $def($def.P, 'Array', {
   findIndex: arrayMethod(6)
 });
 
-if($.FW){
-  // 22.1.3.31 Array.prototype[@@unscopables]
-  $.each.call('find,findIndex,fill,copyWithin,entries,keys,values'.split(','), function(it){
-    ArrayUnscopables[it] = true;
-  });
-  UNSCOPABLES in ArrayProto || $.hide(ArrayProto, UNSCOPABLES, ArrayUnscopables);
-}
+setUnscope('find');
+setUnscope('findIndex');
+setUnscope('fill');
+setUnscope('copyWithin');

@@ -4319,6 +4319,7 @@
         return Array.prototype.includes.call(void 8, 0);
       }, TypeError);
     }
+    ok('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
   test('String#at', function(){
     var at;

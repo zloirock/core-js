@@ -26,6 +26,7 @@ test 'Array#copyWithin' !->
     throws (-> Array::copyWithin.call null, 0), TypeError
     throws (-> Array::copyWithin.call void, 0), TypeError
   ok \copyWithin of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+
 test 'Array#fill' !->
   ok isFunction(Array::fill), 'Is function'
   eq (a = Array(5)fill(5)), a
@@ -38,6 +39,7 @@ test 'Array#fill' !->
     throws (-> Array::fill.call null, 0), TypeError
     throws (-> Array::fill.call void, 0), TypeError
   ok \fill of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+
 test 'Array#find' !->
   ok isFunction(Array::find), 'Is function'
   (arr = [1])find (val, key, that)->
@@ -52,6 +54,7 @@ test 'Array#find' !->
     throws (-> Array::find.call null, 0), TypeError
     throws (-> Array::find.call void, 0), TypeError
   ok \find of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+
 test 'Array#findIndex' !->
   ok isFunction(Array::findIndex), 'Is function'
   (arr = [1])findIndex (val, key, that)->
@@ -65,5 +68,6 @@ test 'Array#findIndex' !->
     throws (-> Array::findIndex.call null, 0), TypeError
     throws (-> Array::findIndex.call void, 0), TypeError
   ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+
 test 'Array#@@unscopables' !->
   eq typeof! Array::[Symbol.unscopables], \Object

@@ -26,6 +26,7 @@ test 'Array#includes' !->
   if strict
     throws (-> Array::includes.call null, 0), TypeError
     throws (-> Array::includes.call void, 0), TypeError
+  ok \includes of Array::[Symbol.unscopables], 'In Array#@@unscopables'
 
 test 'String#at' !->
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
