@@ -27,6 +27,7 @@ test 'Symbol' !->
 test 'Well-known Symbols' !->
   for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
     ok .. of Symbol, "Symbol.#{..} available"
+    ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
 test '#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 test '.pure' !->

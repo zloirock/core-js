@@ -4218,6 +4218,7 @@
     for (i$ = 0, len$ = (ref$ = ['hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(x$ in Symbol, "Symbol." + x$ + " available");
+      ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol");
     }
   });
   test('#@@toStringTag', function(){
