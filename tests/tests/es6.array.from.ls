@@ -1,12 +1,11 @@
-QUnit.module 'ES6 Array statics'
+QUnit.module 'ES6 Array.from'
 
 eq = strictEqual
 deq = deepEqual
-isFunction = -> typeof! it is \Function
 
-test 'Array.from' !->
+test '*' !->
   {from} = Array
-  ok isFunction(from), 'Is function'
+  ok typeof! from is \Function, 'Is function'
   deq from(\123), <[1 2 3]>
   deq from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
   from al = (-> &)(1), (val, key)->
@@ -35,7 +34,3 @@ test 'Array.from' !->
   iter.return = -> done := on
   try => from iter, -> throw 42
   ok done, '.return #throw'
-test 'Array.of' !->
-  ok isFunction(Array.of), 'Is function'
-  deq Array.of(1), [1]
-  deq Array.of(1 2 3), [1 2 3]
