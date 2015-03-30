@@ -1,2 +1,2 @@
-require('../../modules/es6.array.prototype');
+require('../../modules/es6.array.find-index');
 module.exports = require('../../modules/$').core.Array.findIndex;

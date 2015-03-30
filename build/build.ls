@@ -20,7 +20,10 @@ list = <[
   es6.array.of
   es6.array.iterator
   es6.array.species
-  es6.array.prototype
+  es6.array.copy-within
+  es6.array.fill
+  es6.array.find
+  es6.array.find-index
   es6.regexp
   es6.promise
   es6.collections
