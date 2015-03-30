@@ -5,7 +5,7 @@ require('./modules/es6.object.is');
 require('./modules/es6.object.set-prototype-of');
 require('./modules/es6.object.to-string');
 require('./modules/es6.object.statics-accept-primitives');
-require('./modules/es6.function');
+require('./modules/es6.function.name');
 require('./modules/es6.number.constructor');
 require('./modules/es6.number.statics');
 require('./modules/es6.math');
