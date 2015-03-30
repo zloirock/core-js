@@ -1,2 +1,2 @@
-require('../../modules/es6.string.prototype');
+require('../../modules/es6.string.includes');
 module.exports = require('../../modules/$').core.String.includes;
