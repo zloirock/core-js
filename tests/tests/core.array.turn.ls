@@ -1,6 +1,6 @@
-QUnit.module 'core-js Array'
+QUnit.module 'core-js Array#turn'
 isFunction = -> typeof! it is \Function
-test '#turn' !->
+test '*' !->
   ok isFunction(Array::turn), 'Is function'
   (arr = [1])turn (memo, val, key, that)->
     deepEqual [] memo, 'Default memo is array'
