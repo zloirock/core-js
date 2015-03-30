@@ -1,34 +1,11 @@
 'use strict'
 
-QUnit.module \ES7
-
-strict = typeof (-> @).call(void) is \undefined
-descriptors = /\[native code\]\s*\}\s*$/.test Object.defineProperty
-
-isFunction = -> typeof! it is \Function
+QUnit.module 'ES7 String#at'
 
 eq = strictEqual
-deq = deepEqual
-{create, assign} = Object
 
-test 'Array#includes' !->
-  ok isFunction(Array::includes), 'Is function'
-  arr = [1 2 3 -0 o = {}]
-  ok arr.includes 1
-  ok arr.includes -0
-  ok arr.includes 0
-  ok arr.includes o
-  ok !arr.includes 4
-  ok !arr.includes -0.5
-  ok !arr.includes {}
-  ok Array(1)includes void
-  ok [NaN].includes(NaN)
-  if strict
-    throws (-> Array::includes.call null, 0), TypeError
-    throws (-> Array::includes.call void, 0), TypeError
-  ok \includes of Array::[Symbol.unscopables], 'In Array#@@unscopables'
-
-test 'String#at' !->
+test '*' !->
+  ok typeof! String::at is \Function, 'Is function'
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol
   eq 'abc\uD834\uDF06def'at(-Infinity), ''
@@ -113,43 +90,6 @@ test 'String#at' !->
   eq at.call(42 1), \2
   eq at.call({toString: -> \abc}, 2), \c
   
-  if strict
+  if typeof (-> @).call(void) is \undefined
     throws (-> String::at.call null, 0), TypeError
     throws (-> String::at.call void, 0), TypeError
-
-test 'Object.getOwnPropertyDescriptors' !->
-  {getOwnPropertyDescriptors} = Object
-  ok isFunction(getOwnPropertyDescriptors), 'Is function'
-  
-  O = create {q: 1}, e: value: 3
-  O.w = 2
-  s = Symbol \s
-  O[s] = 4
-  
-  descs = getOwnPropertyDescriptors O
-  
-  eq descs.q, void
-  deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-  if descriptors => deepEqual descs.e, {-enumerable, -configurable, -writable, value: 3}
-  else deepEqual descs.e, {+enumerable, +configurable, +writable, value: 3}
-  eq descs[s].value, 4
-
-test 'Object.values' !->
-  {values} = Object
-  ok isFunction(values), 'Is function'
-  deq values({q:1, w:2, e:3}), [1 2 3]
-  deq values(new String \qwe), [\q \w \e]
-  deq values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]
-
-test 'Object.entries' !->
-  {entries} = Object
-  ok isFunction(entries), 'Is function'
-  deq entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
-  deq entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
-  deq entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]
-
-test 'RegExp.escape' !->
-  {escape} = RegExp
-  ok isFunction(escape), 'Is function'
-  eq escape('qwe asd'), 'qwe asd', "Don't change simple string"
-  eq escape('\\-[]{}()*+?.,^$|'), '\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|', 'Escape all RegExp special chars'
