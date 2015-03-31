@@ -30,7 +30,10 @@ list = <[
   es6.array.find-index
   es6.regexp
   es6.promise
-  es6.collections
+  es6.map
+  es6.set
+  es6.weak-map
+  es6.weak-set
   es6.reflect
   es7.array.includes
   es7.string.at

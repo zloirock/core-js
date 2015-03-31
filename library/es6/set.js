@@ -1,4 +1,4 @@
 require('../modules/es6.string.iterator');
 require('../modules/web.dom.iterable');
-require('../modules/es6.collections');
+require('../modules/es6.set');
 module.exports = require('../modules/$').core.Set;

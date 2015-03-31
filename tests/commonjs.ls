@@ -150,20 +150,19 @@ for P in <[.. ../library]>
   ################################################
   ok \Array of require("#P/es5")
   ok \map of require("#P/es6/array")
-  ok \Map of require("#P/es6/collections")
   require("#P/es6/function")
   ok typeof require("#P/es6/map") is \function
+  ok typeof require("#P/es6/set") is \function
+  ok typeof require("#P/es6/weak-map") is \function
+  ok typeof require("#P/es6/weak-set") is \function
   ok \hypot of require("#P/es6/math")
   ok \MAX_SAFE_INTEGER of require("#P/es6/number")
   ok \assign of require("#P/es6/object")
   ok typeof require("#P/es6/promise") is \function
   ok \ownKeys of require("#P/es6/reflect")
   require("#P/es6/regexp")
-  ok typeof require("#P/es6/set")
   ok \raw of require("#P/es6/string")
   ok typeof require("#P/es6/symbol") is \function
-  ok typeof require("#P/es6/weak-map") is \function
-  ok typeof require("#P/es6/weak-set") is \function
   ok \Map of require("#P/es6")
   ok \includes of require("#P/es7/array")
   ok \values of require("#P/es7/object")

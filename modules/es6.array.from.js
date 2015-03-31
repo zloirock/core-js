@@ -2,12 +2,11 @@ var $     = require('./$')
   , ctx   = require('./$.ctx')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
-  , stepCall = $iter.stepCall
-  , assertDefined = $.assertDefined;
+  , stepCall = $iter.stepCall;
 $def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
-    var O       = Object(assertDefined(arrayLike))
+    var O       = Object($.assertDefined(arrayLike))
       , mapfn   = arguments[1]
       , mapping = mapfn !== undefined
       , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined

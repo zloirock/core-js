@@ -1,0 +1,40 @@
+'use strict';
+var $         = require('./$')
+  , weak      = require('./$.col-weak')
+  , leakStore = weak.leakStore
+  , CID       = weak.CID
+  , WEAK      = weak.WEAK
+  , has       = $.has
+  , isObject  = $.isObject
+  , isFrozen  = Object.isFrozen || $.core.Object.isFrozen
+  , tmp       = {};
+
+// 23.3 WeakMap Objects
+var WeakMap = require('./$.col')('WeakMap', {
+  // 23.3.3.3 WeakMap.prototype.get(key)
+  get: function(key){
+    if(isObject(key)){
+      if(isFrozen(key))return leakStore(this).get(key);
+      if(has(key, WEAK))return key[WEAK][this[CID]];
+    }
+  },
+  // 23.3.3.5 WeakMap.prototype.set(key, value)
+  set: function(key, value){
+    return weak.def(this, key, value);
+  }
+}, weak, true, true);
+
+// IE11 WeakMap frozen keys fix
+if($.FW && new WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
+  $.each.call(['delete', 'has', 'get', 'set'], function(key){
+    var method = WeakMap.prototype[key];
+    WeakMap.prototype[key] = function(a, b){
+      // store frozen objects on leaky map
+      if(isObject(a) && isFrozen(a)){
+        var result = leakStore(this)[key](a, b);
+        return key == 'set' ? this : result;
+      // store all the rest on native weakmap
+      } return method.call(this, a, b);
+    };
+  });
+}
