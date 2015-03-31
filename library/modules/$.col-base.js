@@ -1,14 +1,14 @@
 'use strict';
 var $        = require('./$')
-  , init     = require('./$.col-init')
   , ctx      = require('./$.ctx')
   , safe     = require('./$.uid').safe
   , assert   = require('./$.assert')
+  , $iter    = require('./$.iter')
   , has      = $.has
   , set      = $.set
   , isObject = $.isObject
   , hide     = $.hide
-  , step     = require('./$.iter').step
+  , step     = $iter.step
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , CID      = safe('cid')
   , O1       = safe('O1')
@@ -43,14 +43,14 @@ function getEntry(that, key){
 }
 
 module.exports = {
-  getConstructor: function(NAME, isMap, ADDER){
+  getConstructor: function(NAME, IS_MAP, ADDER){
     function C(iterable){
       var that = assert.inst(this, C, NAME);
       set(that, O1, $.create(null));
       set(that, SIZE, 0);
       set(that, LAST, undefined);
       set(that, FIRST, undefined);
-      init(that, isMap, ADDER, iterable);
+      if(iterable != undefined)$iter.forOf(iterable, IS_MAP, that[ADDER], that);
     }
     if($.DESC)$.setDesc(C.prototype, 'size', {
       get: function(){
@@ -129,7 +129,7 @@ module.exports = {
     } return that;
   },
   getEntry: getEntry,
-  iter: function(){
+  getIterConstructor: function(){
     return function(iterated, kind){
       set(this, ITER, {o: iterated, k: kind});
     };

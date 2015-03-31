@@ -2,13 +2,12 @@
 var $     = require('./$')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
-  , init  = require('./$.col-init')
   , assertInstance = require('./$.assert').inst;
 
-module.exports = function(NAME, methods, common, isMap, isWeak){
+module.exports = function(NAME, methods, common, IS_MAP, isWeak){
   var Base  = $.g[NAME]
     , C     = Base
-    , ADDER = isMap ? 'set' : 'add'
+    , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype
     , O     = {};
   function fixMethod(KEY, CHAIN){
@@ -20,7 +19,7 @@ module.exports = function(NAME, methods, common, isMap, isWeak){
   }
   if(!$.isFunction(C) || !(isWeak || !$iter.BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
-    C = common.getConstructor(NAME, isMap, ADDER);
+    C = common.getConstructor(NAME, IS_MAP, ADDER);
     $.mix($.mix(C.prototype, methods), common.methods);
   } else {
     var inst  = new C
@@ -32,7 +31,9 @@ module.exports = function(NAME, methods, common, isMap, isWeak){
     }) || $iter.DANGER_CLOSING){
       C = function(iterable){
         assertInstance(this, C, NAME);
-        return init(new Base, isMap, ADDER, iterable);
+        var that = new Base;
+        if(iterable != undefined)$iter.forOf(iterable, IS_MAP, that[ADDER], that);
+        return that;
       };
       C.prototype = proto;
       if($.FW)proto.constructor = C;
@@ -44,7 +45,7 @@ module.exports = function(NAME, methods, common, isMap, isWeak){
     if(buggyZero){
       fixMethod('delete');
       fixMethod('has');
-      isMap && fixMethod('get');
+      IS_MAP && fixMethod('get');
     }
     // + fix .add & .set for chaining
     if(buggyZero || chain !== inst)fixMethod(ADDER, true);
@@ -57,9 +58,11 @@ module.exports = function(NAME, methods, common, isMap, isWeak){
 
   // add .keys, .values, .entries, [@@iterator]
   // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-  if(!isWeak){
-    $iter.std(C, NAME, common.iter(), common.next, isMap ? 'key+value' : 'value' , !isMap, true);
-  }
+  if(!isWeak)$iter.std(
+    C, NAME,
+    common.getIterConstructor(), common.next,
+    IS_MAP ? 'key+value' : 'value' , !IS_MAP, true
+  );
 
   return C;
 };

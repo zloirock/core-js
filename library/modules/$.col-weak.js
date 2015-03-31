@@ -1,8 +1,8 @@
 'use strict';
 var $         = require('./$')
-  , init      = require('./$.col-init')
   , safe      = require('./$.uid').safe
   , assert    = require('./$.assert')
+  , forOf     = require('./$.iter').forOf
   , has       = $.has
   , isObject  = $.isObject
   , hide      = $.hide
@@ -46,10 +46,10 @@ function leakStore(that){
 }
 
 module.exports = {
-  getConstructor: function(NAME, isMap, ADDER){
+  getConstructor: function(NAME, IS_MAP, ADDER){
     function C(iterable){
       $.set(assert.inst(this, C, NAME), CID, cid++);
-      init(this, isMap, ADDER, iterable);
+      if(iterable != undefined)forOf(iterable, IS_MAP, this[ADDER], this);
     }
     return C;
   },
