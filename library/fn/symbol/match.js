@@ -1,2 +1,1 @@
-require('../../modules/es6.symbol');
-module.exports = require('../../modules/$').core.Symbol.match;
+module.exports = require('../../modules/$.wks')('match');

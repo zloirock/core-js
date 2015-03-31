@@ -1,2 +1,1 @@
-require('../../modules/es6.symbol');
-module.exports = require('../../modules/$').core.Symbol.replace;
+module.exports = require('../../modules/$.wks')('replace');
