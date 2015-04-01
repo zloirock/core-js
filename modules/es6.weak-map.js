@@ -1,8 +1,8 @@
 'use strict';
 var $         = require('./$')
-  , weak      = require('./$.col-weak')
+  , weak      = require('./$.collection-weak')
   , leakStore = weak.leakStore
-  , CID       = weak.CID
+  , ID        = weak.ID
   , WEAK      = weak.WEAK
   , has       = $.has
   , isObject  = $.isObject
@@ -10,12 +10,12 @@ var $         = require('./$')
   , tmp       = {};
 
 // 23.3 WeakMap Objects
-var WeakMap = require('./$.col')('WeakMap', {
+var WeakMap = require('./$.collection')('WeakMap', {
   // 23.3.3.3 WeakMap.prototype.get(key)
   get: function(key){
     if(isObject(key)){
       if(isFrozen(key))return leakStore(this).get(key);
-      if(has(key, WEAK))return key[WEAK][this[CID]];
+      if(has(key, WEAK))return key[WEAK][this[ID]];
     }
   },
   // 23.3.3.5 WeakMap.prototype.set(key, value)

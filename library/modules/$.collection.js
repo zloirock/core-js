@@ -20,12 +20,12 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
   if(!$.isFunction(C) || !(isWeak || !$iter.BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = common.getConstructor(NAME, IS_MAP, ADDER);
-    $.mix($.mix(C.prototype, methods), common.methods);
+    $.mix(C.prototype, methods);
   } else {
     var inst  = new C
       , chain = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
-    // wrap to init collections from iterable
+    // wrap for init collections from iterable
     if($iter.fail(function(iter){
       new C(iter); // eslint-disable-line no-new
     }) || $iter.DANGER_CLOSING){
@@ -50,6 +50,7 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
     // + fix .add & .set for chaining
     if(buggyZero || chain !== inst)fixMethod(ADDER, true);
   }
+
   require('./$.cof').set(C, NAME);
   require('./$.species')(C);
 
