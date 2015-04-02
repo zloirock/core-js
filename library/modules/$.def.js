@@ -24,8 +24,9 @@ function $def(type, name, source){
   for(key in source){
     // contains in native
     own = !(type & $def.F) && target && key in target;
+    if(own && key in exports)continue;
     // export native or passed
-    out = (own ? target : source)[key];
+    out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
     if(isGlobal && !isFunction(target[key]))exp = source[key];
     // bind timers to global for call from export context
@@ -39,7 +40,7 @@ function $def(type, name, source){
     }(out);
     else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
     // export
-    if(exports[key] != out)$.hide(exports, key, exp);
+    $.hide(exports, key, exp);
   }
 }
 module.exports = $def;
