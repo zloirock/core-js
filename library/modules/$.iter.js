@@ -20,16 +20,14 @@ function setIterator(O, value){
 function defineIterator(Constructor, NAME, value, DEFAULT){
   var proto = Constructor.prototype
     , iter  = proto[SYMBOL_ITERATOR] || proto[FF_ITERATOR] || DEFAULT && proto[DEFAULT] || value;
-  if($.FW){
-    // Define iterator
-    setIterator(proto, iter);
-    if(iter !== value){
-      var iterProto = $.getProto(iter.call(new Constructor));
-      // Set @@toStringTag to native iterators
-      cof.set(iterProto, NAME + ' Iterator', true);
-      // FF fix
-      $.has(proto, FF_ITERATOR) && setIterator(iterProto, $.that);
-    }
+  // Define iterator
+  if($.FW)setIterator(proto, iter);
+  if(iter !== value){
+    var iterProto = $.getProto(iter.call(new Constructor));
+    // Set @@toStringTag to native iterators
+    cof.set(iterProto, NAME + ' Iterator', true);
+    // FF fix
+    if($.FW)$.has(proto, FF_ITERATOR) && setIterator(iterProto, $.that);
   }
   // Plug for library
   Iterators[NAME] = iter;
