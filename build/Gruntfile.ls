@@ -15,7 +15,9 @@ module.exports = (grunt)->
         sourceMap: '<%=grunt.option("path")%>.min.map'
         banner: config.banner
         report: \gzip
-    livescript: src: files: './tests/tests.js': './tests/tests/*'
+    livescript: src: files:
+      './tests/tests.js': './tests/tests/*'
+      './tests/tests-library.js': './tests/tests-library/*'
     clean: ['./library']
     copy: lib: files:
       * expand: on

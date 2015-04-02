@@ -1,0 +1,57 @@
+QUnit.module 'ES6 Symbol'
+
+eq = strictEqual
+deq = deepEqual
+
+{Symbol} = core
+{defineProperty, getOwnPropertyDescriptor, create} = core.Object
+isFunction = -> typeof! it is \Function
+isNative = -> /\[native code\]\s*\}\s*$/.test it
+
+descriptors = isNative defineProperty
+
+G = global? && global || window
+
+test 'Symbol' !->
+  ok isFunction(Symbol), 'Is function'
+  s1 = Symbol 'foo'
+  s2 = Symbol 'foo'
+  ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
+  O = {}
+  O[s1] = 42
+  ok O[s1] is 42, 'Symbol() work as key'
+  ok O[s2] isnt 42, 'Various symbols from one description are various keys'
+  if descriptors
+    count = 0
+    for i of O => count++
+    ok count is 0, 'object[Symbol()] is not enumerable'
+test 'Well-known Symbols' !->
+  for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
+    ok .. of Symbol, "Symbol.#{..} available"
+    ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
+test '#@@toStringTag' !->
+  ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
+test '.pure' !->
+  {pure} = Symbol
+  ok isFunction(pure), 'Is function'
+  ok pure(\S) isnt pure(\S), 'Symbol.pure(key) != Symbol.pure(key)'
+test '.set' !->
+  {set} = Symbol
+  ok isFunction(set), 'Is function'
+  O = {}
+  sym = Symbol!
+  ok set(O, sym, 42) is O, 'Symbol.set return object'
+  ok O[sym] is 42, 'Symbol.set set value'
+
+test 'Object.getOwnPropertySymbols' !->
+  {getOwnPropertySymbols, getOwnPropertyNames} = core.Object
+  ok isFunction(getOwnPropertySymbols), 'Is function'
+  obj = {q: 1, w: 2, e: 3}
+  obj[Symbol()] = 42
+  obj[Symbol()] = 43
+  deq getOwnPropertyNames(obj), <[q w e]>
+  eq getOwnPropertySymbols(obj).length, 2
+  foo = obj with {a: 1, s: 2, d: 3}
+  foo[Symbol()] = 44
+  deq getOwnPropertyNames(foo), <[a s d]>
+  eq getOwnPropertySymbols(foo).length, 1
