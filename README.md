@@ -36,7 +36,6 @@ core.setImmediate(core.log, 42);                // => 42
   - [ECMAScript 6: Promises](#ecmascript-6-promises)
   - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
-  - [ECMAScript 7: Abstract References](#ecmascript-7-abstract-references)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
   - [setImmediate](#setimmediate)
@@ -66,28 +65,30 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
-If you need support IE8- or need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
+If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
 
+Caveat: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise possible conflicts.
 ### CommonJS
-You can require only needed modules. **Warning! It's an experimental feature, API can be changed.**
+You can require only needed modules.
 
 ```js
-require('core-js/es5'); // if you need support IE8-, require `es5` before other modules
-require('core-js/es6/collections');
-require('core-js/es6/array/statics');
+require('core-js/es5'); // if you need support IE8-
+require('core-js/fn/set');
+require('core-js/fn/array/from');
 Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 
 // or, w/o global namespace pollution:
 
-var core = require('core-js/as-library');
-require('core-js/es5');
-require('core-js/es6/collections');
-require('core-js/es6/array/statics');
-core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+var core = require('core-js/library/es5'); // if you need support IE8-
+var Set  = require('core-js/library/fn/set');
+var from = require('core-js/library/fn/array/from');
+from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 ```
-Available namespaces: for example, `core-js/es6/array` contains `es6.array.statics` and `es6.array.prototype` modules, `core-js/es6` contains all modules whose names start with `es6`.
+Available entry points for methods / constructors, as above, excluding features from [`es5`](#ecmascript-5) module (this module requires fully in ES3 environment before all other modules).
 
-Caveat: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise possible conflicts.
+Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/array`) contains all [ES6 `Array` features](#ecmascript-6-array), `core-js/es6` (`core-js/library/es6`) contains all ES6 features.
+
+Available inclusion by module name, for example, `es6.array.prototype` - `core-js/modules/es6.array.prototype` or `core-js/library/modules/es6.array.prototype`.
 ### Custom build
 ```
 npm i -g grunt-cli
@@ -97,7 +98,7 @@ grunt build:core.dict,es6 --blacklist=es6.promise,es6.math --library=on --path=c
 ```
 Where `core.dict` and `es6` are modules (namespaces) names, which will be added to the build, `es6.promise` and `es6.math` are modules (namespaces) names, which will be excluded from the build, `--library=on` is flag for build without global namespace pollution and `custom` is target file name.
 
-Available namespaces: for example, `es6.array` contains `es6.array.statics` and `es6.array.prototype` modules, `es6` contains all modules whose names start with `es6`.
+Available namespaces: for example, `es6.array` contains [ES6 `Array` features](#ecmascript-6-array), `es6` contains all modules whose names start with `es6`.
 ## API:
 ### ECMAScript 5
 Module `es5`, nothing new - without examples.
@@ -139,8 +140,8 @@ Date
 ```
 
 ### ECMAScript 6
-#### ECMAScript 6: Object
-Modules `es6.object.statics`, `es6.object.prototype` and `es6.function`.
+#### ECMAScript 6: Object & Function
+Modules `es6.object.assign`, `es6.object.is`, `es6.object.set-prototype-of`, `es6.object.to-string` and `es6.function.name`.
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -180,7 +181,7 @@ Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
 ```
 #### ECMAScript 6: Array
-Modules `es6.array.statics` and `es6.array.prototype`.
+Modules `es6.array.from`, `es6.array.of`, `es6.array.copy-within`, `es6.array.fill`, `es6.array.find` and `es6.array.find-index`.
 ```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
@@ -216,7 +217,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String & RegExp
-Modules `es6.string` and `es6.regexp`.
+Modules `es6.string.from-code-point`, `es6.string.raw`, `es6.string.code-point-at`, `es6.string.ends-with`, `es6.string.includes`, `es6.string.repeat`, `es6.string.starts-with` and `es6.regexp`.
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -369,9 +370,8 @@ o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
 ### ECMAScript 6: Collections
-Module `es6.collections`. About iterators from this module [here](#ecmascript-6-iterators).
-
 #### Map
+Module `es6.map`. About iterators from this module [here](#ecmascript-6-iterators).
 ```javascript
 new Map(iterable (entries) ?) -> map
   #clear() -> void
@@ -403,6 +403,7 @@ log(map.get(a));      // => undefined
 log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
 ```
 #### Set
+Module `es6.set`. About iterators from this module [here](#ecmascript-6-iterators).
 ```javascript
 new Set(iterable?) -> set
   #add(key) -> @
@@ -427,6 +428,7 @@ log(set.has('b'));    // => false
 log(Array.from(set)); // => ['a', 'c', 'd', 'e']
 ```
 #### WeakMap
+Module `es6.weak-map`.
 ```javascript
 new WeakMap(iterable (entries) ?) -> weakmap
   #delete(key) -> bool
@@ -465,6 +467,7 @@ log(person.getName());          // => 'Vasya'
 for(var key in person)log(key); // => only 'getName'
 ```
 #### WeakSet
+Module `es6.weak-set`.
 ```javascript
 new WeakSet(iterable?) -> weakset
   #add(key) -> @
@@ -488,9 +491,10 @@ log(wset.has(b));   // => false
 
 * Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collections, leak.
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
+* Unlike the `default` or `shim` versions `core-js`, `library` version does not repair broken native methods of collections prototypes.
 
 ### ECMAScript 6: Iterators
-Module `es6.iterators`:
+Modules `es6.string.iterator` and `es6.array.iterator`:
 ```javascript
 String
   #@@iterator() -> iterator
@@ -563,6 +567,26 @@ for(var x of document.querySelectorAll('*')){
   log(x.id);
 }
 ```
+Module `core.iter-helpers` - helpers for check iterable / get iterator in `library` version or, for rxample, for `arguments` object:
+```javascript
+core
+  .isIterable(var) -> bool
+  .getIterator(iterable) -> iterator
+```
+[Example](http://goo.gl/uFvXW6):
+```js
+var list = (function(){
+  return arguments;
+})(1, 2, 3);
+
+log(core.isIterable(list)); // true;
+
+var iter = core.getIterator(list);
+log(iter.next().value); // 1
+log(iter.next().value); // 2
+log(iter.next().value); // 3
+log(iter.next().value); // undefined
+```
 Module `core.$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
 ```javascript
 $for(iterable, entries) -> iterator ($for)
@@ -570,8 +594,6 @@ $for(iterable, entries) -> iterator ($for)
   #array(mapFn(value, key?)?, that) -> array
   #filter(fn(value, key?), that) -> iterator ($for)
   #map(fn(value, key?), that) -> iterator ($for)
-  .isIterable(var) -> bool
-  .getIterator(iterable) -> iterator
 ```
 [Examples](http://goo.gl/Jtz0oG):
 ```javascript
@@ -742,12 +764,11 @@ var instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
 ```
 ### ECMAScript 7
-Module `es7.proposals`.
-* `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes)
-* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at)
-* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781)
-* `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues)
-* `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100)
+* `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module `es7.array.includes`
+* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module `es7.string.at`
+* `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
+* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
+* `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
 
 ```javascript
 Array
@@ -784,89 +805,6 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
-```
-### ECMAScript 7: Abstract References
-Module `es7.abstract-refs`. Symbols and methods for [abstract references](https://github.com/zenparsing/es-abstract-refs). At the moment, they are supported only by several transpilers, such as [babel](https://github.com/babel/babel).
-```javascript
-Symbol
-  .referenceGet -> @@referenceGet
-  .referenceSet -> @@referenceSet
-  .referenceDelete -> @@referenceDelete
-Function
-  #@@referenceGet() -> @
-Map
-  #@@referenceGet ==== #get
-  #@@referenceSet ==== #set
-  #@@referenceDelete ==== #delete
-WeakMap
-  #@@referenceGet ==== #get
-  #@@referenceSet ==== #set
-  #@@referenceDelete ==== #delete
-```
-Private properties [example](http://goo.gl/cA6wnp) with [`WeakMaps`](#weakmap), class and basic abstract refs syntax:
-```javascript
-var Person = (NAME => class {
-  constructor(name){
-    this::NAME = name;
-  }
-  getName(){
-    return this::NAME;
-  }
-})(new WeakMap);
-
-var person = new Person('Vasya');
-log(person.getName());        // => 'Vasya'
-log(Reflect.ownKeys(person)); // => []
-```
-The same [example](http://goo.gl/juKxyx) with the `private` keyword:
-```javascript
-class Person {
-  private NAME
-  constructor(name){
-    this::NAME = name;
-  }
-  getName(){
-    return this::NAME;
-  }
-}
-
-var person = new Person('Vasya');
-log(person.getName());        // => 'Vasya'
-log(Reflect.ownKeys(person)); // => []
-```
-Virtual methods [example](http://goo.gl/GJmEfl):
-```javascript
-var {toString} = {};
-[]::toString() // => '[object Array]'
-
-function sum(){
-  var {reduce} = [];
-  return arguments::reduce((a, b)=> a + b);
-}
-sum(1, 2, 3, 4, 5) // => 15
-```
-Virtual `size` property for dictionaries [example](http://goo.gl/uAg4vC):
-```javascript
-let size = {
-  [Symbol.referenceGet](it){
-    return Object.keys(it).length;
-  },
-  [Symbol.referenceSet](it, length){
-    for(let key of Object.keys(it).slice(length))delete it[key];
-  }
-}
-
-{q: 1, w: 2, e: 3}::size // => 3
-var dict = {q: 1, w: 2, e: 3};
-dict::size = 2;
-dict // => {q: 1, w: 2};
-```
-Methods from [Dict module](#dict) override `@@referenceGet` method, [example](http://goo.gl/H4S6d4):
-```javascript
-var {filter, map} = Dict;
-var dict = {q: 1, w: 2, e: 3}
-  ::filter((v, k) => k != 'w')
-  ::map(v => v * v); // => {"q":1,"e":9}
 ```
 ### Mozilla JavaScript: Array generics
 Module `js.array.statics`.
@@ -1051,7 +989,7 @@ log(vector.xyz); // => 25.495097567963924
 ### Dict
 Module `core.dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```javascript
-[new] Dict(itarable (entries) | object ?) -> dict
+[new] Dict(iterable (entries) | object ?) -> dict
   .isDict(var) -> bool
   .values(object) -> iterator
   .keys(object) -> iterator
@@ -1091,7 +1029,7 @@ dict.toString;            // => undefined
 Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
-`Dict.keys`, `Dict.values` and `Dict.entries` return iterators for objects, [examples](http://goo.gl/JRkgM8):
+`Dict.keys`, `Dict.values` and `Dict.entries` returns iterators for objects, [examples](http://goo.gl/JRkgM8):
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
@@ -1263,7 +1201,7 @@ new Date().format('M Y');              // => 'Ноябрь 2014'
 });
 ```
 ### Array
-Module `core.array`.
+Module `core.array.turn`.
 ```javascript
 Array
   #turn(fn(memo, val, index, @), memo = []) -> memo
@@ -1280,7 +1218,7 @@ Method `Array#turn` reduce array to object, [example](http://goo.gl/zZbvq7):
 }); // => [1, 9, 25]
 ```
 ### Number
-Module `core.number`.
+Modules `core.number.iterator` and `core.number.math`.
 ```javascript
 Number
   #@@iterator() -> iterator
@@ -1328,7 +1266,7 @@ var array = [1, 2, 3, 4, 5];
 array[array.length.random().floor()]; // => Random element, for example, 4
 ```
 ### Escaping characters
-Module `core.string`.
+Module `core.string.escape-html`.
 ```javascript
 String
   #escapeHTML() -> str
@@ -1353,6 +1291,15 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.8.0 - 2015.04.02
+  * changed [CommonJS API](#commonjs)
+  * splitted and renamed some modules
+  * added support ES3 environment (ES5 polyfill) to **all** default versions - size increases slightly (+ ~4kb w/o gzip), many issues disappear, if you don't need it - [simply include only required namespaces / features / modules](#commonjs)
+  * removed [abstract references](https://github.com/zenparsing/es-abstract-refs) support - proposal has been superseded =\
+  * [`$for.isIterable` -> `core.isIterable`, `$for.getIterator` -> `core.getIterator`](#ecmascript-6-iterators), temporary available in old namespace
+  * fixed iterators support in v8 `Promise.all` and `Promise.race`
+  * many other fixes
+
 ##### 0.7.2 - 2015.03.09
   * some fixes
 
@@ -1496,10 +1443,10 @@ delay(1e3).then(() => log('after 1 sec'));
   * repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
 
 ##### 0.2.0 - 2014.12.06
-  * added [`es7.proposals`](#ecmascript-7) and [`es7.abstract-refs`](#ecmascript-7-abstract-references) modules
+  * added [`es7.proposals`](#ecmascript-7) and [`es7.abstract-refs`](https://github.com/zenparsing/es-abstract-refs) modules
   * added [`String#at`](#ecmascript-7)
-  * added real [String Iterator](#ecmascript-6-iterators), older versions used Array Iterator
-  * added [abstract references](#ecmascript-7-abstract-references) support:
+  * added real [`String Iterator`](#ecmascript-6-iterators), older versions used Array Iterator
+  * added abstract references support:
     * added `Symbol.referenceGet`
     * added `Symbol.referenceSet`
     * added `Symbol.referenceDelete`

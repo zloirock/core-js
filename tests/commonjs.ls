@@ -171,7 +171,8 @@ for P in <[.. ../library]>
   ok \Array of require("#P/es7")
   ok \map of require("#P/js/array")
   ok \Array of require("#P/js")
-  ok \setImmediate of require("#P/web/timers")
+  ok \setTimeout of require("#P/web/timers")
+  ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom")
   ok \setImmediate of require("#P/web")
   ok typeof require("#P/core/$for") is \function
