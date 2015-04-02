@@ -14,6 +14,8 @@ function wrapObjectMethod(METHOD, MODE){
     return isObject(it) ? fn(it) : false;
   } : MODE == 4 ? function(it, key){
     return fn(toObject(it), key);
+  } : MODE == 5 ? function(it){
+    return fn(Object($.assertDefined(it)));
   } : function(it){
     return fn(toObject(it));
   };
@@ -31,6 +33,6 @@ wrapObjectMethod('isFrozen', 2);
 wrapObjectMethod('isSealed', 2);
 wrapObjectMethod('isExtensible', 3);
 wrapObjectMethod('getOwnPropertyDescriptor', 4);
-wrapObjectMethod('getPrototypeOf');
+wrapObjectMethod('getPrototypeOf', 5);
 wrapObjectMethod('keys');
 wrapObjectMethod('getOwnPropertyNames');
