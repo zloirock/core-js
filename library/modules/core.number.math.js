@@ -1,5 +1,6 @@
 'use strict';
-var $def    = require('./$.def')
+var $       = require('./$')
+  , $def    = require('./$.def')
   , invoke  = require('./$.invoke')
   , methods = {};
 
@@ -10,7 +11,7 @@ methods.random = function(lim /* = 0 */){
   return Math.random() * (Math.max(a, b) - m) + m;
 };
 
-require('./$').each.call((
+if($.FW)$.each.call((
     // ES3:
     'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
     // ES6:
