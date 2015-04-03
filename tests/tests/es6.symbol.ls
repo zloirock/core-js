@@ -12,7 +12,7 @@ descriptors = isNative defineProperty
 G = global? && global || window
 
 test 'Symbol' !->
-  ok isFunction(G.Symbol), 'Is function'
+  ok isFunction(Symbol), 'Is function'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -28,6 +28,13 @@ test 'Well-known Symbols' !->
   for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
     ok .. of Symbol, "Symbol.#{..} available"
     ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
+test 'Global symbol registry' !->
+  ok isFunction(Symbol.for), 'Symbol.for is function'
+  ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  symbol = Symbol.for \foo
+  eq Symbol.for(\foo), symbol
+  eq Symbol.keyFor(symbol), \foo
+  
 test '#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 test '.pure' !->

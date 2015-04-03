@@ -3993,6 +3993,14 @@
       ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol");
     }
   });
+  test('Global symbol registry', function(){
+    var symbol;
+    ok(isFunction(Symbol['for']), 'Symbol.for is function');
+    ok(isFunction(Symbol.keyFor), 'Symbol.keyFor is function');
+    symbol = Symbol['for']('foo');
+    eq(Symbol['for']('foo'), symbol);
+    eq(Symbol.keyFor(symbol), 'foo');
+  });
   test('#@@toStringTag', function(){
     ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });

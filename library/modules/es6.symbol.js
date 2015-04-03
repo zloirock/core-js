@@ -4,6 +4,7 @@ var $        = require('./$')
   , setTag   = require('./$.cof').set
   , uid      = require('./$.uid')
   , $def     = require('./$.def')
+  , keyOf    = require('./$.keyof')
   , has      = $.has
   , hide     = $.hide
   , getNames = $.getNames
@@ -46,7 +47,9 @@ var symbolStatics = {
       : SymbolRegistry[key] = Symbol(key);
   },
   // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: require('./$.partial').call(require('./$.keyof'), SymbolRegistry, 0),
+  keyFor: function(key){
+    return keyOf(SymbolRegistry, key);
+  },
   pure: uid.safe,
   set: $.set,
   useSetter: function(){ setter = true; },
