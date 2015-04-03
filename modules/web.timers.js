@@ -14,6 +14,6 @@ function wrap(set){
   } : set;
 }
 $def($def.G + $def.B + $def.F * MSIE, {
-  setTimeout:  wrap(setTimeout),
-  setInterval: wrap(setInterval)
+  setTimeout:  wrap($.g.setTimeout),
+  setInterval: wrap($.g.setInterval)
 });
