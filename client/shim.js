@@ -1,5 +1,5 @@
 /**
- * Core.js 0.8.0
+ * Core.js 0.8.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -2203,6 +2203,7 @@ var $        = require('./$')
   , setTag   = require('./$.cof').set
   , uid      = require('./$.uid')
   , $def     = require('./$.def')
+  , keyOf    = require('./$.keyof')
   , has      = $.has
   , hide     = $.hide
   , getNames = $.getNames
@@ -2245,7 +2246,9 @@ var symbolStatics = {
       : SymbolRegistry[key] = Symbol(key);
   },
   // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: require('./$.partial').call(require('./$.keyof'), SymbolRegistry, 0),
+  keyFor: function(key){
+    return keyOf(SymbolRegistry, key);
+  },
   pure: uid.safe,
   set: $.set,
   useSetter: function(){ setter = true; },
@@ -2295,7 +2298,7 @@ setTag(Symbol, 'Symbol');
 setTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
 setTag($.g.JSON, 'JSON', true);
-},{"./$":15,"./$.cof":6,"./$.def":11,"./$.keyof":16,"./$.partial":18,"./$.uid":24,"./$.wks":26}],59:[function(require,module,exports){
+},{"./$":15,"./$.cof":6,"./$.def":11,"./$.keyof":16,"./$.uid":24,"./$.wks":26}],59:[function(require,module,exports){
 'use strict';
 var $         = require('./$')
   , weak      = require('./$.collection-weak')
@@ -2454,8 +2457,8 @@ function wrap(set){
   } : set;
 }
 $def($def.G + $def.B + $def.F * MSIE, {
-  setTimeout:  wrap(setTimeout),
-  setInterval: wrap(setInterval)
+  setTimeout:  wrap($.g.setTimeout),
+  setInterval: wrap($.g.setInterval)
 });
 },{"./$":15,"./$.def":11,"./$.invoke":13,"./$.partial":18}]},{},[1]);
 

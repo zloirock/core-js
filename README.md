@@ -567,7 +567,7 @@ for(var x of document.querySelectorAll('*')){
   log(x.id);
 }
 ```
-Module `core.iter-helpers` - helpers for check iterable / get iterator in `library` version or, for rxample, for `arguments` object:
+Module `core.iter-helpers` - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
 ```javascript
 core
   .isIterable(var) -> bool
@@ -1291,6 +1291,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.8.1 - 2015.04.03
+  * fixed `Symbol.keyFor`
+
 ##### 0.8.0 - 2015.04.02
   * changed [CommonJS API](#commonjs)
   * splitted and renamed some modules
