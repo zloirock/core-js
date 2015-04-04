@@ -2,10 +2,10 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , abs   = Math.abs
   , floor = Math.floor
-  , _isFinite = isFinite
+  , _isFinite = $.g.isFinite
   , MAX_SAFE_INTEGER = 0x1fffffffffffff; // pow(2, 53) - 1 == 9007199254740991;
 function isInteger(it){
-  return !$.isObject(it) && isFinite(it) && floor(it) === it;
+  return !$.isObject(it) && _isFinite(it) && floor(it) === it;
 }
 $def($def.S, 'Number', {
   // 20.1.2.1 Number.EPSILON

@@ -12,8 +12,8 @@ var $       = require('./$')
   , global  = $.g
   , process = global.process
   , asap    = process && process.nextTick || require('./$.task').set
-  , Promise = global[PROMISE]
-  , Base    = Promise
+  , P       = global[PROMISE]
+  , Base    = P
   , isFunction     = $.isFunction
   , isObject       = $.isObject
   , assertFunction = assert.fn
@@ -23,8 +23,8 @@ function getConstructor(C){
   var S = assertObject(C)[SPECIES];
   return S != undefined ? S : C;
 }
-isFunction(Promise) && isFunction(Promise.resolve)
-&& Promise.resolve(test = new Promise(function(){})) == test
+isFunction(P) && isFunction(P.resolve)
+&& P.resolve(test = new P(function(){})) == test
 || function(){
   function isThenable(it){
     var then;
@@ -108,10 +108,10 @@ isFunction(Promise) && isFunction(Promise.resolve)
     }
   }
   // 25.4.3.1 Promise(executor)
-  Promise = function Promise(executor){
+  P = function Promise(executor){
     assertFunction(executor);
     var record = {
-      p: assert.inst(this, Promise, PROMISE), // <- promise
+      p: assert.inst(this, P, PROMISE),       // <- promise
       c: [],                                  // <- chain
       s: 0,                                   // <- state
       d: false,                               // <- done
@@ -125,7 +125,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
       reject.call(record, err);
     }
   };
-  $.mix(Promise.prototype, {
+  $.mix(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
       var S = assertObject(assertObject(this).constructor)[SPECIES];
@@ -133,14 +133,14 @@ isFunction(Promise) && isFunction(Promise.resolve)
         ok:   isFunction(onFulfilled) ? onFulfilled : true,
         fail: isFunction(onRejected)  ? onRejected  : false
       };
-      var P = react.P = new (S != undefined ? S : Promise)(function(res, rej){
+      var promise = react.P = new (S != undefined ? S : P)(function(res, rej){
         react.res = assertFunction(res);
         react.rej = assertFunction(rej);
       });
       var record = this[RECORD];
       record.c.push(react);
       record.s && notify(record);
-      return P;
+      return promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
     'catch': function(onRejected){
@@ -148,7 +148,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
     }
   });
 }();
-$def($def.G + $def.W + $def.F * (Promise != Base), {Promise: Promise});
+$def($def.G + $def.W + $def.F * (P != Base), {Promise: P});
 $def($def.S, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
@@ -165,7 +165,7 @@ $def($def.S, PROMISE, {
   }
 });
 $def($def.S + $def.F * ($iter.fail(function(iter){
-  Promise.all(iter)['catch'](function(){});
+  P.all(iter)['catch'](function(){});
 }) || $iter.DANGER_CLOSING), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable){
@@ -194,5 +194,5 @@ $def($def.S + $def.F * ($iter.fail(function(iter){
     });
   }
 });
-cof.set(Promise, PROMISE);
-require('./$.species')(Promise);
+cof.set(P, PROMISE);
+require('./$.species')(P);
