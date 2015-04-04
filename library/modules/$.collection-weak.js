@@ -3,7 +3,7 @@ var $         = require('./$')
   , safe      = require('./$.uid').safe
   , assert    = require('./$.assert')
   , forOf     = require('./$.iter').forOf
-  , has       = $.has
+  , _has      = $.has
   , isObject  = $.isObject
   , hide      = $.hide
   , isFrozen  = Object.isFrozen || $.core.Object.isFrozen
@@ -57,14 +57,14 @@ module.exports = {
       'delete': function(key){
         if(!isObject(key))return false;
         if(isFrozen(key))return leakStore(this)['delete'](key);
-        return has(key, WEAK) && has(key[WEAK], this[ID]) && delete key[WEAK][this[ID]];
+        return _has(key, WEAK) && _has(key[WEAK], this[ID]) && delete key[WEAK][this[ID]];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
-      has: function(key){
+      has: function has(key){
         if(!isObject(key))return false;
         if(isFrozen(key))return leakStore(this).has(key);
-        return has(key, WEAK) && has(key[WEAK], this[ID]);
+        return _has(key, WEAK) && _has(key[WEAK], this[ID]);
       }
     });
     return C;
@@ -73,7 +73,7 @@ module.exports = {
     if(isFrozen(assert.obj(key))){
       leakStore(that).set(key, value);
     } else {
-      has(key, WEAK) || hide(key, WEAK, {});
+      _has(key, WEAK) || hide(key, WEAK, {});
       key[WEAK][that[ID]] = value;
     } return that;
   },

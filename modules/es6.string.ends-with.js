@@ -6,7 +6,7 @@ var $    = require('./$')
 
 $def($def.P, 'String', {
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
-  endsWith: function(searchString /*, endPosition = @length */){
+  endsWith: function endsWith(searchString /*, endPosition = @length */){
     if(cof(searchString) == 'RegExp')throw TypeError();
     var that = String($.assertDefined(this))
       , endPosition = arguments[1]

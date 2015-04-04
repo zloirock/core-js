@@ -4,7 +4,7 @@ var $    = require('./$')
 
 $def($def.P, 'String', {
   // 21.1.3.13 String.prototype.repeat(count)
-  repeat: function(count){
+  repeat: function repeat(count){
     var str = String($.assertDefined(this))
       , res = ''
       , n   = $.toInteger(count);

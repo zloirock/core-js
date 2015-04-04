@@ -4,7 +4,7 @@ var $       = require('./$')
   , ownKeys = require('./$.own-keys');
 
 $def($def.S, 'Object', {
-  getOwnPropertyDescriptors: function(object){
+  getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object){
     var O      = $.toObject(object)
       , result = {};
     $.each.call(ownKeys(O), function(key){

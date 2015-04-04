@@ -10,8 +10,8 @@ var $         = require('./$')
   , setDesc   = $.setDesc
   , getProto  = $.getProto
   , apply     = Function.apply
-  , assertObject = assert.obj
-  , isExtensible = Object.isExtensible || $.it;
+  , assertObject  = assert.obj
+  , _isExtensible = Object.isExtensible || $.it;
 function Enumerate(iterated){
   var keys = [], key;
   for(key in iterated)keys.push(key);
@@ -39,7 +39,7 @@ function wrap(fn){
   };
 }
 
-function reflectGet(target, propertyKey/*, receiver*/){
+function get(target, propertyKey/*, receiver*/){
   var receiver = arguments.length < 3 ? target : arguments[2]
     , desc = getDesc(assertObject(target), propertyKey), proto;
   if(desc)return $.has(desc, 'value')
@@ -48,16 +48,16 @@ function reflectGet(target, propertyKey/*, receiver*/){
       ? undefined
       : desc.get.call(receiver);
   return isObject(proto = getProto(target))
-    ? reflectGet(proto, propertyKey, receiver)
+    ? get(proto, propertyKey, receiver)
     : undefined;
 }
-function reflectSet(target, propertyKey, V/*, receiver*/){
+function set(target, propertyKey, V/*, receiver*/){
   var receiver = arguments.length < 4 ? target : arguments[3]
     , ownDesc  = getDesc(assertObject(target), propertyKey)
     , existingDescriptor, proto;
   if(!ownDesc){
     if(isObject(proto = getProto(target))){
-      return reflectSet(proto, propertyKey, V, receiver);
+      return set(proto, propertyKey, V, receiver);
     }
     ownDesc = $.desc(0);
   }
@@ -75,7 +75,7 @@ var reflect = {
   // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
   apply: require('./$.ctx')(Function.call, apply, 3),
   // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-  construct: function(target, argumentsList /*, newTarget*/){
+  construct: function construct(target, argumentsList /*, newTarget*/){
     var proto    = assert.fn(arguments.length < 3 ? target : arguments[2]).prototype
       , instance = $.create(isObject(proto) ? proto : Object.prototype)
       , result   = apply.call(target, instance, argumentsList);
@@ -84,41 +84,41 @@ var reflect = {
   // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
   defineProperty: wrap(setDesc),
   // 26.1.4 Reflect.deleteProperty(target, propertyKey)
-  deleteProperty: function(target, propertyKey){
+  deleteProperty: function deleteProperty(target, propertyKey){
     var desc = getDesc(assertObject(target), propertyKey);
     return desc && !desc.configurable ? false : delete target[propertyKey];
   },
   // 26.1.5 Reflect.enumerate(target)
-  enumerate: function(target){
+  enumerate: function enumerate(target){
     return new Enumerate(assertObject(target));
   },
   // 26.1.6 Reflect.get(target, propertyKey [, receiver])
-  get: reflectGet,
+  get: get,
   // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
-  getOwnPropertyDescriptor: function(target, propertyKey){
+  getOwnPropertyDescriptor: function getOwnPropertyDescriptor(target, propertyKey){
     return getDesc(assertObject(target), propertyKey);
   },
   // 26.1.8 Reflect.getPrototypeOf(target)
-  getPrototypeOf: function(target){
+  getPrototypeOf: function getPrototypeOf(target){
     return getProto(assertObject(target));
   },
   // 26.1.9 Reflect.has(target, propertyKey)
-  has: function(target, propertyKey){
+  has: function has(target, propertyKey){
     return propertyKey in target;
   },
   // 26.1.10 Reflect.isExtensible(target)
-  isExtensible: function(target){
-    return !!isExtensible(assertObject(target));
+  isExtensible: function isExtensible(target){
+    return !!_isExtensible(assertObject(target));
   },
   // 26.1.11 Reflect.ownKeys(target)
   ownKeys: require('./$.own-keys'),
   // 26.1.12 Reflect.preventExtensions(target)
   preventExtensions: wrap(Object.preventExtensions || $.it),
   // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-  set: reflectSet
+  set: set
 };
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
-if(setProto)reflect.setPrototypeOf = function(target, proto){
+if(setProto)reflect.setPrototypeOf = function setPrototypeOf(target, proto){
   setProto(assertObject(target), proto);
   return true;
 };

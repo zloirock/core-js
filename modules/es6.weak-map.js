@@ -12,14 +12,14 @@ var $         = require('./$')
 // 23.3 WeakMap Objects
 var WeakMap = require('./$.collection')('WeakMap', {
   // 23.3.3.3 WeakMap.prototype.get(key)
-  get: function(key){
+  get: function get(key){
     if(isObject(key)){
       if(isFrozen(key))return leakStore(this).get(key);
       if(has(key, WEAK))return key[WEAK][this[ID]];
     }
   },
   // 23.3.3.5 WeakMap.prototype.set(key, value)
-  set: function(key, value){
+  set: function set(key, value){
     return weak.def(this, key, value);
   }
 }, weak, true, true);

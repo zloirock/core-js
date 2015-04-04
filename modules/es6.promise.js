@@ -108,7 +108,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
     }
   }
   // 25.4.3.1 Promise(executor)
-  Promise = function(executor){
+  Promise = function Promise(executor){
     assertFunction(executor);
     var record = {
       p: assert.inst(this, Promise, PROMISE), // <- promise
@@ -127,7 +127,7 @@ isFunction(Promise) && isFunction(Promise.resolve)
   };
   $.mix(Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
-    then: function(onFulfilled, onRejected){
+    then: function then(onFulfilled, onRejected){
       var S = assertObject(assertObject(this).constructor)[SPECIES];
       var react = {
         ok:   isFunction(onFulfilled) ? onFulfilled : true,
@@ -151,13 +151,13 @@ isFunction(Promise) && isFunction(Promise.resolve)
 $def($def.G + $def.W + $def.F * (Promise != Base), {Promise: Promise});
 $def($def.S, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
-  reject: function(r){
+  reject: function reject(r){
     return new (getConstructor(this))(function(res, rej){
       rej(r);
     });
   },
   // 25.4.4.6 Promise.resolve(x)
-  resolve: function(x){
+  resolve: function resolve(x){
     return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
       ? x : new (getConstructor(this))(function(res){
         res(x);
@@ -168,7 +168,7 @@ $def($def.S + $def.F * ($iter.fail(function(iter){
   Promise.all(iter)['catch'](function(){});
 }) || $iter.DANGER_CLOSING), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
-  all: function(iterable){
+  all: function all(iterable){
     var C      = getConstructor(this)
       , values = [];
     return new C(function(resolve, reject){
@@ -185,7 +185,7 @@ $def($def.S + $def.F * ($iter.fail(function(iter){
     });
   },
   // 25.4.4.4 Promise.race(iterable)
-  race: function(iterable){
+  race: function race(iterable){
     var C = getConstructor(this);
     return new C(function(resolve, reject){
       forOf(iterable, false, function(promise){

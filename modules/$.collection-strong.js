@@ -55,7 +55,7 @@ module.exports = {
     $.mix(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
-      clear: function(){
+      clear: function clear(){
         for(var that = this, data = that[O1], entry = that[FIRST]; entry; entry = entry.n){
           entry.r = true;
           if(entry.p)entry.p = entry.p.n = undefined;
@@ -83,7 +83,7 @@ module.exports = {
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: function(callbackfn /*, that = undefined */){
+      forEach: function forEach(callbackfn /*, that = undefined */){
         var f = ctx(callbackfn, arguments[1], 3)
           , entry;
         while(entry = entry ? entry.n : this[FIRST]){
@@ -94,7 +94,7 @@ module.exports = {
       },
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)
-      has: function(key){
+      has: function has(key){
         return !!getEntry(this, key);
       }
     });

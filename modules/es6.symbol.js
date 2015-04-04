@@ -29,7 +29,7 @@ function wrap(tag){
 
 // 19.4.1.1 Symbol([description])
 if(!$.isFunction(Symbol)){
-  Symbol = function(description){
+  Symbol = function Symbol(description){
     if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
     return wrap(uid(description));
   };
@@ -47,7 +47,7 @@ var symbolStatics = {
       : SymbolRegistry[key] = Symbol(key);
   },
   // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: function(key){
+  keyFor: function keyFor(key){
     return keyOf(SymbolRegistry, key);
   },
   pure: uid.safe,
@@ -81,13 +81,13 @@ $def($def.S, 'Symbol', symbolStatics);
 
 $def($def.S + $def.F * (Symbol != Base), 'Object', {
   // 19.1.2.7 Object.getOwnPropertyNames(O)
-  getOwnPropertyNames: function(it){
+  getOwnPropertyNames: function getOwnPropertyNames(it){
     var names = getNames(toObject(it)), result = [], key, i = 0;
     while(names.length > i)has(AllSymbols, key = names[i++]) || result.push(key);
     return result;
   },
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
-  getOwnPropertySymbols: function(it){
+  getOwnPropertySymbols: function getOwnPropertySymbols(it){
     var names = getNames(toObject(it)), result = [], key, i = 0;
     while(names.length > i)has(AllSymbols, key = names[i++]) && result.push(AllSymbols[key]);
     return result;

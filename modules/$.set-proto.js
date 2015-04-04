@@ -3,7 +3,7 @@
 var $      = require('./$')
   , assert = require('./$.assert');
 module.exports = Object.setPrototypeOf || ('__proto__' in {} // eslint-disable-line
-  ? function(buggy, set){
+  ? function setPrototypeOf(buggy, set){
       try {
         set = require('./$.ctx')(Function.call, $.getDesc(Object.prototype, '__proto__').set, 2);
         set({}, []);

@@ -5,7 +5,7 @@ var $    = require('./$')
 
 $def($def.P, 'String', {
   // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
-  startsWith: function(searchString /*, position = 0 */){
+  startsWith: function startsWith(searchString /*, position = 0 */){
     if(cof(searchString) == 'RegExp')throw TypeError();
     var that  = String($.assertDefined(this))
       , index = $.toLength(Math.min(arguments[1], that.length));

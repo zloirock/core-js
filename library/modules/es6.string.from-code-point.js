@@ -4,7 +4,7 @@ var $def    = require('./$.def')
 
 $def($def.S, 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
-  fromCodePoint: function(x){ // eslint-disable-line no-unused-vars
+  fromCodePoint: function fromCodePoint(x){ // eslint-disable-line no-unused-vars
     var res = []
       , len = arguments.length
       , i   = 0

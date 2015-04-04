@@ -12,9 +12,9 @@ function wrapObjectMethod(METHOD, MODE){
     return isObject(it) ? fn(it) : true;
   } : MODE == 3 ? function(it){
     return isObject(it) ? fn(it) : false;
-  } : MODE == 4 ? function(it, key){
+  } : MODE == 4 ? function getOwnPropertyDescriptor(it, key){
     return fn(toObject(it), key);
-  } : MODE == 5 ? function(it){
+  } : MODE == 5 ? function getPrototypeOf(it){
     return fn(Object($.assertDefined(it)));
   } : function(it){
     return fn(toObject(it));
