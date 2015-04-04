@@ -119,8 +119,13 @@ var reflect = {
 };
 // 26.1.14 Reflect.setPrototypeOf(target, proto)
 if(setProto)reflect.setPrototypeOf = function setPrototypeOf(target, proto){
-  setProto(assertObject(target), proto);
-  return true;
+  setProto.check(target, proto);
+  try {
+    setProto.set(target, proto);
+    return true;
+  } catch(e){
+    return false;
+  }
 };
 
 $def($def.G, {Reflect: {}});
