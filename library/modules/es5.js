@@ -71,6 +71,7 @@ var createDict = function(){
   // Thrash, waste and sodomy: IE GC bug
   var iframe = document.createElement('iframe')
     , i      = keysLen1
+    , gt     = '>'
     , iframeDocument;
   iframe.style.display = 'none';
   $.html.appendChild(iframe);
@@ -79,7 +80,7 @@ var createDict = function(){
   // html.removeChild(iframe);
   iframeDocument = iframe.contentWindow.document;
   iframeDocument.open();
-  iframeDocument.write('<script>document.F=Object</script>');
+  iframeDocument.write('<script>document.F=Object</script' + gt);
   iframeDocument.close();
   createDict = iframeDocument.F;
   while(i--)delete createDict.prototype[keys1[i]];
