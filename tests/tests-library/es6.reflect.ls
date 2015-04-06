@@ -195,3 +195,5 @@ if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   ok obj instanceof Array
   throws (-> core.Reflect.setPrototypeOf {}, 42), TypeError
   throws (-> core.Reflect.setPrototypeOf 42, {}), TypeError, 'throws on primitive'
+  ok core.Reflect.setPrototypeOf(o = {}, o) is no, 'false on recursive __proto__'
+  ok core.Reflect.setPrototypeOf(core.Object.freeze({}), {}) is no, 'false on frozen object'

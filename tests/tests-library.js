@@ -3251,7 +3251,7 @@
   });
   if ('__proto__' in Object.prototype) {
     test('Reflect.setPrototypeOf', function(){
-      var obj;
+      var obj, o;
       ok(isFunction(core.Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function');
       obj = {};
       ok(core.Reflect.setPrototypeOf(obj, Array.prototype), true);
@@ -3262,6 +3262,8 @@
       throws(function(){
         return core.Reflect.setPrototypeOf(42, {});
       }, TypeError, 'throws on primitive');
+      ok(core.Reflect.setPrototypeOf(o = {}, o) === false, 'false on recursive __proto__');
+      ok(core.Reflect.setPrototypeOf(core.Object.freeze({}), {}) === false, 'false on frozen object');
     });
   }
   function in$(x, xs){
