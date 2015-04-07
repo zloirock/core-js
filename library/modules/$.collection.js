@@ -26,9 +26,7 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
       , chain = inst[ADDER](isWeak ? {} : -0, 1)
       , buggyZero;
     // wrap for init collections from iterable
-    if($iter.fail(function(iter){
-      new C(iter); // eslint-disable-line no-new
-    }) || $iter.DANGER_CLOSING){
+    if(!require('./$.iter-detect')(function(iter){ new C(iter); })){ // eslint-disable-line no-new
       C = function(iterable){
         assertInstance(this, C, NAME);
         var that = new Base;

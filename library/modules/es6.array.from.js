@@ -3,7 +3,7 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
   , stepCall = $iter.stepCall;
-$def($def.S + $def.F * $iter.DANGER_CLOSING, 'Array', {
+$def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
     var O       = Object($.assertDefined(arrayLike))

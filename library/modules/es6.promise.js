@@ -172,9 +172,9 @@ $def($def.S, PROMISE, {
       });
   }
 });
-$def($def.S + $def.F * ($iter.fail(function(iter){
+$def($def.S + $def.F * !require('./$.iter-detect')(function(iter){
   P.all(iter)['catch'](function(){});
-}) || $iter.DANGER_CLOSING), PROMISE, {
+}), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable){
     var C      = getConstructor(this)

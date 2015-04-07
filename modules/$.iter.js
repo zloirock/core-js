@@ -53,34 +53,8 @@ function stepCall(iterator, fn, value, entries){
     throw e;
   }
 }
-var DANGER_CLOSING = true;
-!function(){
-  try {
-    var iter = [1].keys();
-    iter['return'] = function(){ DANGER_CLOSING = false; };
-    Array.from(iter, function(){ throw 2; });
-  } catch(e){ /* empty */ }
-}();
 var $iter = module.exports = {
   BUGGY: BUGGY,
-  DANGER_CLOSING: DANGER_CLOSING,
-  fail: function(exec){
-    var fail = true;
-    try {
-      var arr  = [[{}, 1]]
-        , iter = arr[SYMBOL_ITERATOR]()
-        , next = iter.next;
-      iter.next = function(){
-        fail = false;
-        return next.call(this);
-      };
-      arr[SYMBOL_ITERATOR] = function(){
-        return iter;
-      };
-      exec(arr);
-    } catch(e){ /* empty */ }
-    return fail;
-  },
   Iterators: Iterators,
   prototype: IteratorPrototype,
   step: function(done, value){
