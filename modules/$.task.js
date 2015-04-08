@@ -31,7 +31,7 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
-      invoke(isFunction(fn) ? fn : Function(fn), args);
+      invoke(isFunction(fn) ? fn : Function(fn), args, global);
     };
     defer(counter);
     return counter;
