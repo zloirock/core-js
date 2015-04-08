@@ -227,7 +227,7 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
-[new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags
+[new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags (IE9+)
   #flags -> str (IE9+)
 ```
 [Example](http://goo.gl/sdNGeJ):
@@ -370,6 +370,7 @@ o2[s2] = true;
 for(var key in o2)log(key); // nothing
 ```
 ### ECMAScript 6: Collections
+`core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map
 Module `es6.map`. About iterators from this module [here](#ecmascript-6-iterators).
 ```javascript
@@ -506,18 +507,18 @@ Array
 Arguments
   #@@iterator() -> iterator (sham, available only in core-js methods)
 ```
-Module `es6.collections`:
+Modules `es6.map` and `es6.set`:
 ```javascript
-Set
-  #values() -> iterator
-  #keys() -> iterator
-  #entries() -> iterator (entries)
-  #@@iterator() -> iterator
 Map
   #values() -> iterator
   #keys() -> iterator
   #entries() -> iterator (entries)
   #@@iterator() -> iterator (entries)
+Set
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator
 ```
 Module `web.dom.iterable`:
 ```javascript
