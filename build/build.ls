@@ -11,7 +11,6 @@ list = <[
   es6.number.constructor
   es6.number.statics
   es6.math
-  core.iterator
   es6.string.from-code-point
   es6.string.raw
   es6.string.iterator
@@ -59,9 +58,7 @@ list = <[
   js.array.statics
 ]>
 
-exp = <[
-  core.iterator
-]>
+exp = <[ ]>
 
 x78 = '*'repeat 78
 module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((memo, it)-> memo[it] = on), {}
