@@ -7,6 +7,7 @@ var $      = require('./$')
   , isFunction         = $.isFunction
   , html               = $.html
   , document           = global.document
+  , process            = global.process
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
   , postMessage        = global.postMessage
@@ -42,9 +43,9 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     delete queue[id];
   };
   // Node.js 0.8-
-  if(cof(global.process) == 'process'){
+  if(cof(process) == 'process'){
     defer = function(id){
-      global.process.nextTick(ctx(run, id, 1));
+      process.nextTick(ctx(run, id, 1));
     };
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
