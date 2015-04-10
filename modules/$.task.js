@@ -5,6 +5,8 @@ var $      = require('./$')
   , invoke = require('./$.invoke')
   , global             = $.g
   , isFunction         = $.isFunction
+  , html               = $.html
+  , document           = global.document
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
   , postMessage        = global.postMessage
@@ -46,7 +48,7 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     };
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(addEventListener && isFunction(postMessage) && !$.g.importScripts){
+  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
     defer = function(id){
       postMessage(id, '*');
     };
@@ -58,10 +60,10 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     channel.port1.onmessage = listner;
     defer = ctx(port.postMessage, port, 1);
   // IE8-
-  } else if($.g.document && ONREADYSTATECHANGE in document.createElement('script')){
+  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
     defer = function(id){
-      $.html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
-        $.html.removeChild(this);
+      html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
+        html.removeChild(this);
         run.call(id);
       };
     };
