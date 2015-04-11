@@ -39,6 +39,7 @@ list = <[
   es7.regexp.escape
   es7.object.get-own-property-descriptors
   es7.object.to-array
+  es7.set.to-json
   web.immediate
   web.dom.iterable
   web.timers
