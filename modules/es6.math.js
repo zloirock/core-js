@@ -11,14 +11,15 @@ var Infinity = 1 / 0
   , EPSILON   = pow(2, -52)
   , EPSILON32 = pow(2, -23)
   , MAX32     = pow(2, 127) * (2 - EPSILON32)
-  , MIN32     = pow(2, -126)
-  , sign = Math.sign || function sign(x){
-      return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
-    };
-function roundTiesToEven(n) {
+  , MIN32     = pow(2, -126);
+function roundTiesToEven(n){
   return (n + 1 / EPSILON) - 1 / EPSILON;
 }
 
+// 20.2.2.28 Math.sign(x)
+function sign(x){
+  return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
+}
 // 20.2.2.5 Math.asinh(x)
 function asinh(x){
   return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : log(x + sqrt(x * x + 1));
