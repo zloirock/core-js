@@ -46,7 +46,7 @@ $def($def.S, 'Math', {
   },
   // 20.2.2.11 Math.clz32(x)
   clz32: function clz32(x){
-    return (x >>>= 0) ? 32 - x.toString(2).length : 32;
+    return (x >>>= 0) ? 31 - floor(log(x + 0.5) * Math.LOG2E) : 32;
   },
   // 20.2.2.12 Math.cosh(x)
   cosh: function cosh(x){
