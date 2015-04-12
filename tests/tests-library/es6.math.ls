@@ -98,7 +98,7 @@ test 'Math.expm1' !->
   eq expm1(-Infinity), -1
   ok epsilon expm1(10), 22025.465794806718,
   ok epsilon expm1(-10), -0.9999546000702375
-if Float32Array? => test 'Math.fround' !->
+test 'Math.fround' !->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = core.Math
   ok isFunction(fround), 'Is function'

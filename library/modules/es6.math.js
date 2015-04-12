@@ -8,9 +8,16 @@ var Infinity = 1 / 0
   , sqrt  = Math.sqrt
   , ceil  = Math.ceil
   , floor = Math.floor
-  , sign  = Math.sign || function sign(x){
+  , EPSILON   = pow(2, -52)
+  , EPSILON32 = pow(2, -23)
+  , MAX32     = pow(2, 127) * (2 - EPSILON32)
+  , MIN32     = pow(2, -126)
+  , sign = Math.sign || function sign(x){
       return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
     };
+function roundTiesToEven(n) {
+  return (n + 1 / EPSILON) - 1 / EPSILON;
+}
 
 // 20.2.2.5 Math.asinh(x)
 function asinh(x){
@@ -47,9 +54,15 @@ $def($def.S, 'Math', {
   // 20.2.2.14 Math.expm1(x)
   expm1: expm1,
   // 20.2.2.16 Math.fround(x)
-  // TODO: fallback for IE9-
   fround: function fround(x){
-    return new Float32Array([x])[0];
+    var $abs  = abs(x)
+      , $sign = sign(x)
+      , a, result;
+    if($abs < MIN32)return $sign * roundTiesToEven($abs / MIN32 / EPSILON32) * MIN32 * EPSILON32;
+    a = (1 + EPSILON32 / EPSILON) * $abs;
+    result = a - (a - $abs);
+    if(result > MAX32 || result != result)return $sign * Infinity;
+    return $sign * result;
   },
   // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
   hypot: function hypot(value1, value2){ // eslint-disable-line no-unused-vars

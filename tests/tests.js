@@ -2404,37 +2404,35 @@
     eq(expm1(-Infinity), -1);
     ok(epsilon(expm1(10), 22025.465794806718, ok(epsilon(expm1(-10), -0.9999546000702375))));
   });
-  if (typeof Float32Array != 'undefined' && Float32Array !== null) {
-    test('Math.fround', function(){
-      var fround, maxFloat32, minFloat32;
-      fround = Math.fround;
-      ok(isFunction(fround), 'Is function');
-      sameEq(fround(void 8), NaN);
-      sameEq(fround(NaN), NaN);
-      sameEq(fround(0), 0);
-      sameEq(fround(-0), -0);
-      sameEq(fround(Number.MIN_VALUE), 0);
-      sameEq(fround(-Number.MIN_VALUE), -0);
-      eq(fround(Infinity), Infinity);
-      eq(fround(-Infinity), -Infinity);
-      eq(fround(1.7976931348623157e+308), Infinity);
-      eq(fround(-1.7976931348623157e+308), -Infinity);
-      eq(fround(3.4028235677973366e+38), Infinity);
-      eq(fround(3), 3);
-      eq(fround(-3), -3);
-      maxFloat32 = 3.4028234663852886e+38;
-      minFloat32 = 1.401298464324817e-45;
-      eq(fround(maxFloat32), maxFloat32);
-      eq(fround(-maxFloat32), -maxFloat32);
-      eq(fround(maxFloat32 + Math.pow(2, Math.pow(2, 8 - 1) - 1 - 23 - 2)), maxFloat32);
-      eq(fround(minFloat32), minFloat32);
-      eq(fround(-minFloat32), -minFloat32);
-      sameEq(fround(minFloat32 / 2), 0);
-      sameEq(fround(-minFloat32 / 2), -0);
-      eq(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
-      eq(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
-    });
-  }
+  test('Math.fround', function(){
+    var fround, maxFloat32, minFloat32;
+    fround = Math.fround;
+    ok(isFunction(fround), 'Is function');
+    sameEq(fround(void 8), NaN);
+    sameEq(fround(NaN), NaN);
+    sameEq(fround(0), 0);
+    sameEq(fround(-0), -0);
+    sameEq(fround(Number.MIN_VALUE), 0);
+    sameEq(fround(-Number.MIN_VALUE), -0);
+    eq(fround(Infinity), Infinity);
+    eq(fround(-Infinity), -Infinity);
+    eq(fround(1.7976931348623157e+308), Infinity);
+    eq(fround(-1.7976931348623157e+308), -Infinity);
+    eq(fround(3.4028235677973366e+38), Infinity);
+    eq(fround(3), 3);
+    eq(fround(-3), -3);
+    maxFloat32 = 3.4028234663852886e+38;
+    minFloat32 = 1.401298464324817e-45;
+    eq(fround(maxFloat32), maxFloat32);
+    eq(fround(-maxFloat32), -maxFloat32);
+    eq(fround(maxFloat32 + Math.pow(2, Math.pow(2, 8 - 1) - 1 - 23 - 2)), maxFloat32);
+    eq(fround(minFloat32), minFloat32);
+    eq(fround(-minFloat32), -minFloat32);
+    sameEq(fround(minFloat32 / 2), 0);
+    sameEq(fround(-minFloat32 / 2), -0);
+    eq(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
+    eq(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
+  });
   test('Math.hypot', function(){
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
