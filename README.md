@@ -279,7 +279,7 @@ Math
   .clz32(num) -> uint
   .cosh(num) -> num
   .expm1(num) -> num
-  .fround(num) -> num (IE10+)
+  .fround(num) -> num
   .hypot(...args) -> num
   .imul(num, num) -> int
   .log1p(num) -> num
@@ -770,6 +770,7 @@ instance.c; // => 42
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
+* `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - module `es7.set.to-json`
 
 ```javascript
 Array
@@ -782,8 +783,10 @@ Object
   .getOwnPropertyDescriptors(object) -> object
 RegExp
   .escape(str) -> str
+Set
+  #toJSON() -> array
 ```
-[Examples](http://goo.gl/4HcpLK):
+[Examples](http://goo.gl/inyWkw):
 ```javascript
 [1, 2, 3].includes(2);        // => true
 [1, 2, 3].includes(4);        // => false
@@ -806,6 +809,8 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
+
+JSON.stringify(new Set([1, 2, 3, 2, 1])); // => '[1,2,3]'
 ```
 ### Mozilla JavaScript: Array generics
 Module `js.array.statics`.
@@ -1292,6 +1297,11 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.8.2 - 2015.04.13
+  * [`Math.fround`](#ecmascript-6-number--math) now also works in IE9-
+  * added [`Set#toJSON`](#ecmascript-7)
+  * some optimizations and fixes
+
 ##### 0.8.1 - 2015.04.03
   * fixed `Symbol.keyFor`
 

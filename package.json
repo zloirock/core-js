@@ -1,7 +1,7 @@
 {
   "name": "core-js",
   "description": "Standard library",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
@@ -31,10 +31,14 @@
   },
   "license": "MIT",
   "keywords": [
+    "ES5",
+    "ECMAScript 5",
     "ES6",
     "ECMAScript 6",
     "ES7",
     "ECMAScript 7",
+    "Harmony",
+    "Strawman",
     "Map",
     "Set",
     "WeakMap",
@@ -44,8 +48,6 @@
     "Symbol",
     "Array generics",
     "setImmediate",
-    "console cap",
-    "abstract references",
     "partial application",
     "Date formatting"
   ]
