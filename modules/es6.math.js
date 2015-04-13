@@ -13,7 +13,7 @@ var Infinity = 1 / 0
   , MAX32     = pow(2, 127) * (2 - EPSILON32)
   , MIN32     = pow(2, -126);
 function roundTiesToEven(n){
-  return (n + 1 / EPSILON) - 1 / EPSILON;
+  return n + 1 / EPSILON - 1 / EPSILON;
 }
 
 // 20.2.2.28 Math.sign(x)

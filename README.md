@@ -1297,6 +1297,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.8.3 - 2015.04.14
+  * fixed `Array` statics with single entry points
+
 ##### 0.8.2 - 2015.04.13
   * [`Math.fround`](#ecmascript-6-number--math) now also works in IE9-
   * added [`Set#toJSON`](#ecmascript-7)

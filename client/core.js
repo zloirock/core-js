@@ -1,5 +1,5 @@
 /**
- * Core.js 0.8.2
+ * Core.js 0.8.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -1962,7 +1962,7 @@ var Infinity = 1 / 0
   , MAX32     = pow(2, 127) * (2 - EPSILON32)
   , MIN32     = pow(2, -126);
 function roundTiesToEven(n){
-  return (n + 1 / EPSILON) - 1 / EPSILON;
+  return n + 1 / EPSILON - 1 / EPSILON;
 }
 
 // 20.2.2.28 Math.sign(x)
@@ -2951,11 +2951,11 @@ $def($def.P, 'String', {
 // JavaScript 1.6 / Strawman array statics shim
 var $       = require('./$')
   , $def    = require('./$.def')
-  , core    = $.core
+  , $Array  = $.core.Array || Array
   , statics = {};
 function setStatics(keys, length){
   $.each.call(keys.split(','), function(key){
-    if(length == undefined && key in core.Array)statics[key] = core.Array[key];
+    if(length == undefined && key in $Array)statics[key] = $Array[key];
     else if(key in [])statics[key] = require('./$.ctx')(Function.call, [][key], length);
   });
 }
