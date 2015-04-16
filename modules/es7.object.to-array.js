@@ -4,7 +4,7 @@ var $    = require('./$')
 function createObjectToArray(isEntries){
   return function(object){
     var O      = $.toObject(object)
-      , keys   = $.getKeys(object)
+      , keys   = $.getKeys(O)
       , length = keys.length
       , i      = 0
       , result = Array(length)

@@ -1,9 +1,10 @@
 require('./es6.array.iterator');
-var $         = require('./$')
-  , Iterators = require('./$.iter').Iterators
-  , ITERATOR  = require('./$.wks')('iterator')
-  , NodeList  = $.g.NodeList;
+var $           = require('./$')
+  , Iterators   = require('./$.iter').Iterators
+  , ITERATOR    = require('./$.wks')('iterator')
+  , ArrayValues = Iterators.Array
+  , NodeList    = $.g.NodeList;
 if($.FW && NodeList && !(ITERATOR in NodeList.prototype)){
-  $.hide(NodeList.prototype, ITERATOR, Iterators.Array);
+  $.hide(NodeList.prototype, ITERATOR, ArrayValues);
 }
-Iterators.NodeList = Iterators.Array;
+Iterators.NodeList = ArrayValues;
