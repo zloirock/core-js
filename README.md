@@ -1035,18 +1035,16 @@ dict.toString;            // => undefined
 Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
-`Dict.keys`, `Dict.values` and `Dict.entries` returns iterators for objects, [examples](http://goo.gl/JRkgM8):
+`Dict.keys`, `Dict.values` and `Dict.entries` returns iterators for objects, [examples](http://goo.gl/4u8UDK):
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
 for(var key of Dict.keys(dict))log(key); // => 'a', 'b', 'c'
 
+for(var val of Dict.values(dict))log(val); // => 1, 2, 3
+
 for(var [key, val] of Dict.entries(dict)){
   log(key); // => 'a', 'b', 'c'
-  log(val); // => 1, 2, 3
-}
-
-for(var val of Dict.values(dict)){
   log(val); // => 1, 2, 3
 }
 
@@ -1261,7 +1259,7 @@ Number
   #random(lim = 0) -> num
   #{...Math} 
 ```
-Number Iterator [examples](http://goo.gl/mkReUE):
+Number Iterator [examples](http://goo.gl/RI60Ot):
 ```javascript
 for(var i of 3)log(i); // => 0, 1, 2
 
