@@ -1,4 +1,4 @@
-require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, browserify, '../': core}
+require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, webpack, '../': core}
 list = <[
   es5
   es6.symbol
@@ -62,6 +62,12 @@ list = <[
 exp = <[ ]>
 
 x78 = '*'repeat 78
+
+check = (err)!->
+  if err
+    console.error err
+    process.exit 1  
+
 module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((memo, it)-> memo[it] = on), {}
   if @exp => for exp => @[..] = on
   for ns of @
@@ -74,13 +80,18 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
       if name is ns or name.startsWith "#ns."
         @[name] = no
   if library => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
-  PATH = ".#{ if library => '/library' else '' }/modules/__tmp#{ Math.random! }__"
-  err <-! writeFile "#PATH.js", list.filter(~> @[it]).map(-> "require('./#it');" ).join '\n'
-  if err => console.error err
-  err, script <-! browserify(entries: [PATH], detectGlobals: no).bundle
-  if err => console.error err
-  err <-! unlink "#PATH.js"
-  if err => console.error err
+  ENTRY = "./__tmp#{ Math.random! }__.js"
+  err <-! writeFile "#ENTRY", list.filter(~> @[it]).map(-> "require('.#{ if library => '/library' else '' }/modules/#it');" ).join '\n'
+  check err
+  TARGET = "./__tmp#{ Math.random! }__.js"
+  err, info <-! webpack entry: ENTRY, output: { path: '', filename: TARGET }
+  check err
+  err, script <-! readFile TARGET
+  check err
+  err <-! unlink ENTRY
+  check err
+  err <-! unlink TARGET
+  check err
   next """
     #banner
     !function(undefined){

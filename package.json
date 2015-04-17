@@ -8,7 +8,7 @@
   },
   "main": "index.js",
   "devDependencies": {
-    "browserify": "9.0.x",
+    "webpack": "1.8.x",
     "LiveScript": "1.3.x",
     "grunt": "0.4.x",
     "grunt-livescript": "0.5.x",
