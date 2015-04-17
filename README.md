@@ -1313,6 +1313,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.8.4 - 2015.04.18
+  * uses `webpack` instead of `browserify` for browser builds - more compression-friendly result
+
 ##### 0.8.3 - 2015.04.14
   * fixed `Array` statics with single entry points
 

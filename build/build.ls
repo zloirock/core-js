@@ -81,7 +81,8 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
         @[name] = no
   if library => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   ENTRY = "./__tmp#{ Math.random! }__.js"
-  err <-! writeFile "#ENTRY", list.filter(~> @[it]).map(-> "require('.#{ if library => '/library' else '' }/modules/#it');" ).join '\n'
+  PATH = ".#{ if library => '/library' else '' }/modules/"
+  err <-! writeFile ENTRY, list.filter(~> @[it]).map(-> "require('#PATH#it');" ).join '\n'
   check err
   TARGET = "./__tmp#{ Math.random! }__.js"
   err, info <-! webpack entry: ENTRY, output: { path: '', filename: TARGET }
