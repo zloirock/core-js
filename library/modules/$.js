@@ -32,7 +32,7 @@ function simpleSet(object, key, value){
 }
 function createDefiner(bitmap){
   return DESC ? function(object, key, value){
-    return $.setDesc(object, key, desc(bitmap, value)); // eslint-disable-line no-use-before-define
+    return $.setDesc(object, key, desc(bitmap, value));
   } : simpleSet;
 }
 
@@ -82,8 +82,8 @@ var $ = module.exports = require('./$.fw')({
   getKeys:    Object.keys,
   getNames:   Object.getOwnPropertyNames,
   getSymbols: Object.getOwnPropertySymbols,
-  // Dummy, fix for not array-like ES3 string in es5 module
   assertDefined: assertDefined,
+  // Dummy, fix for not array-like ES3 string in es5 module
   ES5Object: Object,
   toObject: function(it){
     return $.ES5Object(assertDefined(it));
@@ -97,5 +97,6 @@ var $ = module.exports = require('./$.fw')({
   },
   each: [].forEach
 });
+/* eslint-disable no-undef */
 if(typeof __e != 'undefined')__e = core;
 if(typeof __g != 'undefined')__g = global;

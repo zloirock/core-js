@@ -1,5 +1,5 @@
 // Works with __proto__ only. Old v8 can't work with null proto objects.
-/*eslint-disable no-proto */
+/* eslint-disable no-proto */
 var $      = require('./$')
   , assert = require('./$.assert');
 function check(O, proto){

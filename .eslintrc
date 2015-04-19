@@ -3,10 +3,6 @@
     "browser": true,
     "node": true
   },
-  "globals": {
-    "__e": true,
-    "__g": true
-  },
   "rules": {
     "indent": [2, 2],
     "max-len": [2, 100, 2],
@@ -19,6 +15,7 @@
     "no-extra-parens": 2,
     "new-parens": 0,
     "new-cap": [2, {"newIsCap": true, "capIsNew": false}],
+    "no-use-before-define": 0,
     "no-cond-assign": 0,
     "no-underscore-dangle": 0,
     "no-native-reassign": 0,
