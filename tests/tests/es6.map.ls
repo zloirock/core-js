@@ -136,7 +136,7 @@ test 'Map#size' !->
   size = new Map!set 2 1 .size
   eq typeof size, \number, 'size is number'
   eq size, 1, 'size is correct'
-  if /\[native code\]\s*\}\s*$/.test Object.defineProperty
+  if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     ok sizeDesc && sizeDesc.get, 'size is getter'
     ok sizeDesc && !sizeDesc.set, 'size isnt setter'

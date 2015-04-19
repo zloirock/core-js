@@ -1,6 +1,6 @@
 QUnit.module 'ES7 Object.getOwnPropertyDescriptors'
 
-descriptors = /\[native code\]\s*\}\s*$/.test core.Object.defineProperty
+descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 {create} = core.Object

@@ -8,7 +8,7 @@ deq = deepEqual
 isFunction = -> typeof! it is \Function
 isNative = -> /\[native code\]\s*\}\s*$/.test it
 
-descriptors = isNative defineProperty
+descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 G = global? && global || window
 

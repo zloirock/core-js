@@ -1158,7 +1158,15 @@
       w: 2
     }));
     ok(foo.w === 2);
-    if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+    if (function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
       foo = {
         q: 1
       };
@@ -1956,7 +1964,15 @@
 (function(){
   var eq;
   eq = strictEqual;
-  if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+  if (function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }()) {
     QUnit.module('ES6 Function#name');
     test('*', function(){
       ok('name' in Function.prototype);
@@ -2147,7 +2163,15 @@
     size = new Map().set(2, 1).size;
     eq(typeof size, 'number', 'size is number');
     eq(size, 1, 'size is correct');
-    if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+    if (function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
       sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
@@ -2901,7 +2925,15 @@
 (function(){
   var descriptors, eq, deq, toString$ = {}.toString;
   QUnit.module('ES6 Object.assign');
-  descriptors = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
+  descriptors = function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }();
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
@@ -3171,7 +3203,15 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  MODERN = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
+  MODERN = function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }();
   test('Reflect', function(){
     ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
   });
@@ -3498,7 +3538,15 @@
   var eq;
   QUnit.module('ES6 RegExp');
   eq = strictEqual;
-  if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+  if (function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }()) {
     test('RegExp allows a regex with flags as the pattern', function(){
       var a, b, i$, len$, index, val;
       a = /a/g;
@@ -3696,7 +3744,15 @@
     size = new Set([1]).size;
     eq(typeof size, 'number', 'size is number');
     eq(size, 1, 'size is correct');
-    if (/\[native code\]\s*\}\s*$/.test(Object.defineProperty)) {
+    if (function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
       sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
       ok(sizeDesc && sizeDesc.get, 'size is getter');
       ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
@@ -4211,7 +4267,15 @@
   isNative = function(it){
     return /\[native code\]\s*\}\s*$/.test(it);
   };
-  descriptors = isNative(defineProperty);
+  descriptors = function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }();
   G = (typeof global != 'undefined' && global !== null) && global || window;
   test('Symbol', function(){
     var s1, s2, O, count, i;
@@ -4500,7 +4564,15 @@
 (function(){
   var descriptors, eq, create, toString$ = {}.toString;
   QUnit.module('ES7 Object.getOwnPropertyDescriptors');
-  descriptors = /\[native code\]\s*\}\s*$/.test(Object.defineProperty);
+  descriptors = function(){
+    try {
+      return 2 === Object.defineProperty({}, 'a', {
+        get: function(){
+          return 2;
+        }
+      }).a;
+    } catch (e$) {}
+  }();
   eq = strictEqual;
   create = Object.create;
   test('*', function(){

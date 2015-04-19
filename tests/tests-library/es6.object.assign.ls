@@ -1,6 +1,6 @@
 QUnit.module 'ES6 Object.assign'
 
-descriptors = /\[native code\]\s*\}\s*$/.test core.Object.defineProperty
+descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 deq = deepEqual

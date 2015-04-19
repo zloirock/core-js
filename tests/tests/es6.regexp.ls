@@ -2,7 +2,7 @@ QUnit.module 'ES6 RegExp'
 
 eq = strictEqual
 
-if /\[native code\]\s*\}\s*$/.test Object.defineProperty
+if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
   test 'RegExp allows a regex with flags as the pattern' !->
     a = /a/g
     b = new RegExp a

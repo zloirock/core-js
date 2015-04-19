@@ -6,7 +6,7 @@ deq = deepEqual
 
 isFunction = -> typeof! it is \Function
 
-MODERN = /\[native code\]\s*\}\s*$/.test Object.defineProperty
+MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 
 test \Reflect !->
   ok Reflect?, 'Reflect is defined'
