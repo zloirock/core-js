@@ -58,8 +58,6 @@ var symbolStatics = {
   keyFor: function keyFor(key){
     return keyOf(SymbolRegistry, key);
   },
-  pure: uid.safe,
-  set: $.set,
   useSetter: function(){ setter = true; },
   useSimple: function(){ setter = false; }
 };

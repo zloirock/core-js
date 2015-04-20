@@ -4068,21 +4068,6 @@
   test('#@@toStringTag', function(){
     ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });
-  test('.pure', function(){
-    var pure;
-    pure = Symbol.pure;
-    ok(isFunction(pure), 'Is function');
-    ok(pure('S') !== pure('S'), 'Symbol.pure(key) != Symbol.pure(key)');
-  });
-  test('.set', function(){
-    var set, O, sym;
-    set = Symbol.set;
-    ok(isFunction(set), 'Is function');
-    O = {};
-    sym = Symbol();
-    ok(set(O, sym, 42) === O, 'Symbol.set return object');
-    ok(O[sym] === 42, 'Symbol.set set value');
-  });
   test('Object.getOwnPropertySymbols', function(){
     var ref$, getOwnPropertySymbols, getOwnPropertyNames, obj, foo;
     ref$ = core.Object, getOwnPropertySymbols = ref$.getOwnPropertySymbols, getOwnPropertyNames = ref$.getOwnPropertyNames;

@@ -37,20 +37,6 @@ test 'Global symbol registry' !->
   
 test '#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
-test '.pure' !->
-  {pure} = Symbol
-  ok isFunction(pure), 'Is function'
-  if isNative Symbol
-    ok typeof pure! is \symbol, 'Symbol.pure() return symbol'
-  else ok typeof pure! is \string, 'Symbol.pure() return string'
-  ok pure(\S) isnt pure(\S), 'Symbol.pure(key) != Symbol.pure(key)'
-test '.set' !->
-  {set} = Symbol
-  ok isFunction(set), 'Is function'
-  O = {}
-  sym = Symbol!
-  ok set(O, sym, 42) is O, 'Symbol.set return object'
-  ok O[sym] is 42, 'Symbol.set set value'
 
 test 'Object.getOwnPropertySymbols' !->
   {getOwnPropertySymbols, getOwnPropertyNames} = Object

@@ -310,8 +310,6 @@ Symbol(description?) -> symbol
   .keyFor(symbol) -> key
   .useSimple() -> void
   .useSetter() -> void
-  .pure(description?) -> symbol || string
-  .set(object, key, val) -> object
 Object
   .getOwnPropertySymbols(object) -> array
 ```
