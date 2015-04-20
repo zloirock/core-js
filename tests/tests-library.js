@@ -4119,6 +4119,8 @@
         enumerable: true
       });
       defineProperty(O, e, {
+        configurable: true,
+        writable: true,
         value: 'e'
       });
       defineProperty(O, f, {
@@ -4150,8 +4152,8 @@
         value: 'd'
       });
       deq(getOwnPropertyDescriptor(O, e), {
-        configurable: false,
-        writable: false,
+        configurable: true,
+        writable: true,
         enumerable: false,
         value: 'e'
       });
@@ -4165,6 +4167,14 @@
       eq(core.Object.getOwnPropertyNames(O).length, 3);
       eq(core.Object.getOwnPropertySymbols(O).length, 3);
       eq(core.Reflect.ownKeys(O).length, 6);
+      delete O[e];
+      O[e] = 'e';
+      deq(getOwnPropertyDescriptor(O, e), {
+        configurable: true,
+        writable: true,
+        enumerable: true,
+        value: 'e'
+      });
     });
     test('Object.defineProperties', function(){
       var ref$, defineProperty, defineProperties, c, d, D, O;

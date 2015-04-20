@@ -28,7 +28,7 @@ function wrap(tag){
   $.DESC && setter && setDesc(Object.prototype, tag, {
     configurable: true,
     set: function(value){
-      if(has(this, tag) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
+      if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
       setDesc(this, tag, desc(1, value));
     }
   });
@@ -93,7 +93,7 @@ function defineProperty(it, key, D){
       if(!has(it, HIDDEN))setDesc(it, HIDDEN, desc(1, {}));
       it[HIDDEN][key] = true;
     } else {
-      if(has(it, HIDDEN) && has(it[HIDDEN], key))it[HIDDEN][key] = false;
+      if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
       D.enumerable = false;
     }
   } return setDesc(it, key, D);
@@ -112,7 +112,7 @@ function create(it, P){
 }
 function getOwnPropertyDescriptor(it, key){
   var D = getDesc(it = toObject(it), key);
-  if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && has(it[HIDDEN], key)))D.enumerable = true;
+  if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
   return D;
 }
 function getOwnPropertyNames(it){
