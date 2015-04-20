@@ -6,15 +6,11 @@ eq = strictEqual
 deq = deepEqual
 
 test '*' !->
-  {assign} = Object
+  {assign, defineProperty} = Object
   ok typeof! assign is \Function, 'Is function'
   foo = q: 1
   eq foo, assign(foo, bar: 2), 'assign return target'
   eq foo.bar, 2, 'assign define properties'
-  if descriptors
-    foo = baz: 1
-    assign foo, Object.defineProperty {}, \bar, get: -> @baz + 1
-    ok foo.bar is void, "assign don't copy descriptors"
   deq assign({}, {q: 1}, {w: 2}), {q: 1, w: 2}
   deq assign({}, \qwe), {0: \q, 1: \w, 2: \e}
   throws (-> assign null {q: 1}), TypeError
@@ -23,3 +19,20 @@ test '*' !->
   eq typeof str, \object
   eq String(str), \qwe
   eq str.q, 1
+  if descriptors
+    foo = baz: 1
+    assign foo, defineProperty {}, \bar, get: -> @baz + 1
+    ok foo.bar is void, "assign don't copy descriptors"
+    c = Symbol \c
+    d = Symbol \d
+    D = {
+      a: \a
+      (c): \c
+    }
+    defineProperty D, \b, value: \b
+    defineProperty D, d, value: \d
+    O = assign {}, D
+    eq O.a, \a, \a
+    eq O.b, void, \b
+    eq O[c], \c, \c
+    eq O[d], void, \d

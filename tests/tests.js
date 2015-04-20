@@ -2937,8 +2937,8 @@
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
-    var assign, foo, str;
-    assign = Object.assign;
+    var assign, defineProperty, foo, str, c, d, D, ref$, O;
+    assign = Object.assign, defineProperty = Object.defineProperty;
     ok(toString$.call(assign).slice(8, -1) === 'Function', 'Is function');
     foo = {
       q: 1
@@ -2947,17 +2947,6 @@
       bar: 2
     }), 'assign return target');
     eq(foo.bar, 2, 'assign define properties');
-    if (descriptors) {
-      foo = {
-        baz: 1
-      };
-      assign(foo, Object.defineProperty({}, 'bar', {
-        get: function(){
-          return this.baz + 1;
-        }
-      }));
-      ok(foo.bar === void 8, "assign don't copy descriptors");
-    }
     deq(assign({}, {
       q: 1
     }, {
@@ -2987,6 +2976,33 @@
     eq(typeof str, 'object');
     eq(String(str), 'qwe');
     eq(str.q, 1);
+    if (descriptors) {
+      foo = {
+        baz: 1
+      };
+      assign(foo, defineProperty({}, 'bar', {
+        get: function(){
+          return this.baz + 1;
+        }
+      }));
+      ok(foo.bar === void 8, "assign don't copy descriptors");
+      c = Symbol('c');
+      d = Symbol('d');
+      D = (ref$ = {
+        a: 'a'
+      }, ref$[c] = 'c', ref$);
+      defineProperty(D, 'b', {
+        value: 'b'
+      });
+      defineProperty(D, d, {
+        value: 'd'
+      });
+      O = assign({}, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    }
   });
 }).call(this);
 
@@ -4333,9 +4349,6 @@
     sym = Symbol();
     ok(set(O, sym, 42) === O, 'Symbol.set return object');
     ok(O[sym] === 42, 'Symbol.set set value');
-    if (!isNative(Symbol) && descriptors) {
-      ok(getOwnPropertyDescriptor(O, sym).enumerable === false, 'Symbol.set set enumerable: false value');
-    }
   });
   test('Object.getOwnPropertySymbols', function(){
     var getOwnPropertySymbols, getOwnPropertyNames, obj, foo, ref$;
@@ -4356,6 +4369,126 @@
     eq(getOwnPropertySymbols(foo).length, 1);
   });
   if (descriptors) {
+    test('Descriptors', function(){
+      var defineProperty, getOwnPropertyDescriptor, d, e, f, O, ref$;
+      defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+      d = Symbol('d');
+      e = Symbol('e');
+      f = Symbol('f');
+      O = (ref$ = {
+        a: 'a'
+      }, ref$[d] = 'd', ref$);
+      defineProperty(O, 'b', {
+        value: 'b'
+      });
+      defineProperty(O, 'c', {
+        value: 'c',
+        enumerable: true
+      });
+      defineProperty(O, e, {
+        value: 'e'
+      });
+      defineProperty(O, f, {
+        value: 'f',
+        enumerable: true
+      });
+      deq(getOwnPropertyDescriptor(O, 'a'), {
+        configurable: true,
+        writable: true,
+        enumerable: true,
+        value: 'a'
+      });
+      deq(getOwnPropertyDescriptor(O, 'b'), {
+        configurable: false,
+        writable: false,
+        enumerable: false,
+        value: 'b'
+      });
+      deq(getOwnPropertyDescriptor(O, 'c'), {
+        configurable: false,
+        writable: false,
+        enumerable: true,
+        value: 'c'
+      });
+      deq(getOwnPropertyDescriptor(O, d), {
+        configurable: true,
+        writable: true,
+        enumerable: true,
+        value: 'd'
+      });
+      deq(getOwnPropertyDescriptor(O, e), {
+        configurable: false,
+        writable: false,
+        enumerable: false,
+        value: 'e'
+      });
+      deq(getOwnPropertyDescriptor(O, f), {
+        configurable: false,
+        writable: false,
+        enumerable: true,
+        value: 'f'
+      });
+      eq(Object.keys(O).length, 2);
+      eq(Object.getOwnPropertyNames(O).length, 3);
+      eq(Object.getOwnPropertySymbols(O).length, 3);
+      eq(Reflect.ownKeys(O).length, 6);
+    });
+    test('Object.defineProperties', function(){
+      var defineProperty, defineProperties, c, d, D, ref$, O;
+      defineProperty = Object.defineProperty, defineProperties = Object.defineProperties;
+      c = Symbol('c');
+      d = Symbol('d');
+      D = (ref$ = {
+        a: {
+          value: 'a'
+        }
+      }, ref$[c] = {
+        value: 'c'
+      }, ref$);
+      defineProperty(D, 'b', {
+        value: {
+          value: 'b'
+        }
+      });
+      defineProperty(D, d, {
+        value: {
+          value: 'd'
+        }
+      });
+      O = defineProperties({}, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    });
+    test('Object.create', function(){
+      var defineProperty, create, c, d, D, ref$, O;
+      defineProperty = Object.defineProperty, create = Object.create;
+      c = Symbol('c');
+      d = Symbol('d');
+      D = (ref$ = {
+        a: {
+          value: 'a'
+        }
+      }, ref$[c] = {
+        value: 'c'
+      }, ref$);
+      defineProperty(D, 'b', {
+        value: {
+          value: 'b'
+        }
+      });
+      defineProperty(D, d, {
+        value: {
+          value: 'd'
+        }
+      });
+      O = create(null, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    });
     for (i$ = 0, len$ = (ref$ = ['Array', 'RegExp', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise']).length; i$ < len$; ++i$) {
       key = ref$[i$];
       test(key + "@@species", fn$);

@@ -2766,8 +2766,8 @@
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
-    var assign, foo, str;
-    assign = core.Object.assign;
+    var ref$, assign, defineProperty, foo, str, c, d, D, O;
+    ref$ = core.Object, assign = ref$.assign, defineProperty = ref$.defineProperty;
     ok(toString$.call(assign).slice(8, -1) === 'Function', 'Is function');
     foo = {
       q: 1
@@ -2776,17 +2776,6 @@
       bar: 2
     }), 'assign return target');
     eq(foo.bar, 2, 'assign define properties');
-    if (descriptors) {
-      foo = {
-        baz: 1
-      };
-      assign(foo, core.Object.defineProperty({}, 'bar', {
-        get: function(){
-          return this.baz + 1;
-        }
-      }));
-      ok(foo.bar === void 8, "assign don't copy descriptors");
-    }
     deq(assign({}, {
       q: 1
     }, {
@@ -2816,6 +2805,33 @@
     eq(typeof str, 'object');
     eq(String(str), 'qwe');
     eq(str.q, 1);
+    if (descriptors) {
+      foo = {
+        baz: 1
+      };
+      assign(foo, defineProperty({}, 'bar', {
+        get: function(){
+          return this.baz + 1;
+        }
+      }));
+      ok(foo.bar === void 8, "assign don't copy descriptors");
+      c = core.Symbol('c');
+      d = core.Symbol('d');
+      D = (ref$ = {
+        a: 'a'
+      }, ref$[c] = 'c', ref$);
+      defineProperty(D, 'b', {
+        value: 'b'
+      });
+      defineProperty(D, d, {
+        value: 'd'
+      });
+      O = assign({}, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    }
   });
 }).call(this);
 
@@ -4085,6 +4101,128 @@
     deq(getOwnPropertyNames(foo), ['a', 's', 'd']);
     eq(getOwnPropertySymbols(foo).length, 1);
   });
+  if (descriptors) {
+    test('Descriptors', function(){
+      var ref$, defineProperty, getOwnPropertyDescriptor, d, e, f, O;
+      ref$ = core.Object, defineProperty = ref$.defineProperty, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor;
+      d = core.Symbol('d');
+      e = core.Symbol('e');
+      f = core.Symbol('f');
+      O = (ref$ = {
+        a: 'a'
+      }, ref$[d] = 'd', ref$);
+      defineProperty(O, 'b', {
+        value: 'b'
+      });
+      defineProperty(O, 'c', {
+        value: 'c',
+        enumerable: true
+      });
+      defineProperty(O, e, {
+        value: 'e'
+      });
+      defineProperty(O, f, {
+        value: 'f',
+        enumerable: true
+      });
+      deq(getOwnPropertyDescriptor(O, 'a'), {
+        configurable: true,
+        writable: true,
+        enumerable: true,
+        value: 'a'
+      });
+      deq(getOwnPropertyDescriptor(O, 'b'), {
+        configurable: false,
+        writable: false,
+        enumerable: false,
+        value: 'b'
+      });
+      deq(getOwnPropertyDescriptor(O, 'c'), {
+        configurable: false,
+        writable: false,
+        enumerable: true,
+        value: 'c'
+      });
+      deq(getOwnPropertyDescriptor(O, d), {
+        configurable: true,
+        writable: true,
+        enumerable: true,
+        value: 'd'
+      });
+      deq(getOwnPropertyDescriptor(O, e), {
+        configurable: false,
+        writable: false,
+        enumerable: false,
+        value: 'e'
+      });
+      deq(getOwnPropertyDescriptor(O, f), {
+        configurable: false,
+        writable: false,
+        enumerable: true,
+        value: 'f'
+      });
+      eq(core.Object.keys(O).length, 2);
+      eq(core.Object.getOwnPropertyNames(O).length, 3);
+      eq(core.Object.getOwnPropertySymbols(O).length, 3);
+      eq(core.Reflect.ownKeys(O).length, 6);
+    });
+    test('Object.defineProperties', function(){
+      var ref$, defineProperty, defineProperties, c, d, D, O;
+      ref$ = core.Object, defineProperty = ref$.defineProperty, defineProperties = ref$.defineProperties;
+      c = core.Symbol('c');
+      d = core.Symbol('d');
+      D = (ref$ = {
+        a: {
+          value: 'a'
+        }
+      }, ref$[c] = {
+        value: 'c'
+      }, ref$);
+      defineProperty(D, 'b', {
+        value: {
+          value: 'b'
+        }
+      });
+      defineProperty(D, d, {
+        value: {
+          value: 'd'
+        }
+      });
+      O = defineProperties({}, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    });
+    test('Object.create', function(){
+      var ref$, defineProperty, create, c, d, D, O;
+      ref$ = core.Object, defineProperty = ref$.defineProperty, create = ref$.create;
+      c = core.Symbol('c');
+      d = core.Symbol('d');
+      D = (ref$ = {
+        a: {
+          value: 'a'
+        }
+      }, ref$[c] = {
+        value: 'c'
+      }, ref$);
+      defineProperty(D, 'b', {
+        value: {
+          value: 'b'
+        }
+      });
+      defineProperty(D, d, {
+        value: {
+          value: 'd'
+        }
+      });
+      O = create(null, D);
+      eq(O.a, 'a', 'a');
+      eq(O.b, void 8, 'b');
+      eq(O[c], 'c', 'c');
+      eq(O[d], void 8, 'd');
+    });
+  }
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;

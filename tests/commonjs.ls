@@ -1,6 +1,9 @@
 {ok} = require \assert
 for P in <[.. ../library]>
   ok require("#P/fn/object/assign")({q: 1}, {w: 2}).w is 2
+  ok require("#P/fn/object/create")(Array.prototype) instanceof Array
+  ok require("#P/fn/object/define-property")({}, \a, value: 42).a is 42
+  ok require("#P/fn/object/define-properties")({}, {a: value: 42}).a is 42
   ok require("#P/fn/object/freeze") {}
   ok require("#P/fn/object/get-own-property-descriptor")({q: 1}, \q).enumerable
   ok require("#P/fn/object/get-own-property-names")(q : 42).0 is \q

@@ -62,3 +62,55 @@ test 'Object.getOwnPropertySymbols' !->
   foo[Symbol()] = 44
   deq getOwnPropertyNames(foo), <[a s d]>
   eq getOwnPropertySymbols(foo).length, 1
+
+if descriptors
+  test 'Descriptors' !->
+    {defineProperty, getOwnPropertyDescriptor} = core.Object
+    d = core.Symbol \d
+    e = core.Symbol \e
+    f = core.Symbol \f
+    O = a: \a, (d): \d
+    defineProperty O, \b, value: \b
+    defineProperty O, \c, value: \c, enumerable: on
+    defineProperty O, e, value: \e
+    defineProperty O, f, value: \f, enumerable: on
+    deq getOwnPropertyDescriptor(O, \a), {configurable: on, writable:on, enumerable: on, value: \a}
+    deq getOwnPropertyDescriptor(O, \b), {configurable: no, writable:no, enumerable: no, value: \b}
+    deq getOwnPropertyDescriptor(O, \c), {configurable: no, writable:no, enumerable: on, value: \c}
+    deq getOwnPropertyDescriptor(O, d), {configurable: on, writable:on, enumerable: on, value: \d}
+    deq getOwnPropertyDescriptor(O, e), {configurable: no, writable:no, enumerable: no, value: \e}
+    deq getOwnPropertyDescriptor(O, f), {configurable: no, writable:no, enumerable: on, value: \f}
+    eq core.Object.keys(O).length, 2
+    eq core.Object.getOwnPropertyNames(O).length, 3
+    eq core.Object.getOwnPropertySymbols(O).length, 3
+    eq core.Reflect.ownKeys(O).length, 6
+  test 'Object.defineProperties' !->
+    {defineProperty, defineProperties} = core.Object
+    c = core.Symbol \c
+    d = core.Symbol \d
+    D = {
+      a: value: \a
+      (c): value: \c
+    }
+    defineProperty D, \b, value: value: \b
+    defineProperty D, d, value: value: \d
+    O = defineProperties {}, D
+    eq O.a, \a, \a
+    eq O.b, void, \b
+    eq O[c], \c, \c
+    eq O[d], void, \d
+  test 'Object.create' !->
+    {defineProperty, create} = core.Object
+    c = core.Symbol \c
+    d = core.Symbol \d
+    D = {
+      a: value: \a
+      (c): value: \c
+    }
+    defineProperty D, \b, value: value: \b
+    defineProperty D, d, value: value: \d
+    O = create null, D
+    eq O.a, \a, \a
+    eq O.b, void, \b
+    eq O[c], \c, \c
+    eq O[d], void, \d

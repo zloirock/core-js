@@ -51,8 +51,6 @@ test '.set' !->
   sym = Symbol!
   ok set(O, sym, 42) is O, 'Symbol.set return object'
   ok O[sym] is 42, 'Symbol.set set value'
-  if !isNative(Symbol) && descriptors
-    ok getOwnPropertyDescriptor(O, sym).enumerable is false, 'Symbol.set set enumerable: false value'
 
 test 'Object.getOwnPropertySymbols' !->
   {getOwnPropertySymbols, getOwnPropertyNames} = Object
@@ -67,8 +65,60 @@ test 'Object.getOwnPropertySymbols' !->
   deq getOwnPropertyNames(foo), <[a s d]>
   eq getOwnPropertySymbols(foo).length, 1
 
-if descriptors => for key in <[Array RegExp Map Set WeakMap WeakSet Promise]> 
-  test "#key@@species" !->
-    eq G[key][Symbol.species], G[key], "#key@@species === #key"
-    C = Object.create G[key]
-    eq C[Symbol.species], C, "#key sub"
+if descriptors
+  test 'Descriptors' !->
+    {defineProperty, getOwnPropertyDescriptor} = Object
+    d = Symbol \d
+    e = Symbol \e
+    f = Symbol \f
+    O = a: \a, (d): \d
+    defineProperty O, \b, value: \b
+    defineProperty O, \c, value: \c, enumerable: on
+    defineProperty O, e, value: \e
+    defineProperty O, f, value: \f, enumerable: on
+    deq getOwnPropertyDescriptor(O, \a), {configurable: on, writable:on, enumerable: on, value: \a}
+    deq getOwnPropertyDescriptor(O, \b), {configurable: no, writable:no, enumerable: no, value: \b}
+    deq getOwnPropertyDescriptor(O, \c), {configurable: no, writable:no, enumerable: on, value: \c}
+    deq getOwnPropertyDescriptor(O, d), {configurable: on, writable:on, enumerable: on, value: \d}
+    deq getOwnPropertyDescriptor(O, e), {configurable: no, writable:no, enumerable: no, value: \e}
+    deq getOwnPropertyDescriptor(O, f), {configurable: no, writable:no, enumerable: on, value: \f}
+    eq Object.keys(O).length, 2
+    eq Object.getOwnPropertyNames(O).length, 3
+    eq Object.getOwnPropertySymbols(O).length, 3
+    eq Reflect.ownKeys(O).length, 6
+  test 'Object.defineProperties' !->
+    {defineProperty, defineProperties} = Object
+    c = Symbol \c
+    d = Symbol \d
+    D = {
+      a: value: \a
+      (c): value: \c
+    }
+    defineProperty D, \b, value: value: \b
+    defineProperty D, d, value: value: \d
+    O = defineProperties {}, D
+    eq O.a, \a, \a
+    eq O.b, void, \b
+    eq O[c], \c, \c
+    eq O[d], void, \d
+  test 'Object.create' !->
+    {defineProperty, create} = Object
+    c = Symbol \c
+    d = Symbol \d
+    D = {
+      a: value: \a
+      (c): value: \c
+    }
+    defineProperty D, \b, value: value: \b
+    defineProperty D, d, value: value: \d
+    O = create null, D
+    eq O.a, \a, \a
+    eq O.b, void, \b
+    eq O[c], \c, \c
+    eq O[d], void, \d
+
+  for key in <[Array RegExp Map Set WeakMap WeakSet Promise]> 
+    test "#key@@species" !->
+      eq G[key][Symbol.species], G[key], "#key@@species === #key"
+      C = Object.create G[key]
+      eq C[Symbol.species], C, "#key sub"
