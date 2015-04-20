@@ -1166,7 +1166,7 @@
     ok(foo.w === 2);
     if (function(){
       try {
-        return 2 === Object.defineProperty({}, 'a', {
+        return 2 === core.Object.defineProperty({}, 'a', {
           get: function(){
             return 2;
           }
