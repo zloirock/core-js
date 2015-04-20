@@ -2,7 +2,7 @@
 var $         = require('./$')
   , safe      = require('./$.uid').safe
   , assert    = require('./$.assert')
-  , forOf     = require('./$.iter').forOf
+  , forOf     = require('./$.for-of')
   , _has      = $.has
   , isObject  = $.isObject
   , hide      = $.hide

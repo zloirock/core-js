@@ -1,6 +1,5 @@
 'use strict';
 var $                 = require('./$')
-  , ctx               = require('./$.ctx')
   , cof               = require('./$.cof')
   , $def              = require('./$.def')
   , assertObject      = require('./$.assert').obj
@@ -97,16 +96,6 @@ var $iter = module.exports = {
       $def($def.P + $def.F * BUGGY, NAME, methods);
       if(FORCE)for(key in methods){
         if(!(key in proto))$.hide(proto, key, methods[key]);
-      }
-    }
-  },
-  forOf: function(iterable, entries, fn, that){
-    var iterator = getIterator(iterable)
-      , f = ctx(fn, that, entries ? 2 : 1)
-      , step;
-    while(!(step = iterator.next()).done){
-      if(stepCall(iterator, f, step.value, entries) === false){
-        return closeIterator(iterator);
       }
     }
   }

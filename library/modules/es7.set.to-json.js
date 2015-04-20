@@ -1,6 +1,6 @@
 // https://github.com/DavidBruant/Map-Set.prototype.toJSON
 var $def  = require('./$.def')
-  , forOf = require('./$.iter').forOf;
+  , forOf = require('./$.for-of');
 $def($def.P, 'Set', {
   toJSON: function toJSON(){
     var arr = [];

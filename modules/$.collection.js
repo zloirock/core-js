@@ -2,6 +2,7 @@
 var $     = require('./$')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
+  , forOf = require('./$.for-of')
   , assertInstance = require('./$.assert').inst;
 
 module.exports = function(NAME, methods, common, IS_MAP, isWeak){
@@ -30,7 +31,7 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
       C = function(iterable){
         assertInstance(this, C, NAME);
         var that = new Base;
-        if(iterable != undefined)$iter.forOf(iterable, IS_MAP, that[ADDER], that);
+        if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       };
       C.prototype = proto;

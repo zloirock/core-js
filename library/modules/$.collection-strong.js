@@ -3,12 +3,12 @@ var $        = require('./$')
   , ctx      = require('./$.ctx')
   , safe     = require('./$.uid').safe
   , assert   = require('./$.assert')
-  , $iter    = require('./$.iter')
+  , forOf    = require('./$.for-of')
   , has      = $.has
   , set      = $.set
   , isObject = $.isObject
   , hide     = $.hide
-  , step     = $iter.step
+  , step     = require('./$.iter').step
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , ID       = safe('id')
   , O1       = safe('O1')
@@ -50,7 +50,7 @@ module.exports = {
       set(that, SIZE, 0);
       set(that, LAST, undefined);
       set(that, FIRST, undefined);
-      if(iterable != undefined)$iter.forOf(iterable, IS_MAP, that[ADDER], that);
+      if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
     }
     $.mix(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
