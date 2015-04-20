@@ -8,7 +8,7 @@ var $       = require('./$')
   , ENTRIES = safe('entries')
   , FN      = safe('fn')
   , ITER    = safe('iter')
-  , stepCall       = $iter.stepCall
+  , call    = require('./$.iter-call')
   , getIterator    = $iter.get
   , setIterator    = $iter.set
   , createIterator = $iter.create;
@@ -41,13 +41,13 @@ var MapIter = createChainIterator(function(){
   var step = this[ITER].next();
   return step.done
     ? step
-    : $iter.step(0, stepCall(this[ITER], this[FN], step.value, this[ENTRIES]));
+    : $iter.step(0, call(this[ITER], this[FN], step.value, this[ENTRIES]));
 });
 
 var FilterIter = createChainIterator(function(){
   for(;;){
     var step = this[ITER].next();
-    if(step.done || stepCall(this[ITER], this[FN], step.value, this[ENTRIES]))return step;
+    if(step.done || call(this[ITER], this[FN], step.value, this[ENTRIES]))return step;
   }
 });
 

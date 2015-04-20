@@ -2,7 +2,7 @@ var $     = require('./$')
   , ctx   = require('./$.ctx')
   , $def  = require('./$.def')
   , $iter = require('./$.iter')
-  , stepCall = $iter.stepCall;
+  , call  = require('./$.iter-call');
 $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
@@ -17,7 +17,7 @@ $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(it
       // strange IE quirks mode bug -> use typeof instead of isFunction
       result   = new (typeof this == 'function' ? this : Array);
       for(; !(step = iterator.next()).done; index++){
-        result[index] = mapping ? stepCall(iterator, f, [step.value, index], true) : step.value;
+        result[index] = mapping ? call(iterator, f, [step.value, index], true) : step.value;
       }
     } else {
       // strange IE quirks mode bug -> use typeof instead of isFunction

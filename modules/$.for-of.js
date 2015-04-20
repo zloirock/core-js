@@ -1,13 +1,13 @@
-var ctx   = require('./$.ctx')
-  , $iter = require('./$.iter')
-  , stepCall = $iter.stepCall;
+var ctx  = require('./$.ctx')
+  , get  = require('./$.iter').get
+  , call = require('./$.iter-call');
 module.exports = function(iterable, entries, fn, that){
-  var iterator = $iter.get(iterable)
-    , f = ctx(fn, that, entries ? 2 : 1)
+  var iterator = get(iterable)
+    , f        = ctx(fn, that, entries ? 2 : 1)
     , step;
   while(!(step = iterator.next()).done){
-    if(stepCall(iterator, f, step.value, entries) === false){
-      return $iter.close(iterator);
+    if(call(iterator, f, step.value, entries) === false){
+      return call.close(iterator);
     }
   }
 };

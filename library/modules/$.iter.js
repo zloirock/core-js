@@ -40,18 +40,6 @@ function getIterator(it){
     , getIter = ext || it[SYMBOL_ITERATOR] || Iterators[cof.classof(it)];
   return assertObject(getIter.call(it));
 }
-function closeIterator(iterator){
-  var ret = iterator['return'];
-  if(ret !== undefined)assertObject(ret.call(iterator));
-}
-function stepCall(iterator, fn, value, entries){
-  try {
-    return entries ? fn(assertObject(value)[0], value[1]) : fn(value);
-  } catch(e){
-    closeIterator(iterator);
-    throw e;
-  }
-}
 var $iter = module.exports = {
   BUGGY: BUGGY,
   Iterators: Iterators,
@@ -59,8 +47,6 @@ var $iter = module.exports = {
   step: function(done, value){
     return {value: value, done: !!done};
   },
-  stepCall: stepCall,
-  close: closeIterator,
   is: function(it){
     var O      = Object(it)
       , Symbol = $.g.Symbol
