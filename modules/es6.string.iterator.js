@@ -5,7 +5,7 @@ var set   = require('./$').set
   , step  = $iter.step;
 
 // 21.1.3.27 String.prototype[@@iterator]()
-$iter.std(String, 'String', function(iterated){
+require('./$.iter-define')(String, 'String', function(iterated){
   set(this, ITER, {o: String(iterated), i: 0});
 // 21.1.5.2.1 %StringIteratorPrototype%.next()
 }, function(){

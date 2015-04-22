@@ -40,8 +40,8 @@ $iter.create(DictIterator, 'Dict', function(){
       return step(1);
     }
   } while(!has(O, key = keys[iter.i++]));
-  if(kind == 'key'  )return step(0, key);
-  if(kind == 'value')return step(0, O[key]);
+  if(kind == 'keys'  )return step(0, key);
+  if(kind == 'values')return step(0, O[key]);
   return step(0, [key, O[key]]);
 });
 function createDictIter(kind){
@@ -116,9 +116,9 @@ function createDictReduce(IS_TURN){
 var findKey = createDictMethod(6);
 
 $def($def.G + $def.F, {Dict: $.mix(Dict, {
-  keys:     createDictIter('key'),
-  values:   createDictIter('value'),
-  entries:  createDictIter('key+value'),
+  keys:     createDictIter('keys'),
+  values:   createDictIter('values'),
+  entries:  createDictIter('entries'),
   forEach:  createDictMethod(0),
   map:      createDictMethod(1),
   filter:   createDictMethod(2),

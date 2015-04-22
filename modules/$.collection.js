@@ -1,11 +1,11 @@
 'use strict';
 var $     = require('./$')
   , $def  = require('./$.def')
-  , $iter = require('./$.iter')
+  , BUGGY = require('./$.iter').BUGGY
   , forOf = require('./$.for-of')
   , assertInstance = require('./$.assert').inst;
 
-module.exports = function(NAME, methods, common, IS_MAP, isWeak){
+module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
   var Base  = $.g[NAME]
     , C     = Base
     , ADDER = IS_MAP ? 'set' : 'add'
@@ -18,13 +18,13 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
       return CHAIN ? this : result;
     };
   }
-  if(!$.isFunction(C) || !(isWeak || !$iter.BUGGY && proto.forEach && proto.entries)){
+  if(!$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = common.getConstructor(NAME, IS_MAP, ADDER);
     $.mix(C.prototype, methods);
   } else {
     var inst  = new C
-      , chain = inst[ADDER](isWeak ? {} : -0, 1)
+      , chain = inst[ADDER](IS_WEAK ? {} : -0, 1)
       , buggyZero;
     // wrap for init collections from iterable
     if(!require('./$.iter-detect')(function(iter){ new C(iter); })){ // eslint-disable-line no-new
@@ -37,7 +37,7 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
       C.prototype = proto;
       if($.FW)proto.constructor = C;
     }
-    isWeak || inst.forEach(function(val, key){
+    IS_WEAK || inst.forEach(function(val, key){
       buggyZero = 1 / key === -Infinity;
     });
     // fix converting -0 key to +0
@@ -56,13 +56,7 @@ module.exports = function(NAME, methods, common, IS_MAP, isWeak){
   O[NAME] = C;
   $def($def.G + $def.W + $def.F * (C != Base), O);
 
-  // add .keys, .values, .entries, [@@iterator]
-  // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-  if(!isWeak)$iter.std(
-    C, NAME,
-    common.getIterConstructor(), common.next,
-    IS_MAP ? 'key+value' : 'value' , !IS_MAP, true
-  );
+  if(!IS_WEAK)common.setIter(C, NAME, IS_MAP);
 
   return C;
 };

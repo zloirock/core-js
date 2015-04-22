@@ -4,11 +4,11 @@ var $        = require('./$')
   , safe     = require('./$.uid').safe
   , assert   = require('./$.assert')
   , forOf    = require('./$.for-of')
+  , step     = require('./$.iter').step
   , has      = $.has
   , set      = $.set
   , isObject = $.isObject
   , hide     = $.hide
-  , step     = require('./$.iter').step
   , isFrozen = Object.isFrozen || $.core.Object.isFrozen
   , ID       = safe('id')
   , O1       = safe('O1')
@@ -129,26 +129,27 @@ module.exports = {
     } return that;
   },
   getEntry: getEntry,
-  getIterConstructor: function(){
-    return function(iterated, kind){
+  // add .keys, .values, .entries, [@@iterator]
+  // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
+  setIter: function(C, NAME, IS_MAP){
+    require('./$.iter-define')(C, NAME, function(iterated, kind){
       set(this, ITER, {o: iterated, k: kind});
-    };
-  },
-  next: function(){
-    var iter  = this[ITER]
-      , kind  = iter.k
-      , entry = iter.l;
-    // revert to the last existing entry
-    while(entry && entry.r)entry = entry.p;
-    // get next entry
-    if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
-      // or finish the iteration
-      iter.o = undefined;
-      return step(1);
-    }
-    // return step by kind
-    if(kind == 'key'  )return step(0, entry.k);
-    if(kind == 'value')return step(0, entry.v);
-    return step(0, [entry.k, entry.v]);
+    }, function(){
+      var iter  = this[ITER]
+        , kind  = iter.k
+        , entry = iter.l;
+      // revert to the last existing entry
+      while(entry && entry.r)entry = entry.p;
+      // get next entry
+      if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
+        // or finish the iteration
+        iter.o = undefined;
+        return step(1);
+      }
+      // return step by kind
+      if(kind == 'keys'  )return step(0, entry.k);
+      if(kind == 'values')return step(0, entry.v);
+      return step(0, [entry.k, entry.v]);
+    }, IS_MAP ? 'entries' : 'values' , !IS_MAP, true);
   }
 };
