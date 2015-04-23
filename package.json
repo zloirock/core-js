@@ -30,7 +30,7 @@
   "scripts": {
     "lint": "eslint es5 es6 es7 js web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter",
-    "test": "npm run lint && grunt karma:continuous && npm run promises-tests"
+    "test": "npm run lint && grunt client livescript karma:continuous && npm run promises-tests"
   },
   "license": "MIT",
   "keywords": [
