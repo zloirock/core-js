@@ -172,6 +172,7 @@ for P in <[.. ../library]>
   ok \escape of require("#P/es7/regexp")
   ok \at of require("#P/es7/string")
   require("#P/es7/set")
+  require("#P/es7/map")
   ok \Array of require("#P/es7")
   ok \map of require("#P/js/array")
   ok \Array of require("#P/js")
