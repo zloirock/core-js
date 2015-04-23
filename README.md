@@ -2,6 +2,8 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+[![Build Status][1]][2]
+
 Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict), [extended partial application](#partial-application), [console cap](#console), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
@@ -1517,3 +1519,6 @@ delay(1e3).then(() => log('after 1 sec'));
 
 ##### 0.1.1 - 2014.11.18
   * public release
+
+[1]: https://travis-ci.org/zloirock/core-js.png
+[2]: https://travis-ci.org/zloirock/core-js
