@@ -131,8 +131,10 @@ function getOwnPropertySymbols(it){
 }
 
 if(Symbol != Base){
+  $.create     = create;
   $.setDesc    = defineProperty;
   $.getDesc    = getOwnPropertyDescriptor;
+  $.setDescs   = defineProperties;
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 }

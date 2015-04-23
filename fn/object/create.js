@@ -1,2 +1,4 @@
-require('../../modules/es6.symbol');
-module.exports = require('../../modules/$').core.Object.create;
+var $ = require('../../modules/$');
+module.exports = function create(P, D){
+  return $.create(P, D);
+};

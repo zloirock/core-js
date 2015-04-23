@@ -11,10 +11,10 @@ var $                = require('./$')
   , slice            = A.slice
   , indexOf          = A.indexOf
   , classof          = cof.classof
-  , defineProperties = Object.defineProperties
   , has              = $.has
   , defineProperty   = $.setDesc
   , getOwnDescriptor = $.getDesc
+  , defineProperties = $.setDescs
   , isFunction       = $.isFunction
   , toObject         = $.toObject
   , toLength         = $.toLength
@@ -40,7 +40,7 @@ if(!$.DESC){
     } catch(e){ /* empty */ }
     if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
   };
-  defineProperties = function(O, Properties){
+  $.setDescs = defineProperties = function(O, Properties){
     assertObject(O);
     var keys   = $.getKeys(Properties)
       , length = keys.length

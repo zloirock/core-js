@@ -79,6 +79,7 @@ var $ = module.exports = require('./$.fw')({
   desc:       desc,
   getDesc:    Object.getOwnPropertyDescriptor,
   setDesc:    defineProperty,
+  setDescs:   Object.defineProperties,
   getKeys:    Object.keys,
   getNames:   Object.getOwnPropertyNames,
   getSymbols: Object.getOwnPropertySymbols,

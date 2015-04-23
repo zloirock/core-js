@@ -1,2 +1,4 @@
-require('../../modules/es6.symbol');
-module.exports = require('../../modules/$').core.Object.defineProperties;
+var $ = require('../../modules/$');
+module.exports = function defineProperties(T, D){
+  return $.setDescs(T, D);
+};
