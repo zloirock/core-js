@@ -5,6 +5,7 @@ module.exports = (grunt)->
   grunt.loadNpmTasks \grunt-contrib-uglify
   grunt.loadNpmTasks \grunt-contrib-watch
   grunt.loadNpmTasks \grunt-livescript
+  grunt.loadNpmTasks \grunt-karma
   grunt.initConfig do
     pkg: grunt.file.readJSON './package.json'
     uglify: build:
@@ -35,6 +36,13 @@ module.exports = (grunt)->
       tests:
         files: './tests/tests/*'
         tasks: \livescript
+    karma:
+      unit:
+        configFile: './tests/karma.conf.js'
+      continuous:
+        configFile: './tests/karma.conf.js'
+        singleRun: true
+        browsers: ['PhantomJS']
   grunt.registerTask \build (options)->
     done = @async!
     <- build {modules: (options || 'es5,es6,es7,js,web,core').split(\,), blacklist: (grunt.option(\blacklist) || '').split(\,), library: !!grunt.option(\library)}
