@@ -240,7 +240,11 @@ function lz(num){
   return num > 9 ? num : '0' + num;
 }
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
-$def($def.P, 'Date', {toISOString: function(){
+function brokenDate() {
+  // PhantomJS and old webkit had a broken Date implementation.
+  return new Date(-5e13 - 1).toISOString() !== '0385-07-25T07:06:39.999Z';
+}
+$def($def.P + $def.F * brokenDate(), 'Date', {toISOString: function(){
   if(!isFinite(this))throw RangeError('Invalid time value');
   var d = this
     , y = d.getUTCFullYear()
