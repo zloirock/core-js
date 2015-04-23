@@ -6,7 +6,7 @@ eq = strictEqual
 
 test 'Object#toString' !->
   {toString} = Object::
-  if (-> @).call(void) is void and not /PhantomJS/.test window?navigator?userAgent
+  if (-> @).call(void) is void
     eq toString.call(null), '[object Null]', 'classof null is `Null`'
     eq toString.call(void), '[object Undefined]', 'classof void is `Undefined`'
   eq toString.call(true), '[object Boolean]', 'classof bool is `Boolean`'

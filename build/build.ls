@@ -97,6 +97,7 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
   next """
     #banner
     !function(undefined){
+    'use strict';
     var __e = null, __g = null;
     
     #script
