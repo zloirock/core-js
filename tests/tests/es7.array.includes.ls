@@ -14,7 +14,7 @@ test '*' !->
   ok !arr.includes {}
   ok Array(1)includes void
   ok [NaN].includes(NaN)
-  if typeof (-> @).call(void) is \undefined
-    throws (-> Array::includes.call null, 0), TypeError
-    throws (-> Array::includes.call void, 0), TypeError
+  if typeof (-> @).call(void) is \undefined and not /PhantomJS/.test window?navigator?userAgent
+    throws (-> Array::includes.call null, 0), TypeError, 'strict mode, null'
+    throws (-> Array::includes.call void, 0), TypeError, 'strict mode, undefined'
   ok \includes of Array::[Symbol.unscopables], 'In Array#@@unscopables'

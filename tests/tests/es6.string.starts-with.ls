@@ -16,7 +16,7 @@ test '*' !->
   ok not 'abc'startsWith \a Infinity
   ok 'abc'startsWith \b on
   ok 'abc'startsWith \a \x
-  if (-> @).call(void) is void
+  if (-> @).call(void) is void and not /PhantomJS/.test window?navigator?userAgent
     throws (-> String::startsWith.call null, '.'), TypeError
     throws (-> String::startsWith.call void, '.'), TypeError
   throws (-> 'qwe'startsWith /./), TypeError

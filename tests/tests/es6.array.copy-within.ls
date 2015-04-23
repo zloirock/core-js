@@ -19,7 +19,7 @@ test '*' !->
   deq [1 2 3 4 5]copyWithin(-4 -3 -2), [1 3 3 4 5]
   deq [1 2 3 4 5]copyWithin(-4 -3 -1), [1 3 4 4 5]
   deq [1 2 3 4 5]copyWithin(-4 -3), [1 3 4 5 5]
-  if (-> @).call(void) is void
+  if (-> @).call(void) is void and not /PhantomJS/.test window?navigator?userAgent
     throws (-> Array::copyWithin.call null, 0), TypeError
     throws (-> Array::copyWithin.call void, 0), TypeError
   ok \copyWithin of Array::[Symbol.unscopables], 'In Array#@@unscopables'
