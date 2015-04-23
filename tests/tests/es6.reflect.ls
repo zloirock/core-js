@@ -7,6 +7,13 @@ deq = deepEqual
 isFunction = -> typeof! it is \Function
 
 MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+REAL_FREEZE = (->
+  'use strict';
+  x = Object.freeze({})
+  try
+    x.f=true
+  x.f
+)!
 
 test \Reflect !->
   ok Reflect?, 'Reflect is defined'
@@ -196,4 +203,5 @@ if '__proto__' of Object:: => test 'Reflect.setPrototypeOf' !->
   throws (-> Reflect.setPrototypeOf {}, 42), TypeError
   throws (-> Reflect.setPrototypeOf 42, {}), TypeError, 'throws on primitive'
   ok Reflect.setPrototypeOf(o = {}, o) is no, 'false on recursive __proto__'
-  ok Reflect.setPrototypeOf(Object.freeze({}), {}) is no, 'false on frozen object'
+  if REAL_FREEZE
+    ok Reflect.setPrototypeOf(Object.freeze({}), {}) is no, 'false on frozen object'
