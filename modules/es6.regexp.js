@@ -3,12 +3,22 @@ var $      = require('./$')
   , RegExp = $.g.RegExp
   , Base   = RegExp
   , proto  = RegExp.prototype;
+function regExpBroken() {
+  try {
+    var a = /a/g;
+    // "new" creates a new object
+    if (a === new RegExp(a)) { return true; }
+    // RegExp allows a regex with flags as the pattern
+    return RegExp(/a/g, 'i') != '/a/i';
+  } catch(e) {
+    return true;
+  }
+}
 if($.FW && $.DESC){
-  // RegExp allows a regex with flags as the pattern
-  if(!function(){try{ return RegExp(/a/g, 'i') == '/a/i'; }catch(e){ /* empty */ }}()){
+  if(regExpBroken()) {
     RegExp = function RegExp(pattern, flags){
-      return new Base(cof(pattern) == 'RegExp' && flags !== undefined
-        ? pattern.source : pattern, flags);
+      return new Base(cof(pattern) == 'RegExp' ? pattern.source : pattern,
+        flags === undefined ? pattern.flags : flags);
     };
     $.each.call($.getNames(Base), function(key){
       key in RegExp || $.setDesc(RegExp, key, {
