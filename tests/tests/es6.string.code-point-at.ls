@@ -56,6 +56,6 @@ test '*' !->
   eq '\uDF06abc'codePointAt(NaN), 0xDF06
   eq '\uDF06abc'codePointAt(null), 0xDF06
   eq '\uDF06abc'codePointAt(void), 0xDF06
-  if (-> @).call(void) is void and not /PhantomJS/.test window?navigator?userAgent
+  if (-> @).call(void) is void
     throws (-> String::codePointAt.call null, 0), TypeError
     throws (-> String::codePointAt.call void, 0), TypeError

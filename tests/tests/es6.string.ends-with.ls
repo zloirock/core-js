@@ -17,7 +17,7 @@ test '*' !->
   ok 'abc'endsWith \a on
   ok not 'abc'endsWith \c \x
   ok not 'abc'endsWith \a \x
-  if (-> @).call(void) is void and not /PhantomJS/.test window?navigator?userAgent
+  if (-> @).call(void) is void
     throws (-> String::endsWith.call null, '.'), TypeError
     throws (-> String::endsWith.call void, '.'), TypeError
   throws (-> 'qwe'endsWith /./), TypeError
