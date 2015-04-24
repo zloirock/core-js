@@ -5,6 +5,7 @@ var $       = require('./$')
   , $def    = require('./$.def')
   , assert  = require('./$.assert')
   , forOf   = require('./$.for-of')
+  , setProto = require('./$.set-proto')
   , SPECIES = require('./$.wks')('species')
   , RECORD  = require('./$.uid').safe('record')
   , PROMISE = 'Promise'
@@ -15,6 +16,7 @@ var $       = require('./$')
   , Base    = P
   , isFunction     = $.isFunction
   , isObject       = $.isObject
+  , $create        = $.create
   , assertFunction = assert.fn
   , assertObject   = assert.obj
   , test;
@@ -107,7 +109,27 @@ function $resolve(value){
 }
 
 // constructor polyfill
-if(!(isFunction(P) && isFunction(P.resolve) && P.resolve(test = new P(function(){})) == test)){
+var workingPromise = isFunction(P) && isFunction(P.resolve) &&
+  P.resolve(test = new P(function(){})) == test;
+// Firefox ~33 had broken subclass support, test that.
+if (workingPromise){
+  try { // protect against bad/buggy Object.setPrototype
+    var P2 = function(x) {
+      var self = new P(x);
+      setProto.set(self, P2.prototype);
+      return self;
+    };
+    setProto.set(P2, P);
+    P2.prototype = $create(P.prototype);
+    P2.prototype.constructor = P2;
+    if (!(P2.resolve(5).then(function(){}) instanceof P2)) {
+      workingPromise = false;
+    }
+  } catch (e) {
+    workingPromise = false;
+  }
+}
+if(!workingPromise){
   // 25.4.3.1 Promise(executor)
   P = function Promise(executor){
     assertFunction(executor);
