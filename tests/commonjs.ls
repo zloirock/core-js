@@ -193,4 +193,4 @@ for P in <[.. ../library]>
   ok \define of require("#P/core/object")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
-console.log \OK
+console.log 'CommonJS - OK'
