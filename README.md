@@ -1,4 +1,4 @@
-# core-js <sup>[![version](http://vb.teelaun.ch/zloirock/core-js.svg)](https://www.npmjs.org/package/core-js/)</sup>
+# core-js<sup>[![version](http://vb.teelaun.ch/zloirock/core-js.svg)](https://www.npmjs.org/package/core-js/)</sup>
 
 [![NPM](https://nodei.co/npm/core-js.png?downloads=true)](https://www.npmjs.org/package/core-js/)
 
@@ -768,7 +768,7 @@ instance.c; // => 42
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
-* `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - module `es7.set.to-json`
+* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON), [fix](https://github.com/DavidBruant/Map-Set.prototype.toJSON/issues/1#issuecomment-83794192) - modules `es7.map.to-json`, `es7.set.to-json`
 
 ```javascript
 Array
@@ -781,6 +781,8 @@ Object
   .getOwnPropertyDescriptors(object) -> object
 RegExp
   .escape(str) -> str
+Map
+  #toJSON() -> array
 Set
   #toJSON() -> array
 ```
@@ -808,7 +810,8 @@ Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
 RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
 
-JSON.stringify(new Set([1, 2, 3, 2, 1])); // => '[1,2,3]'
+JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
+JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
 ```
 ### Mozilla JavaScript: Array generics
 Module `js.array.statics`.
@@ -1142,13 +1145,10 @@ Dict.turn(dict, function(memo, it, key){
 }, []); // => ['a1', 'c3']
 ```
 ### Partial application
-Module `core.binding`.
+Module `core.function.part`.
 ```javascript
 Function
   #part(...args | _) -> fn(...args)
-  #only(num, that /* = @ */) -> (fn | boundFn)(...args)
-Object
-  #[_](key) -> boundFn
 ```
 `Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without global namespace pollution) as placeholder and not conflict with `Underscore` / `LoDash`. [Examples](http://goo.gl/p9ZJ8K):
 ```javascript
@@ -1163,25 +1163,6 @@ fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
-```
-Method `Object#[_]` extracts bound method from object, [examples](http://goo.gl/dQsSTi):
-```javascript
-['foobar', 'foobaz', 'barbaz'].filter(/bar/[_]('test')); // => ['foobar', 'barbaz']
-
-var has = {}.hasOwnProperty[_]('call');
-
-log(has({key: 42}, 'foo')); // => false
-log(has({key: 42}, 'key')); // => true
-
-var array = []
-  , push  = array[_]('push');
-push(1);
-push(2, 3);
-log(array); // => [1, 2, 3];
-```
-Method `Function#only` limits number of arguments. [Example](http://goo.gl/ROgBsL):
-```javascript
-[1, 2, 3].forEach(log.only(1)); // => 1, 2, 3
 ```
 ### Date formatting
 Module `core.date`. Much more simple and compact (~60 lines with `en` & `ru` locales) than [Intl](https://github.com/andyearnshaw/Intl.js) or [Moment.js](http://momentjs.com/). Use them if you need extended work with `Date`.
@@ -1311,6 +1292,15 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.0 - 2015.04.24
+  * added correct [symbols](#ecmascript-6-symbols) descriptors
+    * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
+    * added [single entry points](#commonjs) for `Object.{create, defineProperty, defineProperties}`
+  * added [`Map#toJSON`](#ecmascript-7)
+  * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows, in near future will be available [bind syntax](https://github.com/zenparsing/es-function-bind)
+  * removed non-standard undocumented methods `Symbol.{pure, set}`
+  * some fixes and internal changes
+
 ##### 0.8.4 - 2015.04.18
   * uses `webpack` instead of `browserify` for browser builds - more compression-friendly result
 
