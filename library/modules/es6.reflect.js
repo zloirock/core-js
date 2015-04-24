@@ -13,14 +13,16 @@ var $         = require('./$')
   , assertObject  = assert.obj
   , _isExtensible = Object.isExtensible || $.it;
 function Enumerate(iterated){
-  var keys = [], key;
-  for(key in iterated)keys.push(key);
-  $.set(this, ITER, {o: iterated, a: keys, i: 0});
+  $.set(this, ITER, {o: iterated, k: undefined, i: 0});
 }
 $iter.create(Enumerate, 'Object', function(){
   var iter = this[ITER]
-    , keys = iter.a
+    , keys = iter.k
     , key;
+  if(keys == undefined){
+    iter.k = keys = [];
+    for(key in iter.o)keys.push(key);
+  }
   do {
     if(iter.i >= keys.length)return step(1);
   } while(!((key = keys[iter.i++]) in iter.o));
