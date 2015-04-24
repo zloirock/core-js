@@ -16,7 +16,6 @@ var $       = require('./$')
   , Base    = P
   , isFunction     = $.isFunction
   , isObject       = $.isObject
-  , $create        = $.create
   , assertFunction = assert.fn
   , assertObject   = assert.obj
   , test;
@@ -111,8 +110,8 @@ function $resolve(value){
 // constructor polyfill
 var workingPromise = isFunction(P) && isFunction(P.resolve) &&
   P.resolve(test = new P(function(){})) == test;
-// Firefox ~33 had broken subclass support, test that.
-if (workingPromise){
+// actual Firefox has broken subclass support, test that
+if(workingPromise){
   try { // protect against bad/buggy Object.setPrototype
     var P2 = function(x) {
       var self = new P(x);
@@ -120,12 +119,11 @@ if (workingPromise){
       return self;
     };
     setProto.set(P2, P);
-    P2.prototype = $create(P.prototype);
-    P2.prototype.constructor = P2;
-    if (!(P2.resolve(5).then(function(){}) instanceof P2)) {
+    P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
+    if(!(P2.resolve(5).then(function(){}) instanceof P2)){
       workingPromise = false;
     }
-  } catch (e) {
+  } catch(e){
     workingPromise = false;
   }
 }
