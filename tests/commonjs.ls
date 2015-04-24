@@ -186,6 +186,7 @@ for P in <[.. ../library]>
   ok \format of require("#P/core/date")
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function
+  require("#P/core/function/name")
   ok \part of require("#P/core/function")
   ok require("#P/core/global")
   ok typeof require("#P/core/log") is \function
