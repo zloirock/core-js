@@ -3141,6 +3141,42 @@
   test('.reject', function(){
     ok(isFunction(Promise.reject), 'Is function');
   });
+  if (Object.setPrototypeOf) {
+    test(' subclassing', function(it){
+      var SubPromise, p1, p2, p3;
+      SubPromise = function(x){
+        var self;
+        self = new Promise(x);
+        Object.setPrototypeOf(self, SubPromise.prototype);
+        self.mine = 'subclass';
+        return self;
+      };
+      Object.setPrototypeOf(SubPromise, Promise);
+      SubPromise.prototype = Object.create(Promise.prototype);
+      SubPromise.prototype.constructor = SubPromise;
+      p1 = SubPromise.resolve(5);
+      strictEqual(p1.mine, 'subclass');
+      p1 = p1.then(function(x){
+        return strictEqual(x, 5);
+      });
+      strictEqual(p1.mine, 'subclass');
+      p2 = new SubPromise(function(r){
+        return r(6);
+      });
+      strictEqual(p2.mine, 'subclass');
+      p2 = p2.then(function(x){
+        return strictEqual(x, 6);
+      });
+      strictEqual(p2.mine, 'subclass');
+      p3 = SubPromise.all([p1, p2]);
+      strictEqual(p3.mine, 'subclass');
+      ok(p3 instanceof Promise);
+      ok(p3 instanceof SubPromise);
+      p3.then(it.async(), function(e){
+        return ok(false, e);
+      });
+    });
+  }
   function bind$(obj, key, target){
     return function(){ return (target || obj)[key].apply(obj, arguments) };
   }
