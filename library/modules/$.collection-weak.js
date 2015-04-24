@@ -47,8 +47,9 @@ function leakStore(that){
 
 module.exports = {
   getConstructor: function(NAME, IS_MAP, ADDER){
-    function C(iterable){
+    function C(){
       $.set(assert.inst(this, C, NAME), ID, id++);
+      var iterable = arguments[0];
       if(iterable != undefined)forOf(iterable, IS_MAP, this[ADDER], this);
     }
     $.mix(C.prototype, {

@@ -28,9 +28,10 @@ module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
       , buggyZero;
     // wrap for init collections from iterable
     if(!require('./$.iter-detect')(function(iter){ new C(iter); })){ // eslint-disable-line no-new
-      C = function(iterable){
+      C = function(){
         assertInstance(this, C, NAME);
-        var that = new Base;
+        var that     = new Base
+          , iterable = arguments[0];
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       };

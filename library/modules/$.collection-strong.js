@@ -44,8 +44,9 @@ function getEntry(that, key){
 
 module.exports = {
   getConstructor: function(NAME, IS_MAP, ADDER){
-    function C(iterable){
-      var that = assert.inst(this, C, NAME);
+    function C(){
+      var that     = assert.inst(this, C, NAME)
+        , iterable = arguments[0];
       set(that, O1, $.create(null));
       set(that, SIZE, 0);
       set(that, LAST, undefined);
