@@ -25,7 +25,6 @@ for P in <[.. ../library]>
   ok require("#P/fn/object/define")({}, {q: 42}).q is 42
   ok require("#P/fn/object/make")([], {}) instanceof Array
   ok \isObject of require("#P/fn/object")
-  ok require("#P/fn/function/only")((-> &length), 2)(2 3 4) is 2
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
   require("#P/fn/function/name")
   ok \part of require("#P/fn/function")

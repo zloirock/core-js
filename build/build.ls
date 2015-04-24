@@ -48,7 +48,7 @@ list = <[
   core.iter-helpers
   core.$for
   core.delay
-  core.binding
+  core.function.part
   core.object
   core.array.turn
   core.number.iterator
