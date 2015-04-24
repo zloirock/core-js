@@ -13,7 +13,6 @@ var $       = require('./$')
   , process = global.process
   , asap    = process && process.nextTick || require('./$.task').set
   , P       = global[PROMISE]
-  , Base    = P
   , isFunction     = $.isFunction
   , isObject       = $.isObject
   , assertFunction = assert.fn
@@ -171,7 +170,7 @@ if(!workingPromise){
 }
 
 // export
-$def($def.G + $def.W + $def.F * (P != Base), {Promise: P});
+$def($def.G + $def.W + $def.F * !workingPromise, {Promise: P});
 cof.set(P, PROMISE);
 require('./$.species')(P);
 
