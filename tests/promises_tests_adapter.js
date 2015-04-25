@@ -1,4 +1,5 @@
 // Adapter for "promises-aplus-tests" test runner
+delete global.Promise;
 
 var Promise = require('../index.js').Promise;
 
