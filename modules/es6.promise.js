@@ -1,23 +1,41 @@
 'use strict';
-var $       = require('./$')
-  , ctx     = require('./$.ctx')
-  , cof     = require('./$.cof')
-  , $def    = require('./$.def')
-  , assert  = require('./$.assert')
-  , forOf   = require('./$.for-of')
-  , setProto = require('./$.set-proto')
-  , SPECIES = require('./$.wks')('species')
-  , RECORD  = require('./$.uid').safe('record')
-  , PROMISE = 'Promise'
-  , global  = $.g
-  , process = global.process
-  , asap    = process && process.nextTick || require('./$.task').set
-  , P       = global[PROMISE]
+var $        = require('./$')
+  , ctx      = require('./$.ctx')
+  , cof      = require('./$.cof')
+  , $def     = require('./$.def')
+  , assert   = require('./$.assert')
+  , forOf    = require('./$.for-of')
+  , setProto = require('./$.set-proto').set
+  , SPECIES  = require('./$.wks')('species')
+  , RECORD   = require('./$.uid').safe('record')
+  , PROMISE  = 'Promise'
+  , global   = $.g
+  , process  = global.process
+  , asap     = process && process.nextTick || require('./$.task').set
+  , P        = global[PROMISE]
   , isFunction     = $.isFunction
   , isObject       = $.isObject
   , assertFunction = assert.fn
   , assertObject   = assert.obj
   , test;
+
+var useNative = isFunction(P) && isFunction(P.resolve) &&
+  P.resolve(test = new P(function(){})) == test;
+// actual Firefox has broken subclass support, test that
+function P2(x){
+  var self = new P(x);
+  setProto(self, P2.prototype);
+  return self;
+}
+if(useNative){
+  try { // protect against bad/buggy Object.setPrototype
+    setProto(P2, P);
+    P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
+    if(!(P2.resolve(5).then(function(){}) instanceof P2)){
+      useNative = false;
+    }
+  } catch(e){ useNative = false; }
+}
 
 // helpers
 function getConstructor(C){
@@ -107,26 +125,7 @@ function $resolve(value){
 }
 
 // constructor polyfill
-var workingPromise = isFunction(P) && isFunction(P.resolve) &&
-  P.resolve(test = new P(function(){})) == test;
-// actual Firefox has broken subclass support, test that
-if(workingPromise){
-  try { // protect against bad/buggy Object.setPrototype
-    var P2 = function(x) {
-      var self = new P(x);
-      setProto.set(self, P2.prototype);
-      return self;
-    };
-    setProto.set(P2, P);
-    P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
-    if(!(P2.resolve(5).then(function(){}) instanceof P2)){
-      workingPromise = false;
-    }
-  } catch(e){
-    workingPromise = false;
-  }
-}
-if(!workingPromise){
+if(!useNative){
   // 25.4.3.1 Promise(executor)
   P = function Promise(executor){
     assertFunction(executor);
@@ -170,12 +169,12 @@ if(!workingPromise){
 }
 
 // export
-$def($def.G + $def.W + $def.F * !workingPromise, {Promise: P});
+$def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 cof.set(P, PROMISE);
 require('./$.species')(P);
 
 // statics
-$def($def.S + $def.F * !workingPromise, PROMISE, {
+$def($def.S + $def.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
     return new (getConstructor(this))(function(res, rej){
@@ -190,7 +189,7 @@ $def($def.S + $def.F * !workingPromise, PROMISE, {
       });
   }
 });
-$def($def.S + $def.F * !(workingPromise && require('./$.iter-detect')(function(iter){
+$def($def.S + $def.F * !(useNative && require('./$.iter-detect')(function(iter){
   P.all(iter)['catch'](function(){});
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
