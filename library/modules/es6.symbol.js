@@ -12,16 +12,15 @@ var $        = require('./$')
   , getDesc  = $.getDesc
   , setDesc  = $.setDesc
   , desc     = $.desc
-  , hide     = $.hide
   , getNames = $.getNames
   , toObject = $.toObject
   , Symbol   = $.g.Symbol
-  , Base     = Symbol
   , setter   = false
   , TAG      = uid('tag')
   , HIDDEN   = uid('hidden')
   , SymbolRegistry = {}
-  , AllSymbols     = {};
+  , AllSymbols = {}
+  , useNative = $.isFunction(Symbol);
 
 function wrap(tag){
   var sym = AllSymbols[tag] = $.set($create(Symbol.prototype), TAG, tag);
@@ -34,56 +33,6 @@ function wrap(tag){
   });
   return sym;
 }
-
-// 19.4.1.1 Symbol([description])
-if(!$.isFunction(Symbol)){
-  Symbol = function Symbol(description){
-    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
-    return wrap(uid(description));
-  };
-  hide(Symbol.prototype, 'toString', function(){
-    return this[TAG];
-  });
-}
-$def($def.G + $def.W, {Symbol: Symbol});
-
-var symbolStatics = {
-  // 19.4.2.1 Symbol.for(key)
-  'for': function(key){
-    return has(SymbolRegistry, key += '')
-      ? SymbolRegistry[key]
-      : SymbolRegistry[key] = Symbol(key);
-  },
-  // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: function keyFor(key){
-    return keyOf(SymbolRegistry, key);
-  },
-  useSetter: function(){ setter = true; },
-  useSimple: function(){ setter = false; }
-};
-// 19.4.2.2 Symbol.hasInstance
-// 19.4.2.3 Symbol.isConcatSpreadable
-// 19.4.2.4 Symbol.iterator
-// 19.4.2.6 Symbol.match
-// 19.4.2.8 Symbol.replace
-// 19.4.2.9 Symbol.search
-// 19.4.2.10 Symbol.species
-// 19.4.2.11 Symbol.split
-// 19.4.2.12 Symbol.toPrimitive
-// 19.4.2.13 Symbol.toStringTag
-// 19.4.2.14 Symbol.unscopables
-$.each.call((
-    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
-    'species,split,toPrimitive,toStringTag,unscopables'
-  ).split(','), function(it){
-    var sym = require('./$.wks')(it);
-    symbolStatics[it] = Symbol === Base ? sym : wrap(sym);
-  }
-);
-
-setter = true;
-
-$def($def.S, 'Symbol', symbolStatics);
 
 function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
@@ -130,7 +79,16 @@ function getOwnPropertySymbols(it){
   return result;
 }
 
-if(Symbol != Base){
+// 19.4.1.1 Symbol([description])
+if(!useNative){
+  Symbol = function Symbol(description){
+    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
+    return wrap(uid(description));
+  };
+  $.hide(Symbol.prototype, 'toString', function(){
+    return this[TAG];
+  });
+  
   $.create     = create;
   $.setDesc    = defineProperty;
   $.getDesc    = getOwnPropertyDescriptor;
@@ -138,8 +96,47 @@ if(Symbol != Base){
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 }
+$def($def.G + $def.W, {Symbol: Symbol});
 
-$def($def.S + $def.F * (Symbol != Base), 'Object', {
+var symbolStatics = {
+  // 19.4.2.1 Symbol.for(key)
+  'for': function(key){
+    return has(SymbolRegistry, key += '')
+      ? SymbolRegistry[key]
+      : SymbolRegistry[key] = Symbol(key);
+  },
+  // 19.4.2.5 Symbol.keyFor(sym)
+  keyFor: function keyFor(key){
+    return keyOf(SymbolRegistry, key);
+  },
+  useSetter: function(){ setter = true; },
+  useSimple: function(){ setter = false; }
+};
+// 19.4.2.2 Symbol.hasInstance
+// 19.4.2.3 Symbol.isConcatSpreadable
+// 19.4.2.4 Symbol.iterator
+// 19.4.2.6 Symbol.match
+// 19.4.2.8 Symbol.replace
+// 19.4.2.9 Symbol.search
+// 19.4.2.10 Symbol.species
+// 19.4.2.11 Symbol.split
+// 19.4.2.12 Symbol.toPrimitive
+// 19.4.2.13 Symbol.toStringTag
+// 19.4.2.14 Symbol.unscopables
+$.each.call((
+    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
+    'species,split,toPrimitive,toStringTag,unscopables'
+  ).split(','), function(it){
+    var sym = require('./$.wks')(it);
+    symbolStatics[it] = useNative ? sym : wrap(sym);
+  }
+);
+
+setter = true;
+
+$def($def.S, 'Symbol', symbolStatics);
+
+$def($def.S + $def.F * !useNative, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
   create: create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
