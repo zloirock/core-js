@@ -1292,6 +1292,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.3 - 2015.04.26
+  * some fixes and optimizations
+
 ##### 0.9.2 - 2015.04.25
   * more correct [`Promise`](#ecmascript-6-promises) unhandled rejection tracking and resolving / rejection priority
 
