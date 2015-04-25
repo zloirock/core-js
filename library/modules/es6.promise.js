@@ -17,26 +17,26 @@ var $        = require('./$')
   , isFunction     = $.isFunction
   , isObject       = $.isObject
   , assertFunction = assert.fn
-  , assertObject   = assert.obj
-  , test;
+  , assertObject   = assert.obj;
 
-var useNative = isFunction(P) && isFunction(P.resolve) &&
-  P.resolve(test = new P(function(){})) == test;
-// actual Firefox has broken subclass support, test that
-function P2(x){
-  var self = new P(x);
-  setProto(self, P2.prototype);
-  return self;
-}
-if(useNative){
-  try { // protect against bad/buggy Object.setPrototype
+var useNative = function(){
+  var test, works = false;
+  function P2(x){
+    var self = new P(x);
+    setProto(self, P2.prototype);
+    return self;
+  }
+  try {
+    works = isFunction(P) && isFunction(P.resolve) && P.resolve(test = new P(function(){})) == test;
     setProto(P2, P);
     P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
+    // actual Firefox has broken subclass support, test that
     if(!(P2.resolve(5).then(function(){}) instanceof P2)){
-      useNative = false;
+      works = false;
     }
-  } catch(e){ useNative = false; }
-}
+  } catch(e){ works = false; }
+  return works;
+}();
 
 // helpers
 function getConstructor(C){
@@ -94,8 +94,8 @@ function $reject(value){
   record.v = value;
   record.s = 2;
   record.a = record.c.slice();
-  asap(function(){
-    setTimeout(function(){
+  setTimeout(function(){
+    asap(function(){
       if(isUnhandled(promise = record.p)){
         if(cof(process) == 'process'){
           process.emit('unhandledRejection', value, promise);
@@ -103,9 +103,9 @@ function $reject(value){
           console.error('Unhandled promise rejection', value);
         }
       }
-      record.a = null;
-    }, 1);
-  });
+      record.a = undefined;
+    });
+  }, 1);
   notify(record);
 }
 function $resolve(value){
@@ -136,7 +136,7 @@ if(!useNative){
     var record = {
       p: assert.inst(this, P, PROMISE),       // <- promise
       c: [],                                  // <- awaiting reactions
-      a: null,                                // <- possible rejection reactions
+      a: undefined,                           // <- checked in isUnhandled reactions
       s: 0,                                   // <- state
       d: false,                               // <- done
       v: undefined,                           // <- value
