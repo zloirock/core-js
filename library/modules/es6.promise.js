@@ -48,35 +48,13 @@ function isThenable(it){
   if(isObject(it))then = it.then;
   return isFunction(then) ? then : false;
 }
-function isUnhandled(promise){
-  var record = promise[RECORD]
-    , chain  = record.c
-    , i      = 0
-    , react;
-  if(record.h)return false;
-  while(chain.length > i){
-    react = chain[i++];
-    if(react.fail || !isUnhandled(react.P))return false;
-  } return true;
-}
-function notify(record, isReject){
+function notify(record){
   var chain = record.c;
-  if(isReject || chain.length)asap(function(){
-    var promise = record.p
-      , value   = record.v
-      , ok      = record.s == 1
-      , i       = 0;
-    if(isReject && isUnhandled(promise)){
-      setTimeout(function(){
-        if(isUnhandled(promise)){
-          if(cof(process) == 'process'){
-            process.emit('unhandledRejection', value, promise);
-          } else if(global.console && isFunction(console.error)){
-            console.error('Unhandled promise rejection', value);
-          }
-        }
-      }, 1e3);
-    } else while(chain.length > i)!function(react){
+  if(chain.length)asap(function(){
+    var value = record.v
+      , ok    = record.s == 1
+      , i     = 0;
+    while(chain.length > i)!function(react){
       var cb = ok ? react.ok : react.fail
         , ret, then;
       try {
@@ -84,7 +62,7 @@ function notify(record, isReject){
           if(!ok)record.h = true;
           ret = cb === true ? value : cb(value);
           if(ret === react.P){
-            react.rej(TypeError(PROMISE + '-chain cycle'));
+            react.rej(TypeError('Promise-chain cycle'));
           } else if(then = isThenable(ret)){
             then.call(ret, react.res, react.rej);
           } else react.res(ret);
@@ -96,14 +74,37 @@ function notify(record, isReject){
     chain.length = 0;
   });
 }
+function isUnhandled(promise){
+  var record = promise[RECORD]
+    , chain  = record.a
+    , i      = 0
+    , react;
+  if(record.h)return false;
+  while(chain.length > i){
+    react = chain[i++];
+    if(react.fail || !isUnhandled(react.P))return false;
+  } return true;
+}
 function $reject(value){
-  var record = this;
+  var record = this
+    , promise;
   if(record.d)return;
   record.d = true;
   record = record.r || record; // unwrap
   record.v = value;
   record.s = 2;
-  notify(record, true);
+  asap(function(){
+    setTimeout(function(){
+      if(isUnhandled(promise = record.p)){
+        if(cof(process) == 'process'){
+          process.emit('unhandledRejection', value, promise);
+        } else if(global.console && isFunction(console.error)){
+          console.error('Unhandled promise rejection', value);
+        }
+      }
+    }, 1);
+  });
+  notify(record);
 }
 function $resolve(value){
   var record = this
@@ -132,7 +133,8 @@ if(!useNative){
     assertFunction(executor);
     var record = {
       p: assert.inst(this, P, PROMISE),       // <- promise
-      c: [],                                  // <- chain
+      c: [],                                  // <- awaiting reactions
+      a: [],                                  // <- all reactions
       s: 0,                                   // <- state
       d: false,                               // <- done
       v: undefined,                           // <- value
@@ -158,6 +160,7 @@ if(!useNative){
         react.rej = assertFunction(rej);
       });
       var record = this[RECORD];
+      record.a.push(react);
       record.c.push(react);
       record.s && notify(record);
       return promise;
