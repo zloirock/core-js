@@ -4,7 +4,8 @@ var $    = require('./$')
   , $def = require('./$.def')
   , toLength = $.toLength;
 
-$def($def.P, 'String', {
+// should throw error on regex
+$def($def.P + $def.F * !require('./$.throws')(function(){ 'q'.endsWith(/./); }), 'String', {
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
   endsWith: function endsWith(searchString /*, endPosition = @length */){
     if(cof(searchString) == 'RegExp')throw TypeError();

@@ -3,7 +3,7 @@ module.exports = function(KEY, TYPE){
     , $export = {}
     , forced  = true;
   // Shouldn't skip holes
-  if(KEY in [])Array(1)[KEY](function(it){ forced = false; });
+  if(KEY in [])Array(1)[KEY](function(){ forced = false; });
   $export[KEY] = require('./$.array-methods')(TYPE);
   $def($def.P + $def.F * forced, 'Array', $export);
   require('./$.unscope')(KEY);
