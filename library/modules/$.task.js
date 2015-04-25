@@ -3,10 +3,10 @@ var $      = require('./$')
   , ctx    = require('./$.ctx')
   , cof    = require('./$.cof')
   , invoke = require('./$.invoke')
+  , cel    = require('./$.dom-create')
   , global             = $.g
   , isFunction         = $.isFunction
   , html               = $.html
-  , document           = global.document
   , process            = global.process
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
@@ -61,9 +61,9 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     channel.port1.onmessage = listner;
     defer = ctx(port.postMessage, port, 1);
   // IE8-
-  } else if(document && ONREADYSTATECHANGE in document.createElement('script')){
+  } else if(ONREADYSTATECHANGE in cel('script')){
     defer = function(id){
-      html.appendChild(document.createElement('script'))[ONREADYSTATECHANGE] = function(){
+      html.appendChild(cel('script'))[ONREADYSTATECHANGE] = function(){
         html.removeChild(this);
         run.call(id);
       };

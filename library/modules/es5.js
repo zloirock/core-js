@@ -1,4 +1,5 @@
 var $                = require('./$')
+  , cel              = require('./$.dom-create')
   , cof              = require('./$.cof')
   , $def             = require('./$.def')
   , invoke           = require('./$.invoke')
@@ -22,7 +23,7 @@ var $                = require('./$')
 
 if(!$.DESC){
   try {
-    IE8_DOM_DEFINE = defineProperty(document.createElement('div'), 'x',
+    IE8_DOM_DEFINE = defineProperty(cel('div'), 'x',
       {get: function(){ return 8; }}
     ).x == 8;
   } catch(e){ /* empty */ }
@@ -69,7 +70,7 @@ var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
 // Create object with `null` prototype: use iframe Object with cleared prototype
 var createDict = function(){
   // Thrash, waste and sodomy: IE GC bug
-  var iframe = document.createElement('iframe')
+  var iframe = cel('iframe')
     , i      = keysLen1
     , gt     = '>'
     , iframeDocument;
