@@ -1292,6 +1292,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.2 - 2015.04.25
+  * more correct [`Promise`](#ecmascript-6-promises) unhandled rejection tracking and resolving / rejection priority
+
 ##### 0.9.1 - 2015.04.25
   * fixed `__proto__`-based [`Promise`](#ecmascript-6-promises) subclassing in some environments
 
