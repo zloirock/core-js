@@ -54,7 +54,7 @@ function notify(record){
     var value = record.v
       , ok    = record.s == 1
       , i     = 0;
-    while(chain.length > i)!function(react){
+    function run(react){
       var cb = ok ? react.ok : react.fail
         , ret, then;
       try {
@@ -70,7 +70,8 @@ function notify(record){
       } catch(err){
         react.rej(err);
       }
-    }(chain[i++]);
+    }
+    while(chain.length > i)run(chain[i++]); // variable length - can't use forEach
     chain.length = 0;
   });
 }
