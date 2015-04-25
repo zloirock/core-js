@@ -6,6 +6,7 @@ var $        = require('./$')
   , assert   = require('./$.assert')
   , forOf    = require('./$.for-of')
   , setProto = require('./$.set-proto').set
+  , species  = require('./$.species')
   , SPECIES  = require('./$.wks')('species')
   , RECORD   = require('./$.uid').safe('record')
   , PROMISE  = 'Promise'
@@ -171,7 +172,8 @@ if(!useNative){
 // export
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 cof.set(P, PROMISE);
-require('./$.species')(P);
+species(P);
+species($.core[PROMISE]); // for wrapper
 
 // statics
 $def($def.S + $def.F * !useNative, PROMISE, {

@@ -88,7 +88,7 @@ if(!useNative){
   $.hide(Symbol.prototype, 'toString', function(){
     return this[TAG];
   });
-  
+
   $.create     = create;
   $.setDesc    = defineProperty;
   $.getDesc    = getOwnPropertyDescriptor;
@@ -96,7 +96,6 @@ if(!useNative){
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 }
-$def($def.G + $def.W, {Symbol: Symbol});
 
 var symbolStatics = {
   // 19.4.2.1 Symbol.for(key)
@@ -134,6 +133,8 @@ $.each.call((
 
 setter = true;
 
+$def($def.G + $def.W, {Symbol: Symbol});
+
 $def($def.S, 'Symbol', symbolStatics);
 
 $def($def.S + $def.F * !useNative, 'Object', {
@@ -151,6 +152,7 @@ $def($def.S + $def.F * !useNative, 'Object', {
   getOwnPropertySymbols: getOwnPropertySymbols
 });
 
+// 19.4.3.5 Symbol.prototype[@@toStringTag]
 setTag(Symbol, 'Symbol');
 // 20.2.1.9 Math[@@toStringTag]
 setTag(Math, 'Math', true);
