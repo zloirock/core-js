@@ -1292,6 +1292,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.1 - 2015.04.25
+  * fixed `__proto__`-based [`Promise`](#ecmascript-6-promises) subclassing in some environments
+
 ##### 0.9.0 - 2015.04.24
   * added correct [symbols](#ecmascript-6-symbols) descriptors
     * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols

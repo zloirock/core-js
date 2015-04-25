@@ -1,5 +1,5 @@
 /**
- * Core.js 0.9.0
+ * Core.js 0.9.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -377,24 +377,23 @@ var __e = null, __g = null;
 	  , setTag   = __webpack_require__(47).set
 	  , uid      = __webpack_require__(51)
 	  , $def     = __webpack_require__(48)
-	  , keyOf    = __webpack_require__(56)
-	  , enumKeys = __webpack_require__(57)
+	  , keyOf    = __webpack_require__(57)
+	  , enumKeys = __webpack_require__(58)
 	  , assertObject = __webpack_require__(52).obj
 	  , has      = $.has
 	  , $create  = $.create
 	  , getDesc  = $.getDesc
 	  , setDesc  = $.setDesc
 	  , desc     = $.desc
-	  , hide     = $.hide
 	  , getNames = $.getNames
 	  , toObject = $.toObject
 	  , Symbol   = $.g.Symbol
-	  , Base     = Symbol
 	  , setter   = false
 	  , TAG      = uid('tag')
 	  , HIDDEN   = uid('hidden')
 	  , SymbolRegistry = {}
-	  , AllSymbols     = {};
+	  , AllSymbols = {}
+	  , useNative = $.isFunction(Symbol);
 
 	function wrap(tag){
 	  var sym = AllSymbols[tag] = $.set($create(Symbol.prototype), TAG, tag);
@@ -407,56 +406,6 @@ var __e = null, __g = null;
 	  });
 	  return sym;
 	}
-
-	// 19.4.1.1 Symbol([description])
-	if(!$.isFunction(Symbol)){
-	  Symbol = function Symbol(description){
-	    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
-	    return wrap(uid(description));
-	  };
-	  hide(Symbol.prototype, 'toString', function(){
-	    return this[TAG];
-	  });
-	}
-	$def($def.G + $def.W, {Symbol: Symbol});
-
-	var symbolStatics = {
-	  // 19.4.2.1 Symbol.for(key)
-	  'for': function(key){
-	    return has(SymbolRegistry, key += '')
-	      ? SymbolRegistry[key]
-	      : SymbolRegistry[key] = Symbol(key);
-	  },
-	  // 19.4.2.5 Symbol.keyFor(sym)
-	  keyFor: function keyFor(key){
-	    return keyOf(SymbolRegistry, key);
-	  },
-	  useSetter: function(){ setter = true; },
-	  useSimple: function(){ setter = false; }
-	};
-	// 19.4.2.2 Symbol.hasInstance
-	// 19.4.2.3 Symbol.isConcatSpreadable
-	// 19.4.2.4 Symbol.iterator
-	// 19.4.2.6 Symbol.match
-	// 19.4.2.8 Symbol.replace
-	// 19.4.2.9 Symbol.search
-	// 19.4.2.10 Symbol.species
-	// 19.4.2.11 Symbol.split
-	// 19.4.2.12 Symbol.toPrimitive
-	// 19.4.2.13 Symbol.toStringTag
-	// 19.4.2.14 Symbol.unscopables
-	$.each.call((
-	    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
-	    'species,split,toPrimitive,toStringTag,unscopables'
-	  ).split(','), function(it){
-	    var sym = __webpack_require__(58)(it);
-	    symbolStatics[it] = Symbol === Base ? sym : wrap(sym);
-	  }
-	);
-
-	setter = true;
-
-	$def($def.S, 'Symbol', symbolStatics);
 
 	function defineProperty(it, key, D){
 	  if(D && has(AllSymbols, key)){
@@ -503,7 +452,16 @@ var __e = null, __g = null;
 	  return result;
 	}
 
-	if(Symbol != Base){
+	// 19.4.1.1 Symbol([description])
+	if(!useNative){
+	  Symbol = function Symbol(description){
+	    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
+	    return wrap(uid(description));
+	  };
+	  $.hide(Symbol.prototype, 'toString', function(){
+	    return this[TAG];
+	  });
+
 	  $.create     = create;
 	  $.setDesc    = defineProperty;
 	  $.getDesc    = getOwnPropertyDescriptor;
@@ -512,7 +470,47 @@ var __e = null, __g = null;
 	  $.getSymbols = getOwnPropertySymbols;
 	}
 
-	$def($def.S + $def.F * (Symbol != Base), 'Object', {
+	var symbolStatics = {
+	  // 19.4.2.1 Symbol.for(key)
+	  'for': function(key){
+	    return has(SymbolRegistry, key += '')
+	      ? SymbolRegistry[key]
+	      : SymbolRegistry[key] = Symbol(key);
+	  },
+	  // 19.4.2.5 Symbol.keyFor(sym)
+	  keyFor: function keyFor(key){
+	    return keyOf(SymbolRegistry, key);
+	  },
+	  useSetter: function(){ setter = true; },
+	  useSimple: function(){ setter = false; }
+	};
+	// 19.4.2.2 Symbol.hasInstance
+	// 19.4.2.3 Symbol.isConcatSpreadable
+	// 19.4.2.4 Symbol.iterator
+	// 19.4.2.6 Symbol.match
+	// 19.4.2.8 Symbol.replace
+	// 19.4.2.9 Symbol.search
+	// 19.4.2.10 Symbol.species
+	// 19.4.2.11 Symbol.split
+	// 19.4.2.12 Symbol.toPrimitive
+	// 19.4.2.13 Symbol.toStringTag
+	// 19.4.2.14 Symbol.unscopables
+	$.each.call((
+	    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
+	    'species,split,toPrimitive,toStringTag,unscopables'
+	  ).split(','), function(it){
+	    var sym = __webpack_require__(59)(it);
+	    symbolStatics[it] = useNative ? sym : wrap(sym);
+	  }
+	);
+
+	setter = true;
+
+	$def($def.G + $def.W, {Symbol: Symbol});
+
+	$def($def.S, 'Symbol', symbolStatics);
+
+	$def($def.S + $def.F * !useNative, 'Object', {
 	  // 19.1.2.2 Object.create(O [, Properties])
 	  create: create,
 	  // 19.1.2.4 Object.defineProperty(O, P, Attributes)
@@ -527,6 +525,7 @@ var __e = null, __g = null;
 	  getOwnPropertySymbols: getOwnPropertySymbols
 	});
 
+	// 19.4.3.5 Symbol.prototype[@@toStringTag]
 	setTag(Symbol, 'Symbol');
 	// 20.2.1.9 Math[@@toStringTag]
 	setTag(Math, 'Math', true);
@@ -559,7 +558,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.19 Object.setPrototypeOf(O, proto)
 	var $def = __webpack_require__(48);
-	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(59).set});
+	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(56).set});
 
 /***/ },
 /* 6 */
@@ -570,7 +569,7 @@ var __e = null, __g = null;
 	var $   = __webpack_require__(46)
 	  , cof = __webpack_require__(47)
 	  , tmp = {};
-	tmp[__webpack_require__(58)('toStringTag')] = 'z';
+	tmp[__webpack_require__(59)('toStringTag')] = 'z';
 	if($.FW && cof(tmp) != 'z')$.hide(Object.prototype, 'toString', function toString(){
 	  return '[object ' + cof.classof(this) + ']';
 	});
@@ -1080,7 +1079,7 @@ var __e = null, __g = null;
 /***/ function(module, exports, __webpack_require__) {
 
 	var $          = __webpack_require__(46)
-	  , setUnscope = __webpack_require__(66)
+	  , setUnscope = __webpack_require__(67)
 	  , ITER       = __webpack_require__(51).safe('iter')
 	  , $iter      = __webpack_require__(61)
 	  , step       = $iter.step
@@ -1118,7 +1117,7 @@ var __e = null, __g = null;
 /* 23 */
 /***/ function(module, exports, __webpack_require__) {
 
-	__webpack_require__(67)(Array);
+	__webpack_require__(66)(Array);
 
 /***/ },
 /* 24 */
@@ -1152,7 +1151,7 @@ var __e = null, __g = null;
 	    } return O;
 	  }
 	});
-	__webpack_require__(66)('copyWithin');
+	__webpack_require__(67)('copyWithin');
 
 /***/ },
 /* 25 */
@@ -1174,7 +1173,7 @@ var __e = null, __g = null;
 	    return O;
 	  }
 	});
-	__webpack_require__(66)('fill');
+	__webpack_require__(67)('fill');
 
 /***/ },
 /* 26 */
@@ -1185,7 +1184,7 @@ var __e = null, __g = null;
 	  // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 	  find: __webpack_require__(50)(5)
 	});
-	__webpack_require__(66)('find');
+	__webpack_require__(67)('find');
 
 /***/ },
 /* 27 */
@@ -1196,7 +1195,7 @@ var __e = null, __g = null;
 	  // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 	  findIndex: __webpack_require__(50)(6)
 	});
-	__webpack_require__(66)('findIndex');
+	__webpack_require__(67)('findIndex');
 
 /***/ },
 /* 28 */
@@ -1241,32 +1240,51 @@ var __e = null, __g = null;
 	    get: __webpack_require__(54)(/^.*\/(\w*)$/, '$1')
 	  });
 	}
-	__webpack_require__(67)(RegExp);
+	__webpack_require__(66)(RegExp);
 
 /***/ },
 /* 29 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
-	var $       = __webpack_require__(46)
-	  , ctx     = __webpack_require__(63)
-	  , cof     = __webpack_require__(47)
-	  , $def    = __webpack_require__(48)
-	  , assert  = __webpack_require__(52)
-	  , forOf   = __webpack_require__(68)
-	  , SPECIES = __webpack_require__(58)('species')
-	  , RECORD  = __webpack_require__(51).safe('record')
-	  , PROMISE = 'Promise'
-	  , global  = $.g
-	  , process = global.process
-	  , asap    = process && process.nextTick || __webpack_require__(69).set
-	  , P       = global[PROMISE]
-	  , Base    = P
+	var $        = __webpack_require__(46)
+	  , ctx      = __webpack_require__(63)
+	  , cof      = __webpack_require__(47)
+	  , $def     = __webpack_require__(48)
+	  , assert   = __webpack_require__(52)
+	  , forOf    = __webpack_require__(68)
+	  , setProto = __webpack_require__(56).set
+	  , species  = __webpack_require__(66)
+	  , SPECIES  = __webpack_require__(59)('species')
+	  , RECORD   = __webpack_require__(51).safe('record')
+	  , PROMISE  = 'Promise'
+	  , global   = $.g
+	  , process  = global.process
+	  , asap     = process && process.nextTick || __webpack_require__(69).set
+	  , P        = global[PROMISE]
 	  , isFunction     = $.isFunction
 	  , isObject       = $.isObject
 	  , assertFunction = assert.fn
 	  , assertObject   = assert.obj
 	  , test;
+
+	var useNative = isFunction(P) && isFunction(P.resolve) &&
+	  P.resolve(test = new P(function(){})) == test;
+	// actual Firefox has broken subclass support, test that
+	function P2(x){
+	  var self = new P(x);
+	  setProto(self, P2.prototype);
+	  return self;
+	}
+	if(useNative){
+	  try { // protect against bad/buggy Object.setPrototype
+	    setProto(P2, P);
+	    P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
+	    if(!(P2.resolve(5).then(function(){}) instanceof P2)){
+	      useNative = false;
+	    }
+	  } catch(e){ useNative = false; }
+	}
 
 	// helpers
 	function getConstructor(C){
@@ -1356,7 +1374,7 @@ var __e = null, __g = null;
 	}
 
 	// constructor polyfill
-	if(!(isFunction(P) && isFunction(P.resolve) && P.resolve(test = new P(function(){})) == test)){
+	if(!useNative){
 	  // 25.4.3.1 Promise(executor)
 	  P = function Promise(executor){
 	    assertFunction(executor);
@@ -1400,12 +1418,13 @@ var __e = null, __g = null;
 	}
 
 	// export
-	$def($def.G + $def.W + $def.F * (P != Base), {Promise: P});
+	$def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 	cof.set(P, PROMISE);
-	__webpack_require__(67)(P);
+	species(P);
+	species($.core[PROMISE]); // for wrapper
 
 	// statics
-	$def($def.S, PROMISE, {
+	$def($def.S + $def.F * !useNative, PROMISE, {
 	  // 25.4.4.5 Promise.reject(r)
 	  reject: function reject(r){
 	    return new (getConstructor(this))(function(res, rej){
@@ -1420,9 +1439,9 @@ var __e = null, __g = null;
 	      });
 	  }
 	});
-	$def($def.S + $def.F * !__webpack_require__(65)(function(iter){
+	$def($def.S + $def.F * !(useNative && __webpack_require__(65)(function(iter){
 	  P.all(iter)['catch'](function(){});
-	}), PROMISE, {
+	})), PROMISE, {
 	  // 25.4.4.1 Promise.all(iterable)
 	  all: function all(iterable){
 	    var C      = getConstructor(this)
@@ -1552,7 +1571,7 @@ var __e = null, __g = null;
 
 	var $         = __webpack_require__(46)
 	  , $def      = __webpack_require__(48)
-	  , setProto  = __webpack_require__(59)
+	  , setProto  = __webpack_require__(56)
 	  , $iter     = __webpack_require__(61)
 	  , ITER      = __webpack_require__(51).safe('iter')
 	  , step      = $iter.step
@@ -1694,7 +1713,7 @@ var __e = null, __g = null;
 	$def($def.P, 'Array', {
 	  includes: __webpack_require__(53)(true)
 	});
-	__webpack_require__(66)('includes');
+	__webpack_require__(67)('includes');
 
 /***/ },
 /* 36 */
@@ -1793,7 +1812,7 @@ var __e = null, __g = null;
 	__webpack_require__(22);
 	var $           = __webpack_require__(46)
 	  , Iterators   = __webpack_require__(61).Iterators
-	  , ITERATOR    = __webpack_require__(58)('iterator')
+	  , ITERATOR    = __webpack_require__(59)('iterator')
 	  , ArrayValues = Iterators.Array
 	  , NodeList    = $.g.NodeList;
 	if($.FW && NodeList && !(ITERATOR in NodeList.prototype)){
@@ -1960,7 +1979,7 @@ var __e = null, __g = null;
 /***/ function(module, exports, __webpack_require__) {
 
 	var $        = __webpack_require__(46)
-	  , TAG      = __webpack_require__(58)('toStringTag')
+	  , TAG      = __webpack_require__(59)('toStringTag')
 	  , toString = {}.toString;
 	function cof(it){
 	  return toString.call(it).slice(8, -1);
@@ -2168,7 +2187,7 @@ var __e = null, __g = null;
 /***/ function(module, exports, __webpack_require__) {
 
 	var $        = __webpack_require__(46)
-	  , enumKeys = __webpack_require__(57);
+	  , enumKeys = __webpack_require__(58);
 	// 19.1.2.1 Object.assign(target, source, ...)
 	/* eslint-disable no-unused-vars */
 	module.exports = Object.assign || function assign(target, source){
@@ -2189,46 +2208,6 @@ var __e = null, __g = null;
 
 /***/ },
 /* 56 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var $ = __webpack_require__(46);
-	module.exports = function(object, el){
-	  var O      = $.toObject(object)
-	    , keys   = $.getKeys(O)
-	    , length = keys.length
-	    , index  = 0
-	    , key;
-	  while(length > index)if(O[key = keys[index++]] === el)return key;
-	};
-
-/***/ },
-/* 57 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var $ = __webpack_require__(46);
-	module.exports = function(it){
-	  var keys       = $.getKeys(it)
-	    , getDesc    = $.getDesc
-	    , getSymbols = $.getSymbols;
-	  if(getSymbols)$.each.call(getSymbols(it), function(key){
-	    if(getDesc(it, key).enumerable)keys.push(key);
-	  });
-	  return keys;
-	};
-
-/***/ },
-/* 58 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var global = __webpack_require__(46).g
-	  , store  = {};
-	module.exports = function(name){
-	  return store[name] || (store[name] =
-	    global.Symbol && global.Symbol[name] || __webpack_require__(51).safe('Symbol.' + name));
-	};
-
-/***/ },
-/* 59 */
 /***/ function(module, exports, __webpack_require__) {
 
 	// Works with __proto__ only. Old v8 can't work with null proto objects.
@@ -2255,6 +2234,46 @@ var __e = null, __g = null;
 	      }()
 	    : undefined),
 	  check: check
+	};
+
+/***/ },
+/* 57 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var $ = __webpack_require__(46);
+	module.exports = function(object, el){
+	  var O      = $.toObject(object)
+	    , keys   = $.getKeys(O)
+	    , length = keys.length
+	    , index  = 0
+	    , key;
+	  while(length > index)if(O[key = keys[index++]] === el)return key;
+	};
+
+/***/ },
+/* 58 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var $ = __webpack_require__(46);
+	module.exports = function(it){
+	  var keys       = $.getKeys(it)
+	    , getDesc    = $.getDesc
+	    , getSymbols = $.getSymbols;
+	  if(getSymbols)$.each.call(getSymbols(it), function(key){
+	    if(getDesc(it, key).enumerable)keys.push(key);
+	  });
+	  return keys;
+	};
+
+/***/ },
+/* 59 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var global = __webpack_require__(46).g
+	  , store  = {};
+	module.exports = function(name){
+	  return store[name] || (store[name] =
+	    global.Symbol && global.Symbol[name] || __webpack_require__(51).safe('Symbol.' + name));
 	};
 
 /***/ },
@@ -2288,7 +2307,7 @@ var __e = null, __g = null;
 	var $                 = __webpack_require__(46)
 	  , cof               = __webpack_require__(47)
 	  , assertObject      = __webpack_require__(52).obj
-	  , SYMBOL_ITERATOR   = __webpack_require__(58)('iterator')
+	  , SYMBOL_ITERATOR   = __webpack_require__(59)('iterator')
 	  , FF_ITERATOR       = '@@iterator'
 	  , Iterators         = {}
 	  , IteratorPrototype = {};
@@ -2334,7 +2353,7 @@ var __e = null, __g = null;
 	  , $               = __webpack_require__(46)
 	  , cof             = __webpack_require__(47)
 	  , $iter           = __webpack_require__(61)
-	  , SYMBOL_ITERATOR = __webpack_require__(58)('iterator')
+	  , SYMBOL_ITERATOR = __webpack_require__(59)('iterator')
 	  , FF_ITERATOR     = '@@iterator'
 	  , VALUES          = 'values'
 	  , Iterators       = $iter.Iterators;
@@ -2423,7 +2442,7 @@ var __e = null, __g = null;
 /* 65 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var SYMBOL_ITERATOR = __webpack_require__(58)('iterator')
+	var SYMBOL_ITERATOR = __webpack_require__(59)('iterator')
 	  , SAFE_CLOSING    = false;
 	try {
 	  var riter = [7][SYMBOL_ITERATOR]();
@@ -2447,24 +2466,25 @@ var __e = null, __g = null;
 /* 66 */
 /***/ function(module, exports, __webpack_require__) {
 
-	// 22.1.3.31 Array.prototype[@@unscopables]
-	var $           = __webpack_require__(46)
-	  , UNSCOPABLES = __webpack_require__(58)('unscopables');
-	if($.FW && !(UNSCOPABLES in []))$.hide(Array.prototype, UNSCOPABLES, {});
-	module.exports = function(key){
-	  if($.FW)[][UNSCOPABLES][key] = true;
+	var $       = __webpack_require__(46)
+	  , SPECIES = __webpack_require__(59)('species');
+	module.exports = function(C){
+	  if($.DESC && !(SPECIES in C))$.setDesc(C, SPECIES, {
+	    configurable: true,
+	    get: $.that
+	  });
 	};
 
 /***/ },
 /* 67 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var $ = __webpack_require__(46);
-	module.exports = function(C){
-	  if($.DESC && $.FW)$.setDesc(C, __webpack_require__(58)('species'), {
-	    configurable: true,
-	    get: $.that
-	  });
+	// 22.1.3.31 Array.prototype[@@unscopables]
+	var $           = __webpack_require__(46)
+	  , UNSCOPABLES = __webpack_require__(59)('unscopables');
+	if($.FW && !(UNSCOPABLES in []))$.hide(Array.prototype, UNSCOPABLES, {});
+	module.exports = function(key){
+	  if($.FW)[][UNSCOPABLES][key] = true;
 	};
 
 /***/ },
@@ -2741,6 +2761,7 @@ var __e = null, __g = null;
 	  , $def  = __webpack_require__(48)
 	  , BUGGY = __webpack_require__(61).BUGGY
 	  , forOf = __webpack_require__(68)
+	  , species = __webpack_require__(66)
 	  , assertInstance = __webpack_require__(52).inst;
 
 	module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
@@ -2790,10 +2811,11 @@ var __e = null, __g = null;
 	  }
 
 	  __webpack_require__(47).set(C, NAME);
-	  __webpack_require__(67)(C);
 
 	  O[NAME] = C;
 	  $def($def.G + $def.W + $def.F * (C != Base), O);
+	  species(C);
+	  species($.core[NAME]); // for wrapper
 
 	  if(!IS_WEAK)common.setIter(C, NAME, IS_MAP);
 
