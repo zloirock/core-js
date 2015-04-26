@@ -5,10 +5,15 @@ var $      = require('./$')
   , proto  = RegExp.prototype
   , re     = /a/g
   // "new" creates a new object
-  , CORRECT_NEW = new RegExp(re) !== re;
-if($.FW && $.DESC){
+  , CORRECT_NEW = new RegExp(re) !== re
   // RegExp allows a regex with flags as the pattern
-  if(!function(){try{ return RegExp(re, 'i') == '/a/i'; }catch(e){ /* empty */ }}()){
+  , ALLOWS_RE_WITH_FLAGS = function(){
+    try {
+      return RegExp(re, 'i') == '/a/i';
+    } catch(e){ /* empty */ }
+  }();
+if($.FW && $.DESC){
+  if(!CORRECT_NEW || !ALLOWS_RE_WITH_FLAGS){
     RegExp = function RegExp(pattern, flags){
       var patternIsRegExp = cof(pattern) == 'RegExp'
         , flagsIsUndfined = flags === undefined;
