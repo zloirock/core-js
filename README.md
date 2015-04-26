@@ -1292,6 +1292,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.4 - 2015.04.27
+  * fixed `RegExp` constructor
+
 ##### 0.9.3 - 2015.04.26
   * some fixes and optimizations
 

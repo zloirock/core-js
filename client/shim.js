@@ -1,5 +1,5 @@
 /**
- * Core.js 0.9.3
+ * Core.js 0.9.4
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -74,8 +74,8 @@ var __e = null, __g = null;
 	__webpack_require__(18);
 	__webpack_require__(19);
 	__webpack_require__(20);
-	__webpack_require__(21);
 	__webpack_require__(22);
+	__webpack_require__(21);
 	__webpack_require__(23);
 	__webpack_require__(24);
 	__webpack_require__(25);
@@ -1063,24 +1063,6 @@ var __e = null, __g = null;
 /* 21 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var $def = __webpack_require__(49);
-	$def($def.S, 'Array', {
-	  // 22.1.2.3 Array.of( ...items)
-	  of: function of(/* ...args */){
-	    var index  = 0
-	      , length = arguments.length
-	      // strange IE quirks mode bug -> use typeof instead of isFunction
-	      , result = new (typeof this == 'function' ? this : Array)(length);
-	    while(length > index)result[index] = arguments[index++];
-	    result.length = length;
-	    return result;
-	  }
-	});
-
-/***/ },
-/* 22 */
-/***/ function(module, exports, __webpack_require__) {
-
 	var $          = __webpack_require__(46)
 	  , setUnscope = __webpack_require__(68)
 	  , ITER       = __webpack_require__(52).safe('iter')
@@ -1115,6 +1097,24 @@ var __e = null, __g = null;
 	setUnscope('keys');
 	setUnscope('values');
 	setUnscope('entries');
+
+/***/ },
+/* 22 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var $def = __webpack_require__(49);
+	$def($def.S, 'Array', {
+	  // 22.1.2.3 Array.of( ...items)
+	  of: function of(/* ...args */){
+	    var index  = 0
+	      , length = arguments.length
+	      // strange IE quirks mode bug -> use typeof instead of isFunction
+	      , result = new (typeof this == 'function' ? this : Array)(length);
+	    while(length > index)result[index] = arguments[index++];
+	    result.length = length;
+	    return result;
+	  }
+	});
 
 /***/ },
 /* 23 */
@@ -1200,23 +1200,26 @@ var __e = null, __g = null;
 	  , cof    = __webpack_require__(48)
 	  , RegExp = $.g.RegExp
 	  , Base   = RegExp
-	  , proto  = RegExp.prototype;
-	function regExpBroken() {
-	  try {
-	    var a = /a/g;
-	    // "new" creates a new object
-	    if (a === new RegExp(a)) { return true; }
-	    // RegExp allows a regex with flags as the pattern
-	    return RegExp(/a/g, 'i') != '/a/i';
-	  } catch(e) {
-	    return true;
-	  }
-	}
+	  , proto  = RegExp.prototype
+	  , re     = /a/g
+	  // "new" creates a new object
+	  , CORRECT_NEW = new RegExp(re) !== re
+	  // RegExp allows a regex with flags as the pattern
+	  , ALLOWS_RE_WITH_FLAGS = function(){
+	    try {
+	      return RegExp(re, 'i') == '/a/i';
+	    } catch(e){ /* empty */ }
+	  }();
 	if($.FW && $.DESC){
-	  if(regExpBroken()) {
+	  if(!CORRECT_NEW || !ALLOWS_RE_WITH_FLAGS){
 	    RegExp = function RegExp(pattern, flags){
-	      return new Base(cof(pattern) == 'RegExp' ? pattern.source : pattern,
-	        flags === undefined ? pattern.flags : flags);
+	      var patternIsRegExp = cof(pattern) == 'RegExp'
+	        , flagsIsUndfined = flags === undefined;
+	      if(!(this instanceof RegExp) && patternIsRegExp && flagsIsUndfined)return pattern;
+	      return CORRECT_NEW
+	        ? new Base(patternIsRegExp && !flagsIsUndfined ? pattern.source : pattern, flags)
+	        : new Base(patternIsRegExp ? pattern.source : pattern
+	          , patternIsRegExp && flagsIsUndfined ? pattern.flags : flags);
 	    };
 	    $.each.call($.getNames(Base), function(key){
 	      key in RegExp || $.setDesc(RegExp, key, {
@@ -1810,7 +1813,7 @@ var __e = null, __g = null;
 /* 43 */
 /***/ function(module, exports, __webpack_require__) {
 
-	__webpack_require__(22);
+	__webpack_require__(21);
 	var $           = __webpack_require__(46)
 	  , Iterators   = __webpack_require__(62).Iterators
 	  , ITERATOR    = __webpack_require__(58)('iterator')
