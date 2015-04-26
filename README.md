@@ -768,7 +768,7 @@ instance.c; // => 42
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
-* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON), [fix](https://github.com/DavidBruant/Map-Set.prototype.toJSON/issues/1#issuecomment-83794192) - modules `es7.map.to-json`, `es7.set.to-json`
+* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules `es7.map.to-json`, `es7.set.to-json`
 
 ```javascript
 Array
