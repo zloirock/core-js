@@ -2,23 +2,21 @@ var $      = require('./$')
   , cof    = require('./$.cof')
   , RegExp = $.g.RegExp
   , Base   = RegExp
-  , proto  = RegExp.prototype;
-function regExpBroken() {
-  try {
-    var a = /a/g;
-    // "new" creates a new object
-    if (a === new RegExp(a)) { return true; }
-    // RegExp allows a regex with flags as the pattern
-    return RegExp(/a/g, 'i') != '/a/i';
-  } catch(e) {
-    return true;
-  }
-}
+  , proto  = RegExp.prototype
+  , re     = /a/g
+  // "new" creates a new object
+  , CORRECT_NEW = new RegExp(re) !== re;
 if($.FW && $.DESC){
-  if(regExpBroken()) {
+  // RegExp allows a regex with flags as the pattern
+  if(!function(){try{ return RegExp(re, 'i') == '/a/i'; }catch(e){ /* empty */ }}()){
     RegExp = function RegExp(pattern, flags){
-      return new Base(cof(pattern) == 'RegExp' ? pattern.source : pattern,
-        flags === undefined ? pattern.flags : flags);
+      var patternIsRegExp = cof(pattern) == 'RegExp'
+        , flagsIsUndfined = flags === undefined;
+      if(!(this instanceof RegExp) && patternIsRegExp && flagsIsUndfined)return pattern;
+      return CORRECT_NEW
+        ? new Base(patternIsRegExp && !flagsIsUndfined ? pattern.source : pattern, flags)
+        : new Base(patternIsRegExp ? pattern.source : pattern
+          , patternIsRegExp && flagsIsUndfined ? pattern.flags : flags);
     };
     $.each.call($.getNames(Base), function(key){
       key in RegExp || $.setDesc(RegExp, key, {

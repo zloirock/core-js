@@ -5,8 +5,12 @@ eq = strictEqual
 if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
   test 'RegExp allows a regex with flags as the pattern' !->
     a = /a/g
+    ok typeof! RegExp! is \RegExp
+    ok typeof! new RegExp! is \RegExp
     b = new RegExp a
-    ok a isnt b, 'a != b'
+    ok a isnt b, 'a isnt b'
+    c = RegExp a
+    ok a is c, 'a is c'
     eq String(b), '/a/g', 'b is /a/g'
     eq String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags'
     ok new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof'
