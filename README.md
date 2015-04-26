@@ -65,7 +65,7 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
-If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
+If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/library.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
 
 Caveat: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise possible conflicts.
 ### CommonJS
