@@ -15,13 +15,13 @@ var $      = require('./$')
 if($.FW && $.DESC){
   if(!CORRECT_NEW || !ALLOWS_RE_WITH_FLAGS){
     RegExp = function RegExp(pattern, flags){
-      var patternIsRegExp = cof(pattern) == 'RegExp'
-        , flagsIsUndfined = flags === undefined;
-      if(!(this instanceof RegExp) && patternIsRegExp && flagsIsUndfined)return pattern;
+      var patternIsRegExp  = cof(pattern) == 'RegExp'
+        , flagsIsUndefined = flags === undefined;
+      if(!(this instanceof RegExp) && patternIsRegExp && flagsIsUndefined)return pattern;
       return CORRECT_NEW
-        ? new Base(patternIsRegExp && !flagsIsUndfined ? pattern.source : pattern, flags)
+        ? new Base(patternIsRegExp && !flagsIsUndefined ? pattern.source : pattern, flags)
         : new Base(patternIsRegExp ? pattern.source : pattern
-          , patternIsRegExp && flagsIsUndfined ? pattern.flags : flags);
+          , patternIsRegExp && flagsIsUndefined ? pattern.flags : flags);
     };
     $.each.call($.getNames(Base), function(key){
       key in RegExp || $.setDesc(RegExp, key, {
