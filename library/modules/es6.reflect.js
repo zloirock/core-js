@@ -6,8 +6,6 @@ var $         = require('./$')
   , step      = $iter.step
   , assert    = require('./$.assert')
   , isObject  = $.isObject
-  , getDesc   = $.getDesc
-  , setDesc   = $.setDesc
   , getProto  = $.getProto
   , _apply    = Function.apply
   , assertObject = assert.obj
@@ -47,7 +45,7 @@ var reflect = {
   defineProperty: function defineProperty(target, propertyKey, attributes){
     assertObject(target);
     try {
-      setDesc(target, propertyKey, attributes);
+      $.setDesc(target, propertyKey, attributes);
       return true;
     } catch(e){
       return false;
@@ -55,7 +53,7 @@ var reflect = {
   },
   // 26.1.4 Reflect.deleteProperty(target, propertyKey)
   deleteProperty: function deleteProperty(target, propertyKey){
-    var desc = getDesc(assertObject(target), propertyKey);
+    var desc = $.getDesc(assertObject(target), propertyKey);
     return desc && !desc.configurable ? false : delete target[propertyKey];
   },
   // 26.1.5 Reflect.enumerate(target)
@@ -65,7 +63,7 @@ var reflect = {
   // 26.1.6 Reflect.get(target, propertyKey [, receiver])
   get: function get(target, propertyKey/*, receiver*/){
     var receiver = arguments.length < 3 ? target : arguments[2]
-      , desc = getDesc(assertObject(target), propertyKey), proto;
+      , desc = $.getDesc(assertObject(target), propertyKey), proto;
     if(desc)return $.has(desc, 'value')
       ? desc.value
       : desc.get === undefined
@@ -77,7 +75,7 @@ var reflect = {
   },
   // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
   getOwnPropertyDescriptor: function getOwnPropertyDescriptor(target, propertyKey){
-    return getDesc(assertObject(target), propertyKey);
+    return $.getDesc(assertObject(target), propertyKey);
   },
   // 26.1.8 Reflect.getPrototypeOf(target)
   getPrototypeOf: function getPrototypeOf(target){
@@ -106,7 +104,7 @@ var reflect = {
   // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
   set: function set(target, propertyKey, V/*, receiver*/){
     var receiver = arguments.length < 4 ? target : arguments[3]
-      , ownDesc  = getDesc(assertObject(target), propertyKey)
+      , ownDesc  = $.getDesc(assertObject(target), propertyKey)
       , existingDescriptor, proto;
     if(!ownDesc){
       if(isObject(proto = getProto(target))){
@@ -116,9 +114,9 @@ var reflect = {
     }
     if($.has(ownDesc, 'value')){
       if(ownDesc.writable === false || !isObject(receiver))return false;
-      existingDescriptor = getDesc(receiver, propertyKey) || $.desc(0);
+      existingDescriptor = $.getDesc(receiver, propertyKey) || $.desc(0);
       existingDescriptor.value = V;
-      setDesc(receiver, propertyKey, existingDescriptor);
+      $.setDesc(receiver, propertyKey, existingDescriptor);
       return true;
     }
     return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);
