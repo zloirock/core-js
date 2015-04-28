@@ -4,14 +4,19 @@ var $def            = require('./$.def')
   , $iter           = require('./$.iter')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
   , FF_ITERATOR     = '@@iterator'
+  , KEYS            = 'keys'
   , VALUES          = 'values'
   , Iterators       = $iter.Iterators;
 module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
   $iter.create(Constructor, NAME, next);
   function createMethod(kind){
-    return function(){
-      return new Constructor(this, kind);
-    };
+    function $$(that){
+      return new Constructor(that, kind);
+    }
+    switch(kind){
+      case KEYS: return function keys(){ return $$(this); };
+      case VALUES: return function values(){ return $$(this); };
+    } return function entries(){ return $$(this); };
   }
   var TAG      = NAME + ' Iterator'
     , proto    = Base.prototype
@@ -33,7 +38,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
   Iterators[TAG]  = $.that;
   if(DEFAULT){
     methods = {
-      keys:    IS_SET            ? _default : createMethod('keys'),
+      keys:    IS_SET            ? _default : createMethod(KEYS),
       values:  DEFAULT == VALUES ? _default : createMethod(VALUES),
       entries: DEFAULT != VALUES ? _default : createMethod('entries')
     };
