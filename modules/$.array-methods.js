@@ -15,10 +15,10 @@ module.exports = function(TYPE){
     , IS_EVERY      = TYPE == 4
     , IS_FIND_INDEX = TYPE == 6
     , NO_HOLES      = TYPE == 5 || IS_FIND_INDEX;
-  return function(callbackfn/*, that = undefined */){
-    var O      = Object($.assertDefined(this))
+  return function($this, callbackfn, that){
+    var O      = Object($.assertDefined($this))
       , self   = $.ES5Object(O)
-      , f      = ctx(callbackfn, arguments[1], 3)
+      , f      = ctx(callbackfn, that, 3)
       , length = $.toLength(self.length)
       , index  = 0
       , result = IS_MAP ? Array(length) : IS_FILTER ? [] : undefined

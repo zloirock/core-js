@@ -1,2 +1,13 @@
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
-require('./$.array-find')('findIndex', 6);
+var KEY    = 'findIndex'
+  , $def   = require('./$.def')
+  , forced = true
+  , $find  = require('./$.array-methods')(6);
+// Shouldn't skip holes
+if(KEY in [])Array(1)[KEY](function(){ forced = false; });
+$def($def.P + $def.F * forced, 'Array', {
+  findIndex: function findIndex(callbackfn/*, that = undefined */){
+    return $find(this, callbackfn, arguments[1]);
+  }
+});
+require('./$.unscope')(KEY);

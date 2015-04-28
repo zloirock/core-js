@@ -15,7 +15,7 @@ var $         = require('./$')
   , find      = method(5)
   , findIndex = method(6);
 function findFrozen(store, key){
-  return find.call(store.array, function(it){
+  return find(store.array, function(it){
     return it[0] === key;
   });
 }
@@ -36,7 +36,7 @@ function leakStore(that){
       else this.array.push([key, value]);
     },
     'delete': function(key){
-      var index = findIndex.call(this.array, function(it){
+      var index = findIndex(this.array, function(it){
         return it[0] === key;
       });
       if(~index)this.array.splice(index, 1);

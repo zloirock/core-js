@@ -19,7 +19,13 @@ var $                = require('./$')
   , isFunction       = $.isFunction
   , toObject         = $.toObject
   , toLength         = $.toLength
-  , IE8_DOM_DEFINE   = false;
+  , IE8_DOM_DEFINE   = false
+  , $indexOf         = require('./$.array-includes')(false)
+  , $forEach         = arrayMethod(0)
+  , $map             = arrayMethod(1)
+  , $filter          = arrayMethod(2)
+  , $some            = arrayMethod(3)
+  , $every           = arrayMethod(4);
 
 if(!$.DESC){
   try {
@@ -202,21 +208,33 @@ function createArrayReduce(isRight){
 }
 $def($def.P, 'Array', {
   // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-  forEach: $.each = $.each || arrayMethod(0),
+  forEach: $.each = $.each || function forEach(callbackfn/*, that = undefined */){
+    return $forEach(this, callbackfn, arguments[1]);
+  },
   // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-  map: arrayMethod(1),
+  map: function map(callbackfn/*, that = undefined */){
+    return $map(this, callbackfn, arguments[1]);
+  },
   // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-  filter: arrayMethod(2),
+  filter: function filter(callbackfn/*, that = undefined */){
+    return $filter(this, callbackfn, arguments[1]);
+  },
   // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-  some: arrayMethod(3),
+  some: function some(callbackfn/*, that = undefined */){
+    return $some(this, callbackfn, arguments[1]);
+  },
   // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-  every: arrayMethod(4),
+  every: function every(callbackfn/*, that = undefined */){
+    return $every(this, callbackfn, arguments[1]);
+  },
   // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
   reduce: createArrayReduce(false),
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
   reduceRight: createArrayReduce(true),
   // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: indexOf = indexOf || require('./$.array-includes')(false),
+  indexOf: indexOf = indexOf || function indexOf(el /*, fromIndex = 0 */){
+    return $indexOf(this, el, arguments[1]);
+  },
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
   lastIndexOf: function(el, fromIndex /* = @[*-1] */){
     var O      = toObject(this)
