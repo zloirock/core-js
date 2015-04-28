@@ -45,11 +45,11 @@ test 'Object.getOwnPropertySymbols' !->
   obj = {q: 1, w: 2, e: 3}
   obj[Symbol()] = 42
   obj[Symbol()] = 43
-  deq getOwnPropertyNames(obj), <[q w e]>
+  deq getOwnPropertyNames(obj)sort!, <[e q w]>
   eq getOwnPropertySymbols(obj).length, 2
   foo = obj with {a: 1, s: 2, d: 3}
   foo[Symbol()] = 44
-  deq getOwnPropertyNames(foo), <[a s d]>
+  deq getOwnPropertyNames(foo)sort!, <[a d s]>
   eq getOwnPropertySymbols(foo).length, 1
 
 if descriptors
