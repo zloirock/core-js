@@ -1,10 +1,9 @@
-'use strict';
 // true  -> String#at
 // false -> String#codePointAt
 var $ = require('./$');
 module.exports = function(TO_STRING){
-  return function(pos){
-    var s = String($.assertDefined(this))
+  return function(that, pos){
+    var s = String($.assertDefined(that))
       , i = $.toInteger(pos)
       , l = s.length
       , a, b;

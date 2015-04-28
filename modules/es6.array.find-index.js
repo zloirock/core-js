@@ -1,3 +1,4 @@
+'use strict';
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 var KEY    = 'findIndex'
   , $def   = require('./$.def')

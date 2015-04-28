@@ -1,3 +1,4 @@
+'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 var KEY    = 'find'
   , $def   = require('./$.def')

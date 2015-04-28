@@ -1,5 +1,5 @@
 var set   = require('./$').set
-  , at    = require('./$.string-at')(true)
+  , $at   = require('./$.string-at')(true)
   , ITER  = require('./$.uid').safe('iter')
   , $iter = require('./$.iter')
   , step  = $iter.step;
@@ -14,7 +14,7 @@ require('./$.iter-define')(String, 'String', function(iterated){
     , index = iter.i
     , point;
   if(index >= O.length)return step(1);
-  point = at.call(O, index);
+  point = $at(O, index);
   iter.i += point.length;
   return step(0, point);
 });
