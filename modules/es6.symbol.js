@@ -14,16 +14,16 @@ var $        = require('./$')
   , desc     = $.desc
   , getNames = $.getNames
   , toObject = $.toObject
-  , Symbol   = $.g.Symbol
+  , $Symbol  = $.g.Symbol
   , setter   = false
   , TAG      = uid('tag')
   , HIDDEN   = uid('hidden')
   , SymbolRegistry = {}
   , AllSymbols = {}
-  , useNative = $.isFunction(Symbol);
+  , useNative = $.isFunction($Symbol);
 
 function wrap(tag){
-  var sym = AllSymbols[tag] = $.set($create(Symbol.prototype), TAG, tag);
+  var sym = AllSymbols[tag] = $.set($create($Symbol.prototype), TAG, tag);
   $.DESC && setter && setDesc(Object.prototype, tag, {
     configurable: true,
     set: function(value){
@@ -81,11 +81,11 @@ function getOwnPropertySymbols(it){
 
 // 19.4.1.1 Symbol([description])
 if(!useNative){
-  Symbol = function Symbol(description){
-    if(this instanceof Symbol)throw TypeError('Symbol is not a constructor');
+  $Symbol = function Symbol(description){
+    if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
     return wrap(uid(description));
   };
-  $.hide(Symbol.prototype, 'toString', function(){
+  $.hide($Symbol.prototype, 'toString', function(){
     return this[TAG];
   });
 
@@ -102,7 +102,7 @@ var symbolStatics = {
   'for': function(key){
     return has(SymbolRegistry, key += '')
       ? SymbolRegistry[key]
-      : SymbolRegistry[key] = Symbol(key);
+      : SymbolRegistry[key] = $Symbol(key);
   },
   // 19.4.2.5 Symbol.keyFor(sym)
   keyFor: function keyFor(key){
@@ -133,7 +133,7 @@ $.each.call((
 
 setter = true;
 
-$def($def.G + $def.W, {Symbol: Symbol});
+$def($def.G + $def.W, {Symbol: $Symbol});
 
 $def($def.S, 'Symbol', symbolStatics);
 
@@ -153,7 +153,7 @@ $def($def.S + $def.F * !useNative, 'Object', {
 });
 
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
-setTag(Symbol, 'Symbol');
+setTag($Symbol, 'Symbol');
 // 20.2.1.9 Math[@@toStringTag]
 setTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
