@@ -141,7 +141,7 @@ Date
 
 ### ECMAScript 6
 #### ECMAScript 6: Object & Function
-Modules `es6.object.assign`, `es6.object.is`, `es6.object.set-prototype-of`, `es6.object.to-string` and `es6.function.name`.
+Modules `es6.object.assign`, `es6.object.is`, `es6.object.set-prototype-of`, `es6.object.to-string`, `es6.function.name` and `es6.function.has-instance`.
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -150,6 +150,7 @@ Object
   #toString() -> string, ES6 fix: @@toStringTag support
 Function
   #name -> string (IE9+)
+  #@@hasInstance(var) -> bool
 ```
 [Example](http://goo.gl/UN5ZDT):
 ```javascript
@@ -1292,6 +1293,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.5 - 2015.04.30
+  * added cap for `Function#@@hasInstance`
+  * some fixes and optimizations
+
 ##### 0.9.4 - 2015.04.27
   * fixed `RegExp` constructor
 
