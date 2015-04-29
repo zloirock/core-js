@@ -1,4 +1,3 @@
-'use strict';
 // false -> Array#indexOf
 // true  -> Array#includes
 var $ = require('./$');

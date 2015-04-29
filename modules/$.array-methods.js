@@ -1,4 +1,3 @@
-'use strict';
 // 0 -> Array#forEach
 // 1 -> Array#map
 // 2 -> Array#filter
