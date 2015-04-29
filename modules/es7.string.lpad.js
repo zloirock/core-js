@@ -6,3 +6,4 @@ $def($def.P, 'String', {
     return $pad(this, n, f);
   }
 });
+
