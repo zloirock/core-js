@@ -8,6 +8,7 @@ list = <[
   es6.object.to-string
   es6.object.statics-accept-primitives
   es6.function.name
+  es6.function.has-instance
   es6.number.constructor
   es6.number.statics
   es6.math

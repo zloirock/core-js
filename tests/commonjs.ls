@@ -27,6 +27,8 @@ for P in <[.. ../library]>
   ok \isObject of require("#P/fn/object")
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
   require("#P/fn/function/name")
+  require("#P/fn/function/has-instance")
+  ok Function[require("#P/fn/symbol/has-instance")] ->
   ok \part of require("#P/fn/function")
   ok require("#P/fn/array/copy-within")([1 2 3 4 5] 0 3).0 is 4
   ok \next of require("#P/fn/array/entries")([])
