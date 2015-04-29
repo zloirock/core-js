@@ -4,10 +4,9 @@ var $def = require('./$.def')
   , $ = require('./$')
   , repeat = require('../fn/string/repeat');
 
-module.exports = function(left) {
-  return function $pad(that, minLength, fillChar) {
+module.exports = function $pad(that, minLength, fillChar, left) {
     // 2. Let S be ToString(O).
-    var S = that.toString();
+    var S = String(that);
 
     if ( minLength === undefined ) {
       // 4. If intMinLength is undefined, return S.
@@ -29,7 +28,7 @@ module.exports = function(left) {
 
     // 8. Let sFillStr be the string represented by fillStr.
     // 9. If sFillStr is undefined, let sFillStr be a space character.
-    var sFillStr = fillChar && fillChar.toString ? fillChar.toString() : ' ';
+    var sFillStr = fillChar === undefined ? ' ' : String(fillChar);
 
     // 10. Let sFillVal be a String made of sFillStr, repeated until fillLen is met.
     var sFillVal = repeat(sFillStr, fillLen / sFillStr.length);
