@@ -36,6 +36,8 @@ list = <[
   es6.reflect
   es7.array.includes
   es7.string.at
+  es7.string.lpad
+  es7.string.rpad
   es7.regexp.escape
   es7.object.get-own-property-descriptors
   es7.object.to-array
