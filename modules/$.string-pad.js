@@ -23,7 +23,7 @@ module.exports = function $pad(that, minLength, fillChar, left) {
       // 6. If fillLen < 0, then throw a RangeError exception.
       // 7. If fillLen is +∞, then throw a RangeError exception.
       throw new RangeError('Cannot satisfy string length ' +
-                            minLength + ' for string ' + JSON.stringify(S));
+                            minLength + ' for string ' + S;
     }
 
     // 8. Let sFillStr be the string represented by fillStr.
