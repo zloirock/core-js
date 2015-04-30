@@ -2,15 +2,19 @@ var $         = require('./$')
   , $def      = require('./$.def')
   , setProto  = require('./$.set-proto')
   , $iter     = require('./$.iter')
+  , ITERATOR  = require('./$.wks')('iterator')
   , ITER      = require('./$.uid').safe('iter')
   , step      = $iter.step
   , assert    = require('./$.assert')
   , isObject  = $.isObject
   , getProto  = $.getProto
+  , $Reflect  = $.g.Reflect
   , _apply    = Function.apply
   , assertObject = assert.obj
   , _isExtensible = Object.isExtensible || $.isObject
-  , _preventExtensions = Object.preventExtensions || $.it;
+  , _preventExtensions = Object.preventExtensions || $.it
+  // IE TP has broken Reflect.enumerate
+  , buggyEnumerate = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
 
 function Enumerate(iterated){
   $.set(this, ITER, {o: iterated, k: undefined, i: 0});
@@ -55,10 +59,6 @@ var reflect = {
   deleteProperty: function deleteProperty(target, propertyKey){
     var desc = $.getDesc(assertObject(target), propertyKey);
     return desc && !desc.configurable ? false : delete target[propertyKey];
-  },
-  // 26.1.5 Reflect.enumerate(target)
-  enumerate: function enumerate(target){
-    return new Enumerate(assertObject(target));
   },
   // 26.1.6 Reflect.get(target, propertyKey [, receiver])
   get: function get(target, propertyKey/*, receiver*/){
@@ -134,4 +134,12 @@ if(setProto)reflect.setPrototypeOf = function setPrototypeOf(target, proto){
 };
 
 $def($def.G, {Reflect: {}});
+
+$def($def.S + $def.F * buggyEnumerate, 'Reflect', {
+  // 26.1.5 Reflect.enumerate(target)
+  enumerate: function enumerate(target){
+    return new Enumerate(assertObject(target));
+  }
+});
+
 $def($def.S, 'Reflect', reflect);
