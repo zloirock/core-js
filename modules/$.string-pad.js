@@ -21,7 +21,7 @@ module.exports = function(that, minLength, fillChar, left){
   // 9. If sFillStr is undefined, let sFillStr be a space character.
   var sFillStr = fillChar === undefined ? ' ' : String(fillChar);
   // 10. Let sFillVal be a String made of sFillStr, repeated until fillLen is met.
-  var sFillVal = repeat(sFillStr, fillLen / sFillStr.length);
+  var sFillVal = repeat(sFillStr, Math.ceil(fillLen / sFillStr.length));
   // truncate if we overflowed
   if(sFillVal.length > fillLen)sFillVal = sFillVal.slice(0, fillLen);
   // 11. Return a string made from sFillVal, followed by S.
