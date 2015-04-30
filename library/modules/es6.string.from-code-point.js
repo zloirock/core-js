@@ -1,8 +1,10 @@
 var $def    = require('./$.def')
   , toIndex = require('./$').toIndex
-  , fromCharCode = String.fromCharCode;
+  , fromCharCode = String.fromCharCode
+  , $fromCodePoint = String.fromCodePoint;
 
-$def($def.S, 'String', {
+// length should be 1, old FF problem
+$def($def.S + $def.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   fromCodePoint: function fromCodePoint(x){ // eslint-disable-line no-unused-vars
     var res = []
