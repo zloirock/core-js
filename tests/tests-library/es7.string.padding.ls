@@ -21,9 +21,9 @@ test 'lpad' !->
 test 'rpad' !->
   {rpad} = core.String
   ok typeof! rpad is \Function, 'Is function'
-  eq rpad('abc', 5), '  abc'
+  eq rpad('abc', 5), 'abc  '
   eq rpad('abc'),  'abc'
-  eq rpad('abc', 5, '_'), '__abc'
+  eq rpad('abc', 5, '_'), 'abc__'
   eq rpad('', 0), ''
   throws (-> rpad('foo', 1)), RangeError
   throws (-> rpad('foo', Infinity)), RangeError
