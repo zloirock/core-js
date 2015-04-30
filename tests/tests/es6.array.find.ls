@@ -6,6 +6,8 @@ eq = strictEqual
 
 test '*' !->
   ok typeof! Array::find is \Function, 'Is function'
+  eq Array::find.length, 1, 'length is 1'
+  if \name of Array::find => eq Array::find.name, \find, 'name is "find"'
   (arr = [1])find (val, key, that)->
     eq @, ctx
     eq val, 1

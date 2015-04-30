@@ -7,6 +7,8 @@ eq = strictEqual
 
 test '*' !->
   ok typeof! Array::findIndex is \Function, 'Is function'
+  eq Array::findIndex.length, 1, 'length is 1'
+  if \name of Array::findIndex => eq Array::findIndex.name, \findIndex, 'name is "findIndex"'
   (arr = [1])findIndex (val, key, that)->
     eq @, ctx
     eq val, 1

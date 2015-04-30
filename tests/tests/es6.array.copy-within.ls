@@ -3,9 +3,12 @@
 QUnit.module 'ES6 Array#copyWithin'
 
 deq = deepEqual
+eq = strictEqual
 
 test '*' !->
   ok typeof! Array::copyWithin is \Function, 'Is function'
+  eq Array::copyWithin.length, 2, 'length is 2'
+  if \name of Array::copyWithin => eq Array::copyWithin.name, \copyWithin, 'name is "copyWithin"'
   strictEqual (a = [1]copyWithin(0)), a
   deq [1 2 3 4 5]copyWithin(0 3), [4 5 3 4 5]
   deq [1 2 3 4 5]copyWithin(1 3), [1 4 5 4 5]

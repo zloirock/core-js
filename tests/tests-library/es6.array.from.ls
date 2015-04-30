@@ -6,6 +6,8 @@ deq = deepEqual
 test '*' !->
   {from, values} = core.Array
   ok typeof! from is \Function, 'Is function'
+  eq from.length, 1, 'length is 1'
+  if \name of from => eq from.name, \from, 'name is "from"'
   deq from(\123), <[1 2 3]>
   deq from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
   from al = (-> &)(1), (val, key)->
