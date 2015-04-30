@@ -5,7 +5,7 @@ var $ = require('./$')
 
 module.exports = function $pad(that, minLength, fillChar, left) {
   // 2. Let S be ToString(O).
-  var S = String(that);
+  var S = String($.assertDefined(that));
 
   if ( minLength === undefined ) {
     // 4. If intMinLength is undefined, return S.
