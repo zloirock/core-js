@@ -766,6 +766,7 @@ instance.c; // => 42
 ### ECMAScript 7
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module `es7.array.includes`
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module `es7.string.at`
+* `String#lpad`, `String#rpad` [proposal](http://wiki.ecmascript.org/doku.php?id=strawman:string_padding) - modules `es7.string.lpad`, `es7.string.rpad`
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
@@ -776,6 +777,8 @@ Array
   #includes(var, from?) -> bool
 String
   #at(index) -> string
+  #lpad(length, fillStr = ' ') -> string
+  #rpad(length, fillStr = ' ') -> string
 Object
   .values(object) -> array
   .entries(object) -> array
@@ -787,7 +790,7 @@ Map
 Set
   #toJSON() -> array
 ```
-[Examples](http://goo.gl/inyWkw):
+[Examples](http://goo.gl/ZCaVZm):
 ```javascript
 [1, 2, 3].includes(2);        // => true
 [1, 2, 3].includes(4);        // => false
@@ -800,6 +803,11 @@ Array(1).includes(undefined); // => true
 
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
+
+'hello'.lpad(10);         // => '     hello'
+'hello'.lpad(10, '1234'); // => '41234hello'
+'hello'.rpad(10);         // => 'hello     '
+'hello'.rpad(10, '1234'); // => 'hello12341'
 
 Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
 Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
@@ -1293,6 +1301,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.6 - 2015.05.01
+  * added [`String#lpad`, `String#rpad`](#ecmascript-7)
+
 ##### 0.9.5 - 2015.04.30
   * added cap for `Function#@@hasInstance`
   * some fixes and optimizations
