@@ -4633,6 +4633,7 @@
     lpad = core.String.lpad;
     ok(toString$.call(lpad).slice(8, -1) === 'Function', 'Is function');
     eq(lpad('abc', 5), '  abc');
+    eq(lpad('abc', 4, 'de'), 'eabc');
     eq(lpad('abc'), 'abc');
     eq(lpad('abc', 5, '_'), '__abc');
     eq(lpad('', 0), '');
@@ -4658,6 +4659,7 @@
     rpad = core.String.rpad;
     ok(toString$.call(rpad).slice(8, -1) === 'Function', 'Is function');
     eq(rpad('abc', 5), 'abc  ');
+    eq(rpad('abc', 4, 'de'), 'abcd');
     eq(rpad('abc'), 'abc');
     eq(rpad('abc', 5, '_'), 'abc__');
     eq(rpad('', 0), '');

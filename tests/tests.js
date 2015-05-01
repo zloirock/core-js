@@ -4963,6 +4963,7 @@
   test('lpad', function(){
     ok(toString$.call(String.prototype.lpad).slice(8, -1) === 'Function', 'Is function');
     eq('abc'.lpad(5), '  abc');
+    eq('abc'.lpad(4, 'de'), 'eabc');
     eq('abc'.lpad(), 'abc');
     eq('abc'.lpad(5, '_'), '__abc');
     eq(''.lpad(0), '');
@@ -4986,6 +4987,7 @@
   test('rpad', function(){
     ok(toString$.call(String.prototype.rpad).slice(8, -1) === 'Function', 'Is function');
     eq('abc'.rpad(5), 'abc  ');
+    eq('abc'.rpad(4, 'de'), 'abcd');
     eq('abc'.rpad(), 'abc');
     eq('abc'.rpad(5, '_'), 'abc__');
     eq(''.rpad(0), '');

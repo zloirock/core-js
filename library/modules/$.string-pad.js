@@ -23,7 +23,9 @@ module.exports = function(that, minLength, fillChar, left){
   // 10. Let sFillVal be a String made of sFillStr, repeated until fillLen is met.
   var sFillVal = repeat(sFillStr, Math.ceil(fillLen / sFillStr.length));
   // truncate if we overflowed
-  if(sFillVal.length > fillLen)sFillVal = sFillVal.slice(0, fillLen);
+  if(sFillVal.length > fillLen)sFillVal = left
+    ? sFillVal.slice(sFillVal.length - fillLen)
+    : sFillVal.slice(0, fillLen);
   // 11. Return a string made from sFillVal, followed by S.
   // 11. Return a String made from S, followed by sFillVal.
   return left ? sFillVal.concat(S) : S.concat(sFillVal);
