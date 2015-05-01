@@ -113,6 +113,8 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/repeat")(\q 3) is \qqq
   ok require("#P/fn/string/starts-with") \qwe, \qw
   ok require("#P/fn/string/at")(\a 0) is \a
+  ok require("#P/fn/string/lpad")(\a 3) is '  a'
+  ok require("#P/fn/string/rpad")(\a 3) is 'a  '
   ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \raw of require("#P/fn/string")
