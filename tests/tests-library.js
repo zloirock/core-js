@@ -3749,6 +3749,10 @@
     var fromCodePoint, tmp, counter, result;
     fromCodePoint = core.String.fromCodePoint;
     ok(toString$.call(fromCodePoint).slice(8, -1) === 'Function', 'Is function');
+    eq(fromCodePoint.length, 1, 'length is 1');
+    if ('name' in fromCodePoint) {
+      eq(fromCodePoint.name, 'fromCodePoint', 'name is "fromCodePoint"');
+    }
     eq(fromCodePoint(''), '\0');
     eq(fromCodePoint(), '');
     eq(fromCodePoint(-0), '\0');
@@ -3910,6 +3914,10 @@
     var raw;
     raw = core.String.raw;
     ok(toString$.call(raw).slice(8, -1) === 'Function', 'Is function');
+    eq(raw.length, 1, 'arity is 1');
+    if ('name' in raw) {
+      eq(raw.name, 'raw', 'name is "raw"');
+    }
     eq(raw({
       raw: ['Hi\\n', '!']
     }, 'Bob'), 'Hi\\nBob!', 'raw is array');

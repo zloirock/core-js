@@ -2,8 +2,12 @@
 
 QUnit.module 'ES6 String#endsWith'
 
+eq = strictEqual
+
 test '*' !->
   ok typeof! String::endsWith is \Function, 'Is function'
+  eq String::endsWith.length, 1, 'arity is 1'
+  if \name of String::endsWith => eq String::endsWith.name, \endsWith, 'name is "endsWith"'
   ok 'undefined'endsWith!
   ok not 'undefined'endsWith null
   ok 'abc'endsWith ''

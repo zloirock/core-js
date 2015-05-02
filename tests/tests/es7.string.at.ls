@@ -6,6 +6,8 @@ eq = strictEqual
 
 test '*' !->
   ok typeof! String::at is \Function, 'Is function'
+  eq String::at.length, 1, 'arity is 1'
+  if \name of String::at => eq String::at.name, \at, 'name is "at"'
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol
   eq 'abc\uD834\uDF06def'at(-Infinity), ''
