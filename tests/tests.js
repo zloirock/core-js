@@ -3250,40 +3250,50 @@
     ok(typeof Reflect != 'undefined' && Reflect !== null, 'Reflect is defined');
   });
   test('Reflect.apply', function(){
-    var C;
-    ok(isFunction(Reflect.apply), 'Reflect.apply is function');
-    eq(Reflect.apply(Array.prototype.push, [1, 2], [3, 4, 5]), 5);
+    var apply, C;
+    apply = Reflect.apply;
+    ok(isFunction(apply), 'Reflect.apply is function');
+    eq(apply.length, 3, 'arity is 3');
+    if ('name' in apply) {
+      eq(apply.name, 'apply', 'name is "apply"');
+    }
+    eq(apply(Array.prototype.push, [1, 2], [3, 4, 5]), 5);
     C = function(a, b, c){
       return a + b + c;
     };
     C.apply = 42;
-    eq(Reflect.apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
+    eq(apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
     throws(function(){
-      return Reflect.apply(42, null, []);
+      return apply(42, null, []);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.construct', function(){
-    var C, inst, f, e;
-    ok(isFunction(Reflect.construct), 'Reflect.construct is function');
+    var construct, C, inst, f, e;
+    construct = Reflect.construct;
+    ok(isFunction(construct), 'Reflect.construct is function');
+    eq(construct.length, 2, 'arity is 2');
+    if ('name' in construct) {
+      eq(construct.name, 'construct', 'name is "construct"');
+    }
     C = function(a, b, c){
       return this.qux = a + b + c;
     };
-    eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
+    eq(construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
     C.apply = 42;
-    eq(Reflect.construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
-    inst = Reflect.construct(function(){
+    eq(construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
+    inst = construct(function(){
       return this.x = 42;
     }, [], Array);
     eq(inst.x, 42, 'constructor with newTarget');
     ok(inst instanceof Array, 'prototype with newTarget');
     throws(function(){
-      return Reflect.construct(42, []);
+      return construct(42, []);
     }, TypeError, 'throws on primitive');
     f = function(){};
     f.prototype = 42;
     ok((function(){
       try {
-        return Object.getPrototypeOf(Reflect.construct(f, [])) === Object.prototype;
+        return Object.getPrototypeOf(construct(f, [])) === Object.prototype;
       } catch (e$) {
         e = e$;
         return false;
@@ -3291,16 +3301,21 @@
     }()));
   });
   test('Reflect.defineProperty', function(){
-    var O;
-    ok(isFunction(Reflect.defineProperty), 'Reflect.defineProperty is function');
+    var defineProperty, O;
+    defineProperty = Reflect.defineProperty;
+    ok(isFunction(defineProperty), 'Reflect.defineProperty is function');
+    eq(defineProperty.length, 3, 'arity is 3');
+    if ('name' in defineProperty) {
+      eq(defineProperty.name, 'defineProperty', 'name is "defineProperty"');
+    }
     O = {};
-    eq(Reflect.defineProperty(O, 'foo', {
+    eq(defineProperty(O, 'foo', {
       value: 123
     }), true);
     eq(O.foo, 123);
     if (MODERN) {
       O = {};
-      Reflect.defineProperty(O, 'foo', {
+      defineProperty(O, 'foo', {
         value: 123,
         enumerable: true
       });
@@ -3310,41 +3325,51 @@
         configurable: false,
         writable: false
       });
-      eq(Reflect.defineProperty(O, 'foo', {
+      eq(defineProperty(O, 'foo', {
         value: 42
       }), false);
     }
     throws(function(){
-      return Reflect.defineProperty(42, 'foo', {
+      return defineProperty(42, 'foo', {
         value: 42
       });
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.deleteProperty', function(){
-    var O;
-    ok(isFunction(Reflect.deleteProperty), 'Reflect.deleteProperty is function');
+    var deleteProperty, O;
+    deleteProperty = Reflect.deleteProperty;
+    ok(isFunction(deleteProperty), 'Reflect.deleteProperty is function');
+    eq(deleteProperty.length, 2, 'arity is 2');
+    if ('name' in deleteProperty) {
+      eq(deleteProperty.name, 'deleteProperty', 'name is "deleteProperty"');
+    }
     O = {
       bar: 456
     };
-    eq(Reflect.deleteProperty(O, 'bar'), true);
+    eq(deleteProperty(O, 'bar'), true);
     ok(!in$('bar', O));
     if (MODERN) {
-      eq(Reflect.deleteProperty(Object.defineProperty({}, 'foo', {
+      eq(deleteProperty(Object.defineProperty({}, 'foo', {
         value: 42
       }), 'foo'), false);
     }
     throws(function(){
-      return Reflect.deleteProperty(42, 'foo');
+      return deleteProperty(42, 'foo');
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.enumerate', function(){
-    var obj, iterator, ref$;
-    ok(isFunction(Reflect.enumerate), 'Reflect.enumerate is function');
+    var enumerate, obj, iterator, ref$;
+    enumerate = Reflect.enumerate;
+    ok(isFunction(enumerate), 'Reflect.enumerate is function');
+    eq(enumerate.length, 1, 'arity is 1');
+    if ('name' in enumerate) {
+      eq(enumerate.name, 'enumerate', 'name is "enumerate"');
+    }
     obj = {
       foo: 1,
       bar: 2
     };
-    iterator = Reflect.enumerate(obj);
+    iterator = enumerate(obj);
     ok(Symbol.iterator in iterator, 'returns iterator');
     deq(Array.from(iterator), ['foo', 'bar'], 'bisic');
     obj = {
@@ -3352,7 +3377,7 @@
       w: 2,
       e: 3
     };
-    iterator = Reflect.enumerate(obj);
+    iterator = enumerate(obj);
     delete obj.w;
     deq(Array.from(iterator), ['q', 'e'], 'ignore holes');
     obj = (ref$ = clone$({
@@ -3360,15 +3385,20 @@
       w: 2,
       e: 3
     }), ref$.a = 4, ref$.s = 5, ref$.d = 6, ref$);
-    deq(Array.from(Reflect.enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
+    deq(Array.from(enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
     throws(function(){
-      return Reflect.enumerate(42);
+      return enumerate(42);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.get', function(){
-    var target, receiver;
-    ok(isFunction(Reflect.get), 'Reflect.get is function');
-    eq(Reflect.get({
+    var get, target, receiver;
+    get = Reflect.get;
+    ok(isFunction(get), 'Reflect.get is function');
+    eq(get.length, 2, 'arity is 2');
+    if ('name' in get) {
+      eq(get.name, 'get', 'name is "get"');
+    }
+    eq(get({
       qux: 987
     }, 'qux'), 987);
     if (MODERN) {
@@ -3389,61 +3419,88 @@
         }
       });
       receiver = {};
-      eq(Reflect.get(target, 'x', receiver), 1, 'get x');
-      eq(Reflect.get(target, 'y', receiver), receiver, 'get y');
-      eq(Reflect.get(target, 'z', receiver), 3, 'get z');
-      eq(Reflect.get(target, 'w', receiver), receiver, 'get w');
-      eq(Reflect.get(target, 'u', receiver), void 8, 'get u');
+      eq(get(target, 'x', receiver), 1, 'get x');
+      eq(get(target, 'y', receiver), receiver, 'get y');
+      eq(get(target, 'z', receiver), 3, 'get z');
+      eq(get(target, 'w', receiver), receiver, 'get w');
+      eq(get(target, 'u', receiver), void 8, 'get u');
     }
     throws(function(){
-      return Reflect.get(42, 'constructor');
+      return get(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.getOwnPropertyDescriptor', function(){
-    var obj, desc;
-    ok(isFunction(Reflect.getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function');
+    var getOwnPropertyDescriptor, obj, desc;
+    getOwnPropertyDescriptor = Reflect.getOwnPropertyDescriptor;
+    ok(isFunction(getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function');
+    eq(getOwnPropertyDescriptor.length, 2, 'arity is 2');
+    if ('name' in getOwnPropertyDescriptor) {
+      eq(getOwnPropertyDescriptor.name, 'getOwnPropertyDescriptor', 'name is "getOwnPropertyDescriptor"');
+    }
     obj = {
       baz: 789
     };
-    desc = Reflect.getOwnPropertyDescriptor(obj, 'baz');
+    desc = getOwnPropertyDescriptor(obj, 'baz');
     eq(desc.value, 789);
     throws(function(){
-      return Reflect.getOwnPropertyDescriptor(42, 'constructor');
+      return getOwnPropertyDescriptor(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.getPrototypeOf', function(){
-    ok(isFunction(Reflect.getPrototypeOf), 'Reflect.getPrototypeOf is function');
-    eq(Reflect.getPrototypeOf([]), Array.prototype);
+    var getPrototypeOf;
+    getPrototypeOf = Reflect.getPrototypeOf;
+    ok(isFunction(getPrototypeOf), 'Reflect.getPrototypeOf is function');
+    eq(getPrototypeOf.length, 1, 'arity is 1');
+    if ('name' in getPrototypeOf) {
+      eq(getPrototypeOf.name, 'getPrototypeOf', 'name is "getPrototypeOf"');
+    }
+    eq(getPrototypeOf([]), Array.prototype);
     throws(function(){
-      return Reflect.getPrototypeOf(42);
+      return getPrototypeOf(42);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.has', function(){
-    var O;
-    ok(isFunction(Reflect.has), 'Reflect.has is function');
+    var has, O;
+    has = Reflect.has;
+    ok(isFunction(has), 'Reflect.has is function');
+    eq(has.length, 2, 'arity is 2');
+    if ('name' in has) {
+      eq(has.name, 'has', 'name is "has"');
+    }
     O = {
       qux: 987
     };
-    eq(Reflect.has(O, 'qux'), true);
-    eq(Reflect.has(O, 'qwe'), false);
-    eq(Reflect.has(O, 'toString'), true);
+    eq(has(O, 'qux'), true);
+    eq(has(O, 'qwe'), false);
+    eq(has(O, 'toString'), true);
     throws(function(){
-      return Reflect.has(42, 'constructor');
+      return has(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.isExtensible', function(){
-    ok(isFunction(Reflect.isExtensible), 'Reflect.isExtensible is function');
-    ok(Reflect.isExtensible({}));
+    var isExtensible;
+    isExtensible = Reflect.isExtensible;
+    ok(isFunction(isExtensible), 'Reflect.isExtensible is function');
+    eq(isExtensible.length, 1, 'arity is 1');
+    if ('name' in isExtensible) {
+      eq(isExtensible.name, 'isExtensible', 'name is "isExtensible"');
+    }
+    ok(isExtensible({}));
     if (MODERN) {
-      ok(!Reflect.isExtensible(Object.preventExtensions({})));
+      ok(!isExtensible(Object.preventExtensions({})));
     }
     throws(function(){
-      return Reflect.isExtensible(42);
+      return isExtensible(42);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.ownKeys', function(){
-    var O1, sym, keys, O2;
-    ok(isFunction(Reflect.ownKeys), 'Reflect.ownKeys is function');
+    var ownKeys, O1, sym, keys, O2;
+    ownKeys = Reflect.ownKeys;
+    ok(isFunction(ownKeys), 'Reflect.ownKeys is function');
+    eq(ownKeys.length, 1, 'arity is 1');
+    if ('name' in ownKeys) {
+      eq(ownKeys.name, 'ownKeys', 'name is "ownKeys"');
+    }
     O1 = {
       a: 1
     };
@@ -3452,39 +3509,49 @@
     });
     sym = Symbol('c');
     O1[sym] = 3;
-    keys = Reflect.ownKeys(O1);
+    keys = ownKeys(O1);
     eq(keys.length, 3, 'ownKeys return all own keys');
     eq(O1[keys[0]], 1, 'ownKeys return all own keys: simple');
     eq(O1[keys[1]], 2, 'ownKeys return all own keys: hidden');
     eq(O1[keys[2]], 3, 'ownKeys return all own keys: symbol');
     O2 = clone$(O1);
-    keys = Reflect.ownKeys(O2);
+    keys = ownKeys(O2);
     eq(keys.length, 0, 'ownKeys return only own keys');
     throws(function(){
-      return Reflect.ownKeys(42);
+      return ownKeys(42);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.preventExtensions', function(){
-    var obj;
-    ok(isFunction(Reflect.preventExtensions), 'Reflect.preventExtensions is function');
+    var preventExtensions, obj;
+    preventExtensions = Reflect.preventExtensions;
+    ok(isFunction(preventExtensions), 'Reflect.preventExtensions is function');
+    eq(preventExtensions.length, 1, 'arity is 1');
+    if ('name' in preventExtensions) {
+      eq(preventExtensions.name, 'preventExtensions', 'name is "preventExtensions"');
+    }
     obj = {};
-    ok(Reflect.preventExtensions(obj), true);
+    ok(preventExtensions(obj), true);
     if (MODERN) {
       ok(!Object.isExtensible(obj));
     }
     throws(function(){
-      return Reflect.preventExtensions(42);
+      return preventExtensions(42);
     }, TypeError, 'throws on primitive');
   });
   test('Reflect.set', function(){
-    var obj, target, receiver, out;
-    ok(isFunction(Reflect.set), 'Reflect.set is function');
+    var set, obj, target, receiver, out;
+    set = Reflect.set;
+    ok(isFunction(set), 'Reflect.set is function');
+    eq(set.length, 3, 'arity is 3');
+    if ('name' in set) {
+      eq(set.name, 'set', 'name is "set"');
+    }
     obj = {};
-    ok(Reflect.set(obj, 'quux', 654), true);
+    ok(set(obj, 'quux', 654), true);
     eq(obj.quux, 654);
     target = {};
     receiver = {};
-    Reflect.set(target, 'foo', 1, receiver);
+    set(target, 'foo', 1, receiver);
     eq(target.foo, void 8, 'target.foo === undefined');
     eq(receiver.foo, 1, 'receiver.foo === 1');
     if (MODERN) {
@@ -3494,7 +3561,7 @@
         enumerable: false,
         configurable: true
       });
-      Reflect.set(target, 'bar', 1, receiver);
+      set(target, 'bar', 1, receiver);
       eq(receiver.bar, 1, 'receiver.bar === 1');
       eq(Object.getOwnPropertyDescriptor(receiver, 'bar').enumerable, false, 'enumerability not overridden');
       target = Object.create(Object.defineProperty({
@@ -3520,41 +3587,46 @@
           configurable: false
         }
       });
-      eq(Reflect.set(target, 'x', 2, target), true, 'set x');
+      eq(set(target, 'x', 2, target), true, 'set x');
       eq(target.x, 2, 'set x');
       out = null;
-      eq(Reflect.set(target, 'y', 2, target), true, 'set y');
+      eq(set(target, 'y', 2, target), true, 'set y');
       eq(out, target, 'set y');
-      eq(Reflect.set(target, 'z', 4, target), true);
+      eq(set(target, 'z', 4, target), true);
       eq(target.z, 4, 'set z');
       out = null;
-      eq(Reflect.set(target, 'w', 1, target), true, 'set w');
+      eq(set(target, 'w', 1, target), true, 'set w');
       eq(out, target, 'set w');
-      eq(Reflect.set(target, 'u', 0, target), true, 'set u');
+      eq(set(target, 'u', 0, target), true, 'set u');
       eq(target.u, 0, 'set u');
-      eq(Reflect.set(target, 'c', 2, target), false, 'set c');
+      eq(set(target, 'c', 2, target), false, 'set c');
       eq(target.c, 1, 'set c');
     }
     throws(function(){
-      return Reflect.set(42, 'q', 42);
+      return set(42, 'q', 42);
     }, TypeError, 'throws on primitive');
   });
-  if ('__proto__' in Object.prototype) {
+  if ('__proto__' in {}) {
     test('Reflect.setPrototypeOf', function(){
-      var obj, o;
-      ok(isFunction(Reflect.setPrototypeOf), 'Reflect.setPrototypeOf is function');
+      var setPrototypeOf, obj, o;
+      setPrototypeOf = Reflect.setPrototypeOf;
+      ok(isFunction(setPrototypeOf), 'Reflect.setPrototypeOf is function');
+      eq(setPrototypeOf.length, 2, 'arity is 2');
+      if ('name' in setPrototypeOf) {
+        eq(setPrototypeOf.name, 'setPrototypeOf', 'name is "setPrototypeOf"');
+      }
       obj = {};
-      ok(Reflect.setPrototypeOf(obj, Array.prototype), true);
+      ok(setPrototypeOf(obj, Array.prototype), true);
       ok(obj instanceof Array);
       throws(function(){
-        return Reflect.setPrototypeOf({}, 42);
+        return setPrototypeOf({}, 42);
       }, TypeError);
       throws(function(){
-        return Reflect.setPrototypeOf(42, {});
+        return setPrototypeOf(42, {});
       }, TypeError, 'throws on primitive');
-      ok(Reflect.setPrototypeOf(o = {}, o) === false, 'false on recursive __proto__');
+      ok(setPrototypeOf(o = {}, o) === false, 'false on recursive __proto__');
       if (REAL_FREEZE) {
-        ok(Reflect.setPrototypeOf(Object.freeze({}), {}) === false, 'false on frozen object');
+        ok(setPrototypeOf(Object.freeze({}), {}) === false, 'false on frozen object');
       }
     });
   }
