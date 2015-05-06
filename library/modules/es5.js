@@ -8,8 +8,10 @@ var $                = require('./$')
   , assert           = require('./$.assert')
   , assertObject     = assert.obj
   , ObjectProto      = Object.prototype
+  , html             = $.html
   , A                = []
-  , slice            = A.slice
+  , _slice           = A.slice
+  , _join            = A.join
   , indexOf          = A.indexOf
   , classof          = cof.classof
   , has              = $.has
@@ -19,6 +21,7 @@ var $                = require('./$')
   , isFunction       = $.isFunction
   , toObject         = $.toObject
   , toLength         = $.toLength
+  , toIndex          = $.toIndex
   , IE8_DOM_DEFINE   = false
   , $indexOf         = require('./$.array-includes')(false)
   , $forEach         = arrayMethod(0)
@@ -81,7 +84,7 @@ var createDict = function(){
     , gt     = '>'
     , iframeDocument;
   iframe.style.display = 'none';
-  $.html.appendChild(iframe);
+  html.appendChild(iframe);
   iframe.src = 'javascript:'; // eslint-disable-line no-script-url
   // createDict = iframe.contentWindow.Object;
   // html.removeChild(iframe);
@@ -152,9 +155,9 @@ $def($def.S, 'Object', {
 $def($def.P, 'Function', {
   bind: function(that /*, args... */){
     var fn       = assert.fn(this)
-      , partArgs = slice.call(arguments, 1);
+      , partArgs = _slice.call(arguments, 1);
     function bound(/* args... */){
-      var args = partArgs.concat(slice.call(arguments));
+      var args = partArgs.concat(_slice.call(arguments));
       return invoke(fn, args, this instanceof bound ? $.create(fn.prototype) : that);
     }
     if(fn.prototype)bound.prototype = fn.prototype;
@@ -162,20 +165,41 @@ $def($def.P, 'Function', {
   }
 });
 
-// Fix for not array-like ES3 string
-function arrayMethodFix(fn){
-  return function(){
-    return fn.apply($.ES5Object(this), arguments);
-  };
-}
+// Fix for not array-like ES3 string and DOM objects
 if(!(0 in Object('z') && 'z'[0] == 'z')){
   $.ES5Object = function(it){
     return cof(it) == 'String' ? it.split('') : Object(it);
   };
 }
+
+var buggySlice = true;
+try {
+  if(html)_slice.call(html);
+  buggySlice = false;
+} catch(e){ /* empty */ }
+
+$def($def.P + $def.F * buggySlice, 'Array', {
+  slice: function slice(begin, end){
+    var len   = toLength(this.length)
+      , klass = cof(this);
+    end = end === undefined ? len : end;
+    if(klass == 'Array')return _slice.call(this, begin, end);
+    var start  = toIndex(begin, len)
+      , upTo   = toIndex(end, len)
+      , size   = toLength(upTo - start)
+      , cloned = Array(size)
+      , i      = 0;
+    for(; i < size; i++)cloned[i] = klass == 'String'
+      ? this.charAt(start + i)
+      : this[start + i];
+    return cloned;
+  }
+});
+
 $def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
-  slice: arrayMethodFix(slice),
-  join: arrayMethodFix(A.join)
+  join: function join(){
+    return _join.apply($.ES5Object(this), arguments);
+  }
 });
 
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
