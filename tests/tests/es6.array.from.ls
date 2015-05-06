@@ -36,3 +36,16 @@ test '*' !->
   iter.return = -> done := on
   try => from iter, -> throw 42
   ok done, '.return #throw'
+  # generic, iterable case
+  F = !->
+  inst = from.call F, [1, 2]
+  ok inst instanceof F
+  eq inst.0, 1
+  eq inst.1, 2
+  eq inst.length, 2
+  # generic, array-like case
+  inst = from.call F, {0: 1, 1: 2, length: 2}
+  ok inst instanceof F
+  eq inst.0, 1
+  eq inst.1, 2
+  eq inst.length, 2

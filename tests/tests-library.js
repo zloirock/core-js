@@ -1736,7 +1736,7 @@
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
-    var ref$, from, values, al, ctx, done, iter;
+    var ref$, from, values, al, ctx, done, iter, F, inst;
     ref$ = core.Array, from = ref$.from, values = ref$.values;
     ok(toString$.call(from).slice(8, -1) === 'Function', 'Is function');
     eq(from.length, 1, 'length is 1');
@@ -1797,6 +1797,21 @@
       });
     } catch (e$) {}
     ok(done, '.return #throw');
+    F = function(){};
+    inst = from.call(F, [1, 2]);
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
+    inst = from.call(F, {
+      0: 1,
+      1: 2,
+      length: 2
+    });
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
   });
 }).call(this);
 
@@ -1915,6 +1930,7 @@
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
+    var F, inst;
     ok(toString$.call(core.Array.of).slice(8, -1) === 'Function', 'Is function');
     eq(core.Array.of.length, 0, 'length is 0');
     if ('name' in core.Array.of) {
@@ -1922,6 +1938,12 @@
     }
     deq(core.Array.of(1), [1]);
     deq(core.Array.of(1, 2, 3), [1, 2, 3]);
+    F = function(){};
+    inst = core.Array.of.call(F, 1, 2);
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
   });
 }).call(this);
 

@@ -1733,7 +1733,7 @@
   eq = strictEqual;
   deq = deepEqual;
   test('*', function(){
-    var from, al, ctx, done, iter;
+    var from, al, ctx, done, iter, F, inst;
     from = Array.from;
     ok(toString$.call(from).slice(8, -1) === 'Function', 'Is function');
     eq(Array.from.length, 1, 'length is 1');
@@ -1794,6 +1794,21 @@
       });
     } catch (e$) {}
     ok(done, '.return #throw');
+    F = function(){};
+    inst = from.call(F, [1, 2]);
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
+    inst = from.call(F, {
+      0: 1,
+      1: 2,
+      length: 2
+    });
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
   });
 }).call(this);
 
@@ -1914,6 +1929,7 @@
   deq = deepEqual;
   eq = strictEqual;
   test('*', function(){
+    var F, inst;
     ok(toString$.call(Array.of).slice(8, -1) === 'Function', 'Is function');
     eq(Array.of.length, 0, 'length is 0');
     if ('name' in Array.of) {
@@ -1921,6 +1937,12 @@
     }
     deq(Array.of(1), [1]);
     deq(Array.of(1, 2, 3), [1, 2, 3]);
+    F = function(){};
+    inst = Array.of.call(F, 1, 2);
+    ok(inst instanceof F);
+    eq(inst[0], 1);
+    eq(inst[1], 2);
+    eq(inst.length, 2);
   });
 }).call(this);
 
