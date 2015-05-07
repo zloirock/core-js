@@ -1,5 +1,10 @@
 QUnit.module \ES5
+
 isFunction = -> typeof! it is \Function
+
+eq = strictEqual
+deq = deepEqual
+
 test 'Object.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Object
   ok isFunction(getOwnPropertyDescriptor), 'Is function'
@@ -30,7 +35,7 @@ test 'Object.getPrototypeOf' !->
   bar = ->
   bar:: = create foo::
   bar::constructor = bar
-  strictEqual getPrototypeOf(bar::).foo, \foo
+  eq getPrototypeOf(bar::).foo, \foo
 
 test 'Object.getOwnPropertyNames' !->
   {getOwnPropertyNames} = Object
@@ -38,9 +43,9 @@ test 'Object.getOwnPropertyNames' !->
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
-  deepEqual getOwnPropertyNames([1 2 3]), <[0 1 2 length]>
-  deepEqual getOwnPropertyNames(new fn1 1), <[w]>
-  deepEqual getOwnPropertyNames(new fn2 1), <[toString]>
+  deq getOwnPropertyNames([1 2 3]), <[0 1 2 length]>
+  deq getOwnPropertyNames(new fn1 1), <[w]>
+  deq getOwnPropertyNames(new fn2 1), <[toString]>
   ok \toString in getOwnPropertyNames Array::
   ok \toString in getOwnPropertyNames Object::
   ok \constructor in getOwnPropertyNames Object::
@@ -65,41 +70,41 @@ test 'Object.create' !->
   ok isObject obj = create null w: value:2
   ok \toString not of obj
   ok obj.w is 2
-  deepEqual getPropertyNames(create null), []
+  deq getPropertyNames(create null), []
 test 'Object.keys' !->
   {keys} = Object
   ok isFunction(keys), 'Is function'
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
-  deepEqual keys([1,2,3]), <[0 1 2]>
-  deepEqual keys(new fn1 1), <[w]>
-  deepEqual keys(new fn2 1), <[toString]>
+  deq keys([1,2,3]), <[0 1 2]>
+  deq keys(new fn1 1), <[w]>
+  deq keys(new fn2 1), <[toString]>
   ok \push not in keys Array::
 test 'Object.seal' !->
   {seal} = Object
   ok isFunction(seal), 'Is function'
-  equal seal(a = {}), a
+  eq seal(a = {}), a
 test 'Object.freeze' !->
   {freeze} = Object
   ok isFunction(freeze), 'Is function'
-  equal freeze(a = {}), a
+  eq freeze(a = {}), a
 test 'Object.preventExtensions' !->
   {preventExtensions} = Object
   ok isFunction(preventExtensions), 'Is function'
-  equal preventExtensions(a = {}), a
+  eq preventExtensions(a = {}), a
 test 'Object.isSealed' !->
   {isSealed} = Object
   ok isFunction(isSealed), 'Is function'
-  equal isSealed({}), no
+  eq isSealed({}), no
 test 'Object.isFrozen' !->
   {isFrozen} = Object
   ok isFunction(isFrozen), 'Is function'
-  equal isFrozen({}), no
+  eq isFrozen({}), no
 test 'Object.isExtensible' !->
   {isExtensible} = Object
   ok isFunction(isExtensible), 'Is function'
-  equal isExtensible({}), on
+  eq isExtensible({}), on
 
 test 'Function#bind' !->
   ok isFunction(Function::bind), 'Is function'
@@ -118,6 +123,28 @@ test 'Array.isArray' !->
 test 'ES5 Array prototype methods are functions' !->
   for <[indexOf lastIndexOf every some forEach map filter reduce reduceRight]>
     ok isFunction(Array::[..]), "Array::#{..} is function"
+test 'Array#slice' !->
+  {slice} = Array::
+  arr = <[1 2 3 4 5]>
+  deq arr.slice!, arr
+  deq arr.slice(1 3), <[2 3]>
+  deq arr.slice(1 void), <[2 3 4 5]>
+  deq arr.slice(1 -1), <[2 3 4]>
+  deq arr.slice(-2 -1), <[4]>
+  deq arr.slice(-2 -3), []
+  str = \12345
+  deq slice.call(str), arr
+  deq slice.call(str, 1 3), <[2 3]>
+  deq slice.call(str, 1 void), <[2 3 4 5]>
+  deq slice.call(str, 1 -1), <[2 3 4]>
+  deq slice.call(str, -2 -1), <[4]>
+  deq slice.call(str, -2 -3), []
+  if list = document?body?childNodes
+    try eq typeof! slice.call(list), \Array
+    catch => ok no
+test 'Array#join' !->
+  eq Array::join.call(\123), '1,2,3'
+  eq Array::join.call(\123 \|), '1|2|3'
 test 'Array#indexOf' !->
   ok 0  is [1 1 1]indexOf 1
   ok -1 is [1 2 3]indexOf 1 1
@@ -126,11 +153,11 @@ test 'Array#indexOf' !->
   ok 3  is Array(2)concat([1 2 3])indexOf 2
   ok -1 is Array(1)indexOf void
 test 'Array#lastIndexOf' !->
-  equal 2,  [1 1 1]lastIndexOf 1
-  equal -1, [1 2 3]lastIndexOf 3 1
-  equal 1,  [1 2 3]lastIndexOf 2 1
-  equal -1, [NaN]lastIndexOf NaN
-  equal 1,  [1 2 3]concat(Array 2)lastIndexOf 2
+  eq 2,  [1 1 1]lastIndexOf 1
+  eq -1, [1 2 3]lastIndexOf 3 1
+  eq 1,  [1 2 3]lastIndexOf 2 1
+  eq -1, [NaN]lastIndexOf NaN
+  eq 1,  [1 2 3]concat(Array 2)lastIndexOf 2
 test 'Array#every' !->
   (a = [1])every (val, key, that)->
     ok val  is 1
@@ -194,9 +221,9 @@ test 'Array#map' !->
     ok that is a
     ok @    is ctx
   , ctx = {}
-  deepEqual [2 3 4] [1 2 3]map (+ 1)
-  deepEqual [1 3 5] [1 2 3]map ( + )
-  deepEqual [2 2 2] [1 2 3]map (-> +@), 2 
+  deq [2 3 4] [1 2 3]map (+ 1)
+  deq [1 3 5] [1 2 3]map ( + )
+  deq [2 2 2] [1 2 3]map (-> +@), 2 
 test 'Array#filter' !->
   (a = [1])filter (val, key, that)->
     ok val is 1
@@ -204,7 +231,7 @@ test 'Array#filter' !->
     ok that is a
     ok @ is ctx
   , ctx = {}
-  deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
+  deq [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
 test 'Array#reduce' !->
   ok -5 is [5 4 3 2 1]reduce (-)
   (a = [1])reduce (memo, val, key, that)->
@@ -234,9 +261,9 @@ test 'Date.now' !->
   ok +new Date - now! < 10, 'Date.now() ~ +new Date'
 test 'Date#toISOString' !->
   ok isFunction(Date::toISOString), 'Is function'
-  strictEqual new Date(0).toISOString(), '1970-01-01T00:00:00.000Z'
-  strictEqual new Date(1e12+1).toISOString(), '2001-09-09T01:46:40.001Z'
-  strictEqual new Date(-5e13-1).toISOString(), '0385-07-25T07:06:39.999Z'
+  eq new Date(0).toISOString(), '1970-01-01T00:00:00.000Z'
+  eq new Date(1e12+1).toISOString(), '2001-09-09T01:46:40.001Z'
+  eq new Date(-5e13-1).toISOString(), '0385-07-25T07:06:39.999Z'
   ft =  new Date(1e15+1).toISOString()
   ok(ft is '+033658-09-27T01:46:40.001Z' or ft is '33658-09-27T01:46:40.001Z')
   bc =  new Date(-1e15+1).toISOString()
