@@ -12,7 +12,6 @@ var $                = require('./$')
   , A                = []
   , _slice           = A.slice
   , _join            = A.join
-  , indexOf          = A.indexOf
   , classof          = cof.classof
   , has              = $.has
   , defineProperty   = $.setDesc
@@ -105,7 +104,7 @@ function createGetKeys(names, length){
     for(key in O)if(key != IE_PROTO)has(O, key) && result.push(key);
     // Don't enum bug & hidden keys
     while(length > i)if(has(O, key = names[i++])){
-      ~indexOf.call(result, key) || result.push(key);
+      ~$indexOf(result, key) || result.push(key);
     }
     return result;
   };
@@ -256,7 +255,7 @@ $def($def.P, 'Array', {
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
   reduceRight: createArrayReduce(true),
   // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: indexOf = indexOf || function indexOf(el /*, fromIndex = 0 */){
+  indexOf: function indexOf(el /*, fromIndex = 0 */){
     return $indexOf(this, el, arguments[1]);
   },
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
