@@ -1301,6 +1301,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.7 - 2015.05.07
+  * added [support DOM collections](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
+
 ##### 0.9.6 - 2015.05.01
   * added [`String#lpad`, `String#rpad`](#ecmascript-7)
 
