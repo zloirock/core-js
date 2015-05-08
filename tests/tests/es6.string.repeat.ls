@@ -12,6 +12,6 @@ test '*' !->
   eq 'qwe'repeat(2.5), \qweqwe
   throws (-> 'qwe'repeat -1), RangeError
   throws (-> 'qwe'repeat Infinity), RangeError
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> String::repeat.call null, 1), TypeError
     throws (-> String::repeat.call void, 1), TypeError

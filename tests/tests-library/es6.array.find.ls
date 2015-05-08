@@ -15,6 +15,6 @@ test '*' !->
   , ctx = {}
   eq find([1 3 NaN, 42 {}], (is 42)), 42
   eq find([1 3 NaN, 42 {}], (is 43)), void
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> find null, 0), TypeError
     throws (-> find void, 0), TypeError

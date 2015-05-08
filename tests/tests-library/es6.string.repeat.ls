@@ -11,6 +11,6 @@ test '*' !->
   eq repeat('qwe' 2.5), \qweqwe
   throws (-> repeat 'qwe' -1), RangeError
   throws (-> repeat 'qwe' Infinity), RangeError
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> repeat null, 1), TypeError
     throws (-> repeat void, 1), TypeError

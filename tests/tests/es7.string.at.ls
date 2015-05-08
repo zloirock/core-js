@@ -92,6 +92,6 @@ test '*' !->
   eq at.call(42 1), \2
   eq at.call({toString: -> \abc}, 2), \c
   
-  if typeof (-> @).call(void) is \undefined
+  if !(-> @)!
     throws (-> String::at.call null, 0), TypeError
     throws (-> String::at.call void, 0), TypeError

@@ -20,7 +20,7 @@ test '*' !->
   ok not 'abc'startsWith \a Infinity
   ok 'abc'startsWith \b on
   ok 'abc'startsWith \a \x
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> String::startsWith.call null, '.'), TypeError
     throws (-> String::startsWith.call void, '.'), TypeError
   throws (-> 'qwe'startsWith /./), TypeError

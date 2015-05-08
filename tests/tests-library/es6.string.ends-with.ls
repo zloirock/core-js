@@ -18,7 +18,7 @@ test '*' !->
   ok endsWith 'abc' \a on
   ok not endsWith 'abc' \c \x
   ok not endsWith 'abc' \a \x
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> endsWith null, '.'), TypeError
     throws (-> endsWith void, '.'), TypeError
   throws (-> endsWith 'qwe' /./), TypeError

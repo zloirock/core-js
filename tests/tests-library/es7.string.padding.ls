@@ -15,7 +15,7 @@ test \lpad !->
   throws (-> lpad \foo 1), RangeError
   throws (-> lpad \foo Infinity), RangeError
 
-  if typeof (-> @).call(void) is \undefined
+  if !(-> @)!
     throws (-> lpad null, 0), TypeError
     throws (-> lpad void, 0), TypeError
 
@@ -30,6 +30,6 @@ test \rpad !->
   throws (-> rpad \foo 1), RangeError
   throws (-> rpad \foo Infinity), RangeError
 
-  if typeof (-> @).call(void) is \undefined
+  if !(-> @)!
     throws (-> rpad null, 0), TypeError
     throws (-> rpad void, 0), TypeError

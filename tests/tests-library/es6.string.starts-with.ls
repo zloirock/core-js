@@ -17,7 +17,7 @@ test '*' !->
   ok not startsWith 'abc' \a Infinity
   ok startsWith 'abc' \b on
   ok startsWith 'abc' \a \x
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> startsWith null, '.'), TypeError
     throws (-> startsWith void, '.'), TypeError
   throws (-> startsWith 'qwe' /./), TypeError

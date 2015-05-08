@@ -15,6 +15,6 @@ test '*' !->
   ok !includes arr, {}
   ok includes Array(1), void
   ok includes [NaN], NaN
-  if typeof (-> @).call(void) is \undefined
+  if !(-> @)!
     throws (-> includes null, 0), TypeError
     throws (-> includes void, 0), TypeError

@@ -12,7 +12,7 @@ test '*' !->
   ok 'aundefinedb'includes!
   ok 'abcd'includes \b 1
   ok not 'abcd'includes \b 2
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> String::includes.call null, '.'), TypeError
     throws (-> String::includes.call void, '.'), TypeError
   throws (-> 'foo[a-z]+(bar)?'includes /[a-z]+/), TypeError

@@ -16,7 +16,7 @@ test '*' !->
   , ctx = {}
   eq [1 3 NaN, 42 {}]find((is 42)), 42
   eq [1 3 NaN, 42 {}]find((is 43)), void
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> Array::find.call null, 0), TypeError
     throws (-> Array::find.call void, 0), TypeError
   ok \find of Array::[Symbol.unscopables], 'In Array#@@unscopables'

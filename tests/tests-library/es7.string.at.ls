@@ -89,6 +89,6 @@ test '*' !->
   eq at(42 1), \2
   eq at({toString: -> \abc}, 2), \c
   
-  if typeof (-> @).call(void) is \undefined
+  if !(-> @)!
     throws (-> at null, 0), TypeError
     throws (-> at void, 0), TypeError

@@ -1,5 +1,4 @@
 'use strict'
-strict = (-> @).call(void) is void
 
 QUnit.module 'ES6 Array#findIndex'
 
@@ -16,7 +15,7 @@ test '*' !->
     eq that, arr
   , ctx = {}
   eq [1 3 NaN, 42 {}]findIndex((is 42)), 3
-  if strict
+  if !(-> @)!
     throws (-> Array::findIndex.call null, 0), TypeError
     throws (-> Array::findIndex.call void, 0), TypeError
   ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'

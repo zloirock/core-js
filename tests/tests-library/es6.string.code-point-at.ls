@@ -57,6 +57,6 @@ test '*' !->
   eq codePointAt('\uDF06abc', NaN), 0xDF06
   eq codePointAt('\uDF06abc', null), 0xDF06
   eq codePointAt('\uDF06abc', void), 0xDF06
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> codePointAt null, 0), TypeError
     throws (-> codePointAt void, 0), TypeError

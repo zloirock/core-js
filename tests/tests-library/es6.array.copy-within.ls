@@ -20,6 +20,6 @@ test '*' !->
   deq copyWithin([1 2 3 4 5], -4 -3 -2), [1 3 3 4 5]
   deq copyWithin([1 2 3 4 5], -4 -3 -1), [1 3 4 4 5]
   deq copyWithin([1 2 3 4 5], -4 -3), [1 3 4 5 5]
-  if (-> @).call(void) is void
+  if !(-> @)!
     throws (-> copyWithin null, 0), TypeError
     throws (-> copyWithin void, 0), TypeError

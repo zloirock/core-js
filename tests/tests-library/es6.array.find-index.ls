@@ -1,5 +1,4 @@
 'use strict'
-strict = (-> @).call(void) is void
 
 QUnit.module 'ES6 Array#findIndex'
 
@@ -15,6 +14,6 @@ test '*' !->
     eq that, arr
   , ctx = {}
   eq findIndex([1 3 NaN, 42 {}], (is 42)), 3
-  if strict
+  if !(-> @)!
     throws (-> findIndex null, 0), TypeError
     throws (-> findIndex void, 0), TypeError
