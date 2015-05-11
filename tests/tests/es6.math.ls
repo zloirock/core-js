@@ -130,6 +130,8 @@ test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
   {hypot, sqrt} = Math
   ok isFunction(hypot), 'Is function'
+  eq hypot!, 0
+  eq hypot(1), 1
   sameEq hypot('', 0), 0
   sameEq hypot(0, ''), 0
   eq hypot(Infinity, 0), Infinity

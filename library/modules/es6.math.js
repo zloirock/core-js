@@ -71,14 +71,14 @@ $def($def.S, 'Math', {
       , len1 = arguments.length
       , len2 = len1
       , args = Array(len1)
-      , larg = -Infinity
+      , larg = 0
       , arg;
     while(len1--){
-      arg = args[len1] = +arguments[len1];
-      if(arg == Infinity || arg == -Infinity)return Infinity;
+      arg = args[len1] = abs(arguments[len1]);
+      if(arg == Infinity)return Infinity;
       if(arg > larg)larg = arg;
     }
-    larg = arg || 1;
+    larg = larg || 1;
     while(len2--)sum += pow(args[len2] / larg, 2);
     return larg * sqrt(sum);
   },

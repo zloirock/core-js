@@ -131,6 +131,8 @@ test 'Math.hypot' !->
   {hypot} = core.Math
   {sqrt} = Math
   ok isFunction(hypot), 'Is function'
+  eq hypot!, 0
+  eq hypot(1), 1
   sameEq hypot('', 0), 0
   sameEq hypot(0, ''), 0
   eq hypot(Infinity, 0), Infinity
@@ -162,6 +164,8 @@ test 'Math.hypot' !->
   eq hypot(1e+300, 1e+300), 1.4142135623730952e+300
   eq hypot(1e-300, 1e-300), 1.4142135623730952e-300
   eq hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300
+  eq hypot(-3, 4), 5
+  eq hypot(3, -4), 5
 test 'Math.imul' !->
   {imul} = core.Math
   ok isFunction(imul), 'Is function'
