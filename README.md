@@ -1301,6 +1301,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.8 - 2015.05.12
+  * fixed [`Math.hypot`](#ecmascript-6-number--math) with negative arguments
+  * added `Object#toString.toString` as fallback for [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
+
 ##### 0.9.7 - 2015.05.07
   * added [support DOM collections](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
 

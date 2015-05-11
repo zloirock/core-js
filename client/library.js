@@ -1,5 +1,5 @@
 /**
- * Core.js 0.9.7
+ * Core.js 0.9.8
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -54,7 +54,7 @@ var __e = null, __g = null;
 /* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
-	__webpack_require__(1);
+	__webpack_require__(47);
 	__webpack_require__(2);
 	__webpack_require__(3);
 	__webpack_require__(4);
@@ -100,330 +100,28 @@ var __e = null, __g = null;
 	__webpack_require__(44);
 	__webpack_require__(45);
 	__webpack_require__(46);
-	__webpack_require__(47);
+	__webpack_require__(1);
 	__webpack_require__(48);
 	__webpack_require__(49);
 	__webpack_require__(50);
 	__webpack_require__(51);
 	__webpack_require__(52);
 	__webpack_require__(53);
+	__webpack_require__(59);
 	__webpack_require__(54);
 	__webpack_require__(55);
 	__webpack_require__(56);
 	__webpack_require__(57);
 	__webpack_require__(58);
-	__webpack_require__(59);
 
 /***/ },
 /* 1 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var $                = __webpack_require__(60)
-	  , cel              = __webpack_require__(61)
-	  , cof              = __webpack_require__(62)
-	  , $def             = __webpack_require__(63)
-	  , invoke           = __webpack_require__(64)
-	  , arrayMethod      = __webpack_require__(65)
-	  , IE_PROTO         = __webpack_require__(66).safe('__proto__')
-	  , assert           = __webpack_require__(67)
-	  , assertObject     = assert.obj
-	  , ObjectProto      = Object.prototype
-	  , html             = $.html
-	  , A                = []
-	  , _slice           = A.slice
-	  , _join            = A.join
-	  , indexOf          = A.indexOf
-	  , classof          = cof.classof
-	  , has              = $.has
-	  , defineProperty   = $.setDesc
-	  , getOwnDescriptor = $.getDesc
-	  , defineProperties = $.setDescs
-	  , isFunction       = $.isFunction
-	  , toObject         = $.toObject
-	  , toLength         = $.toLength
-	  , toIndex          = $.toIndex
-	  , IE8_DOM_DEFINE   = false
-	  , $indexOf         = __webpack_require__(68)(false)
-	  , $forEach         = arrayMethod(0)
-	  , $map             = arrayMethod(1)
-	  , $filter          = arrayMethod(2)
-	  , $some            = arrayMethod(3)
-	  , $every           = arrayMethod(4);
-
-	if(!$.DESC){
-	  try {
-	    IE8_DOM_DEFINE = defineProperty(cel('div'), 'x',
-	      {get: function(){ return 8; }}
-	    ).x == 8;
-	  } catch(e){ /* empty */ }
-	  $.setDesc = function(O, P, Attributes){
-	    if(IE8_DOM_DEFINE)try {
-	      return defineProperty(O, P, Attributes);
-	    } catch(e){ /* empty */ }
-	    if('get' in Attributes || 'set' in Attributes)throw TypeError('Accessors not supported!');
-	    if('value' in Attributes)assertObject(O)[P] = Attributes.value;
-	    return O;
-	  };
-	  $.getDesc = function(O, P){
-	    if(IE8_DOM_DEFINE)try {
-	      return getOwnDescriptor(O, P);
-	    } catch(e){ /* empty */ }
-	    if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
-	  };
-	  $.setDescs = defineProperties = function(O, Properties){
-	    assertObject(O);
-	    var keys   = $.getKeys(Properties)
-	      , length = keys.length
-	      , i = 0
-	      , P;
-	    while(length > i)$.setDesc(O, P = keys[i++], Properties[P]);
-	    return O;
-	  };
-	}
-	$def($def.S + $def.F * !$.DESC, 'Object', {
-	  // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
-	  getOwnPropertyDescriptor: $.getDesc,
-	  // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
-	  defineProperty: $.setDesc,
-	  // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
-	  defineProperties: defineProperties
-	});
-
-	  // IE 8- don't enum bug keys
-	var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
-	            'toLocaleString,toString,valueOf').split(',')
-	  // Additional keys for getOwnPropertyNames
-	  , keys2 = keys1.concat('length', 'prototype')
-	  , keysLen1 = keys1.length;
-
-	// Create object with `null` prototype: use iframe Object with cleared prototype
-	var createDict = function(){
-	  // Thrash, waste and sodomy: IE GC bug
-	  var iframe = cel('iframe')
-	    , i      = keysLen1
-	    , gt     = '>'
-	    , iframeDocument;
-	  iframe.style.display = 'none';
-	  html.appendChild(iframe);
-	  iframe.src = 'javascript:'; // eslint-disable-line no-script-url
-	  // createDict = iframe.contentWindow.Object;
-	  // html.removeChild(iframe);
-	  iframeDocument = iframe.contentWindow.document;
-	  iframeDocument.open();
-	  iframeDocument.write('<script>document.F=Object</script' + gt);
-	  iframeDocument.close();
-	  createDict = iframeDocument.F;
-	  while(i--)delete createDict.prototype[keys1[i]];
-	  return createDict();
-	};
-	function createGetKeys(names, length){
-	  return function(object){
-	    var O      = toObject(object)
-	      , i      = 0
-	      , result = []
-	      , key;
-	    for(key in O)if(key != IE_PROTO)has(O, key) && result.push(key);
-	    // Don't enum bug & hidden keys
-	    while(length > i)if(has(O, key = names[i++])){
-	      ~indexOf.call(result, key) || result.push(key);
-	    }
-	    return result;
-	  };
-	}
-	function isPrimitive(it){ return !$.isObject(it); }
-	function Empty(){}
-	$def($def.S, 'Object', {
-	  // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
-	  getPrototypeOf: $.getProto = $.getProto || function(O){
-	    O = Object(assert.def(O));
-	    if(has(O, IE_PROTO))return O[IE_PROTO];
-	    if(isFunction(O.constructor) && O instanceof O.constructor){
-	      return O.constructor.prototype;
-	    } return O instanceof Object ? ObjectProto : null;
-	  },
-	  // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-	  getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length, true),
-	  // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-	  create: $.create = $.create || function(O, /*?*/Properties){
-	    var result;
-	    if(O !== null){
-	      Empty.prototype = assertObject(O);
-	      result = new Empty();
-	      Empty.prototype = null;
-	      // add "__proto__" for Object.getPrototypeOf shim
-	      result[IE_PROTO] = O;
-	    } else result = createDict();
-	    return Properties === undefined ? result : defineProperties(result, Properties);
-	  },
-	  // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-	  keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false),
-	  // 19.1.2.17 / 15.2.3.8 Object.seal(O)
-	  seal: $.it, // <- cap
-	  // 19.1.2.5 / 15.2.3.9 Object.freeze(O)
-	  freeze: $.it, // <- cap
-	  // 19.1.2.15 / 15.2.3.10 Object.preventExtensions(O)
-	  preventExtensions: $.it, // <- cap
-	  // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
-	  isSealed: isPrimitive, // <- cap
-	  // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
-	  isFrozen: isPrimitive, // <- cap
-	  // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
-	  isExtensible: $.isObject // <- cap
-	});
-
-	// 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
-	$def($def.P, 'Function', {
-	  bind: function(that /*, args... */){
-	    var fn       = assert.fn(this)
-	      , partArgs = _slice.call(arguments, 1);
-	    function bound(/* args... */){
-	      var args = partArgs.concat(_slice.call(arguments));
-	      return invoke(fn, args, this instanceof bound ? $.create(fn.prototype) : that);
-	    }
-	    if(fn.prototype)bound.prototype = fn.prototype;
-	    return bound;
-	  }
-	});
-
-	// Fix for not array-like ES3 string and DOM objects
-	if(!(0 in Object('z') && 'z'[0] == 'z')){
-	  $.ES5Object = function(it){
-	    return cof(it) == 'String' ? it.split('') : Object(it);
-	  };
-	}
-
-	var buggySlice = true;
-	try {
-	  if(html)_slice.call(html);
-	  buggySlice = false;
-	} catch(e){ /* empty */ }
-
-	$def($def.P + $def.F * buggySlice, 'Array', {
-	  slice: function slice(begin, end){
-	    var len   = toLength(this.length)
-	      , klass = cof(this);
-	    end = end === undefined ? len : end;
-	    if(klass == 'Array')return _slice.call(this, begin, end);
-	    var start  = toIndex(begin, len)
-	      , upTo   = toIndex(end, len)
-	      , size   = toLength(upTo - start)
-	      , cloned = Array(size)
-	      , i      = 0;
-	    for(; i < size; i++)cloned[i] = klass == 'String'
-	      ? this.charAt(start + i)
-	      : this[start + i];
-	    return cloned;
-	  }
-	});
-
-	$def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
-	  join: function join(){
-	    return _join.apply($.ES5Object(this), arguments);
-	  }
-	});
-
-	// 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-	$def($def.S, 'Array', {
-	  isArray: function(arg){
-	    return cof(arg) == 'Array';
-	  }
-	});
-	function createArrayReduce(isRight){
-	  return function(callbackfn, memo){
-	    assert.fn(callbackfn);
-	    var O      = toObject(this)
-	      , length = toLength(O.length)
-	      , index  = isRight ? length - 1 : 0
-	      , i      = isRight ? -1 : 1;
-	    if(arguments.length < 2)for(;;){
-	      if(index in O){
-	        memo = O[index];
-	        index += i;
-	        break;
-	      }
-	      index += i;
-	      assert(isRight ? index >= 0 : length > index, 'Reduce of empty array with no initial value');
-	    }
-	    for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
-	      memo = callbackfn(memo, O[index], index, this);
-	    }
-	    return memo;
-	  };
-	}
-	$def($def.P, 'Array', {
-	  // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-	  forEach: $.each = $.each || function forEach(callbackfn/*, that = undefined */){
-	    return $forEach(this, callbackfn, arguments[1]);
-	  },
-	  // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-	  map: function map(callbackfn/*, that = undefined */){
-	    return $map(this, callbackfn, arguments[1]);
-	  },
-	  // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-	  filter: function filter(callbackfn/*, that = undefined */){
-	    return $filter(this, callbackfn, arguments[1]);
-	  },
-	  // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-	  some: function some(callbackfn/*, that = undefined */){
-	    return $some(this, callbackfn, arguments[1]);
-	  },
-	  // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-	  every: function every(callbackfn/*, that = undefined */){
-	    return $every(this, callbackfn, arguments[1]);
-	  },
-	  // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
-	  reduce: createArrayReduce(false),
-	  // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
-	  reduceRight: createArrayReduce(true),
-	  // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-	  indexOf: indexOf = indexOf || function indexOf(el /*, fromIndex = 0 */){
-	    return $indexOf(this, el, arguments[1]);
-	  },
-	  // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-	  lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-	    var O      = toObject(this)
-	      , length = toLength(O.length)
-	      , index  = length - 1;
-	    if(arguments.length > 1)index = Math.min(index, $.toInteger(fromIndex));
-	    if(index < 0)index = toLength(length + index);
-	    for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
-	    return -1;
-	  }
-	});
-
-	// 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-	$def($def.P, 'String', {trim: __webpack_require__(69)(/^\s*([\s\S]*\S)?\s*$/, '$1')});
-
-	// 20.3.3.1 / 15.9.4.4 Date.now()
-	$def($def.S, 'Date', {now: function(){
-	  return +new Date;
-	}});
-
-	function lz(num){
-	  return num > 9 ? num : '0' + num;
-	}
-
-	// 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
-	// PhantomJS and old webkit had a broken Date implementation.
-	var date       = new Date(-5e13 - 1)
-	  , brokenDate = !(date.toISOString && date.toISOString() == '0385-07-25T07:06:39.999Z'
-	      && __webpack_require__(70)(function(){ new Date(NaN).toISOString(); }));
-	$def($def.P + $def.F * brokenDate, 'Date', {toISOString: function(){
-	  if(!isFinite(this))throw RangeError('Invalid time value');
-	  var d = this
-	    , y = d.getUTCFullYear()
-	    , m = d.getUTCMilliseconds()
-	    , s = y < 0 ? '-' : y > 9999 ? '+' : '';
-	  return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
-	    '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
-	    'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
-	    ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
-	}});
-
-	if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
-	  var tag = classof(it);
-	  return tag == 'Object' && isFunction(it.callee) ? 'Arguments' : tag;
-	};
+	var core  = __webpack_require__(60).core
+	  , $iter = __webpack_require__(77);
+	core.isIterable  = $iter.is;
+	core.getIterator = $iter.get;
 
 /***/ },
 /* 2 */
@@ -596,7 +294,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.1 Object.assign(target, source)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {assign: __webpack_require__(75)});
+	$def($def.S, 'Object', {assign: __webpack_require__(74)});
 
 /***/ },
 /* 4 */
@@ -616,7 +314,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.19 Object.setPrototypeOf(O, proto)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(74).set});
+	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(75).set});
 
 /***/ },
 /* 6 */
@@ -626,11 +324,17 @@ var __e = null, __g = null;
 	// 19.1.3.6 Object.prototype.toString()
 	var $   = __webpack_require__(60)
 	  , cof = __webpack_require__(62)
+	  , src = String({}.toString)
 	  , tmp = {};
-	tmp[__webpack_require__(73)('toStringTag')] = 'z';
-	if($.FW && cof(tmp) != 'z')$.hide(Object.prototype, 'toString', function toString(){
+	function toString(){
 	  return '[object ' + cof.classof(this) + ']';
-	});
+	}
+	// lodash uses String(Object.prototype.toString) in isNative
+	toString.toString = function(){
+	  return src;
+	};
+	tmp[__webpack_require__(73)('toStringTag')] = 'z';
+	if($.FW && cof(tmp) != 'z')$.hide(Object.prototype, 'toString', toString);
 
 /***/ },
 /* 7 */
@@ -831,14 +535,14 @@ var __e = null, __g = null;
 	      , len1 = arguments.length
 	      , len2 = len1
 	      , args = Array(len1)
-	      , larg = -Infinity
+	      , larg = 0
 	      , arg;
 	    while(len1--){
-	      arg = args[len1] = +arguments[len1];
-	      if(arg == Infinity || arg == -Infinity)return Infinity;
+	      arg = args[len1] = abs(arguments[len1]);
+	      if(arg == Infinity)return Infinity;
 	      if(arg > larg)larg = arg;
 	    }
-	    larg = arg || 1;
+	    larg = larg || 1;
 	    while(len2--)sum += pow(args[len2] / larg, 2);
 	    return larg * sqrt(sum);
 	  },
@@ -1248,7 +952,7 @@ var __e = null, __g = null;
 	  , $def     = __webpack_require__(63)
 	  , assert   = __webpack_require__(67)
 	  , forOf    = __webpack_require__(85)
-	  , setProto = __webpack_require__(74).set
+	  , setProto = __webpack_require__(75).set
 	  , species  = __webpack_require__(84)
 	  , SPECIES  = __webpack_require__(73)('species')
 	  , RECORD   = __webpack_require__(66).safe('record')
@@ -1572,7 +1276,7 @@ var __e = null, __g = null;
 
 	var $         = __webpack_require__(60)
 	  , $def      = __webpack_require__(63)
-	  , setProto  = __webpack_require__(74)
+	  , setProto  = __webpack_require__(75)
 	  , $iter     = __webpack_require__(77)
 	  , ITERATOR  = __webpack_require__(73)('iterator')
 	  , ITER      = __webpack_require__(66).safe('iter')
@@ -1897,7 +1601,7 @@ var __e = null, __g = null;
 	var $        = __webpack_require__(60)
 	  , ctx      = __webpack_require__(80)
 	  , $def     = __webpack_require__(63)
-	  , assign   = __webpack_require__(75)
+	  , assign   = __webpack_require__(74)
 	  , keyOf    = __webpack_require__(71)
 	  , ITER     = __webpack_require__(66).safe('iter')
 	  , assert   = __webpack_require__(67)
@@ -2046,10 +1750,311 @@ var __e = null, __g = null;
 /* 47 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var core  = __webpack_require__(60).core
-	  , $iter = __webpack_require__(77);
-	core.isIterable  = $iter.is;
-	core.getIterator = $iter.get;
+	var $                = __webpack_require__(60)
+	  , cel              = __webpack_require__(61)
+	  , cof              = __webpack_require__(62)
+	  , $def             = __webpack_require__(63)
+	  , invoke           = __webpack_require__(64)
+	  , arrayMethod      = __webpack_require__(65)
+	  , IE_PROTO         = __webpack_require__(66).safe('__proto__')
+	  , assert           = __webpack_require__(67)
+	  , assertObject     = assert.obj
+	  , ObjectProto      = Object.prototype
+	  , html             = $.html
+	  , A                = []
+	  , _slice           = A.slice
+	  , _join            = A.join
+	  , classof          = cof.classof
+	  , has              = $.has
+	  , defineProperty   = $.setDesc
+	  , getOwnDescriptor = $.getDesc
+	  , defineProperties = $.setDescs
+	  , isFunction       = $.isFunction
+	  , toObject         = $.toObject
+	  , toLength         = $.toLength
+	  , toIndex          = $.toIndex
+	  , IE8_DOM_DEFINE   = false
+	  , $indexOf         = __webpack_require__(68)(false)
+	  , $forEach         = arrayMethod(0)
+	  , $map             = arrayMethod(1)
+	  , $filter          = arrayMethod(2)
+	  , $some            = arrayMethod(3)
+	  , $every           = arrayMethod(4);
+
+	if(!$.DESC){
+	  try {
+	    IE8_DOM_DEFINE = defineProperty(cel('div'), 'x',
+	      {get: function(){ return 8; }}
+	    ).x == 8;
+	  } catch(e){ /* empty */ }
+	  $.setDesc = function(O, P, Attributes){
+	    if(IE8_DOM_DEFINE)try {
+	      return defineProperty(O, P, Attributes);
+	    } catch(e){ /* empty */ }
+	    if('get' in Attributes || 'set' in Attributes)throw TypeError('Accessors not supported!');
+	    if('value' in Attributes)assertObject(O)[P] = Attributes.value;
+	    return O;
+	  };
+	  $.getDesc = function(O, P){
+	    if(IE8_DOM_DEFINE)try {
+	      return getOwnDescriptor(O, P);
+	    } catch(e){ /* empty */ }
+	    if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+	  };
+	  $.setDescs = defineProperties = function(O, Properties){
+	    assertObject(O);
+	    var keys   = $.getKeys(Properties)
+	      , length = keys.length
+	      , i = 0
+	      , P;
+	    while(length > i)$.setDesc(O, P = keys[i++], Properties[P]);
+	    return O;
+	  };
+	}
+	$def($def.S + $def.F * !$.DESC, 'Object', {
+	  // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
+	  getOwnPropertyDescriptor: $.getDesc,
+	  // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
+	  defineProperty: $.setDesc,
+	  // 19.1.2.3 / 15.2.3.7 Object.defineProperties(O, Properties)
+	  defineProperties: defineProperties
+	});
+
+	  // IE 8- don't enum bug keys
+	var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
+	            'toLocaleString,toString,valueOf').split(',')
+	  // Additional keys for getOwnPropertyNames
+	  , keys2 = keys1.concat('length', 'prototype')
+	  , keysLen1 = keys1.length;
+
+	// Create object with `null` prototype: use iframe Object with cleared prototype
+	var createDict = function(){
+	  // Thrash, waste and sodomy: IE GC bug
+	  var iframe = cel('iframe')
+	    , i      = keysLen1
+	    , gt     = '>'
+	    , iframeDocument;
+	  iframe.style.display = 'none';
+	  html.appendChild(iframe);
+	  iframe.src = 'javascript:'; // eslint-disable-line no-script-url
+	  // createDict = iframe.contentWindow.Object;
+	  // html.removeChild(iframe);
+	  iframeDocument = iframe.contentWindow.document;
+	  iframeDocument.open();
+	  iframeDocument.write('<script>document.F=Object</script' + gt);
+	  iframeDocument.close();
+	  createDict = iframeDocument.F;
+	  while(i--)delete createDict.prototype[keys1[i]];
+	  return createDict();
+	};
+	function createGetKeys(names, length){
+	  return function(object){
+	    var O      = toObject(object)
+	      , i      = 0
+	      , result = []
+	      , key;
+	    for(key in O)if(key != IE_PROTO)has(O, key) && result.push(key);
+	    // Don't enum bug & hidden keys
+	    while(length > i)if(has(O, key = names[i++])){
+	      ~$indexOf(result, key) || result.push(key);
+	    }
+	    return result;
+	  };
+	}
+	function isPrimitive(it){ return !$.isObject(it); }
+	function Empty(){}
+	$def($def.S, 'Object', {
+	  // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
+	  getPrototypeOf: $.getProto = $.getProto || function(O){
+	    O = Object(assert.def(O));
+	    if(has(O, IE_PROTO))return O[IE_PROTO];
+	    if(isFunction(O.constructor) && O instanceof O.constructor){
+	      return O.constructor.prototype;
+	    } return O instanceof Object ? ObjectProto : null;
+	  },
+	  // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
+	  getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length, true),
+	  // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
+	  create: $.create = $.create || function(O, /*?*/Properties){
+	    var result;
+	    if(O !== null){
+	      Empty.prototype = assertObject(O);
+	      result = new Empty();
+	      Empty.prototype = null;
+	      // add "__proto__" for Object.getPrototypeOf shim
+	      result[IE_PROTO] = O;
+	    } else result = createDict();
+	    return Properties === undefined ? result : defineProperties(result, Properties);
+	  },
+	  // 19.1.2.14 / 15.2.3.14 Object.keys(O)
+	  keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false),
+	  // 19.1.2.17 / 15.2.3.8 Object.seal(O)
+	  seal: $.it, // <- cap
+	  // 19.1.2.5 / 15.2.3.9 Object.freeze(O)
+	  freeze: $.it, // <- cap
+	  // 19.1.2.15 / 15.2.3.10 Object.preventExtensions(O)
+	  preventExtensions: $.it, // <- cap
+	  // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
+	  isSealed: isPrimitive, // <- cap
+	  // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
+	  isFrozen: isPrimitive, // <- cap
+	  // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
+	  isExtensible: $.isObject // <- cap
+	});
+
+	// 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
+	$def($def.P, 'Function', {
+	  bind: function(that /*, args... */){
+	    var fn       = assert.fn(this)
+	      , partArgs = _slice.call(arguments, 1);
+	    function bound(/* args... */){
+	      var args = partArgs.concat(_slice.call(arguments));
+	      return invoke(fn, args, this instanceof bound ? $.create(fn.prototype) : that);
+	    }
+	    if(fn.prototype)bound.prototype = fn.prototype;
+	    return bound;
+	  }
+	});
+
+	// Fix for not array-like ES3 string and DOM objects
+	if(!(0 in Object('z') && 'z'[0] == 'z')){
+	  $.ES5Object = function(it){
+	    return cof(it) == 'String' ? it.split('') : Object(it);
+	  };
+	}
+
+	var buggySlice = true;
+	try {
+	  if(html)_slice.call(html);
+	  buggySlice = false;
+	} catch(e){ /* empty */ }
+
+	$def($def.P + $def.F * buggySlice, 'Array', {
+	  slice: function slice(begin, end){
+	    var len   = toLength(this.length)
+	      , klass = cof(this);
+	    end = end === undefined ? len : end;
+	    if(klass == 'Array')return _slice.call(this, begin, end);
+	    var start  = toIndex(begin, len)
+	      , upTo   = toIndex(end, len)
+	      , size   = toLength(upTo - start)
+	      , cloned = Array(size)
+	      , i      = 0;
+	    for(; i < size; i++)cloned[i] = klass == 'String'
+	      ? this.charAt(start + i)
+	      : this[start + i];
+	    return cloned;
+	  }
+	});
+
+	$def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
+	  join: function join(){
+	    return _join.apply($.ES5Object(this), arguments);
+	  }
+	});
+
+	// 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
+	$def($def.S, 'Array', {
+	  isArray: function(arg){
+	    return cof(arg) == 'Array';
+	  }
+	});
+	function createArrayReduce(isRight){
+	  return function(callbackfn, memo){
+	    assert.fn(callbackfn);
+	    var O      = toObject(this)
+	      , length = toLength(O.length)
+	      , index  = isRight ? length - 1 : 0
+	      , i      = isRight ? -1 : 1;
+	    if(arguments.length < 2)for(;;){
+	      if(index in O){
+	        memo = O[index];
+	        index += i;
+	        break;
+	      }
+	      index += i;
+	      assert(isRight ? index >= 0 : length > index, 'Reduce of empty array with no initial value');
+	    }
+	    for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
+	      memo = callbackfn(memo, O[index], index, this);
+	    }
+	    return memo;
+	  };
+	}
+	$def($def.P, 'Array', {
+	  // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
+	  forEach: $.each = $.each || function forEach(callbackfn/*, that = undefined */){
+	    return $forEach(this, callbackfn, arguments[1]);
+	  },
+	  // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
+	  map: function map(callbackfn/*, that = undefined */){
+	    return $map(this, callbackfn, arguments[1]);
+	  },
+	  // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
+	  filter: function filter(callbackfn/*, that = undefined */){
+	    return $filter(this, callbackfn, arguments[1]);
+	  },
+	  // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
+	  some: function some(callbackfn/*, that = undefined */){
+	    return $some(this, callbackfn, arguments[1]);
+	  },
+	  // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
+	  every: function every(callbackfn/*, that = undefined */){
+	    return $every(this, callbackfn, arguments[1]);
+	  },
+	  // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
+	  reduce: createArrayReduce(false),
+	  // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
+	  reduceRight: createArrayReduce(true),
+	  // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
+	  indexOf: function indexOf(el /*, fromIndex = 0 */){
+	    return $indexOf(this, el, arguments[1]);
+	  },
+	  // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
+	  lastIndexOf: function(el, fromIndex /* = @[*-1] */){
+	    var O      = toObject(this)
+	      , length = toLength(O.length)
+	      , index  = length - 1;
+	    if(arguments.length > 1)index = Math.min(index, $.toInteger(fromIndex));
+	    if(index < 0)index = toLength(length + index);
+	    for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
+	    return -1;
+	  }
+	});
+
+	// 21.1.3.25 / 15.5.4.20 String.prototype.trim()
+	$def($def.P, 'String', {trim: __webpack_require__(69)(/^\s*([\s\S]*\S)?\s*$/, '$1')});
+
+	// 20.3.3.1 / 15.9.4.4 Date.now()
+	$def($def.S, 'Date', {now: function(){
+	  return +new Date;
+	}});
+
+	function lz(num){
+	  return num > 9 ? num : '0' + num;
+	}
+
+	// 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
+	// PhantomJS and old webkit had a broken Date implementation.
+	var date       = new Date(-5e13 - 1)
+	  , brokenDate = !(date.toISOString && date.toISOString() == '0385-07-25T07:06:39.999Z'
+	      && __webpack_require__(70)(function(){ new Date(NaN).toISOString(); }));
+	$def($def.P + $def.F * brokenDate, 'Date', {toISOString: function(){
+	  if(!isFinite(this))throw RangeError('Invalid time value');
+	  var d = this
+	    , y = d.getUTCFullYear()
+	    , m = d.getUTCMilliseconds()
+	    , s = y < 0 ? '-' : y > 9999 ? '+' : '';
+	  return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
+	    '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
+	    'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
+	    ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
+	}});
+
+	if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
+	  var tag = classof(it);
+	  return tag == 'Object' && isFunction(it.callee) ? 'Arguments' : tag;
+	};
 
 /***/ },
 /* 48 */
@@ -2226,42 +2231,6 @@ var __e = null, __g = null;
 /* 54 */
 /***/ function(module, exports, __webpack_require__) {
 
-	'use strict';
-	var $       = __webpack_require__(60)
-	  , $def    = __webpack_require__(63)
-	  , invoke  = __webpack_require__(64)
-	  , methods = {};
-
-	methods.random = function(lim /* = 0 */){
-	  var a = +this
-	    , b = lim == undefined ? 0 : +lim
-	    , m = Math.min(a, b);
-	  return Math.random() * (Math.max(a, b) - m) + m;
-	};
-
-	if($.FW)$.each.call((
-	    // ES3:
-	    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-	    // ES6:
-	    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-	  ).split(','), function(key){
-	    var fn = Math[key];
-	    if(fn)methods[key] = function(/* ...args */){
-	      // ie9- dont support strict mode & convert `this` to object -> convert it to number
-	      var args = [+this]
-	        , i    = 0;
-	      while(arguments.length > i)args.push(arguments[i++]);
-	      return invoke(fn, args);
-	    };
-	  }
-	);
-
-	$def($def.P + $def.F, 'Number', methods);
-
-/***/ },
-/* 55 */
-/***/ function(module, exports, __webpack_require__) {
-
 	var $def     = __webpack_require__(63)
 	  , replacer = __webpack_require__(69);
 	var escapeHTMLDict = {
@@ -2278,7 +2247,7 @@ var __e = null, __g = null;
 	});
 
 /***/ },
-/* 56 */
+/* 55 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $            = __webpack_require__(60)
@@ -2355,14 +2324,14 @@ var __e = null, __g = null;
 	core.addLocale = addLocale;
 
 /***/ },
-/* 57 */
+/* 56 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $def = __webpack_require__(63);
 	$def($def.G + $def.F, {global: __webpack_require__(60).g});
 
 /***/ },
-/* 58 */
+/* 57 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $    = __webpack_require__(60)
@@ -2380,7 +2349,7 @@ var __e = null, __g = null;
 	    }
 	  };
 	});
-	$def($def.G + $def.F, {log: __webpack_require__(75)(log.log, log, {
+	$def($def.G + $def.F, {log: __webpack_require__(74)(log.log, log, {
 	  enable: function(){
 	    enabled = true;
 	  },
@@ -2390,7 +2359,7 @@ var __e = null, __g = null;
 	})});
 
 /***/ },
-/* 59 */
+/* 58 */
 /***/ function(module, exports, __webpack_require__) {
 
 	// JavaScript 1.6 / Strawman array statics shim
@@ -2409,6 +2378,42 @@ var __e = null, __g = null;
 	setStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
 	           'reduce,reduceRight,copyWithin,fill,turn');
 	$def($def.S, 'Array', statics);
+
+/***/ },
+/* 59 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	var $       = __webpack_require__(60)
+	  , $def    = __webpack_require__(63)
+	  , invoke  = __webpack_require__(64)
+	  , methods = {};
+
+	methods.random = function(lim /* = 0 */){
+	  var a = +this
+	    , b = lim == undefined ? 0 : +lim
+	    , m = Math.min(a, b);
+	  return Math.random() * (Math.max(a, b) - m) + m;
+	};
+
+	if($.FW)$.each.call((
+	    // ES3:
+	    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
+	    // ES6:
+	    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+	  ).split(','), function(key){
+	    var fn = Math[key];
+	    if(fn)methods[key] = function(/* ...args */){
+	      // ie9- dont support strict mode & convert `this` to object -> convert it to number
+	      var args = [+this]
+	        , i    = 0;
+	      while(arguments.length > i)args.push(arguments[i++]);
+	      return invoke(fn, args);
+	    };
+	  }
+	);
+
+	$def($def.P + $def.F, 'Number', methods);
 
 /***/ },
 /* 60 */
@@ -2798,6 +2803,30 @@ var __e = null, __g = null;
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
+	var $        = __webpack_require__(60)
+	  , enumKeys = __webpack_require__(72);
+	// 19.1.2.1 Object.assign(target, source, ...)
+	/* eslint-disable no-unused-vars */
+	module.exports = Object.assign || function assign(target, source){
+	/* eslint-enable no-unused-vars */
+	  var T = Object($.assertDefined(target))
+	    , l = arguments.length
+	    , i = 1;
+	  while(l > i){
+	    var S      = $.ES5Object(arguments[i++])
+	      , keys   = enumKeys(S)
+	      , length = keys.length
+	      , j      = 0
+	      , key;
+	    while(length > j)T[key = keys[j++]] = S[key];
+	  }
+	  return T;
+	};
+
+/***/ },
+/* 75 */
+/***/ function(module, exports, __webpack_require__) {
+
 	// Works with __proto__ only. Old v8 can't work with null proto objects.
 	/* eslint-disable no-proto */
 	var $      = __webpack_require__(60)
@@ -2822,30 +2851,6 @@ var __e = null, __g = null;
 	      }()
 	    : undefined),
 	  check: check
-	};
-
-/***/ },
-/* 75 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var $        = __webpack_require__(60)
-	  , enumKeys = __webpack_require__(72);
-	// 19.1.2.1 Object.assign(target, source, ...)
-	/* eslint-disable no-unused-vars */
-	module.exports = Object.assign || function assign(target, source){
-	/* eslint-enable no-unused-vars */
-	  var T = Object($.assertDefined(target))
-	    , l = arguments.length
-	    , i = 1;
-	  while(l > i){
-	    var S      = $.ES5Object(arguments[i++])
-	      , keys   = enumKeys(S)
-	      , length = keys.length
-	      , j      = 0
-	      , key;
-	    while(length > j)T[key = keys[j++]] = S[key];
-	  }
-	  return T;
 	};
 
 /***/ },
