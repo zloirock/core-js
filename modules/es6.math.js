@@ -76,9 +76,9 @@ $def($def.S, 'Math', {
     while(len1--){
       arg = args[len1] = +arguments[len1];
       if(arg == Infinity || arg == -Infinity)return Infinity;
-      if(arg > larg)larg = arg;
+      if(abs(arg) > larg)larg = abs(arg);
     }
-    larg = arg || 1;
+    larg = larg || 1;
     while(len2--)sum += pow(args[len2] / larg, 2);
     return larg * sqrt(sum);
   },
