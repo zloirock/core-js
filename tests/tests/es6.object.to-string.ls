@@ -37,3 +37,5 @@ test 'Object#toString' !->
   class Class
     @::[Symbol.toStringTag] = \Class
   eq '' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]'
+  
+  ok /native code/.test(Object::toString), 'Object#toString.toString'

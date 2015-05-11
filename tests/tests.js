@@ -3177,6 +3177,7 @@
       return Class;
     }());
     eq('' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]');
+    ok(/native code/.test(Object.prototype.toString), 'Object#toString.toString');
   });
 }).call(this);
 
