@@ -18,6 +18,7 @@ var $        = require('./$')
   , setter   = false
   , TAG      = uid('tag')
   , HIDDEN   = uid('hidden')
+  , _propertyIsEnumerable = {}.propertyIsEnumerable
   , SymbolRegistry = {}
   , AllSymbols = {}
   , useNative = $.isFunction($Symbol);
@@ -57,6 +58,11 @@ function defineProperties(it, P){
 function create(it, P){
   return P === undefined ? $create(it) : defineProperties($create(it), P);
 }
+function propertyIsEnumerable(key){
+  var E = _propertyIsEnumerable.call(this, key);
+  return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key]
+    ? E : true;
+}
 function getOwnPropertyDescriptor(it, key){
   var D = getDesc(it = toObject(it), key);
   if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
@@ -95,6 +101,8 @@ if(!useNative){
   $.setDescs   = defineProperties;
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
+
+  if($.DESC && $.FW)$.hide(Object.prototype, 'propertyIsEnumerable', propertyIsEnumerable);
 }
 
 var symbolStatics = {

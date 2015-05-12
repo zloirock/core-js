@@ -4230,14 +4230,25 @@
   });
   if (descriptors) {
     test('Descriptors', function(){
-      var ref$, defineProperty, getOwnPropertyDescriptor, d, e, f, O;
-      ref$ = core.Object, defineProperty = ref$.defineProperty, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor;
-      d = core.Symbol('d');
-      e = core.Symbol('e');
-      f = core.Symbol('f');
-      O = (ref$ = {
-        a: 'a'
-      }, ref$[d] = 'd', ref$);
+      var ref$, create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, O;
+      ref$ = core.Object, create = ref$.create, defineProperty = ref$.defineProperty, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor, keys = ref$.keys, getOwnPropertyNames = ref$.getOwnPropertyNames, getOwnPropertySymbols = ref$.getOwnPropertySymbols;
+      d = Symbol('d');
+      e = Symbol('e');
+      f = Symbol('f');
+      i = Symbol('i');
+      j = Symbol('j');
+      proto = (ref$ = {
+        g: 'g'
+      }, ref$[i] = 'i', ref$);
+      defineProperty(proto, 'h', {
+        value: 'h'
+      });
+      defineProperty(proto, 'j', {
+        value: 'j'
+      });
+      O = create(proto);
+      O.a = 'a';
+      O[d] = 'd';
       defineProperty(O, 'b', {
         value: 'b'
       });
@@ -4259,41 +4270,46 @@
         writable: true,
         enumerable: true,
         value: 'a'
-      });
+      }, 'getOwnPropertyDescriptor a');
       deq(getOwnPropertyDescriptor(O, 'b'), {
         configurable: false,
         writable: false,
         enumerable: false,
         value: 'b'
-      });
+      }, 'getOwnPropertyDescriptor b');
       deq(getOwnPropertyDescriptor(O, 'c'), {
         configurable: false,
         writable: false,
         enumerable: true,
         value: 'c'
-      });
+      }, 'getOwnPropertyDescriptor c');
       deq(getOwnPropertyDescriptor(O, d), {
         configurable: true,
         writable: true,
         enumerable: true,
         value: 'd'
-      });
+      }, 'getOwnPropertyDescriptor d');
       deq(getOwnPropertyDescriptor(O, e), {
         configurable: true,
         writable: true,
         enumerable: false,
         value: 'e'
-      });
+      }, 'getOwnPropertyDescriptor e');
       deq(getOwnPropertyDescriptor(O, f), {
         configurable: false,
         writable: false,
         enumerable: true,
         value: 'f'
-      });
-      eq(core.Object.keys(O).length, 2);
-      eq(core.Object.getOwnPropertyNames(O).length, 3);
-      eq(core.Object.getOwnPropertySymbols(O).length, 3);
-      eq(core.Reflect.ownKeys(O).length, 6);
+      }, 'getOwnPropertyDescriptor f');
+      eq(getOwnPropertyDescriptor(O, 'g'), void 8, 'getOwnPropertyDescriptor g');
+      eq(getOwnPropertyDescriptor(O, 'h'), void 8, 'getOwnPropertyDescriptor h');
+      eq(getOwnPropertyDescriptor(O, i), void 8, 'getOwnPropertyDescriptor i');
+      eq(getOwnPropertyDescriptor(O, j), void 8, 'getOwnPropertyDescriptor j');
+      eq(getOwnPropertyDescriptor(O, 'k'), void 8, 'getOwnPropertyDescriptor k');
+      eq(keys(O).length, 2, 'Object.keys');
+      eq(getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames');
+      eq(getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols');
+      eq(core.Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
       delete O[e];
       O[e] = 'e';
       deq(getOwnPropertyDescriptor(O, e), {
@@ -4301,7 +4317,7 @@
         writable: true,
         enumerable: true,
         value: 'e'
-      });
+      }, 'redefined non-enum key');
     });
     test('Object.defineProperties', function(){
       var ref$, defineProperty, defineProperties, c, d, D, O;

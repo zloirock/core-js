@@ -4535,14 +4535,25 @@
   });
   if (descriptors) {
     test('Descriptors', function(){
-      var defineProperty, getOwnPropertyDescriptor, d, e, f, O, ref$;
-      defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+      var create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, ref$, O;
+      create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertySymbols = Object.getOwnPropertySymbols;
       d = Symbol('d');
       e = Symbol('e');
       f = Symbol('f');
-      O = (ref$ = {
-        a: 'a'
-      }, ref$[d] = 'd', ref$);
+      i = Symbol('i');
+      j = Symbol('j');
+      proto = (ref$ = {
+        g: 'g'
+      }, ref$[i] = 'i', ref$);
+      defineProperty(proto, 'h', {
+        value: 'h'
+      });
+      defineProperty(proto, 'j', {
+        value: 'j'
+      });
+      O = create(proto);
+      O.a = 'a';
+      O[d] = 'd';
       defineProperty(O, 'b', {
         value: 'b'
       });
@@ -4564,41 +4575,57 @@
         writable: true,
         enumerable: true,
         value: 'a'
-      });
+      }, 'getOwnPropertyDescriptor a');
       deq(getOwnPropertyDescriptor(O, 'b'), {
         configurable: false,
         writable: false,
         enumerable: false,
         value: 'b'
-      });
+      }, 'getOwnPropertyDescriptor b');
       deq(getOwnPropertyDescriptor(O, 'c'), {
         configurable: false,
         writable: false,
         enumerable: true,
         value: 'c'
-      });
+      }, 'getOwnPropertyDescriptor c');
       deq(getOwnPropertyDescriptor(O, d), {
         configurable: true,
         writable: true,
         enumerable: true,
         value: 'd'
-      });
+      }, 'getOwnPropertyDescriptor d');
       deq(getOwnPropertyDescriptor(O, e), {
         configurable: true,
         writable: true,
         enumerable: false,
         value: 'e'
-      });
+      }, 'getOwnPropertyDescriptor e');
       deq(getOwnPropertyDescriptor(O, f), {
         configurable: false,
         writable: false,
         enumerable: true,
         value: 'f'
-      });
-      eq(Object.keys(O).length, 2);
-      eq(Object.getOwnPropertyNames(O).length, 3);
-      eq(Object.getOwnPropertySymbols(O).length, 3);
-      eq(Reflect.ownKeys(O).length, 6);
+      }, 'getOwnPropertyDescriptor f');
+      eq(getOwnPropertyDescriptor(O, 'g'), void 8, 'getOwnPropertyDescriptor g');
+      eq(getOwnPropertyDescriptor(O, 'h'), void 8, 'getOwnPropertyDescriptor h');
+      eq(getOwnPropertyDescriptor(O, i), void 8, 'getOwnPropertyDescriptor i');
+      eq(getOwnPropertyDescriptor(O, j), void 8, 'getOwnPropertyDescriptor j');
+      eq(getOwnPropertyDescriptor(O, 'k'), void 8, 'getOwnPropertyDescriptor k');
+      eq(O.propertyIsEnumerable('a'), true, 'propertyIsEnumerable a');
+      eq(O.propertyIsEnumerable('b'), false, 'propertyIsEnumerable b');
+      eq(O.propertyIsEnumerable('c'), true, 'propertyIsEnumerable c');
+      eq(O.propertyIsEnumerable(d), true, 'propertyIsEnumerable d');
+      eq(O.propertyIsEnumerable(e), false, 'propertyIsEnumerable e');
+      eq(O.propertyIsEnumerable(f), true, 'propertyIsEnumerable f');
+      eq(O.propertyIsEnumerable('g'), false, 'propertyIsEnumerable g');
+      eq(O.propertyIsEnumerable('h'), false, 'propertyIsEnumerable h');
+      eq(O.propertyIsEnumerable(i), false, 'propertyIsEnumerable i');
+      eq(O.propertyIsEnumerable(j), false, 'propertyIsEnumerable j');
+      eq(O.propertyIsEnumerable('k'), false, 'propertyIsEnumerable k');
+      eq(keys(O).length, 2, 'Object.keys');
+      eq(getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames');
+      eq(getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols');
+      eq(Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
       delete O[e];
       O[e] = 'e';
       deq(getOwnPropertyDescriptor(O, e), {
@@ -4606,7 +4633,7 @@
         writable: true,
         enumerable: true,
         value: 'e'
-      });
+      }, 'redefined non-enum key');
     });
     test('Object.defineProperties', function(){
       var defineProperty, defineProperties, c, d, D, ref$, O;

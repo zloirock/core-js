@@ -54,28 +54,40 @@ test 'Object.getOwnPropertySymbols' !->
 
 if descriptors
   test 'Descriptors' !->
-    {defineProperty, getOwnPropertyDescriptor} = core.Object
-    d = core.Symbol \d
-    e = core.Symbol \e
-    f = core.Symbol \f
-    O = a: \a, (d): \d
+    {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = core.Object
+    d = Symbol \d
+    e = Symbol \e
+    f = Symbol \f
+    i = Symbol \i
+    j = Symbol \j
+    proto = {g: \g, (i): \i}
+    defineProperty proto, \h, value: \h
+    defineProperty proto, \j, value: \j
+    O = create proto
+    O.a = \a
+    O[d] = \d
     defineProperty O, \b, value: \b
     defineProperty O, \c, value: \c, enumerable: on
     defineProperty O, e, configurable: on, writable:on, value: \e
     defineProperty O, f, value: \f, enumerable: on
-    deq getOwnPropertyDescriptor(O, \a), {configurable: on, writable:on, enumerable: on, value: \a}
-    deq getOwnPropertyDescriptor(O, \b), {configurable: no, writable:no, enumerable: no, value: \b}
-    deq getOwnPropertyDescriptor(O, \c), {configurable: no, writable:no, enumerable: on, value: \c}
-    deq getOwnPropertyDescriptor(O, d), {configurable: on, writable:on, enumerable: on, value: \d}
-    deq getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: no, value: \e}
-    deq getOwnPropertyDescriptor(O, f), {configurable: no, writable:no, enumerable: on, value: \f}
-    eq core.Object.keys(O).length, 2
-    eq core.Object.getOwnPropertyNames(O).length, 3
-    eq core.Object.getOwnPropertySymbols(O).length, 3
-    eq core.Reflect.ownKeys(O).length, 6
+    deq getOwnPropertyDescriptor(O, \a), {configurable: on, writable:on, enumerable: on, value: \a}, 'getOwnPropertyDescriptor a'
+    deq getOwnPropertyDescriptor(O, \b), {configurable: no, writable:no, enumerable: no, value: \b}, 'getOwnPropertyDescriptor b'
+    deq getOwnPropertyDescriptor(O, \c), {configurable: no, writable:no, enumerable: on, value: \c}, 'getOwnPropertyDescriptor c'
+    deq getOwnPropertyDescriptor(O, d), {configurable: on, writable:on, enumerable: on, value: \d}, 'getOwnPropertyDescriptor d'
+    deq getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: no, value: \e}, 'getOwnPropertyDescriptor e'
+    deq getOwnPropertyDescriptor(O, f), {configurable: no, writable:no, enumerable: on, value: \f}, 'getOwnPropertyDescriptor f'
+    eq getOwnPropertyDescriptor(O, \g), void, 'getOwnPropertyDescriptor g'
+    eq getOwnPropertyDescriptor(O, \h), void, 'getOwnPropertyDescriptor h'
+    eq getOwnPropertyDescriptor(O, i), void, 'getOwnPropertyDescriptor i'
+    eq getOwnPropertyDescriptor(O, j), void, 'getOwnPropertyDescriptor j'
+    eq getOwnPropertyDescriptor(O, \k), void, 'getOwnPropertyDescriptor k'
+    eq keys(O).length, 2, 'Object.keys'
+    eq getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames'
+    eq getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols'
+    eq core.Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys'
     delete O[e]
     O[e] = \e
-    deq getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: on, value: \e}
+    deq getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: on, value: \e}, 'redefined non-enum key'
   test 'Object.defineProperties' !->
     {defineProperty, defineProperties} = core.Object
     c = core.Symbol \c
