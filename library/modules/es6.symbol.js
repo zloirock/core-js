@@ -42,7 +42,7 @@ function defineProperty(it, key, D){
       it[HIDDEN][key] = true;
     } else {
       if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
-      D.enumerable = false;
+      D = $create(D, {enumerable: desc(0, false)});
     }
   } return setDesc(it, key, D);
 }

@@ -4535,7 +4535,7 @@
   });
   if (descriptors) {
     test('Descriptors', function(){
-      var create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, ref$, O;
+      var create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, ref$, O, desc;
       create = Object.create, defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertySymbols = Object.getOwnPropertySymbols;
       d = Symbol('d');
       e = Symbol('e');
@@ -4566,10 +4566,12 @@
         writable: true,
         value: 'e'
       });
-      defineProperty(O, f, {
+      desc = {
         value: 'f',
         enumerable: true
-      });
+      };
+      defineProperty(O, f, desc);
+      eq(desc.enumerable, true, 'defineProperty not changes descriptor object');
       deq(getOwnPropertyDescriptor(O, 'a'), {
         configurable: true,
         writable: true,

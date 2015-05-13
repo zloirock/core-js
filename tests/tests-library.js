@@ -4230,7 +4230,7 @@
   });
   if (descriptors) {
     test('Descriptors', function(){
-      var ref$, create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, O;
+      var ref$, create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, O, desc;
       ref$ = core.Object, create = ref$.create, defineProperty = ref$.defineProperty, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor, keys = ref$.keys, getOwnPropertyNames = ref$.getOwnPropertyNames, getOwnPropertySymbols = ref$.getOwnPropertySymbols;
       d = Symbol('d');
       e = Symbol('e');
@@ -4261,10 +4261,12 @@
         writable: true,
         value: 'e'
       });
-      defineProperty(O, f, {
+      desc = {
         value: 'f',
         enumerable: true
-      });
+      };
+      defineProperty(O, f, desc);
+      eq(desc.enumerable, true, 'defineProperty not changes descriptor object');
       deq(getOwnPropertyDescriptor(O, 'a'), {
         configurable: true,
         writable: true,

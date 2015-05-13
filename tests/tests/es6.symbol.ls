@@ -68,7 +68,9 @@ if descriptors
     defineProperty O, \b, value: \b
     defineProperty O, \c, value: \c, enumerable: on
     defineProperty O, e, configurable: on, writable:on, value: \e
-    defineProperty O, f, value: \f, enumerable: on
+    desc = value: \f, enumerable: on
+    defineProperty O, f, desc
+    eq desc.enumerable, on, 'defineProperty not changes descriptor object'
     deq getOwnPropertyDescriptor(O, \a), {configurable: on, writable:on, enumerable: on, value: \a}, 'getOwnPropertyDescriptor a'
     deq getOwnPropertyDescriptor(O, \b), {configurable: no, writable:no, enumerable: no, value: \b}, 'getOwnPropertyDescriptor b'
     deq getOwnPropertyDescriptor(O, \c), {configurable: no, writable:no, enumerable: on, value: \c}, 'getOwnPropertyDescriptor c'
