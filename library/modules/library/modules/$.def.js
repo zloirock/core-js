@@ -17,6 +17,7 @@ $def.W = 32; // wrap
 function $def(type, name, source){
   var key, own, out, exp
     , isGlobal = type & $def.G
+    , isProto  = type & $def.P
     , target   = isGlobal ? global : type & $def.S
         ? global[name] : (global[name] || {}).prototype
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
@@ -38,10 +39,10 @@ function $def(type, name, source){
       };
       exp.prototype = C.prototype;
     }(out);
-    else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
+    else exp = isProto && isFunction(out) ? ctx(Function.call, out) : out;
     // export
-    $.hide(exports, key, exp);
-    if(type & $def.P)(exports.prototype || (exports.prototype = {}))[key] = out;
+    exports[key] = exp;
+    if(isProto)(exports.prototype || (exports.prototype = {}))[key] = out;
   }
 }
 module.exports = $def;
