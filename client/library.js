@@ -1,5 +1,5 @@
 /**
- * Core.js 0.9.8
+ * Core.js 0.9.9
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -302,7 +302,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.1 Object.assign(target, source)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {assign: __webpack_require__(75)});
+	$def($def.S, 'Object', {assign: __webpack_require__(74)});
 
 /***/ },
 /* 4 */
@@ -322,7 +322,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.19 Object.setPrototypeOf(O, proto)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(74).set});
+	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(75).set});
 
 /***/ },
 /* 6 */
@@ -960,7 +960,7 @@ var __e = null, __g = null;
 	  , $def     = __webpack_require__(63)
 	  , assert   = __webpack_require__(67)
 	  , forOf    = __webpack_require__(85)
-	  , setProto = __webpack_require__(74).set
+	  , setProto = __webpack_require__(75).set
 	  , species  = __webpack_require__(84)
 	  , SPECIES  = __webpack_require__(73)('species')
 	  , RECORD   = __webpack_require__(66).safe('record')
@@ -1284,7 +1284,7 @@ var __e = null, __g = null;
 
 	var $         = __webpack_require__(60)
 	  , $def      = __webpack_require__(63)
-	  , setProto  = __webpack_require__(74)
+	  , setProto  = __webpack_require__(75)
 	  , $iter     = __webpack_require__(77)
 	  , ITERATOR  = __webpack_require__(73)('iterator')
 	  , ITER      = __webpack_require__(66).safe('iter')
@@ -1609,7 +1609,7 @@ var __e = null, __g = null;
 	var $        = __webpack_require__(60)
 	  , ctx      = __webpack_require__(80)
 	  , $def     = __webpack_require__(63)
-	  , assign   = __webpack_require__(75)
+	  , assign   = __webpack_require__(74)
 	  , keyOf    = __webpack_require__(71)
 	  , ITER     = __webpack_require__(66).safe('iter')
 	  , assert   = __webpack_require__(67)
@@ -2393,7 +2393,7 @@ var __e = null, __g = null;
 	    }
 	  };
 	});
-	$def($def.G + $def.F, {log: __webpack_require__(75)(log.log, log, {
+	$def($def.G + $def.F, {log: __webpack_require__(74)(log.log, log, {
 	  enable: function(){
 	    enabled = true;
 	  },
@@ -2611,10 +2611,7 @@ var __e = null, __g = null;
 	    else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
 	    // export
 	    $.hide(exports, key, exp);
-	    if(type & $def.P){
-	      if(!exports.prototype)exports.prototype = {};
-	      exports.prototype[key] = out;
-	    }
+	    if(type & $def.P)(exports.prototype || (exports.prototype = {}))[key] = out;
 	  }
 	}
 	module.exports = $def;
@@ -2815,6 +2812,30 @@ var __e = null, __g = null;
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
+	var $        = __webpack_require__(60)
+	  , enumKeys = __webpack_require__(72);
+	// 19.1.2.1 Object.assign(target, source, ...)
+	/* eslint-disable no-unused-vars */
+	module.exports = Object.assign || function assign(target, source){
+	/* eslint-enable no-unused-vars */
+	  var T = Object($.assertDefined(target))
+	    , l = arguments.length
+	    , i = 1;
+	  while(l > i){
+	    var S      = $.ES5Object(arguments[i++])
+	      , keys   = enumKeys(S)
+	      , length = keys.length
+	      , j      = 0
+	      , key;
+	    while(length > j)T[key = keys[j++]] = S[key];
+	  }
+	  return T;
+	};
+
+/***/ },
+/* 75 */
+/***/ function(module, exports, __webpack_require__) {
+
 	// Works with __proto__ only. Old v8 can't work with null proto objects.
 	/* eslint-disable no-proto */
 	var $      = __webpack_require__(60)
@@ -2839,30 +2860,6 @@ var __e = null, __g = null;
 	      }()
 	    : undefined),
 	  check: check
-	};
-
-/***/ },
-/* 75 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var $        = __webpack_require__(60)
-	  , enumKeys = __webpack_require__(72);
-	// 19.1.2.1 Object.assign(target, source, ...)
-	/* eslint-disable no-unused-vars */
-	module.exports = Object.assign || function assign(target, source){
-	/* eslint-enable no-unused-vars */
-	  var T = Object($.assertDefined(target))
-	    , l = arguments.length
-	    , i = 1;
-	  while(l > i){
-	    var S      = $.ES5Object(arguments[i++])
-	      , keys   = enumKeys(S)
-	      , length = keys.length
-	      , j      = 0
-	      , key;
-	    while(length > j)T[key = keys[j++]] = S[key];
-	  }
-	  return T;
 	};
 
 /***/ },
