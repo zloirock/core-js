@@ -1301,6 +1301,11 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.9 - 2015.05.14
+  * wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](#ecmascript-6-symbols)
+  * [added proto versions of methods to `library` for ES7 bind syntax](https://github.com/zloirock/core-js/issues/65)
+  * some other fixes
+
 ##### 0.9.8 - 2015.05.12
   * fixed [`Math.hypot`](#ecmascript-6-number--math) with negative arguments
   * added `Object#toString.toString` as fallback for [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)

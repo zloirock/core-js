@@ -41,6 +41,10 @@ function $def(type, name, source){
     else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
     // export
     $.hide(exports, key, exp);
+    if(type & $def.P){
+      if(!exports.prototype)exports.prototype = {};
+      exports.prototype[key] = out;
+    }
   }
 }
 module.exports = $def;

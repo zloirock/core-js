@@ -107,12 +107,12 @@ var __e = null, __g = null;
 	__webpack_require__(51);
 	__webpack_require__(52);
 	__webpack_require__(53);
-	__webpack_require__(59);
 	__webpack_require__(54);
 	__webpack_require__(55);
 	__webpack_require__(56);
 	__webpack_require__(57);
 	__webpack_require__(58);
+	__webpack_require__(59);
 
 /***/ },
 /* 1 */
@@ -147,6 +147,7 @@ var __e = null, __g = null;
 	  , setter   = false
 	  , TAG      = uid('tag')
 	  , HIDDEN   = uid('hidden')
+	  , _propertyIsEnumerable = {}.propertyIsEnumerable
 	  , SymbolRegistry = {}
 	  , AllSymbols = {}
 	  , useNative = $.isFunction($Symbol);
@@ -170,7 +171,7 @@ var __e = null, __g = null;
 	      it[HIDDEN][key] = true;
 	    } else {
 	      if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
-	      D.enumerable = false;
+	      D = $create(D, {enumerable: desc(0, false)});
 	    }
 	  } return setDesc(it, key, D);
 	}
@@ -185,6 +186,11 @@ var __e = null, __g = null;
 	}
 	function create(it, P){
 	  return P === undefined ? $create(it) : defineProperties($create(it), P);
+	}
+	function propertyIsEnumerable(key){
+	  var E = _propertyIsEnumerable.call(this, key);
+	  return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key]
+	    ? E : true;
 	}
 	function getOwnPropertyDescriptor(it, key){
 	  var D = getDesc(it = toObject(it), key);
@@ -224,6 +230,8 @@ var __e = null, __g = null;
 	  $.setDescs   = defineProperties;
 	  $.getNames   = getOwnPropertyNames;
 	  $.getSymbols = getOwnPropertySymbols;
+
+	  if($.DESC && $.FW)$.hide(Object.prototype, 'propertyIsEnumerable', propertyIsEnumerable);
 	}
 
 	var symbolStatics = {
@@ -294,7 +302,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.1 Object.assign(target, source)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {assign: __webpack_require__(74)});
+	$def($def.S, 'Object', {assign: __webpack_require__(75)});
 
 /***/ },
 /* 4 */
@@ -314,7 +322,7 @@ var __e = null, __g = null;
 
 	// 19.1.3.19 Object.setPrototypeOf(O, proto)
 	var $def = __webpack_require__(63);
-	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(75).set});
+	$def($def.S, 'Object', {setPrototypeOf: __webpack_require__(74).set});
 
 /***/ },
 /* 6 */
@@ -344,40 +352,40 @@ var __e = null, __g = null;
 	  , $def     = __webpack_require__(63)
 	  , isObject = $.isObject
 	  , toObject = $.toObject;
-	function wrapObjectMethod(METHOD, MODE){
-	  var fn  = ($.core.Object || {})[METHOD] || Object[METHOD]
-	    , f   = 0
-	    , o   = {};
-	  o[METHOD] = MODE == 1 ? function(it){
+	$.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
+	  'getOwnPropertyDescriptor,getPrototypeOf,keys,getOwnPropertyNames').split(',')
+	, function(KEY, ID){
+	  var fn     = ($.core.Object || {})[KEY] || Object[KEY]
+	    , forced = 0
+	    , method = {};
+	  method[KEY] = ID == 0 ? function freeze(it){
 	    return isObject(it) ? fn(it) : it;
-	  } : MODE == 2 ? function(it){
+	  } : ID == 1 ? function seal(it){
+	    return isObject(it) ? fn(it) : it;
+	  } : ID == 2 ? function preventExtensions(it){
+	    return isObject(it) ? fn(it) : it;
+	  } : ID == 3 ? function isFrozen(it){
 	    return isObject(it) ? fn(it) : true;
-	  } : MODE == 3 ? function(it){
+	  } : ID == 4 ? function isSealed(it){
+	    return isObject(it) ? fn(it) : true;
+	  } : ID == 5 ? function isExtensible(it){
 	    return isObject(it) ? fn(it) : false;
-	  } : MODE == 4 ? function getOwnPropertyDescriptor(it, key){
+	  } : ID == 6 ? function getOwnPropertyDescriptor(it, key){
 	    return fn(toObject(it), key);
-	  } : MODE == 5 ? function getPrototypeOf(it){
+	  } : ID == 7 ? function getPrototypeOf(it){
 	    return fn(Object($.assertDefined(it)));
-	  } : function(it){
+	  } : ID == 8 ? function keys(it){
+	    return fn(toObject(it));
+	  } : function getOwnPropertyNames(it){
 	    return fn(toObject(it));
 	  };
 	  try {
 	    fn('z');
 	  } catch(e){
-	    f = 1;
+	    forced = 1;
 	  }
-	  $def($def.S + $def.F * f, 'Object', o);
-	}
-	wrapObjectMethod('freeze', 1);
-	wrapObjectMethod('seal', 1);
-	wrapObjectMethod('preventExtensions', 1);
-	wrapObjectMethod('isFrozen', 2);
-	wrapObjectMethod('isSealed', 2);
-	wrapObjectMethod('isExtensible', 3);
-	wrapObjectMethod('getOwnPropertyDescriptor', 4);
-	wrapObjectMethod('getPrototypeOf', 5);
-	wrapObjectMethod('keys');
-	wrapObjectMethod('getOwnPropertyNames');
+	  $def($def.S + $def.F * forced, 'Object', method);
+	});
 
 /***/ },
 /* 8 */
@@ -952,7 +960,7 @@ var __e = null, __g = null;
 	  , $def     = __webpack_require__(63)
 	  , assert   = __webpack_require__(67)
 	  , forOf    = __webpack_require__(85)
-	  , setProto = __webpack_require__(75).set
+	  , setProto = __webpack_require__(74).set
 	  , species  = __webpack_require__(84)
 	  , SPECIES  = __webpack_require__(73)('species')
 	  , RECORD   = __webpack_require__(66).safe('record')
@@ -1276,7 +1284,7 @@ var __e = null, __g = null;
 
 	var $         = __webpack_require__(60)
 	  , $def      = __webpack_require__(63)
-	  , setProto  = __webpack_require__(75)
+	  , setProto  = __webpack_require__(74)
 	  , $iter     = __webpack_require__(77)
 	  , ITERATOR  = __webpack_require__(73)('iterator')
 	  , ITER      = __webpack_require__(66).safe('iter')
@@ -1601,7 +1609,7 @@ var __e = null, __g = null;
 	var $        = __webpack_require__(60)
 	  , ctx      = __webpack_require__(80)
 	  , $def     = __webpack_require__(63)
-	  , assign   = __webpack_require__(74)
+	  , assign   = __webpack_require__(75)
 	  , keyOf    = __webpack_require__(71)
 	  , ITER     = __webpack_require__(66).safe('iter')
 	  , assert   = __webpack_require__(67)
@@ -2231,6 +2239,42 @@ var __e = null, __g = null;
 /* 54 */
 /***/ function(module, exports, __webpack_require__) {
 
+	'use strict';
+	var $       = __webpack_require__(60)
+	  , $def    = __webpack_require__(63)
+	  , invoke  = __webpack_require__(64)
+	  , methods = {};
+
+	methods.random = function(lim /* = 0 */){
+	  var a = +this
+	    , b = lim == undefined ? 0 : +lim
+	    , m = Math.min(a, b);
+	  return Math.random() * (Math.max(a, b) - m) + m;
+	};
+
+	if($.FW)$.each.call((
+	    // ES3:
+	    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
+	    // ES6:
+	    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
+	  ).split(','), function(key){
+	    var fn = Math[key];
+	    if(fn)methods[key] = function(/* ...args */){
+	      // ie9- dont support strict mode & convert `this` to object -> convert it to number
+	      var args = [+this]
+	        , i    = 0;
+	      while(arguments.length > i)args.push(arguments[i++]);
+	      return invoke(fn, args);
+	    };
+	  }
+	);
+
+	$def($def.P + $def.F, 'Number', methods);
+
+/***/ },
+/* 55 */
+/***/ function(module, exports, __webpack_require__) {
+
 	var $def     = __webpack_require__(63)
 	  , replacer = __webpack_require__(69);
 	var escapeHTMLDict = {
@@ -2247,7 +2291,7 @@ var __e = null, __g = null;
 	});
 
 /***/ },
-/* 55 */
+/* 56 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $            = __webpack_require__(60)
@@ -2324,14 +2368,14 @@ var __e = null, __g = null;
 	core.addLocale = addLocale;
 
 /***/ },
-/* 56 */
+/* 57 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $def = __webpack_require__(63);
 	$def($def.G + $def.F, {global: __webpack_require__(60).g});
 
 /***/ },
-/* 57 */
+/* 58 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $    = __webpack_require__(60)
@@ -2349,7 +2393,7 @@ var __e = null, __g = null;
 	    }
 	  };
 	});
-	$def($def.G + $def.F, {log: __webpack_require__(74)(log.log, log, {
+	$def($def.G + $def.F, {log: __webpack_require__(75)(log.log, log, {
 	  enable: function(){
 	    enabled = true;
 	  },
@@ -2359,7 +2403,7 @@ var __e = null, __g = null;
 	})});
 
 /***/ },
-/* 58 */
+/* 59 */
 /***/ function(module, exports, __webpack_require__) {
 
 	// JavaScript 1.6 / Strawman array statics shim
@@ -2378,42 +2422,6 @@ var __e = null, __g = null;
 	setStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
 	           'reduce,reduceRight,copyWithin,fill,turn');
 	$def($def.S, 'Array', statics);
-
-/***/ },
-/* 59 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	var $       = __webpack_require__(60)
-	  , $def    = __webpack_require__(63)
-	  , invoke  = __webpack_require__(64)
-	  , methods = {};
-
-	methods.random = function(lim /* = 0 */){
-	  var a = +this
-	    , b = lim == undefined ? 0 : +lim
-	    , m = Math.min(a, b);
-	  return Math.random() * (Math.max(a, b) - m) + m;
-	};
-
-	if($.FW)$.each.call((
-	    // ES3:
-	    'round,floor,ceil,abs,sin,asin,cos,acos,tan,atan,exp,sqrt,max,min,pow,atan2,' +
-	    // ES6:
-	    'acosh,asinh,atanh,cbrt,clz32,cosh,expm1,hypot,imul,log1p,log10,log2,sign,sinh,tanh,trunc'
-	  ).split(','), function(key){
-	    var fn = Math[key];
-	    if(fn)methods[key] = function(/* ...args */){
-	      // ie9- dont support strict mode & convert `this` to object -> convert it to number
-	      var args = [+this]
-	        , i    = 0;
-	      while(arguments.length > i)args.push(arguments[i++]);
-	      return invoke(fn, args);
-	    };
-	  }
-	);
-
-	$def($def.P + $def.F, 'Number', methods);
 
 /***/ },
 /* 60 */
@@ -2603,6 +2611,10 @@ var __e = null, __g = null;
 	    else exp = type & $def.P && isFunction(out) ? ctx(Function.call, out) : out;
 	    // export
 	    $.hide(exports, key, exp);
+	    if(type & $def.P){
+	      if(!exports.prototype)exports.prototype = {};
+	      exports.prototype[key] = out;
+	    }
 	  }
 	}
 	module.exports = $def;
@@ -2803,30 +2815,6 @@ var __e = null, __g = null;
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var $        = __webpack_require__(60)
-	  , enumKeys = __webpack_require__(72);
-	// 19.1.2.1 Object.assign(target, source, ...)
-	/* eslint-disable no-unused-vars */
-	module.exports = Object.assign || function assign(target, source){
-	/* eslint-enable no-unused-vars */
-	  var T = Object($.assertDefined(target))
-	    , l = arguments.length
-	    , i = 1;
-	  while(l > i){
-	    var S      = $.ES5Object(arguments[i++])
-	      , keys   = enumKeys(S)
-	      , length = keys.length
-	      , j      = 0
-	      , key;
-	    while(length > j)T[key = keys[j++]] = S[key];
-	  }
-	  return T;
-	};
-
-/***/ },
-/* 75 */
-/***/ function(module, exports, __webpack_require__) {
-
 	// Works with __proto__ only. Old v8 can't work with null proto objects.
 	/* eslint-disable no-proto */
 	var $      = __webpack_require__(60)
@@ -2851,6 +2839,30 @@ var __e = null, __g = null;
 	      }()
 	    : undefined),
 	  check: check
+	};
+
+/***/ },
+/* 75 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var $        = __webpack_require__(60)
+	  , enumKeys = __webpack_require__(72);
+	// 19.1.2.1 Object.assign(target, source, ...)
+	/* eslint-disable no-unused-vars */
+	module.exports = Object.assign || function assign(target, source){
+	/* eslint-enable no-unused-vars */
+	  var T = Object($.assertDefined(target))
+	    , l = arguments.length
+	    , i = 1;
+	  while(l > i){
+	    var S      = $.ES5Object(arguments[i++])
+	      , keys   = enumKeys(S)
+	      , length = keys.length
+	      , j      = 0
+	      , key;
+	    while(length > j)T[key = keys[j++]] = S[key];
+	  }
+	  return T;
 	};
 
 /***/ },
