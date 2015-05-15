@@ -13,6 +13,7 @@ check = (a, b)->
 test 'regression' !->
   ok typeof! Number is \Function, 'Number is function'
   eq Number.length, 1, 'Number.length is 1'
+  ok /native code/.test(Number), 'looks like native'
   if \name of Number => eq Number.name, \Number, 'Number.name is "Number" (can fail if compressed)'
   
   check 42, 42

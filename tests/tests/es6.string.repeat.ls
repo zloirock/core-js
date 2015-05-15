@@ -7,6 +7,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! String::repeat is \Function, 'Is function'
   eq String::repeat.length, 1, 'arity is 1'
+  ok /native code/.test(String::repeat), 'looks like native'
   if \name of String::repeat => eq String::repeat.name, \repeat, 'name is "repeat"'
   eq 'qwe'repeat(3), \qweqweqwe
   eq 'qwe'repeat(2.5), \qweqwe

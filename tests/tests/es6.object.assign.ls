@@ -8,6 +8,7 @@ deq = deepEqual
 test '*' !->
   {assign, defineProperty} = Object
   ok typeof! assign is \Function, 'Is function'
+  ok /native code/.test(assign), 'looks like native'
   foo = q: 1
   eq foo, assign(foo, bar: 2), 'assign return target'
   eq foo.bar, 2, 'assign define properties'

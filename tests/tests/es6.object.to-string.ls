@@ -5,6 +5,7 @@ QUnit.module 'ES6 Object prototype'
 eq = strictEqual
 
 test 'Object#toString' !->
+  ok /native code/.test(Object::toString), 'looks like native'
   {toString} = Object::
   if !(-> @)!
     eq toString.call(null), '[object Null]', 'classof null is `Null`'
@@ -37,5 +38,3 @@ test 'Object#toString' !->
   class Class
     @::[Symbol.toStringTag] = \Class
   eq '' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]'
-  
-  ok /native code/.test(Object::toString), 'Object#toString.toString'

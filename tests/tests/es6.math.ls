@@ -10,6 +10,7 @@ test 'Math.acosh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
   {acosh} = Math
   ok isFunction(acosh), 'Is function'
+  ok /native code/.test(acosh), 'looks like native'
   sameEq acosh(NaN), NaN
   sameEq acosh(0.5), NaN
   sameEq acosh(-1), NaN
@@ -24,6 +25,7 @@ test 'Math.asinh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
   {asinh} = Math
   ok isFunction(asinh), 'Is function'
+  ok /native code/.test(asinh), 'looks like native'
   sameEq asinh(NaN), NaN
   sameEq asinh(0), 0
   sameEq asinh(-0), -0
@@ -38,6 +40,7 @@ test 'Math.atanh' !->
   # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
   {atanh} = Math
   ok isFunction(atanh), 'Is function'
+  ok /native code/.test(atanh), 'looks like native'
   sameEq atanh(NaN), NaN
   sameEq atanh(-2), NaN
   sameEq atanh(-1.5), NaN
@@ -56,6 +59,7 @@ test 'Math.cbrt' !->
   # Returns an implementation-dependent approximation to the cube root of x.
   {cbrt} = Math
   ok isFunction(cbrt), 'Is function'
+  ok /native code/.test(cbrt), 'looks like native'
   sameEq cbrt(NaN), NaN
   sameEq cbrt(0), 0
   sameEq cbrt(-0), -0
@@ -68,6 +72,7 @@ test 'Math.cbrt' !->
 test 'Math.clz32' !->
   {clz32} = Math
   ok isFunction(clz32), 'Is function'
+  ok /native code/.test(clz32), 'looks like native'
   eq clz32(0), 32
   eq clz32(1), 31
   sameEq clz32(-1), 0
@@ -78,6 +83,7 @@ test 'Math.cosh' !->
   # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
   {cosh} = Math
   ok isFunction(cosh), 'Is function'
+  ok /native code/.test(cosh), 'looks like native'
   sameEq cosh(NaN), NaN
   eq cosh(0), 1
   eq cosh(-0), 1
@@ -91,6 +97,7 @@ test 'Math.expm1' !->
   # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
   {expm1} = Math
   ok isFunction(expm1), 'Is function'
+  ok /native code/.test(expm1), 'looks like native'
   sameEq expm1(NaN), NaN
   sameEq expm1(0), 0
   sameEq expm1(-0), -0
@@ -102,6 +109,7 @@ test 'Math.fround' !->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = Math
   ok isFunction(fround), 'Is function'
+  ok /native code/.test(fround), 'looks like native'
   sameEq fround(void), NaN
   sameEq fround(NaN), NaN
   sameEq fround(0), 0
@@ -130,6 +138,7 @@ test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
   {hypot, sqrt} = Math
   ok isFunction(hypot), 'Is function'
+  ok /native code/.test(hypot), 'looks like native'
   eq hypot!, 0
   eq hypot(1), 1
   sameEq hypot('', 0), 0
@@ -168,6 +177,7 @@ test 'Math.hypot' !->
 test 'Math.imul' !->
   {imul} = Math
   ok isFunction(imul), 'Is function'
+  ok /native code/.test(imul), 'looks like native'
   sameEq imul(0, 0), 0
   eq imul(123, 456), 56088
   eq imul(-123, 456), -56088
@@ -208,6 +218,7 @@ test 'Math.log1p' !->
   # The result is computed in a way that is accurate even when the value of x is close to zero.
   {log1p} = Math
   ok isFunction(log1p), 'Is function'
+  ok /native code/.test(log1p), 'looks like native'
   sameEq log1p(''), log1p 0
   sameEq log1p(NaN), NaN
   sameEq log1p(-2), NaN
@@ -221,6 +232,7 @@ test 'Math.log10' !->
   # Returns an implementation-dependent approximation to the base 10 logarithm of x.
   {log10} = Math
   ok isFunction(log10), 'Is function'
+  ok /native code/.test(log10), 'looks like native'
   sameEq log10(''), log10 0
   sameEq log10(NaN), NaN
   sameEq log10(-1), NaN
@@ -237,6 +249,7 @@ test 'Math.log2' !->
   # Returns an implementation-dependent approximation to the base 2 logarithm of x.
   {log2} = Math
   ok isFunction(log2), 'Is function'
+  ok /native code/.test(log2), 'looks like native'
   sameEq log2(''), log2 0
   sameEq log2(NaN), NaN
   sameEq log2(-1), NaN
@@ -251,6 +264,7 @@ test 'Math.sign' !->
   # Returns the sign of the x, indicating whether x is positive, negative or zero.
   {sign} = Math
   ok isFunction(sign), 'Is function'
+  ok /native code/.test(sign), 'looks like native'
   sameEq sign(NaN), NaN
   sameEq sign!, NaN
   sameEq sign(-0), -0
@@ -265,6 +279,7 @@ test 'Math.sinh' !->
   # Returns an implementation-dependent approximation to the hyperbolic sine of x.
   {sinh} = Math
   ok isFunction(sinh), 'Is function'
+  ok /native code/.test(sinh), 'looks like native'
   sameEq sinh(NaN), NaN
   sameEq sinh(0), 0
   sameEq sinh(-0), -0 
@@ -277,6 +292,7 @@ test 'Math.tanh' !->
   # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
   {tanh} = Math
   ok isFunction(tanh), 'Is function'
+  ok /native code/.test(tanh), 'looks like native'
   sameEq tanh(NaN), NaN
   sameEq tanh(0), 0
   sameEq tanh(-0), -0
@@ -288,6 +304,7 @@ test 'Math.trunc' !->
   # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
   {trunc} = Math
   ok isFunction(trunc), 'Is function'
+  ok /native code/.test(trunc), 'looks like native'
   sameEq trunc(NaN), NaN, 'NaN -> NaN'
   sameEq trunc(-0), -0, '-0 -> -0'
   sameEq trunc(0), 0, '0 -> 0'

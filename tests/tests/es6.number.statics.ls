@@ -14,6 +14,7 @@ test 'Number.EPSILON' !->
 test 'Number.isFinite' !->
   {isFinite} = Number
   ok isFunction(isFinite), 'Is function'
+  ok /native code/.test(isFinite), 'looks like native'
   for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
     ok isFinite(..), "isFinite #{typeof ..} #{..}"
   for [NaN, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
@@ -21,6 +22,7 @@ test 'Number.isFinite' !->
 test 'Number.isInteger' !->
   {isInteger} = Number
   ok isFunction(isInteger), 'Is function'
+  ok /native code/.test(isInteger), 'looks like native'
   for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0]
     ok isInteger(..), "isInteger #{typeof ..} #{..}"
   for [NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
@@ -28,12 +30,14 @@ test 'Number.isInteger' !->
 test 'Number.isNaN' !->
   {isNaN} = Number
   ok isFunction(isNaN), 'Is function'
+  ok /native code/.test(isNaN), 'looks like native'
   ok isNaN(NaN), 'Number.isNaN NaN'
   for [1 0.1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
     ok not isNaN(..), "not Number.isNaN #{typeof ..} #{try String(..) catch e => 'Object.create(null)'}"
 test 'Number.isSafeInteger' !->
   {isSafeInteger} = Number
   ok isFunction(isSafeInteger), 'Is function'
+  ok /native code/.test(isSafeInteger), 'looks like native'
   for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 16~1fffffffffffff -16~1fffffffffffff]
     ok isSafeInteger(..), "isSafeInteger #{typeof ..} #{..}"
   for [16~20000000000000 -16~20000000000000 NaN, 0.1, Infinity, \NaN, \5, no, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void, null, {}, ->, create(null)]
@@ -44,5 +48,7 @@ test 'Number.MIN_SAFE_INTEGER' !->
   eq Number.MIN_SAFE_INTEGER, -2^53 + 1, 'Is -2^53 + 1'
 test 'Number.parseFloat' !->
   ok isFunction(Number.parseFloat), 'Is function'
+  ok /native code/.test(Number.parseFloat), 'looks like native'
 test 'Number.parseInt' !->
   ok isFunction(Number.parseInt), 'Is function'
+  ok /native code/.test(Number.parseInt), 'looks like native'

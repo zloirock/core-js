@@ -7,6 +7,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! String::includes is \Function, 'Is function'
   eq String::includes.length, 1, 'arity is 1'
+  ok /native code/.test(String::includes), 'looks like native'
   if \name of String::includes => eq String::includes.name, \includes, 'name is "includes"'
   ok not 'abc'includes!
   ok 'aundefinedb'includes!

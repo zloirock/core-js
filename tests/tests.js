@@ -1618,6 +1618,7 @@
     var a;
     ok(toString$.call(Array.prototype.copyWithin).slice(8, -1) === 'Function', 'Is function');
     eq(Array.prototype.copyWithin.length, 2, 'length is 2');
+    ok(/native code/.test(Array.prototype.copyWithin), 'looks like native');
     if ('name' in Array.prototype.copyWithin) {
       eq(Array.prototype.copyWithin.name, 'copyWithin', 'name is "copyWithin"');
     }
@@ -1659,6 +1660,7 @@
     var a;
     ok(toString$.call(Array.prototype.fill).slice(8, -1) === 'Function', 'Is function');
     eq(Array.prototype.fill.length, 1, 'length is 1');
+    ok(/native code/.test(Array.prototype.fill), 'looks like native');
     if ('name' in Array.prototype.fill) {
       eq(Array.prototype.fill.name, 'fill', 'name is "fill"');
     }
@@ -1692,6 +1694,7 @@
     var arr, ctx;
     ok(toString$.call(Array.prototype.findIndex).slice(8, -1) === 'Function', 'Is function');
     eq(Array.prototype.findIndex.length, 1, 'length is 1');
+    ok(/native code/.test(Array.prototype.findIndex), 'looks like native');
     if ('name' in Array.prototype.findIndex) {
       eq(Array.prototype.findIndex.name, 'findIndex', 'name is "findIndex"');
     }
@@ -1728,6 +1731,7 @@
     var arr, ctx;
     ok(toString$.call(Array.prototype.find).slice(8, -1) === 'Function', 'Is function');
     eq(Array.prototype.find.length, 1, 'length is 1');
+    ok(/native code/.test(Array.prototype.find), 'looks like native');
     if ('name' in Array.prototype.find) {
       eq(Array.prototype.find.name, 'find', 'name is "find"');
     }
@@ -1768,6 +1772,7 @@
     from = Array.from;
     ok(toString$.call(from).slice(8, -1) === 'Function', 'Is function');
     eq(Array.from.length, 1, 'length is 1');
+    ok(/native code/.test(Array.from), 'looks like native');
     if ('name' in Array.from) {
       eq(Array.from.name, 'from', 'name is "from"');
     }
@@ -1858,6 +1863,7 @@
   test('Array#keys', function(){
     var iter;
     ok(isFunction(Array.prototype.keys), 'Is function');
+    ok(/native code/.test(Array.prototype.keys), 'looks like native');
     iter = ['q', 'w', 'e'].keys();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
@@ -1882,6 +1888,7 @@
   test('Array#values', function(){
     var iter;
     ok(isFunction(Array.prototype.values), 'Is function');
+    ok(/native code/.test(Array.prototype.values), 'looks like native');
     iter = ['q', 'w', 'e'].values();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
@@ -1906,6 +1913,7 @@
   test('Array#entries', function(){
     var iter;
     ok(isFunction(Array.prototype.entries), 'Is function');
+    ok(/native code/.test(Array.prototype.entries), 'looks like native');
     iter = ['q', 'w', 'e'].entries();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
@@ -1930,6 +1938,7 @@
   test('Array#@@iterator', function(){
     var iter;
     ok(isFunction(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]), 'Is function');
+    ok(/native code/.test(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]), 'looks like native');
     eq(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     ok(isIterator(iter), 'Return iterator');
@@ -1963,6 +1972,7 @@
     var F, inst;
     ok(toString$.call(Array.of).slice(8, -1) === 'Function', 'Is function');
     eq(Array.of.length, 0, 'length is 0');
+    ok(/native code/.test(Array.of), 'looks like native');
     if ('name' in Array.of) {
       eq(Array.of.name, 'of', 'name is "of"');
     }
@@ -2037,6 +2047,7 @@
   test('Map', function(){
     var done, iter;
     ok(isFunction(Map), 'Is function');
+    ok(/native code/.test(Map), 'looks like native');
     ok('clear' in Map.prototype, 'clear in Map.prototype');
     ok('delete' in Map.prototype, 'delete in Map.prototype');
     ok('forEach' in Map.prototype, 'forEach in Map.prototype');
@@ -2060,6 +2071,7 @@
   test('Map#clear', function(){
     var M, f;
     ok(isFunction(Map.prototype.clear), 'Is function');
+    ok(/native code/.test(Map.prototype.clear), 'looks like native');
     M = new Map;
     M.clear();
     eq(M.size, 0);
@@ -2077,6 +2089,7 @@
   test('Map#delete', function(){
     var a, M, f;
     ok(isFunction(Map.prototype['delete']), 'Is function');
+    ok(/native code/.test(Map.prototype['delete']), 'looks like native');
     a = [];
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
     eq(M.size, 5);
@@ -2096,6 +2109,7 @@
   test('Map#forEach', function(){
     var r, T, count, M, a, map, s;
     ok(isFunction(Map.prototype.forEach), 'Is function');
+    ok(/native code/.test(Map.prototype.forEach), 'looks like native');
     r = {};
     count = 0;
     M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
@@ -2137,6 +2151,7 @@
   test('Map#get', function(){
     var o, f, M;
     ok(isFunction(Map.prototype.get), 'Is function');
+    ok(/native code/.test(Map.prototype.get), 'looks like native');
     o = {};
     f = freeze({});
     M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
@@ -2150,6 +2165,7 @@
   test('Map#has', function(){
     var o, f, M;
     ok(isFunction(Map.prototype.has), 'Is function');
+    ok(/native code/.test(Map.prototype.has), 'looks like native');
     o = {};
     f = freeze({});
     M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
@@ -2163,6 +2179,7 @@
   test('Map#set', function(){
     var o, M, chain, f;
     ok(isFunction(Map.prototype.set), 'Is function');
+    ok(/native code/.test(Map.prototype.set), 'looks like native');
     o = {};
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
     ok(M.size === 5);
@@ -2249,6 +2266,7 @@
   test('Map#keys', function(){
     var iter;
     ok(typeof Map.prototype.keys === 'function', 'Is function');
+    ok(/native code/.test(Map.prototype.keys), 'looks like native');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -2272,6 +2290,7 @@
   test('Map#values', function(){
     var iter;
     ok(typeof Map.prototype.values === 'function', 'Is function');
+    ok(/native code/.test(Map.prototype.values), 'looks like native');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -2295,6 +2314,7 @@
   test('Map#entries', function(){
     var iter;
     ok(typeof Map.prototype.entries === 'function', 'Is function');
+    ok(/native code/.test(Map.prototype.entries), 'looks like native');
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -2318,6 +2338,7 @@
   test('Map#@@iterator', function(){
     var iter;
     ok(typeof Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] === 'function', 'Is function');
+    ok(/native code/.test(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]), 'looks like native');
     eq(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     ok(isIterator(iter), 'Return iterator');
@@ -2361,6 +2382,7 @@
     var acosh;
     acosh = Math.acosh;
     ok(isFunction(acosh), 'Is function');
+    ok(/native code/.test(acosh), 'looks like native');
     sameEq(acosh(NaN), NaN);
     sameEq(acosh(0.5), NaN);
     sameEq(acosh(-1), NaN);
@@ -2375,6 +2397,7 @@
     var asinh;
     asinh = Math.asinh;
     ok(isFunction(asinh), 'Is function');
+    ok(/native code/.test(asinh), 'looks like native');
     sameEq(asinh(NaN), NaN);
     sameEq(asinh(0), 0);
     sameEq(asinh(-0), -0);
@@ -2390,6 +2413,7 @@
     var atanh;
     atanh = Math.atanh;
     ok(isFunction(atanh), 'Is function');
+    ok(/native code/.test(atanh), 'looks like native');
     sameEq(atanh(NaN), NaN);
     sameEq(atanh(-2), NaN);
     sameEq(atanh(-1.5), NaN);
@@ -2409,6 +2433,7 @@
     var cbrt;
     cbrt = Math.cbrt;
     ok(isFunction(cbrt), 'Is function');
+    ok(/native code/.test(cbrt), 'looks like native');
     sameEq(cbrt(NaN), NaN);
     sameEq(cbrt(0), 0);
     sameEq(cbrt(-0), -0);
@@ -2423,6 +2448,7 @@
     var clz32;
     clz32 = Math.clz32;
     ok(isFunction(clz32), 'Is function');
+    ok(/native code/.test(clz32), 'looks like native');
     eq(clz32(0), 32);
     eq(clz32(1), 31);
     sameEq(clz32(-1), 0);
@@ -2434,6 +2460,7 @@
     var cosh;
     cosh = Math.cosh;
     ok(isFunction(cosh), 'Is function');
+    ok(/native code/.test(cosh), 'looks like native');
     sameEq(cosh(NaN), NaN);
     eq(cosh(0), 1);
     eq(cosh(-0), 1);
@@ -2448,6 +2475,7 @@
     var expm1;
     expm1 = Math.expm1;
     ok(isFunction(expm1), 'Is function');
+    ok(/native code/.test(expm1), 'looks like native');
     sameEq(expm1(NaN), NaN);
     sameEq(expm1(0), 0);
     sameEq(expm1(-0), -0);
@@ -2459,6 +2487,7 @@
     var fround, maxFloat32, minFloat32;
     fround = Math.fround;
     ok(isFunction(fround), 'Is function');
+    ok(/native code/.test(fround), 'looks like native');
     sameEq(fround(void 8), NaN);
     sameEq(fround(NaN), NaN);
     sameEq(fround(0), 0);
@@ -2488,6 +2517,7 @@
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
     ok(isFunction(hypot), 'Is function');
+    ok(/native code/.test(hypot), 'looks like native');
     eq(hypot(), 0);
     eq(hypot(1), 1);
     sameEq(hypot('', 0), 0);
@@ -2528,6 +2558,7 @@
     var imul;
     imul = Math.imul;
     ok(isFunction(imul), 'Is function');
+    ok(/native code/.test(imul), 'looks like native');
     sameEq(imul(0, 0), 0);
     eq(imul(123, 456), 56088);
     eq(imul(-123, 456), -56088);
@@ -2568,6 +2599,7 @@
     var log1p;
     log1p = Math.log1p;
     ok(isFunction(log1p), 'Is function');
+    ok(/native code/.test(log1p), 'looks like native');
     sameEq(log1p(''), log1p(0));
     sameEq(log1p(NaN), NaN);
     sameEq(log1p(-2), NaN);
@@ -2582,6 +2614,7 @@
     var log10;
     log10 = Math.log10;
     ok(isFunction(log10), 'Is function');
+    ok(/native code/.test(log10), 'looks like native');
     sameEq(log10(''), log10(0));
     sameEq(log10(NaN), NaN);
     sameEq(log10(-1), NaN);
@@ -2599,6 +2632,7 @@
     var log2;
     log2 = Math.log2;
     ok(isFunction(log2), 'Is function');
+    ok(/native code/.test(log2), 'looks like native');
     sameEq(log2(''), log2(0));
     sameEq(log2(NaN), NaN);
     sameEq(log2(-1), NaN);
@@ -2614,6 +2648,7 @@
     var sign;
     sign = Math.sign;
     ok(isFunction(sign), 'Is function');
+    ok(/native code/.test(sign), 'looks like native');
     sameEq(sign(NaN), NaN);
     sameEq(sign(), NaN);
     sameEq(sign(-0), -0);
@@ -2629,6 +2664,7 @@
     var sinh;
     sinh = Math.sinh;
     ok(isFunction(sinh), 'Is function');
+    ok(/native code/.test(sinh), 'looks like native');
     sameEq(sinh(NaN), NaN);
     sameEq(sinh(0), 0);
     sameEq(sinh(-0), -0);
@@ -2642,6 +2678,7 @@
     var tanh;
     tanh = Math.tanh;
     ok(isFunction(tanh), 'Is function');
+    ok(/native code/.test(tanh), 'looks like native');
     sameEq(tanh(NaN), NaN);
     sameEq(tanh(0), 0);
     sameEq(tanh(-0), -0);
@@ -2653,6 +2690,7 @@
     var trunc;
     trunc = Math.trunc;
     ok(isFunction(trunc), 'Is function');
+    ok(/native code/.test(trunc), 'looks like native');
     sameEq(trunc(NaN), NaN, 'NaN -> NaN');
     sameEq(trunc(-0), -0, '-0 -> -0');
     sameEq(trunc(0), 0, '0 -> 0');
@@ -2693,6 +2731,7 @@
     var i, i$, x$, ref$, len$;
     ok(toString$.call(Number).slice(8, -1) === 'Function', 'Number is function');
     eq(Number.length, 1, 'Number.length is 1');
+    ok(/native code/.test(Number), 'looks like native');
     if ('name' in Number) {
       eq(Number.name, 'Number', 'Number.name is "Number" (can fail if compressed)');
     }
@@ -2857,6 +2896,7 @@
     var isFinite, i$, x$, ref$, len$, y$, e;
     isFinite = Number.isFinite;
     ok(isFunction(isFinite), 'Is function');
+    ok(/native code/.test(isFinite), 'looks like native');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isFinite(x$), "isFinite " + typeof x$ + " " + x$);
@@ -2879,6 +2919,7 @@
     var isInteger, i$, x$, ref$, len$, y$, e;
     isInteger = Number.isInteger;
     ok(isFunction(isInteger), 'Is function');
+    ok(/native code/.test(isInteger), 'looks like native');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isInteger(x$), "isInteger " + typeof x$ + " " + x$);
@@ -2901,6 +2942,7 @@
     var isNaN, i$, x$, ref$, len$, e;
     isNaN = Number.isNaN;
     ok(isFunction(isNaN), 'Is function');
+    ok(/native code/.test(isNaN), 'looks like native');
     ok(isNaN(NaN), 'Number.isNaN NaN');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -2920,6 +2962,7 @@
     var isSafeInteger, i$, x$, ref$, len$, y$, e;
     isSafeInteger = Number.isSafeInteger;
     ok(isFunction(isSafeInteger), 'Is function');
+    ok(/native code/.test(isSafeInteger), 'looks like native');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, 9007199254740991, -9007199254740991]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       ok(isSafeInteger(x$), "isSafeInteger " + typeof x$ + " " + x$);
@@ -2946,9 +2989,11 @@
   });
   test('Number.parseFloat', function(){
     ok(isFunction(Number.parseFloat), 'Is function');
+    ok(/native code/.test(Number.parseFloat), 'looks like native');
   });
   test('Number.parseInt', function(){
     ok(isFunction(Number.parseInt), 'Is function');
+    ok(/native code/.test(Number.parseInt), 'looks like native');
   });
 }).call(this);
 
@@ -2971,6 +3016,7 @@
     var assign, defineProperty, foo, str, c, d, D, ref$, O;
     assign = Object.assign, defineProperty = Object.defineProperty;
     ok(toString$.call(assign).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(assign), 'looks like native');
     foo = {
       q: 1
     };
@@ -3045,6 +3091,7 @@
     var same;
     same = Object.is;
     ok(toString$.call(same).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(same), 'looks like native');
     ok(same(1, 1), '1 is 1');
     ok(same(NaN, NaN), '1 is 1');
     ok(!same(0, -0), '0 isnt -0');
@@ -3062,6 +3109,7 @@
       var setPrototypeOf, tmp;
       setPrototypeOf = Object.setPrototypeOf;
       ok(toString$.call(setPrototypeOf).slice(8, -1) === 'Function', 'Is function');
+      ok(/native code/.test(setPrototypeOf), 'looks like native');
       ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
       eq(setPrototypeOf({
         a: 2
@@ -3087,6 +3135,7 @@
     var i$, ref$, len$, method, j$, ref1$, len1$, value;
     for (i$ = 0, len$ = (ref$ = ['freeze', 'seal', 'preventExtensions', 'getOwnPropertyDescriptor', 'getPrototypeOf', 'isExtensible', 'isSealed', 'isFrozen', 'keys', 'getOwnPropertyNames']).length; i$ < len$; ++i$) {
       method = ref$[i$];
+      ok(/native code/.test(Object[method]), "Object." + method + " looks like native");
       for (j$ = 0, len1$ = (ref1$ = [42, 'foo', false]).length; j$ < len1$; ++j$) {
         value = ref1$[j$];
         ok((fn$()), "Object." + method + " accept " + toString$.call(value).slice(8, -1));
@@ -3138,6 +3187,7 @@
   eq = strictEqual;
   test('Object#toString', function(){
     var toString, Class;
+    ok(/native code/.test(Object.prototype.toString), 'looks like native');
     toString = Object.prototype.toString;
     if (!function(){
       return this;
@@ -3181,7 +3231,6 @@
       return Class;
     }());
     eq('' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]');
-    ok(/native code/.test(Object.prototype.toString), 'Object#toString.toString');
   });
 }).call(this);
 
@@ -3194,9 +3243,11 @@
   };
   test('Promise', function(){
     ok(isFunction(((typeof global != 'undefined' && global !== null) && global || window).Promise), 'Is function');
+    ok(/native code/.test(Promise), 'looks like native');
   });
   test('#then', function(){
     ok(isFunction(Promise.prototype.then), 'Is function');
+    ok(/native code/.test(Promise.prototype.then), 'looks like native');
   });
   test('#catch', function(){
     ok(isFunction(Promise.prototype['catch']), 'Is function');
@@ -3207,6 +3258,7 @@
   test('.all', function(){
     var passed, iter, next;
     ok(isFunction(Promise.all), 'Is function');
+    ok(/native code/.test(Promise.all), 'looks like native');
     passed = false;
     iter = [1, 2, 3].values();
     next = bind$(iter, 'next');
@@ -3220,6 +3272,7 @@
   test('.race', function(){
     var passed, iter, next;
     ok(isFunction(Promise.race), 'Is function');
+    ok(/native code/.test(Promise.race), 'looks like native');
     passed = false;
     iter = [1, 2, 3].values();
     next = bind$(iter, 'next');
@@ -3232,9 +3285,11 @@
   });
   test('.resolve', function(){
     ok(isFunction(Promise.resolve), 'Is function');
+    ok(/native code/.test(Promise.resolve), 'looks like native');
   });
   test('.reject', function(){
     ok(isFunction(Promise.reject), 'Is function');
+    ok(/native code/.test(Promise.reject), 'looks like native');
   });
   if (Object.setPrototypeOf) {
     test(' subclassing', function(it){
@@ -3312,6 +3367,7 @@
     apply = Reflect.apply;
     ok(isFunction(apply), 'Reflect.apply is function');
     eq(apply.length, 3, 'arity is 3');
+    ok(/native code/.test(apply), 'looks like native');
     if ('name' in apply) {
       eq(apply.name, 'apply', 'name is "apply"');
     }
@@ -3330,6 +3386,7 @@
     construct = Reflect.construct;
     ok(isFunction(construct), 'Reflect.construct is function');
     eq(construct.length, 2, 'arity is 2');
+    ok(/native code/.test(construct), 'looks like native');
     if ('name' in construct) {
       eq(construct.name, 'construct', 'name is "construct"');
     }
@@ -3363,6 +3420,7 @@
     defineProperty = Reflect.defineProperty;
     ok(isFunction(defineProperty), 'Reflect.defineProperty is function');
     eq(defineProperty.length, 3, 'arity is 3');
+    ok(/native code/.test(defineProperty), 'looks like native');
     if ('name' in defineProperty) {
       eq(defineProperty.name, 'defineProperty', 'name is "defineProperty"');
     }
@@ -3398,6 +3456,7 @@
     deleteProperty = Reflect.deleteProperty;
     ok(isFunction(deleteProperty), 'Reflect.deleteProperty is function');
     eq(deleteProperty.length, 2, 'arity is 2');
+    ok(/native code/.test(deleteProperty), 'looks like native');
     if ('name' in deleteProperty) {
       eq(deleteProperty.name, 'deleteProperty', 'name is "deleteProperty"');
     }
@@ -3420,6 +3479,7 @@
     enumerate = Reflect.enumerate;
     ok(isFunction(enumerate), 'Reflect.enumerate is function');
     eq(enumerate.length, 1, 'arity is 1');
+    ok(/native code/.test(enumerate), 'looks like native');
     if ('name' in enumerate) {
       eq(enumerate.name, 'enumerate', 'name is "enumerate"');
     }
@@ -3453,6 +3513,7 @@
     get = Reflect.get;
     ok(isFunction(get), 'Reflect.get is function');
     eq(get.length, 2, 'arity is 2');
+    ok(/native code/.test(get), 'looks like native');
     if ('name' in get) {
       eq(get.name, 'get', 'name is "get"');
     }
@@ -3492,6 +3553,7 @@
     getOwnPropertyDescriptor = Reflect.getOwnPropertyDescriptor;
     ok(isFunction(getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function');
     eq(getOwnPropertyDescriptor.length, 2, 'arity is 2');
+    ok(/native code/.test(getOwnPropertyDescriptor), 'looks like native');
     if ('name' in getOwnPropertyDescriptor) {
       eq(getOwnPropertyDescriptor.name, 'getOwnPropertyDescriptor', 'name is "getOwnPropertyDescriptor"');
     }
@@ -3509,6 +3571,7 @@
     getPrototypeOf = Reflect.getPrototypeOf;
     ok(isFunction(getPrototypeOf), 'Reflect.getPrototypeOf is function');
     eq(getPrototypeOf.length, 1, 'arity is 1');
+    ok(/native code/.test(getPrototypeOf), 'looks like native');
     if ('name' in getPrototypeOf) {
       eq(getPrototypeOf.name, 'getPrototypeOf', 'name is "getPrototypeOf"');
     }
@@ -3522,6 +3585,7 @@
     has = Reflect.has;
     ok(isFunction(has), 'Reflect.has is function');
     eq(has.length, 2, 'arity is 2');
+    ok(/native code/.test(has), 'looks like native');
     if ('name' in has) {
       eq(has.name, 'has', 'name is "has"');
     }
@@ -3540,6 +3604,7 @@
     isExtensible = Reflect.isExtensible;
     ok(isFunction(isExtensible), 'Reflect.isExtensible is function');
     eq(isExtensible.length, 1, 'arity is 1');
+    ok(/native code/.test(isExtensible), 'looks like native');
     if ('name' in isExtensible) {
       eq(isExtensible.name, 'isExtensible', 'name is "isExtensible"');
     }
@@ -3556,6 +3621,7 @@
     ownKeys = Reflect.ownKeys;
     ok(isFunction(ownKeys), 'Reflect.ownKeys is function');
     eq(ownKeys.length, 1, 'arity is 1');
+    ok(/native code/.test(ownKeys), 'looks like native');
     if ('name' in ownKeys) {
       eq(ownKeys.name, 'ownKeys', 'name is "ownKeys"');
     }
@@ -3584,6 +3650,7 @@
     preventExtensions = Reflect.preventExtensions;
     ok(isFunction(preventExtensions), 'Reflect.preventExtensions is function');
     eq(preventExtensions.length, 1, 'arity is 1');
+    ok(/native code/.test(preventExtensions), 'looks like native');
     if ('name' in preventExtensions) {
       eq(preventExtensions.name, 'preventExtensions', 'name is "preventExtensions"');
     }
@@ -3601,6 +3668,7 @@
     set = Reflect.set;
     ok(isFunction(set), 'Reflect.set is function');
     eq(set.length, 3, 'arity is 3');
+    ok(/native code/.test(set), 'looks like native');
     if ('name' in set) {
       eq(set.name, 'set', 'name is "set"');
     }
@@ -3670,6 +3738,7 @@
       setPrototypeOf = Reflect.setPrototypeOf;
       ok(isFunction(setPrototypeOf), 'Reflect.setPrototypeOf is function');
       eq(setPrototypeOf.length, 2, 'arity is 2');
+      ok(/native code/.test(setPrototypeOf), 'looks like native');
       if ('name' in setPrototypeOf) {
         eq(setPrototypeOf.name, 'setPrototypeOf', 'name is "setPrototypeOf"');
       }
@@ -3713,8 +3782,14 @@
       }).a;
     } catch (e$) {}
   }()) {
-    test('RegExp allows a regex with flags as the pattern', function(){
+    test('RegExp constructor', function(){
       var a, b, c, i$, len$, index, val;
+      ok(toString$.call(RegExp).slice(8, -1) === 'Function', 'RegExp is function');
+      eq(RegExp.length, 2, 'RegExp.length is 2');
+      ok(/native code/.test(RegExp), 'looks like native');
+      if ('name' in RegExp) {
+        eq(RegExp.name, 'RegExp', 'RegExp.name is "RegExp" (can fail if compressed)');
+      }
       a = /a/g;
       ok(toString$.call(RegExp()).slice(8, -1) === 'RegExp');
       ok(toString$.call(new RegExp()).slice(8, -1) === 'RegExp');
@@ -3769,6 +3844,7 @@
   test('Set', function(){
     var S, r, done, iter, _add;
     ok(isFunction(Set), 'Is function');
+    ok(/native code/.test(Set), 'looks like native');
     ok('add' in Set.prototype, 'add in Set.prototype');
     ok('clear' in Set.prototype, 'clear in Set.prototype');
     ok('delete' in Set.prototype, 'delete in Set.prototype');
@@ -3807,6 +3883,7 @@
   test('Set#add', function(){
     var a, S, chain, f;
     ok(isFunction(Set.prototype.add), 'Is function');
+    ok(/native code/.test(Set.prototype.add), 'looks like native');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     eq(S.size, 5);
@@ -3827,6 +3904,7 @@
   test('Set#clear', function(){
     var S, f;
     ok(isFunction(Set.prototype.clear), 'Is function');
+    ok(/native code/.test(Set.prototype.clear), 'looks like native');
     S = new Set;
     S.clear();
     eq(S.size, 0);
@@ -3845,6 +3923,7 @@
   test('Set#delete', function(){
     var a, S, f;
     ok(isFunction(Set.prototype['delete']), 'Is function');
+    ok(/native code/.test(Set.prototype['delete']), 'looks like native');
     a = [];
     S = new Set([NaN, 2, 3, 2, 1, a]);
     eq(S.size, 5);
@@ -3864,6 +3943,7 @@
   test('Set#forEach', function(){
     var r, count, S, set, s;
     ok(isFunction(Set.prototype.forEach), 'Is function');
+    ok(/native code/.test(Set.prototype.forEach), 'looks like native');
     r = [];
     count = 0;
     S = new Set([1, 2, 3, 2, 1]);
@@ -3899,6 +3979,7 @@
   test('Set#has', function(){
     var a, f, S;
     ok(isFunction(Set.prototype.has), 'Is function');
+    ok(/native code/.test(Set.prototype.has), 'looks like native');
     a = [];
     f = freeze({});
     S = new Set([NaN, 2, 3, 2, 1, f, a]);
@@ -3971,6 +4052,7 @@
   test('Set#keys', function(){
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
+    ok(/native code/.test(Set.prototype.keys), 'looks like native');
     eq(Set.prototype.keys, Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).keys();
     ok(isIterator(iter), 'Return iterator');
@@ -3995,6 +4077,7 @@
   test('Set#values', function(){
     var iter;
     ok(typeof Set.prototype.values === 'function', 'Is function');
+    ok(/native code/.test(Set.prototype.values), 'looks like native');
     iter = new Set(['q', 'w', 'e']).values();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -4018,6 +4101,7 @@
   test('Set#entries', function(){
     var iter;
     ok(typeof Set.prototype.entries === 'function', 'Is function');
+    ok(/native code/.test(Set.prototype.entries), 'looks like native');
     iter = new Set(['q', 'w', 'e']).entries();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -4041,6 +4125,7 @@
   test('Set#@@iterator', function(){
     var iter;
     ok(typeof Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] === 'function', 'Is function');
+    ok(/native code/.test(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]), 'looks like native');
     eq(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Set.prototype.values);
     iter = new Set(['q', 'w', 'e'])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     ok(isIterator(iter), 'Return iterator');
@@ -4073,6 +4158,7 @@
   test('*', function(){
     ok(toString$.call(String.prototype.codePointAt).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.codePointAt.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.codePointAt), 'looks like native');
     if ('name' in String.prototype.codePointAt) {
       eq(String.prototype.codePointAt.name, 'codePointAt', 'name is "codePointAt"');
     }
@@ -4147,6 +4233,7 @@
   test('*', function(){
     ok(toString$.call(String.prototype.endsWith).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.endsWith.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.endsWith), 'looks like native');
     if ('name' in String.prototype.endsWith) {
       eq(String.prototype.endsWith.name, 'endsWith', 'name is "endsWith"');
     }
@@ -4189,6 +4276,7 @@
     fromCodePoint = String.fromCodePoint;
     ok(toString$.call(fromCodePoint).slice(8, -1) === 'Function', 'Is function');
     eq(fromCodePoint.length, 1, 'arity is 1');
+    ok(/native code/.test(fromCodePoint), 'looks like native');
     if ('name' in fromCodePoint) {
       eq(fromCodePoint.name, 'fromCodePoint', 'name is "fromCodePoint"');
     }
@@ -4271,6 +4359,7 @@
   test('*', function(){
     ok(toString$.call(String.prototype.includes).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.includes.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.includes), 'looks like native');
     if ('name' in String.prototype.includes) {
       eq(String.prototype.includes.name, 'includes', 'name is "includes"');
     }
@@ -4359,6 +4448,7 @@
     raw = String.raw;
     ok(toString$.call(raw).slice(8, -1) === 'Function', 'Is function');
     eq(raw.length, 1, 'arity is 1');
+    ok(/native code/.test(raw), 'looks like native');
     if ('name' in raw) {
       eq(raw.name, 'raw', 'name is "raw"');
     }
@@ -4391,6 +4481,7 @@
   test('*', function(){
     ok(toString$.call(String.prototype.repeat).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.repeat.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.repeat), 'looks like native');
     if ('name' in String.prototype.repeat) {
       eq(String.prototype.repeat.name, 'repeat', 'name is "repeat"');
     }
@@ -4424,6 +4515,7 @@
   test('*', function(){
     ok(toString$.call(String.prototype.startsWith).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.startsWith.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.startsWith), 'looks like native');
     if ('name' in String.prototype.startsWith) {
       eq(String.prototype.startsWith.name, 'startsWith', 'name is "startsWith"');
     }
@@ -4481,6 +4573,7 @@
   test('Symbol', function(){
     var s1, s2, O, count, i;
     ok(isFunction(Symbol), 'Is function');
+    ok(/native code/.test(Symbol), 'looks like native');
     s1 = Symbol('foo');
     s2 = Symbol('foo');
     ok(s1 !== s2, 'Symbol("foo") !== Symbol("foo")');
@@ -4508,6 +4601,8 @@
     var symbol;
     ok(isFunction(Symbol['for']), 'Symbol.for is function');
     ok(isFunction(Symbol.keyFor), 'Symbol.keyFor is function');
+    ok(/native code/.test(Symbol['for']), 'Symbol.for looks like native');
+    ok(/native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native');
     symbol = Symbol['for']('foo');
     eq(Symbol['for']('foo'), symbol);
     eq(Symbol.keyFor(symbol), 'foo');
@@ -4722,6 +4817,7 @@
   test('WeakMap', function(){
     var a, b, f, M, done, iter;
     ok(isFunction(WeakMap), 'Is function');
+    ok(/native code/.test(WeakMap), 'looks like native');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
     ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
@@ -4750,6 +4846,7 @@
   test('WeakMap#delete', function(){
     var M, a, b;
     ok(isFunction(WeakMap.prototype['delete']), 'Is function');
+    ok(/native code/.test(WeakMap.prototype['delete']), 'looks like native');
     M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
     ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
     M['delete'](a);
@@ -4758,6 +4855,7 @@
   test('WeakMap#get', function(){
     var M, a;
     ok(isFunction(WeakMap.prototype.get), 'Is function');
+    ok(/native code/.test(WeakMap.prototype.get), 'looks like native');
     M = new WeakMap();
     eq(M.get({}), void 8, 'WeakMap .get() before .set() return undefined');
     M.set(a = {}, 42);
@@ -4768,6 +4866,7 @@
   test('WeakMap#has', function(){
     var M, a;
     ok(isFunction(WeakMap.prototype.has), 'Is function');
+    ok(/native code/.test(WeakMap.prototype.has), 'looks like native');
     M = new WeakMap();
     ok(!M.has({}), 'WeakMap .has() before .set() return false');
     M.set(a = {}, 42);
@@ -4778,6 +4877,7 @@
   test('WeakMap#set', function(){
     var a, e;
     ok(isFunction(WeakMap.prototype.set), 'Is function');
+    ok(/native code/.test(WeakMap.prototype.set), 'looks like native');
     ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
     ok((function(){
       try {
@@ -4806,6 +4906,7 @@
   test('WeakSet', function(){
     var a, f, S, done, iter;
     ok(isFunction(WeakSet), 'Is function');
+    ok(/native code/.test(WeakSet), 'looks like native');
     ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
     ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
     ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
@@ -4831,6 +4932,7 @@
   test('WeakSet#add', function(){
     var a, e;
     ok(isFunction(WeakSet.prototype.add), 'Is function');
+    ok(/native code/.test(WeakSet.prototype.add), 'looks like native');
     ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
     ok((function(){
       try {
@@ -4845,6 +4947,7 @@
   test('WeakSet#delete', function(){
     var S, a, b;
     ok(isFunction(WeakSet.prototype['delete']), 'Is function');
+    ok(/native code/.test(WeakSet.prototype['delete']), 'looks like native');
     S = new WeakSet().add(a = {}).add(b = {});
     ok(S.has(a) && S.has(b), 'WeakSet has values before .delete()');
     S['delete'](a);
@@ -4853,6 +4956,7 @@
   test('WeakSet#has', function(){
     var M, a;
     ok(isFunction(WeakSet.prototype.has), 'Is function');
+    ok(/native code/.test(WeakSet.prototype.has), 'looks like native');
     M = new WeakSet();
     ok(!M.has({}), 'WeakSet has`nt value');
     M.add(a = {});
@@ -4873,6 +4977,7 @@
   test('*', function(){
     var arr, o;
     ok(toString$.call(Array.prototype.includes).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(Array.prototype.includes), 'looks like native');
     arr = [1, 2, 3, -0, o = {}];
     ok(arr.includes(1));
     ok(arr.includes(-0));
@@ -4903,6 +5008,7 @@
   QUnit.module('ES7 Map#toJSON');
   test('*', function(){
     ok(toString$.call(Map.prototype.toJSON).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(Map.prototype.toJSON), 'looks like native');
     if (typeof JSON != 'undefined' && JSON !== null) {
       strictEqual(JSON.stringify(new Map([['a', 'b'], ['c', 'd']])), '[["a","b"],["c","d"]]', 'Works');
     }
@@ -4928,6 +5034,7 @@
     var getOwnPropertyDescriptors, O, s, descs;
     getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
     ok(toString$.call(getOwnPropertyDescriptors).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(getOwnPropertyDescriptors), 'looks like native');
     O = create({
       q: 1
     }, {
@@ -4978,6 +5085,7 @@
     var values;
     values = Object.values;
     ok(isFunction(values), 'Is function');
+    ok(/native code/.test(values), 'looks like native');
     deq(values({
       q: 1,
       w: 2,
@@ -4998,6 +5106,7 @@
     var entries;
     entries = Object.entries;
     ok(isFunction(entries), 'Is function');
+    ok(/native code/.test(entries), 'looks like native');
     deq(entries({
       q: 1,
       w: 2,
@@ -5025,6 +5134,7 @@
     var escape;
     escape = RegExp.escape;
     ok(toString$.call(escape).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(escape), 'looks like native');
     eq(escape('qwe asd'), 'qwe asd', "Don't change simple string");
     eq(escape('\\-[]{}()*+?.,^$|'), '\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|', 'Escape all RegExp special chars');
   });
@@ -5036,6 +5146,7 @@
   QUnit.module('ES7 Set#toJSON');
   test('*', function(){
     ok(toString$.call(Set.prototype.toJSON).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(Set.prototype.toJSON), 'looks like native');
     if (typeof JSON != 'undefined' && JSON !== null) {
       strictEqual(JSON.stringify(new Set([1, 2, 3, 2, 1])), '[1,2,3]', 'Works');
     }
@@ -5052,6 +5163,7 @@
     var at;
     ok(toString$.call(String.prototype.at).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.at.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.at), 'looks like native');
     if ('name' in String.prototype.at) {
       eq(String.prototype.at.name, 'at', 'name is "at"');
     }
@@ -5157,6 +5269,7 @@
   test('lpad', function(){
     ok(toString$.call(String.prototype.lpad).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.lpad.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.lpad), 'looks like native');
     if ('name' in String.prototype.lpad) {
       eq(String.prototype.lpad.name, 'lpad', 'name is "lpad"');
     }
@@ -5185,6 +5298,7 @@
   test('rpad', function(){
     ok(toString$.call(String.prototype.rpad).slice(8, -1) === 'Function', 'Is function');
     eq(String.prototype.rpad.length, 1, 'length is 1');
+    ok(/native code/.test(String.prototype.rpad), 'looks like native');
     if ('name' in String.prototype.rpad) {
       eq(String.prototype.rpad.name, 'rpad', 'name is "rpad"');
     }
@@ -5859,8 +5973,8 @@
   test('setImmediate / clearImmediate', function(it){
     var def;
     it.expect(6);
-    ok(isFunction(setImmediate), 'setImmediate is function');
-    ok(isFunction(clearImmediate), 'clearImmediate is function');
+    ok(/native code/.test(setImmediate), 'setImmediate looks like native');
+    ok(/native code/.test(clearImmediate), 'clearImmediate looks like native');
     timeLimitedPromise(1e3, function(res){
       return setImmediate(function(){
         def = 'a';

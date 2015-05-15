@@ -7,6 +7,7 @@ test '*' !->
   {from} = Array
   ok typeof! from is \Function, 'Is function'
   eq Array.from.length, 1, 'length is 1'
+  ok /native code/.test(Array.from), 'looks like native'
   if \name of Array.from => eq Array.from.name, \from, 'name is "from"'
   deq from(\123), <[1 2 3]>
   deq from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]

@@ -11,6 +11,7 @@ deq = deepEqual
 
 test 'Map' !->
   ok isFunction(Map), 'Is function'
+  ok /native code/.test(Map), 'looks like native'
   ok \clear   of Map::, 'clear in Map.prototype'
   ok \delete  of Map::, 'delete in Map.prototype'
   ok \forEach of Map::, 'forEach in Map.prototype'
@@ -29,6 +30,7 @@ test 'Map' !->
   ok done, '.return #throw'
 test 'Map#clear' !->
   ok isFunction(Map::clear), 'Is function'
+  ok /native code/.test(Map::clear), 'looks like native'
   M = new Map
   M.clear!
   eq M.size, 0
@@ -44,6 +46,7 @@ test 'Map#clear' !->
   ok !M.has f
 test 'Map#delete' !->
   ok isFunction(Map::delete), 'Is function'
+  ok /native code/.test(Map::delete), 'looks like native'
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
   eq M.size, 5
@@ -61,6 +64,7 @@ test 'Map#delete' !->
   eq M.size, 3
 test 'Map#forEach' !->
   ok isFunction(Map::forEach), 'Is function'
+  ok /native code/.test(Map::forEach), 'looks like native'
   r = {}
   var T
   count = 0
@@ -89,6 +93,7 @@ test 'Map#forEach' !->
   eq s, \1
 test 'Map#get' !->
   ok isFunction(Map::get), 'Is function'
+  ok /native code/.test(Map::get), 'looks like native'
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
@@ -100,6 +105,7 @@ test 'Map#get' !->
   eq M.get(2), 5
 test 'Map#has' !->
   ok isFunction(Map::has), 'Is function'
+  ok /native code/.test(Map::has), 'looks like native'
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
@@ -111,6 +117,7 @@ test 'Map#has' !->
   ok not M.has {}
 test 'Map#set' !->
   ok isFunction(Map::set), 'Is function'
+  ok /native code/.test(Map::set), 'looks like native'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   ok M.size is 5
@@ -176,6 +183,7 @@ test 'Map Iterator' !->
   deq keys, <[a d e]>
 test 'Map#keys' !->
   ok typeof Map::keys is \function, 'Is function'
+  ok /native code/.test(Map::keys), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Map Iterator'
@@ -185,6 +193,7 @@ test 'Map#keys' !->
   deq iter.next!, {value: void, done: on}
 test 'Map#values' !->
   ok typeof Map::values is \function, 'Is function'
+  ok /native code/.test(Map::values), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Map Iterator'
@@ -194,6 +203,7 @@ test 'Map#values' !->
   deq iter.next!, {value: void, done: on}
 test 'Map#entries' !->
   ok typeof Map::entries is \function, 'Is function'
+  ok /native code/.test(Map::entries), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Map Iterator'
@@ -203,6 +213,7 @@ test 'Map#entries' !->
   deq iter.next!, {value: void, done: on}
 test 'Map#@@iterator' !->
   ok typeof Map::[Symbol?iterator] is \function, 'Is function'
+  ok /native code/.test(Map::[Symbol?iterator]), 'looks like native'
   eq Map::[Symbol?iterator], Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!
   ok isIterator(iter), 'Return iterator'

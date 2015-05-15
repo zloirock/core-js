@@ -8,6 +8,7 @@ eq = strictEqual
 
 test 'WeakSet' !->
   ok isFunction(WeakSet), 'Is function'
+  ok /native code/.test(WeakSet), 'looks like native'
   ok \add    of WeakSet::, 'add in WeakSet.prototype'
   ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   ok \has    of WeakSet::, 'has in WeakSet.prototype'
@@ -28,10 +29,12 @@ test 'WeakSet' !->
   ok done, '.return #throw'
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
+  ok /native code/.test(WeakSet::add), 'looks like native'
   ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
 test 'WeakSet#delete' !->
   ok isFunction(WeakSet::delete), 'Is function'
+  ok /native code/.test(WeakSet::delete), 'looks like native'
   S = new WeakSet!
     .add a = {}
     .add b = {}
@@ -40,6 +43,7 @@ test 'WeakSet#delete' !->
   ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
 test 'WeakSet#has' !->
   ok isFunction(WeakSet::has), 'Is function'
+  ok /native code/.test(WeakSet::has), 'looks like native'
   M = new WeakSet!
   ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

@@ -4,6 +4,7 @@ eq = strictEqual
 
 test '*' !->
   for method in <[freeze seal preventExtensions getOwnPropertyDescriptor getPrototypeOf isExtensible isSealed isFrozen keys getOwnPropertyNames]>
+    ok /native code/.test(Object[method]), "Object.#method looks like native"
     for value in [42 \foo no]
       ok (try => Object[method] value; on), "Object.#method accept #{typeof! value}"
   for method in <[freeze seal preventExtensions]>

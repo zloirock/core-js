@@ -8,6 +8,7 @@ deq = deepEqual
 test 'Object.values' !->
   {values} = Object
   ok isFunction(values), 'Is function'
+  ok /native code/.test(values), 'looks like native'
   deq values({q:1, w:2, e:3}), [1 2 3]
   deq values(new String \qwe), [\q \w \e]
   deq values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]
@@ -15,6 +16,7 @@ test 'Object.values' !->
 test 'Object.entries' !->
   {entries} = Object
   ok isFunction(entries), 'Is function'
+  ok /native code/.test(entries), 'looks like native'
   deq entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]
   deq entries(new String \qwe), [[\0 \q] [\1 \w] [\2 \e]]
   deq entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [[\a 4] [\s 5] [\d 6]]

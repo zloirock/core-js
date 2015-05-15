@@ -13,6 +13,7 @@ G = global? && global || window
 
 test 'Symbol' !->
   ok isFunction(Symbol), 'Is function'
+  ok /native code/.test(Symbol), 'looks like native'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -31,6 +32,8 @@ test 'Well-known Symbols' !->
 test 'Global symbol registry' !->
   ok isFunction(Symbol.for), 'Symbol.for is function'
   ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
+  ok /native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native'
   symbol = Symbol.for \foo
   eq Symbol.for(\foo), symbol
   eq Symbol.keyFor(symbol), \foo

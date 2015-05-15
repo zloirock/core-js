@@ -7,6 +7,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! String::codePointAt is \Function, 'Is function'
   eq String::codePointAt.length, 1, 'arity is 1'
+  ok /native code/.test(String::codePointAt), 'looks like native'
   if \name of String::codePointAt => eq String::codePointAt.name, \codePointAt, 'name is "codePointAt"'
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
   eq 'abc\uD834\uDF06def'codePointAt(''), 0x61

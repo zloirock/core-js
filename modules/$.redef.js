@@ -6,7 +6,7 @@ var $   = require('./$')
 function $redef(O, key, val, safe){
   if($.isFunction(val)){
     var base = O[key];
-    $.hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, key));
+    $.hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, String(key)));
   }
   if(O === $.g){
     O[key] = val;

@@ -8,6 +8,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! Array::fill is \Function, 'Is function'
   eq Array::fill.length, 1, 'length is 1'
+  ok /native code/.test(Array::fill), 'looks like native'
   if \name of Array::fill => eq Array::fill.name, \fill, 'name is "fill"'
   strictEqual (a = Array(5)fill(5)), a
   deq Array(5)fill(5), [5 5 5 5 5]

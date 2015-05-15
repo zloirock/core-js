@@ -8,6 +8,7 @@ eq = strictEqual
 test '*' !->
   {getOwnPropertyDescriptors} = Object
   ok typeof! getOwnPropertyDescriptors is \Function, 'Is function'
+  ok /native code/.test(getOwnPropertyDescriptors), 'looks like native'
   
   O = create {q: 1}, e: value: 3
   O.w = 2

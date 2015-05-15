@@ -22,6 +22,7 @@ test 'Reflect.apply' !->
   {apply} = Reflect
   ok isFunction(apply), 'Reflect.apply is function'
   eq apply.length, 3, 'arity is 3'
+  ok /native code/.test(apply), 'looks like native'
   if \name of apply => eq apply.name, \apply, 'name is "apply"'
   eq apply(Array::push, [1 2], [3 4 5]), 5
   C = (a, b, c)-> a + b + c
@@ -33,6 +34,7 @@ test 'Reflect.construct' !->
   {construct} = Reflect
   ok isFunction(construct), 'Reflect.construct is function'
   eq construct.length, 2, 'arity is 2'
+  ok /native code/.test(construct), 'looks like native'
   if \name of construct => eq construct.name, \construct, 'name is "construct"'
   C = (a, b, c)-> @qux = a + b + c
   eq construct(C, <[foo bar baz]>).qux, \foobarbaz, \basic
@@ -51,6 +53,7 @@ test 'Reflect.defineProperty' !->
   {defineProperty} = Reflect
   ok isFunction(defineProperty), 'Reflect.defineProperty is function'
   eq defineProperty.length, 3, 'arity is 3'
+  ok /native code/.test(defineProperty), 'looks like native'
   if \name of defineProperty => eq defineProperty.name, \defineProperty, 'name is "defineProperty"'
   O = {}
   eq defineProperty(O, \foo, {value: 123}), on
@@ -66,6 +69,7 @@ test 'Reflect.deleteProperty' !->
   {deleteProperty} = Reflect
   ok isFunction(deleteProperty), 'Reflect.deleteProperty is function'
   eq deleteProperty.length, 2, 'arity is 2'
+  ok /native code/.test(deleteProperty), 'looks like native'
   if \name of deleteProperty => eq deleteProperty.name, \deleteProperty, 'name is "deleteProperty"'
   O = {bar: 456}
   eq deleteProperty(O, \bar), on
@@ -78,6 +82,7 @@ test 'Reflect.enumerate' !->
   {enumerate} = Reflect
   ok isFunction(enumerate), 'Reflect.enumerate is function'
   eq enumerate.length, 1, 'arity is 1'
+  ok /native code/.test(enumerate), 'looks like native'
   if \name of enumerate => eq enumerate.name, \enumerate, 'name is "enumerate"'
   obj = {foo: 1, bar: 2}
   iterator = enumerate obj
@@ -95,6 +100,7 @@ test 'Reflect.get' !->
   {get} = Reflect
   ok isFunction(get), 'Reflect.get is function'
   eq get.length, 2, 'arity is 2'
+  ok /native code/.test(get), 'looks like native'
   if \name of get => eq get.name, \get, 'name is "get"'
   eq get({qux: 987}, \qux), 987
   
@@ -117,6 +123,7 @@ test 'Reflect.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = Reflect
   ok isFunction(getOwnPropertyDescriptor), 'Reflect.getOwnPropertyDescriptor is function'
   eq getOwnPropertyDescriptor.length, 2, 'arity is 2'
+  ok /native code/.test(getOwnPropertyDescriptor), 'looks like native'
   if \name of getOwnPropertyDescriptor => eq getOwnPropertyDescriptor.name, \getOwnPropertyDescriptor, 'name is "getOwnPropertyDescriptor"'
   obj = {baz: 789}
   desc = getOwnPropertyDescriptor obj, \baz
@@ -127,6 +134,7 @@ test 'Reflect.getPrototypeOf' !->
   {getPrototypeOf} = Reflect
   ok isFunction(getPrototypeOf), 'Reflect.getPrototypeOf is function'
   eq getPrototypeOf.length, 1, 'arity is 1'
+  ok /native code/.test(getPrototypeOf), 'looks like native'
   if \name of getPrototypeOf => eq getPrototypeOf.name, \getPrototypeOf, 'name is "getPrototypeOf"'
   eq getPrototypeOf([]), Array::
   throws (-> getPrototypeOf 42), TypeError, 'throws on primitive'
@@ -135,6 +143,7 @@ test 'Reflect.has' !->
   {has} = Reflect
   ok isFunction(has), 'Reflect.has is function'
   eq has.length, 2, 'arity is 2'
+  ok /native code/.test(has), 'looks like native'
   if \name of has => eq has.name, \has, 'name is "has"'
   O = {qux: 987}
   eq has(O, \qux), on
@@ -146,6 +155,7 @@ test 'Reflect.isExtensible' !->
   {isExtensible} = Reflect
   ok isFunction(isExtensible), 'Reflect.isExtensible is function'
   eq isExtensible.length, 1, 'arity is 1'
+  ok /native code/.test(isExtensible), 'looks like native'
   if \name of isExtensible => eq isExtensible.name, \isExtensible, 'name is "isExtensible"'
   ok isExtensible {}
   if MODERN
@@ -156,6 +166,7 @@ test 'Reflect.ownKeys' !->
   {ownKeys} = Reflect
   ok isFunction(ownKeys), 'Reflect.ownKeys is function'
   eq ownKeys.length, 1, 'arity is 1'
+  ok /native code/.test(ownKeys), 'looks like native'
   if \name of ownKeys => eq ownKeys.name, \ownKeys, 'name is "ownKeys"'
   O1 = {a: 1}
   Object.defineProperty O1, \b, value: 2
@@ -175,6 +186,7 @@ test 'Reflect.preventExtensions' !->
   {preventExtensions} = Reflect
   ok isFunction(preventExtensions), 'Reflect.preventExtensions is function'
   eq preventExtensions.length, 1, 'arity is 1'
+  ok /native code/.test(preventExtensions), 'looks like native'
   if \name of preventExtensions => eq preventExtensions.name, \preventExtensions, 'name is "preventExtensions"'
   obj = {}
   ok preventExtensions(obj), on
@@ -186,6 +198,7 @@ test 'Reflect.set' !->
   {set} = Reflect
   ok isFunction(set), 'Reflect.set is function'
   eq set.length, 3, 'arity is 3'
+  ok /native code/.test(set), 'looks like native'
   if \name of set => eq set.name, \set, 'name is "set"'
   obj = {}
   ok set(obj, \quux, 654), on
@@ -238,6 +251,7 @@ if '__proto__' of {} => test 'Reflect.setPrototypeOf' !->
   {setPrototypeOf} = Reflect
   ok isFunction(setPrototypeOf), 'Reflect.setPrototypeOf is function'
   eq setPrototypeOf.length, 2, 'arity is 2'
+  ok /native code/.test(setPrototypeOf), 'looks like native'
   if \name of setPrototypeOf => eq setPrototypeOf.name, \setPrototypeOf, 'name is "setPrototypeOf"'
   obj = {}
   ok setPrototypeOf(obj, Array::), on

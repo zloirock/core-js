@@ -1,4 +1,5 @@
 var $def            = require('./$.def')
+  , $redef          = require('./$.redef')
   , $               = require('./$')
   , cof             = require('./$.cof')
   , $iter           = require('./$.iter')
@@ -43,7 +44,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
       entries: DEFAULT != VALUES ? _default : createMethod('entries')
     };
     if(FORCE)for(key in methods){
-      if(!(key in proto))$.hide(proto, key, methods[key]);
+      if(!(key in proto))$redef(proto, key, methods[key]);
     } else $def($def.P + $def.F * $iter.BUGGY, NAME, methods);
   }
 };

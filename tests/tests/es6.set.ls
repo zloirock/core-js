@@ -11,6 +11,7 @@ deq = deepEqual
 
 test 'Set' !->
   ok isFunction(Set), 'Is function'
+  ok /native code/.test(Set), 'looks like native'
   ok \add     of Set::, 'add in Set.prototype'
   ok \clear   of Set::, 'clear in Set.prototype'
   ok \delete  of Set::, 'delete in Set.prototype'
@@ -38,6 +39,7 @@ test 'Set' !->
   ok done, '.return #throw'
 test 'Set#add' !->
   ok isFunction(Set::add), 'Is function'
+  ok /native code/.test(Set::add), 'looks like native'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   eq S.size, 5
@@ -56,6 +58,7 @@ test 'Set#add' !->
   ok S.has f
 test 'Set#clear' !->
   ok isFunction(Set::clear), 'Is function'
+  ok /native code/.test(Set::clear), 'looks like native'
   S = new Set
   S.clear!
   eq S.size, 0
@@ -72,6 +75,7 @@ test 'Set#clear' !->
   ok !S.has f
 test 'Set#delete' !->
   ok isFunction(Set::delete), 'Is function'
+  ok /native code/.test(Set::delete), 'looks like native'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   eq S.size, 5
@@ -89,6 +93,7 @@ test 'Set#delete' !->
   eq S.size, 3
 test 'Set#forEach' !->
   ok isFunction(Set::forEach), 'Is function'
+  ok /native code/.test(Set::forEach), 'looks like native'
   r = []
   count = 0
   S = new Set [1 2 3 2 1]
@@ -116,6 +121,7 @@ test 'Set#forEach' !->
   eq s, \0
 test 'Set#has' !->
   ok isFunction(Set::has), 'Is function'
+  ok /native code/.test(Set::has), 'looks like native'
   a = []
   f = freeze {}
   S = new Set [NaN, 2 3 2 1 f, a]
@@ -167,6 +173,7 @@ test 'Set Iterator' !->
   deq keys, <[a d e]>
 test 'Set#keys' !->
   ok typeof Set::keys is \function, 'Is function'
+  ok /native code/.test(Set::keys), 'looks like native'
   eq Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   ok isIterator(iter), 'Return iterator'
@@ -177,6 +184,7 @@ test 'Set#keys' !->
   deq iter.next!, {value: void, done: on}
 test 'Set#values' !->
   ok typeof Set::values is \function, 'Is function'
+  ok /native code/.test(Set::values), 'looks like native'
   iter = new Set(<[q w e]>)values!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Set Iterator'
@@ -186,6 +194,7 @@ test 'Set#values' !->
   deq iter.next!, {value: void, done: on}
 test 'Set#entries' !->
   ok typeof Set::entries is \function, 'Is function'
+  ok /native code/.test(Set::entries), 'looks like native'
   iter = new Set(<[q w e]>)entries!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Set Iterator'
@@ -195,6 +204,7 @@ test 'Set#entries' !->
   deq iter.next!, {value: void, done: on}
 test 'Set#@@iterator' !->
   ok typeof Set::[Symbol?iterator] is \function, 'Is function'
+  ok /native code/.test(Set::[Symbol?iterator]), 'looks like native'
   eq Set::[Symbol?iterator], Set::values
   iter = new Set(<[q w e]>)[Symbol?iterator]!
   ok isIterator(iter), 'Return iterator'

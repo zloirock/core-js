@@ -7,6 +7,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! String::at is \Function, 'Is function'
   eq String::at.length, 1, 'arity is 1'
+  ok /native code/.test(String::at), 'looks like native'
   if \name of String::at => eq String::at.name, \at, 'name is "at"'
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol

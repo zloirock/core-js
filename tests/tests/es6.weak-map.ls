@@ -8,6 +8,7 @@ eq = strictEqual
 
 test 'WeakMap' !->
   ok isFunction(WeakMap), 'Is function'
+  ok /native code/.test(WeakMap), 'looks like native'
   ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   ok \get    of WeakMap::, 'get in WeakMap.prototype'
   ok \has    of WeakMap::, 'has in WeakMap.prototype'
@@ -31,6 +32,7 @@ test 'WeakMap' !->
   ok done, '.return #throw'
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
+  ok /native code/.test(WeakMap::delete), 'looks like native'
   M = new WeakMap!
     .set a = {}, 42
     .set b = {}, 21
@@ -39,6 +41,7 @@ test 'WeakMap#delete' !->
   ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
 test 'WeakMap#get' !->
   ok isFunction(WeakMap::get), 'Is function'
+  ok /native code/.test(WeakMap::get), 'looks like native'
   M = new WeakMap!
   eq M.get({}), void, 'WeakMap .get() before .set() return undefined'
   M.set a = {}, 42
@@ -47,6 +50,7 @@ test 'WeakMap#get' !->
   eq M.get(a), void, 'WeakMap .get() after .delete() return undefined'
 test 'WeakMap#has' !->
   ok isFunction(WeakMap::has), 'Is function'
+  ok /native code/.test(WeakMap::has), 'looks like native'
   M = new WeakMap!
   ok !M.has({}), 'WeakMap .has() before .set() return false'
   M.set a = {}, 42
@@ -55,6 +59,7 @@ test 'WeakMap#has' !->
   ok !M.has(a), 'WeakMap .has() after .delete() return false'
 test 'WeakMap#set' !->
   ok isFunction(WeakMap::set), 'Is function'
+  ok /native code/.test(WeakMap::set), 'looks like native'
   ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
   ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
 test 'WeakMap#@@toStringTag' !->

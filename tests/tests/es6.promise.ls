@@ -2,14 +2,17 @@ QUnit.module 'ES6 Promise'
 isFunction = -> typeof! it is \Function
 test 'Promise' !->
   ok isFunction((global? && global || window)Promise), 'Is function'
+  ok /native code/.test(Promise), 'looks like native'
 test '#then' !->
   ok isFunction(Promise::then), 'Is function'
+  ok /native code/.test(Promise::then), 'looks like native'
 test '#catch' !->
   ok isFunction(Promise::catch), 'Is function'
 test '#@@toStringTag' !->
   ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 test '.all' !->
   ok isFunction(Promise.all), 'Is function'
+  ok /native code/.test(Promise.all), 'looks like native'
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -21,6 +24,7 @@ test '.all' !->
   ok passed, 'works with iterables'
 test '.race' !->
   ok isFunction(Promise.race), 'Is function'
+  ok /native code/.test(Promise.race), 'looks like native'
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -32,8 +36,10 @@ test '.race' !->
   ok passed, 'works with iterables'
 test '.resolve' !->
   ok isFunction(Promise.resolve), 'Is function'
+  ok /native code/.test(Promise.resolve), 'looks like native'
 test '.reject' !->
   ok isFunction(Promise.reject), 'Is function'
+  ok /native code/.test(Promise.reject), 'looks like native'
 if Object.setPrototypeOf
   test ' subclassing' !->
     # this is ES5 syntax to create a valid ES6 subclass

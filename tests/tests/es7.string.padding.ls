@@ -7,6 +7,7 @@ eq = strictEqual
 test \lpad !->
   ok typeof! String::lpad is \Function, 'Is function'
   eq String::lpad.length, 1, 'arity is 1'
+  ok /native code/.test(String::lpad), 'looks like native'
   if \name of String::lpad => eq String::lpad.name, \lpad, 'name is "lpad"'
   eq 'abc'lpad(5), '  abc'
   eq 'abc'lpad(4 \de), \eabc
@@ -23,6 +24,7 @@ test \lpad !->
 test 'rpad' !->
   ok typeof! String::rpad is \Function, 'Is function'
   eq String::rpad.length, 1, 'length is 1'
+  ok /native code/.test(String::rpad), 'looks like native'
   if \name of String::rpad => eq String::rpad.name, \rpad, 'name is "rpad"'
   eq 'abc'rpad(5), 'abc  '
   eq 'abc'rpad(4, \de), \abcd

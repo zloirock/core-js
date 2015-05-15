@@ -4,6 +4,7 @@ QUnit.module 'ES7 Array#includes'
 
 test '*' !->
   ok typeof! Array::includes is \Function, 'Is function'
+  ok /native code/.test(Array::includes), 'looks like native'
   arr = [1 2 3 -0 o = {}]
   ok arr.includes 1
   ok arr.includes -0

@@ -7,6 +7,7 @@ eq = strictEqual
 test '*' !->
   ok typeof! String::endsWith is \Function, 'Is function'
   eq String::endsWith.length, 1, 'arity is 1'
+  ok /native code/.test(String::endsWith), 'looks like native'
   if \name of String::endsWith => eq String::endsWith.name, \endsWith, 'name is "endsWith"'
   ok 'undefined'endsWith!
   ok not 'undefined'endsWith null
