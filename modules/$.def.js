@@ -1,7 +1,8 @@
 var $          = require('./$')
   , global     = $.g
   , core       = $.core
-  , isFunction = $.isFunction;
+  , isFunction = $.isFunction
+  , $redef     = require('./$.redef');
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
@@ -32,10 +33,7 @@ function $def(type, name, source){
     if(type & $def.B && own)exp = ctx(out, global);
     else exp = isProto && isFunction(out) ? ctx(Function.call, out) : out;
     // extend global
-    if(target && !own){
-      if(isGlobal)target[key] = out;
-      else delete target[key] && $.hide(target, key, out);
-    }
+    if(target && !own)$redef(target, key, out);
     // export
     if(exports[key] != out)$.hide(exports, key, exp);
     if(isProto)(exports.prototype || (exports.prototype = {}))[key] = out;

@@ -150,7 +150,7 @@ if(!useNative){
       $reject.call(record, err);
     }
   };
-  $.mix(P.prototype, {
+  require('./$.mix')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
       var S = assertObject(assertObject(this).constructor)[SPECIES];

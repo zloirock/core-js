@@ -32,7 +32,7 @@ if($.FW && $.DESC){
     });
     proto.constructor = $RegExp;
     $RegExp.prototype = proto;
-    $.hide($.g, 'RegExp', $RegExp);
+    require('./$.redef')($.g, 'RegExp', $RegExp);
   }
   // 21.2.5.3 get RegExp.prototype.flags()
   if(/./g.flags != 'g')$.setDesc(proto, 'flags', {

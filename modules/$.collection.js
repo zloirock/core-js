@@ -13,16 +13,18 @@ module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
     , proto = C && C.prototype
     , O     = {};
   function fixMethod(KEY, CHAIN){
-    var method = proto[KEY];
-    if($.FW)proto[KEY] = function(a, b){
-      var result = method.call(this, a === 0 ? 0 : a, b);
-      return CHAIN ? this : result;
-    };
+    if($.FW){
+      var method = proto[KEY];
+      require('./$.redef')(proto, KEY, function(a, b){
+        var result = method.call(this, a === 0 ? 0 : a, b);
+        return CHAIN ? this : result;
+      });
+    }
   }
   if(!$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = common.getConstructor(NAME, IS_MAP, ADDER);
-    $.mix(C.prototype, methods);
+    require('./$.mix')(C.prototype, methods);
   } else {
     var inst  = new C
       , chain = inst[ADDER](IS_WEAK ? {} : -0, 1)

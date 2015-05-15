@@ -115,7 +115,9 @@ function createDictReduce(IS_TURN){
 }
 var findKey = createDictMethod(6);
 
-$def($def.G + $def.F, {Dict: $.mix(Dict, {
+$def($def.G + $def.F, {Dict: Dict});
+
+$def($def.S, 'Dict', {
   keys:     createDictIter('keys'),
   values:   createDictIter('values'),
   entries:  createDictIter('entries'),
@@ -144,4 +146,4 @@ $def($def.G + $def.F, {Dict: $.mix(Dict, {
   isDict: function(it){
     return $.isObject(it) && $.getProto(it) === Dict.prototype;
   }
-})});
+});

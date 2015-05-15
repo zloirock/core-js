@@ -92,10 +92,6 @@ var $ = module.exports = require('./$.fw')({
   hide: hide,
   def: createDefiner(0),
   set: global.Symbol ? simpleSet : hide,
-  mix: function(target, src){
-    for(var key in src)hide(target, key, src[key]);
-    return target;
-  },
   each: [].forEach
 });
 /* eslint-disable no-undef */

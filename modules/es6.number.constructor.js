@@ -40,5 +40,5 @@ if($.FW && !($Number('0o1') && $Number('0b1'))){
   );
   $Number.prototype = proto;
   proto.constructor = $Number;
-  $.hide($.g, NUMBER, $Number);
+  require('./$.redef')($.g, NUMBER, $Number);
 }

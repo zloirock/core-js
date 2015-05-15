@@ -4,6 +4,7 @@ var $        = require('./$')
   , setTag   = require('./$.cof').set
   , uid      = require('./$.uid')
   , $def     = require('./$.def')
+  , $redef   = require('./$.redef')
   , keyOf    = require('./$.keyof')
   , enumKeys = require('./$.enum-keys')
   , assertObject = require('./$.assert').obj
@@ -91,7 +92,7 @@ if(!useNative){
     if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
     return wrap(uid(description));
   };
-  $.hide($Symbol.prototype, 'toString', function(){
+  $redef($Symbol.prototype, 'toString', function(){
     return this[TAG];
   });
 
@@ -102,7 +103,7 @@ if(!useNative){
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 
-  if($.DESC && $.FW)$.hide(Object.prototype, 'propertyIsEnumerable', propertyIsEnumerable);
+  if($.DESC && $.FW)$redef(Object.prototype, 'propertyIsEnumerable', propertyIsEnumerable, true);
 }
 
 var symbolStatics = {

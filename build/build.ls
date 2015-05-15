@@ -65,8 +65,6 @@ list = <[
 
 exp = <[ ]>
 
-x78 = Array 79 .join '*'
-
 check = (err)!->
   if err
     console.error err

@@ -51,7 +51,7 @@ var FilterIter = createChainIterator(function(){
   }
 });
 
-$.mix($forProto, {
+require('./$.mix')($forProto, {
   of: function(fn, that){
     forOf(this, this[ENTRIES], fn, that);
   },

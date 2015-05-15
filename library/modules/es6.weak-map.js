@@ -28,13 +28,13 @@ var WeakMap = require('./$.collection')('WeakMap', {
 if($.FW && new WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
   $.each.call(['delete', 'has', 'get', 'set'], function(key){
     var method = WeakMap.prototype[key];
-    WeakMap.prototype[key] = function(a, b){
+    require('./$.redef')(WeakMap.prototype, key, function(a, b){
       // store frozen objects on leaky map
       if(isObject(a) && isFrozen(a)){
         var result = leakStore(this)[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap
       } return method.call(this, a, b);
-    };
+    });
   });
 }
