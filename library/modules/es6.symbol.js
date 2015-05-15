@@ -88,9 +88,9 @@ function getOwnPropertySymbols(it){
 
 // 19.4.1.1 Symbol([description])
 if(!useNative){
-  $Symbol = function Symbol(description){
+  $Symbol = function Symbol(){
     if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
-    return wrap(uid(description));
+    return wrap(uid(arguments[0]));
   };
   $redef($Symbol.prototype, 'toString', function(){
     return this[TAG];
