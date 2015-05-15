@@ -13,6 +13,7 @@
     "dot-notation": [2, {"allowKeywords": false}],
     "quotes": [2, "single", "avoid-escape"],
     "no-extra-parens": 2,
+    "no-wrap-func": 0,
     "new-parens": 0,
     "new-cap": [2, {"newIsCap": true, "capIsNew": false}],
     "no-use-before-define": 0,
