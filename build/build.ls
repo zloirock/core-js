@@ -79,11 +79,11 @@ module.exports = ({modules, blacklist, library}, next)-> let @ = modules.turn ((
       for name in list
         if name.startsWith("#ns.") and name not in exp
           @[name] = on
+  if library => blacklist ++= <[es6.object.to-string es6.function es6.regexp es6.number.constructor]>
   for ns in blacklist
     for name in list
       if name is ns or name.startsWith "#ns."
         @[name] = no
-  if library => @ <<< {-\es6.object.prototype, -\es6.function, -\es6.regexp, -\es6.number.constructor, -\core.iterator}
   ENTRY = "./__tmp#{ Math.random! }__.js"
   PATH = ".#{ if library => '/library' else '' }/modules/"
   err <-! writeFile ENTRY, list.filter(~> @[it]).map(-> "require('#PATH#it');" ).join '\n'
