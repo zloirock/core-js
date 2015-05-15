@@ -1301,6 +1301,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.10 - 2015.05.16
+  * wrapped `Function#toString` for correct work wrapped methods / constructors with methods similar to the LoDash `isNative`
+  * added proto versions of methods to export object in `default` version for consistency with `library` version
+
 ##### 0.9.9 - 2015.05.14
   * wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](#ecmascript-6-symbols)
   * [added proto versions of methods to `library` for ES7 bind syntax](https://github.com/zloirock/core-js/issues/65)
