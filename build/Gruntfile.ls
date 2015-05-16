@@ -19,6 +19,7 @@ module.exports = (grunt)->
     livescript: src: files:
       './tests/tests.js': './tests/tests/*'
       './tests/tests-library.js': './tests/tests-library/*'
+      './build/index.js': './build/build.ls*'
     clean: ['./library']
     copy: lib: files:
       * expand: on
@@ -45,7 +46,14 @@ module.exports = (grunt)->
         browsers: ['PhantomJS']
   grunt.registerTask \build (options)->
     done = @async!
-    <- build {modules: (options || 'es5,es6,es7,js,web,core').split(\,), blacklist: (grunt.option(\blacklist) || '').split(\,), library: !!grunt.option(\library)}
+    err, it <- build {
+      modules: (options || 'es5,es6,es7,js,web,core')split \,
+      blacklist: (grunt.option(\blacklist) || '')split \,
+      library: !!grunt.option \library
+    }
+    if err
+      console.error err
+      process.exit 1
     grunt.option(\path) || grunt.option(\path, './custom')
     fs.writeFile grunt.option(\path) + '.js', it, done
   grunt.registerTask \client ->

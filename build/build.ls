@@ -1,4 +1,5 @@
 require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, webpack}
+
 list = <[
   es5
   es6.symbol
@@ -63,50 +64,64 @@ list = <[
   js.array.statics
 ]>
 
-exp = <[ ]>
+experimental = <[
 
-check = (err)!->
-  if err
-    console.error err
-    process.exit 1  
+]>
 
-module.exports = ({modules, blacklist, library}, next)-> let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
-  if @exp => for exp => @[..] = on
-  for ns of @
-    if @[ns]
+libraryBlacklist = <[
+  es6.object.to-string
+  es6.function.name
+  es6.regexp
+  es6.number.constructor
+]>
+
+module.exports = ({modules = [], blacklist = [], library = no}, next)!->
+  let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
+    check = (err)->
+      if err
+        console.error err
+        next err, ''
+        on
+
+    if @exp => for experimental => @[..] = on
+    for ns of @
+      if @[ns]
+        for name in list
+          if name.indexOf("#ns.") is 0 and name not in experimental
+            @[name] = on
+
+    if library => blacklist ++= libraryBlacklist
+    for ns in blacklist
       for name in list
-        if name.indexOf("#ns.") is 0 and name not in exp
-          @[name] = on
-  if library => blacklist ++= <[es6.object.to-string es6.function.name es6.regexp es6.number.constructor]>
-  for ns in blacklist
-    for name in list
-      if name is ns or name.indexOf("#ns.") is 0
-        @[name] = no
-  ENTRY = "./__tmp#{ Math.random! }__.js"
-  PATH = ".#{ if library => '/library' else '' }/modules/"
-  err <-! writeFile ENTRY, list.filter(~> @[it]).map(-> "require('#PATH#it');" ).join '\n'
-  check err
-  TARGET = "./__tmp#{ Math.random! }__.js"
-  err, info <-! webpack entry: ENTRY, output: { path: '', filename: TARGET }
-  check err
-  err, script <-! readFile TARGET
-  check err
-  err <-! unlink ENTRY
-  check err
-  err <-! unlink TARGET
-  check err
-  next """
-    #banner
-    !function(undefined){
-    'use strict';
-    var __e = null, __g = null;
-    
-    #script
-    // CommonJS export
-    if(typeof module != 'undefined' && module.exports)module.exports = __e;
-    // RequireJS export
-    else if(typeof define == 'function' && define.amd)define(function(){return __e});
-    // Export to global object
-    else __g.core = __e;
-    }();
-    """
+        if name is ns or name.indexOf("#ns.") is 0
+          @[name] = no
+
+    ENTRY = "./__tmp#{ Math.random! }__.js"
+    PATH = ".#{ if library => '/library' else '' }/modules/"
+    err <-! writeFile ENTRY, list.filter(~> @[it]).map(-> "require('#PATH#it');" ).join '\n'
+    if check err => return
+    TARGET = "./__tmp#{ Math.random! }__.js"
+    err, info <-! webpack entry: ENTRY, output: { path: '', filename: TARGET }
+    if check err => return
+    err, script <-! readFile TARGET
+    if check err => return
+    err <-! unlink ENTRY
+    if check err => return
+    err <-! unlink TARGET
+    if check err => return
+
+    next null """
+      #banner
+      !function(undefined){
+      'use strict';
+      var __e = null, __g = null;
+      
+      #script
+      // CommonJS export
+      if(typeof module != 'undefined' && module.exports)module.exports = __e;
+      // RequireJS export
+      else if(typeof define == 'function' && define.amd)define(function(){return __e});
+      // Export to global object
+      else __g.core = __e;
+      }();
+      """
