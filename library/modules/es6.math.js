@@ -68,18 +68,18 @@ $def($def.S, 'Math', {
   // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
   hypot: function hypot(value1, value2){ // eslint-disable-line no-unused-vars
     var sum  = 0
-      , len1 = arguments.length
-      , len2 = len1
-      , args = Array(len1)
+      , i    = 0
+      , len  = arguments.length
+      , args = Array(len)
       , larg = 0
       , arg;
-    while(len1--){
-      arg = args[len1] = abs(arguments[len1]);
+    while(i < len){
+      arg = args[i] = abs(arguments[i++]);
       if(arg == Infinity)return Infinity;
       if(arg > larg)larg = arg;
     }
     larg = larg || 1;
-    while(len2--)sum += pow(args[len2] / larg, 2);
+    while(len--)sum += pow(args[len] / larg, 2);
     return larg * sqrt(sum);
   },
   // 20.2.2.18 Math.imul(x, y)
