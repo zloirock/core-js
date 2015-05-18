@@ -20,7 +20,7 @@ var $        = require('./$')
 
 function fastKey(it, create){
   // return primitive with prefix
-  if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
+  if(!isObject(it))return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
   if(!has(it, ID)){
     // can't set id to frozen object
     if(!isExtensible(it))return 'F';
@@ -35,7 +35,7 @@ function fastKey(it, create){
 function getEntry(that, key){
   // fast case
   var index = fastKey(key), entry;
-  if(index != 'F')return that[O1][index];
+  if(index !== 'F')return that[O1][index];
   // frozen object case
   for(entry = that[FIRST]; entry; entry = entry.n){
     if(entry.k == key)return entry;
@@ -126,7 +126,7 @@ module.exports = {
       if(prev)prev.n = entry;
       that[SIZE]++;
       // add to index
-      if(index != 'F')that[O1][index] = entry;
+      if(index !== 'F')that[O1][index] = entry;
     } return that;
   },
   getEntry: getEntry,
