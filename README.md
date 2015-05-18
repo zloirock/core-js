@@ -91,14 +91,23 @@ Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/arr
 Available inclusion by module name, for example, `es6.array.prototype` - `core-js/modules/es6.array.prototype` or `core-js/library/modules/es6.array.prototype`.
 ### Custom build
 ```
-npm i -g grunt-cli
-npm i core-js
-cd node_modules/core-js && npm i
-grunt build:core.dict,es6 --blacklist=es6.promise,es6.math --library=on --path=custom uglify
+npm i core-js && cd node_modules/core-js && npm i
+npm run grunt build:core.dict,es6 --blacklist=es6.promise,es6.math --library=on --path=custom uglify
 ```
 Where `core.dict` and `es6` are modules (namespaces) names, which will be added to the build, `es6.promise` and `es6.math` are modules (namespaces) names, which will be excluded from the build, `--library=on` is flag for build without global namespace pollution and `custom` is target file name.
 
 Available namespaces: for example, `es6.array` contains [ES6 `Array` features](#ecmascript-6-array), `es6` contains all modules whose names start with `es6`.
+
+Available custom build from js code (required `webpack`):
+```js
+require('core-js/build')({
+  modules: ['es6', 'core.dict'], // modules / namespaces
+  blacklist: ['es6.reflect'],    // blacklist of modules / namespaces
+  library: false,                // flag for build without global namespace pollution
+}, function(err, code){          // callback
+  // ...
+});
+```
 ## API:
 ### ECMAScript 5
 Module `es5`, nothing new - without examples.
@@ -1301,6 +1310,12 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.11 - 2015.05.18
+  * simplified [custom build](#custom-build)
+    * add custom build js api
+    * added `grunt-cli` to `devDependencies` for `npm run grunt`
+  * some other fixes
+
 ##### 0.9.10 - 2015.05.16
   * wrapped `Function#toString` for correct work wrapped methods / constructors with methods similar to the [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
   * added proto versions of methods to export object in `default` version for consistency with `library` version
