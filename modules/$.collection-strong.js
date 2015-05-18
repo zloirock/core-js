@@ -9,7 +9,7 @@ var $        = require('./$')
   , set      = $.set
   , isObject = $.isObject
   , hide     = $.hide
-  , isFrozen = Object.isFrozen || $.core.Object.isFrozen
+  , isExtensible = Object.isExtensible || isObject
   , ID       = safe('id')
   , O1       = safe('O1')
   , LAST     = safe('last')
@@ -21,9 +21,9 @@ var $        = require('./$')
 function fastKey(it, create){
   // return primitive with prefix
   if(!isObject(it))return (typeof it == 'string' ? 'S' : 'P') + it;
-  // can't set id to frozen object
-  if(isFrozen(it))return 'F';
   if(!has(it, ID)){
+    // can't set id to frozen object
+    if(!isExtensible(it))return 'F';
     // not necessary to add id
     if(!create)return 'E';
     // add missing object id

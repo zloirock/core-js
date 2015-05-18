@@ -6,7 +6,7 @@ var $         = require('./$')
   , WEAK      = weak.WEAK
   , has       = $.has
   , isObject  = $.isObject
-  , isFrozen  = Object.isFrozen || $.core.Object.isFrozen
+  , isExtensible = Object.isExtensible || isObject
   , tmp       = {};
 
 // 23.3 WeakMap Objects
@@ -14,7 +14,7 @@ var WeakMap = require('./$.collection')('WeakMap', {
   // 23.3.3.3 WeakMap.prototype.get(key)
   get: function get(key){
     if(isObject(key)){
-      if(isFrozen(key))return leakStore(this).get(key);
+      if(!isExtensible(key))return leakStore(this).get(key);
       if(has(key, WEAK))return key[WEAK][this[ID]];
     }
   },
@@ -27,10 +27,11 @@ var WeakMap = require('./$.collection')('WeakMap', {
 // IE11 WeakMap frozen keys fix
 if($.FW && new WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
   $.each.call(['delete', 'has', 'get', 'set'], function(key){
-    var method = WeakMap.prototype[key];
-    require('./$.redef')(WeakMap.prototype, key, function(a, b){
+    var proto  = WeakMap.prototype
+      , method = proto[key];
+    require('./$.redef')(proto, key, function(a, b){
       // store frozen objects on leaky map
-      if(isObject(a) && isFrozen(a)){
+      if(isObject(a) && !isExtensible(a)){
         var result = leakStore(this)[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap

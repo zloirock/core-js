@@ -6,7 +6,7 @@ var $         = require('./$')
   , _has      = $.has
   , isObject  = $.isObject
   , hide      = $.hide
-  , isFrozen  = Object.isFrozen || $.core.Object.isFrozen
+  , isExtensible = Object.isExtensible || isObject
   , id        = 0
   , ID        = safe('id')
   , WEAK      = safe('weak')
@@ -57,21 +57,21 @@ module.exports = {
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function(key){
         if(!isObject(key))return false;
-        if(isFrozen(key))return leakStore(this)['delete'](key);
+        if(!isExtensible(key))return leakStore(this)['delete'](key);
         return _has(key, WEAK) && _has(key[WEAK], this[ID]) && delete key[WEAK][this[ID]];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key){
         if(!isObject(key))return false;
-        if(isFrozen(key))return leakStore(this).has(key);
+        if(!isExtensible(key))return leakStore(this).has(key);
         return _has(key, WEAK) && _has(key[WEAK], this[ID]);
       }
     });
     return C;
   },
   def: function(that, key, value){
-    if(isFrozen(assert.obj(key))){
+    if(!isExtensible(assert.obj(key))){
       leakStore(that).set(key, value);
     } else {
       _has(key, WEAK) || hide(key, WEAK, {});
