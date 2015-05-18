@@ -18,7 +18,6 @@
       var check, i$, x$, ref$, len$, ns, name, j$, len1$, ENTRY, PATH, this$ = this;
       check = function(err){
         if (err) {
-          console.error(err);
           next(err, '');
           return true;
         }

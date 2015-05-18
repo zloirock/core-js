@@ -11,6 +11,7 @@
     "webpack": "1.9.x",
     "LiveScript": "1.3.x",
     "grunt": "0.4.x",
+    "grunt-cli": "0.1.x",
     "grunt-livescript": "0.5.x",
     "grunt-contrib-uglify": "0.9.x",
     "grunt-contrib-watch": "0.6.x",
@@ -28,9 +29,10 @@
     "eslint": "0.21.x"
   },
   "scripts": {
+    "grunt": "grunt",
     "lint": "eslint es5 es6 es7 js web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter",
-    "test": "npm run lint && grunt client livescript karma:continuous && npm run promises-tests && lsc tests/commonjs"
+    "test": "npm run lint && npm run grunt client livescript karma:continuous && npm run promises-tests && lsc tests/commonjs"
   },
   "license": "MIT",
   "keywords": [

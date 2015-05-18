@@ -79,7 +79,6 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
     check = (err)->
       if err
-        console.error err
         next err, ''
         on
 
