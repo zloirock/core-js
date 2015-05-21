@@ -5948,9 +5948,14 @@
   isFunction = function(it){
     return toString$.call(it).slice(8, -1) === 'Function';
   };
-  if (typeof NodeList != 'undefined' && NodeList !== null) {
+  if ((typeof NodeList != 'undefined' && NodeList !== null) && ((typeof document != 'undefined' && document !== null) && document.querySelectorAll) && document.querySelectorAll('div') instanceof NodeList) {
     test('NodeList.prototype@@iterator', function(){
-      ok(isFunction(NodeList.prototype[Symbol.iterator]), 'Is function');
+      ok(isFunction(document.querySelectorAll('div')[Symbol.iterator]), 'Is function');
+    });
+  }
+  if ((typeof HTMLCollection != 'undefined' && HTMLCollection !== null) && ((typeof document != 'undefined' && document !== null) && document.getElementsByTagName) && document.getElementsByTagName('div') instanceof HTMLCollection) {
+    test('HTMLCollection.prototype@@iterator', function(){
+      ok(isFunction(document.getElementsByTagName('div')[Symbol.iterator]), 'Is function');
     });
   }
 }).call(this);

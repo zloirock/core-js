@@ -3,8 +3,12 @@ var $           = require('./$')
   , Iterators   = require('./$.iter').Iterators
   , ITERATOR    = require('./$.wks')('iterator')
   , ArrayValues = Iterators.Array
-  , NodeList    = $.g.NodeList;
-if($.FW && NodeList && !(ITERATOR in NodeList.prototype)){
-  $.hide(NodeList.prototype, ITERATOR, ArrayValues);
+  , NL          = $.g.NodeList
+  , HTC         = $.g.HTMLCollection
+  , NLProto     = NL && NL.prototype
+  , HTCProto    = HTC && HTC.prototype;
+if($.FW){
+  if(NL && !(ITERATOR in NLProto))$.hide(NLProto, ITERATOR, ArrayValues);
+  if(HTC && !(ITERATOR in HTCProto))$.hide(HTCProto, ITERATOR, ArrayValues);
 }
-Iterators.NodeList = ArrayValues;
+Iterators.NodeList = Iterators.HTMLCollection = ArrayValues;
