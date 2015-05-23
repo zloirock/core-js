@@ -60,6 +60,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/array/sort") is \function
   ok typeof require("#P/fn/array/splice") is \function
   ok typeof require("#P/fn/array/unshift") is \function
+  ok \next of require("#P/fn/array/iterator") []
   ok \unshift of require("#P/fn/array")
   ok require("#P/fn/math/acosh")(1) is 0
   ok require("#P/fn/math/asinh")(-0) is -0
@@ -117,6 +118,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/rpad")(\a 3) is 'a  '
   ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
+  ok \next of require("#P/fn/string/iterator") \qwe
   ok \raw of require("#P/fn/string")
   ok require("#P/fn/regexp/escape")('...') is '\\.\\.\\.'
   ok \escape of require("#P/fn/regexp")
@@ -143,6 +145,10 @@ for P in <[.. ../library]>
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
   ok new (require("#P/fn/weak-set"))([O = {}]).has O
   ok \all of require("#P/fn/promise")
+  require("#P/fn/node-list")
+  ok typeof require("#P/fn/node-list/iterator") is \function
+  require("#P/fn/html-collection")
+  ok typeof require("#P/fn/html-collection/iterator") is \function
   ok typeof require("#P/fn/set-timeout") is \function
   ok typeof require("#P/fn/set-interval") is \function
   ok typeof require("#P/fn/set-immediate") is \function
