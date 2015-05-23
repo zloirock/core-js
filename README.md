@@ -1310,6 +1310,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.12 - 2015.05.24
+  * different instances `core-js` should use / recognize the same symbols
+  * some fixes
+
 ##### 0.9.11 - 2015.05.18
   * simplified [custom build](#custom-build)
     * add custom build js api
