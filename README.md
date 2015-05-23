@@ -88,7 +88,7 @@ Available entry points for methods / constructors, as above, excluding features 
 
 Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/array`) contains all [ES6 `Array` features](#ecmascript-6-array), `core-js/es6` (`core-js/library/es6`) contains all ES6 features.
 
-Available inclusion by module name, for example, `es6.array.prototype` - `core-js/modules/es6.array.prototype` or `core-js/library/modules/es6.array.prototype`.
+Available inclusion by module name, for example, `es6.object.statics-accept-primitives` - `core-js/modules/es6.object.statics-accept-primitives` or `core-js/library/modules/es6.object.statics-accept-primitives`.
 ### Custom build
 ```
 npm i core-js && cd node_modules/core-js && npm i
@@ -1314,7 +1314,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * simplified [custom build](#custom-build)
     * add custom build js api
     * added `grunt-cli` to `devDependencies` for `npm run grunt`
-  * some other fixes
+  * some fixes
 
 ##### 0.9.10 - 2015.05.16
   * wrapped `Function#toString` for correct work wrapped methods / constructors with methods similar to the [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
@@ -1356,7 +1356,7 @@ delay(1e3).then(() => log('after 1 sec'));
     * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
     * added [single entry points](#commonjs) for `Object.{create, defineProperty, defineProperties}`
   * added [`Map#toJSON`](#ecmascript-7)
-  * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows, in near future will be available [bind syntax](https://github.com/zenparsing/es-function-bind)
+  * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
   * removed non-standard undocumented methods `Symbol.{pure, set}`
   * some fixes and internal changes
 
