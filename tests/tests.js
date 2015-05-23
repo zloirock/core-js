@@ -1325,7 +1325,7 @@
     eq(isExtensible({}), true);
   });
   test('Function#bind', function(){
-    var obj, fn;
+    var obj, fn, inst;
     ok(isFunction(Function.prototype.bind), 'Is function');
     obj = {
       a: 42
@@ -1334,6 +1334,14 @@
       return this.a;
     }.bind(obj)());
     ok(void 8 === new (function(){}.bind(obj))().a);
+    fn = function(a, b){
+      this.a = a;
+      this.b = b;
+    };
+    inst = new (fn.bind(null, 1))(2);
+    ok(inst instanceof fn);
+    eq(inst.a, 1);
+    eq(inst.b, 2);
     ok(42 === function(it){
       return it;
     }.bind(null, 42)());

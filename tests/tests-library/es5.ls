@@ -112,6 +112,11 @@ test 'Function#bind' !->
   obj = a: 42
   ok 42   is bind((-> @a), obj)!
   ok void is new (bind((->), obj))!a
+  fn = (@a, @b)->
+  inst = new (bind fn, null, 1) 2
+  ok inst instanceof fn
+  eq inst.a, 1
+  eq inst.b, 2
   ok 42   is bind((-> it), null 42)!
   fn = bind RegExp::test, /a/
   ok fn \a
