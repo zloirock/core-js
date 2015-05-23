@@ -1356,7 +1356,7 @@ delay(1e3).then(() => log('after 1 sec'));
     * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
     * added [single entry points](#commonjs) for `Object.{create, defineProperty, defineProperties}`
   * added [`Map#toJSON`](#ecmascript-7)
-  * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
+  * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](http://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
   * removed non-standard undocumented methods `Symbol.{pure, set}`
   * some fixes and internal changes
 
