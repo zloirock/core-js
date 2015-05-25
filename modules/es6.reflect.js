@@ -11,8 +11,8 @@ var $         = require('./$')
   , $Reflect  = $.g.Reflect
   , _apply    = Function.apply
   , assertObject = assert.obj
-  , _isExtensible = Object.isExtensible || $.isObject
-  , _preventExtensions = Object.preventExtensions || $.it
+  , _isExtensible = Object.isExtensible || isObject
+  , _preventExtensions = Object.preventExtensions
   // IE TP has broken Reflect.enumerate
   , buggyEnumerate = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
 
@@ -95,7 +95,7 @@ var reflect = {
   preventExtensions: function preventExtensions(target){
     assertObject(target);
     try {
-      _preventExtensions(target);
+      if(_preventExtensions)_preventExtensions(target);
       return true;
     } catch(e){
       return false;

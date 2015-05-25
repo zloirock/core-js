@@ -18,6 +18,7 @@ var $                = require('./$')
   , getOwnDescriptor = $.getDesc
   , defineProperties = $.setDescs
   , isFunction       = $.isFunction
+  , isObject         = $.isObject
   , toObject         = $.toObject
   , toLength         = $.toLength
   , toIndex          = $.toIndex
@@ -109,7 +110,6 @@ function createGetKeys(names, length){
     return result;
   };
 }
-function isPrimitive(it){ return !$.isObject(it); }
 function Empty(){}
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
@@ -137,17 +137,29 @@ $def($def.S, 'Object', {
   // 19.1.2.14 / 15.2.3.14 Object.keys(O)
   keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false),
   // 19.1.2.17 / 15.2.3.8 Object.seal(O)
-  seal: $.it, // <- cap
+  seal: function seal(it){
+    return it; // <- cap
+  },
   // 19.1.2.5 / 15.2.3.9 Object.freeze(O)
-  freeze: $.it, // <- cap
+  freeze: function freeze(it){
+    return it; // <- cap
+  },
   // 19.1.2.15 / 15.2.3.10 Object.preventExtensions(O)
-  preventExtensions: $.it, // <- cap
+  preventExtensions: function preventExtensions(it){
+    return it; // <- cap
+  },
   // 19.1.2.13 / 15.2.3.11 Object.isSealed(O)
-  isSealed: isPrimitive, // <- cap
+  isSealed: function isSealed(it){
+    return !isObject(it); // <- cap
+  },
   // 19.1.2.12 / 15.2.3.12 Object.isFrozen(O)
-  isFrozen: isPrimitive, // <- cap
+  isFrozen: function isFrozen(it){
+    return !isObject(it); // <- cap
+  },
   // 19.1.2.11 / 15.2.3.13 Object.isExtensible(O)
-  isExtensible: $.isObject // <- cap
+  isExtensible: function isExtensible(it){
+    return isObject(it); // <- cap
+  }
 });
 
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
