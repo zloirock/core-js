@@ -81,7 +81,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/math/trunc")(1.5) is 1
   ok require("#P/fn/number/epsilon") is Math.pow 2 -52
   ok require("#P/fn/number/is-finite") 42.5
-  ok require("#P/fn/number/is-integer") 42
+  ok require("#P/fn/number/is-integer")(42.5) is no
   ok require("#P/fn/number/is-nan") NaN
   ok require("#P/fn/number/is-safe-integer") 42
   ok require("#P/fn/number/max-safe-integer") is 0x1fffffffffffff
