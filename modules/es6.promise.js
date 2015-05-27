@@ -165,7 +165,7 @@ if(!useNative){
       var record = this[RECORD];
       record.c.push(react);
       if(record.a)record.a.push(react);
-      record.s && notify(record);
+      if(record.s)notify(record);
       return promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)

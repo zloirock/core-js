@@ -123,7 +123,7 @@ if(!useNative){
   $.getNames   = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 
-  if($.DESC && $.FW)$redef(Object.prototype, 'propertyIsEnumerable', propertyIsEnumerable, true);
+  if($.DESC && $.FW)$redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
 }
 
 var symbolStatics = {
