@@ -88,7 +88,7 @@ Available entry points for methods / constructors, as above, excluding features 
 
 Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/array`) contains all [ES6 `Array` features](#ecmascript-6-array), `core-js/es6` (`core-js/library/es6`) contains all ES6 features.
 
-Available inclusion by module name, for example, `es6.object.statics-accept-primitives` - `core-js/modules/es6.object.statics-accept-primitives` or `core-js/library/modules/es6.object.statics-accept-primitives`.
+Available (but not recommended - possible changing modules structure in future versions) inclusion by module name, for example, `es6.object.statics-accept-primitives` - `core-js/modules/es6.object.statics-accept-primitives` or `core-js/library/modules/es6.object.statics-accept-primitives`.
 ### Custom build
 ```
 npm i core-js && cd node_modules/core-js && npm i
@@ -324,6 +324,7 @@ Object
   .getOwnPropertySymbols(object) -> array
 ```
 Also wrapped some `Object` methods for correct work with `Symbol` polyfill.
+
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
 var Person = (function(){
