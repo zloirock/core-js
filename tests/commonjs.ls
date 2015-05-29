@@ -88,6 +88,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/number/min-safe-integer") is -0x1fffffffffffff
   ok require("#P/fn/number/parse-float")('1.5') is 1.5
   ok require("#P/fn/number/parse-int")('2.1') is 2
+  ok \next of require("#P/fn/number/iterator") 42
   ok \isNaN of require("#P/fn/number")
   ok require("#P/fn/reflect/apply")(((a, b)-> a + b), null, [1, 2]) is 3
   ok require("#P/fn/reflect/construct")(-> @a = 2).a is 2
