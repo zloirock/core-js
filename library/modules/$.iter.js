@@ -2,7 +2,8 @@
 var $                 = require('./$')
   , cof               = require('./$.cof')
   , classof           = cof.classof
-  , assertObject      = require('./$.assert').obj
+  , assert            = require('./$.assert')
+  , assertObject      = assert.obj
   , SYMBOL_ITERATOR   = require('./$.wks')('iterator')
   , FF_ITERATOR       = '@@iterator'
   , Iterators         = require('./$.shared')('iterators')
@@ -37,7 +38,7 @@ module.exports = {
         || it[SYMBOL_ITERATOR]
         || Iterators[classof(it)];
     }
-    if(!$.isFunction(getIter))throw TypeError(it + ' is not iterable!');
+    assert($.isFunction(getIter), it, ' is not iterable!');
     return assertObject(getIter.call(it));
   },
   set: setIterator,
