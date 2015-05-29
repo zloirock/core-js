@@ -323,6 +323,7 @@ Symbol(description?) -> symbol
 Object
   .getOwnPropertySymbols(object) -> array
 ```
+Also wrapped some `Object` methods for correct work with `Symbol` polyfill.
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
 var Person = (function(){
