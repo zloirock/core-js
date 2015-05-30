@@ -5,7 +5,7 @@ var $        = require('./$')
   , assert   = require('./$.assert')
   , forOf    = require('./$.for-of')
   , step     = require('./$.iter').step
-  , has      = $.has
+  , $has     = $.has
   , set      = $.set
   , isObject = $.isObject
   , hide     = $.hide
@@ -21,7 +21,7 @@ var $        = require('./$')
 function fastKey(it, create){
   // return primitive with prefix
   if(!isObject(it))return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
-  if(!has(it, ID)){
+  if(!$has(it, ID)){
     // can't set id to frozen object
     if(!isExtensible(it))return 'F';
     // not necessary to add id
