@@ -26,7 +26,7 @@
     "karma-opera-launcher": "0.1.x",
     "karma-phantomjs-launcher": "0.2.x",
     "promises-aplus-tests": "2.1.x",
-    "eslint": "0.22.x"
+    "eslint": "0.21.x"
   },
   "scripts": {
     "grunt": "grunt",
