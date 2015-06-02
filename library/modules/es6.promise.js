@@ -6,6 +6,7 @@ var $        = require('./$')
   , assert   = require('./$.assert')
   , forOf    = require('./$.for-of')
   , setProto = require('./$.set-proto').set
+  , same     = require('./$.same')
   , species  = require('./$.species')
   , SPECIES  = require('./$.wks')('species')
   , RECORD   = require('./$.uid').safe('record')
@@ -17,17 +18,24 @@ var $        = require('./$')
   , isFunction     = $.isFunction
   , isObject       = $.isObject
   , assertFunction = assert.fn
-  , assertObject   = assert.obj;
+  , assertObject   = assert.obj
+  , Wrapper;
+
+function testResolve(sub){
+  var test = new P(function(){});
+  if(sub)test.constructor = Object;
+  return P.resolve(test) === test;
+}
 
 var useNative = function(){
-  var test, works = false;
+  var works = false;
   function P2(x){
     var self = new P(x);
     setProto(self, P2.prototype);
     return self;
   }
   try {
-    works = isFunction(P) && isFunction(P.resolve) && P.resolve(test = new P(function(){})) == test;
+    works = isFunction(P) && isFunction(P.resolve) && testResolve();
     setProto(P2, P);
     P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
     // actual Firefox has broken subclass support, test that
@@ -39,6 +47,14 @@ var useNative = function(){
 }();
 
 // helpers
+function isPromise(it){
+  return isObject(it) && (useNative ? cof.classof(it) == 'Promise' : RECORD in it);
+}
+function sameConstructor(a, b){
+  // library wrapper special case
+  if(!$.FW && a === P && b === Wrapper)return true;
+  return same(a, b);
+}
 function getConstructor(C){
   var S = assertObject(C)[SPECIES];
   return S != undefined ? S : C;
@@ -179,22 +195,20 @@ if(!useNative){
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 cof.set(P, PROMISE);
 species(P);
-species($.core[PROMISE]); // for wrapper
+species(Wrapper = $.core[PROMISE]);
 
 // statics
 $def($def.S + $def.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
-    return new (getConstructor(this))(function(res, rej){
-      rej(r);
-    });
-  },
+    return new (getConstructor(this))(function(res, rej){ rej(r); });
+  }
+});
+$def($def.S + $def.F * (!useNative || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
-    return isObject(x) && RECORD in x && $.getProto(x) === this.prototype
-      ? x : new (getConstructor(this))(function(res){
-        res(x);
-      });
+    return isPromise(x) && sameConstructor(x.constructor, this)
+      ? x : new (getConstructor(this))(function(res){ res(x); });
   }
 });
 $def($def.S + $def.F * !(useNative && require('./$.iter-detect')(function(iter){
