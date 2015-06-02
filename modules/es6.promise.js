@@ -208,7 +208,7 @@ $def($def.S + $def.F * (!useNative || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
     return isPromise(x) && sameConstructor(x.constructor, this)
-      ? x : new (getConstructor(this))(function(res){ res(x); });
+      ? x : new this(function(res){ res(x); });
   }
 });
 $def($def.S + $def.F * !(useNative && require('./$.iter-detect')(function(iter){
