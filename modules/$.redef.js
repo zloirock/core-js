@@ -7,6 +7,7 @@ function $redef(O, key, val, safe){
   if($.isFunction(val)){
     var base = O[key];
     $.hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, String(key)));
+    if(!('name' in val))val.name = key;
   }
   if(O === $.g){
     O[key] = val;
