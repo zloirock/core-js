@@ -1312,6 +1312,11 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.14 - 2015.06.04
+  * updated [`Promise.resolve` behavior](https://esdiscuss.org/topic/fixing-promise-resolve)
+  * added fallback for IE11 buggy `Object.getOwnPropertyNames` + iframe
+  * some other fixes
+
 ##### 0.9.13 - 2015.05.25
   * added fallback for [`Symbol` polyfill](#ecmascript-6-symbols) for old Android
   * some other fixes
