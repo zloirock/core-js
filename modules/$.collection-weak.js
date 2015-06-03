@@ -3,7 +3,7 @@ var $         = require('./$')
   , safe      = require('./$.uid').safe
   , assert    = require('./$.assert')
   , forOf     = require('./$.for-of')
-  , _has      = $.has
+  , $has      = $.has
   , isObject  = $.isObject
   , hide      = $.hide
   , isExtensible = Object.isExtensible || isObject
@@ -46,26 +46,25 @@ function leakStore(that){
 }
 
 module.exports = {
-  getConstructor: function(NAME, IS_MAP, ADDER){
-    function C(){
-      $.set(assert.inst(this, C, NAME), ID, id++);
-      var iterable = arguments[0];
-      if(iterable != undefined)forOf(iterable, IS_MAP, this[ADDER], this);
-    }
+  getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
+    var C = wrapper(function(that, iterable){
+      $.set(assert.inst(that, C, NAME), ID, id++);
+      if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+    });
     require('./$.mix')(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function(key){
         if(!isObject(key))return false;
         if(!isExtensible(key))return leakStore(this)['delete'](key);
-        return _has(key, WEAK) && _has(key[WEAK], this[ID]) && delete key[WEAK][this[ID]];
+        return $has(key, WEAK) && $has(key[WEAK], this[ID]) && delete key[WEAK][this[ID]];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key){
         if(!isObject(key))return false;
         if(!isExtensible(key))return leakStore(this).has(key);
-        return _has(key, WEAK) && _has(key[WEAK], this[ID]);
+        return $has(key, WEAK) && $has(key[WEAK], this[ID]);
       }
     });
     return C;
@@ -74,7 +73,7 @@ module.exports = {
     if(!isExtensible(assert.obj(key))){
       leakStore(that).set(key, value);
     } else {
-      _has(key, WEAK) || hide(key, WEAK, {});
+      $has(key, WEAK) || hide(key, WEAK, {});
       key[WEAK][that[ID]] = value;
     } return that;
   },

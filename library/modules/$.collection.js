@@ -6,7 +6,7 @@ var $     = require('./$')
   , species = require('./$.species')
   , assertInstance = require('./$.assert').inst;
 
-module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
+module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = $.g[NAME]
     , C     = Base
     , ADDER = IS_MAP ? 'set' : 'add'
@@ -26,21 +26,21 @@ module.exports = function(NAME, methods, common, IS_MAP, IS_WEAK){
   }
   if(!$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
-    C = common.getConstructor(NAME, IS_MAP, ADDER);
+    C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     require('./$.mix')(C.prototype, methods);
+    C.prototype.constructor = C;
   } else {
     var inst  = new C
       , chain = inst[ADDER](IS_WEAK ? {} : -0, 1)
       , buggyZero;
     // wrap for init collections from iterable
     if(!require('./$.iter-detect')(function(iter){ new C(iter); })){ // eslint-disable-line no-new
-      C = function(){
-        assertInstance(this, C, NAME);
-        var that     = new Base
-          , iterable = arguments[0];
+      C = wrapper(function(target, iterable){
+        assertInstance(target, C, NAME);
+        var that = new Base;
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
-      };
+      });
       C.prototype = proto;
       if($.FW)proto.constructor = C;
     }

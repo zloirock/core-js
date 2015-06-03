@@ -43,16 +43,15 @@ function getEntry(that, key){
 }
 
 module.exports = {
-  getConstructor: function(NAME, IS_MAP, ADDER){
-    function C(){
-      var that     = assert.inst(this, C, NAME)
-        , iterable = arguments[0];
+  getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
+    var C = wrapper(function(that, iterable){
+      assert.inst(that, C, NAME);
       set(that, O1, $.create(null));
       set(that, SIZE, 0);
       set(that, LAST, undefined);
       set(that, FIRST, undefined);
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
-    }
+    });
     require('./$.mix')(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()

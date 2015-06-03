@@ -2,7 +2,9 @@
 var strong = require('./$.collection-strong');
 
 // 23.1 Map Objects
-require('./$.collection')('Map', {
+require('./$.collection')('Map', function(get){
+  return function Map(){ return get(this, arguments[0]); };
+}, {
   // 23.1.3.6 Map.prototype.get(key)
   get: function get(key){
     var entry = strong.getEntry(this, key);
