@@ -16,7 +16,8 @@ var $        = require('./$')
   , getDesc  = $.getDesc
   , setDesc  = $.setDesc
   , desc     = $.desc
-  , getNames = require('./$.get-names')
+  , $names   = require('./$.get-names')
+  , getNames = $names.get
   , toObject = $.toObject
   , $Symbol  = $.g.Symbol
   , setter   = false
@@ -120,7 +121,7 @@ if(!useNative){
   $.setDesc    = defineProperty;
   $.getDesc    = getOwnPropertyDescriptor;
   $.setDescs   = defineProperties;
-  $.getNames   = getOwnPropertyNames;
+  $.getNames   = $names.get = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 
   if($.DESC && $.FW)$redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);

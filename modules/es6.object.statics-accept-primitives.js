@@ -26,7 +26,7 @@ $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
     return fn(Object($.assertDefined(it)));
   } : ID == 8 ? function keys(it){
     return fn(toObject(it));
-  } : require('./$.get-names');
+  } : require('./$.get-names').get;
   try {
     fn('z');
   } catch(e){
