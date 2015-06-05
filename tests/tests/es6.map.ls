@@ -12,6 +12,8 @@ deq = deepEqual
 test 'Map' !->
   ok isFunction(Map), 'Is function'
   ok /native code/.test(Map), 'looks like native'
+  if \name of Map => eq Map.name, \Map, 'name is "Map"'
+  eq Map.length, 0, 'length is 0'
   ok \clear   of Map::, 'clear in Map.prototype'
   ok \delete  of Map::, 'delete in Map.prototype'
   ok \forEach of Map::, 'forEach in Map.prototype'

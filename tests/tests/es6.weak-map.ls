@@ -9,6 +9,8 @@ eq = strictEqual
 test 'WeakMap' !->
   ok isFunction(WeakMap), 'Is function'
   ok /native code/.test(WeakMap), 'looks like native'
+  if \name of WeakMap => eq WeakMap.name, \WeakMap, 'name is "WeakMap"'
+  eq WeakMap.length, 0, 'length is 0'
   ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   ok \get    of WeakMap::, 'get in WeakMap.prototype'
   ok \has    of WeakMap::, 'has in WeakMap.prototype'

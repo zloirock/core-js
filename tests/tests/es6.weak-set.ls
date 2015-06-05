@@ -9,6 +9,8 @@ eq = strictEqual
 test 'WeakSet' !->
   ok isFunction(WeakSet), 'Is function'
   ok /native code/.test(WeakSet), 'looks like native'
+  if \name of WeakSet => eq WeakSet.name, \WeakSet, 'name is "WeakSet"'
+  eq WeakSet.length, 0, 'length is 0'
   ok \add    of WeakSet::, 'add in WeakSet.prototype'
   ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   ok \has    of WeakSet::, 'has in WeakSet.prototype'

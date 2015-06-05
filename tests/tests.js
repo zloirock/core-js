@@ -2056,6 +2056,10 @@
     var done, iter;
     ok(isFunction(Map), 'Is function');
     ok(/native code/.test(Map), 'looks like native');
+    if ('name' in Map) {
+      eq(Map.name, 'Map', 'name is "Map"');
+    }
+    eq(Map.length, 0, 'length is 0');
     ok('clear' in Map.prototype, 'clear in Map.prototype');
     ok('delete' in Map.prototype, 'delete in Map.prototype');
     ok('forEach' in Map.prototype, 'forEach in Map.prototype');
@@ -3853,6 +3857,10 @@
     var S, r, done, iter, _add;
     ok(isFunction(Set), 'Is function');
     ok(/native code/.test(Set), 'looks like native');
+    if ('name' in Set) {
+      eq(Set.name, 'Set', 'name is "Set"');
+    }
+    eq(Set.length, 0, 'length is 0');
     ok('add' in Set.prototype, 'add in Set.prototype');
     ok('clear' in Set.prototype, 'clear in Set.prototype');
     ok('delete' in Set.prototype, 'delete in Set.prototype');
@@ -4826,6 +4834,10 @@
     var a, b, f, M, done, iter;
     ok(isFunction(WeakMap), 'Is function');
     ok(/native code/.test(WeakMap), 'looks like native');
+    if ('name' in WeakMap) {
+      eq(WeakMap.name, 'WeakMap', 'name is "WeakMap"');
+    }
+    eq(WeakMap.length, 0, 'length is 0');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
     ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
@@ -4915,6 +4927,10 @@
     var a, f, S, done, iter;
     ok(isFunction(WeakSet), 'Is function');
     ok(/native code/.test(WeakSet), 'looks like native');
+    if ('name' in WeakSet) {
+      eq(WeakSet.name, 'WeakSet', 'name is "WeakSet"');
+    }
+    eq(WeakSet.length, 0, 'length is 0');
     ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
     ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
     ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');

@@ -12,6 +12,8 @@ deq = deepEqual
 test 'Set' !->
   ok isFunction(Set), 'Is function'
   ok /native code/.test(Set), 'looks like native'
+  if \name of Set => eq Set.name, \Set, 'name is "Set"'
+  eq Set.length, 0, 'length is 0'
   ok \add     of Set::, 'add in Set.prototype'
   ok \clear   of Set::, 'clear in Set.prototype'
   ok \delete  of Set::, 'delete in Set.prototype'
