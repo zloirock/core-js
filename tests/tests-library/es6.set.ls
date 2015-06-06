@@ -170,7 +170,6 @@ test 'Set Iterator' !->
   deq keys, <[a d e]>
 test 'Set#keys' !->
   ok typeof Set::keys is \function, 'Is function'
-  eq Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   ok isIterator(iter), 'Return iterator'
   eq iter[Symbol?toStringTag], 'Set Iterator'

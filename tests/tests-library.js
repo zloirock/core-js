@@ -3690,7 +3690,6 @@
   test('Set#keys', function(){
     var iter;
     ok(typeof Set.prototype.keys === 'function', 'Is function');
-    eq(Set.prototype.keys, Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).keys();
     ok(isIterator(iter), 'Return iterator');
     eq(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Set Iterator');

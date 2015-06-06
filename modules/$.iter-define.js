@@ -33,7 +33,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     if($.FW && $.has(proto, FF_ITERATOR))$iter.set(IteratorPrototype, $.that);
   }
   // Define iterator
-  if($.FW)$iter.set(proto, _default);
+  if($.FW || FORCE)$iter.set(proto, _default);
   // Plug for library
   Iterators[NAME] = _default;
   Iterators[TAG]  = $.that;

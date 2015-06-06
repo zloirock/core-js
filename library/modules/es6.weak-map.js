@@ -27,7 +27,7 @@ var $WeakMap = require('./$.collection')('WeakMap', function(get){
 }, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
-if($.FW && new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
+if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
   $.each.call(['delete', 'has', 'get', 'set'], function(key){
     var proto  = $WeakMap.prototype
       , method = proto[key];
