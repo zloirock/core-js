@@ -19,9 +19,9 @@ test 'WeakSet' !->
   ok new WeakSet([freeze f = {}]).has(f), 'Support frozen objects'
   S = new WeakSet
   S.add freeze f = {}
-  eq S.has(f), on
+  eq S.has(f), on, 'works with frozen objects, #1'
   S.delete f
-  eq S.has(f), no
+  eq S.has(f), no, 'works with frozen objects, #2'
   # return #throw
   done = no
   iter = values [null, 1, 2]
@@ -30,8 +30,8 @@ test 'WeakSet' !->
   ok done, '.return #throw'
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
-  ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
-  ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
+  ok (w = new WeakSet)add({}) is w, 'chaining'
+  ok (try new WeakSet!add(42); no; catch => on), 'throws with primitive keys'
 test 'WeakSet#delete' !->
   ok isFunction(WeakSet::delete), 'Is function'
   S = new WeakSet!

@@ -17,15 +17,14 @@ test 'WeakMap' !->
   ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   eq new WeakMap(values [[a = {}, b = {}]]).get(a), b, 'Init WeakMap from iterator #1'
   eq new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
-  # not fixed in library version on ie11
-  #eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
-  #M = new WeakMap
-  #M.set freeze(f = {}), 42
-  #eq M.has(f), on
-  #eq M.get(f), 42
-  #M.delete f
-  #eq M.has(f), no
-  #eq M.get(f), void
+  eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
+  M = new WeakMap
+  M.set freeze(f = {}), 42
+  eq M.has(f), on, 'works with frozen objects, #1'
+  eq M.get(f), 42, 'works with frozen objects, #2'
+  M.delete f
+  eq M.has(f), no, 'works with frozen objects, #3'
+  eq M.get(f), void, 'works with frozen objects, #4'
   # return #throw
   done = no
   iter = values [null, 1, 2]
@@ -56,8 +55,7 @@ test 'WeakMap#has' !->
   ok !M.has(a), 'WeakMap .has() after .delete() return false'
 test 'WeakMap#set' !->
   ok isFunction(WeakMap::set), 'Is function'
-  # not fixed in library version on ie11
-  # ok (w = new WeakMap!)set(a = {}, 42) is w, 'WeakMap.prototype.set works with object as keys'
-  ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
+  ok (w = new WeakMap)set(a = {}, 42) is w, 'chaining'
+  ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
 test 'WeakMap#@@toStringTag' !->
   eq WeakMap::[core.Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'

@@ -4403,7 +4403,7 @@
   values = core.Array.values;
   eq = strictEqual;
   test('WeakMap', function(){
-    var a, b, done, iter;
+    var a, b, f, M, done, iter;
     ok(isFunction(WeakMap), 'Is function');
     ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
@@ -4412,6 +4412,14 @@
     ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
     eq(new WeakMap(values([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #1');
     eq(new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2');
+    eq(new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects');
+    M = new WeakMap;
+    M.set(freeze(f = {}), 42);
+    eq(M.has(f), true, 'works with frozen objects, #1');
+    eq(M.get(f), 42, 'works with frozen objects, #2');
+    M['delete'](f);
+    eq(M.has(f), false, 'works with frozen objects, #3');
+    eq(M.get(f), void 8, 'works with frozen objects, #4');
     done = false;
     iter = values([null, 1, 2]);
     iter['return'] = function(){
@@ -4451,8 +4459,9 @@
     ok(!M.has(a), 'WeakMap .has() after .delete() return false');
   });
   test('WeakMap#set', function(){
-    var e;
+    var w, a, e;
     ok(isFunction(WeakMap.prototype.set), 'Is function');
+    ok((w = new WeakMap).set(a = {}, 42) === w, 'chaining');
     ok((function(){
       try {
         new WeakMap().set(42, 42);
@@ -4461,7 +4470,7 @@
         e = e$;
         return true;
       }
-    }()), 'WeakMap.prototype.set throw with primitive keys');
+    }()), 'throws with primitive keys');
   });
   test('WeakMap#@@toStringTag', function(){
     var ref$;
@@ -4492,9 +4501,9 @@
     ok(new WeakSet([freeze(f = {})]).has(f), 'Support frozen objects');
     S = new WeakSet;
     S.add(freeze(f = {}));
-    eq(S.has(f), true);
+    eq(S.has(f), true, 'works with frozen objects, #1');
     S['delete'](f);
-    eq(S.has(f), false);
+    eq(S.has(f), false, 'works with frozen objects, #2');
     done = false;
     iter = values([null, 1, 2]);
     iter['return'] = function(){
@@ -4506,9 +4515,9 @@
     ok(done, '.return #throw');
   });
   test('WeakSet#add', function(){
-    var a, e;
+    var w, e;
     ok(isFunction(WeakSet.prototype.add), 'Is function');
-    ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
+    ok((w = new WeakSet).add({}) === w, 'chaining');
     ok((function(){
       try {
         new WeakSet().add(42);
@@ -4517,7 +4526,7 @@
         e = e$;
         return true;
       }
-    }()), 'WeakSet.prototype.add throw with primitive keys');
+    }()), 'throws with primitive keys');
   });
   test('WeakSet#delete', function(){
     var S, a, b;
