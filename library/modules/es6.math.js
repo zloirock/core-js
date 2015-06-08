@@ -75,7 +75,7 @@ $def($def.S, 'Math', {
     while(i < len){
       arg = abs(arguments[i++]);
       if(larg < arg){
-        div  = larg / arg
+        div  = larg / arg;
         sum  = sum * div * div + 1;
         larg = arg;
       } else if(arg > 0){

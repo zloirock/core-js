@@ -13,7 +13,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype
     , O     = {};
-  if(!$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
+  if(!$.DESC || !$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     require('./$.mix')(C.prototype, methods);
@@ -30,7 +30,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
         return chain ? this : result;
       });
     });
-    if($.DESC && 'size' in proto)$.setDesc(C.prototype, 'size', {
+    if('size' in proto)$.setDesc(C.prototype, 'size', {
       get: function(){
         return this[INTERNAL].size;
       }
@@ -42,7 +42,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   O[NAME] = C;
   $def($def.G + $def.W + $def.F, O);
   require('./$.species')(C);
-  
+
   if(!IS_WEAK)common.setIter(C, NAME, IS_MAP);
 
   return C;
