@@ -1,7 +1,6 @@
 // 22.1.3.31 Array.prototype[@@unscopables]
-var $           = require('./$')
-  , UNSCOPABLES = require('./$.wks')('unscopables');
-if($.FW && !(UNSCOPABLES in []))$.hide(Array.prototype, UNSCOPABLES, {});
+var UNSCOPABLES = require('./$.wks')('unscopables');
+if(!(UNSCOPABLES in []))require('./$').hide(Array.prototype, UNSCOPABLES, {});
 module.exports = function(key){
-  if($.FW)[][UNSCOPABLES][key] = true;
+  [][UNSCOPABLES][key] = true;
 };
