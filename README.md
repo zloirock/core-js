@@ -92,7 +92,7 @@ Available (but not recommended - possible changing modules structure in future v
 ### Custom build
 ```
 npm i core-js && cd node_modules/core-js && npm i
-npm run grunt build:core.dict,es6 --blacklist=es6.promise,es6.math --library=on --path=custom uglify
+npm run grunt build:core.dict,es6 -- --blacklist=es6.promise,es6.math --library=on --path=custom uglify
 ```
 Where `core.dict` and `es6` are modules (namespaces) names, which will be added to the build, `es6.promise` and `es6.math` are modules (namespaces) names, which will be excluded from the build, `--library=on` is flag for build without global namespace pollution and `custom` is target file name.
 
