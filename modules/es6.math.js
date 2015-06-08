@@ -70,17 +70,20 @@ $def($def.S, 'Math', {
     var sum  = 0
       , i    = 0
       , len  = arguments.length
-      , args = Array(len)
       , larg = 0
-      , arg;
+      , arg, div;
     while(i < len){
-      arg = args[i] = abs(arguments[i++]);
-      if(arg == Infinity)return Infinity;
-      if(arg > larg)larg = arg;
+      arg = abs(arguments[i++]);
+      if(larg < arg){
+        div  = larg / arg
+        sum  = sum * div * div + 1;
+        larg = arg;
+      } else if(arg > 0){
+        div  = arg / larg;
+        sum += div * div;
+      } else sum += arg;
     }
-    larg = larg || 1;
-    while(len--)sum += pow(args[len] / larg, 2);
-    return larg * sqrt(sum);
+    return larg === Infinity ? Infinity : larg * sqrt(sum);
   },
   // 20.2.2.18 Math.imul(x, y)
   imul: function imul(x, y){
