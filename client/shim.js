@@ -1,5 +1,5 @@
 /**
- * core-js 0.9.14
+ * core-js 0.9.15
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -346,11 +346,10 @@ var __e = null, __g = null;
 /***/ function(module, exports, __webpack_require__) {
 
 	// 22.1.3.31 Array.prototype[@@unscopables]
-	var $           = __webpack_require__(2)
-	  , UNSCOPABLES = __webpack_require__(8)('unscopables');
-	if($.FW && !(UNSCOPABLES in []))$.hide(Array.prototype, UNSCOPABLES, {});
+	var UNSCOPABLES = __webpack_require__(8)('unscopables');
+	if(!(UNSCOPABLES in []))__webpack_require__(2).hide(Array.prototype, UNSCOPABLES, {});
 	module.exports = function(key){
-	  if($.FW)[][UNSCOPABLES][key] = true;
+	  [][UNSCOPABLES][key] = true;
 	};
 
 /***/ },
@@ -1495,17 +1494,20 @@ var __e = null, __g = null;
 	    var sum  = 0
 	      , i    = 0
 	      , len  = arguments.length
-	      , args = Array(len)
 	      , larg = 0
-	      , arg;
+	      , arg, div;
 	    while(i < len){
-	      arg = args[i] = abs(arguments[i++]);
-	      if(arg == Infinity)return Infinity;
-	      if(arg > larg)larg = arg;
+	      arg = abs(arguments[i++]);
+	      if(larg < arg){
+	        div  = larg / arg;
+	        sum  = sum * div * div + 1;
+	        larg = arg;
+	      } else if(arg > 0){
+	        div  = arg / larg;
+	        sum += div * div;
+	      } else sum += arg;
 	    }
-	    larg = larg || 1;
-	    while(len--)sum += pow(args[len] / larg, 2);
-	    return larg * sqrt(sum);
+	    return larg === Infinity ? Infinity : larg * sqrt(sum);
 	  },
 	  // 20.2.2.18 Math.imul(x, y)
 	  imul: function imul(x, y){
@@ -1736,7 +1738,7 @@ var __e = null, __g = null;
 	    if($.FW && $.has(proto, FF_ITERATOR))$iter.set(IteratorPrototype, $.that);
 	  }
 	  // Define iterator
-	  if($.FW)$iter.set(proto, _default);
+	  if($.FW || FORCE)$iter.set(proto, _default);
 	  // Plug for library
 	  Iterators[NAME] = _default;
 	  Iterators[TAG]  = $.that;
@@ -2683,22 +2685,19 @@ var __e = null, __g = null;
 	    , proto = C && C.prototype
 	    , O     = {};
 	  function fixMethod(KEY){
-	    if($.FW){
-	      var fn = proto[KEY];
-	      __webpack_require__(5)(proto, KEY,
-	        KEY == 'delete' ? function(a){ return fn.call(this, a === 0 ? 0 : a); }
-	        : KEY == 'has' ? function has(a){ return fn.call(this, a === 0 ? 0 : a); }
-	        : KEY == 'get' ? function get(a){ return fn.call(this, a === 0 ? 0 : a); }
-	        : KEY == 'add' ? function add(a){ fn.call(this, a === 0 ? 0 : a); return this; }
-	        : function set(a, b){ fn.call(this, a === 0 ? 0 : a, b); return this; }
-	      );
-	    }
+	    var fn = proto[KEY];
+	    __webpack_require__(5)(proto, KEY,
+	      KEY == 'delete' ? function(a){ return fn.call(this, a === 0 ? 0 : a); }
+	      : KEY == 'has' ? function has(a){ return fn.call(this, a === 0 ? 0 : a); }
+	      : KEY == 'get' ? function get(a){ return fn.call(this, a === 0 ? 0 : a); }
+	      : KEY == 'add' ? function add(a){ fn.call(this, a === 0 ? 0 : a); return this; }
+	      : function set(a, b){ fn.call(this, a === 0 ? 0 : a, b); return this; }
+	    );
 	  }
 	  if(!$.isFunction(C) || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
 	    // create collection constructor
 	    C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
 	    __webpack_require__(63)(C.prototype, methods);
-	    C.prototype.constructor = C;
 	  } else {
 	    var inst  = new C
 	      , chain = inst[ADDER](IS_WEAK ? {} : -0, 1)
@@ -2712,7 +2711,7 @@ var __e = null, __g = null;
 	        return that;
 	      });
 	      C.prototype = proto;
-	      if($.FW)proto.constructor = C;
+	      proto.constructor = C;
 	    }
 	    IS_WEAK || inst.forEach(function(val, key){
 	      buggyZero = 1 / key === -Infinity;
@@ -2789,7 +2788,7 @@ var __e = null, __g = null;
 	}, weak, true, true);
 
 	// IE11 WeakMap frozen keys fix
-	if($.FW && new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
+	if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
 	  $.each.call(['delete', 'has', 'get', 'set'], function(key){
 	    var proto  = $WeakMap.prototype
 	      , method = proto[key];

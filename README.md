@@ -502,7 +502,6 @@ log(wset.has(b));   // => false
 
 * Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collections, leak.
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
-* Unlike the `default` or `shim` versions `core-js`, `library` version does not repair broken native methods of collections prototypes.
 
 ### ECMAScript 6: Iterators
 Modules `es6.string.iterator` and `es6.array.iterator`:
@@ -1312,6 +1311,11 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.15 - 2015.06.09
+  * [collections](#ecmascript-6-collections) from `library` version return wrapped native instances
+  * fixed collections prototype methods in `library` version
+  * optimized `Math.hypot`
+
 ##### 0.9.14 - 2015.06.04
   * updated [`Promise.resolve` behavior](https://esdiscuss.org/topic/fixing-promise-resolve)
   * added fallback for IE11 buggy `Object.getOwnPropertyNames` + iframe
