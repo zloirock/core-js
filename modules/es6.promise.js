@@ -42,6 +42,14 @@ var useNative = function(){
     if(!(P2.resolve(5).then(function(){}) instanceof P2)){
       works = false;
     }
+    // actual V8 bug, https://code.google.com/p/v8/issues/detail?id=4162
+    if(works && $.DESC){
+      var thenableThenGotten = false;
+      P.resolve($.setDesc({}, 'then', {
+        get: function(){ thenableThenGotten = true; }
+      }));
+      works = thenableThenGotten;
+    }
   } catch(e){ works = false; }
   return works;
 }();
