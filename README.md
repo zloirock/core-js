@@ -1311,6 +1311,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.16 - 2015.06.11
+  * more correct order resolving thenable in [`Promise`](#ecmascript-6-promises) polyfill
+  * uses polyfill instead of [buggy V8 `Promise`](https://code.google.com/p/v8/issues/detail?id=4162)
+
 ##### 0.9.15 - 2015.06.09
   * [collections](#ecmascript-6-collections) from `library` version return wrapped native instances
   * fixed collections prototype methods in `library` version

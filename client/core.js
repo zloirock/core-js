@@ -1,5 +1,5 @@
 /**
- * core-js 0.9.15
+ * core-js 0.9.16
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -2183,6 +2183,14 @@ var __e = null, __g = null;
 	    if(!(P2.resolve(5).then(function(){}) instanceof P2)){
 	      works = false;
 	    }
+	    // actual V8 bug, https://code.google.com/p/v8/issues/detail?id=4162
+	    if(works && $.DESC){
+	      var thenableThenGotten = false;
+	      P.resolve($.setDesc({}, 'then', {
+	        get: function(){ thenableThenGotten = true; }
+	      }));
+	      works = thenableThenGotten;
+	    }
 	  } catch(e){ works = false; }
 	  return works;
 	}();
@@ -2268,21 +2276,27 @@ var __e = null, __g = null;
 	}
 	function $resolve(value){
 	  var record = this
-	    , then, wrapper;
+	    , then;
 	  if(record.d)return;
 	  record.d = true;
 	  record = record.r || record; // unwrap
 	  try {
 	    if(then = isThenable(value)){
-	      wrapper = {r: record, d: false}; // wrap
-	      then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
+	      asap(function(){
+	        var wrapper = {r: record, d: false}; // wrap
+	        try {
+	          then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
+	        } catch(e){
+	          $reject.call(wrapper, e);
+	        }
+	      });
 	    } else {
 	      record.v = value;
 	      record.s = 1;
 	      notify(record);
 	    }
-	  } catch(err){
-	    $reject.call(wrapper || {r: record, d: false}, err); // wrap
+	  } catch(e){
+	    $reject.call({r: record, d: false}, e); // wrap
 	  }
 	}
 
