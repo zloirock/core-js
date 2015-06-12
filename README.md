@@ -740,6 +740,8 @@ async function sleepError(time, msg){
   }
 })();
 ```
+`core-js` `Promise` supports (but not adds to native implementations) unhandled rejection tracking. In browser you will see notify in console, in node.js / io.js you can use [`unhandledRejection`](https://gist.github.com/benjamingr/0237932cee84712951a2) event.
+
 ### ECMAScript 6: Reflect
 Module `es6.reflect`.
 ```javascript
@@ -1313,12 +1315,12 @@ delay(1e3).then(() => log('after 1 sec'));
 ## Changelog
 ##### 0.9.16 - 2015.06.11
   * more correct order resolving thenable in [`Promise`](#ecmascript-6-promises) polyfill
-  * uses polyfill instead of [buggy V8 `Promise`](https://code.google.com/p/v8/issues/detail?id=4162)
+  * uses polyfill instead of [buggy V8 `Promise`](https://github.com/zloirock/core-js/issues/78)
 
 ##### 0.9.15 - 2015.06.09
   * [collections](#ecmascript-6-collections) from `library` version return wrapped native instances
   * fixed collections prototype methods in `library` version
-  * optimized `Math.hypot`
+  * optimized [`Math.hypot`](#ecmascript-6-number--math)
 
 ##### 0.9.14 - 2015.06.04
   * updated [`Promise.resolve` behavior](https://esdiscuss.org/topic/fixing-promise-resolve)
