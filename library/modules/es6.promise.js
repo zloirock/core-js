@@ -74,7 +74,8 @@ function isThenable(it){
 }
 function notify(record){
   var chain = record.c;
-  if(chain.length)asap(function(){
+  // strange IE + webpack dev server bug - use .call(global)
+  if(chain.length)asap.call(global, function(){
     var value = record.v
       , ok    = record.s == 1
       , i     = 0;
@@ -120,7 +121,8 @@ function $reject(value){
   record.s = 2;
   record.a = record.c.slice();
   setTimeout(function(){
-    asap(function(){
+    // strange IE + webpack dev server bug - use .call(global)
+    asap.call(global, function(){
       if(isUnhandled(promise = record.p)){
         if(cof(process) == 'process'){
           process.emit('unhandledRejection', value, promise);
@@ -141,7 +143,8 @@ function $resolve(value){
   record = record.r || record; // unwrap
   try {
     if(then = isThenable(value)){
-      asap(function(){
+      // strange IE + webpack dev server bug - use .call(global)
+      asap.call(global, function(){
         var wrapper = {r: record, d: false}; // wrap
         try {
           then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
