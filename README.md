@@ -1313,6 +1313,10 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.17 - 2015.06.14
+  * updated [`RegExp.escape`](#ecmascript-7) to the [latest proposal](https://github.com/benjamingr/RexExp.escape)
+  * fixed conflict with webpack dev server + IE buggy behavior
+
 ##### 0.9.16 - 2015.06.11
   * more correct order resolving thenable in [`Promise`](#ecmascript-6-promises) polyfill
   * uses polyfill instead of [buggy V8 `Promise`](https://github.com/zloirock/core-js/issues/78)

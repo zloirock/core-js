@@ -1,5 +1,5 @@
 /**
- * core-js 0.9.16
+ * core-js 0.9.17
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -598,7 +598,7 @@ var __e = null, __g = null;
 
 	var $      = __webpack_require__(2)
 	  , SHARED = '__core-js_shared__'
-	  , store  = $.g[SHARED] || $.hide($.g, SHARED, {})[SHARED];
+	  , store  = $.g[SHARED] || ($.g[SHARED] = {});
 	module.exports = function(key){
 	  return store[key] || (store[key] = {});
 	};
@@ -1987,6 +1987,7 @@ var __e = null, __g = null;
 	  , PROMISE  = 'Promise'
 	  , global   = $.g
 	  , process  = global.process
+	  , isNode   = cof(process) == 'process'
 	  , asap     = process && process.nextTick || __webpack_require__(58).set
 	  , P        = global[PROMISE]
 	  , isFunction     = $.isFunction
@@ -2048,7 +2049,8 @@ var __e = null, __g = null;
 	}
 	function notify(record){
 	  var chain = record.c;
-	  if(chain.length)asap(function(){
+	  // strange IE + webpack dev server bug - use .call(global)
+	  if(chain.length)asap.call(global, function(){
 	    var value = record.v
 	      , ok    = record.s == 1
 	      , i     = 0;
@@ -2094,11 +2096,12 @@ var __e = null, __g = null;
 	  record.s = 2;
 	  record.a = record.c.slice();
 	  setTimeout(function(){
-	    asap(function(){
+	    // strange IE + webpack dev server bug - use .call(global)
+	    asap.call(global, function(){
 	      if(isUnhandled(promise = record.p)){
-	        if(cof(process) == 'process'){
+	        if(isNode){
 	          process.emit('unhandledRejection', value, promise);
-	        } else if(global.console && isFunction(console.error)){
+	        } else if(global.console && console.error){
 	          console.error('Unhandled promise rejection', value);
 	        }
 	      }
@@ -2115,7 +2118,8 @@ var __e = null, __g = null;
 	  record = record.r || record; // unwrap
 	  try {
 	    if(then = isThenable(value)){
-	      asap(function(){
+	      // strange IE + webpack dev server bug - use .call(global)
+	      asap.call(global, function(){
 	        var wrapper = {r: record, d: false}; // wrap
 	        try {
 	          then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
@@ -2264,8 +2268,6 @@ var __e = null, __g = null;
 	  , process            = global.process
 	  , setTask            = global.setImmediate
 	  , clearTask          = global.clearImmediate
-	  , postMessage        = global.postMessage
-	  , addEventListener   = global.addEventListener
 	  , MessageChannel     = global.MessageChannel
 	  , counter            = 0
 	  , queue              = {}
@@ -2303,11 +2305,11 @@ var __e = null, __g = null;
 	    };
 	  // Modern browsers, skip implementation for WebWorkers
 	  // IE8 has postMessage, but it's sync & typeof its postMessage is object
-	  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
+	  } else if(global.addEventListener && isFunction(global.postMessage) && !global.importScripts){
 	    defer = function(id){
-	      postMessage(id, '*');
+	      global.postMessage(id, '*');
 	    };
-	    addEventListener('message', listner, false);
+	    global.addEventListener('message', listner, false);
 	  // WebWorkers
 	  } else if(isFunction(MessageChannel)){
 	    channel = new MessageChannel;
@@ -3009,10 +3011,10 @@ var __e = null, __g = null;
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
-	// https://gist.github.com/kangax/9698100
+	// https://github.com/benjamingr/RexExp.escape
 	var $def = __webpack_require__(9);
 	$def($def.S, 'RegExp', {
-	  escape: __webpack_require__(15)(/([\\\-[\]{}()*+?.,^$|])/g, '\\$1', true)
+	  escape: __webpack_require__(15)(/[\/\\^$*+?.()|[\]{}]/g, '\\$&', true)
 	});
 
 /***/ },
