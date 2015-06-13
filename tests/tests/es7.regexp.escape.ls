@@ -7,4 +7,4 @@ test 'RegExp.escape' !->
   ok typeof! escape is \Function, 'Is function'
   ok /native code/.test(escape), 'looks like native'
   eq escape('qwe asd'), 'qwe asd', "Don't change simple string"
-  eq escape('\\-[]{}()*+?.,^$|'), '\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|', 'Escape all RegExp special chars'
+  eq escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars'

@@ -4701,7 +4701,7 @@
     escape = core.RegExp.escape;
     ok(toString$.call(escape).slice(8, -1) === 'Function', 'Is function');
     eq(escape('qwe asd'), 'qwe asd', "Don't change simple string");
-    eq(escape('\\-[]{}()*+?.,^$|'), '\\\\\\-\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\,\\^\\$\\|', 'Escape all RegExp special chars');
+    eq(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
   });
 }).call(this);
 

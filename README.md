@@ -781,7 +781,7 @@ instance.c; // => 42
 * `String#lpad`, `String#rpad` [proposal](http://wiki.ecmascript.org/doku.php?id=strawman:string_padding) - modules `es7.string.lpad`, `es7.string.rpad`
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
-* `RegExp.escape` [proposal](https://gist.github.com/kangax/9698100) - module `es7.regexp.escape`
+* `RegExp.escape` [proposal](https://github.com/benjamingr/RexExp.escape) - module `es7.regexp.escape`
 * `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules `es7.map.to-json`, `es7.set.to-json`
 
 ```javascript
@@ -829,7 +829,7 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
-RegExp.escape('Hello -[]{}()*+?.,\\^$|'); // => 'Hello \-\[\]\{\}\(\)\*\+\?\.\,\\\^\$\|'
+RegExp.escape('Hello []{}()*+?.\\^$|'); // => 'Hello \[\]\{\}\(\)\*\+\?\.\\\^\$\|'
 
 JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
 JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
