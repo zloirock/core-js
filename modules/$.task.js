@@ -10,8 +10,6 @@ var $      = require('./$')
   , process            = global.process
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
-  , postMessage        = global.postMessage
-  , addEventListener   = global.addEventListener
   , MessageChannel     = global.MessageChannel
   , counter            = 0
   , queue              = {}
@@ -49,11 +47,11 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     };
   // Modern browsers, skip implementation for WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(addEventListener && isFunction(postMessage) && !global.importScripts){
+  } else if(global.addEventListener && isFunction(global.postMessage) && !global.importScripts){
     defer = function(id){
-      postMessage(id, '*');
+      global.postMessage(id, '*');
     };
-    addEventListener('message', listner, false);
+    global.addEventListener('message', listner, false);
   // WebWorkers
   } else if(isFunction(MessageChannel)){
     channel = new MessageChannel;
