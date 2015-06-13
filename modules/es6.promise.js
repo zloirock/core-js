@@ -13,6 +13,7 @@ var $        = require('./$')
   , PROMISE  = 'Promise'
   , global   = $.g
   , process  = global.process
+  , isNode   = cof(process) == 'process'
   , asap     = process && process.nextTick || require('./$.task').set
   , P        = global[PROMISE]
   , isFunction     = $.isFunction
@@ -124,9 +125,9 @@ function $reject(value){
     // strange IE + webpack dev server bug - use .call(global)
     asap.call(global, function(){
       if(isUnhandled(promise = record.p)){
-        if(cof(process) == 'process'){
+        if(isNode){
           process.emit('unhandledRejection', value, promise);
-        } else if(global.console && isFunction(console.error)){
+        } else if(global.console && console.error){
           console.error('Unhandled promise rejection', value);
         }
       }
