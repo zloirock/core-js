@@ -802,7 +802,7 @@ Map
 Set
   #toJSON() -> array
 ```
-[Examples](http://goo.gl/1VJ5b6):
+[Examples](http://goo.gl/XTsVCF):
 ```javascript
 [1, 2, 3].includes(2);        // => true
 [1, 2, 3].includes(4);        // => false
@@ -829,7 +829,7 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
-RegExp.escape('Hello, []{}()*+?.\\/^$|!'); // => 'Hello, \[\]\{\}\(\)\*\+\?\.\\\/\^\$\|!'
+RegExp.escape('Hello, []{}()*+?.\\^$|!'); // => 'Hello, \[\]\{\}\(\)\*\+\?\.\\\^\$\|!'
 
 JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
 JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
