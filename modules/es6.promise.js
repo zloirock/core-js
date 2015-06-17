@@ -219,7 +219,7 @@ species(Wrapper = $.core[PROMISE]);
 $def($def.S + $def.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
-    return new (getConstructor(this))(function(res, rej){ rej(r); });
+    return new this(function(res, rej){ rej(r); });
   }
 });
 $def($def.S + $def.F * (!useNative || testResolve(true)), PROMISE, {
