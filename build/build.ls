@@ -45,6 +45,7 @@ list = <[
   es7.object.to-array
   es7.map.to-json
   es7.set.to-json
+  es7.observable
   web.immediate
   web.dom.iterable
   web.timers
@@ -65,7 +66,7 @@ list = <[
 ]>
 
 experimental = <[
-
+  es7.observable
 ]>
 
 libraryBlacklist = <[
