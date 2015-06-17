@@ -1313,6 +1313,9 @@ delay(1e3).then(() => log('after 1 sec'));
 ```
 
 ## Changelog
+##### 0.9.18 - 2015.06.17
+  * removed `/` from [`RegExp.escape`](#ecmascript-7) escaped characters
+
 ##### 0.9.17 - 2015.06.14
   * updated [`RegExp.escape`](#ecmascript-7) to the [latest proposal](https://github.com/benjamingr/RexExp.escape)
   * fixed conflict with webpack dev server + IE buggy behavior

@@ -1,5 +1,5 @@
 /**
- * core-js 0.9.17
+ * core-js 0.9.18
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -3199,8 +3199,9 @@ var __e = null, __g = null;
 	// https://github.com/benjamingr/RexExp.escape
 	var $def = __webpack_require__(9);
 	$def($def.S, 'RegExp', {
-	  escape: __webpack_require__(16)(/[\/\\^$*+?.()|[\]{}]/g, '\\$&', true)
+	  escape: __webpack_require__(16)(/[\\^$*+?.()|[\]{}]/g, '\\$&', true)
 	});
+
 
 /***/ },
 /* 79 */
