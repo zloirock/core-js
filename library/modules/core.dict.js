@@ -10,7 +10,8 @@ var $        = require('./$')
   , step     = $iter.step
   , getKeys  = $.getKeys
   , toObject = $.toObject
-  , has      = $.has;
+  , has      = $.has
+  , findKey  = createDictMethod(6);
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -88,32 +89,36 @@ function createDictMethod(TYPE){
   };
 }
 
-// true  -> Dict.turn
-// false -> Dict.reduce
-function createDictReduce(IS_TURN){
-  return function(object, mapfn, init){
-    assert.fn(mapfn);
-    var O      = toObject(object)
-      , keys   = getKeys(O)
-      , length = keys.length
-      , i      = 0
-      , memo, key, result;
-    if(IS_TURN){
-      memo = init == undefined ? new (generic(this, Dict)) : Object(init);
-    } else if(arguments.length < 3){
-      assert(length, 'Reduce of empty object with no initial value');
-      memo = O[keys[i++]];
-    } else memo = Object(init);
-    while(length > i)if(has(O, key = keys[i++])){
-      result = mapfn(memo, O[key], key, object);
-      if(IS_TURN){
-        if(result === false)break;
-      } else memo = result;
-    }
-    return memo;
-  };
+function reduce(object, mapfn, init){
+  assert.fn(mapfn);
+  var O      = toObject(object)
+    , keys   = getKeys(O)
+    , length = keys.length
+    , i      = 0
+    , memo, key;
+  if(arguments.length < 3){
+    assert(length, 'Reduce of empty object with no initial value');
+    memo = O[keys[i++]];
+  } else memo = Object(init);
+  while(length > i)if(has(O, key = keys[i++])){
+    memo = mapfn(memo, O[key], key, object);
+  }
+  return memo;
 }
-var findKey = createDictMethod(6);
+
+function includes(object, el){
+  return (el == el ? keyOf(object, el) : findKey(object, function(it){
+    return it != it;
+  })) !== undefined;
+}
+
+function get(object, key){
+  if(has(object, key))return object[key];
+}
+
+function isDict(it){
+  return $.isObject(it) && $.getProto(it) === Dict.prototype;
+}
 
 $def($def.G + $def.F, {Dict: Dict});
 
@@ -129,21 +134,11 @@ $def($def.S, 'Dict', {
   find:     createDictMethod(5),
   findKey:  findKey,
   mapPairs: createDictMethod(7),
-  reduce:   createDictReduce(false),
-  turn:     createDictReduce(true),
+  reduce:   reduce,
   keyOf:    keyOf,
-  includes: function(object, el){
-    return (el == el ? keyOf(object, el) : findKey(object, function(it){
-      return it != it;
-    })) !== undefined;
-  },
-  // Has / get / set own property
-  has: has,
-  get: function(object, key){
-    if(has(object, key))return object[key];
-  },
-  set: $.def,
-  isDict: function(it){
-    return $.isObject(it) && $.getProto(it) === Dict.prototype;
-  }
+  includes: includes,
+  has:      has,
+  get:      get,
+  set:      $.def,
+  isDict:   isDict
 });

@@ -5,7 +5,7 @@ eq = strictEqual
 isFunction = -> typeof! it is \Function
 {slice} = Array::
 test 'are functions' !->
-  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight copyWithin fill find findIndex keys values entries turn includes]>
+  for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight copyWithin fill find findIndex keys values entries includes]>
     ok isFunction(core.Array[..]), "Array.#{..} is function"
 test '.join' !->
   {join} = core.Array
@@ -242,23 +242,6 @@ test '.entries' !->
   deepEqual iter2.next!, {value: [1 \w], done: no}
   deepEqual iter2.next!, {value: [2 \e], done: no}
   deepEqual iter2.next!, {value: void, done: on}
-test '.turn' !->
-  {turn} = core.Array
-  turn (al = (->&)(1)), (memo, val, key, that)->
-    deepEqual [] memo
-    ok val  is 1
-    ok key  is 0
-    ok that is al
-  turn (al = \1), (memo, val, key, that)->
-    deepEqual [] memo
-    ok val is \1
-    ok key is 0
-    ok that ~= al
-  turn (->&)(1), ->
-    ok it is obj
-  , obj = {}
-  deepEqual [3 2 1], turn (->&)(1 2 3), ((memo, it)-> memo.unshift it)
-  deepEqual [\3 \2 \1], turn \123, ((memo, it)-> memo.unshift it)
 test '.includes' !->
   {includes} = core.Array
   ok isFunction(includes), 'Is function'

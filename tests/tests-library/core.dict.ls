@@ -144,18 +144,6 @@ test '.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test '.turn' !->
-  {turn} = Dict
-  ok isFunction(turn), 'Is function'
-  turn (obj = q: 1), (memo, val, key, that)->
-    deepEqual memo, Dict!
-    ok val  is 1
-    ok key  is \q
-    ok that is obj
-  turn {q:1} ->
-    ok it   is obj
-  , obj = {}
-  deepEqual turn({q:1 w:2 e:3} (memo, it)-> memo[it] = it), Dict {1:1 2:2 3:3}
 test '.includes' !->
   {includes} = Dict
   ok isFunction(includes), 'Is function'

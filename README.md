@@ -44,7 +44,6 @@ core.setImmediate(core.log, 42);                // => 42
   - [Dict](#dict)
   - [Partial application](#partial-application)
   - [Date formatting](#date-formatting)
-  - [Array](#array)
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
   - [delay](#delay)
@@ -1036,7 +1035,6 @@ Module `core.dict`. Based on [TC39 discuss](https://github.com/rwaldron/tc39-not
   .keyOf(object, var) -> key
   .includes(object, var) -> bool
   .reduce(object, fn(memo, val, key, @), memo?) -> var
-  .turn(object, fn(memo, val, key, @), memo = new @) -> memo
 ```
 `Dict` create object without prototype from iterable or simple object. [Example](http://goo.gl/pnp8Vr):
 ```javascript
@@ -1102,7 +1100,7 @@ Dict.set(O, '__proto__', {w: 2});
 O['__proto__']; // => {w: 2}
 O['w'];         // => undefined
 ```
-Other methods of `Dict` module are static equialents of `Array.prototype` methods for dictionaries, [examples](http://goo.gl/yARYXR):
+Other methods of `Dict` module are static equialents of `Array.prototype` methods for dictionaries, [examples](http://goo.gl/xFi1RH):
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
@@ -1157,13 +1155,6 @@ Dict.reduce(dict, function(memo, it){
 Dict.reduce(dict, function(memo, it){
   return memo + it;
 }, ''); // => '123'
-
-Dict.turn(dict, function(memo, it, key){
-  memo[key + key] = it;
-});     // => {aa: 1, bb: 2, cc: 3}
-Dict.turn(dict, function(memo, it, key){
-  it % 2 && memo.push(key + it);
-}, []); // => ['a1', 'c3']
 ```
 ### Partial application
 Module `core.function.part`.
@@ -1233,23 +1224,6 @@ new Date().format('M Y');              // => 'Ноябрь 2014'
   weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
   months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
 });
-```
-### Array
-Module `core.array.turn`.
-```javascript
-Array
-  #turn(fn(memo, val, index, @), memo = []) -> memo
-```
-Method `Array#turn` reduce array to object, [example](http://goo.gl/zZbvq7):
-```javascript
-[1, 2, 3, 4, 5].turn(function(memo, it){
-  memo['key' + it] = !!(it % 2);
-}, {}); // => {key1: true, key2: false, key3: true, key4: false, key5: true}
-
-[1, 2, 3, 4, 5, 6, 7, 8, 9].turn(function(memo, it){
-  it % 2 && memo.push(it * it);
-  if(memo.length == 3)return false;
-}); // => [1, 9, 25]
 ```
 ### Number
 Modules `core.number.iterator`.

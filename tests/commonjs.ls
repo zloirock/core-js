@@ -40,7 +40,6 @@ for P in <[.. ../library]>
   ok Array.isArray require("#P/fn/array/of") \q \w \e
   ok \next of require("#P/fn/array/values")([])
   ok require("#P/fn/array/includes")([1 2 3], 2)
-  ok require("#P/fn/array/turn")([1, 2, 3], (-> it.q++), {q: 0}).q is 3
   ok typeof require("#P/fn/array/concat") is \function
   ok typeof require("#P/fn/array/every") is \function
   ok typeof require("#P/fn/array/filter") is \function
@@ -193,7 +192,6 @@ for P in <[.. ../library]>
   ok \setImmediate of require("#P/web")
   ok typeof require("#P/core/$for") is \function
   ok require("#P/core/_")
-  ok \turn of require("#P/core/array")
   ok \format of require("#P/core/date")
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function

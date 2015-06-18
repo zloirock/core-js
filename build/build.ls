@@ -55,7 +55,6 @@ list = <[
   core.delay
   core.function.part
   core.object
-  core.array.turn
   core.number.iterator
   core.string.escape-html
   core.date
