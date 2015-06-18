@@ -51,7 +51,6 @@ list = <[
   web.timers
   core.dict
   core.iter-helpers
-  core.$for
   core.delay
   core.function.part
   core.object

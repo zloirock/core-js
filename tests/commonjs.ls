@@ -153,7 +153,6 @@ for P in <[.. ../library]>
   ok \then of require("#P/fn/delay")(1)
   ok require("#P/fn/global") is global
   ok \warn of require("#P/fn/log")
-  ok \of of require("#P/fn/$for")([])
   ok require("#P/fn/is-iterable")([])
   ok \next of require("#P/fn/get-iterator")([])
   ################################################
@@ -186,7 +185,6 @@ for P in <[.. ../library]>
   ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom")
   ok \setImmediate of require("#P/web")
-  ok typeof require("#P/core/$for") is \function
   ok require("#P/core/_")
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function

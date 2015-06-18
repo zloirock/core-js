@@ -1,7 +1,6 @@
 require('./shim');
 require('./modules/core.dict');
 require('./modules/core.iter-helpers');
-require('./modules/core.$for');
 require('./modules/core.delay');
 require('./modules/core.function.part');
 require('./modules/core.object');

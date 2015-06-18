@@ -595,60 +595,6 @@ log(iter.next().value); // 2
 log(iter.next().value); // 3
 log(iter.next().value); // undefined
 ```
-Module `core.$for` - iterators chaining - `for-of` and array / generator comprehensions helpers for ES5- syntax.
-```javascript
-$for(iterable, entries) -> iterator ($for)
-  #of(fn(value, key?), that) -> void
-  #array(mapFn(value, key?)?, that) -> array
-  #filter(fn(value, key?), that) -> iterator ($for)
-  #map(fn(value, key?), that) -> iterator ($for)
-```
-[Examples](http://goo.gl/Jtz0oG):
-```javascript
-$for(new Set([1, 2, 3, 2, 1])).of(function(it){
-  log(it); // => 1, 2, 3
-});
-
-$for([1, 2, 3].entries(), true).of(function(key, value){
-  log(key);   // => 0, 1, 2
-  log(value); // => 1, 2, 3
-});
-
-$for('abc').of(console.log, console); // => 'a', 'b', 'c'
-
-$for([1, 2, 3, 4, 5]).of(function(it){
-  log(it); // => 1, 2, 3
-  if(it == 3)return false;
-});
-
-var ar1 = $for([1, 2, 3]).array(function(v){
-  return v * v;
-}); // => [1, 4, 9]
-
-var set = new Set([1, 2, 3, 2, 1]);
-var ar1 = $for(set).filter(function(v){
-  return v % 2;
-}).array(function(v){
-  return v * v;
-}); // => [1, 9]
-
-var iter = $for(set).filter(function(v){
-  return v % 2;
-}).map(function(v){
-  return v * v;
-});
-iter.next(); // => {value: 1, done: false}
-iter.next(); // => {value: 9, done: false}
-iter.next(); // => {value: undefined, done: true}
-
-var map1 = new Map([['a', 1], ['b', 2], ['c', 3]]);
-var map2 = new Map($for(map1, true).filter(function(k, v){
-  return v % 2;
-}).map(function(k, v){
-  return [k + k, v * v];
-})); // => Map {aa: 1, cc: 9}
-```
-
 ### ECMAScript 6: Promises
 Module `es6.promise`.
 ```javascript
