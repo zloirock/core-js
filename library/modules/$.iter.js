@@ -42,8 +42,8 @@ module.exports = {
     return assertObject(getIter.call(it));
   },
   set: setIterator,
-  create: function(Constructor, NAME, next, proto){
-    Constructor.prototype = $.create(proto || IteratorPrototype, {next: $.desc(1, next)});
+  create: function(Constructor, NAME, next){
+    Constructor.prototype = $.create(IteratorPrototype, {next: $.desc(1, next)});
     cof.set(Constructor, NAME + ' Iterator');
   }
 };
