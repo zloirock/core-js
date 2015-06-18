@@ -136,10 +136,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/symbol/for") is \function
   ok typeof require("#P/fn/symbol/key-for") is \function
   ok \iterator of require("#P/fn/symbol")
-  ok typeof require("#P/fn/date/format")(new Date) is \string
-  ok typeof require("#P/fn/date/format-utc")(new Date) is \string
-  ok typeof require("#P/fn/date/add-locale") is \function
-  ok \format of require("#P/fn/date")
   ok new (require("#P/fn/map"))([[1, 2], [3, 4]]).size is 2
   ok new (require("#P/fn/set"))([1, 2, 3, 2, 1]).size is 3
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
@@ -192,7 +188,6 @@ for P in <[.. ../library]>
   ok \setImmediate of require("#P/web")
   ok typeof require("#P/core/$for") is \function
   ok require("#P/core/_")
-  ok \format of require("#P/core/date")
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")

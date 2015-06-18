@@ -57,7 +57,6 @@ list = <[
   core.object
   core.number.iterator
   core.string.escape-html
-  core.date
   core.global
   core.log
   js.array.statics

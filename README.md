@@ -43,7 +43,6 @@ core.setImmediate(core.log, 42);                // => 42
   - [Object](#object)
   - [Dict](#dict)
   - [Partial application](#partial-application)
-  - [Date formatting](#date-formatting)
   - [Number](#number)
   - [Escaping characters](#escaping-characters)
   - [delay](#delay)
@@ -1175,55 +1174,6 @@ fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
-```
-### Date formatting
-Module `core.date`. Much more simple and compact (~60 lines with `en` & `ru` locales) than [Intl](https://github.com/andyearnshaw/Intl.js) or [Moment.js](http://momentjs.com/). Use them if you need extended work with `Date`.
-```javascript
-Date
-  #format(str, key?) -> str
-  #formatUTC(str, key?) -> str
-core
-  .addLocale(key, object) -> core
-  .locale(key?) -> key
-```
-Token | Unit | Sample
-------|----- | ------
-s  | Seconds           | 0-59
-ss | Seconds, 2 digits | 00-59
-m  | Minutes           | 0-59
-mm | Minutes, 2 digits | 00-59
-h  | Hours             | 0-23
-hh | Hours, 2 digits   | 00-23
-D  | Date              | 1-31
-DD | Date, 2 digits    | 01-31
-W  | Weekday, string   | Вторник
-N  | Month             | 1-12
-NN | Month, 2 digits   | 01-12
-M  | Month, string     | Ноябрь
-MM | Of month, string  | Ноября
-Y  | Year, full        | 2014
-YY | Year, 2 digits    | 14
-[Examples](http://goo.gl/nkCJ15):
-```javascript
-new Date().format('W, MM D, YY, h:mm:ss');        // => 'Friday, November 28, 14, 18:47:05'
-new Date().formatUTC('W, MM D, YY, h:mm:ss');     // => 'Friday, November 28, 14, 12:47:05'
-
-new Date().format('W, D MM Y г., h:mm:ss', 'ru'); // => 'Пятница, 28 Ноября 2014 г., 18:07:25'
-
-core.locale('ru');
-new Date().format('W, D MM Y г., h:mm:ss');       // => 'Пятница, 28 Ноября 2014 г., 18:07:25'
-
-new Date().format('DD.NN.YY');         // => '28.11.14'
-new Date().format('hh:mm:ss');         // => '18:47:05'
-new Date().format('DD.NN.Y hh:mm:ss'); // => '28.11.2014 18:47:05'
-new Date().format('W, D MM Y года');   // => 'Пятница, 28 Ноября 2014 года'
-new Date().format('D MM, h:mm');       // => '28 Ноября, 16:47'
-new Date().format('M Y');              // => 'Ноябрь 2014'
-
-(typeof core != 'undefined' ? core : require('core-js/library')).addLocale('ru', {
-  weekdays: 'Воскресенье,Понедельник,Вторник,Среда,Четверг,Пятница,Суббота',
-  months: 'Январ:я|ь,Феврал:я|ь,Март:а|,Апрел:я|ь,Ма:я|й,Июн:я|ь,Июл:я|ь,Август:а|,Сентябр:я|ь,Октябр:я|ь,Ноябр:я|ь,Декабр:я|ь'
-});
 ```
 ### Number
 Modules `core.number.iterator`.

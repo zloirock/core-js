@@ -6,7 +6,6 @@ require('../modules/core.function.part');
 require('../modules/core.object');
 require('../modules/core.number.iterator');
 require('../modules/core.string.escape-html');
-require('../modules/core.date');
 require('../modules/core.global');
 require('../modules/core.log');
 module.exports = require('../modules/$').core;
