@@ -200,7 +200,6 @@ for P in <[.. ../library]>
   ok \part of require("#P/core/function")
   ok require("#P/core/global")
   ok typeof require("#P/core/log") is \function
-  ok \random of require("#P/core/number")
   ok \define of require("#P/core/object")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")

@@ -1252,12 +1252,10 @@ Method `Array#turn` reduce array to object, [example](http://goo.gl/zZbvq7):
 }); // => [1, 9, 25]
 ```
 ### Number
-Modules `core.number.iterator` and `core.number.math`.
+Modules `core.number.iterator`.
 ```javascript
 Number
   #@@iterator() -> iterator
-  #random(lim = 0) -> num
-  #{...Math} 
 ```
 Number Iterator [examples](http://goo.gl/RI60Ot):
 ```javascript
@@ -1275,17 +1273,6 @@ Array.from(10, function(it){
 [for(i of 10)if(i % 2)i * i]; // => [1, 9, 25, 49, 81]
 
 Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
-```
-`Math` methods in `Number.prototype` [examples](http://goo.gl/06bs1k):
-```javascript
-3..pow(3);           // => 27
-(-729).abs().sqrt(); // => 27
-
-10..random(20);         // => Random number (10, 20), for example, 16.818793776910752
-10..random(20).floor(); // => Random integer [10, 19], for example, 16
-
-var array = [1, 2, 3, 4, 5];
-array[array.length.random().floor()]; // => Random element, for example, 4
 ```
 ### Escaping characters
 Module `core.string.escape-html`.

@@ -57,7 +57,6 @@ list = <[
   core.object
   core.array.turn
   core.number.iterator
-  core.number.math
   core.string.escape-html
   core.date
   core.global
