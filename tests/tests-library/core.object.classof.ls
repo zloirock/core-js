@@ -1,24 +1,7 @@
-QUnit.module 'core-js Object'
-isFunction = -> typeof! it is \Function
-test '.isObject' !->
-  {isObject} = core.Object
-  ok isFunction(isObject), 'Is function'
-  ok not isObject(void), 'isObject undefined return false'
-  ok not isObject(null), 'isObject null return false'
-  ok not isObject(1), 'isObject number return false'
-  ok not isObject(true), 'isObject bool return false'
-  ok not isObject('string'), 'isObject string return false'
-  ok isObject(new Number 1), 'isObject new Number return true'
-  ok isObject(new Boolean no), 'isObject new Boolean return true'
-  ok isObject(new String 1), 'isObject new String return true'
-  ok isObject({}), 'isObject object return true'
-  ok isObject([]), 'isObject array return true'
-  ok isObject(/./), 'isObject regexp return true'
-  ok isObject(->), 'isObject function return true'
-  ok isObject(new ->), 'isObject constructor instance return true'
-test '.classof' !->
+QUnit.module 'core-js Object.classof'
+test '*' !->
   {classof} = core.Object
-  ok isFunction(classof), 'Is function'
+  ok typeof! classof is \Function, 'Is function'
   ok classof(void) is \Undefined, 'classof undefined is `Undefined`'
   ok classof(null) is \Null, 'classof null is `Null`'
   ok classof(true) is \Boolean, 'classof bool is `Boolean`'
@@ -49,20 +32,3 @@ test '.classof' !->
   class Class
     @::[core.Symbol.toStringTag] = \Class
   ok classof(new Class) is \Class, 'classof user class is [Symbol.toStringTag]'
-test '.make' !->
-  {make} = core.Object
-  ok isFunction(make), 'Is function'
-  object = make foo = {q:1}, {w:2}
-  ok core.Object.getPrototypeOf(object) is foo
-  ok object.w is 2
-test '.define' !->
-  {define} = core.Object
-  ok isFunction(define), 'Is function'
-  foo = q:1
-  ok foo is define foo, w:2
-  ok foo.w is 2
-  if (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
-    foo = q:1
-    foo2 = core.Object.defineProperty {}, \w, get: -> @q + 1
-    define foo, foo2
-    ok foo.w is 2

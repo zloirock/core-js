@@ -53,7 +53,10 @@ list = <[
   core.iter-helpers
   core.delay
   core.function.part
-  core.object
+  core.object.is-object
+  core.object.classof
+  core.object.define
+  core.object.make
   core.number.iterator
   core.string.escape-html
   core.global
