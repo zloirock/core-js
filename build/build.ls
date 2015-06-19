@@ -50,7 +50,8 @@ list = <[
   es7.string.rpad
   es7.regexp.escape
   es7.object.get-own-property-descriptors
-  es7.object.to-array
+  es7.object.values
+  es7.object.entries
   es7.map.to-json
   es7.set.to-json
   es7.observable
