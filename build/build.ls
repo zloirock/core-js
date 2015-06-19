@@ -11,7 +11,15 @@ list = <[
   es6.function.name
   es6.function.has-instance
   es6.number.constructor
-  es6.number.statics
+  es6.number.epsilon
+  es6.number.is-finite
+  es6.number.is-integer
+  es6.number.is-nan
+  es6.number.is-safe-integer
+  es6.number.max-safe-integer
+  es6.number.min-safe-integer
+  es6.number.parse-float
+  es6.number.parse-int
   es6.math
   es6.string.from-code-point
   es6.string.raw
