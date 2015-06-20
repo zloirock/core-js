@@ -4,7 +4,7 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![Dependency Status](https://david-dm.org/zloirock/core-js.svg)](https://david-dm.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
 
-Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict), [extended partial application](#partial-application), [console cap](#console), [date formatting](#date-formatting). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
+Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -43,8 +43,8 @@ core.setImmediate(core.log, 42);                // => 42
   - [Object](#object)
   - [Dict](#dict)
   - [Partial application](#partial-application)
-  - [Number](#number)
-  - [Escaping characters](#escaping-characters)
+  - [Number Iterator](#number-iterator)
+  - [Escaping HTML](#escaping-html)
   - [delay](#delay)
 - [Changelog](#changelog)
 
@@ -1121,13 +1121,13 @@ fn3(2, 3);    // => 1, 2, 3, 4
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
 ```
-### Number
+### Number Iterator
 Modules `core.number.iterator`.
 ```javascript
 Number
   #@@iterator() -> iterator
 ```
-Number Iterator [examples](http://goo.gl/RI60Ot):
+[Examples](http://goo.gl/RI60Ot):
 ```javascript
 for(var i of 3)log(i); // => 0, 1, 2
 
@@ -1144,7 +1144,7 @@ Array.from(10, function(it){
 
 Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
 ```
-### Escaping characters
+### Escaping HTML
 Module `core.string.escape-html`.
 ```javascript
 String
