@@ -3,13 +3,15 @@ var $              = require('./$')
   , $def           = require('./$.def')
   , assertFunction = require('./$.assert').fn
   , isObject       = $.isObject
-  , _apply         = Function.apply;
+  , apply          = Function.apply
+  , bind           = Function.bind;
 
 $def($def.S, 'Reflect', {
   construct: function construct(target, argumentsList /*, newTarget*/){
-    var proto    = assertFunction(arguments.length < 3 ? target : arguments[2]).prototype
+    if(arguments.length < 3)return new (bind.apply(target, [null].concat(argumentsList)))();
+    var proto    = assertFunction(arguments[2]).prototype
       , instance = $.create(isObject(proto) ? proto : Object.prototype)
-      , result   = _apply.call(target, instance, argumentsList);
+      , result   = apply.call(target, instance, argumentsList);
     return isObject(result) ? result : instance;
   }
 });

@@ -2882,6 +2882,7 @@
         return false;
       }
     }()));
+    eq(construct(Set, [[1, 2, 3, 2, 1]]).size, 3, 'works with native constructors');
   });
 }).call(this);
 

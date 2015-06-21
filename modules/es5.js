@@ -170,7 +170,7 @@ $def($def.P, 'Function', {
     function bound(/* args... */){
       var args   = partArgs.concat(_slice.call(arguments))
         , constr = this instanceof bound
-        , ctx    = constr ? $.create(fn.prototype) : that
+        , ctx    = constr ? $.create(isObject(fn.prototype) ? fn.prototype : ObjectProto) : that
         , result = invoke(fn, args, ctx);
       return constr ? ctx : result;
     }
