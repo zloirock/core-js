@@ -174,7 +174,7 @@ $def($def.P, 'Function', {
         , result = invoke(fn, args, ctx);
       return constr ? ctx : result;
     }
-    if(fn.prototype)bound.prototype = fn.prototype;
+    if(isObject(fn.prototype))bound.prototype = fn.prototype;
     return bound;
   }
 });
