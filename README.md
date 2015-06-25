@@ -361,6 +361,7 @@ Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
 #### Caveats when using `Symbol` polyfill:
 
 * We can't add new primitive type, `Symbol` returns object.
+* `Symbol.for` and `Symbol.keyFor` can't be shimmed cross-realm.
 * By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
 You can disable defining setter in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
