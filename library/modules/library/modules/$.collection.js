@@ -41,9 +41,8 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F, O);
-  require('./$.species')(C);
 
-  if(!IS_WEAK)common.setIter(C, NAME, IS_MAP);
+  if(!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
 
   return C;
 };

@@ -3,7 +3,6 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , BUGGY = require('./$.iter').BUGGY
   , forOf = require('./$.for-of')
-  , species = require('./$.species')
   , assertInstance = require('./$.assert').inst;
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
@@ -60,10 +59,8 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F * (C != Base), O);
-  species(C);
-  species($.core[NAME]); // for wrapper
 
-  if(!IS_WEAK)common.setIter(C, NAME, IS_MAP);
+  if(!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
 
   return C;
 };
