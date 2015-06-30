@@ -25,7 +25,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     });
     $.each.call('add,clear,delete,forEach,get,has,set,keys,values,entries'.split(','),function(KEY){
       var chain = KEY == 'add' || KEY == 'set';
-      if(KEY in proto)$.hide(C.prototype, KEY, function(a, b){
+      if(KEY in proto && !(IS_WEAK && KEY == 'clear'))$.hide(C.prototype, KEY, function(a, b){
         var result = this[INTERNAL][KEY](a === 0 ? 0 : a, b);
         return chain ? this : result;
       });

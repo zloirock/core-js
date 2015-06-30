@@ -28,6 +28,7 @@ test 'WeakSet' !->
   iter.return = -> done := on
   try => new WeakSet iter
   ok done, '.return #throw'
+  ok !(\clear of WeakSet::), 'should not contains `.clear` method'
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok (w = new WeakSet)add({}) is w, 'chaining'

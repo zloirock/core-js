@@ -52,6 +52,8 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     }
     // + fix .add & .set for chaining
     if(buggyZero || chain !== inst)fixMethod(ADDER);
+    // weak collections should not contains .clear method
+    if(IS_WEAK && proto.clear)delete proto.clear;
   }
 
   require('./$.cof').set(C, NAME);

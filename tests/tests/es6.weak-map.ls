@@ -32,6 +32,7 @@ test 'WeakMap' !->
   iter.return = -> done := on
   try => new WeakMap iter
   ok done, '.return #throw'
+  ok !(\clear of WeakMap::), 'should not contains `.clear` method'
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   ok /native code/.test(WeakMap::delete), 'looks like native'

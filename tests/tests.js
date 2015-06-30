@@ -4776,6 +4776,7 @@
       new WeakMap(iter);
     } catch (e$) {}
     ok(done, '.return #throw');
+    ok(!('clear' in WeakMap.prototype), 'should not contains `.clear` method');
   });
   test('WeakMap#delete', function(){
     var M, a, b;
@@ -4866,6 +4867,7 @@
       new WeakSet(iter);
     } catch (e$) {}
     ok(done, '.return #throw');
+    ok(!('clear' in WeakSet.prototype), 'should not contains `.clear` method');
   });
   test('WeakSet#add', function(){
     var a, e;

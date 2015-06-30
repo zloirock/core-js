@@ -31,6 +31,7 @@ test 'WeakMap' !->
   iter.return = -> done := on
   try => new WeakMap iter
   ok done, '.return #throw'
+  ok !(\clear of WeakMap::), 'should not contains `.clear` method'
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap [[a = {}, 42], [b = {}, 21]]
