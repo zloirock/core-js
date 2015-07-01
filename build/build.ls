@@ -20,7 +20,23 @@ list = <[
   es6.number.min-safe-integer
   es6.number.parse-float
   es6.number.parse-int
-  es6.math
+  es6.math.acosh
+  es6.math.asinh
+  es6.math.atanh
+  es6.math.cbrt
+  es6.math.clz32
+  es6.math.cosh
+  es6.math.expm1
+  es6.math.fround
+  es6.math.hypot
+  es6.math.imul
+  es6.math.log10
+  es6.math.log1p
+  es6.math.log2
+  es6.math.sign
+  es6.math.sinh
+  es6.math.tanh
+  es6.math.trunc
   es6.string.from-code-point
   es6.string.raw
   es6.string.iterator
