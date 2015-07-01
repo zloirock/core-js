@@ -1,9 +1,9 @@
-QUnit.module 'ES6 Array.of'
+QUnit.module \ES6
 
 deq = deepEqual
 eq = strictEqual
 
-test '*' !->
+test 'Array.of' !->
   ok typeof! Array.of is \Function, 'Is function'
   eq Array.of.length, 0, 'length is 0'
   ok /native code/.test(Array.of), 'looks like native'

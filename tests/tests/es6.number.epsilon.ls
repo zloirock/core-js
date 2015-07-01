@@ -1,6 +1,6 @@
-QUnit.module 'ES6 Number.EPSILON'
+QUnit.module \ES6
 eq = strictEqual
-test '*' !->
+test 'Number.EPSILON' !->
   {EPSILON} = Number
   ok \EPSILON of Number, 'EPSILON in Number'
   eq EPSILON, 2^-52, 'Is 2^-52'

@@ -1,11 +1,10 @@
 'use strict'
-
-QUnit.module 'ES6 Array#copyWithin'
+QUnit.module \ES6
 
 deq = deepEqual
 eq = strictEqual
 
-test '*' !->
+test 'Array#copyWithin' !->
   ok typeof! Array::copyWithin is \Function, 'Is function'
   eq Array::copyWithin.length, 2, 'length is 2'
   ok /native code/.test(Array::copyWithin), 'looks like native'

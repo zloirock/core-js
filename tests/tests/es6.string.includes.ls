@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 String#includes'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String#includes' !->
   ok typeof! String::includes is \Function, 'Is function'
   eq String::includes.length, 1, 'arity is 1'
   ok /native code/.test(String::includes), 'looks like native'

@@ -1,11 +1,10 @@
 'use strict'
-
-QUnit.module 'ES6 Array#fill'
+QUnit.module \ES6
 
 deq = deepEqual
 eq = strictEqual
 
-test '*' !->
+test 'Array#fill' !->
   ok typeof! Array::fill is \Function, 'Is function'
   eq Array::fill.length, 1, 'length is 1'
   ok /native code/.test(Array::fill), 'looks like native'

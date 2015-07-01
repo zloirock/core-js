@@ -1,10 +1,10 @@
-QUnit.module 'ES6 Reflect.ownKeys'
+QUnit.module \ES6
 
 {defineProperty} = Object
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.ownKeys' !->
   {ownKeys} = Reflect
   sym = Symbol \c
   ok typeof! ownKeys is \Function, 'Reflect.ownKeys is function'

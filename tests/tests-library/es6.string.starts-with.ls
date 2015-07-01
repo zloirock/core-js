@@ -1,8 +1,8 @@
 'use strict'
 
-QUnit.module 'ES6 String#startsWith'
+QUnit.module \ES6
 
-test '*' !->
+test 'String#startsWith' !->
   {startsWith} = core.String
   ok typeof! startsWith is \Function, 'Is function'
   ok startsWith 'undefined'

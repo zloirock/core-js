@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES7 String#at'
+QUnit.module \ES7
 
 eq = strictEqual
 
-test '*' !->
+test 'String#at' !->
   {at} = core.String
   ok typeof! at is \Function, 'Is function'
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js

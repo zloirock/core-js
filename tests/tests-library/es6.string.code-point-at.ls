@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 String#codePointAt'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String#codePointAt' !->
   {codePointAt} = core.String
   ok typeof! codePointAt is \Function, 'Is function'
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js

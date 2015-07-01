@@ -1,8 +1,8 @@
-QUnit.module 'ES6 Reflect.has'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.has' !->
   {has} = Reflect
   ok typeof! has is \Function, 'Reflect.has is function'
   eq has.length, 2, 'arity is 2'

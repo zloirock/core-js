@@ -1,8 +1,8 @@
-QUnit.module 'ES6 String.fromCodePoint'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String.fromCodePoint' !->
   {fromCodePoint} = String
   ok typeof! fromCodePoint is \Function, 'Is function'
   eq fromCodePoint.length, 1, 'arity is 1'

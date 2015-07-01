@@ -1,6 +1,6 @@
 'use strict'
 
-QUnit.module 'ES6 Object prototype'
+QUnit.module \ES6
 
 eq = strictEqual
 

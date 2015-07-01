@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.set'
+QUnit.module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = core.Object
 
@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.set' !->
   {set} = core.Reflect
   ok typeof! set is \Function, 'Reflect.set is function'
   eq set.length, 3, 'arity is 3'

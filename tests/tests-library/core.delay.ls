@@ -1,10 +1,10 @@
-QUnit.module 'core-js delay'
+QUnit.module 'core-js'
 
 {delay, Promise} = core
 
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 
-test '*' !->
+test 'delay' !->
   it.expect 3
   ok typeof! delay is \Function, 'is function'
   ok delay(42) instanceof Promise, 'returns promises'

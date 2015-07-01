@@ -1,11 +1,11 @@
-QUnit.module 'ES6 String Iterator'
+QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual
 isFunction = -> typeof! it is \Function
 isIterator = -> typeof it is \object && isFunction it.next
 
-test '*' !->
+test 'String#@@iterator' !->
   ok isFunction(String::[Symbol?iterator]), 'Is function'
   iter = 'qwe'[Symbol?iterator]!
   ok isIterator(iter), 'Return iterator'

@@ -1,8 +1,8 @@
 'use strict'
 
-QUnit.module 'ES7 Array#includes'
+QUnit.module \ES7
 
-test '*' !->
+test 'Array#includes' !->
   {includes} = core.Array
   ok typeof! includes is \Function, 'Is function'
   arr = [1 2 3 -0 o = {}]

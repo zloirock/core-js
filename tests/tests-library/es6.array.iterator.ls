@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Array Iterator'
+QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual

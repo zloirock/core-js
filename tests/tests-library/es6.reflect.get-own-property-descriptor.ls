@@ -1,8 +1,8 @@
-QUnit.module 'ES6 Reflect.getOwnPropertyDescriptor'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.getOwnPropertyDescriptor' !->
   {getOwnPropertyDescriptor} = core.Reflect
   ok typeof! getOwnPropertyDescriptor is \Function, 'Reflect.getOwnPropertyDescriptor is function'
   eq getOwnPropertyDescriptor.length, 2, 'arity is 2'

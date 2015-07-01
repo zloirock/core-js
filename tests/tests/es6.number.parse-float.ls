@@ -1,5 +1,5 @@
-QUnit.module 'ES6 Number.parseFloat'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.parseFloat' !->
   ok typeof! Number.parseFloat is \Function, 'Is function'
   ok /native code/.test(Number.parseFloat), 'looks like native'

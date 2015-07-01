@@ -1,5 +1,5 @@
-QUnit.module 'core-js global'
-test \global !->
+QUnit.module \core-js
+test 'global' !->
   ok global?, 'global is define'
   ok global.global is global, 'global.global is global'
   global.__tmp__ = {}

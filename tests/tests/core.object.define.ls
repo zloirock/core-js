@@ -1,5 +1,5 @@
-QUnit.module 'core-js Object.define'
-test '*' !->
+QUnit.module \core-js
+test 'Object.define' !->
   {define, defineProperty} = Object
   ok typeof! define is \Function, 'Is function'
   foo = q:1

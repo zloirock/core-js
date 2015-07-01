@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Number.parseFloat'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.parseFloat' !->
   ok typeof! core.Number.parseFloat is \Function, 'Is function'

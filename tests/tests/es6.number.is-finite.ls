@@ -1,6 +1,6 @@
-QUnit.module 'ES6 Number.isFinite'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.isFinite' !->
   {isFinite} = Number
   {create} = Object
   ok typeof! isFinite is \Function, 'Is function'

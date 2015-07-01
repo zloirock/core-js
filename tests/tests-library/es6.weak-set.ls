@@ -1,4 +1,4 @@
-QUnit.module 'ES6 WeakSet'
+QUnit.module \ES6
 
 isFunction = -> typeof! it is \Function
 

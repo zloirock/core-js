@@ -1,11 +1,11 @@
-QUnit.module 'ES7 Object.getOwnPropertyDescriptors'
+QUnit.module \ES7
 
 descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 {create} = core.Object
 
-test '*' !->
+test 'Object.getOwnPropertyDescriptors' !->
   {getOwnPropertyDescriptors} = core.Object
   ok typeof! getOwnPropertyDescriptors is \Function, 'Is function'
   

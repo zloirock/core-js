@@ -1,5 +1,5 @@
-QUnit.module 'core-js Object.classof'
-test '*' !->
+QUnit.module 'core-js'
+test 'Object.classof' !->
   {classof} = core.Object
   ok typeof! classof is \Function, 'Is function'
   ok classof(void) is \Undefined, 'classof undefined is `Undefined`'

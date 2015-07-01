@@ -1,5 +1,5 @@
-QUnit.module 'core-js Object.isObject'
-test '*' !->
+QUnit.module \core-js
+test 'Object.isObject' !->
   {isObject} = Object
   ok typeof! isObject is \Function, 'Is function'
   ok not isObject(void), 'isObject undefined return false'

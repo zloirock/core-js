@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Number.MAX_SAFE_INTEGER'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.MAX_SAFE_INTEGER' !->
   strictEqual core.Number.MAX_SAFE_INTEGER, 2^53 - 1, 'Is 2^53 - 1'

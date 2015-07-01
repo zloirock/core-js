@@ -1,6 +1,5 @@
-QUnit.module 'core-js Number#@@iterator'
-
-test '*' !->
+QUnit.module \core-js
+test 'Number#@@iterator' !->
   {iterator, toStringTag} = Symbol
   ok typeof! Number::[iterator] is \Function, 'Is function'
   iter1 = 2[iterator]!

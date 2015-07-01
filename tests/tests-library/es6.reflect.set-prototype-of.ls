@@ -1,9 +1,9 @@
 if Object.setPrototypeOf || '__proto__' of {}
-  QUnit.module 'ES6 Reflect.setPrototypeOf'
+  QUnit.module \ES6
 
   eq = strictEqual
 
-  test '*' !->
+  test 'Reflect.setPrototypeOf' !->
     {setPrototypeOf} = core.Reflect
     ok typeof! setPrototypeOf is \Function, 'Reflect.setPrototypeOf is function'
     eq setPrototypeOf.length, 2, 'arity is 2'

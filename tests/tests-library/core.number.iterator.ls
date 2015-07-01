@@ -1,6 +1,6 @@
-QUnit.module 'core-js Number#@@iterator'
+QUnit.module 'core-js'
 
-test '*' !->
+test 'Number#@@iterator' !->
   {getIterator} = core
   {toStringTag} = core.Symbol
   iter1 = getIterator 2

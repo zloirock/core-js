@@ -1,4 +1,4 @@
-QUnit.module 'ES6 RegExp'
+QUnit.module \ES6
 
 eq = strictEqual
 

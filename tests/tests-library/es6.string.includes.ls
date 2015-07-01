@@ -1,8 +1,8 @@
 'use strict'
 
-QUnit.module 'ES6 String#includes'
+QUnit.module \ES6
 
-test '*' !->
+test 'String#includes' !->
   {includes} = core.String
   ok typeof! includes is \Function, 'Is function'
   ok not includes 'abc'

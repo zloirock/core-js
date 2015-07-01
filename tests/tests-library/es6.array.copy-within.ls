@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 Array#copyWithin'
+QUnit.module \ES6
 
 deq = deepEqual
 
-test '*' !->
+test 'Array#copyWithin' !->
   {copyWithin} = core.Array
   ok typeof! copyWithin is \Function, 'Is function'
   strictEqual (a = copyWithin [1], 0), a

@@ -1,9 +1,9 @@
 if Object.setPrototypeOf or '__proto__' of Object::
-  QUnit.module 'ES6 Object.setPrototypeOf'
+  QUnit.module \ES6
   
   eq = strictEqual
   
-  test '*' !->
+  test 'Object.setPrototypeOf' !->
     {setPrototypeOf} = Object
     ok typeof! setPrototypeOf is \Function, 'Is function'
     ok /native code/.test(setPrototypeOf), 'looks like native'

@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Symbol'
+QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual
@@ -36,7 +36,7 @@ test 'Global symbol registry' !->
   eq Symbol.for(\foo), symbol
   eq Symbol.keyFor(symbol), \foo
 
-test '#@@toStringTag' !->
+test 'Symbol#@@toStringTag' !->
   ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 
 test 'Object.getOwnPropertySymbols' !->
@@ -53,7 +53,7 @@ test 'Object.getOwnPropertySymbols' !->
   eq getOwnPropertySymbols(foo).length, 1
 
 if descriptors
-  test 'Descriptors' !->
+  test 'Symbols & descriptors' !->
     {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = core.Object
     d = Symbol \d
     e = Symbol \e
@@ -90,7 +90,7 @@ if descriptors
     delete O[e]
     O[e] = \e
     deq getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: on, value: \e}, 'redefined non-enum key'
-  test 'Object.defineProperties' !->
+  test 'Symbols & Object.defineProperties' !->
     {defineProperty, defineProperties} = core.Object
     c = core.Symbol \c
     d = core.Symbol \d
@@ -105,7 +105,7 @@ if descriptors
     eq O.b, void, \b
     eq O[c], \c, \c
     eq O[d], void, \d
-  test 'Object.create' !->
+  test 'Symbols & Object.create' !->
     {defineProperty, create} = core.Object
     c = core.Symbol \c
     d = core.Symbol \d

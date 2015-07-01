@@ -1,6 +1,6 @@
-QUnit.module 'ES6 Object.is'
+QUnit.module \ES6
 
-test '*' !->
+test 'Object.is' !->
   same = Object.is
   ok typeof! same is \Function, 'Is function'
   ok /native code/.test(same), 'looks like native'

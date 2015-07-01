@@ -1,8 +1,8 @@
-QUnit.module 'core-js log'
+QUnit.module \core-js
 isFunction = -> typeof! it is \Function
 isObject = -> it is Object it
 methods = <[assert count debug dir dirxml error exception group groupEnd groupCollapsed groupEnd info log table trace warn markTimeline profile profileEnd time timeEnd timeStamp]>
-test 'is object' !->
+test 'log is object' !->
   ok isObject(log), 'global.log is object'
 test 'log.{..} are functions' !->
   for methods => ok isFunction(log[..]), "log.#{..} is function"

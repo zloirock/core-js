@@ -1,4 +1,4 @@
-QUnit.module 'core-js binding'
+QUnit.module \core-js
 isFunction = -> typeof! it  is \Function
 test 'Function#part' !->
   ok isFunction(Function::part), 'Is function'

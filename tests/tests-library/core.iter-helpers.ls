@@ -1,4 +1,4 @@
-QUnit.module 'core-js iter helpers'
+QUnit.module 'core-js'
 {global} = core
 {from, values} = core.Array
 test 'core.isIterable' !->

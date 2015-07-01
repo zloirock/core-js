@@ -1,10 +1,10 @@
-QUnit.module 'ES6 Reflect.construct'
+QUnit.module \ES6
 
 {getPrototypeOf} = Object
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.construct' !->
   {construct} = Reflect
   ok typeof! construct is \Function, 'Reflect.construct is function'
   eq construct.length, 2, 'arity is 2'

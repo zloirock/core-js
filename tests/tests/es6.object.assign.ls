@@ -1,11 +1,11 @@
-QUnit.module 'ES6 Object.assign'
+QUnit.module \ES6
 
 descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 deq = deepEqual
 
-test '*' !->
+test 'Object.assign' !->
   {assign, defineProperty} = Object
   ok typeof! assign is \Function, 'Is function'
   ok /native code/.test(assign), 'looks like native'

@@ -1,8 +1,8 @@
-QUnit.module 'ES7 Object.values'
+QUnit.module \ES7
 
 deq = deepEqual
 
-test '*' !->
+test 'Object.values' !->
   {values, create, assign} = core.Object
   ok typeof! values is \Function, 'Is function'
   deq values({q:1, w:2, e:3}), [1 2 3]

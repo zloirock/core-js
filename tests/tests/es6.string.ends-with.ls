@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 String#endsWith'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String#endsWith' !->
   ok typeof! String::endsWith is \Function, 'Is function'
   eq String::endsWith.length, 1, 'arity is 1'
   ok /native code/.test(String::endsWith), 'looks like native'

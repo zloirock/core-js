@@ -1,4 +1,4 @@
-QUnit.module 'core-js binding'
+QUnit.module 'core-js'
 isFunction = -> typeof! it  is \Function
 {map, every, reduce} = core.Array
 test 'Function#part' !->

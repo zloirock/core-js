@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 String#repeat'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String#repeat' !->
   {repeat} = core.String
   ok typeof! repeat is \Function, 'Is function'
   eq repeat('qwe' 3), \qweqweqwe

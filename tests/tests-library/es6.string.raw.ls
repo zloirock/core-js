@@ -1,8 +1,8 @@
-QUnit.module 'ES6 String.raw'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String.raw' !->
   {raw} = core.String
   ok typeof! raw is \Function, 'Is function'
   eq raw.length, 1, 'arity is 1'

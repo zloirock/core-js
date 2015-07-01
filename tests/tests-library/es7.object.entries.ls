@@ -1,8 +1,8 @@
-QUnit.module 'ES7 Object.entries'
+QUnit.module \ES7
 
 deq = deepEqual
 
-test '*' !->
+test 'Object.entries' !->
   {entries, create, assign} = core.Object
   ok typeof! entries is \Function, 'Is function'
   deq entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]

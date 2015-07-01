@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES7 String#at'
+QUnit.module \ES7
 
 eq = strictEqual
 
-test '*' !->
+test 'String#at' !->
   ok typeof! String::at is \Function, 'Is function'
   eq String::at.length, 1, 'arity is 1'
   ok /native code/.test(String::at), 'looks like native'

@@ -1,8 +1,8 @@
-QUnit.module 'ES6 Reflect.getPrototypeOf'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.getPrototypeOf' !->
   {getPrototypeOf} = core.Reflect
   ok typeof! getPrototypeOf is \Function, 'Reflect.getPrototypeOf is function'
   eq getPrototypeOf.length, 1, 'arity is 1'

@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 Array#fill'
+QUnit.module \ES6
 
 deq = deepEqual
 
-test '*' !->
+test 'Array#fill' !->
   {fill} = core.Array
   ok typeof! fill is \Function, 'Is function'
   strictEqual (a = fill Array(5), 5), a

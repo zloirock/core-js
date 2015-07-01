@@ -1,8 +1,8 @@
-QUnit.module 'ES7 Object.values'
+QUnit.module \ES7
 
 deq = deepEqual
 
-test '*' !->
+test 'Object.values' !->
   {values, create, assign} = Object
   ok typeof! values is \Function, 'Is function'
   ok /native code/.test(values), 'looks like native'

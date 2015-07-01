@@ -1,8 +1,8 @@
-QUnit.module 'core-js String#escapeHTML'
+QUnit.module 'core-js'
 
 eq = strictEqual
 
-test '*' !->
+test 'String#escapeHTML' !->
   {escapeHTML} = core.String
   ok typeof! escapeHTML is \Function, 'Is function'
   eq escapeHTML('qwe, asd'), 'qwe, asd'

@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.get'
+QUnit.module \ES6
 
 {defineProperty, create} = core.Object
 
@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.get' !->
   {get} = core.Reflect
   ok typeof! get is \Function, 'Reflect.get is function'
   eq get.length, 2, 'arity is 2'

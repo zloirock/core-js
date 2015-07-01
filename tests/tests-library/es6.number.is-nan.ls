@@ -1,6 +1,6 @@
-QUnit.module 'ES6 Number.isNaN'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.isNaN' !->
   {isNaN} = core.Number
   {create} = core.Object
   ok typeof! isNaN is \Function, 'Is function'

@@ -1,4 +1,4 @@
-QUnit.module 'Array statics'
+QUnit.module 'Mozilla JavaScript Array statics'
 
 eq = strictEqual
 

@@ -1,6 +1,6 @@
-QUnit.module 'ES6 Number.isSafeInteger'
+QUnit.module \ES6
 
-test '*' !->
+test 'Number.isSafeInteger' !->
   {isSafeInteger} = core.Number
   {create} = core.Object
   ok typeof! isSafeInteger is \Function, 'Is function'

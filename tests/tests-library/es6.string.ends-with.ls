@@ -1,8 +1,8 @@
 'use strict'
 
-QUnit.module 'ES6 String#endsWith'
+QUnit.module \ES6
 
-test '*' !->
+test 'String#endsWith' !->
   {endsWith} = core.String
   ok typeof! endsWith is \Function, 'Is function'
   ok endsWith 'undefined'

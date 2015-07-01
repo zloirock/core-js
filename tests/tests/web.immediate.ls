@@ -1,4 +1,4 @@
-QUnit.module 'web.immediate'
+QUnit.module 'Immediate'
 
 isFunction = -> typeof! it  is \Function
 

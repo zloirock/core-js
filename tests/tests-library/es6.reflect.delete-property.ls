@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.deleteProperty'
+QUnit.module \ES6
 
 {defineProperty} = core.Object
 
@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.deleteProperty' !->
   {deleteProperty} = core.Reflect
   ok typeof! deleteProperty is \Function, 'Reflect.deleteProperty is function'
   eq deleteProperty.length, 2, 'arity is 2'

@@ -1,10 +1,9 @@
 'use strict'
-
-QUnit.module 'ES6 Array#findIndex'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Array#findIndex' !->
   ok typeof! Array::findIndex is \Function, 'Is function'
   eq Array::findIndex.length, 1, 'length is 1'
   ok /native code/.test(Array::findIndex), 'looks like native'

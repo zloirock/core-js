@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 String#repeat'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'String#repeat' !->
   ok typeof! String::repeat is \Function, 'Is function'
   eq String::repeat.length, 1, 'arity is 1'
   ok /native code/.test(String::repeat), 'looks like native'

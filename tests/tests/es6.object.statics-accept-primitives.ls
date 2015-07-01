@@ -1,8 +1,8 @@
-QUnit.module 'ES6 Object static methods accept primitives'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Object static methods accept primitives' !->
   for method in <[freeze seal preventExtensions getOwnPropertyDescriptor getPrototypeOf isExtensible isSealed isFrozen keys getOwnPropertyNames]>
     ok /native code/.test(Object[method]), "Object.#method looks like native"
     for value in [42 \foo no]

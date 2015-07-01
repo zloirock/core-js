@@ -1,14 +1,14 @@
-QUnit.module 'ES6 Promise'
+QUnit.module \ES6
 isFunction = -> typeof! it is \Function
 test 'Promise' !->
   ok isFunction(core.Promise), 'Is function'
-test '#then' !->
+test 'Promise#then' !->
   ok isFunction(core.Promise::then), 'Is function'
-test '#catch' !->
+test 'Promise#catch' !->
   ok isFunction(core.Promise::catch), 'Is function'
-test '#@@toStringTag' !->
+test 'Promise#@@toStringTag' !->
   ok core.Promise::[core.Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
-test '.all' !->
+test 'Promise.all' !->
   ok isFunction(core.Promise.all), 'Is function'
   # works with iterables
   passed = no
@@ -19,7 +19,7 @@ test '.all' !->
     next!
   core.Promise.all iter .catch ->
   ok passed, 'works with iterables'
-test '.race' !->
+test 'Promise.race' !->
   ok isFunction(core.Promise.race), 'Is function'
   # works with iterables
   passed = no
@@ -30,12 +30,12 @@ test '.race' !->
     next!
   core.Promise.race iter .catch ->
   ok passed, 'works with iterables'
-test '.resolve' !->
+test 'Promise.resolve' !->
   ok isFunction(core.Promise.resolve), 'Is function'
-test '.reject' !->
+test 'Promise.reject' !->
   ok isFunction(core.Promise.reject), 'Is function'
 if core.Object.setPrototypeOf
-  test ' subclassing' !->
+  test 'Promise subclassing' !->
     # this is ES5 syntax to create a valid ES6 subclass
     SubPromise = (x) ->
       self = new core.Promise(x)

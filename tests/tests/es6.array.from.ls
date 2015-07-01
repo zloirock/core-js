@@ -1,9 +1,9 @@
-QUnit.module 'ES6 Array.from'
+QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual
 
-test '*' !->
+test 'Array.from' !->
   {from} = Array
   ok typeof! from is \Function, 'Is function'
   eq Array.from.length, 1, 'length is 1'

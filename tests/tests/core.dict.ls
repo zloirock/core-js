@@ -1,4 +1,4 @@
-QUnit.module 'core-js Dict'
+QUnit.module \core-js
 isFunction = -> typeof! it is \Function
 {keys, create, assign} = Object
 {from} = Array
@@ -24,7 +24,7 @@ test 'Dict' !->
   iter.return = -> done := on
   try => new Dict iter
   ok done, '.return #throw'
-test '.every' !->
+test 'Dict.every' !->
   {every} = Dict
   ok isFunction(every), 'Is function'
   every obj = {q: 1} (val, key, that)->
@@ -35,7 +35,7 @@ test '.every' !->
   , ctx = {}
   ok every {q:1 w:2 e:3} -> typeof! it is \Number
   ok not every {q:1 w:\2 e:3} -> typeof! it is \Number
-test '.filter' !->
+test 'Dict.filter' !->
   {filter} = Dict
   ok isFunction(filter), 'Is function'
   filter obj = {q: 1}, (val, key, that)->
@@ -45,7 +45,7 @@ test '.filter' !->
     ok @    is ctx
   , ctx = {}
   deepEqual filter({q:1 w:2 e:3} -> it % 2), Dict q: 1 e: 3
-test '.find' !->
+test 'Dict.find' !->
   {find} = Dict
   ok isFunction(find), 'Is function'
   find obj = {q: 1}, (val, key, that)->
@@ -55,7 +55,7 @@ test '.find' !->
     ok @    is ctx
   , ctx = {}
   ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
-test '.findKey' !->
+test 'Dict.findKey' !->
   {findKey} = Dict
   ok isFunction(findKey), 'Is function'
   findKey obj = {q: 1}, (val, key, that)->
@@ -65,7 +65,7 @@ test '.findKey' !->
     ok @    is ctx
   , ctx = {}
   ok findKey({q:1 w:2 e:3} -> it is 2) is \w
-test '.forEach' !->
+test 'Dict.forEach' !->
   {forEach} = Dict
   ok isFunction(forEach), 'Is function'
   forEach obj = {q: 1}, (val, key, that)!->
@@ -89,13 +89,13 @@ test '.forEach' !->
   rez = {}
   forEach \123 !-> rez[&1] = &0
   ok \2 of rez
-test '.keyOf' !->
+test 'Dict.keyOf' !->
   {keyOf} = Dict
   ok isFunction(keyOf), 'Is function'
   ok keyOf({q:1 w:2 e:3} 2)     is \w
   ok keyOf({q:1 w:2 e:3} 4)     is void
   ok keyOf({q:1 w:2 e:NaN} NaN) is void
-test '.map' !->
+test 'Dict.map' !->
   {map} = Dict
   ok isFunction(map), 'Is function'
   map obj = {q: 1}, (val, key, that)->
@@ -105,7 +105,7 @@ test '.map' !->
     ok @    is ctx
   , ctx = {}
   deepEqual map({q:1 w:2 e:3} (^2)), Dict q:1 w:4 e:9
-test '.mapPairs' !->
+test 'Dict.mapPairs' !->
   {mapPairs} = Dict
   ok isFunction(mapPairs), 'Is function'
   mapPairs obj = {q: 1}, (val, key, that)->
@@ -115,7 +115,7 @@ test '.mapPairs' !->
     ok @    is ctx
   , ctx = {}
   deepEqual mapPairs({q:1 w:2 e:3}, (v, k)-> v != 2 && [k + k, v * v]), Dict qq:1 ee:9
-test '.reduce' !->
+test 'Dict.reduce' !->
   {reduce} = Dict
   ok isFunction(reduce), 'Is function'
   reduce (obj = a:1), (memo, val, key, that)->
@@ -133,7 +133,7 @@ test '.reduce' !->
     that
   , memo = {}
   deepEqual memo, 1:1 2:2 3:3
-test '.some' !->
+test 'Dict.some' !->
   {some} = Dict
   ok isFunction(some), 'Is function'
   some obj = {q: 1}, (val, key, that)->
@@ -144,7 +144,7 @@ test '.some' !->
   , ctx = {}
   ok not some {q:1 w:2 e:3} -> typeof! it is \String
   ok some {q:1 w:\2 e:3} -> typeof! it is \String
-test '.includes' !->
+test 'Dict.includes' !->
   {includes} = Dict
   ok isFunction(includes), 'Is function'
   dict = {q:1, w: NaN, e: -0, r: o = {}}
@@ -156,7 +156,7 @@ test '.includes' !->
   ok !includes dict, 4
   ok !includes dict, -0.5
   ok !includes dict, {}
-test '.has' !->
+test 'Dict.has' !->
   {has} = Dict
   ok isFunction(has), 'Is function'
   ok has q:1, \q
@@ -165,7 +165,7 @@ test '.has' !->
   ok not has [] 0
   ok not has ^^{q:1} \q
   ok not has {} \toString
-test '.get' !->
+test 'Dict.get' !->
   {get} = Dict
   ok isFunction(get), 'Is function'
   ok get(q:1, \q) is 1
@@ -174,7 +174,7 @@ test '.get' !->
   ok get([] 0) is void
   ok get(^^{q:1} \q) is void
   ok get({} \toString) is void
-test '.values' !->
+test 'Dict.values' !->
   {values} = Dict
   ok isFunction(values), 'Is function'
   iter = values {}
@@ -183,7 +183,7 @@ test '.values' !->
   deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
   deepEqual from(values(new String \qwe)), <[q w e]>
   deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
-test '.keys' !->
+test 'Dict.keys' !->
   {keys} = Dict
   ok isFunction(keys), 'Is function'
   iter = keys {}
@@ -192,7 +192,7 @@ test '.keys' !->
   deepEqual from(keys({q:1, w:2, e:3})), <[q w e]>
   deepEqual from(keys(new String \qwe)), <[0 1 2]>
   deepEqual from(keys(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), <[a s d]>
-test '.entries' !->
+test 'Dict.entries' !->
   {entries} = Dict
   ok isFunction(entries), 'Is function'
   iter = entries {}

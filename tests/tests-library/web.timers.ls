@@ -1,4 +1,4 @@
-QUnit.module 'web.timers'
+QUnit.module 'Timers'
 
 eq = strictEqual
 

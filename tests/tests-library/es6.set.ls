@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Set'
+QUnit.module \ES6
 
 isFunction = -> typeof! it is \Function
 isIterator = -> typeof it is \object && isFunction it.next

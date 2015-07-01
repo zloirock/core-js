@@ -1,4 +1,4 @@
-QUnit.module 'core-js log'
+QUnit.module 'core-js'
 isFunction = -> typeof! it is \Function
 isObject = -> it is Object it
 {log} = core

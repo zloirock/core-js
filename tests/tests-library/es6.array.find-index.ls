@@ -1,10 +1,10 @@
 'use strict'
 
-QUnit.module 'ES6 Array#findIndex'
+QUnit.module \ES6
 
 eq = strictEqual
 
-test '*' !->
+test 'Array#findIndex' !->
   {findIndex} = core.Array
   ok typeof! findIndex is \Function, 'Is function'
   findIndex arr = [1], (val, key, that)->

@@ -1,4 +1,4 @@
-QUnit.module 'core-js global'
+QUnit.module 'core-js'
 {global} = core
 test \global !->
   ok global?, 'global is define'

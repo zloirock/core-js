@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.isExtensible'
+QUnit.module \ES6
 
 {defineProperty, preventExtensions} = Object
 
@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 eq = strictEqual
 
-test '*' !->
+test 'Reflect.isExtensible' !->
   {isExtensible} = Reflect
   ok typeof! isExtensible is \Function, 'Reflect.isExtensible is function'
   eq isExtensible.length, 1, 'arity is 1'

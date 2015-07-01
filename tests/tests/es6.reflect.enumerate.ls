@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.enumerate'
+QUnit.module \ES6
 
 {defineProperty} = Object
 {from} = Array
@@ -8,7 +8,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 eq = strictEqual
 deq = deepEqual
 
-test '*' !->
+test 'Reflect.enumerate' !->
   {enumerate} = Reflect
   {iterator} = Symbol
   ok typeof! enumerate is \Function, 'Reflect.enumerate is function'

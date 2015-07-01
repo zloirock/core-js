@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Number constructor'
+QUnit.module \ES6
 
 eq = strictEqual
 sameEq = (a, b, c)-> ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
@@ -10,7 +10,7 @@ check = (a, b)->
   eq typeof! x, \Number, "classof new Number #{typeof a} #a is Number"
   sameEq x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
 
-test 'regression' !->
+test 'Number constructor: regression' !->
   ok typeof! Number is \Function, 'Number is function'
   eq Number.length, 1, 'Number.length is 1'
   ok /native code/.test(Number), 'looks like native'
@@ -61,14 +61,14 @@ test 'regression' !->
   for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
     ok .. of Number, "#{..} in Number"
 
-test \binary !->
+test 'Number constructor: binary' !->
   check \0b1, 1
   check \0B1, 1
   check \0b234, NaN
   check {valueOf: -> \0b11}, 3
   check {toString: -> \0b111}, 7
 
-test \octal !->
+test 'Number constructor: octal' !->
   check \0o7, 7
   check \0O7, 7
   check \0o89a, NaN

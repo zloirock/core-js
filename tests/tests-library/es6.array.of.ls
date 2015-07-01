@@ -1,9 +1,9 @@
-QUnit.module 'ES6 Array.of'
+QUnit.module \ES6
 
 eq = strictEqual
 deq = deepEqual
 
-test '*' !->
+test 'Array.of' !->
   ok typeof! core.Array.of is \Function, 'Is function'
   eq core.Array.of.length, 0, 'length is 0'
   if \name of core.Array.of => eq core.Array.of.name, \of, 'name is "of"'

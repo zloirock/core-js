@@ -1,4 +1,4 @@
-QUnit.module 'ES6 Reflect.defineProperty'
+QUnit.module \ES6
 
 {defineProperty, getOwnPropertyDescriptor} = core.Object
 
@@ -7,7 +7,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 eq = strictEqual
 deq = deepEqual
 
-test '*' !->
+test 'Reflect.defineProperty' !->
   {defineProperty} = core.Reflect
   ok typeof! defineProperty is \Function, 'Reflect.defineProperty is function'
   eq defineProperty.length, 3, 'arity is 3'

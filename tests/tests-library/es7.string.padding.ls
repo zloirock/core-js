@@ -1,10 +1,10 @@
 'use strict';
 
-QUnit.module 'ES7 String#padding'
+QUnit.module \ES7
 
 eq = strictEqual
 
-test \lpad !->
+test 'String#lpad' !->
   {lpad} = core.String
   ok typeof! lpad is \Function, 'Is function'
   eq lpad(\abc 5), '  abc'
@@ -19,7 +19,7 @@ test \lpad !->
     throws (-> lpad null, 0), TypeError
     throws (-> lpad void, 0), TypeError
 
-test \rpad !->
+test 'String#rpad' !->
   {rpad} = core.String
   ok typeof! rpad is \Function, 'Is function'
   eq rpad(\abc 5), 'abc  '
