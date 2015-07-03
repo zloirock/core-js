@@ -45,24 +45,58 @@ module.exports = (grunt)->
         singleRun: true
         browsers: ['PhantomJS']
   grunt.registerTask \modularize ->
-    versions = <[es6 es7]>
-    versions.forEach((v) -> grunt.file.mkdir(path.resolve(\client, \modules, v)))
-
     fs.readdirSync(path.resolve(\modules))
     .filter((filename) -> fs.statSync(path.resolve(\modules, filename)).isFile())
     .filter((filename) ->
       versionOfFile = filename.slice 0 3
-      versionOfFile in versions
+      versionOfFile in <[es6 es7]>
     )
     .map((filename) -> filename.slice(0, -3))
     .map((moduleName) ->
-      grunt.task.run [\build-module: + moduleName]
+      versionOfFile = moduleName.slice 0 3
+      grunt.file.mkdir(path.resolve(\client, \modules, versionOfFile, moduleName))
+      moduleName
     )
+    .map((moduleName) ->
+      grunt.task.run [\build-module: + moduleName]
+      grunt.task.run [\createPackage: + moduleName]
+    )
+  grunt.registerTask \createPackage, (moduleName) ->
+    versionOfFile = moduleName.slice 0 3
+    location = path.resolve(\client, \modules, versionOfFile, moduleName, \package.json)
+    version = grunt.config.get('pkg').version
+    license = grunt.config.get('pkg').license
+    repo = grunt.config.get('pkg').repository.url
+    templateData = {
+      data: {
+        name: moduleName,
+        version: version,
+        license: license,
+        repo: repo,
+        main: "#{moduleName}.js"
+      }
+    }
+
+    template = '''{
+      "name": "<%= name %>",
+      "description": "Standard library",
+      "version": "<%= version %>",
+      "repository": {
+        "type": "git",
+        "url": "<%= repo %>"
+      },
+      "main": "<%= main %>",
+      "license": "<%= license %>"
+    }'''
+
+    contents = grunt.template.process(template, templateData)
+    grunt.file.write(location, contents)
   grunt.registerTask \build-module, (moduleName) ->
     version = moduleName.slice(0,3)
-    grunt.option \path, "./client/modules/#{version}/#{moduleName}-umd"
+    grunt.option \path, "./client/modules/#{version}/#{moduleName}/#{moduleName}-umd"
     grunt.option \library, true
     grunt.task.run ["build:#{moduleName}", "uglify"]
+    grunt.task.run ["createPackage:#{moduleName}"]
   grunt.registerTask \build (options)->
     done = @async!
     err, it <- build {
