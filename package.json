@@ -23,7 +23,6 @@
     "karma-chrome-launcher": "0.2.x",
     "karma-ie-launcher": "0.2.x",
     "karma-firefox-launcher": "0.1.x",
-    "karma-opera-launcher": "0.1.x",
     "karma-phantomjs-launcher": "0.2.x",
     "promises-aplus-tests": "2.1.x",
     "eslint": "0.24.x"
