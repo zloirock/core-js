@@ -61,7 +61,8 @@ module.exports = (grunt)->
   grunt.registerTask \build-module, (moduleName) ->
     version = moduleName.slice(0,3)
     grunt.option \path, "./client/modules/#{version}/#{moduleName}-umd"
-    grunt.task.run ["build:#{moduleName}"]
+    grunt.option \library, true
+    grunt.task.run ["build:#{moduleName}", "uglify"]
   grunt.registerTask \build (options)->
     done = @async!
     err, it <- build {
