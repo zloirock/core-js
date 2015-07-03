@@ -1,4 +1,4 @@
-require! <[./build fs ./config]>
+require! <[./build fs ./config path]>
 module.exports = (grunt)->
   grunt.loadNpmTasks \grunt-contrib-clean
   grunt.loadNpmTasks \grunt-contrib-copy
@@ -44,6 +44,24 @@ module.exports = (grunt)->
         configFile: './tests/karma.conf.js'
         singleRun: true
         browsers: ['PhantomJS']
+  grunt.registerTask \modularize ->
+    versions = <[es6 es7]>
+    versions.forEach((v) -> grunt.file.mkdir(path.resolve(\client, \modules, v)))
+
+    fs.readdirSync(path.resolve(\modules))
+    .filter((filename) -> fs.statSync(path.resolve(\modules, filename)).isFile())
+    .filter((filename) ->
+      versionOfFile = filename.slice 0 3
+      versionOfFile in versions
+    )
+    .map((filename) -> filename.slice(0, -3))
+    .map((moduleName) ->
+      grunt.task.run [\build-module: + moduleName]
+    )
+  grunt.registerTask \build-module, (moduleName) ->
+    version = moduleName.slice(0,3)
+    grunt.option \path, "./client/modules/#{version}/#{moduleName}-umd"
+    grunt.task.run ["build:#{moduleName}"]
   grunt.registerTask \build (options)->
     done = @async!
     err, it <- build {
