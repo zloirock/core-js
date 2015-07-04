@@ -8,7 +8,8 @@ epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
 
 test 'Math.hypot' !->
   # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
-  {hypot, sqrt} = core.Math
+  {sqrt} = Math
+  {hypot} = core.Math
   ok isFunction(hypot), 'Is function'
   eq hypot!, 0
   eq hypot(1), 1

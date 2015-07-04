@@ -2338,8 +2338,9 @@
     return Math.abs(a - b) <= (E != null ? E : 1e-11);
   };
   test('Math.hypot', function(){
-    var ref$, hypot, sqrt;
-    ref$ = core.Math, hypot = ref$.hypot, sqrt = ref$.sqrt;
+    var sqrt, hypot;
+    sqrt = Math.sqrt;
+    hypot = core.Math.hypot;
     ok(isFunction(hypot), 'Is function');
     eq(hypot(), 0);
     eq(hypot(1), 1);
