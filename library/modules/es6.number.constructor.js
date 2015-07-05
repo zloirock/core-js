@@ -1,5 +1,6 @@
 'use strict';
 var $          = require('./$')
+  , cof        = require('./$.cof')
   , isObject   = $.isObject
   , isFunction = $.isFunction
   , NUMBER     = 'Number'
@@ -24,7 +25,7 @@ function toNumber(it){
 }
 if($.FW && !($Number('0o1') && $Number('0b1'))){
   $Number = function Number(it){
-    return this instanceof $Number ? new Base(toNumber(it)) : toNumber(it);
+    return this instanceof $Number && cof(this) != NUMBER ? new Base(toNumber(it)) : toNumber(it);
   };
   $.each.call($.DESC ? $.getNames(Base) : (
       // ES3:

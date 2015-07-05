@@ -60,6 +60,9 @@ test 'Number constructor: regression' !->
   
   for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
     ok .. of Number, "#{..} in Number"
+  
+  n = new Number 42
+  eq typeof n@@(n), \number
 
 test 'Number constructor: binary' !->
   check \0b1, 1

@@ -2734,7 +2734,7 @@
     return sameEq(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
   };
   test('Number constructor: regression', function(){
-    var i, i$, x$, ref$, len$;
+    var i, i$, x$, ref$, len$, n;
     ok(toString$.call(Number).slice(8, -1) === 'Function', 'Number is function');
     eq(Number.length, 1, 'Number.length is 1');
     ok(/native code/.test(Number), 'looks like native');
@@ -2848,6 +2848,8 @@
       x$ = ref$[i$];
       ok(x$ in Number, x$ + " in Number");
     }
+    n = new Number(42);
+    eq(typeof n.constructor(n), 'number');
   });
   test('Number constructor: binary', function(){
     check('0b1', 1);
