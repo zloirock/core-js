@@ -73,10 +73,12 @@ function isThenable(it){
   if(isObject(it))then = it.then;
   return isFunction(then) ? then : false;
 }
-function notify(record){
+function notify(record, isReject){
+  if(record.n)return;
+  record.n = true;
   var chain = record.c;
   // strange IE + webpack dev server bug - use .call(global)
-  if(chain.length)asap.call(global, function(){
+  asap.call(global, function(){
     var value = record.v
       , ok    = record.s == 1
       , i     = 0;
@@ -99,6 +101,20 @@ function notify(record){
     }
     while(chain.length > i)run(chain[i++]); // variable length - can't use forEach
     chain.length = 0;
+    record.n = false;
+    if(isReject)setTimeout(function(){
+      // strange IE + webpack dev server bug - use .call(global)
+      asap.call(global, function(){
+        if(isUnhandled(record.p)){
+          if(isNode){
+            process.emit('unhandledRejection', value, record.p);
+          } else if(global.console && console.error){
+            console.error('Unhandled promise rejection', value);
+          }
+        }
+        record.a = undefined;
+      });
+    }, 1);
   });
 }
 function isUnhandled(promise){
@@ -113,28 +129,14 @@ function isUnhandled(promise){
   } return true;
 }
 function $reject(value){
-  var record = this
-    , promise;
+  var record = this;
   if(record.d)return;
   record.d = true;
   record = record.r || record; // unwrap
   record.v = value;
   record.s = 2;
   record.a = record.c.slice();
-  setTimeout(function(){
-    // strange IE + webpack dev server bug - use .call(global)
-    asap.call(global, function(){
-      if(isUnhandled(promise = record.p)){
-        if(isNode){
-          process.emit('unhandledRejection', value, promise);
-        } else if(global.console && console.error){
-          console.error('Unhandled promise rejection', value);
-        }
-      }
-      record.a = undefined;
-    });
-  }, 1);
-  notify(record);
+  notify(record, true);
 }
 function $resolve(value){
   var record = this
@@ -156,7 +158,7 @@ function $resolve(value){
     } else {
       record.v = value;
       record.s = 1;
-      notify(record);
+      notify(record, false);
     }
   } catch(e){
     $reject.call({r: record, d: false}, e); // wrap
@@ -175,7 +177,8 @@ if(!useNative){
       s: 0,                                   // <- state
       d: false,                               // <- done
       v: undefined,                           // <- value
-      h: false                                // <- handled rejection
+      h: false,                               // <- handled rejection
+      n: false                                // <- notify
     };
     $.hide(this, RECORD, record);
     try {
@@ -199,7 +202,7 @@ if(!useNative){
       var record = this[RECORD];
       record.c.push(react);
       if(record.a)record.a.push(react);
-      if(record.s)notify(record);
+      if(record.s)notify(record, false);
       return promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
