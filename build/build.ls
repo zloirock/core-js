@@ -53,7 +53,12 @@ list = <[
   es6.array.fill
   es6.array.find
   es6.array.find-index
-  es6.regexp
+  es6.regexp.constructor
+  es6.regexp.flags
+  es6.regexp.match
+  es6.regexp.replace
+  es6.regexp.search
+  es6.regexp.split
   es6.promise
   es6.map
   es6.set
@@ -110,7 +115,12 @@ experimental = <[
 libraryBlacklist = <[
   es6.object.to-string
   es6.function.name
-  es6.regexp
+  es6.regexp.constructor
+  es6.regexp.flags
+  es6.regexp.match
+  es6.regexp.replace
+  es6.regexp.search
+  es6.regexp.split
   es6.number.constructor
 ]>
 
