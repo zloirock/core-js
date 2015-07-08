@@ -1,6 +1,7 @@
-module.exports = function(KEY, exec){
-  var SYMBOL  = require('./$.wks')(KEY)
-    , methods = exec(SYMBOL, ''[KEY]);
+module.exports = function(KEY, length, exec){
+  var SYMBOL   = require('./$.wks')(KEY)
+    , original = ''[KEY]
+    , method   = exec(SYMBOL, original);
   if(function(){
     try {
       var O = {};
@@ -10,7 +11,14 @@ module.exports = function(KEY, exec){
       return true;
     }
   }()){
-    require('./$.redef')(String.prototype, KEY, methods[0]);
-    require('./$').hide(RegExp.prototype, SYMBOL, methods[1]);
+    require('./$.redef')(String.prototype, KEY, method);
+    require('./$').hide(RegExp.prototype, SYMBOL, length == 2
+      // 21.2.5.8 RegExp.prototype[@@replace](string, replaceValue)
+      // 21.2.5.11 RegExp.prototype[@@split](string, limit)
+      ? function(string, arg){ return original.call(string, this, arg); }
+      // 21.2.5.6 RegExp.prototype[@@match](string)
+      // 21.2.5.9 RegExp.prototype[@@search](string)
+      : function(string){ return original.call(string, this); }
+    );
   }
 };
