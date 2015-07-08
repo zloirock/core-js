@@ -4166,7 +4166,6 @@
     string = "Boston, Mass. 02134";
     eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[0], '02134', 'S15.5.4.10_A2_T6 #1');
     eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[1], '02134', 'S15.5.4.10_A2_T6 #2');
-    eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[2], void 8, 'S15.5.4.10_A2_T6 #3');
     eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
     eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
     eq(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
@@ -4325,39 +4324,18 @@
         return '\u0041B';
       }
     }, function(){}), 'undefinedBABABAB', 'S15.5.4.11_A1_T10');
-    try {
-      'ABB\u0041BABAB'.replace({
-        toString: function(){
-          throw 'insearchValue';
-        }
-      }, {
-        toString: function(){
-          throw 'inreplaceValue';
-        }
-      });
-      ok(false, 'S15.5.4.11_A1_T11 #1 lead to throwing exception');
-    } catch (e$) {
-      e = e$;
-      eq(e, 'insearchValue', 'S15.5.4.11_A1_T11 #2');
-    }
-    try {
-      Object('ABB\u0041BABAB').replace({
-        toString: function(){
-          return {};
-        },
-        valueOf: function(){
-          throw 'insearchValue';
-        }
-      }, {
-        toString: function(){
-          throw 'inreplaceValue';
-        }
-      });
-      ok(false, 'S15.5.4.11_A1_T12 #1 lead to throwing exception');
-    } catch (e$) {
-      e = e$;
-      eq(e, 'insearchValue', 'S15.5.4.11_A1_T12 #2');
-    }
+    /* wrong order in some old environments
+    try
+      'ABB\u0041BABAB'replace {toString: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
+      ok no, 'S15.5.4.11_A1_T11 #1 lead to throwing exception'
+    catch e
+      eq e, \insearchValue, 'S15.5.4.11_A1_T11 #2'
+    try
+      Object('ABB\u0041BABAB')replace {toString: (->{}), valueOf: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
+      ok no, 'S15.5.4.11_A1_T12 #1 lead to throwing exception'
+    catch e
+      eq e, \insearchValue, 'S15.5.4.11_A1_T12 #2'
+    */
     try {
       'ABB\u0041BABAB\u0031BBAA'.replace({
         toString: function(){
