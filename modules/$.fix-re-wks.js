@@ -1,3 +1,4 @@
+'use strict';
 module.exports = function(KEY, length, exec){
   var SYMBOL   = require('./$.wks')(KEY)
     , original = ''[KEY]
