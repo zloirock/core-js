@@ -1,5 +1,5 @@
 'use strict';
-var global = typeof self == 'object' && self.Math == Math ? self : Function('return this')() 
+var global = typeof self == 'object' && self.Math == Math ? self : Function('return this')()
   , core   = {}
   , defineProperty = Object.defineProperty
   , hasOwnProperty = {}.hasOwnProperty
