@@ -19,9 +19,6 @@ var freeSelf = objectTypes[typeof self] && self && self.Object && self;
 /** Detect free variable `window`. */
 var freeWindow = objectTypes[typeof window] && window && window.Object && window;
 
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports && freeExports;
-
 /**
  * Used as a reference to the global object.
  *
