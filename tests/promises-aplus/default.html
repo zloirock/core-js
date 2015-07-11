@@ -12,7 +12,7 @@
     <script>
         mocha.setup({ ui: "bdd", timeout: 1e3, slow: Infinity });
 
-        global.adapter = {
+        window.adapter = {
             deferred: function () {
                 var deferred = {};
                 deferred.promise = new Promise(function (resolve, reject) {

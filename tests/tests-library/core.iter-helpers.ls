@@ -1,5 +1,5 @@
 QUnit.module 'core-js'
-{global} = core
+global = Function('return this')!
 {from, values} = core.Array
 test 'core.isIterable' !->
   {isIterable} = core

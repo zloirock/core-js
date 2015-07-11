@@ -151,7 +151,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/clear-immediate") is \function
   ok \mapPairs of require("#P/fn/dict")
   ok \then of require("#P/fn/delay")(1)
-  ok require("#P/fn/global") is global
   ok \warn of require("#P/fn/log")
   ok require("#P/fn/is-iterable")([])
   ok \next of require("#P/fn/get-iterator")([])
@@ -189,7 +188,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
-  ok require("#P/core/global")
   ok typeof require("#P/core/log") is \function
   ok \define of require("#P/core/object")
   ok \escapeHTML of require("#P/core/string")

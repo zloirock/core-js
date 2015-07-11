@@ -103,7 +103,6 @@ list = <[
   core.number.iterator
   core.string.escape-html
   core.string.unescape-html
-  core.global
   core.log
   js.array.statics
 ]>
