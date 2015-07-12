@@ -1,8 +1,7 @@
 'use strict';
 module.exports = function(KEY, length, exec){
   var SYMBOL   = require('./$.wks')(KEY)
-    , original = ''[KEY]
-    , method   = exec(SYMBOL, original);
+    , original = ''[KEY];
   if(function(){
     try {
       var O = {};
@@ -12,7 +11,7 @@ module.exports = function(KEY, length, exec){
       return true;
     }
   }()){
-    require('./$.redef')(String.prototype, KEY, method);
+    require('./$.redef')(String.prototype, KEY, exec(SYMBOL, original));
     require('./$').hide(RegExp.prototype, SYMBOL, length == 2
       // 21.2.5.8 RegExp.prototype[@@replace](string, replaceValue)
       // 21.2.5.11 RegExp.prototype[@@split](string, limit)
