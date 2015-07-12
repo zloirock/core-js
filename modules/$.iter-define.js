@@ -4,6 +4,7 @@ var $def            = require('./$.def')
   , cof             = require('./$.cof')
   , $iter           = require('./$.iter')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
+  , hide            = $.hide
   , FF_ITERATOR     = '@@iterator'
   , KEYS            = 'keys'
   , VALUES          = 'values'
@@ -30,10 +31,10 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     // Set @@toStringTag to native iterators
     cof.set(IteratorPrototype, TAG, true);
     // FF fix
-    if($.FW && $.has(proto, FF_ITERATOR))$iter.set(IteratorPrototype, $.that);
+    if($.FW && $.has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, $.that);
   }
   // Define iterator
-  if($.FW || FORCE)$iter.set(proto, _default);
+  if($.FW || FORCE)hide(proto, SYMBOL_ITERATOR, _default);
   // Plug for library
   Iterators[NAME] = _default;
   Iterators[TAG]  = $.that;

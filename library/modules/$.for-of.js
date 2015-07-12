@@ -1,13 +1,19 @@
-var ctx  = require('./$.ctx')
-  , get  = require('./$.iter').get
-  , call = require('./$.iter-call');
+var $      = require('./$')
+  , ctx    = require('./$.ctx')
+  , $iter  = require('./$.iter')
+  , call   = require('./$.iter-call')
+  , assert = require('./$.assert')
+  , assertObject = assert.obj;
 module.exports = function(iterable, entries, fn, that){
-  var iterator = get(iterable)
-    , f        = ctx(fn, that, entries ? 2 : 1)
-    , step;
-  while(!(step = iterator.next()).done){
-    if(call(iterator, f, step.value, entries) === false){
-      return call.close(iterator);
-    }
+  var iterFn = $iter.get(iterable)
+    , f      = ctx(fn, that, entries ? 2 : 1)
+    , index  = 0
+    , length, step, iterator;
+  assert($.isFunction(iterFn), iterable, ' is not iterable!');
+  // fast case for arrays with default iterator
+  if($iter.isArrayIter(iterFn))for(length = $.toLength(iterable.length); length > index; index++){
+    entries ? f(assertObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
+  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done; ){
+    call(iterator, f, step.value, entries);
   }
 };

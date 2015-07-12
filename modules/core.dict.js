@@ -16,7 +16,7 @@ var $        = require('./$')
 function Dict(iterable){
   var dict = $.create(null);
   if(iterable != undefined){
-    if($iter.is(iterable)){
+    if($iter.get(iterable) != undefined){
       forOf(iterable, true, function(key, value){
         dict[key] = value;
       });

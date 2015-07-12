@@ -1,49 +1,37 @@
-'use strict';
 var $                 = require('./$')
+  , global            = $.g
   , cof               = require('./$.cof')
   , classof           = cof.classof
-  , assert            = require('./$.assert')
-  , assertObject      = assert.obj
   , SYMBOL_ITERATOR   = require('./$.wks')('iterator')
-  , FF_ITERATOR       = '@@iterator'
-  , Iterators         = require('./$.shared')('iterators')
+  , Iterators         = {}
   , IteratorPrototype = {};
-// 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
-setIterator(IteratorPrototype, $.that);
-function setIterator(O, value){
-  $.hide(O, SYMBOL_ITERATOR, value);
-  // Add iterator for FF iterator protocol
-  if(FF_ITERATOR in [])$.hide(O, FF_ITERATOR, value);
+function get(it){
+  var Symbol = global.Symbol;
+  if(it != undefined){
+    return it[Symbol && Symbol.iterator || '@@iterator']
+      || it[SYMBOL_ITERATOR]
+      || Iterators[classof(it)];
+  }
 }
+function create(Constructor, NAME, next){
+  Constructor.prototype = $.create(IteratorPrototype, {next: $.desc(1, next)});
+  cof.set(Constructor, NAME + ' Iterator');
+}
+function step(done, value){
+  return {value: value, done: !!done};
+}
+function isArrayIter(it){
+  return ('Array' in Iterators ? Iterators.Array : Array.prototype[SYMBOL_ITERATOR]) === it;
+}
+// 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
+$.hide(IteratorPrototype, SYMBOL_ITERATOR, $.that);
 
 module.exports = {
   // Safari has buggy iterators w/o `next`
   BUGGY: 'keys' in [] && !('next' in [].keys()),
   Iterators: Iterators,
-  step: function(done, value){
-    return {value: value, done: !!done};
-  },
-  is: function(it){
-    var O      = Object(it)
-      , Symbol = $.g.Symbol;
-    return (Symbol && Symbol.iterator || FF_ITERATOR) in O
-      || SYMBOL_ITERATOR in O
-      || $.has(Iterators, classof(O));
-  },
-  get: function(it){
-    var Symbol = $.g.Symbol
-      , getIter;
-    if(it != undefined){
-      getIter = it[Symbol && Symbol.iterator || FF_ITERATOR]
-        || it[SYMBOL_ITERATOR]
-        || Iterators[classof(it)];
-    }
-    assert($.isFunction(getIter), it, ' is not iterable!');
-    return assertObject(getIter.call(it));
-  },
-  set: setIterator,
-  create: function(Constructor, NAME, next){
-    Constructor.prototype = $.create(IteratorPrototype, {next: $.desc(1, next)});
-    cof.set(Constructor, NAME + ' Iterator');
-  }
+  step: step,
+  get: get,
+  create: create,
+  isArrayIter: isArrayIter
 };
