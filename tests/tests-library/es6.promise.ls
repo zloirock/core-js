@@ -1,5 +1,9 @@
 QUnit.module \ES6
+
 isFunction = -> typeof! it is \Function
+
+{iterator} = core.Symbol
+
 test 'Promise' !->
   ok isFunction(core.Promise), 'Is function'
 test 'Promise#then' !->
@@ -19,6 +23,14 @@ test 'Promise.all' !->
     next!
   core.Promise.all iter .catch ->
   ok passed, 'works with iterables'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  core.Promise.all a
+  ok done
 test 'Promise.race' !->
   ok isFunction(core.Promise.race), 'Is function'
   # works with iterables
@@ -30,6 +42,14 @@ test 'Promise.race' !->
     next!
   core.Promise.race iter .catch ->
   ok passed, 'works with iterables'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  core.Promise.race a
+  ok done
 test 'Promise.resolve' !->
   ok isFunction(core.Promise.resolve), 'Is function'
 test 'Promise.reject' !->

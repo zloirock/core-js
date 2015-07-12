@@ -5,6 +5,7 @@ isIterator = -> typeof it is \object && isFunction it.next
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
+{iterator} = Symbol
 
 eq = strictEqual
 deq = deepEqual
@@ -30,6 +31,14 @@ test 'Map' !->
   iter.return = -> done := on
   try => new Map iter
   ok done, '.return #throw'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new Map a
+  ok done
 test 'Map#clear' !->
   ok isFunction(Map::clear), 'Is function'
   ok /native code/.test(Map::clear), 'looks like native'

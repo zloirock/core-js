@@ -8,6 +8,7 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Set, Symbol} = core
 {getOwnPropertyDescriptor, freeze} = core.Object
 {values, from} = core.Array
+{iterator} = core.Symbol
 
 eq = strictEqual
 deq = deepEqual
@@ -39,6 +40,15 @@ test 'Set' !->
   try => new Set iter
   Set::add = _add
   ok done, '.return #throw'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new Set a
+  ok done
+
 test 'Set#add' !->
   ok isFunction(Set::add), 'Is function'
   a = []

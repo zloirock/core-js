@@ -1,5 +1,6 @@
 QUnit.module \ES6
 isFunction = -> typeof! it is \Function
+{iterator} = Symbol
 test 'Promise' !->
   ok isFunction((global? && global || window)Promise), 'Is function'
   ok /native code/.test(Promise), 'looks like native'
@@ -22,6 +23,14 @@ test 'Promise.all' !->
     next!
   Promise.all iter .catch ->
   ok passed, 'works with iterables'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  Promise.all a
+  ok done
 test 'Promise.race' !->
   ok isFunction(Promise.race), 'Is function'
   ok /native code/.test(Promise.race), 'looks like native'
@@ -34,6 +43,14 @@ test 'Promise.race' !->
     next!
   Promise.race iter .catch ->
   ok passed, 'works with iterables'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  Promise.race a
+  ok done
 test 'Promise.resolve' !->
   ok isFunction(Promise.resolve), 'Is function'
   ok /native code/.test(Promise.resolve), 'looks like native'

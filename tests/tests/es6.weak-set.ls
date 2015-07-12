@@ -3,6 +3,7 @@ QUnit.module \ES6
 isFunction = -> typeof! it is \Function
 
 {freeze} = Object
+{iterator} = Symbol
 
 eq = strictEqual
 
@@ -30,6 +31,14 @@ test 'WeakSet' !->
   try => new WeakSet iter
   ok done, '.return #throw'
   ok !(\clear of WeakSet::), 'should not contains `.clear` method'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new WeakSet a
+  ok done
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok /native code/.test(WeakSet::add), 'looks like native'

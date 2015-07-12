@@ -5,6 +5,7 @@ isIterator = -> typeof it is \object && isFunction it.next
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
+{iterator} = Symbol
 
 eq = strictEqual
 deq = deepEqual
@@ -39,6 +40,14 @@ test 'Set' !->
   try => new Set iter
   Set::add = _add
   ok done, '.return #throw'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new Set a
+  ok done
 test 'Set#add' !->
   ok isFunction(Set::add), 'Is function'
   ok /native code/.test(Set::add), 'looks like native'

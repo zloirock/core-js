@@ -5,6 +5,7 @@ isFunction = -> typeof! it is \Function
 {WeakMap, Map} = core
 {freeze} = core.Object
 {values} = core.Array
+{iterator} = core.Symbol
 
 eq = strictEqual
 
@@ -32,6 +33,15 @@ test 'WeakMap' !->
   try => new WeakMap iter
   ok done, '.return #throw'
   ok !(\clear of WeakMap::), 'should not contains `.clear` method'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new WeakMap a
+  ok done
+
 test 'WeakMap#delete' !->
   ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap [[a = {}, 42], [b = {}, 21]]

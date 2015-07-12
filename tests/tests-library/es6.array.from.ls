@@ -5,6 +5,7 @@ deq = deepEqual
 
 test 'Array.from' !->
   {from, values} = core.Array
+  {iterator} = core.Symbol
   ok typeof! from is \Function, 'Is function'
   eq from.length, 1, 'length is 1'
   if \name of from => eq from.name, \from, 'name is "from"'
@@ -49,3 +50,11 @@ test 'Array.from' !->
   eq inst.0, 1
   eq inst.1, 2
   eq inst.length, 2
+  # call @@iterator in Array with custom iterator
+  a = [1 2 3]
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  deq from(a), [1 2 3]
+  ok done

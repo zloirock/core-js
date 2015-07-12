@@ -5,6 +5,7 @@ isFunction = -> typeof! it is \Function
 {WeakSet} = core
 {freeze} = core.Object
 {values} = core.Array
+{iterator} = core.Symbol
 
 eq = strictEqual
 
@@ -29,6 +30,15 @@ test 'WeakSet' !->
   try => new WeakSet iter
   ok done, '.return #throw'
   ok !(\clear of WeakSet::), 'should not contains `.clear` method'
+  # call @@iterator in Array with custom iterator
+  a = []
+  done = no
+  a[iterator] = ->
+    done := on
+    [][iterator]call @
+  new WeakSet a
+  ok done
+
 test 'WeakSet#add' !->
   ok isFunction(WeakSet::add), 'Is function'
   ok (w = new WeakSet)add({}) is w, 'chaining'
