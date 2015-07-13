@@ -28,7 +28,8 @@ var $                = require('./$')
   , $map             = arrayMethod(1)
   , $filter          = arrayMethod(2)
   , $some            = arrayMethod(3)
-  , $every           = arrayMethod(4);
+  , $every           = arrayMethod(4)
+  , factories        = {};
 
 if(!$.DESC){
   try {
@@ -162,17 +163,22 @@ $def($def.S, 'Object', {
   }
 });
 
+function construct(F, len, args){
+  if(!(len in factories)){
+    for(var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
+    factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
+  }
+  return factories[len](F, args);
+}
+
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 $def($def.P, 'Function', {
   bind: function(that /*, args... */){
     var fn       = assert.fn(this)
       , partArgs = _slice.call(arguments, 1);
     function bound(/* args... */){
-      var args   = partArgs.concat(_slice.call(arguments))
-        , constr = this instanceof bound
-        , ctx    = constr ? $.create(isObject(fn.prototype) ? fn.prototype : ObjectProto) : that
-        , result = invoke(fn, args, ctx);
-      return constr ? ctx : result;
+      var args = partArgs.concat(_slice.call(arguments));
+      return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
     }
     if(isObject(fn.prototype))bound.prototype = fn.prototype;
     return bound;

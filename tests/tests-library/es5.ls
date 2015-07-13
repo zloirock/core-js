@@ -120,6 +120,11 @@ test 'Function#bind' !->
   ok 42   is bind((-> it), null 42)!
   fn = bind RegExp::test, /a/
   ok fn \a
+  F = bind Date, null 2015
+  date = new F 6
+  ok date instanceof Date
+  eq date.getFullYear!, 2015
+  eq date.getMonth!, 6
 test 'Array.isArray' !->
   {isArray} = core.Array
   ok isFunction(isArray), 'Is function'

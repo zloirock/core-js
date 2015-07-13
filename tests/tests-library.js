@@ -1077,7 +1077,7 @@
     eq(isExtensible({}), true);
   });
   test('Function#bind', function(){
-    var bind, obj, fn, inst;
+    var bind, obj, fn, inst, F, date;
     bind = core.Function.bind;
     ok(isFunction(bind), 'Is function');
     obj = {
@@ -1100,6 +1100,11 @@
     }, null, 42)());
     fn = bind(RegExp.prototype.test, /a/);
     ok(fn('a'));
+    F = bind(Date, null, 2015);
+    date = new F(6);
+    ok(date instanceof Date);
+    eq(date.getFullYear(), 2015);
+    eq(date.getMonth(), 6);
   });
   test('Array.isArray', function(){
     var isArray;

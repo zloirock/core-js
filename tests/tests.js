@@ -1066,7 +1066,7 @@
     eq(isExtensible({}), true);
   });
   test('Function#bind', function(){
-    var obj, fn, inst;
+    var obj, fn, inst, F, date;
     ok(isFunction(Function.prototype.bind), 'Is function');
     obj = {
       a: 42
@@ -1088,6 +1088,11 @@
     }.bind(null, 42)());
     fn = RegExp.prototype.test.bind(/a/);
     ok(fn('a'));
+    F = Date.bind(null, 2015);
+    date = new F(6);
+    ok(date instanceof Date);
+    eq(date.getFullYear(), 2015);
+    eq(date.getMonth(), 6);
   });
   test('Array.isArray', function(){
     var isArray;
