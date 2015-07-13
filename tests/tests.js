@@ -664,37 +664,64 @@
   var toString$ = {}.toString;
   QUnit.module('core-js');
   test('Number#@@iterator', function(){
-    var iterator, toStringTag, iter1, iter2, iter3;
+    var iterator, toStringTag, iter1, iter2, iter3, iter4, iter5, iter6;
     iterator = Symbol.iterator, toStringTag = Symbol.toStringTag;
     ok(toString$.call(Number.prototype[iterator]).slice(8, -1) === 'Function', 'Is function');
     iter1 = 2[iterator]();
-    ok(iter1[toStringTag] === 'Number Iterator');
+    ok(iter1[toStringTag] === 'Number Iterator', '@@toStringTag');
     deepEqual(iter1.next(), {
       done: false,
       value: 0
-    });
+    }, '2 #1');
     deepEqual(iter1.next(), {
       done: false,
       value: 1
-    });
+    }, '2 #2');
     deepEqual(iter1.next(), {
       done: true,
       value: void 8
-    });
+    }, '2 #3');
     iter2 = 1.5[iterator]();
     deepEqual(iter2.next(), {
       done: false,
       value: 0
-    });
+    }, '1.5 #1');
+    deepEqual(iter2.next(), {
+      done: false,
+      value: 1
+    }, '1.5 #2');
     deepEqual(iter2.next(), {
       done: true,
       value: void 8
-    });
+    }, '1.5 #3');
     iter3 = (-1)[iterator]();
     deepEqual(iter3.next(), {
       done: true,
       value: void 8
-    });
+    }, '-1');
+    iter4 = NaN[iterator]();
+    deepEqual(iter4.next(), {
+      done: true,
+      value: void 8
+    }, 'NaN');
+    iter5 = Infinity[iterator]();
+    deepEqual(iter5.next(), {
+      done: false,
+      value: 0
+    }, 'Infinity #1');
+    deepEqual(iter5.next(), {
+      done: false,
+      value: 1
+    }, 'Infinity #1');
+    deepEqual(iter5.next(), {
+      done: false,
+      value: 2
+    }, 'Infinity #1');
+    iter6 = (-Infinity)[iterator]();
+    deepEqual(iter6.next(), {
+      done: true,
+      value: void 8
+    }, '-Infinity');
   });
 }).call(this);
 
