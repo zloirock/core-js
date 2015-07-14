@@ -1,8 +1,6 @@
-# core-js<sup>[![version](http://vb.teelaun.ch/zloirock/core-js.svg)](https://www.npmjs.org/package/core-js/)</sup>
+# core-js
 
-[![NPM](https://nodei.co/npm/core-js.png?downloads=true)](https://www.npmjs.org/package/core-js/)
-
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![Dependency Status](https://david-dm.org/zloirock/core-js.svg)](https://david-dm.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](https://www.npmjs.com/package/core-js) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
 
 Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
@@ -46,6 +44,7 @@ core.setImmediate(core.log, 42);                // => 42
   - [Number Iterator](#number-iterator)
   - [Escaping HTML](#escaping-html)
   - [delay](#delay)
+- [Missing polyfills](#missing-polyfills)
 - [Changelog](#changelog)
 
 ## Usage
@@ -65,7 +64,8 @@ require('core-js/shim');
 ```
 If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/library.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
 
-Caveat: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise possible conflicts.
+Warning: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise maybe conflicts.
+
 ### CommonJS
 You can require only needed modules.
 
@@ -82,11 +82,10 @@ var Set  = require('core-js/library/fn/set');
 var from = require('core-js/library/fn/array/from');
 from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 ```
-Available entry points for methods / constructors, as above, excluding features from [`es5`](#ecmascript-5) module (this module requires fully in ES3 environment before all other modules).
+Available entry points for methods / constructors, as above examples, excluding features from [`es5`](#ecmascript-5) module (this module requires completely in ES3 environment before all other modules).
 
 Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/array`) contains all [ES6 `Array` features](#ecmascript-6-array), `core-js/es6` (`core-js/library/es6`) contains all ES6 features.
 
-Available (but not recommended - possible changing modules structure in future versions) inclusion by module name, for example, `es6.object.statics-accept-primitives` - `core-js/modules/es6.object.statics-accept-primitives` or `core-js/library/modules/es6.object.statics-accept-primitives`.
 ### Custom build
 ```
 npm i core-js && cd node_modules/core-js && npm i
@@ -1171,6 +1170,16 @@ delay(1e3).then(() => log('after 1 sec'));
   while(await delay(3e3))log('each 3 sec');
 })();
 ```
+
+## Missing polyfills
+- ES5 `JSON` is missing now only in IE7- and never it will be added to `core-js`, if you need it in these old browsers available many implementations, for example, [json3](https://github.com/bestiejs/json3).
+- ES6 Typed Arrays can be polyfilled without serious problems, but it will be slow - getter / setter for each element and they are missing completely only in IE9-. You can use [this polyfill](https://github.com/inexorabletash/polyfill/blob/master/typedarray.js). *Possible*, it will be added to `core-js` in the future, completely or only missing methods of existing arrays. 
+- ES6 `String#normalize` is not very usefull feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
+- ES6 `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES6 version.
+- ES7 `Object.observe` can be polyfilled with many limitations, but it will be very slow - dirty checking on each tick. In nearest future it will not be added to `core-js` - it will cause serious slowdown in applications which uses `Object.observe` and fallback if it's missing. *Possible* it will be added as optional feature then most actual browsers will have this feature. Now you can use [this polyfill](https://github.com/MaxArt2501/object-observe).
+- ES7 `SIMD`. `core-js` doesn't adds polyfill of this feature because of large size and some other reasons. You can use [this polyfill](https://github.com/tc39/ecmascript_simd/blob/master/src/ecmascript_simd.js).
+- `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
+
 
 ## Changelog
 ##### 0.9.18 - 2015.06.17
