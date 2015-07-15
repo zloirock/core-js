@@ -7,6 +7,7 @@ var $        = require('./$')
   , assert   = require('./$.assert')
   , $iter    = require('./$.iter')
   , forOf    = require('./$.for-of')
+  , isIterable = require('./core.is-iterable')
   , step     = $iter.step
   , getKeys  = $.getKeys
   , toObject = $.toObject
@@ -16,7 +17,7 @@ var $        = require('./$')
 function Dict(iterable){
   var dict = $.create(null);
   if(iterable != undefined){
-    if($iter.get(iterable) != undefined){
+    if(isIterable(iterable)){
       forOf(iterable, true, function(key, value){
         dict[key] = value;
       });

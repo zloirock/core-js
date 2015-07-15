@@ -165,8 +165,8 @@ $def($def.S, 'Object', {
 
 function construct(F, len, args){
   if(!(len in factories)){
-    for(var args = [], i = 0; i < len; i++)args[i] = 'a[' + i + ']';
-    factories[len] = Function('F,a', 'return new F(' + args.join(',') + ')');
+    for(var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
+    factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
   }
   return factories[len](F, args);
 }
@@ -177,7 +177,7 @@ $def($def.P, 'Function', {
     var fn       = assert.fn(this)
       , partArgs = _slice.call(arguments, 1);
     function bound(/* args... */){
-      var args   = partArgs.concat(_slice.call(arguments))
+      var args = partArgs.concat(_slice.call(arguments));
       return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
     }
     if(isObject(fn.prototype))bound.prototype = fn.prototype;

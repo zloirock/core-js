@@ -1,6 +1,7 @@
 require('./shim');
 require('./modules/core.dict');
-require('./modules/core.iter-helpers');
+require('./modules/core.get-iterator');
+require('./modules/core.is-iterable');
 require('./modules/core.delay');
 require('./modules/core.function.part');
 require('./modules/core.object.is-object');

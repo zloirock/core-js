@@ -109,14 +109,14 @@ test 'Object.isExtensible' !->
 test 'Function#bind' !->
   ok isFunction(Function::bind), 'Is function'
   obj = a: 42
-  ok 42   is (-> @a)bind(obj)!
+  ok 42 is (-> @a)bind(obj)!
   ok void is new ((->)bind obj)!a
   fn = (@a, @b)->
   inst = new (fn.bind null, 1) 2
   ok inst instanceof fn
   eq inst.a, 1
   eq inst.b, 2
-  ok 42   is (-> it)bind(null 42)!
+  ok 42 is (-> it)bind(null 42)!
   fn = RegExp::test.bind /a/
   ok fn \a
   F = Date.bind null 2015

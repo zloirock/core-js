@@ -93,7 +93,8 @@ list = <[
   web.dom.iterable
   web.timers
   core.dict
-  core.iter-helpers
+  core.get-iterator
+  core.is-iterable
   core.delay
   core.function.part
   core.object.is-object
