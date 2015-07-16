@@ -17,8 +17,8 @@
     "grunt-contrib-watch": "0.6.x",
     "grunt-contrib-clean": "0.6.x",
     "grunt-contrib-copy": "0.8.x",
-    "grunt-karma": "0.11.x",
-    "karma": "0.12.x",
+    "grunt-karma": "0.12.x",
+    "karma": "0.13.x",
     "karma-qunit": "0.1.x",
     "karma-chrome-launcher": "0.2.x",
     "karma-ie-launcher": "0.2.x",
@@ -47,12 +47,11 @@
     "Set",
     "WeakMap",
     "WeakSet",
-    "Dict",
     "Promise",
     "Symbol",
     "Array generics",
     "setImmediate",
-    "partial application",
-    "Date formatting"
+    "Dict",
+    "partial application"
   ]
 }
