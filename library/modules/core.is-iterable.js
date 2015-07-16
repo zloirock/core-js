@@ -1,7 +1,7 @@
 var $         = require('./$')
-  , Iterators = require('./$.iter').Iterators
   , classof   = require('./$.cof').classof
   , ITERATOR  = require('./$.wks')('iterator')
+  , Iterators = require('./$.iterators')
   , global    = $.g;
 module.exports = $.core.isIterable = function(it){
   var O      = Object(it)

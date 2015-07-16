@@ -94,6 +94,7 @@ list = <[
   web.timers
   core.dict
   core.get-iterator
+  core.get-iter-fn
   core.is-iterable
   core.delay
   core.function.part

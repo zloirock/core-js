@@ -1,19 +1,18 @@
 // 26.1.5 Reflect.enumerate(target)
-var $              = require('./$')
-  , $def           = require('./$.def')
-  , $iter          = require('./$.iter')
-  , ITERATOR       = require('./$.wks')('iterator')
-  , ITER           = require('./$.uid').safe('iter')
-  , step           = $iter.step
-  , $Reflect       = $.g.Reflect
-  , assertObject   = require('./$.assert').obj
-  // IE TP has broken Reflect.enumerate
-  , buggyEnumerate = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
+var $            = require('./$')
+  , $def         = require('./$.def')
+  , ITERATOR     = require('./$.wks')('iterator')
+  , ITER         = require('./$.uid').safe('iter')
+  , step         = require('./$.iter-step')
+  , assertObject = require('./$.assert').obj
+  , $Reflect     = $.g.Reflect
+  // IE Edge has broken Reflect.enumerate
+  , BUGGY        = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
 
 function Enumerate(iterated){
   $.set(this, ITER, {o: iterated, k: undefined, i: 0});
 }
-$iter.create(Enumerate, 'Object', function(){
+require('./$.iter-create')(Enumerate, 'Object', function(){
   var iter = this[ITER]
     , keys = iter.k
     , key;
@@ -27,7 +26,7 @@ $iter.create(Enumerate, 'Object', function(){
   return step(0, key);
 });
 
-$def($def.S + $def.F * buggyEnumerate, 'Reflect', {
+$def($def.S + $def.F * BUGGY, 'Reflect', {
   enumerate: function enumerate(target){
     return new Enumerate(assertObject(target));
   }

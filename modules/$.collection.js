@@ -1,7 +1,7 @@
 'use strict';
 var $     = require('./$')
   , $def  = require('./$.def')
-  , BUGGY = require('./$.iter').BUGGY
+  , BUGGY = require('./$.iter-buggy')
   , forOf = require('./$.for-of')
   , assertInstance = require('./$.assert').inst;
 

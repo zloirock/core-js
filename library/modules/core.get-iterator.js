@@ -1,5 +1,5 @@
 var $      = require('./$')
-  , get    = require('./$.iter').get
+  , get    = require('./core.get-iter-fn')
   , assert = require('./$.assert');
 module.exports = $.core.getIterator = function(it){
   var iterFn = get(it);

@@ -5,10 +5,9 @@ var $        = require('./$')
   , keyOf    = require('./$.keyof')
   , ITER     = require('./$.uid').safe('iter')
   , assert   = require('./$.assert')
-  , $iter    = require('./$.iter')
   , forOf    = require('./$.for-of')
   , isIterable = require('./core.is-iterable')
-  , step     = $iter.step
+  , step     = require('./$.iter-step')
   , getKeys  = $.getKeys
   , toObject = $.toObject
   , has      = $.has
@@ -30,7 +29,7 @@ Dict.prototype = null;
 function DictIterator(iterated, kind){
   $.set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
 }
-$iter.create(DictIterator, 'Dict', function(){
+require('./$.iter-create')(DictIterator, 'Dict', function(){
   var iter = this[ITER]
     , O    = iter.o
     , keys = iter.a

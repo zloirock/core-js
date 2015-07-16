@@ -2,15 +2,14 @@ var $def            = require('./$.def')
   , $redef          = require('./$.redef')
   , $               = require('./$')
   , cof             = require('./$.cof')
-  , $iter           = require('./$.iter')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
+  , Iterators       = require('./$.iterators')
   , hide            = $.hide
   , FF_ITERATOR     = '@@iterator'
   , KEYS            = 'keys'
-  , VALUES          = 'values'
-  , Iterators       = $iter.Iterators;
+  , VALUES          = 'values';
 module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
-  $iter.create(Constructor, NAME, next);
+  require('./$.iter-create')(Constructor, NAME, next);
   function createMethod(kind){
     function $$(that){
       return new Constructor(that, kind);
@@ -46,6 +45,6 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     };
     if(FORCE)for(key in methods){
       if(!(key in proto))$redef(proto, key, methods[key]);
-    } else $def($def.P + $def.F * $iter.BUGGY, NAME, methods);
+    } else $def($def.P + $def.F * require('./$.iter-buggy'), NAME, methods);
   }
 };
