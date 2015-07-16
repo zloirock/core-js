@@ -28,7 +28,7 @@ function listner(event){
 }
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
 if(!isFunction(setTask) || !isFunction(clearTask)){
-  setTask = function(fn){
+  setTask = function setImmediate(fn){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
@@ -37,7 +37,7 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
     defer(counter);
     return counter;
   };
-  clearTask = function(id){
+  clearTask = function clearImmediate(id){
     delete queue[id];
   };
   // Node.js 0.8-

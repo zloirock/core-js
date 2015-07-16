@@ -7425,9 +7425,13 @@
   };
   test('setImmediate / clearImmediate', function(it){
     var def;
-    it.expect(6);
+    it.expect(10);
+    ok(isFunction(setImmediate), 'setImmediate is function');
+    ok(isFunction(clearImmediate), 'clearImmediate is function');
     ok(/native code/.test(setImmediate), 'setImmediate looks like native');
     ok(/native code/.test(clearImmediate), 'clearImmediate looks like native');
+    eq(setImmediate.name, 'setImmediate', 'setImmediate.name is "setImmediate"');
+    eq(clearImmediate.name, 'clearImmediate', 'clearImmediate.name is "clearImmediate"');
     timeLimitedPromise(1e3, function(res){
       return setImmediate(function(){
         def = 'a';
