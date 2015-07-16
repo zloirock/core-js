@@ -55,6 +55,6 @@ test 'Array.from' !->
   done = no
   a[iterator] = ->
     done := on
-    [][iterator]call @
+    core.getIterFn([])call @
   deq from(a), [1 2 3]
   ok done

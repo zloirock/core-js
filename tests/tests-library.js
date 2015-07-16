@@ -1609,7 +1609,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     deq(from(a), [1, 2, 3]);
     ok(done);
@@ -1807,7 +1807,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     new Map(a);
     ok(done);
@@ -3071,7 +3071,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     core.Promise.all(a);
     ok(done);
@@ -3092,7 +3092,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     core.Promise.race(a);
     ok(done);
@@ -3772,7 +3772,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     new Set(a);
     ok(done);
@@ -4689,7 +4689,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     new WeakMap(a);
     ok(done);
@@ -4783,7 +4783,7 @@
     done = false;
     a[iterator] = function(){
       done = true;
-      return [][iterator].call(this);
+      return core.getIterFn([]).call(this);
     };
     new WeakSet(a);
     ok(done);

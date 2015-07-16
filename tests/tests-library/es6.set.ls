@@ -45,7 +45,7 @@ test 'Set' !->
   done = no
   a[iterator] = ->
     done := on
-    [][iterator]call @
+    core.getIterFn([])call @
   new Set a
   ok done
 

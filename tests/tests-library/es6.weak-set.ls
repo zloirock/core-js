@@ -35,7 +35,7 @@ test 'WeakSet' !->
   done = no
   a[iterator] = ->
     done := on
-    [][iterator]call @
+    core.getIterFn([])call @
   new WeakSet a
   ok done
 

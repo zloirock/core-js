@@ -28,7 +28,7 @@ test 'Promise.all' !->
   done = no
   a[iterator] = ->
     done := on
-    [][iterator]call @
+    core.getIterFn([])call @
   core.Promise.all a
   ok done
 test 'Promise.race' !->
@@ -47,7 +47,7 @@ test 'Promise.race' !->
   done = no
   a[iterator] = ->
     done := on
-    [][iterator]call @
+    core.getIterFn([])call @
   core.Promise.race a
   ok done
 test 'Promise.resolve' !->
