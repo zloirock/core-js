@@ -7,25 +7,22 @@ $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(it
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
     var O       = Object($.assertDefined(arrayLike))
+      // strange IE quirks mode bug -> use typeof instead of isFunction
+      , C       = typeof this == 'function' ? this : Array
       , mapfn   = arguments[1]
       , mapping = mapfn !== undefined
-      , f       = mapping ? ctx(mapfn, arguments[2], 2) : undefined
       , index   = 0
       , iterFn  = $iter.get(O)
       , length, result, step, iterator;
+    if(mapping)mapfn = ctx(mapfn, arguments[2], 2);
     // if object isn't iterable or it's array with default iterator - use simple case
-    if(iterFn != undefined && !$iter.isArrayIter(iterFn)){
-      iterator = iterFn.call(O);
-      // strange IE quirks mode bug -> use typeof instead of isFunction
-      result   = new (typeof this == 'function' ? this : Array);
-      for(; !(step = iterator.next()).done; index++){
-        result[index] = mapping ? call(iterator, f, [step.value, index], true) : step.value;
+    if(iterFn != undefined && !(C == Array && $iter.isArrayIter(iterFn))){
+      for(iterator = iterFn.call(O), result = new C; !(step = iterator.next()).done; index++){
+        result[index] = mapping ? call(iterator, mapfn, [step.value, index], true) : step.value;
       }
     } else {
-      // strange IE quirks mode bug -> use typeof instead of isFunction
-      result = new (typeof this == 'function' ? this : Array)(length = $.toLength(O.length));
-      for(; length > index; index++){
-        result[index] = mapping ? f(O[index], index) : O[index];
+      for(result = new C(length = $.toLength(O.length)); length > index; index++){
+        result[index] = mapping ? mapfn(O[index], index) : O[index];
       }
     }
     result.length = index;
