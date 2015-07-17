@@ -8,7 +8,7 @@ var $    = require('./$')
 $def($def.P + $def.F * !require('./$.throws')(function(){ 'q'.endsWith(/./); }), 'String', {
   // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
   endsWith: function endsWith(searchString /*, endPosition = @length */){
-    if(cof(searchString) == 'RegExp')throw TypeError();
+    if(cof(searchString) == 'RegExp')throw TypeError("String#endsWith doesn't accept regex!");
     var that = String($.assertDefined(this))
       , endPosition = arguments[1]
       , len = toLength(that.length)
