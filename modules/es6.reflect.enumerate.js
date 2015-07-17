@@ -3,7 +3,6 @@ var $            = require('./$')
   , $def         = require('./$.def')
   , ITERATOR     = require('./$.wks')('iterator')
   , ITER         = require('./$.uid').safe('iter')
-  , step         = require('./$.iter-step')
   , assertObject = require('./$.assert').obj
   , $Reflect     = $.g.Reflect
   // IE Edge has broken Reflect.enumerate
@@ -21,9 +20,9 @@ require('./$.iter-create')(Enumerate, 'Object', function(){
     for(key in iter.o)keys.push(key);
   }
   do {
-    if(iter.i >= keys.length)return step(1);
+    if(iter.i >= keys.length)return {value: undefined, done: true};
   } while(!((key = keys[iter.i++]) in iter.o));
-  return step(0, key);
+  return {value: key, done: false};
 });
 
 $def($def.S + $def.F * BUGGY, 'Reflect', {
