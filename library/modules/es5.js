@@ -9,6 +9,9 @@ var $                = require('./$')
   , anObject         = require('./$.an-object')
   , aFunction        = require('./$.a-function')
   , toObject         = require('./$.to-object')
+  , toInteger        = require('./$.to-integer')
+  , toIndex          = require('./$.to-index')
+  , toLength         = require('./$.to-length')
   , ObjectProto      = Object.prototype
   , html             = $.html
   , A                = []
@@ -21,8 +24,6 @@ var $                = require('./$')
   , defineProperties = $.setDescs
   , isFunction       = $.isFunction
   , isObject         = $.isObject
-  , toLength         = $.toLength
-  , toIndex          = $.toIndex
   , IE8_DOM_DEFINE   = false
   , $indexOf         = require('./$.array-includes')(false)
   , $forEach         = arrayMethod(0)
@@ -285,7 +286,7 @@ $def($def.P, 'Array', {
     var O      = toObject(this)
       , length = toLength(O.length)
       , index  = length - 1;
-    if(arguments.length > 1)index = Math.min(index, $.toInteger(fromIndex));
+    if(arguments.length > 1)index = Math.min(index, toInteger(fromIndex));
     if(index < 0)index = toLength(length + index);
     for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
     return -1;

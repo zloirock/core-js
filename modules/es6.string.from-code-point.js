@@ -1,5 +1,5 @@
 var $def    = require('./$.def')
-  , toIndex = require('./$').toIndex
+  , toIndex = require('./$.to-index')
   , fromCharCode = String.fromCharCode
   , $fromCodePoint = String.fromCodePoint;
 

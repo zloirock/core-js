@@ -1,5 +1,5 @@
 'use strict';
-var toInteger = require('./$').toInteger
+var toInteger = require('./$.to-integer')
   , defined   = require('./$.defined');
 
 module.exports = function repeat(count){

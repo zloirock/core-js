@@ -2,21 +2,14 @@
 var global = typeof self != 'undefined' && self.Math == Math ? self : Function('return this')()
   , core   = {}
   , defineProperty = Object.defineProperty
-  , hasOwnProperty = {}.hasOwnProperty
-  , ceil  = Math.ceil
-  , floor = Math.floor
-  , max   = Math.max
-  , min   = Math.min;
+  , hasOwnProperty = {}.hasOwnProperty;
 // The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
 var DESC = !!function(){
   try {
     return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
   } catch(e){ /* empty */ }
 }();
-// 7.1.4 ToInteger
-function toInteger(it){
-  return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
-}
+
 function desc(bitmap, value){
   return {
     enumerable  : !(bitmap & 1),
@@ -30,13 +23,6 @@ function simpleSet(object, key, value){
   return object;
 }
 
-function isObject(it){
-  return it !== null && (typeof it == 'object' || typeof it == 'function');
-}
-function isFunction(it){
-  return typeof it == 'function';
-}
-
 var hide = DESC ? function(object, key, value){
   return $.setDesc(object, key, desc(1, value));
 } : simpleSet;
@@ -46,20 +32,14 @@ var $ = module.exports = require('./$.fw')({
   core: core,
   html: global.document && document.documentElement,
   // http://jsperf.com/core-js-isobject
-  isObject:   isObject,
-  isFunction: isFunction,
+  isObject: function(it){
+    return it !== null && (typeof it == 'object' || typeof it == 'function');
+  },
+  isFunction: function(it){
+    return typeof it == 'function';
+  },
   that: function(){
     return this;
-  },
-  // 7.1.4 ToInteger
-  toInteger: toInteger,
-  // 7.1.15 ToLength
-  toLength: function(it){
-    return it > 0 ? min(toInteger(it), 0x1fffffffffffff) : 0; // pow(2, 53) - 1 == 9007199254740991
-  },
-  toIndex: function(index, length){
-    index = toInteger(index);
-    return index < 0 ? max(index + length, 0) : min(index, length);
   },
   has: function(it, key){
     return hasOwnProperty.call(it, key);

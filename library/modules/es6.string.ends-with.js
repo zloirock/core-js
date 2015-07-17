@@ -2,7 +2,7 @@
 var cof      = require('./$.cof')
   , $def     = require('./$.def')
   , defined  = require('./$.defined')
-  , toLength = require('./$').toLength;
+  , toLength = require('./$.to-length');
 
 // should throw error on regex
 $def($def.P + $def.F * !require('./$.throws')(function(){ 'q'.endsWith(/./); }), 'String', {

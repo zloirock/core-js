@@ -1,5 +1,5 @@
 // http://wiki.ecmascript.org/doku.php?id=strawman:string_padding
-var toInteger = require('./$').toInteger
+var toInteger = require('./$.to-integer')
   , repeat    = require('./$.string-repeat')
   , defined   = require('./$.defined');
 

@@ -1,5 +1,5 @@
 'use strict';
-var toLength = require('./$').toLength
+var toLength = require('./$.to-length')
   , defined  = require('./$.defined')
   , cof      = require('./$.cof')
   , $def     = require('./$.def');

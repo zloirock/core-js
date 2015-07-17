@@ -1,6 +1,6 @@
 // true  -> String#at
 // false -> String#codePointAt
-var toInteger = require('./$').toInteger
+var toInteger = require('./$.to-integer')
   , defined   = require('./$.defined');
 module.exports = function(TO_STRING){
   return function(that, pos){

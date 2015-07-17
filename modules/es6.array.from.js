@@ -1,10 +1,10 @@
-var $           = require('./$')
-  , ctx         = require('./$.ctx')
+var ctx         = require('./$.ctx')
   , $def        = require('./$.def')
   , defined     = require('./$.defined')
   , call        = require('./$.iter-call')
   , getIterFn   = require('./core.get-iter-fn')
-  , isArrayIter = require('./$.is-array-iter');
+  , isArrayIter = require('./$.is-array-iter')
+  , toLength    = require('./$.to-length');
 $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
@@ -23,7 +23,7 @@ $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(it
         result[index] = mapping ? call(iterator, mapfn, [step.value, index], true) : step.value;
       }
     } else {
-      for(result = new C(length = $.toLength(O.length)); length > index; index++){
+      for(result = new C(length = toLength(O.length)); length > index; index++){
         result[index] = mapping ? mapfn(O[index], index) : O[index];
       }
     }
