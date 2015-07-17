@@ -8,7 +8,7 @@ var $        = require('./$')
   , $redef   = require('./$.redef')
   , keyOf    = require('./$.keyof')
   , enumKeys = require('./$.enum-keys')
-  , assertObject = require('./$.assert').obj
+  , anObject = require('./$.an-object')
   , ObjectProto = Object.prototype
   , DESC     = $.DESC
   , has      = $.has
@@ -69,7 +69,7 @@ function defineProperty(it, key, D){
   } return setDesc(it, key, D);
 }
 function defineProperties(it, P){
-  assertObject(it);
+  anObject(it);
   var keys = enumKeys(P = toObject(P))
     , i    = 0
     , l = keys.length

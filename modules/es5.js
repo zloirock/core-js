@@ -5,8 +5,8 @@ var $                = require('./$')
   , invoke           = require('./$.invoke')
   , arrayMethod      = require('./$.array-methods')
   , IE_PROTO         = require('./$.uid').safe('__proto__')
-  , assert           = require('./$.assert')
-  , assertObject     = assert.obj
+  , anObject         = require('./$.an-object')
+  , aFunction        = require('./$.a-function')
   , ObjectProto      = Object.prototype
   , html             = $.html
   , A                = []
@@ -43,7 +43,7 @@ if(!$.DESC){
       return defineProperty(O, P, Attributes);
     } catch(e){ /* empty */ }
     if('get' in Attributes || 'set' in Attributes)throw TypeError('Accessors not supported!');
-    if('value' in Attributes)assertObject(O)[P] = Attributes.value;
+    if('value' in Attributes)anObject(O)[P] = Attributes.value;
     return O;
   };
   $.getDesc = function(O, P){
@@ -53,7 +53,7 @@ if(!$.DESC){
     if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
   };
   $.setDescs = defineProperties = function(O, Properties){
-    assertObject(O);
+    anObject(O);
     var keys   = $.getKeys(Properties)
       , length = keys.length
       , i = 0
@@ -116,7 +116,7 @@ function Empty(){}
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
-    O = Object(assert.def(O));
+    O = Object($.assertDefined(O));
     if(has(O, IE_PROTO))return O[IE_PROTO];
     if(isFunction(O.constructor) && O instanceof O.constructor){
       return O.constructor.prototype;
@@ -128,7 +128,7 @@ $def($def.S, 'Object', {
   create: $.create = $.create || function(O, /*?*/Properties){
     var result;
     if(O !== null){
-      Empty.prototype = assertObject(O);
+      Empty.prototype = anObject(O);
       result = new Empty();
       Empty.prototype = null;
       // add "__proto__" for Object.getPrototypeOf shim
@@ -175,7 +175,7 @@ function construct(F, len, args){
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 $def($def.P, 'Function', {
   bind: function(that /*, args... */){
-    var fn       = assert.fn(this)
+    var fn       = aFunction(this)
       , partArgs = _slice.call(arguments, 1);
     function bound(/* args... */){
       var args = partArgs.concat(_slice.call(arguments));
@@ -228,7 +228,7 @@ $def($def.S, 'Array', {isArray: function(arg){ return cof(arg) == 'Array'; }});
 
 function createArrayReduce(isRight){
   return function(callbackfn, memo){
-    assert.fn(callbackfn);
+    aFunction(callbackfn);
     var O      = toObject(this)
       , length = toLength(O.length)
       , index  = isRight ? length - 1 : 0
@@ -240,7 +240,9 @@ function createArrayReduce(isRight){
         break;
       }
       index += i;
-      assert(isRight ? index >= 0 : length > index, 'Reduce of empty array with no initial value');
+      if(isRight ? index < 0 : length <= index){
+        throw TypeError('Reduce of empty array with no initial value');
+      }
     }
     for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
       memo = callbackfn(memo, O[index], index, this);

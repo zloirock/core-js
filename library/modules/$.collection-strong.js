@@ -3,7 +3,7 @@ var $        = require('./$')
   , ctx      = require('./$.ctx')
   , safe     = require('./$.uid').safe
   , species  = require('./$.species')
-  , assert   = require('./$.assert')
+  , strictNew = require('./$.strict-new')
   , forOf    = require('./$.for-of')
   , step     = require('./$.iter-step')
   , $has     = $.has
@@ -46,7 +46,7 @@ function getEntry(that, key){
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
-      assert.inst(that, C, NAME);
+      strictNew(that, C, NAME);
       set(that, O1, $.create(null));
       set(that, SIZE, 0);
       set(that, LAST, undefined);
@@ -101,7 +101,7 @@ module.exports = {
     });
     if($.DESC)$.setDesc(C.prototype, 'size', {
       get: function(){
-        return assert.def(this[SIZE]);
+        return $.assertDefined(this[SIZE]);
       }
     });
     return C;

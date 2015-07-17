@@ -1,7 +1,8 @@
 'use strict';
 var $         = require('./$')
   , safe      = require('./$.uid').safe
-  , assert    = require('./$.assert')
+  , anObject  = require('./$.an-object')
+  , strictNew = require('./$.strict-new')
   , forOf     = require('./$.for-of')
   , $has      = $.has
   , isObject  = $.isObject
@@ -48,7 +49,7 @@ function leakStore(that){
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
-      $.set(assert.inst(that, C, NAME), ID, id++);
+      $.set(strictNew(that, C, NAME), ID, id++);
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
     });
     require('./$.mix')(C.prototype, {
@@ -70,7 +71,7 @@ module.exports = {
     return C;
   },
   def: function(that, key, value){
-    if(!isExtensible(assert.obj(key))){
+    if(!isExtensible(anObject(key))){
       leakStore(that).set(key, value);
     } else {
       $has(key, WEAK) || hide(key, WEAK, {});

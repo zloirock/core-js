@@ -1,9 +1,9 @@
 'use strict';
 var $      = require('./$')
   , invoke = require('./$.invoke')
-  , assertFunction = require('./$.assert').fn;
+  , aFunction = require('./$.a-function');
 module.exports = function(/* ...pargs */){
-  var fn     = assertFunction(this)
+  var fn     = aFunction(this)
     , length = arguments.length
     , pargs  = Array(length)
     , i      = 0

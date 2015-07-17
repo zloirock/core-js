@@ -1,13 +1,13 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-var $            = require('./$')
-  , $def         = require('./$.def')
-  , assertObject = require('./$.assert').obj
-  , isObject     = $.isObject;
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , anObject = require('./$.an-object')
+  , isObject = $.isObject;
 
 $def($def.S, 'Reflect', {
   set: function set(target, propertyKey, V/*, receiver*/){
     var receiver = arguments.length < 4 ? target : arguments[3]
-      , ownDesc  = $.getDesc(assertObject(target), propertyKey)
+      , ownDesc  = $.getDesc(anObject(target), propertyKey)
       , existingDescriptor, proto;
     if(!ownDesc){
       if(isObject(proto = $.getProto(target))){

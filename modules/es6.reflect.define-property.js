@@ -1,11 +1,11 @@
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
-var $            = require('./$')
-  , $def         = require('./$.def')
-  , assertObject = require('./$.assert').obj;
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , anObject = require('./$.an-object');
 
 $def($def.S, 'Reflect', {
   defineProperty: function defineProperty(target, propertyKey, attributes){
-    assertObject(target);
+    anObject(target);
     try {
       $.setDesc(target, propertyKey, attributes);
       return true;

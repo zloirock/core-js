@@ -3,7 +3,7 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , BUGGY = require('./$.iter-buggy')
   , forOf = require('./$.for-of')
-  , assertInstance = require('./$.assert').inst
+  , strictNew = require('./$.strict-new')
   , INTERNAL = require('./$.uid').safe('internal');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
@@ -18,7 +18,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     require('./$.mix')(C.prototype, methods);
   } else {
     C = wrapper(function(target, iterable){
-      assertInstance(target, C, NAME);
+      strictNew(target, C, NAME);
       target[INTERNAL] = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });

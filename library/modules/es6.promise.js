@@ -3,7 +3,9 @@ var $        = require('./$')
   , ctx      = require('./$.ctx')
   , cof      = require('./$.cof')
   , $def     = require('./$.def')
-  , assert   = require('./$.assert')
+  , anObject = require('./$.an-object')
+  , aFunction = require('./$.a-function')
+  , strictNew = require('./$.strict-new')
   , forOf    = require('./$.for-of')
   , setProto = require('./$.set-proto').set
   , same     = require('./$.same')
@@ -18,8 +20,6 @@ var $        = require('./$')
   , P        = global[PROMISE]
   , isFunction     = $.isFunction
   , isObject       = $.isObject
-  , assertFunction = assert.fn
-  , assertObject   = assert.obj
   , Wrapper;
 
 function testResolve(sub){
@@ -65,7 +65,7 @@ function sameConstructor(a, b){
   return same(a, b);
 }
 function getConstructor(C){
-  var S = assertObject(C)[SPECIES];
+  var S = anObject(C)[SPECIES];
   return S != undefined ? S : C;
 }
 function isThenable(it){
@@ -169,9 +169,9 @@ function $resolve(value){
 if(!useNative){
   // 25.4.3.1 Promise(executor)
   P = function Promise(executor){
-    assertFunction(executor);
+    aFunction(executor);
     var record = {
-      p: assert.inst(this, P, PROMISE),       // <- promise
+      p: strictNew(this, P, PROMISE),         // <- promise
       c: [],                                  // <- awaiting reactions
       a: undefined,                           // <- checked in isUnhandled reactions
       s: 0,                                   // <- state
@@ -190,14 +190,14 @@ if(!useNative){
   require('./$.mix')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
-      var S = assertObject(assertObject(this).constructor)[SPECIES];
+      var S = anObject(anObject(this).constructor)[SPECIES];
       var react = {
         ok:   isFunction(onFulfilled) ? onFulfilled : true,
         fail: isFunction(onRejected)  ? onRejected  : false
       };
       var promise = react.P = new (S != undefined ? S : P)(function(res, rej){
-        react.res = assertFunction(res);
-        react.rej = assertFunction(rej);
+        react.res = aFunction(res);
+        react.rej = aFunction(rej);
       });
       var record = this[RECORD];
       record.c.push(react);

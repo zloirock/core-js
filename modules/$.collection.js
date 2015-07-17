@@ -3,7 +3,7 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , BUGGY = require('./$.iter-buggy')
   , forOf = require('./$.for-of')
-  , assertInstance = require('./$.assert').inst;
+  , strictNew = require('./$.strict-new');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = $.g[NAME]
@@ -32,7 +32,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     // wrap for init collections from iterable
     if(!require('./$.iter-detect')(function(iter){ new C(iter); })){ // eslint-disable-line no-new
       C = wrapper(function(target, iterable){
-        assertInstance(target, C, NAME);
+        strictNew(target, C, NAME);
         var that = new Base;
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;

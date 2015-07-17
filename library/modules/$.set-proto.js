@@ -1,10 +1,10 @@
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 /* eslint-disable no-proto */
-var $      = require('./$')
-  , assert = require('./$.assert');
+var $        = require('./$')
+  , anObject = require('./$.an-object');
 function check(O, proto){
-  assert.obj(O);
-  assert(proto === null || $.isObject(proto), proto, ": can't set as prototype!");
+  anObject(O);
+  if(!$.isObject(proto) && proto !== null)throw TypeError(proto + ": can't set as prototype!");
 }
 module.exports = {
   set: Object.setPrototypeOf || ('__proto__' in {} // eslint-disable-line

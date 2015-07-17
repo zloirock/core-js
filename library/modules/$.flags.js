@@ -1,6 +1,6 @@
-var assertObject = require('./$.assert').obj;
+var anObject = require('./$.an-object');
 module.exports = function flags(){
-  var that   = assertObject(this)
+  var that   = anObject(this)
     , result = '';
   if(that.global)result += 'g';
   if(that.ignoreCase)result += 'i';

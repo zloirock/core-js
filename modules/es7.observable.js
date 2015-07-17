@@ -1,14 +1,13 @@
 // Based on https://github.com/zenparsing/es-observable/blob/master/src/Observable.js
-var $              = require('./$')
-  , $def           = require('./$.def')
-  , $redef         = require('./$.redef')
-  , $mix           = require('./$.mix')
-  , asap           = require('./$.task').set
-  , assert         = require('./$.assert')
-  , OBSERVER       = require('./$.wks')('observer')
-  , isFunction     = $.isFunction
-  , assertObject   = assert.obj
-  , assertFunction = assert.fn;
+var $          = require('./$')
+  , $def       = require('./$.def')
+  , $redef     = require('./$.redef')
+  , $mix       = require('./$.mix')
+  , asap       = require('./$.task').set
+  , anObject   = require('./$.an-object')
+  , aFunction  = require('./$.a-function')
+  , OBSERVER   = require('./$.wks')('observer')
+  , isFunction = $.isFunction;
 
 // === Abstract Operations ===
 function cancelSubscription(observer){
@@ -88,12 +87,12 @@ $mix(SubscriptionObserver.prototype, {
 
 function Observable(subscriber){
   // The stream subscriber must be a function
-  this._subscriber = assertFunction(subscriber);
+  this._subscriber = aFunction(subscriber);
 }
 $mix(Observable.prototype, {
   subscribe: function(observer){
     // The sink must be an object
-    assertObject(observer);
+    anObject(observer);
     var unsubscribed = false
       , that = this
       , subscription;
@@ -111,7 +110,7 @@ $mix(Observable.prototype, {
   forEach: function(fn, thisArg){
     var that = this;
     return new ($.core.Promise || $.g.Promise)(function(resolve, reject){
-      assertFunction(fn);
+      aFunction(fn);
       that.subscribe({
         next: function(value){ fn.call(thisArg, value); },
         'throw': function(value){ reject(value); },
@@ -123,7 +122,7 @@ $mix(Observable.prototype, {
 $redef(Observable.prototype, OBSERVER, function(observer){
   // The sink must be an object
   // Wrap the observer in order to maintain observation invariants
-  observer = new SubscriptionObserver(assertObject(observer));
+  observer = new SubscriptionObserver(anObject(observer));
   var subscription;
   try {
     // Call the subscriber function
@@ -146,8 +145,8 @@ $redef(Observable.prototype, OBSERVER, function(observer){
   return subscription;
 });
 $redef(Observable, 'from', function(x){
-  if(assertObject(x)._subscriber && x.constructor === this)return x;
-  var subscribeFunction = assertFunction(x[OBSERVER]);
+  if(anObject(x)._subscriber && x.constructor === this)return x;
+  var subscribeFunction = aFunction(x[OBSERVER]);
   return new this(function(sink){
     subscribeFunction.call(x, sink);
   });

@@ -1,7 +1,7 @@
 // Optional / simple context binding
-var assertFunction = require('./$.assert').fn;
+var aFunction = require('./$.a-function');
 module.exports = function(fn, that, length){
-  assertFunction(fn);
+  aFunction(fn);
   if(~length && that === undefined)return fn;
   switch(length){
     case 1: return function(a){

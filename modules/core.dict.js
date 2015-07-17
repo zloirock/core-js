@@ -1,17 +1,17 @@
-var $        = require('./$')
-  , ctx      = require('./$.ctx')
-  , $def     = require('./$.def')
-  , assign   = require('./$.assign')
-  , keyOf    = require('./$.keyof')
-  , ITER     = require('./$.uid').safe('iter')
-  , assert   = require('./$.assert')
-  , forOf    = require('./$.for-of')
+var $          = require('./$')
+  , ctx        = require('./$.ctx')
+  , $def       = require('./$.def')
+  , assign     = require('./$.assign')
+  , keyOf      = require('./$.keyof')
+  , ITER       = require('./$.uid').safe('iter')
+  , aFunction  = require('./$.a-function')
+  , forOf      = require('./$.for-of')
   , isIterable = require('./core.is-iterable')
-  , step     = require('./$.iter-step')
-  , getKeys  = $.getKeys
-  , toObject = $.toObject
-  , has      = $.has
-  , findKey  = createDictMethod(6);
+  , step       = require('./$.iter-step')
+  , getKeys    = $.getKeys
+  , toObject   = $.toObject
+  , has        = $.has
+  , findKey    = createDictMethod(6);
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -90,14 +90,14 @@ function createDictMethod(TYPE){
 }
 
 function reduce(object, mapfn, init){
-  assert.fn(mapfn);
+  aFunction(mapfn);
   var O      = toObject(object)
     , keys   = getKeys(O)
     , length = keys.length
     , i      = 0
     , memo, key;
   if(arguments.length < 3){
-    assert(length, 'Reduce of empty object with no initial value');
+    if(!length)throw TypeError('Reduce of empty object with no initial value');
     memo = O[keys[i++]];
   } else memo = Object(init);
   while(length > i)if(has(O, key = keys[i++])){

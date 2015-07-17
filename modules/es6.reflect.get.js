@@ -1,13 +1,13 @@
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
-var $            = require('./$')
-  , $def         = require('./$.def')
-  , assertObject = require('./$.assert').obj;
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , anObject = require('./$.an-object');
 
 $def($def.S, 'Reflect', {
   get: function get(target, propertyKey/*, receiver*/){
     var receiver = arguments.length < 3 ? target : arguments[2]
       , desc, proto;
-    if(assertObject(target) === receiver)return target[propertyKey];
+    if(anObject(target) === receiver)return target[propertyKey];
     if(desc = $.getDesc(target, propertyKey))return $.has(desc, 'value')
       ? desc.value
       : desc.get !== undefined
