@@ -2,14 +2,15 @@ var $          = require('./$')
   , setUnscope = require('./$.unscope')
   , ITER       = require('./$.uid').safe('iter')
   , step       = require('./$.iter-step')
-  , Iterators  = require('./$.iterators');
+  , Iterators  = require('./$.iterators')
+  , toObject   = require('./$.to-object');
 
 // 22.1.3.4 Array.prototype.entries()
 // 22.1.3.13 Array.prototype.keys()
 // 22.1.3.29 Array.prototype.values()
 // 22.1.3.30 Array.prototype[@@iterator]()
 require('./$.iter-define')(Array, 'Array', function(iterated, kind){
-  $.set(this, ITER, {o: $.toObject(iterated), i: 0, k: kind});
+  $.set(this, ITER, {o: toObject(iterated), i: 0, k: kind});
 // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
 }, function(){
   var iter  = this[ITER]

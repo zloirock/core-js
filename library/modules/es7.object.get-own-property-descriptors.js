@@ -1,12 +1,13 @@
 // https://gist.github.com/WebReflection/9353781
-var $       = require('./$')
-  , $def    = require('./$.def')
-  , ownKeys = require('./$.own-keys')
-  , desc    = $.desc;
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , ownKeys  = require('./$.own-keys')
+  , toObject = require('./$.to-object')
+  , desc     = $.desc;
 
 $def($def.S, 'Object', {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object){
-    var O       = $.toObject(object)
+    var O       = toObject(object)
       , setDesc = $.setDesc
       , getDesc = $.getDesc
       , keys    = ownKeys(O)

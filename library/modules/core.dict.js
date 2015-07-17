@@ -8,9 +8,9 @@ var $          = require('./$')
   , forOf      = require('./$.for-of')
   , isIterable = require('./core.is-iterable')
   , step       = require('./$.iter-step')
+  , toObject   = require('./$.to-object')
   , DESC       = $.DESC
   , getKeys    = $.getKeys
-  , toObject   = $.toObject
   , has        = $.has
   , findKey    = createDictMethod(6);
 

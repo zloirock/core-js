@@ -1,10 +1,11 @@
-var $    = require('./$')
-  , $def = require('./$.def');
+var $        = require('./$')
+  , $def     = require('./$.def')
+  , toObject = require('./$.to-object');
 
 $def($def.S, 'String', {
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   raw: function raw(callSite){
-    var tpl = $.toObject(callSite.raw)
+    var tpl = toObject(callSite.raw)
       , len = $.toLength(tpl.length)
       , sln = arguments.length
       , res = []

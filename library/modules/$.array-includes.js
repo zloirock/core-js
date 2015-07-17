@@ -1,9 +1,10 @@
 // false -> Array#indexOf
 // true  -> Array#includes
-var $ = require('./$');
+var $        = require('./$')
+  , toObject = require('./$.to-object');
 module.exports = function(IS_INCLUDES){
   return function($this, el, fromIndex){
-    var O      = $.toObject($this)
+    var O      = toObject($this)
       , length = $.toLength(O.length)
       , index  = $.toIndex(fromIndex, length)
       , value;

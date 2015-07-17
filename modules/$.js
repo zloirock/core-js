@@ -82,9 +82,6 @@ var $ = module.exports = require('./$.fw')({
   assertDefined: assertDefined,
   // Dummy, fix for not array-like ES3 string in es5 module
   ES5Object: Object,
-  toObject: function(it){
-    return $.ES5Object(assertDefined(it));
-  },
   hide: hide,
   set: global.Symbol ? simpleSet : hide,
   each: [].forEach

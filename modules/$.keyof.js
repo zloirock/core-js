@@ -1,6 +1,7 @@
-var $ = require('./$');
+var $        = require('./$')
+  , toObject = require('./$.to-object');
 module.exports = function(object, el){
-  var O      = $.toObject(object)
+  var O      = toObject(object)
     , keys   = $.getKeys(O)
     , length = keys.length
     , index  = 0
