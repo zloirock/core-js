@@ -8,6 +8,7 @@ var $          = require('./$')
   , forOf      = require('./$.for-of')
   , isIterable = require('./core.is-iterable')
   , step       = require('./$.iter-step')
+  , DESC       = $.DESC
   , getKeys    = $.getKeys
   , toObject   = $.toObject
   , has        = $.has
@@ -115,6 +116,11 @@ function includes(object, el){
 function get(object, key){
   if(has(object, key))return object[key];
 }
+function set(object, key, value){
+  if(DESC && key in Object)$.setDesc(object, key, $.desc(0, value));
+  else object[key] = value;
+  return object;
+}
 
 function isDict(it){
   return $.isObject(it) && $.getProto(it) === Dict.prototype;
@@ -139,6 +145,6 @@ $def($def.S, 'Dict', {
   includes: includes,
   has:      has,
   get:      get,
-  set:      $.def,
+  set:      set,
   isDict:   isDict
 });

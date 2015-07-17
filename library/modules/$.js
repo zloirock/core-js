@@ -13,7 +13,6 @@ var DESC = !!function(){
     return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
   } catch(e){ /* empty */ }
 }();
-var hide = createDefiner(1);
 // 7.1.4 ToInteger
 function toInteger(it){
   return isNaN(it = +it) ? 0 : (it > 0 ? floor : ceil)(it);
@@ -30,11 +29,6 @@ function simpleSet(object, key, value){
   object[key] = value;
   return object;
 }
-function createDefiner(bitmap){
-  return DESC ? function(object, key, value){
-    return $.setDesc(object, key, desc(bitmap, value));
-  } : simpleSet;
-}
 
 function isObject(it){
   return it !== null && (typeof it == 'object' || typeof it == 'function');
@@ -46,6 +40,10 @@ function assertDefined(it){
   if(it == undefined)throw TypeError("Can't call method on  " + it);
   return it;
 }
+
+var hide = DESC ? function(object, key, value){
+  return $.setDesc(object, key, desc(1, value));
+} : simpleSet;
 
 var $ = module.exports = require('./$.fw')({
   g: global,
@@ -88,7 +86,6 @@ var $ = module.exports = require('./$.fw')({
     return $.ES5Object(assertDefined(it));
   },
   hide: hide,
-  def: createDefiner(0),
   set: global.Symbol ? simpleSet : hide,
   each: [].forEach
 });
