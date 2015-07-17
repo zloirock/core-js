@@ -74,6 +74,7 @@ var $ = module.exports = require('./$.fw')({
   getProto:   Object.getPrototypeOf,
   DESC:       DESC,
   desc:       desc,
+  isEnum:     {}.propertyIsEnumerable,
   getDesc:    Object.getOwnPropertyDescriptor,
   setDesc:    defineProperty,
   setDescs:   Object.defineProperties,

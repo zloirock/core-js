@@ -118,8 +118,9 @@ if(!useNative){
   });
 
   $.create     = create;
-  $.setDesc    = defineProperty;
+  $.isEnum     = propertyIsEnumerable;
   $.getDesc    = getOwnPropertyDescriptor;
+  $.setDesc    = defineProperty;
   $.setDescs   = defineProperties;
   $.getNames   = $names.get = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
