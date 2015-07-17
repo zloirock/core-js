@@ -6,14 +6,13 @@ var $            = require('./$')
 $def($def.S, 'Reflect', {
   get: function get(target, propertyKey/*, receiver*/){
     var receiver = arguments.length < 3 ? target : arguments[2]
-      , desc = $.getDesc(assertObject(target), propertyKey), proto;
-    if(desc)return $.has(desc, 'value')
+      , desc, proto;
+    if(assertObject(target) === receiver)return target[propertyKey];
+    if(desc = $.getDesc(target, propertyKey))return $.has(desc, 'value')
       ? desc.value
-      : desc.get === undefined
-        ? undefined
-        : desc.get.call(receiver);
-    return $.isObject(proto = $.getProto(target))
-      ? get(proto, propertyKey, receiver)
-      : undefined;
+      : desc.get !== undefined
+        ? desc.get.call(receiver)
+        : undefined;
+    if($.isObject(proto = $.getProto(target)))return get(proto, propertyKey, receiver);
   }
 });
