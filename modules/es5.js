@@ -29,7 +29,8 @@ var $                = require('./$')
   , $filter          = arrayMethod(2)
   , $some            = arrayMethod(3)
   , $every           = arrayMethod(4)
-  , factories        = {};
+  , factories        = {}
+  , $trim            = require('./$.replacer')(/^\s*([\s\S]*\S)?\s*$/, '$1');
 
 if(!$.DESC){
   try {
@@ -223,11 +224,8 @@ $def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
 });
 
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-$def($def.S, 'Array', {
-  isArray: function(arg){
-    return cof(arg) == 'Array';
-  }
-});
+$def($def.S, 'Array', {isArray: function(arg){ return cof(arg) == 'Array'; }});
+
 function createArrayReduce(isRight){
   return function(callbackfn, memo){
     assert.fn(callbackfn);
@@ -280,7 +278,7 @@ $def($def.P, 'Array', {
     return $indexOf(this, el, arguments[1]);
   },
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-  lastIndexOf: function(el, fromIndex /* = @[*-1] */){
+  lastIndexOf: function lastIndexOf(el, fromIndex /* = @[*-1] */){
     var O      = toObject(this)
       , length = toLength(O.length)
       , index  = length - 1;
@@ -292,12 +290,10 @@ $def($def.P, 'Array', {
 });
 
 // 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-$def($def.P, 'String', {trim: require('./$.replacer')(/^\s*([\s\S]*\S)?\s*$/, '$1')});
+$def($def.P, 'String', {trim: function trim(){ return $trim(this); }});
 
 // 20.3.3.1 / 15.9.4.4 Date.now()
-$def($def.S, 'Date', {now: function(){
-  return +new Date;
-}});
+$def($def.S, 'Date', {now: function now(){ return +new Date; }});
 
 function lz(num){
   return num > 9 ? num : '0' + num;
@@ -308,17 +304,19 @@ function lz(num){
 var date       = new Date(-5e13 - 1)
   , brokenDate = !(date.toISOString && date.toISOString() == '0385-07-25T07:06:39.999Z'
       && require('./$.throws')(function(){ new Date(NaN).toISOString(); }));
-$def($def.P + $def.F * brokenDate, 'Date', {toISOString: function(){
-  if(!isFinite(this))throw RangeError('Invalid time value');
-  var d = this
-    , y = d.getUTCFullYear()
-    , m = d.getUTCMilliseconds()
-    , s = y < 0 ? '-' : y > 9999 ? '+' : '';
-  return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
-    '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
-    'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
-    ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
-}});
+$def($def.P + $def.F * brokenDate, 'Date', {
+  toISOString: function toISOString(){
+    if(!isFinite(this))throw RangeError('Invalid time value');
+    var d = this
+      , y = d.getUTCFullYear()
+      , m = d.getUTCMilliseconds()
+      , s = y < 0 ? '-' : y > 9999 ? '+' : '';
+    return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
+      '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
+      'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
+      ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
+  }
+});
 
 if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
   var tag = classof(it);

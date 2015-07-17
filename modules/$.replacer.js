@@ -1,9 +1,8 @@
-'use strict';
-module.exports = function(regExp, replace, isStatic){
+module.exports = function(regExp, replace){
   var replacer = replace === Object(replace) ? function(part){
     return replace[part];
   } : replace;
   return function(it){
-    return String(isStatic ? it : this).replace(regExp, replacer);
+    return String(it).replace(regExp, replacer);
   };
 };

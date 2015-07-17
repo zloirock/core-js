@@ -861,6 +861,11 @@
   eq = strictEqual;
   test('String#escapeHTML', function(){
     ok(toString$.call(String.prototype.escapeHTML).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(String.prototype.escapeHTML), 'looks like native');
+    eq(String.prototype.escapeHTML.length, 0, 'arity is 0');
+    if ('name' in String.prototype.escapeHTML) {
+      eq(String.prototype.escapeHTML.name, 'escapeHTML', 'name is "escapeHTML"');
+    }
     eq('qwe, asd'.escapeHTML(), 'qwe, asd');
     eq('<div>qwe</div>'.escapeHTML(), '&lt;div&gt;qwe&lt;/div&gt;');
     eq("&<>\"'".escapeHTML(), '&amp;&lt;&gt;&quot;&apos;');
@@ -874,6 +879,11 @@
   eq = strictEqual;
   test('String#unescapeHTML', function(){
     ok(toString$.call(String.prototype.unescapeHTML).slice(8, -1) === 'Function', 'Is function');
+    ok(/native code/.test(String.prototype.unescapeHTML), 'looks like native');
+    eq(String.prototype.unescapeHTML.length, 0, 'arity is 0');
+    if ('name' in String.prototype.unescapeHTML) {
+      eq(String.prototype.unescapeHTML.name, 'unescapeHTML', 'name is "unescapeHTML"');
+    }
     eq('qwe, asd'.unescapeHTML(), 'qwe, asd');
     eq('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML(), '<div>qwe</div>');
     eq('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML(), "&<>\"'");
@@ -6606,6 +6616,10 @@
     escape = RegExp.escape;
     ok(toString$.call(escape).slice(8, -1) === 'Function', 'Is function');
     ok(/native code/.test(escape), 'looks like native');
+    eq(escape.length, 1, 'arity is 1');
+    if ('name' in escape) {
+      eq(escape.name, 'escape', 'name is "escape"');
+    }
     eq(escape('qwe asd'), 'qwe asd', "Don't change simple string");
     eq(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
   });
