@@ -1,13 +1,14 @@
-var $     = require('./$')
-  , ctx   = require('./$.ctx')
-  , $def  = require('./$.def')
-  , call  = require('./$.iter-call')
-  , getIterFn = require('./core.get-iter-fn')
+var $           = require('./$')
+  , ctx         = require('./$.ctx')
+  , $def        = require('./$.def')
+  , defined     = require('./$.defined')
+  , call        = require('./$.iter-call')
+  , getIterFn   = require('./core.get-iter-fn')
   , isArrayIter = require('./$.is-array-iter');
 $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
-    var O       = Object($.assertDefined(arrayLike))
+    var O       = Object(defined(arrayLike))
       // strange IE quirks mode bug -> use typeof instead of isFunction
       , C       = typeof this == 'function' ? this : Array
       , mapfn   = arguments[1]

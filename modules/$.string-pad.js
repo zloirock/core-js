@@ -1,15 +1,16 @@
 // http://wiki.ecmascript.org/doku.php?id=strawman:string_padding
-var $      = require('./$')
-  , repeat = require('./$.string-repeat');
+var toInteger = require('./$').toInteger
+  , repeat    = require('./$.string-repeat')
+  , defined   = require('./$.defined');
 
 module.exports = function(that, minLength, fillChar, left){
   // 1. Let O be CheckObjectCoercible(this value).
   // 2. Let S be ToString(O).
-  var S = String($.assertDefined(that));
+  var S = String(defined(that));
   // 4. If intMinLength is undefined, return S.
   if(minLength === undefined)return S;
   // 4. Let intMinLength be ToInteger(minLength).
-  var intMinLength = $.toInteger(minLength);
+  var intMinLength = toInteger(minLength);
   // 5. Let fillLen be the number of characters in S minus intMinLength.
   var fillLen = intMinLength - S.length;
   // 6. If fillLen < 0, then throw a RangeError exception.

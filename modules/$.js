@@ -36,10 +36,6 @@ function isObject(it){
 function isFunction(it){
   return typeof it == 'function';
 }
-function assertDefined(it){
-  if(it == undefined)throw TypeError("Can't call method on  " + it);
-  return it;
-}
 
 var hide = DESC ? function(object, key, value){
   return $.setDesc(object, key, desc(1, value));
@@ -79,7 +75,6 @@ var $ = module.exports = require('./$.fw')({
   getKeys:    Object.keys,
   getNames:   Object.getOwnPropertyNames,
   getSymbols: Object.getOwnPropertySymbols,
-  assertDefined: assertDefined,
   // Dummy, fix for not array-like ES3 string in es5 module
   ES5Object: Object,
   hide: hide,

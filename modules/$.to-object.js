@@ -1,4 +1,5 @@
-var $ = require('./$');
+var $       = require('./$')
+  , defined = require('./$.defined');
 module.exports = function(it){
-  return $.ES5Object($.assertDefined(it));
+  return $.ES5Object(defined(it));
 };

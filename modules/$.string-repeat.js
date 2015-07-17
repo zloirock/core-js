@@ -1,10 +1,11 @@
 'use strict';
-var $ = require('./$');
+var toInteger = require('./$').toInteger
+  , defined   = require('./$.defined');
 
 module.exports = function repeat(count){
-  var str = String($.assertDefined(this))
+  var str = String(defined(this))
     , res = ''
-    , n   = $.toInteger(count);
+    , n   = toInteger(count);
   if(n < 0 || n == Infinity)throw RangeError("Count can't be negative");
   for(;n > 0; (n >>>= 1) && (str += str))if(n & 1)res += str;
   return res;

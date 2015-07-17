@@ -1,11 +1,12 @@
 'use strict';
 var $       = require('./$')
   , $def    = require('./$.def')
+  , defined = require('./$.defined')
   , toIndex = $.toIndex;
 $def($def.P, 'Array', {
   // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
   fill: function fill(value /*, start = 0, end = @length */){
-    var O      = Object($.assertDefined(this))
+    var O      = Object(defined(this))
       , length = $.toLength(O.length)
       , index  = toIndex(arguments[1], length)
       , end    = arguments[2]

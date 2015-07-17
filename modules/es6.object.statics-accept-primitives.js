@@ -1,5 +1,6 @@
 var $        = require('./$')
   , $def     = require('./$.def')
+  , defined  = require('./$.defined')
   , toObject = require('./$.to-object')
   , isObject = $.isObject;
 $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
@@ -23,7 +24,7 @@ $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
   } : ID == 6 ? function getOwnPropertyDescriptor(it, key){
     return fn(toObject(it), key);
   } : ID == 7 ? function getPrototypeOf(it){
-    return fn(Object($.assertDefined(it)));
+    return fn(Object(defined(it)));
   } : ID == 8 ? function keys(it){
     return fn(toObject(it));
   } : require('./$.get-names').get;

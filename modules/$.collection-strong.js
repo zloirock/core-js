@@ -4,6 +4,7 @@ var $        = require('./$')
   , safe     = require('./$.uid').safe
   , species  = require('./$.species')
   , strictNew = require('./$.strict-new')
+  , defined  = require('./$.defined')
   , forOf    = require('./$.for-of')
   , step     = require('./$.iter-step')
   , $has     = $.has
@@ -101,7 +102,7 @@ module.exports = {
     });
     if($.DESC)$.setDesc(C.prototype, 'size', {
       get: function(){
-        return $.assertDefined(this[SIZE]);
+        return defined(this[SIZE]);
       }
     });
     return C;

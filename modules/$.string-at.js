@@ -1,10 +1,11 @@
 // true  -> String#at
 // false -> String#codePointAt
-var $ = require('./$');
+var toInteger = require('./$').toInteger
+  , defined   = require('./$.defined');
 module.exports = function(TO_STRING){
   return function(that, pos){
-    var s = String($.assertDefined(that))
-      , i = $.toInteger(pos)
+    var s = String(defined(that))
+      , i = toInteger(pos)
       , l = s.length
       , a, b;
     if(i < 0 || i >= l)return TO_STRING ? '' : undefined;

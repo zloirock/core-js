@@ -1,12 +1,14 @@
 'use strict';
-var $       = require('./$')
-  , $def    = require('./$.def')
-  , toIndex = $.toIndex;
+var $        = require('./$')
+  , defined  = require('./$.defined')
+  , $def     = require('./$.def')
+  , toLength = $.toLength
+  , toIndex  = $.toIndex;
 $def($def.P, 'Array', {
   // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
   copyWithin: function copyWithin(target/* = 0 */, start /* = 0, end = @length */){
-    var O     = Object($.assertDefined(this))
-      , len   = $.toLength(O.length)
+    var O     = Object(defined(this))
+      , len   = toLength(O.length)
       , to    = toIndex(target, len)
       , from  = toIndex(start, len)
       , end   = arguments[2]
