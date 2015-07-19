@@ -3,12 +3,6 @@ var global = typeof self != 'undefined' && self.Math == Math ? self : Function('
   , core   = {}
   , defineProperty = Object.defineProperty
   , hasOwnProperty = {}.hasOwnProperty;
-// The engine works fine with descriptors? Thank's IE8 for his funny defineProperty.
-var DESC = !!function(){
-  try {
-    return defineProperty({}, 'a', {get: function(){ return 2; }}).a == 2;
-  } catch(e){ /* empty */ }
-}();
 
 function desc(bitmap, value){
   return {
@@ -37,7 +31,6 @@ var $ = module.exports = require('./$.fw')({
   },
   create:     Object.create,
   getProto:   Object.getPrototypeOf,
-  DESC:       DESC,
   desc:       desc,
   isEnum:     {}.propertyIsEnumerable,
   getDesc:    Object.getOwnPropertyDescriptor,
@@ -48,7 +41,7 @@ var $ = module.exports = require('./$.fw')({
   getSymbols: Object.getOwnPropertySymbols,
   // Dummy, fix for not array-like ES3 string in es5 module
   ES5Object: Object,
-  hide: DESC ? function(object, key, value){
+  hide: require('./$.support-desc') ? function(object, key, value){
     return $.setDesc(object, key, desc(1, value));
   } : function(object, key, value){
     object[key] = value;

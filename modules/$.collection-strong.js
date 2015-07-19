@@ -11,7 +11,8 @@ var $            = require('./$')
   , isObject     = $.isObject
   , hide         = $.hide
   , isExtensible = Object.isExtensible || isObject
-  , SIZE         = $.DESC ? '_s' : 'size'
+  , SUPPORT_DESC = require('./$.support-desc')
+  , SIZE         = SUPPORT_DESC ? '_s' : 'size'
   , id           = 0;
 
 function fastKey(it, create){
@@ -94,7 +95,7 @@ module.exports = {
         return !!getEntry(this, key);
       }
     });
-    if($.DESC)$.setDesc(C.prototype, 'size', {
+    if(SUPPORT_DESC)$.setDesc(C.prototype, 'size', {
       get: function(){
         return defined(this[SIZE]);
       }

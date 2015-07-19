@@ -1,33 +1,33 @@
 'use strict';
 // ECMAScript 6 symbols shim
-var $        = require('./$')
-  , setTag   = require('./$.cof').set
-  , uid      = require('./$.uid')
-  , shared   = require('./$.shared')
-  , $def     = require('./$.def')
-  , $redef   = require('./$.redef')
-  , keyOf    = require('./$.keyof')
-  , $names   = require('./$.get-names')
-  , enumKeys = require('./$.enum-keys')
-  , anObject = require('./$.an-object')
-  , toObject = require('./$.to-object')
-  , ObjectProto = Object.prototype
-  , DESC     = $.DESC
-  , has      = $.has
-  , $create  = $.create
-  , getDesc  = $.getDesc
-  , setDesc  = $.setDesc
-  , desc     = $.desc
-  , getNames = $names.get
-  , $Symbol  = $.g.Symbol
-  , setter   = false
-  , HIDDEN   = uid('hidden')
-  , _propertyIsEnumerable = {}.propertyIsEnumerable
+var $              = require('./$')
+  , SUPPORT_DESC   = require('./$.support-desc')
+  , $def           = require('./$.def')
+  , $redef         = require('./$.redef')
+  , shared         = require('./$.shared')
+  , setTag         = require('./$.cof').set
+  , uid            = require('./$.uid')
+  , keyOf          = require('./$.keyof')
+  , $names         = require('./$.get-names')
+  , enumKeys       = require('./$.enum-keys')
+  , anObject       = require('./$.an-object')
+  , toObject       = require('./$.to-object')
+  , ObjectProto    = Object.prototype
+  , has            = $.has
+  , $create        = $.create
+  , getDesc        = $.getDesc
+  , setDesc        = $.setDesc
+  , desc           = $.desc
+  , getNames       = $names.get
+  , $Symbol        = $.g.Symbol
+  , setter         = false
+  , HIDDEN         = uid('hidden')
+  , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
-  , AllSymbols = shared('symbols')
-  , useNative = $.isFunction($Symbol);
+  , AllSymbols     = shared('symbols')
+  , useNative      = $.isFunction($Symbol);
 
-var setSymbolDesc = DESC ? function(){ // fallback for old Android
+var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
   try {
     return $create(setDesc({}, HIDDEN, {
       get: function(){
@@ -47,7 +47,7 @@ var setSymbolDesc = DESC ? function(){ // fallback for old Android
 function wrap(tag){
   var sym = AllSymbols[tag] = $create($Symbol.prototype);
   sym._k = tag;
-  DESC && setter && setSymbolDesc(ObjectProto, tag, {
+  SUPPORT_DESC && setter && setSymbolDesc(ObjectProto, tag, {
     configurable: true,
     set: function(value){
       if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
@@ -81,7 +81,7 @@ function create(it, P){
   return P === undefined ? $create(it) : defineProperties($create(it), P);
 }
 function propertyIsEnumerable(key){
-  var E = _propertyIsEnumerable.call(this, key);
+  var E = isEnum.call(this, key);
   return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key]
     ? E : true;
 }
@@ -125,7 +125,7 @@ if(!useNative){
   $.getNames   = $names.get = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 
-  if($.DESC && $.FW)$redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
+  if(SUPPORT_DESC && $.FW)$redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
 }
 
 var symbolStatics = {

@@ -1,17 +1,17 @@
-var $          = require('./$')
-  , ctx        = require('./$.ctx')
-  , $def       = require('./$.def')
-  , assign     = require('./$.assign')
-  , keyOf      = require('./$.keyof')
-  , aFunction  = require('./$.a-function')
-  , forOf      = require('./$.for-of')
-  , isIterable = require('./core.is-iterable')
-  , step       = require('./$.iter-step')
-  , toObject   = require('./$.to-object')
-  , DESC       = $.DESC
-  , getKeys    = $.getKeys
-  , has        = $.has
-  , findKey    = createDictMethod(6);
+var $            = require('./$')
+  , ctx          = require('./$.ctx')
+  , $def         = require('./$.def')
+  , assign       = require('./$.assign')
+  , keyOf        = require('./$.keyof')
+  , aFunction    = require('./$.a-function')
+  , forOf        = require('./$.for-of')
+  , isIterable   = require('./core.is-iterable')
+  , step         = require('./$.iter-step')
+  , toObject     = require('./$.to-object')
+  , SUPPORT_DESC = require('./$.support-desc')
+  , getKeys      = $.getKeys
+  , has          = $.has
+  , findKey      = createDictMethod(6);
 
 function Dict(iterable){
   var dict = $.create(null);
@@ -119,7 +119,7 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function set(object, key, value){
-  if(DESC && key in Object)$.setDesc(object, key, $.desc(0, value));
+  if(SUPPORT_DESC && key in Object)$.setDesc(object, key, $.desc(0, value));
   else object[key] = value;
   return object;
 }

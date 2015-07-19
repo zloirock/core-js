@@ -14,7 +14,7 @@ var $       = require('./$')
     } catch(e){ /* empty */ }
   }();
 
-if($.DESC){
+if(require('./$.support-desc')){
   if(!CORRECT_NEW || !ALLOWS_RE_WITH_FLAGS){
     $RegExp = function RegExp(pattern, flags){
       var patternIsRegExp  = cof(pattern) == 'RegExp'

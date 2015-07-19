@@ -1,4 +1,5 @@
 var $                = require('./$')
+  , SUPPORT_DESC     = require('./$.support-desc')
   , html             = require('./$.html')
   , cel              = require('./$.dom-create')
   , cof              = require('./$.cof')
@@ -34,7 +35,7 @@ var $                = require('./$')
   , factories        = {}
   , $trim            = require('./$.replacer')(/^\s*([\s\S]*\S)?\s*$/, '$1');
 
-if(!$.DESC){
+if(!SUPPORT_DESC){
   try {
     IE8_DOM_DEFINE = defineProperty(cel('div'), 'x',
       {get: function(){ return 8; }}
@@ -64,7 +65,7 @@ if(!$.DESC){
     return O;
   };
 }
-$def($def.S + $def.F * !$.DESC, 'Object', {
+$def($def.S + $def.F * !SUPPORT_DESC, 'Object', {
   // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
   getOwnPropertyDescriptor: $.getDesc,
   // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)

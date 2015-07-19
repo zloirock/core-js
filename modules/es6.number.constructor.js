@@ -27,7 +27,7 @@ if($.FW && !($Number('0o1') && $Number('0b1'))){
   $Number = function Number(it){
     return this instanceof $Number && cof(this) != NUMBER ? new Base(toNumber(it)) : toNumber(it);
   };
-  $.each.call($.DESC ? $.getNames(Base) : (
+  $.each.call(require('./$.support-desc') ? $.getNames(Base) : (
       // ES3:
       'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
       // ES6 (in case, if modules with ES6 Number statics required before):

@@ -4,7 +4,7 @@ var $    = require('./$')
   , setDesc = $.setDesc
   , FunctionProto = Function.prototype;
 // 19.2.4.2 name
-NAME in FunctionProto || $.FW && $.DESC && setDesc(FunctionProto, NAME, {
+NAME in FunctionProto || $.FW && require('./$.support-desc') && setDesc(FunctionProto, NAME, {
   configurable: true,
   get: function(){
     var match = String(this).match(/^\s*function ([^ (]*)/)
