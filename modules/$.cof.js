@@ -1,4 +1,5 @@
-var $        = require('./$')
+var has      = require('./$').has
+  , hide     = require('./$.hide')
   , TAG      = require('./$.wks')('toStringTag')
   , toString = {}.toString;
 function cof(it){
@@ -10,6 +11,6 @@ cof.classof = function(it){
     : typeof (T = (O = Object(it))[TAG]) == 'string' ? T : cof(O);
 };
 cof.set = function(it, tag, stat){
-  if(it && !$.has(it = stat ? it : it.prototype, TAG))$.hide(it, TAG, tag);
+  if(it && !has(it = stat ? it : it.prototype, TAG))hide(it, TAG, tag);
 };
 module.exports = cof;

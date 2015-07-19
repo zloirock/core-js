@@ -1,10 +1,11 @@
+'use strict';
 var $def            = require('./$.def')
   , $redef          = require('./$.redef')
+  , hide            = require('./$.hide')
   , $               = require('./$')
   , cof             = require('./$.cof')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
   , Iterators       = require('./$.iterators')
-  , hide            = $.hide
   , FF_ITERATOR     = '@@iterator'
   , KEYS            = 'keys'
   , VALUES          = 'values';

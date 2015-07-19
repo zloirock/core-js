@@ -1,5 +1,6 @@
 'use strict';
 var $         = require('./$')
+  , hide      = require('./$.hide')
   , anObject  = require('./$.an-object')
   , strictNew = require('./$.strict-new')
   , forOf     = require('./$.for-of')
@@ -10,7 +11,6 @@ var $         = require('./$')
   , isExtensible = Object.isExtensible || isObject
   , $has      = $.has
   , isObject  = $.isObject
-  , hide      = $.hide
   , id        = 0;
 
 // fallback for frozen keys

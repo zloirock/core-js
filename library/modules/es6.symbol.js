@@ -12,12 +12,11 @@ var $              = require('./$')
   , enumKeys       = require('./$.enum-keys')
   , anObject       = require('./$.an-object')
   , toObject       = require('./$.to-object')
-  , ObjectProto    = Object.prototype
-  , has            = $.has
-  , $create        = $.create
+  , createDesc     = require('./$.property-desc')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
-  , desc           = $.desc
+  , has            = $.has
+  , $create        = $.create
   , getNames       = $names.get
   , $Symbol        = $.g.Symbol
   , setter         = false
@@ -25,7 +24,8 @@ var $              = require('./$')
   , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
-  , useNative      = $.isFunction($Symbol);
+  , useNative      = $.isFunction($Symbol)
+  , ObjectProto    = Object.prototype;
 
 var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
   try {
@@ -51,7 +51,7 @@ function wrap(tag){
     configurable: true,
     set: function(value){
       if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
-      setSymbolDesc(this, tag, desc(1, value));
+      setSymbolDesc(this, tag, createDesc(1, value));
     }
   });
   return sym;
@@ -60,11 +60,11 @@ function wrap(tag){
 function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
     if(!D.enumerable){
-      if(!has(it, HIDDEN))setDesc(it, HIDDEN, desc(1, {}));
+      if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
       if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
-      D = $create(D, {enumerable: desc(0, false)});
+      D = $create(D, {enumerable: createDesc(0, false)});
     } return setSymbolDesc(it, key, D);
   } return setDesc(it, key, D);
 }

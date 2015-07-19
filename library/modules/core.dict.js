@@ -1,6 +1,7 @@
 var $            = require('./$')
   , ctx          = require('./$.ctx')
   , $def         = require('./$.def')
+  , createDesc   = require('./$.property-desc')
   , assign       = require('./$.assign')
   , keyOf        = require('./$.keyof')
   , aFunction    = require('./$.a-function')
@@ -119,7 +120,7 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function set(object, key, value){
-  if(SUPPORT_DESC && key in Object)$.setDesc(object, key, $.desc(0, value));
+  if(SUPPORT_DESC && key in Object)$.setDesc(object, key, createDesc(0, value));
   else object[key] = value;
   return object;
 }

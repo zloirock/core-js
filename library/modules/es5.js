@@ -1,5 +1,6 @@
 var $                = require('./$')
   , SUPPORT_DESC     = require('./$.support-desc')
+  , createDesc       = require('./$.property-desc')
   , html             = require('./$.html')
   , cel              = require('./$.dom-create')
   , cof              = require('./$.cof')
@@ -53,7 +54,7 @@ if(!SUPPORT_DESC){
     if(IE8_DOM_DEFINE)try {
       return getOwnDescriptor(O, P);
     } catch(e){ /* empty */ }
-    if(has(O, P))return $.desc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+    if(has(O, P))return createDesc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
   };
   $.setDescs = defineProperties = function(O, Properties){
     anObject(O);

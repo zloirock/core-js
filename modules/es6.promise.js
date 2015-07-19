@@ -180,7 +180,7 @@ if(!useNative){
       h: false,                               // <- handled rejection
       n: false                                // <- notify
     };
-    $.hide(this, RECORD, record);
+    this[RECORD] = record;
     try {
       executor(ctx($resolve, record, 1), ctx($reject, record, 1));
     } catch(err){

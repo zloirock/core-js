@@ -1,8 +1,9 @@
 var $          = require('./$')
+  , hide       = require('./$.hide')
+  , $redef     = require('./$.redef')
   , global     = $.g
   , core       = $.core
-  , isFunction = $.isFunction
-  , $redef     = require('./$.redef');
+  , isFunction = $.isFunction;
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
@@ -35,7 +36,7 @@ function $def(type, name, source){
     // extend global
     if(target && !own)$redef(target, key, out);
     // export
-    if(exports[key] != out)$.hide(exports, key, exp);
+    if(exports[key] != out)hide(exports, key, exp);
     if(isProto)(exports.prototype || (exports.prototype = {}))[key] = out;
   }
 }

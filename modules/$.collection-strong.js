@@ -1,5 +1,6 @@
 'use strict';
 var $            = require('./$')
+  , hide         = require('./$.hide')
   , ctx          = require('./$.ctx')
   , species      = require('./$.species')
   , strictNew    = require('./$.strict-new')
@@ -9,7 +10,6 @@ var $            = require('./$')
   , ID           = require('./$.uid')('id')
   , $has         = $.has
   , isObject     = $.isObject
-  , hide         = $.hide
   , isExtensible = Object.isExtensible || isObject
   , SUPPORT_DESC = require('./$.support-desc')
   , SIZE         = SUPPORT_DESC ? '_s' : 'size'

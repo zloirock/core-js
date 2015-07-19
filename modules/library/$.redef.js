@@ -1,1 +1,1 @@
-module.exports = require('./$').hide;
+module.exports = require('./$.hide');
