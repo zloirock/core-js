@@ -12,35 +12,38 @@ var $         = require('./$')
   , isObject  = $.isObject
   , hide      = $.hide
   , id        = 0;
-function findFrozen(store, key){
-  return find(store.array, function(it){
-    return it[0] === key;
-  });
-}
 
 // fallback for frozen keys
-function leakStore(that){
-  return that._l || (that._l = {
-    array: [],
-    get: function(key){
-      var entry = findFrozen(this, key);
-      if(entry)return entry[1];
-    },
-    has: function(key){
-      return !!findFrozen(this, key);
-    },
-    set: function(key, value){
-      var entry = findFrozen(this, key);
-      if(entry)entry[1] = value;
-      else this.array.push([key, value]);
-    },
-    'delete': function(key){
-      var index = findIndex(this.array, function(it){
-        return it[0] === key;
-      });
-      if(~index)this.array.splice(index, 1);
-      return !!~index;
-    }
+function frozenStore(that){
+  return that._l || (that._l = new FrozenStore);
+}
+function FrozenStore(){
+  this.a = [];
+}
+FrozenStore.prototype = {
+  get: function(key){
+    var entry = findFrozen(this, key);
+    if(entry)return entry[1];
+  },
+  has: function(key){
+    return !!findFrozen(this, key);
+  },
+  set: function(key, value){
+    var entry = findFrozen(this, key);
+    if(entry)entry[1] = value;
+    else this.a.push([key, value]);
+  },
+  'delete': function(key){
+    var index = findIndex(this.a, function(it){
+      return it[0] === key;
+    });
+    if(~index)this.a.splice(index, 1);
+    return !!~index;
+  }
+};
+function findFrozen(store, key){
+  return find(store.a, function(it){
+    return it[0] === key;
   });
 }
 
@@ -57,14 +60,14 @@ module.exports = {
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function(key){
         if(!isObject(key))return false;
-        if(!isExtensible(key))return leakStore(this)['delete'](key);
+        if(!isExtensible(key))return frozenStore(this)['delete'](key);
         return $has(key, WEAK) && $has(key[WEAK], this._i) && delete key[WEAK][this._i];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key){
         if(!isObject(key))return false;
-        if(!isExtensible(key))return leakStore(this).has(key);
+        if(!isExtensible(key))return frozenStore(this).has(key);
         return $has(key, WEAK) && $has(key[WEAK], this._i);
       }
     });
@@ -72,12 +75,12 @@ module.exports = {
   },
   def: function(that, key, value){
     if(!isExtensible(anObject(key))){
-      leakStore(that).set(key, value);
+      frozenStore(that).set(key, value);
     } else {
       $has(key, WEAK) || hide(key, WEAK, {});
       key[WEAK][that._i] = value;
     } return that;
   },
-  leakStore: leakStore,
+  frozenStore: frozenStore,
   WEAK: WEAK
 };

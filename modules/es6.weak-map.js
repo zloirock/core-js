@@ -1,12 +1,12 @@
 'use strict';
-var $         = require('./$')
-  , weak      = require('./$.collection-weak')
-  , leakStore = weak.leakStore
-  , WEAK      = weak.WEAK
-  , has       = $.has
-  , isObject  = $.isObject
+var $            = require('./$')
+  , weak         = require('./$.collection-weak')
+  , frozenStore  = weak.frozenStore
+  , WEAK         = weak.WEAK
+  , has          = $.has
+  , isObject     = $.isObject
   , isExtensible = Object.isExtensible || isObject
-  , tmp       = {};
+  , tmp          = {};
 
 // 23.3 WeakMap Objects
 var $WeakMap = require('./$.collection')('WeakMap', function(get){
@@ -15,7 +15,7 @@ var $WeakMap = require('./$.collection')('WeakMap', function(get){
   // 23.3.3.3 WeakMap.prototype.get(key)
   get: function get(key){
     if(isObject(key)){
-      if(!isExtensible(key))return leakStore(this).get(key);
+      if(!isExtensible(key))return frozenStore(this).get(key);
       if(has(key, WEAK))return key[WEAK][this._i];
     }
   },
@@ -33,7 +33,7 @@ if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
     require('./$.redef')(proto, key, function(a, b){
       // store frozen objects on leaky map
       if(isObject(a) && !isExtensible(a)){
-        var result = leakStore(this)[key](a, b);
+        var result = frozenStore(this)[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap
       } return method.call(this, a, b);
