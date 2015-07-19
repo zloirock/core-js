@@ -9,6 +9,7 @@ var $def            = require('./$.def')
   , FF_ITERATOR     = '@@iterator'
   , KEYS            = 'keys'
   , VALUES          = 'values';
+function returnThis(){ return this; }
 module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
   require('./$.iter-create')(Constructor, NAME, next);
   function createMethod(kind){
@@ -31,13 +32,13 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     // Set @@toStringTag to native iterators
     cof.set(IteratorPrototype, TAG, true);
     // FF fix
-    if($.FW && $.has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, $.that);
+    if($.FW && $.has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
   }
   // Define iterator
   if($.FW || FORCE)hide(proto, SYMBOL_ITERATOR, _default);
   // Plug for library
   Iterators[NAME] = _default;
-  Iterators[TAG]  = $.that;
+  Iterators[TAG]  = returnThis;
   if(DEFAULT){
     methods = {
       keys:    IS_SET            ? _default : createMethod(KEYS),

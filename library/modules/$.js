@@ -13,9 +13,6 @@ module.exports = require('./$.fw')({
   isFunction: function(it){
     return typeof it == 'function';
   },
-  that: function(){
-    return this;
-  },
   has: function(it, key){
     return hasOwnProperty.call(it, key);
   },
