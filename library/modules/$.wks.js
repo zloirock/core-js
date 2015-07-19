@@ -1,6 +1,6 @@
-var global = require('./$').g
-  , store  = require('./$.shared')('wks');
+var store  = require('./$.shared')('wks')
+  , Symbol = require('./$').g.Symbol;
 module.exports = function(name){
   return store[name] || (store[name] =
-    global.Symbol && global.Symbol[name] || require('./$.uid').safe('Symbol.' + name));
+    Symbol && Symbol[name] || (Symbol || require('./$.uid'))('Symbol.' + name));
 };

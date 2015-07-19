@@ -1,6 +1,6 @@
 var $   = require('./$')
   , tpl = String({}.hasOwnProperty)
-  , SRC = require('./$.uid').safe('src')
+  , SRC = require('./$.uid')('src')
   , _toString = Function.toString;
 
 function $redef(O, key, val, safe){

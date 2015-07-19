@@ -21,7 +21,6 @@ var $        = require('./$')
   , getNames = $names.get
   , $Symbol  = $.g.Symbol
   , setter   = false
-  , TAG      = uid('tag')
   , HIDDEN   = uid('hidden')
   , _propertyIsEnumerable = {}.propertyIsEnumerable
   , SymbolRegistry = shared('symbol-registry')
@@ -46,7 +45,8 @@ var setSymbolDesc = DESC ? function(){ // fallback for old Android
 }() : setDesc;
 
 function wrap(tag){
-  var sym = AllSymbols[tag] = $.set($create($Symbol.prototype), TAG, tag);
+  var sym = AllSymbols[tag] = $create($Symbol.prototype);
+  sym._k = tag;
   DESC && setter && setSymbolDesc(ObjectProto, tag, {
     configurable: true,
     set: function(value){
@@ -114,7 +114,7 @@ if(!useNative){
     return wrap(uid(arguments[0]));
   };
   $redef($Symbol.prototype, 'toString', function(){
-    return this[TAG];
+    return this._k;
   });
 
   $.create     = create;

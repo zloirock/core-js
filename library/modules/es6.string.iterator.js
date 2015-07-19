@@ -1,18 +1,16 @@
-var set  = require('./$').set
-  , $at  = require('./$.string-at')(true)
-  , ITER = require('./$.uid').safe('iter');
+var $at  = require('./$.string-at')(true);
 
 // 21.1.3.27 String.prototype[@@iterator]()
 require('./$.iter-define')(String, 'String', function(iterated){
-  set(this, ITER, {o: String(iterated), i: 0});
+  this._t = String(iterated); // target
+  this._i = 0;                // next index
 // 21.1.5.2.1 %StringIteratorPrototype%.next()
 }, function(){
-  var iter  = this[ITER]
-    , O     = iter.o
-    , index = iter.i
+  var O     = this._t
+    , index = this._i
     , point;
   if(index >= O.length)return {value: undefined, done: true};
   point = $at(O, index);
-  iter.i += point.length;
+  this._i += point.length;
   return {value: point, done: false};
 });

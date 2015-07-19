@@ -1,6 +1,4 @@
-var $          = require('./$')
-  , setUnscope = require('./$.unscope')
-  , ITER       = require('./$.uid').safe('iter')
+var setUnscope = require('./$.unscope')
   , step       = require('./$.iter-step')
   , Iterators  = require('./$.iterators')
   , toObject   = require('./$.to-object');
@@ -10,15 +8,16 @@ var $          = require('./$')
 // 22.1.3.29 Array.prototype.values()
 // 22.1.3.30 Array.prototype[@@iterator]()
 require('./$.iter-define')(Array, 'Array', function(iterated, kind){
-  $.set(this, ITER, {o: toObject(iterated), i: 0, k: kind});
+  this._t = toObject(iterated); // target
+  this._i = 0;                  // next index
+  this._k = kind;               // kind
 // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
 }, function(){
-  var iter  = this[ITER]
-    , O     = iter.o
-    , kind  = iter.k
-    , index = iter.i++;
+  var O     = this._t
+    , kind  = this._k
+    , index = this._i++;
   if(!O || index >= O.length){
-    iter.o = undefined;
+    this._t = undefined;
     return step(1);
   }
   if(kind == 'keys'  )return step(0, index);

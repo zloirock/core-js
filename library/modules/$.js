@@ -18,14 +18,6 @@ function desc(bitmap, value){
     value       : value
   };
 }
-function simpleSet(object, key, value){
-  object[key] = value;
-  return object;
-}
-
-var hide = DESC ? function(object, key, value){
-  return $.setDesc(object, key, desc(1, value));
-} : simpleSet;
 
 var $ = module.exports = require('./$.fw')({
   g: global,
@@ -56,8 +48,12 @@ var $ = module.exports = require('./$.fw')({
   getSymbols: Object.getOwnPropertySymbols,
   // Dummy, fix for not array-like ES3 string in es5 module
   ES5Object: Object,
-  hide: hide,
-  set: global.Symbol ? simpleSet : hide,
+  hide: DESC ? function(object, key, value){
+    return $.setDesc(object, key, desc(1, value));
+  } : function(object, key, value){
+    object[key] = value;
+    return object;
+  },
   each: [].forEach
 });
 /* eslint-disable no-undef */

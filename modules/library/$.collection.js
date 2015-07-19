@@ -3,8 +3,7 @@ var $     = require('./$')
   , $def  = require('./$.def')
   , BUGGY = require('./$.iter-buggy')
   , forOf = require('./$.for-of')
-  , strictNew = require('./$.strict-new')
-  , INTERNAL = require('./$.uid').safe('internal');
+  , strictNew = require('./$.strict-new');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = $.g[NAME]
@@ -19,19 +18,19 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   } else {
     C = wrapper(function(target, iterable){
       strictNew(target, C, NAME);
-      target[INTERNAL] = new Base;
+      target._c = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });
     $.each.call('add,clear,delete,forEach,get,has,set,keys,values,entries'.split(','),function(KEY){
       var chain = KEY == 'add' || KEY == 'set';
       if(KEY in proto && !(IS_WEAK && KEY == 'clear'))$.hide(C.prototype, KEY, function(a, b){
-        var result = this[INTERNAL][KEY](a === 0 ? 0 : a, b);
+        var result = this._c[KEY](a === 0 ? 0 : a, b);
         return chain ? this : result;
       });
     });
     if('size' in proto)$.setDesc(C.prototype, 'size', {
       get: function(){
-        return this[INTERNAL].size;
+        return this._c.size;
       }
     });
   }

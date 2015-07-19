@@ -1,24 +1,18 @@
 'use strict';
-var $        = require('./$')
-  , ctx      = require('./$.ctx')
-  , safe     = require('./$.uid').safe
-  , species  = require('./$.species')
-  , strictNew = require('./$.strict-new')
-  , defined  = require('./$.defined')
-  , forOf    = require('./$.for-of')
-  , step     = require('./$.iter-step')
-  , $has     = $.has
-  , set      = $.set
-  , isObject = $.isObject
-  , hide     = $.hide
+var $            = require('./$')
+  , ctx          = require('./$.ctx')
+  , species      = require('./$.species')
+  , strictNew    = require('./$.strict-new')
+  , defined      = require('./$.defined')
+  , forOf        = require('./$.for-of')
+  , step         = require('./$.iter-step')
+  , ID           = require('./$.uid')('id')
+  , $has         = $.has
+  , isObject     = $.isObject
+  , hide         = $.hide
   , isExtensible = Object.isExtensible || isObject
-  , ID       = safe('id')
-  , O1       = safe('O1')
-  , LAST     = safe('last')
-  , FIRST    = safe('first')
-  , ITER     = safe('iter')
-  , SIZE     = $.DESC ? safe('size') : 'size'
-  , id       = 0;
+  , SIZE         = $.DESC ? '_s' : 'size'
+  , id           = 0;
 
 function fastKey(it, create){
   // return primitive with prefix
@@ -37,9 +31,9 @@ function fastKey(it, create){
 function getEntry(that, key){
   // fast case
   var index = fastKey(key), entry;
-  if(index !== 'F')return that[O1][index];
+  if(index !== 'F')return that._i[index];
   // frozen object case
-  for(entry = that[FIRST]; entry; entry = entry.n){
+  for(entry = that._f; entry; entry = entry.n){
     if(entry.k == key)return entry;
   }
 }
@@ -48,22 +42,22 @@ module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
       strictNew(that, C, NAME);
-      set(that, O1, $.create(null));
-      set(that, SIZE, 0);
-      set(that, LAST, undefined);
-      set(that, FIRST, undefined);
+      that._i = $.create(null); // index
+      that._f = undefined;      // first entry
+      that._l = undefined;      // last entry
+      that[SIZE] = 0;           // size
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
     });
     require('./$.mix')(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function clear(){
-        for(var that = this, data = that[O1], entry = that[FIRST]; entry; entry = entry.n){
+        for(var that = this, data = that._i, entry = that._f; entry; entry = entry.n){
           entry.r = true;
           if(entry.p)entry.p = entry.p.n = undefined;
           delete data[entry.i];
         }
-        that[FIRST] = that[LAST] = undefined;
+        that._f = that._l = undefined;
         that[SIZE] = 0;
       },
       // 23.1.3.3 Map.prototype.delete(key)
@@ -74,12 +68,12 @@ module.exports = {
         if(entry){
           var next = entry.n
             , prev = entry.p;
-          delete that[O1][entry.i];
+          delete that._i[entry.i];
           entry.r = true;
           if(prev)prev.n = next;
           if(next)next.p = prev;
-          if(that[FIRST] == entry)that[FIRST] = next;
-          if(that[LAST] == entry)that[LAST] = prev;
+          if(that._f == entry)that._f = next;
+          if(that._l == entry)that._l = prev;
           that[SIZE]--;
         } return !!entry;
       },
@@ -88,7 +82,7 @@ module.exports = {
       forEach: function forEach(callbackfn /*, that = undefined */){
         var f = ctx(callbackfn, arguments[1], 3)
           , entry;
-        while(entry = entry ? entry.n : this[FIRST]){
+        while(entry = entry ? entry.n : this._f){
           f(entry.v, entry.k, this);
           // revert to the last existing entry
           while(entry && entry.r)entry = entry.p;
@@ -115,19 +109,19 @@ module.exports = {
       entry.v = value;
     // create new entry
     } else {
-      that[LAST] = entry = {
+      that._l = entry = {
         i: index = fastKey(key, true), // <- index
         k: key,                        // <- key
         v: value,                      // <- value
-        p: prev = that[LAST],          // <- previous entry
+        p: prev = that._l,             // <- previous entry
         n: undefined,                  // <- next entry
         r: false                       // <- removed
       };
-      if(!that[FIRST])that[FIRST] = entry;
+      if(!that._f)that._f = entry;
       if(prev)prev.n = entry;
       that[SIZE]++;
       // add to index
-      if(index !== 'F')that[O1][index] = entry;
+      if(index !== 'F')that._i[index] = entry;
     } return that;
   },
   getEntry: getEntry,
@@ -135,17 +129,19 @@ module.exports = {
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
     require('./$.iter-define')(C, NAME, function(iterated, kind){
-      set(this, ITER, {o: iterated, k: kind});
+      this._t = iterated;  // target
+      this._k = kind;      // kind
+      this._l = undefined; // previous
     }, function(){
-      var iter  = this[ITER]
-        , kind  = iter.k
-        , entry = iter.l;
+      var that  = this
+        , kind  = that._k
+        , entry = that._l;
       // revert to the last existing entry
       while(entry && entry.r)entry = entry.p;
       // get next entry
-      if(!iter.o || !(iter.l = entry = entry ? entry.n : iter.o[FIRST])){
+      if(!that._t || !(that._l = entry = entry ? entry.n : that._t._f)){
         // or finish the iteration
-        iter.o = undefined;
+        that._t = undefined;
         return step(1);
       }
       // return step by kind

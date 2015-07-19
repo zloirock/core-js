@@ -2,7 +2,6 @@
 var $         = require('./$')
   , weak      = require('./$.collection-weak')
   , leakStore = weak.leakStore
-  , ID        = weak.ID
   , WEAK      = weak.WEAK
   , has       = $.has
   , isObject  = $.isObject
@@ -17,7 +16,7 @@ var $WeakMap = require('./$.collection')('WeakMap', function(get){
   get: function get(key){
     if(isObject(key)){
       if(!isExtensible(key))return leakStore(this).get(key);
-      if(has(key, WEAK))return key[WEAK][this[ID]];
+      if(has(key, WEAK))return key[WEAK][this._i];
     }
   },
   // 23.3.3.5 WeakMap.prototype.set(key, value)

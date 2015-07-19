@@ -3,7 +3,6 @@ var $          = require('./$')
   , $def       = require('./$.def')
   , assign     = require('./$.assign')
   , keyOf      = require('./$.keyof')
-  , ITER       = require('./$.uid').safe('iter')
   , aFunction  = require('./$.a-function')
   , forOf      = require('./$.for-of')
   , isIterable = require('./core.is-iterable')
@@ -28,20 +27,23 @@ function Dict(iterable){
 Dict.prototype = null;
 
 function DictIterator(iterated, kind){
-  $.set(this, ITER, {o: toObject(iterated), a: getKeys(iterated), i: 0, k: kind});
+  this._t = toObject(iterated); // target
+  this._a = getKeys(iterated);  // keys
+  this._i = 0;                  // next index
+  this._k = kind;               // kind
 }
 require('./$.iter-create')(DictIterator, 'Dict', function(){
-  var iter = this[ITER]
-    , O    = iter.o
-    , keys = iter.a
-    , kind = iter.k
+  var that = this
+    , O    = that._t
+    , keys = that._a
+    , kind = that._k
     , key;
   do {
-    if(iter.i >= keys.length){
-      iter.o = undefined;
+    if(that._i >= keys.length){
+      that._t = undefined;
       return step(1);
     }
-  } while(!has(O, key = keys[iter.i++]));
+  } while(!has(O, key = keys[that._i++]));
   if(kind == 'keys'  )return step(0, key);
   if(kind == 'values')return step(0, O[key]);
   return step(0, [key, O[key]]);
