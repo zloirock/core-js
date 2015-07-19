@@ -1,0 +1,1 @@
+module.exports = require('./$').g.document && document.documentElement;

@@ -1,4 +1,5 @@
 var $                = require('./$')
+  , html             = require('./$.html')
   , cel              = require('./$.dom-create')
   , cof              = require('./$.cof')
   , $def             = require('./$.def')
@@ -13,7 +14,6 @@ var $                = require('./$')
   , toIndex          = require('./$.to-index')
   , toLength         = require('./$.to-length')
   , ObjectProto      = Object.prototype
-  , html             = $.html
   , A                = []
   , _slice           = A.slice
   , _join            = A.join

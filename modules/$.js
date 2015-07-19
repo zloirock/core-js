@@ -30,7 +30,6 @@ var hide = DESC ? function(object, key, value){
 var $ = module.exports = require('./$.fw')({
   g: global,
   core: core,
-  html: global.document && document.documentElement,
   // http://jsperf.com/core-js-isobject
   isObject: function(it){
     return it !== null && (typeof it == 'object' || typeof it == 'function');
