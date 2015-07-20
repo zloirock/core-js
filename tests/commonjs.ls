@@ -153,6 +153,7 @@ for P in <[.. ../library]>
   ok \then of require("#P/fn/delay")(1)
   ok \warn of require("#P/fn/log")
   ok require("#P/fn/is-iterable")([])
+  ok typeof require("#P/fn/get-iterator-method")([]) is \function
   ok \next of require("#P/fn/get-iterator")([])
   ################################################
   ok \Array of require("#P/es5")
