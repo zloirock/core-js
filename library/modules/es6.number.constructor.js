@@ -7,7 +7,11 @@ var $          = require('./$')
   , NUMBER     = 'Number'
   , $Number    = $.g[NUMBER]
   , Base       = $Number
-  , proto      = $Number.prototype;
+  , proto      = $Number.prototype
+  // Opera ~12 has broken Object#toString
+  , fakeNumber = cof($.create(proto)) == NUMBER
+    ? function(it){ try { +it; return false; } catch(e){ return true; } }
+    : function(it){ return cof(it) != NUMBER; };
 function toPrimitive(it){
   var fn, val;
   if(isFunction(fn = it.valueOf) && !isObject(val = fn.call(it)))return val;
@@ -26,7 +30,7 @@ function toNumber(it){
 }
 if($.FW && !($Number('0o1') && $Number('0b1'))){
   $Number = function Number(it){
-    return this instanceof $Number && cof(this) != NUMBER ? new Base(toNumber(it)) : toNumber(it);
+    return this instanceof $Number && fakeNumber(this) ? new Base(toNumber(it)) : toNumber(it);
   };
   $.each.call(require('./$.support-desc') ? $.getNames(Base) : (
       // ES3:
