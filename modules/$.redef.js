@@ -1,12 +1,13 @@
-var $         = require('./$')
-  , has       = require('./$.has')
-  , hide      = require('./$.hide')
-  , tpl       = String({}.hasOwnProperty)
-  , SRC       = require('./$.uid')('src')
-  , _toString = Function.toString;
+var $          = require('./$')
+  , has        = require('./$.has')
+  , hide       = require('./$.hide')
+  , isFunction = require('./$.is-function')
+  , tpl        = String({}.hasOwnProperty)
+  , SRC        = require('./$.uid')('src')
+  , _toString  = Function.toString;
 
 function $redef(O, key, val, safe){
-  if($.isFunction(val)){
+  if(isFunction(val)){
     var base = O[key];
     hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, String(key)));
     if(!('name' in val))val.name = key;

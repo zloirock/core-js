@@ -2,9 +2,9 @@ var ctx         = require('./$.ctx')
   , $def        = require('./$.def')
   , defined     = require('./$.defined')
   , call        = require('./$.iter-call')
-  , getIterFn   = require('./core.get-iter-fn')
   , isArrayIter = require('./$.is-array-iter')
-  , toLength    = require('./$.to-length');
+  , toLength    = require('./$.to-length')
+  , getIterFn   = require('./core.get-iter-fn');
 $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){

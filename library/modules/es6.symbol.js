@@ -24,7 +24,7 @@ var $              = require('./$')
   , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
-  , useNative      = $.isFunction($Symbol)
+  , useNative      = require('./$.is-function')($Symbol)
   , ObjectProto    = Object.prototype;
 
 var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android

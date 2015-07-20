@@ -4,6 +4,7 @@ var $          = require('./$')
   , cof        = require('./$.cof')
   , $def       = require('./$.def')
   , isObject   = require('./$.is-object')
+  , isFunction = require('./$.is-function')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
   , strictNew  = require('./$.strict-new')
@@ -19,7 +20,6 @@ var $          = require('./$')
   , isNode     = cof(process) == 'process'
   , asap       = process && process.nextTick || require('./$.task').set
   , P          = global[PROMISE]
-  , isFunction = $.isFunction
   , Wrapper;
 
 function testResolve(sub){

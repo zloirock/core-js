@@ -2,11 +2,8 @@ var global = typeof self != 'undefined' && self.Math == Math ? self : Function('
   , core   = {};
 
 module.exports = require('./$.fw')({
-  g: global,
-  core: core,
-  isFunction: function(it){
-    return typeof it == 'function';
-  },
+  g:          global,
+  core:       core,
   create:     Object.create,
   getProto:   Object.getPrototypeOf,
   isEnum:     {}.propertyIsEnumerable,

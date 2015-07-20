@@ -8,7 +8,7 @@ var $          = require('./$')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
   , OBSERVER   = require('./$.wks')('observer')
-  , isFunction = $.isFunction;
+  , isFunction = require('./$.is-function');
 
 // === Abstract Operations ===
 function cancelSubscription(observer){
