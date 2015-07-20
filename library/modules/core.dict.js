@@ -8,6 +8,7 @@ var $            = require('./$')
   , forOf        = require('./$.for-of')
   , isIterable   = require('./core.is-iterable')
   , step         = require('./$.iter-step')
+  , isObject     = require('./$.is-object')
   , toObject     = require('./$.to-object')
   , SUPPORT_DESC = require('./$.support-desc')
   , getKeys      = $.getKeys
@@ -126,7 +127,7 @@ function set(object, key, value){
 }
 
 function isDict(it){
-  return $.isObject(it) && $.getProto(it) === Dict.prototype;
+  return isObject(it) && $.getProto(it) === Dict.prototype;
 }
 
 $def($def.G + $def.F, {Dict: Dict});

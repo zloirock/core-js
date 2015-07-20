@@ -1,4 +1,3 @@
-'use strict';
 var global = typeof self != 'undefined' && self.Math == Math ? self : Function('return this')()
   , core   = {}
   , hasOwnProperty = {}.hasOwnProperty;
@@ -6,10 +5,6 @@ var global = typeof self != 'undefined' && self.Math == Math ? self : Function('
 module.exports = require('./$.fw')({
   g: global,
   core: core,
-  // http://jsperf.com/core-js-isobject
-  isObject: function(it){
-    return it !== null && (typeof it == 'object' || typeof it == 'function');
-  },
   isFunction: function(it){
     return typeof it == 'function';
   },

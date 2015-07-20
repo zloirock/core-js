@@ -2,7 +2,7 @@
 var $         = require('./$')
   , $def      = require('./$.def')
   , aFunction = require('./$.a-function')
-  , isObject  = $.isObject
+  , isObject  = require('./$.is-object')
   , apply     = Function.apply
   , bind      = Function.bind || $.core.Function.prototype.bind;
 

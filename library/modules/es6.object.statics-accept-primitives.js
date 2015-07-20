@@ -2,7 +2,7 @@ var $        = require('./$')
   , $def     = require('./$.def')
   , defined  = require('./$.defined')
   , toObject = require('./$.to-object')
-  , isObject = $.isObject;
+  , isObject = require('./$.is-object');
 $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
   'getOwnPropertyDescriptor,getPrototypeOf,keys,getOwnPropertyNames').split(',')
 , function(KEY, ID){

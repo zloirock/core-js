@@ -4,6 +4,7 @@ var $          = require('./$')
   , $redef     = require('./$.redef')
   , $mix       = require('./$.mix')
   , asap       = require('./$.task').set
+  , isObject   = require('./$.is-object')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
   , OBSERVER   = require('./$.wks')('observer')
@@ -32,7 +33,7 @@ function closeSubscription(observer){
 }
 
 function hasUnsubscribe(x){
-  return $.isObject(x) && isFunction(x.unsubscribe);
+  return isObject(x) && isFunction(x.unsubscribe);
 }
 
 function SubscriptionObserver(observer){

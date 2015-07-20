@@ -6,11 +6,11 @@ var $         = require('./$')
   , forOf     = require('./$.for-of')
   , method    = require('./$.array-methods')
   , WEAK      = require('./$.uid')('weak')
+  , isObject  = require('./$.is-object')
+  , isExtensible = Object.isExtensible || isObject
   , find      = method(5)
   , findIndex = method(6)
-  , isExtensible = Object.isExtensible || isObject
   , $has      = $.has
-  , isObject  = $.isObject
   , id        = 0;
 
 // fallback for frozen keys

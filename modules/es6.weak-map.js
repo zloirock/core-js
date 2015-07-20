@@ -1,10 +1,10 @@
 'use strict';
 var $            = require('./$')
   , weak         = require('./$.collection-weak')
+  , isObject     = require('./$.is-object')
   , frozenStore  = weak.frozenStore
   , WEAK         = weak.WEAK
   , has          = $.has
-  , isObject     = $.isObject
   , isExtensible = Object.isExtensible || isObject
   , tmp          = {};
 

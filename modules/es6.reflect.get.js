@@ -1,6 +1,7 @@
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
 var $        = require('./$')
   , $def     = require('./$.def')
+  , isObject = require('./$.is-object')
   , anObject = require('./$.an-object');
 
 $def($def.S, 'Reflect', {
@@ -13,6 +14,6 @@ $def($def.S, 'Reflect', {
       : desc.get !== undefined
         ? desc.get.call(receiver)
         : undefined;
-    if($.isObject(proto = $.getProto(target)))return get(proto, propertyKey, receiver);
+    if(isObject(proto = $.getProto(target)))return get(proto, propertyKey, receiver);
   }
 });

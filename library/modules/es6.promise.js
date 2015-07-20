@@ -1,25 +1,25 @@
 'use strict';
-var $        = require('./$')
-  , ctx      = require('./$.ctx')
-  , cof      = require('./$.cof')
-  , $def     = require('./$.def')
-  , anObject = require('./$.an-object')
-  , aFunction = require('./$.a-function')
-  , strictNew = require('./$.strict-new')
-  , forOf    = require('./$.for-of')
-  , setProto = require('./$.set-proto').set
-  , same     = require('./$.same')
-  , species  = require('./$.species')
-  , SPECIES  = require('./$.wks')('species')
-  , RECORD   = require('./$.uid')('record')
-  , PROMISE  = 'Promise'
-  , global   = $.g
-  , process  = global.process
-  , isNode   = cof(process) == 'process'
-  , asap     = process && process.nextTick || require('./$.task').set
-  , P        = global[PROMISE]
-  , isFunction     = $.isFunction
-  , isObject       = $.isObject
+var $          = require('./$')
+  , ctx        = require('./$.ctx')
+  , cof        = require('./$.cof')
+  , $def       = require('./$.def')
+  , isObject   = require('./$.is-object')
+  , anObject   = require('./$.an-object')
+  , aFunction  = require('./$.a-function')
+  , strictNew  = require('./$.strict-new')
+  , forOf      = require('./$.for-of')
+  , setProto   = require('./$.set-proto').set
+  , same       = require('./$.same')
+  , species    = require('./$.species')
+  , SPECIES    = require('./$.wks')('species')
+  , RECORD     = require('./$.uid')('record')
+  , PROMISE    = 'Promise'
+  , global     = $.g
+  , process    = global.process
+  , isNode     = cof(process) == 'process'
+  , asap       = process && process.nextTick || require('./$.task').set
+  , P          = global[PROMISE]
+  , isFunction = $.isFunction
   , Wrapper;
 
 function testResolve(sub){

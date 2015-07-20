@@ -3,7 +3,7 @@ var $          = require('./$')
   , $def       = require('./$.def')
   , createDesc = require('./$.property-desc')
   , anObject   = require('./$.an-object')
-  , isObject   = $.isObject;
+  , isObject   = require('./$.is-object');
 
 $def($def.S, 'Reflect', {
   set: function set(target, propertyKey, V/*, receiver*/){

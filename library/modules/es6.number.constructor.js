@@ -1,7 +1,7 @@
 'use strict';
 var $          = require('./$')
   , cof        = require('./$.cof')
-  , isObject   = $.isObject
+  , isObject   = require('./$.is-object')
   , isFunction = $.isFunction
   , NUMBER     = 'Number'
   , $Number    = $.g[NUMBER]
