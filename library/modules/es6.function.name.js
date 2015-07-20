@@ -1,5 +1,6 @@
 'use strict';
 var $             = require('./$')
+  , has           = require('./$.has')
   , createDesc    = require('./$.property-desc')
   , setDesc       = $.setDesc
   , FunctionProto = Function.prototype
@@ -10,10 +11,10 @@ NAME in FunctionProto || $.FW && require('./$.support-desc') && setDesc(Function
   get: function(){
     var match = String(this).match(/^\s*function ([^ (]*)/)
       , name  = match ? match[1] : '';
-    $.has(this, NAME) || setDesc(this, NAME, createDesc(5, name));
+    has(this, NAME) || setDesc(this, NAME, createDesc(5, name));
     return name;
   },
   set: function(value){
-    $.has(this, NAME) || setDesc(this, NAME, createDesc(0, value));
+    has(this, NAME) || setDesc(this, NAME, createDesc(0, value));
   }
 });

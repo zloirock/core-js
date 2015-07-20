@@ -1,10 +1,11 @@
 'use strict';
-var $      = require('./$')
-  , ctx    = require('./$.ctx')
-  , cof    = require('./$.cof')
-  , invoke = require('./$.invoke')
-  , html   = require('./$.html')
-  , cel    = require('./$.dom-create')
+var $                  = require('./$')
+  , has                = require('./$.has')
+  , ctx                = require('./$.ctx')
+  , cof                = require('./$.cof')
+  , invoke             = require('./$.invoke')
+  , html               = require('./$.html')
+  , cel                = require('./$.dom-create')
   , global             = $.g
   , isFunction         = $.isFunction
   , process            = global.process
@@ -17,7 +18,7 @@ var $      = require('./$')
   , defer, channel, port;
 function run(){
   var id = +this;
-  if($.has(queue, id)){
+  if(has(queue, id)){
     var fn = queue[id];
     delete queue[id];
     fn();

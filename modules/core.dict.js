@@ -11,8 +11,8 @@ var $            = require('./$')
   , isObject     = require('./$.is-object')
   , toObject     = require('./$.to-object')
   , SUPPORT_DESC = require('./$.support-desc')
+  , has          = require('./$.has')
   , getKeys      = $.getKeys
-  , has          = $.has
   , findKey      = createDictMethod(6);
 
 function Dict(iterable){

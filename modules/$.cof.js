@@ -1,4 +1,4 @@
-var has      = require('./$').has
+var has      = require('./$.has')
   , hide     = require('./$.hide')
   , TAG      = require('./$.wks')('toStringTag')
   , toString = {}.toString;

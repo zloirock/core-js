@@ -1,17 +1,16 @@
 'use strict';
-var $         = require('./$')
-  , hide      = require('./$.hide')
-  , anObject  = require('./$.an-object')
-  , strictNew = require('./$.strict-new')
-  , forOf     = require('./$.for-of')
-  , method    = require('./$.array-methods')
-  , WEAK      = require('./$.uid')('weak')
-  , isObject  = require('./$.is-object')
+var hide         = require('./$.hide')
+  , anObject     = require('./$.an-object')
+  , strictNew    = require('./$.strict-new')
+  , forOf        = require('./$.for-of')
+  , method       = require('./$.array-methods')
+  , WEAK         = require('./$.uid')('weak')
+  , isObject     = require('./$.is-object')
+  , $has         = require('./$.has')
   , isExtensible = Object.isExtensible || isObject
-  , find      = method(5)
-  , findIndex = method(6)
-  , $has      = $.has
-  , id        = 0;
+  , find         = method(5)
+  , findIndex    = method(6)
+  , id           = 0;
 
 // fallback for frozen keys
 function frozenStore(that){

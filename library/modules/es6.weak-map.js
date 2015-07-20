@@ -2,9 +2,9 @@
 var $            = require('./$')
   , weak         = require('./$.collection-weak')
   , isObject     = require('./$.is-object')
+  , has          = require('./$.has')
   , frozenStore  = weak.frozenStore
   , WEAK         = weak.WEAK
-  , has          = $.has
   , isExtensible = Object.isExtensible || isObject
   , tmp          = {};
 

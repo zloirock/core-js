@@ -1,8 +1,9 @@
 'use strict';
-var $def            = require('./$.def')
+var $               = require('./$')
+  , $def            = require('./$.def')
   , $redef          = require('./$.redef')
   , hide            = require('./$.hide')
-  , $               = require('./$')
+  , has             = require('./$.has')
   , cof             = require('./$.cof')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
   , Iterators       = require('./$.iterators')
@@ -32,7 +33,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     // Set @@toStringTag to native iterators
     cof.set(IteratorPrototype, TAG, true);
     // FF fix
-    if($.FW && $.has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
+    if($.FW && has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
   }
   // Define iterator
   if($.FW || FORCE)hide(proto, SYMBOL_ITERATOR, _default);

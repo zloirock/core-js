@@ -1,15 +1,11 @@
 var global = typeof self != 'undefined' && self.Math == Math ? self : Function('return this')()
-  , core   = {}
-  , hasOwnProperty = {}.hasOwnProperty;
+  , core   = {};
 
 module.exports = require('./$.fw')({
   g: global,
   core: core,
   isFunction: function(it){
     return typeof it == 'function';
-  },
-  has: function(it, key){
-    return hasOwnProperty.call(it, key);
   },
   create:     Object.create,
   getProto:   Object.getPrototypeOf,

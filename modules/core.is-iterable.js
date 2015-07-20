@@ -1,4 +1,5 @@
 var $         = require('./$')
+  , has       = require('./$.has')
   , classof   = require('./$.cof').classof
   , ITERATOR  = require('./$.wks')('iterator')
   , Iterators = require('./$.iterators')
@@ -8,5 +9,5 @@ module.exports = $.core.isIterable = function(it){
     , Symbol = global.Symbol;
   return (Symbol && Symbol.iterator || '@@iterator') in O
     || ITERATOR in O
-    || $.has(Iterators, classof(O));
+    || has(Iterators, classof(O));
 };

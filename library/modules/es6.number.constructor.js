@@ -1,5 +1,6 @@
 'use strict';
 var $          = require('./$')
+  , has        = require('./$.has')
   , cof        = require('./$.cof')
   , isObject   = require('./$.is-object')
   , isFunction = $.isFunction
@@ -34,7 +35,7 @@ if($.FW && !($Number('0o1') && $Number('0b1'))){
       'EPSILON,isFinite,isInteger,isNaN,isSafeInteger,MAX_SAFE_INTEGER,' +
       'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
     ).split(','), function(key){
-      if($.has(Base, key) && !$.has($Number, key)){
+      if(has(Base, key) && !has($Number, key)){
         $.setDesc($Number, key, $.getDesc(Base, key));
       }
     }

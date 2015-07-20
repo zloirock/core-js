@@ -1,4 +1,5 @@
 var $         = require('./$')
+  , has       = require('./$.has')
   , hide      = require('./$.hide')
   , tpl       = String({}.hasOwnProperty)
   , SRC       = require('./$.uid')('src')
@@ -21,7 +22,7 @@ function $redef(O, key, val, safe){
 // add fake Function#toString for correct work wrapped methods / constructors
 // with methods similar to LoDash isNative
 $redef(Function.prototype, 'toString', function toString(){
-  return $.has(this, SRC) ? this[SRC] : _toString.call(this);
+  return has(this, SRC) ? this[SRC] : _toString.call(this);
 });
 
 $.core.inspectSource = function(it){

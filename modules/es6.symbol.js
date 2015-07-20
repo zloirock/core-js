@@ -1,6 +1,7 @@
 'use strict';
 // ECMAScript 6 symbols shim
 var $              = require('./$')
+  , has            = require('./$.has')
   , SUPPORT_DESC   = require('./$.support-desc')
   , $def           = require('./$.def')
   , $redef         = require('./$.redef')
@@ -15,7 +16,6 @@ var $              = require('./$')
   , createDesc     = require('./$.property-desc')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
-  , has            = $.has
   , $create        = $.create
   , getNames       = $names.get
   , $Symbol        = $.g.Symbol
