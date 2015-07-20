@@ -36,7 +36,7 @@ test 'Map' !->
   done = no
   a[iterator] = ->
     done := on
-    core.getIterFn([])call @
+    core.getIteratorMethod([])call @
   new Map a
   ok done
 test 'Map#clear' !->

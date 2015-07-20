@@ -38,7 +38,7 @@ test 'WeakMap' !->
   done = no
   a[iterator] = ->
     done := on
-    core.getIterFn([])call @
+    core.getIteratorMethod([])call @
   new WeakMap a
   ok done
 
