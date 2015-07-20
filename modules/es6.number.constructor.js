@@ -10,7 +10,7 @@ var $          = require('./$')
   , proto      = $Number.prototype
   // Opera ~12 has broken Object#toString
   , fakeNumber = cof($.create(proto)) == NUMBER
-    ? function(it){ try { +it; return false; } catch(e){ return true; } }
+    ? function(it){ try { proto.valueOf.call(it); return false; } catch(e){ return true; } }
     : function(it){ return cof(it) != NUMBER; };
 function toPrimitive(it){
   var fn, val;
