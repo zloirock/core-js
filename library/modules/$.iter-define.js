@@ -1,5 +1,6 @@
 'use strict';
 var $               = require('./$')
+  , LIBRARY         = require('./$.library')
   , $def            = require('./$.def')
   , $redef          = require('./$.redef')
   , hide            = require('./$.hide')
@@ -33,10 +34,10 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     // Set @@toStringTag to native iterators
     cof.set(IteratorPrototype, TAG, true);
     // FF fix
-    if($.FW && has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
+    if(!LIBRARY && has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
   }
   // Define iterator
-  if($.FW || FORCE)hide(proto, SYMBOL_ITERATOR, _default);
+  if(!LIBRARY || FORCE)hide(proto, SYMBOL_ITERATOR, _default);
   // Plug for library
   Iterators[NAME] = _default;
   Iterators[TAG]  = returnThis;

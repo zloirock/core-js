@@ -8,7 +8,7 @@ var $          = require('./$')
   , isFunction = require('./$.is-function');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
-  var Base  = $.g[NAME]
+  var Base  = require('./$.global')[NAME]
     , C     = Base
     , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype

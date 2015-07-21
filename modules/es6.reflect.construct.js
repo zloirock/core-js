@@ -4,7 +4,7 @@ var $         = require('./$')
   , aFunction = require('./$.a-function')
   , isObject  = require('./$.is-object')
   , apply     = Function.apply
-  , bind      = Function.bind || $.core.Function.prototype.bind;
+  , bind      = Function.bind || require('./$.core').Function.prototype.bind;
 
 $def($def.S, 'Reflect', {
   construct: function construct(target, argumentsList /*, newTarget*/){

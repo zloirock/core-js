@@ -8,4 +8,4 @@ require('../modules/es7.object.values');
 require('../modules/es7.object.entries');
 require('../modules/es7.map.to-json');
 require('../modules/es7.set.to-json');
-module.exports = require('../modules/$').core;
+module.exports = require('../modules/$.core');

@@ -9,4 +9,4 @@ require('../../modules/es6.array.find');
 require('../../modules/es6.array.find-index');
 require('../../modules/es7.array.includes');
 require('../../modules/js.array.statics');
-module.exports = require('../../modules/$').core.Array;
+module.exports = require('../../modules/$.core').Array;

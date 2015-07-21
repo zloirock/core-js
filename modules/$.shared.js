@@ -1,6 +1,6 @@
-var $      = require('./$')
+var global = require('./$.global')
   , SHARED = '__core-js_shared__'
-  , store  = $.g[SHARED] || ($.g[SHARED] = {});
+  , store  = global[SHARED] || (global[SHARED] = {});
 module.exports = function(key){
   return store[key] || (store[key] = {});
 };

@@ -1,11 +1,12 @@
 'use strict';
 var $          = require('./$')
+  , global     = require('./$.global')
   , has        = require('./$.has')
   , cof        = require('./$.cof')
   , isObject   = require('./$.is-object')
   , isFunction = require('./$.is-function')
   , NUMBER     = 'Number'
-  , $Number    = $.g[NUMBER]
+  , $Number    = global[NUMBER]
   , Base       = $Number
   , proto      = $Number.prototype
   // Opera ~12 has broken Object#toString
@@ -28,7 +29,7 @@ function toNumber(it){
     }
   } return +it;
 }
-if($.FW && !($Number('0o1') && $Number('0b1'))){
+if(!($Number('0o1') && $Number('0b1'))){
   $Number = function Number(it){
     return this instanceof $Number && fakeNumber(this) ? new Base(toNumber(it)) : toNumber(it);
   };
@@ -46,5 +47,5 @@ if($.FW && !($Number('0o1') && $Number('0b1'))){
   );
   $Number.prototype = proto;
   proto.constructor = $Number;
-  require('./$.redef')($.g, NUMBER, $Number);
+  require('./$.redef')(global, NUMBER, $Number);
 }

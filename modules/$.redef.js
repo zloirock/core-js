@@ -1,4 +1,4 @@
-var $          = require('./$')
+var global     = require('./$.global')
   , has        = require('./$.has')
   , hide       = require('./$.hide')
   , isFunction = require('./$.is-function')
@@ -12,7 +12,7 @@ function $redef(O, key, val, safe){
     hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, String(key)));
     if(!('name' in val))val.name = key;
   }
-  if(O === $.g){
+  if(O === global){
     O[key] = val;
   } else {
     if(!safe)delete O[key];
@@ -26,7 +26,7 @@ $redef(Function.prototype, 'toString', function toString(){
   return has(this, SRC) ? this[SRC] : _toString.call(this);
 });
 
-$.core.inspectSource = function(it){
+require('./$.core').inspectSource = function(it){
   return _toString.call(it);
 };
 

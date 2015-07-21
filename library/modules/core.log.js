@@ -1,4 +1,5 @@
 var $          = require('./$')
+  , global     = require('./$.global')
   , $def       = require('./$.def')
   , isFunction = require('./$.is-function')
   , log        = {}
@@ -9,7 +10,7 @@ $.each.call(('assert,clear,count,debug,dir,dirxml,error,exception,' +
     'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
     'timelineEnd,timeStamp,trace,warn').split(','), function(key){
   log[key] = function(){
-    if(enabled && $.g.console && isFunction(console[key])){
+    if(enabled && global.console && isFunction(console[key])){
       return Function.apply.call(console[key], console, arguments);
     }
   };

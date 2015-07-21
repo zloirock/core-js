@@ -1,7 +1,7 @@
 // JavaScript 1.6 / Strawman array statics shim
 var $       = require('./$')
   , $def    = require('./$.def')
-  , $Array  = $.core.Array || Array
+  , $Array  = require('./$.core').Array || Array
   , statics = {};
 function setStatics(keys, length){
   $.each.call(keys.split(','), function(key){

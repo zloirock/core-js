@@ -1,4 +1,5 @@
 var $        = require('./$')
+  , core     = require('./$.core')
   , $def     = require('./$.def')
   , defined  = require('./$.defined')
   , toObject = require('./$.to-object')
@@ -6,7 +7,7 @@ var $        = require('./$')
 $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
   'getOwnPropertyDescriptor,getPrototypeOf,keys,getOwnPropertyNames').split(',')
 , function(KEY, ID){
-  var fn     = ($.core.Object || {})[KEY] || Object[KEY]
+  var fn     = (core.Object || {})[KEY] || Object[KEY]
     , forced = 0
     , method = {};
   method[KEY] = ID == 0 ? function freeze(it){

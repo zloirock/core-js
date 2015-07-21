@@ -74,4 +74,4 @@ require('../modules/es6.reflect.own-keys');
 require('../modules/es6.reflect.prevent-extensions');
 require('../modules/es6.reflect.set');
 require('../modules/es6.reflect.set-prototype-of');
-module.exports = require('../modules/$').core;
+module.exports = require('../modules/$.core');

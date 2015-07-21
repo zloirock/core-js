@@ -1,2 +1,2 @@
 require('../../modules/web.dom.iterable');
-module.exports = require('../../modules/$').g.HTMLCollection;
+module.exports = require('../../modules/$.core');

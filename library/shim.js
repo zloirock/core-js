@@ -89,4 +89,4 @@ require('./modules/js.array.statics');
 require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');
-module.exports = require('./modules/$').core;
+module.exports = require('./modules/$.core');

@@ -1,9 +1,8 @@
 // 26.1.5 Reflect.enumerate(target)
-var $        = require('./$')
-  , $def     = require('./$.def')
+var $def     = require('./$.def')
   , ITERATOR = require('./$.wks')('iterator')
   , anObject = require('./$.an-object')
-  , $Reflect = $.g.Reflect
+  , $Reflect = require('./$.global').Reflect
   // IE Edge has broken Reflect.enumerate
   , BUGGY    = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
 

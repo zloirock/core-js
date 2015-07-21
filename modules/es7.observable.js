@@ -1,5 +1,6 @@
 // Based on https://github.com/zenparsing/es-observable/blob/master/src/Observable.js
-var $          = require('./$')
+var global     = require('./$.global')
+  , core       = require('./$.core')
   , $def       = require('./$.def')
   , $redef     = require('./$.redef')
   , $mix       = require('./$.mix')
@@ -110,7 +111,7 @@ $mix(Observable.prototype, {
   },
   forEach: function(fn, thisArg){
     var that = this;
-    return new ($.core.Promise || $.g.Promise)(function(resolve, reject){
+    return new (core.Promise || global.Promise)(function(resolve, reject){
       aFunction(fn);
       that.subscribe({
         next: function(value){ fn.call(thisArg, value); },

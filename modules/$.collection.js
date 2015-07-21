@@ -1,5 +1,5 @@
 'use strict';
-var $          = require('./$')
+var global     = require('./$.global')
   , $def       = require('./$.def')
   , BUGGY      = require('./$.iter-buggy')
   , forOf      = require('./$.for-of')
@@ -7,7 +7,7 @@ var $          = require('./$')
   , isFunction = require('./$.is-function');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
-  var Base  = $.g[NAME]
+  var Base  = global[NAME]
     , C     = Base
     , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype

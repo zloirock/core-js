@@ -1,13 +1,12 @@
 'use strict';
-var $                  = require('./$')
-  , has                = require('./$.has')
+var has                = require('./$.has')
   , ctx                = require('./$.ctx')
   , cof                = require('./$.cof')
   , invoke             = require('./$.invoke')
   , isFunction         = require('./$.is-function')
   , html               = require('./$.html')
   , cel                = require('./$.dom-create')
-  , global             = $.g
+  , global             = require('./$.global')
   , process            = global.process
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate

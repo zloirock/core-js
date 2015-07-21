@@ -153,6 +153,6 @@ module.exports = {
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     species(C);
-    species($.core[NAME]); // for wrapper
+    species(require('./$.core')[NAME]); // for wrapper
   }
 };

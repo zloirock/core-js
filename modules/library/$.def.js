@@ -1,7 +1,6 @@
-var $          = require('./$')
+var global     = require('./$.global')
   , isFunction = require('./$.is-function')
-  , global     = $.g
-  , core       = $.core;
+  , core       = require('./$.core');
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);

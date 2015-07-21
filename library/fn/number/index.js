@@ -9,4 +9,4 @@ require('../../modules/es6.number.min-safe-integer');
 require('../../modules/es6.number.parse-float');
 require('../../modules/es6.number.parse-int');
 require('../../modules/core.number.iterator');
-module.exports = require('../../modules/$').core.Number;
+module.exports = require('../../modules/$.core').Number;

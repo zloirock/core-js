@@ -1,7 +1,8 @@
 var $       = require('./$')
+  , global  = require('./$.global')
   , cof     = require('./$.cof')
   , $flags  = require('./$.flags')
-  , $RegExp = $.g.RegExp
+  , $RegExp = global.RegExp
   , Base    = $RegExp
   , proto   = $RegExp.prototype
   , re      = /a/g
@@ -34,7 +35,7 @@ if(require('./$.support-desc')){
     });
     proto.constructor = $RegExp;
     $RegExp.prototype = proto;
-    require('./$.redef')($.g, 'RegExp', $RegExp);
+    require('./$.redef')(global, 'RegExp', $RegExp);
   }
 }
 

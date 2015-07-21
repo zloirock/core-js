@@ -6,7 +6,7 @@ var $             = require('./$')
   , FunctionProto = Function.prototype
   , NAME          = 'name';
 // 19.2.4.2 name
-NAME in FunctionProto || $.FW && require('./$.support-desc') && setDesc(FunctionProto, NAME, {
+NAME in FunctionProto || require('./$.support-desc') && setDesc(FunctionProto, NAME, {
   configurable: true,
   get: function(){
     var match = String(this).match(/^\s*function ([^ (]*)/)

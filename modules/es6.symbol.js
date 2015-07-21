@@ -1,6 +1,7 @@
 'use strict';
 // ECMAScript 6 symbols shim
 var $              = require('./$')
+  , global         = require('./$.global')
   , has            = require('./$.has')
   , SUPPORT_DESC   = require('./$.support-desc')
   , $def           = require('./$.def')
@@ -18,7 +19,7 @@ var $              = require('./$')
   , setDesc        = $.setDesc
   , $create        = $.create
   , getNames       = $names.get
-  , $Symbol        = $.g.Symbol
+  , $Symbol        = global.Symbol
   , setter         = false
   , HIDDEN         = uid('hidden')
   , isEnum         = $.isEnum
@@ -125,7 +126,9 @@ if(!useNative){
   $.getNames   = $names.get = getOwnPropertyNames;
   $.getSymbols = getOwnPropertySymbols;
 
-  if(SUPPORT_DESC && $.FW)$redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
+  if(SUPPORT_DESC && !require('./$.library')){
+    $redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
+  }
 }
 
 var symbolStatics = {
@@ -188,4 +191,4 @@ setTag($Symbol, 'Symbol');
 // 20.2.1.9 Math[@@toStringTag]
 setTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
-setTag($.g.JSON, 'JSON', true);
+setTag(global.JSON, 'JSON', true);

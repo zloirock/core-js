@@ -1,2 +1,2 @@
 require('../../modules/web.dom.iterable');
-module.exports = require('../../modules/$').core.Array.values;
+module.exports = require('../../modules/$.core').Array.values;

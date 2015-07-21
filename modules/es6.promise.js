@@ -1,5 +1,7 @@
 'use strict';
 var $          = require('./$')
+  , LIBRARY    = require('./$.library')
+  , global     = require('./$.global')
   , ctx        = require('./$.ctx')
   , cof        = require('./$.cof')
   , $def       = require('./$.def')
@@ -15,7 +17,6 @@ var $          = require('./$')
   , SPECIES    = require('./$.wks')('species')
   , RECORD     = require('./$.uid')('record')
   , PROMISE    = 'Promise'
-  , global     = $.g
   , process    = global.process
   , isNode     = cof(process) == 'process'
   , asap       = process && process.nextTick || require('./$.task').set
@@ -61,7 +62,7 @@ function isPromise(it){
 }
 function sameConstructor(a, b){
   // library wrapper special case
-  if(!$.FW && a === P && b === Wrapper)return true;
+  if(LIBRARY && a === P && b === Wrapper)return true;
   return same(a, b);
 }
 function getConstructor(C){
@@ -216,7 +217,7 @@ if(!useNative){
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 cof.set(P, PROMISE);
 species(P);
-species(Wrapper = $.core[PROMISE]);
+species(Wrapper = require('./$.core')[PROMISE]);
 
 // statics
 $def($def.S + $def.F * !useNative, PROMISE, {
