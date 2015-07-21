@@ -224,7 +224,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String & RegExp
-Modules `es6.string.from-code-point`, `es6.string.raw`, `es6.string.code-point-at`, `es6.string.ends-with`, `es6.string.includes`, `es6.string.repeat`, `es6.string.starts-with` and `es6.regexp`.
+`String`: modules `es6.string.from-code-point`, `es6.string.raw`, `es6.string.code-point-at`, `es6.string.ends-with`, `es6.string.includes`, `es6.string.repeat` and `es6.string.starts-with`.
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -234,10 +234,26 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
+```
+`RegExp`: modules `es6.regexp.constructor` and `es6.regexp.flags`.
+```
 [new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags (IE9+)
   #flags -> str (IE9+)
 ```
-[Example](http://goo.gl/sdNGeJ):
+Support well-known symbols `@@match`, `@@replace`, `@@search` and `@@split`: modules `es6.regexp.match`, `es6.regexp.replace`, `es6.regexp.search` and `es6.regexp.split`.
+```
+String
+  #match(tpl) -> var, ES6 fix for support @@match
+  #replace(tpl, replacer) -> var, ES6 fix for support @@replace
+  #search(tpl) -> var, ES6 fix for support @@search
+  #split(tpl, limit) -> var, ES6 fix for support @@split
+RegExp
+  #@@match(str) -> array | null
+  #@@replace(str, replacer) -> string
+  #@@search(str) -> index
+  #@@split(str, limit) -> array
+```
+[Examples](http://goo.gl/lMLr7f):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -259,6 +275,11 @@ RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;    // => ''
 /foo/gim.flags; // => 'gim'
+
+'foo'.match({[Symbol.match]: _ => 1});     // => 1
+'foo'.replace({[Symbol.replace]: _ => 2}); // => 2
+'foo'.search({[Symbol.search]: _ => 3});   // => 3
+'foo'.split({[Symbol.split]: _ => 4});     // => 4
 ```
 #### ECMAScript 6: Number & Math
 Module `es6.number.constructor`. `Number` constructor support binary and octal literals, [example](http://goo.gl/jRd6b3):
@@ -266,7 +287,7 @@ Module `es6.number.constructor`. `Number` constructor support binary and octal l
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
 ```
-Modules `es6.number.statics` and `es6.math`.
+`Number`: modules `es6.number.epsilon`, `es6.number.is-finite`, `es6.number.is-integer`, `es6.number.is-nan`, `es6.number.is-safe-integer`, `es6.number.max-safe-integer`, `es6.number.min-safe-integer`, `es6.number.parse-float`, `es6.number.parse-int`.
 ```javascript
 Number
   .EPSILON -> num
@@ -278,6 +299,9 @@ Number
   .MIN_SAFE_INTEGER -> int
   .parseFloat(str) -> num
   .parseInt(str) -> int
+```
+`Math`: modules `es6.math.acosh`, `es6.math.asinh`, `es6.math.atanh`, `es6.math.cbrt`, `es6.math.clz32`, `es6.math.cosh`, `es6.math.expm1`, `es6.math.fround`, `es6.math.hypot`, `es6.math.imul`, `es6.math.log10`, `es6.math.log1p`, `es6.math.log2`, `es6.math.sign`, `es6.math.sinh`, `es6.math.tanh`, `es6.math.trunc`.
+```javascript
 Math
   .acosh(num) -> num
   .asinh(num) -> num
@@ -361,9 +385,9 @@ Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
 
 * We can't add new primitive type, `Symbol` returns object.
 * `Symbol.for` and `Symbol.keyFor` can't be shimmed cross-realm.
-* By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+* By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setter in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
+You can disable defining setters in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
 ```javascript
 Symbol.useSimple();
 var s1 = Symbol('s1')
@@ -577,13 +601,14 @@ for(var x of document.querySelectorAll('*')){
   log(x.id);
 }
 ```
-Module `core.iter-helpers` - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
+Modules `core.is-iterable`, `core.get-iterator`, `core.get-iterator-method` - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
 ```javascript
 core
   .isIterable(var) -> bool
   .getIterator(iterable) -> iterator
+  .getIteratorMethod(var) -> function | undefined
 ```
-[Example](http://goo.gl/uFvXW6):
+[Example](http://goo.gl/SXsM6D):
 ```js
 var list = (function(){
   return arguments;
@@ -596,6 +621,18 @@ log(iter.next().value); // 1
 log(iter.next().value); // 2
 log(iter.next().value); // 3
 log(iter.next().value); // undefined
+
+core.getIterator({});   // TypeError: [object Object] is not iterable!
+
+var iterFn = core.getIteratorMethod(list);
+log(typeof iterFn);     // 'function'
+var iter = iterFn.call(list);
+log(iter.next().value); // 1
+log(iter.next().value); // 2
+log(iter.next().value); // 3
+log(iter.next().value); // undefined
+
+log(core.getIteratorMethod({})); // undefined
 ```
 ### ECMAScript 6: Promises
 Module `es6.promise`.
@@ -689,7 +726,7 @@ async function sleepError(time, msg){
 `core-js` `Promise` supports (but not adds to native implementations) unhandled rejection tracking. In browser you will see notify in console, in node.js / io.js you can use [`unhandledRejection`](https://gist.github.com/benjamingr/0237932cee84712951a2) event.
 
 ### ECMAScript 6: Reflect
-Module `es6.reflect`.
+Modules `es6.reflect.apply`, `es6.reflect.construct`, `es6.reflect.define-property`, `es6.reflect.delete-property`, `es6.reflect.enumerate`, `es6.reflect.get`, `es6.reflect.get-own-property-descriptor`, `es6.reflect.get-prototype-of`, `es6.reflect.has`, `es6.reflect.is-extensible`, `es6.reflect.own-keys`, `es6.reflect.prevent-extensions`, `es6.reflect.set`, `es6.reflect.set-prototype-of`.
 ```javascript
 Reflect
   .apply(target, thisArgument, argumentsList) -> var
@@ -725,7 +762,7 @@ instance.c; // => 42
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module `es7.array.includes`
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module `es7.string.at`
 * `String#lpad`, `String#rpad` [proposal](http://wiki.ecmascript.org/doku.php?id=strawman:string_padding) - modules `es7.string.lpad`, `es7.string.rpad`
-* `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - module `es7.object.to-array`
+* `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - modules `es7.object.values`, `es7.object.entries`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://github.com/benjamingr/RexExp.escape) - module `es7.regexp.escape`
 * `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules `es7.map.to-json`, `es7.set.to-json`
@@ -856,7 +893,7 @@ log.enable();
 log.warn('Console is enabled again.');
 ```
 ### Object
-Module `core.object`.
+Modules `core.object.is-object`, `core.object.classof`, `core.object.define`, `core.object.make`.
 ```javascript
 Object
   .isObject(var) -> bool
@@ -1147,7 +1184,7 @@ Array.from(10, function(it){
 Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
 ```
 ### Escaping HTML
-Module `core.string.escape-html`.
+Modules `core.string.escape-html` and `core.string.unescape-html`.
 ```javascript
 String
   #escapeHTML() -> str
@@ -1180,8 +1217,43 @@ delay(1e3).then(() => log('after 1 sec'));
 - ES7 `SIMD`. `core-js` doesn't adds polyfill of this feature because of large size and some other reasons. You can use [this polyfill](https://github.com/tc39/ecmascript_simd/blob/master/src/ecmascript_simd.js).
 - `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 
-
 ## Changelog
+##### 1.0.0 - 2015.07.22
+  * added logic for [well-known symbols](#ecmascript-6-string--regexp):
+    * `Symbol.match`
+    * `Symbol.replace`
+    * `Symbol.split`
+    * `Symbol.search`
+  * actualized and optimized work with iterables:
+    * actualized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](#ecmascript-6-collections), [`Promise.all`, `Promise.race`](#ecmascript-6-promises) for default `Array Iterator`
+    * actualized  [`Array.from`](#ecmascript-6-array) for default `Array Iterator`
+    * added [`core.getIteratorMethod`](#ecmascript-6-iterators) helper
+  * uses enumerable properties in shimmed instances - collections, iterators, etc for optimize performance
+  * added support native constructors to [`Reflect.construct`](#ecmascript-6-reflect) with 2 arguments
+  * added support native constructors to [`Function#bind`](#ecmascript-5) shim with `new`
+  * removed obsolete `.clear` methods native [`Weak`-collections](#ecmascript-6-collections)
+  * maximum modularity, reduced minimal custom build size, separated into submodules:
+    * [`es6.reflect`](#ecmascript-6-reflect)
+    * [`es6.regexp`](#ecmascript-6-string--regexp)
+    * [`es6.math`](#ecmascript-6-number--math)
+    * [`es6.number`](#ecmascript-6-number--math)
+    * [`es7.object.to-array`](#ecmascript-7)
+    * [`core.object`](#object)
+    * [`core.string`](#escaping-html)
+    * [`core.iter-helpers`](#ecmascript-6-iterators)
+    * internal modules (`$`, `$.iter`, etc)
+  * many other optimizations
+  * final cleaning non-standard features
+    * moved `$for` to [separate library](https://github.com/zloirock/forof). This work for syntax - `for-of` loop and comprehensions
+    * moved `Date#{format, formatUTC}` to [separate library](https://github.com/zloirock/dtf). Standard way for this - `ECMA-402`
+    * removed `Math` methods from `Number.prototype`. Slight sugar for simple `Math` methods calling
+    * removed `{Array#, Array, Dict}.turn`
+    * removed `core.global`
+  * uses `ToNumber` instead of `ToLength` in [`Number Iterator`](#number-iterator), `Array.from(2.5)` will be `[0, 1, 2]` instead of `[0, 1]`
+  * fixed #85 - invalid `Promise` unhandled rejection message in nested `setTimeout`
+  * fixed #86 - support FF extensions
+  * fixed #89 - behavior `Number` constructor in strange case
+
 ##### 0.9.18 - 2015.06.17
   * removed `/` from [`RegExp.escape`](#ecmascript-7) escaped characters
 
