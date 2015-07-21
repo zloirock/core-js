@@ -1225,8 +1225,8 @@ delay(1e3).then(() => log('after 1 sec'));
     * `Symbol.split`
     * `Symbol.search`
   * actualized and optimized work with iterables:
-    * actualized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](#ecmascript-6-collections), [`Promise.all`, `Promise.race`](#ecmascript-6-promises) for default `Array Iterator`
-    * actualized  [`Array.from`](#ecmascript-6-array) for default `Array Iterator`
+    * optimized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](#ecmascript-6-collections), [`Promise.all`, `Promise.race`](#ecmascript-6-promises) for default `Array Iterator`
+    * optimized  [`Array.from`](#ecmascript-6-array) for default `Array Iterator`
     * added [`core.getIteratorMethod`](#ecmascript-6-iterators) helper
   * uses enumerable properties in shimmed instances - collections, iterators, etc for optimize performance
   * added support native constructors to [`Reflect.construct`](#ecmascript-6-reflect) with 2 arguments
