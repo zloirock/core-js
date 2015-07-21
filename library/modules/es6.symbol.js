@@ -9,6 +9,7 @@ var $              = require('./$')
   , shared         = require('./$.shared')
   , setTag         = require('./$.cof').set
   , uid            = require('./$.uid')
+  , wks            = require('./$.wks')
   , keyOf          = require('./$.keyof')
   , $names         = require('./$.get-names')
   , enumKeys       = require('./$.enum-keys')
@@ -21,7 +22,7 @@ var $              = require('./$')
   , getNames       = $names.get
   , $Symbol        = global.Symbol
   , setter         = false
-  , HIDDEN         = uid('hidden')
+  , HIDDEN         = wks('_hidden')
   , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
@@ -160,7 +161,7 @@ $.each.call((
     'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
     'species,split,toPrimitive,toStringTag,unscopables'
   ).split(','), function(it){
-    var sym = require('./$.wks')(it);
+    var sym = wks(it);
     symbolStatics[it] = useNative ? sym : wrap(sym);
   }
 );
