@@ -161,10 +161,8 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
 
     next null """
       #banner
-      !function(undefined){
+      !function(__e, __g, undefined){
       'use strict';
-      var __e = null, __g = null;
-      
       #script
       // CommonJS export
       if(typeof module != 'undefined' && module.exports)module.exports = __e;
@@ -172,5 +170,5 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
       else if(typeof define == 'function' && define.amd)define(function(){return __e});
       // Export to global object
       else __g.core = __e;
-      }();
+      }(1, 1);
       """

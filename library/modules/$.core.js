@@ -1,3 +1,3 @@
 var core = {};
 module.exports = core;
-if(typeof __e != 'undefined')__e = core; // eslint-disable-line no-undef
+if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef

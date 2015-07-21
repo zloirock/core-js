@@ -1,6 +1,7 @@
 var global     = require('./$.global')
   , isFunction = require('./$.is-function')
-  , core       = require('./$.core');
+  , core       = require('./$.core')
+  , PROTOTYPE  = 'prototype';
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
@@ -18,7 +19,7 @@ function $def(type, name, source){
     , isGlobal = type & $def.G
     , isProto  = type & $def.P
     , target   = isGlobal ? global : type & $def.S
-        ? global[name] : (global[name] || {}).prototype
+        ? global[name] : (global[name] || {})[PROTOTYPE]
     , exports  = isGlobal ? core : core[name] || (core[name] = {});
   if(isGlobal)source = name;
   for(key in source){
@@ -36,12 +37,12 @@ function $def(type, name, source){
       exp = function(param){
         return this instanceof C ? new C(param) : C(param);
       };
-      exp.prototype = C.prototype;
+      exp[PROTOTYPE] = C[PROTOTYPE];
     }(out);
     else exp = isProto && isFunction(out) ? ctx(Function.call, out) : out;
     // export
     exports[key] = exp;
-    if(isProto)(exports.prototype || (exports.prototype = {}))[key] = out;
+    if(isProto)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;
   }
 }
 module.exports = $def;

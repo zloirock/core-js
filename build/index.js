@@ -84,7 +84,7 @@
                 if (check(err)) {
                   return;
                 }
-                next(null, "" + banner + "\n!function(undefined){\n'use strict';\nvar __e = null, __g = null;\n\n" + script + "\n// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;\n}();");
+                next(null, "" + banner + "\n!function(__e, __g, undefined){\n'use strict';\n" + script + "\n// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;\n}(1, 1);");
               });
             });
           });
