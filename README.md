@@ -1250,9 +1250,9 @@ delay(1e3).then(() => log('after 1 sec'));
     * removed `{Array#, Array, Dict}.turn`
     * removed `core.global`
   * uses `ToNumber` instead of `ToLength` in [`Number Iterator`](#number-iterator), `Array.from(2.5)` will be `[0, 1, 2]` instead of `[0, 1]`
-  * fixed #85 - invalid `Promise` unhandled rejection message in nested `setTimeout`
-  * fixed #86 - support FF extensions
-  * fixed #89 - behavior `Number` constructor in strange case
+  * fixed [#85](https://github.com/zloirock/core-js/issues/85) - invalid `Promise` unhandled rejection message in nested `setTimeout`
+  * fixed [#86](https://github.com/zloirock/core-js/issues/86) - support FF extensions
+  * fixed [#89](https://github.com/zloirock/core-js/issues/89) - behavior `Number` constructor in strange case
 
 ##### 0.9.18 - 2015.06.17
   * removed `/` from [`RegExp.escape`](#ecmascript-7) escaped characters
