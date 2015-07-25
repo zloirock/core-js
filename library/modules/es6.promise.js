@@ -6,7 +6,6 @@ var $          = require('./$')
   , cof        = require('./$.cof')
   , $def       = require('./$.def')
   , isObject   = require('./$.is-object')
-  , isFunction = require('./$.is-function')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
   , strictNew  = require('./$.strict-new')
@@ -37,7 +36,7 @@ var useNative = function(){
     return self;
   }
   try {
-    works = isFunction(P) && isFunction(P.resolve) && testResolve();
+    works = P && P.resolve && testResolve();
     setProto(P2, P);
     P2.prototype = $.create(P.prototype, {constructor: {value: P2}});
     // actual Firefox has broken subclass support, test that
@@ -72,7 +71,7 @@ function getConstructor(C){
 function isThenable(it){
   var then;
   if(isObject(it))then = it.then;
-  return isFunction(then) ? then : false;
+  return typeof then == 'function' ? then : false;
 }
 function notify(record, isReject){
   if(record.n)return;
@@ -193,8 +192,8 @@ if(!useNative){
     then: function then(onFulfilled, onRejected){
       var S = anObject(anObject(this).constructor)[SPECIES];
       var react = {
-        ok:   isFunction(onFulfilled) ? onFulfilled : true,
-        fail: isFunction(onRejected)  ? onRejected  : false
+        ok:   typeof onFulfilled == 'function' ? onFulfilled : true,
+        fail: typeof onRejected == 'function'  ? onRejected  : false
       };
       var promise = react.P = new (S != undefined ? S : P)(function(res, rej){
         react.res = aFunction(res);

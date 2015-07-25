@@ -4,7 +4,6 @@ var $          = require('./$')
   , has        = require('./$.has')
   , cof        = require('./$.cof')
   , isObject   = require('./$.is-object')
-  , isFunction = require('./$.is-function')
   , NUMBER     = 'Number'
   , $Number    = global[NUMBER]
   , Base       = $Number
@@ -15,8 +14,8 @@ var $          = require('./$')
     : function(it){ return cof(it) != NUMBER; };
 function toPrimitive(it){
   var fn, val;
-  if(isFunction(fn = it.valueOf) && !isObject(val = fn.call(it)))return val;
-  if(isFunction(fn = it.toString) && !isObject(val = fn.call(it)))return val;
+  if(typeof (fn = it.valueOf) == 'function' && !isObject(val = fn.call(it)))return val;
+  if(typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to number");
 }
 function toNumber(it){

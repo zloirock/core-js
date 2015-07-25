@@ -9,7 +9,6 @@ $def($def.S + $def.F * !require('./$.iter-detect')(function(iter){ Array.from(it
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
     var O       = Object(defined(arrayLike))
-      // strange IE quirks mode bug -> use typeof instead of isFunction
       , C       = typeof this == 'function' ? this : Array
       , mapfn   = arguments[1]
       , mapping = mapfn !== undefined

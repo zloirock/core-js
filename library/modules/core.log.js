@@ -1,16 +1,15 @@
-var $          = require('./$')
-  , global     = require('./$.global')
-  , $def       = require('./$.def')
-  , isFunction = require('./$.is-function')
-  , log        = {}
-  , enabled    = true;
+var $       = require('./$')
+  , global  = require('./$.global')
+  , $def    = require('./$.def')
+  , log     = {}
+  , enabled = true;
 // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
 $.each.call(('assert,clear,count,debug,dir,dirxml,error,exception,' +
     'group,groupCollapsed,groupEnd,info,isIndependentlyComposed,log,' +
     'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
     'timelineEnd,timeStamp,trace,warn').split(','), function(key){
   log[key] = function(){
-    if(enabled && global.console && isFunction(console[key])){
+    if(enabled && global.console && typeof console[key] == 'function'){
       return Function.apply.call(console[key], console, arguments);
     }
   };

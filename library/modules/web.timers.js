@@ -3,7 +3,6 @@ var global     = require('./$.global')
   , $def       = require('./$.def')
   , invoke     = require('./$.invoke')
   , partial    = require('./$.partial')
-  , isFunction = require('./$.is-function')
   , navigator  = global.navigator
   , MSIE       = !!navigator && /MSIE .\./.test(navigator.userAgent); // <- dirty ie9- check
 function wrap(set){
@@ -11,7 +10,7 @@ function wrap(set){
     return set(invoke(
       partial,
       [].slice.call(arguments, 2),
-      isFunction(fn) ? fn : Function(fn)
+      typeof fn == 'function' ? fn : Function(fn)
     ), time);
   } : set;
 }

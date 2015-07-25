@@ -1,9 +1,7 @@
 'use strict';
-var has                = require('./$.has')
-  , ctx                = require('./$.ctx')
+var ctx                = require('./$.ctx')
   , cof                = require('./$.cof')
   , invoke             = require('./$.invoke')
-  , isFunction         = require('./$.is-function')
   , html               = require('./$.html')
   , cel                = require('./$.dom-create')
   , global             = require('./$.global')
@@ -17,7 +15,7 @@ var has                = require('./$.has')
   , defer, channel, port;
 function run(){
   var id = +this;
-  if(has(queue, id)){
+  if(queue.hasOwnProperty(id)){
     var fn = queue[id];
     delete queue[id];
     fn();
@@ -27,12 +25,12 @@ function listner(event){
   run.call(event.data);
 }
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
-if(!isFunction(setTask) || !isFunction(clearTask)){
+if(!setTask || !clearTask){
   setTask = function setImmediate(fn){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
-      invoke(isFunction(fn) ? fn : Function(fn), args);
+      invoke(typeof fn == 'function' ? fn : Function(fn), args);
     };
     defer(counter);
     return counter;
@@ -46,14 +44,14 @@ if(!isFunction(setTask) || !isFunction(clearTask)){
       process.nextTick(ctx(run, id, 1));
     };
   // Modern browsers, skip implementation for WebWorkers
-  // IE8 has postMessage, but it's sync & typeof its postMessage is object
-  } else if(global.addEventListener && isFunction(global.postMessage) && !global.importScripts){
+  // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
+  } else if(global.addEventListener && typeof postMessage == 'function' && !global.importScripts){
     defer = function(id){
       global.postMessage(id, '*');
     };
     global.addEventListener('message', listner, false);
   // WebWorkers
-  } else if(isFunction(MessageChannel)){
+  } else if(MessageChannel){
     channel = new MessageChannel;
     port    = channel.port2;
     channel.port1.onmessage = listner;

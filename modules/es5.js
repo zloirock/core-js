@@ -11,7 +11,6 @@ var $                = require('./$')
   , IE_PROTO         = require('./$.uid')('__proto__')
   , defined          = require('./$.defined')
   , isObject         = require('./$.is-object')
-  , isFunction       = require('./$.is-function')
   , anObject         = require('./$.an-object')
   , aFunction        = require('./$.a-function')
   , toObject         = require('./$.to-object')
@@ -122,7 +121,7 @@ $def($def.S, 'Object', {
   getPrototypeOf: $.getProto = $.getProto || function(O){
     O = Object(defined(O));
     if(has(O, IE_PROTO))return O[IE_PROTO];
-    if(isFunction(O.constructor) && O instanceof O.constructor){
+    if(typeof O.constructor == 'function' && O instanceof O.constructor){
       return O.constructor.prototype;
     } return O instanceof Object ? ObjectProto : null;
   },
@@ -326,5 +325,5 @@ $def($def.P + $def.F * brokenDate, 'Date', {
 
 if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
   var tag = classof(it);
-  return tag == 'Object' && isFunction(it.callee) ? 'Arguments' : tag;
+  return tag == 'Object' && typeof it.callee == 'function' ? 'Arguments' : tag;
 };

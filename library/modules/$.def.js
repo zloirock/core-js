@@ -1,7 +1,6 @@
-var global     = require('./$.global')
-  , isFunction = require('./$.is-function')
-  , core       = require('./$.core')
-  , PROTOTYPE  = 'prototype';
+var global    = require('./$.global')
+  , core      = require('./$.core')
+  , PROTOTYPE = 'prototype';
 function ctx(fn, that){
   return function(){
     return fn.apply(that, arguments);
@@ -29,7 +28,7 @@ function $def(type, name, source){
     // export native or passed
     out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
-    if(isGlobal && !isFunction(target[key]))exp = source[key];
+    if(isGlobal && typeof target[key] != 'function')exp = source[key];
     // bind timers to global for call from export context
     else if(type & $def.B && own)exp = ctx(out, global);
     // wrap global constructors for prevent change them in library
@@ -39,7 +38,7 @@ function $def(type, name, source){
       };
       exp[PROTOTYPE] = C[PROTOTYPE];
     }(out);
-    else exp = isProto && isFunction(out) ? ctx(Function.call, out) : out;
+    else exp = isProto && typeof out == 'function' ? ctx(Function.call, out) : out;
     // export
     exports[key] = exp;
     if(isProto)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;

@@ -4,8 +4,7 @@ var $          = require('./$')
   , hide       = require('./$.hide')
   , BUGGY      = require('./$.iter-buggy')
   , forOf      = require('./$.for-of')
-  , strictNew  = require('./$.strict-new')
-  , isFunction = require('./$.is-function');
+  , strictNew  = require('./$.strict-new');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = require('./$.global')[NAME]
@@ -13,7 +12,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype
     , O     = {};
-  if(!require('./$.support-desc') || !isFunction(C)
+  if(!require('./$.support-desc') || typeof C != 'function'
     || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);

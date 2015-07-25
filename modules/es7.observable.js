@@ -8,8 +8,7 @@ var global     = require('./$.global')
   , isObject   = require('./$.is-object')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
-  , OBSERVER   = require('./$.wks')('observer')
-  , isFunction = require('./$.is-function');
+  , OBSERVER   = require('./$.wks')('observer');
 
 // === Abstract Operations ===
 function cancelSubscription(observer){
@@ -34,7 +33,7 @@ function closeSubscription(observer){
 }
 
 function hasUnsubscribe(x){
-  return isObject(x) && isFunction(x.unsubscribe);
+  return isObject(x) && typeof x.unsubscribe == 'function';
 }
 
 function SubscriptionObserver(observer){
@@ -130,7 +129,7 @@ $redef(Observable.prototype, OBSERVER, function(observer){
     // Call the subscriber function
     subscription = this._subscriber.call(undefined, observer);
     if(!hasUnsubscribe(subscription)){
-      var unsubscribe = isFunction(subscription)
+      var unsubscribe = typeof subscription == 'function'
         ? subscription
         : function(){ observer['return'](); };
       subscription = {unsubscribe: unsubscribe};

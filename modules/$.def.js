@@ -2,7 +2,6 @@ var global     = require('./$.global')
   , core       = require('./$.core')
   , hide       = require('./$.hide')
   , $redef     = require('./$.redef')
-  , isFunction = require('./$.is-function')
   , PROTOTYPE  = 'prototype';
 function ctx(fn, that){
   return function(){
@@ -32,7 +31,7 @@ function $def(type, name, source){
     out = (own ? target : source)[key];
     // bind timers to global for call from export context
     if(type & $def.B && own)exp = ctx(out, global);
-    else exp = isProto && isFunction(out) ? ctx(Function.call, out) : out;
+    else exp = isProto && typeof out == 'function' ? ctx(Function.call, out) : out;
     // extend global
     if(target && !own)$redef(target, key, out);
     // export
