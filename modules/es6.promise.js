@@ -70,8 +70,7 @@ function getConstructor(C){
 }
 function isThenable(it){
   var then;
-  if(isObject(it))then = it.then;
-  return typeof then == 'function' ? then : false;
+  return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
 }
 function notify(record, isReject){
   if(record.n)return;
