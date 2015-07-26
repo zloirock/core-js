@@ -9,9 +9,9 @@ $def($def.P + $def.F * !require('./$.throws')(function(){ 'q'.endsWith(/./); }),
   endsWith: function endsWith(searchString /*, endPosition = @length */){
     var that = context(this, searchString, 'endsWith')
       , endPosition = arguments[1]
-      , len = toLength(that.length)
-      , end = endPosition === undefined ? len : Math.min(toLength(endPosition), len);
-    searchString = String(searchString);
-    return that.slice(end - searchString.length, end) === searchString;
+      , len    = toLength(that.length)
+      , end    = endPosition === undefined ? len : Math.min(toLength(endPosition), len)
+      , search = String(searchString);
+    return that.slice(end - search.length, end) === search;
   }
 });
