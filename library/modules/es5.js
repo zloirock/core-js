@@ -9,7 +9,6 @@ var $                = require('./$')
   , invoke           = require('./$.invoke')
   , arrayMethod      = require('./$.array-methods')
   , IE_PROTO         = require('./$.uid')('__proto__')
-  , defined          = require('./$.defined')
   , isObject         = require('./$.is-object')
   , anObject         = require('./$.an-object')
   , aFunction        = require('./$.a-function')
@@ -120,7 +119,7 @@ function Empty(){}
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
-    O = Object(defined(O));
+    O = toObject(O, true);
     if(has(O, IE_PROTO))return O[IE_PROTO];
     if(typeof O.constructor == 'function' && O instanceof O.constructor){
       return O.constructor.prototype;
