@@ -9,6 +9,5 @@ module.exports = {
   getKeys:    $Object.keys,
   getNames:   $Object.getOwnPropertyNames,
   getSymbols: $Object.getOwnPropertySymbols,
-  ES5Object:  $Object,
   each:       [].forEach
 };

@@ -17,6 +17,7 @@ var $                = require('./$')
   , toInteger        = require('./$.to-integer')
   , toIndex          = require('./$.to-index')
   , toLength         = require('./$.to-length')
+  , ES5Object        = require('./$.es5-object')
   , ObjectProto      = Object.prototype
   , A                = []
   , _slice           = A.slice
@@ -189,13 +190,7 @@ $def($def.P, 'Function', {
   }
 });
 
-// Fix for not array-like ES3 string and DOM objects
-if(!(0 in Object('z') && 'z'[0] == 'z')){
-  $.ES5Object = function(it){
-    return cof(it) == 'String' ? it.split('') : Object(it);
-  };
-}
-
+// fallback for not array-like ES3 strings and DOM objects
 var buggySlice = true;
 try {
   if(html)_slice.call(html);
@@ -219,10 +214,9 @@ $def($def.P + $def.F * buggySlice, 'Array', {
     return cloned;
   }
 });
-
-$def($def.P + $def.F * ($.ES5Object != Object), 'Array', {
+$def($def.P + $def.F * (ES5Object != Object), 'Array', {
   join: function join(){
-    return _join.apply($.ES5Object(this), arguments);
+    return _join.apply(ES5Object(this), arguments);
   }
 });
 
