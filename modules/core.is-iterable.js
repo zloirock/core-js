@@ -1,6 +1,6 @@
 var global    = require('./$.global')
   , has       = require('./$.has')
-  , classof   = require('./$.cof').classof
+  , classof   = require('./$.classof')
   , ITERATOR  = require('./$.wks')('iterator')
   , Iterators = require('./$.iterators');
 module.exports = require('./$.core').isIterable = function(it){

@@ -1,3 +1,3 @@
 var $def = require('./$.def');
 
-$def($def.S + $def.F, 'Object', {classof: require('./$.cof').classof});
+$def($def.S + $def.F, 'Object', {classof: require('./$.classof')});

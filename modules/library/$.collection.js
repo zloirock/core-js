@@ -37,7 +37,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     });
   }
 
-  require('./$.cof').set(C, NAME);
+  require('./$.tag')(C, NAME);
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F, O);

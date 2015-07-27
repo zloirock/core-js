@@ -1,11 +1,9 @@
 'use strict';
-var $               = require('./$')
-  , LIBRARY         = require('./$.library')
+var LIBRARY         = require('./$.library')
   , $def            = require('./$.def')
   , $redef          = require('./$.redef')
   , hide            = require('./$.hide')
   , has             = require('./$.has')
-  , cof             = require('./$.cof')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
   , Iterators       = require('./$.iterators')
   , FF_ITERATOR     = '@@iterator'
@@ -30,9 +28,9 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     , methods, key;
   // Fix native
   if(_native){
-    var IteratorPrototype = $.getProto(_default.call(new Base));
+    var IteratorPrototype = require('./$').getProto(_default.call(new Base));
     // Set @@toStringTag to native iterators
-    cof.set(IteratorPrototype, TAG, true);
+    require('./$.tag')(IteratorPrototype, TAG, true);
     // FF fix
     if(!LIBRARY && has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
   }

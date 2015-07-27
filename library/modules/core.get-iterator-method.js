@@ -1,5 +1,5 @@
 var global    = require('./$.global')
-  , classof   = require('./$.cof').classof
+  , classof   = require('./$.classof')
   , ITERATOR  = require('./$.wks')('iterator')
   , Iterators = require('./$.iterators');
 module.exports = require('./$.core').getIteratorMethod = function(it){

@@ -3,7 +3,7 @@ var $          = require('./$')
   , LIBRARY    = require('./$.library')
   , global     = require('./$.global')
   , ctx        = require('./$.ctx')
-  , cof        = require('./$.cof')
+  , classof    = require('./$.classof')
   , $def       = require('./$.def')
   , isObject   = require('./$.is-object')
   , anObject   = require('./$.an-object')
@@ -17,7 +17,7 @@ var $          = require('./$')
   , RECORD     = require('./$.uid')('record')
   , PROMISE    = 'Promise'
   , process    = global.process
-  , isNode     = cof(process) == 'process'
+  , isNode     = classof(process) == 'process'
   , asap       = process && process.nextTick || require('./$.task').set
   , P          = global[PROMISE]
   , Wrapper;
@@ -57,7 +57,7 @@ var useNative = function(){
 
 // helpers
 function isPromise(it){
-  return isObject(it) && (useNative ? cof.classof(it) == 'Promise' : RECORD in it);
+  return isObject(it) && (useNative ? classof(it) == 'Promise' : RECORD in it);
 }
 function sameConstructor(a, b){
   // library wrapper special case
@@ -213,7 +213,7 @@ if(!useNative){
 
 // export
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
-cof.set(P, PROMISE);
+require('./$.tag')(P, PROMISE);
 species(P);
 species(Wrapper = require('./$.core')[PROMISE]);
 

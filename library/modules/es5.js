@@ -21,7 +21,6 @@ var $                = require('./$')
   , A                = []
   , _slice           = A.slice
   , _join            = A.join
-  , classof          = cof.classof
   , defineProperty   = $.setDesc
   , getOwnDescriptor = $.getDesc
   , defineProperties = $.setDescs
@@ -315,8 +314,3 @@ $def($def.P + $def.F * brokenDate, 'Date', {
       ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
   }
 });
-
-if(classof(function(){ return arguments; }()) == 'Object')cof.classof = function(it){
-  var tag = classof(it);
-  return tag == 'Object' && typeof it.callee == 'function' ? 'Arguments' : tag;
-};

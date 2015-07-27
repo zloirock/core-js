@@ -1,6 +1,5 @@
 'use strict';
 var ctx                = require('./$.ctx')
-  , cof                = require('./$.cof')
   , invoke             = require('./$.invoke')
   , html               = require('./$.html')
   , cel                = require('./$.dom-create')
@@ -39,7 +38,7 @@ if(!setTask || !clearTask){
     delete queue[id];
   };
   // Node.js 0.8-
-  if(cof(process) == 'process'){
+  if(require('./$.cof')(process) == 'process'){
     defer = function(id){
       process.nextTick(ctx(run, id, 1));
     };

@@ -7,5 +7,5 @@ require('./$.hide')(IteratorPrototype, require('./$.wks')('iterator'), function(
 
 module.exports = function(Constructor, NAME, next){
   Constructor.prototype = $.create(IteratorPrototype, {next: require('./$.property-desc')(1,next)});
-  require('./$.cof').set(Constructor, NAME + ' Iterator');
+  require('./$.tag')(Constructor, NAME + ' Iterator');
 };
