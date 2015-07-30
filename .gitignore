@@ -3,7 +3,7 @@ node_modules/
 *.log
 *.bak
 *.swp
-
+client/modules
 Thumbs.db
 
 Desktop.ini
