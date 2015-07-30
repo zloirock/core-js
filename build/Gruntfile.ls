@@ -11,11 +11,10 @@ module.exports = (grunt)->
     uglify: build:
       files: '<%=grunt.option("path")%>.min.js': '<%=grunt.option("path")%>.js'
       options:
-        mangle: {+sort}
-        compress: {+unsafe, +pure_getters}
-        sourceMap: '<%=grunt.option("path")%>.min.map'
+        mangle: {+sort, +keep_fnames}
+        compress: {+pure_getters, +keep_fargs, -unused}
+        sourceMap: on
         banner: config.banner
-        report: \gzip
     livescript: src: files:
       './tests/tests.js': './tests/tests/*'
       './tests/tests-library.js': './tests/tests-library/*'
