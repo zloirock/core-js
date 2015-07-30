@@ -3550,7 +3550,6 @@
       return this.x = 42;
     }, [], Array);
     eq(inst.x, 42, 'constructor with newTarget');
-    ok(inst instanceof Array, 'prototype with newTarget');
     throws(function(){
       return construct(42, []);
     }, TypeError, 'throws on primitive');
@@ -3790,7 +3789,6 @@
     var get, target, receiver;
     get = Reflect.get;
     ok(toString$.call(get).slice(8, -1) === 'Function', 'Reflect.get is function');
-    eq(get.length, 2, 'arity is 2');
     ok(/native code/.test(get), 'looks like native');
     if ('name' in get) {
       eq(get.name, 'get', 'name is "get"');
@@ -3974,7 +3972,6 @@
       var setPrototypeOf, obj, o;
       setPrototypeOf = Reflect.setPrototypeOf;
       ok(toString$.call(setPrototypeOf).slice(8, -1) === 'Function', 'Reflect.setPrototypeOf is function');
-      eq(setPrototypeOf.length, 2, 'arity is 2');
       ok(/native code/.test(setPrototypeOf), 'looks like native');
       if ('name' in setPrototypeOf) {
         eq(setPrototypeOf.name, 'setPrototypeOf', 'name is "setPrototypeOf"');
@@ -4012,7 +4009,6 @@
     var set, obj, target, receiver, out;
     set = Reflect.set;
     ok(toString$.call(set).slice(8, -1) === 'Function', 'Reflect.set is function');
-    eq(set.length, 3, 'arity is 3');
     ok(/native code/.test(set), 'looks like native');
     if ('name' in set) {
       eq(set.name, 'set', 'name is "set"');

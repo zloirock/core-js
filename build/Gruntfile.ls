@@ -12,7 +12,7 @@ module.exports = (grunt)->
       files: '<%=grunt.option("path")%>.min.js': '<%=grunt.option("path")%>.js'
       options:
         mangle: {+sort, +keep_fnames}
-        compress: {+pure_getters, +keep_fargs, -unused}
+        compress: {+pure_getters, +keep_fargs, +keep_fnames}
         sourceMap: on
         banner: config.banner
     livescript: src: files:
