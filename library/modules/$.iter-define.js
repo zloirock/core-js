@@ -13,13 +13,10 @@ function returnThis(){ return this; }
 module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
   require('./$.iter-create')(Constructor, NAME, next);
   function createMethod(kind){
-    function $$(that){
-      return new Constructor(that, kind);
-    }
     switch(kind){
-      case KEYS: return function keys(){ return $$(this); };
-      case VALUES: return function values(){ return $$(this); };
-    } return function entries(){ return $$(this); };
+      case KEYS: return function keys(){ return new Constructor(this, kind); };
+      case VALUES: return function values(){ return new Constructor(this, kind); };
+    } return function entries(){ return new Constructor(this, kind); };
   }
   var TAG      = NAME + ' Iterator'
     , proto    = Base.prototype
