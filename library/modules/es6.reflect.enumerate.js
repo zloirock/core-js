@@ -1,10 +1,6 @@
 // 26.1.5 Reflect.enumerate(target)
 var $def     = require('./$.def')
-  , ITERATOR = require('./$.wks')('iterator')
-  , anObject = require('./$.an-object')
-  , $Reflect = require('./$.global').Reflect
-  // IE Edge has broken Reflect.enumerate
-  , BUGGY    = !($Reflect && $Reflect.enumerate && ITERATOR in $Reflect.enumerate({}));
+  , anObject = require('./$.an-object');
 
 function Enumerate(iterated){
   this._t = anObject(iterated); // target
@@ -25,7 +21,7 @@ require('./$.iter-create')(Enumerate, 'Object', function(){
   return {value: key, done: false};
 });
 
-$def($def.S + $def.F * BUGGY, 'Reflect', {
+$def($def.S, 'Reflect', {
   enumerate: function enumerate(target){
     return new Enumerate(target);
   }
