@@ -4,16 +4,15 @@
     "node": true
   },
   "rules": {
-    "indent": [2, 2],
+    "indent": [0, 2, {"VariableDeclarator": 2, "SwitchCase": 1}],
     "max-len": [2, 100, 2],
     "eol-last": 0,
     "camelcase": 2,
     "brace-style": [2, "1tbs", { "allowSingleLine": true }],
-    "no-reserved-keys": 2,
+    "quote-props": [2, "as-needed", {"keywords": true}],
     "dot-notation": [2, {"allowKeywords": false}],
     "quotes": [2, "single", "avoid-escape"],
     "no-extra-parens": 2,
-    "no-wrap-func": 0,
     "new-parens": 0,
     "new-cap": [2, {"newIsCap": true, "capIsNew": false}],
     "no-use-before-define": 0,
