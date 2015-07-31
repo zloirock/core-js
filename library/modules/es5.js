@@ -100,7 +100,7 @@ var createDict = function(){
   while(i--)delete createDict.prototype[keys1[i]];
   return createDict();
 };
-function createGetKeys(names, length){
+var createGetKeys = function(names, length){
   return function(object){
     var O      = toObject(object)
       , i      = 0
@@ -113,8 +113,8 @@ function createGetKeys(names, length){
     }
     return result;
   };
-}
-function Empty(){}
+};
+var Empty = function(){};
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
@@ -166,23 +166,23 @@ $def($def.S, 'Object', {
   }
 });
 
-function construct(F, len, args){
+var construct = function(F, len, args){
   if(!(len in factories)){
     for(var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
     factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
   }
   return factories[len](F, args);
-}
+};
 
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 $def($def.P, 'Function', {
   bind: function(that /*, args... */){
     var fn       = aFunction(this)
       , partArgs = _slice.call(arguments, 1);
-    function bound(/* args... */){
+    var bound = function(/* args... */){
       var args = partArgs.concat(_slice.call(arguments));
       return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
-    }
+    };
     if(isObject(fn.prototype))bound.prototype = fn.prototype;
     return bound;
   }
@@ -221,7 +221,7 @@ $def($def.P + $def.F * (ES5Object != Object), 'Array', {
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
 $def($def.S, 'Array', {isArray: function(arg){ return cof(arg) == 'Array'; }});
 
-function createArrayReduce(isRight){
+var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
     aFunction(callbackfn);
     var O      = toObject(this)
@@ -244,7 +244,7 @@ function createArrayReduce(isRight){
     }
     return memo;
   };
-}
+};
 $def($def.P, 'Array', {
   // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
   forEach: $.each = $.each || function forEach(callbackfn/*, that = undefined */){
@@ -292,9 +292,9 @@ $def($def.P, 'String', {trim: function trim(){ return $trim(this); }});
 // 20.3.3.1 / 15.9.4.4 Date.now()
 $def($def.S, 'Date', {now: function now(){ return +new Date; }});
 
-function lz(num){
+var lz = function(num){
   return num > 9 ? num : '0' + num;
-}
+};
 
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
 // PhantomJS and old webkit had a broken Date implementation.

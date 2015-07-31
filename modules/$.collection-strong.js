@@ -15,7 +15,7 @@ var $            = require('./$')
   , SIZE         = SUPPORT_DESC ? '_s' : 'size'
   , id           = 0;
 
-function fastKey(it, create){
+var fastKey = function(it, create){
   // return primitive with prefix
   if(!isObject(it))return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
   if(!$has(it, ID)){
@@ -27,9 +27,9 @@ function fastKey(it, create){
     hide(it, ID, ++id);
   // return object id with prefix
   } return 'O' + it[ID];
-}
+};
 
-function getEntry(that, key){
+var getEntry = function(that, key){
   // fast case
   var index = fastKey(key), entry;
   if(index !== 'F')return that._i[index];
@@ -37,7 +37,7 @@ function getEntry(that, key){
   for(entry = that._f; entry; entry = entry.n){
     if(entry.k == key)return entry;
   }
-}
+};
 
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){

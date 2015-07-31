@@ -12,53 +12,7 @@ var $            = require('./$')
   , toObject     = require('./$.to-object')
   , SUPPORT_DESC = require('./$.support-desc')
   , has          = require('./$.has')
-  , getKeys      = $.getKeys
-  , findKey      = createDictMethod(6);
-
-function Dict(iterable){
-  var dict = $.create(null);
-  if(iterable != undefined){
-    if(isIterable(iterable)){
-      forOf(iterable, true, function(key, value){
-        dict[key] = value;
-      });
-    } else assign(dict, iterable);
-  }
-  return dict;
-}
-Dict.prototype = null;
-
-function DictIterator(iterated, kind){
-  this._t = toObject(iterated); // target
-  this._a = getKeys(iterated);  // keys
-  this._i = 0;                  // next index
-  this._k = kind;               // kind
-}
-require('./$.iter-create')(DictIterator, 'Dict', function(){
-  var that = this
-    , O    = that._t
-    , keys = that._a
-    , kind = that._k
-    , key;
-  do {
-    if(that._i >= keys.length){
-      that._t = undefined;
-      return step(1);
-    }
-  } while(!has(O, key = keys[that._i++]));
-  if(kind == 'keys'  )return step(0, key);
-  if(kind == 'values')return step(0, O[key]);
-  return step(0, [key, O[key]]);
-});
-function createDictIter(kind){
-  return function(it){
-    return new DictIterator(it, kind);
-  };
-}
-function generic(A, B){
-  // strange IE quirks mode bug -> use typeof instead of isFunction
-  return typeof A == 'function' ? A : B;
-}
+  , getKeys      = $.getKeys;
 
 // 0 -> Dict.forEach
 // 1 -> Dict.map
@@ -68,13 +22,14 @@ function generic(A, B){
 // 5 -> Dict.find
 // 6 -> Dict.findKey
 // 7 -> Dict.mapPairs
-function createDictMethod(TYPE){
+var createDictMethod = function(TYPE){
   var IS_MAP   = TYPE == 1
     , IS_EVERY = TYPE == 4;
   return function(object, callbackfn, that /* = undefined */){
     var f      = ctx(callbackfn, that, 3)
       , O      = toObject(object)
-      , result = IS_MAP || TYPE == 7 || TYPE == 2 ? new (generic(this, Dict)) : undefined
+      , result = IS_MAP || TYPE == 7 || TYPE == 2
+          ? new (typeof this == 'function' ? this : Dict) : undefined
       , key, val, res;
     for(key in O)if(has(O, key)){
       val = O[key];
@@ -92,7 +47,49 @@ function createDictMethod(TYPE){
     }
     return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
   };
+};
+var findKey = createDictMethod(6);
+
+var createDictIter = function(kind){
+  return function(it){
+    return new DictIterator(it, kind);
+  };
+};
+var DictIterator = function(iterated, kind){
+  this._t = toObject(iterated); // target
+  this._a = getKeys(iterated);  // keys
+  this._i = 0;                  // next index
+  this._k = kind;               // kind
+};
+require('./$.iter-create')(DictIterator, 'Dict', function(){
+  var that = this
+    , O    = that._t
+    , keys = that._a
+    , kind = that._k
+    , key;
+  do {
+    if(that._i >= keys.length){
+      that._t = undefined;
+      return step(1);
+    }
+  } while(!has(O, key = keys[that._i++]));
+  if(kind == 'keys'  )return step(0, key);
+  if(kind == 'values')return step(0, O[key]);
+  return step(0, [key, O[key]]);
+});
+
+function Dict(iterable){
+  var dict = $.create(null);
+  if(iterable != undefined){
+    if(isIterable(iterable)){
+      forOf(iterable, true, function(key, value){
+        dict[key] = value;
+      });
+    } else assign(dict, iterable);
+  }
+  return dict;
 }
+Dict.prototype = null;
 
 function reduce(object, mapfn, init){
   aFunction(mapfn);

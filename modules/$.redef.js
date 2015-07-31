@@ -5,7 +5,7 @@ var global     = require('./$.global')
   , SRC        = require('./$.uid')('src')
   , _toString  = Function.toString;
 
-function $redef(O, key, val, safe){
+var $redef = function(O, key, val, safe){
   if(typeof val == 'function'){
     var base = O[key];
     hide(val, SRC, base ? String(base) : tpl.replace(/hasOwnProperty/, String(key)));
@@ -17,7 +17,7 @@ function $redef(O, key, val, safe){
     if(!safe)delete O[key];
     hide(O, key, val);
   }
-}
+};
 
 // add fake Function#toString for correct work wrapped methods / constructors
 // with methods similar to LoDash isNative

@@ -46,7 +46,7 @@ var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
   }
 }() : setDesc;
 
-function wrap(tag){
+var wrap = function(tag){
   var sym = AllSymbols[tag] = $create($Symbol.prototype);
   sym._k = tag;
   SUPPORT_DESC && setter && setSymbolDesc(ObjectProto, tag, {
@@ -57,7 +57,7 @@ function wrap(tag){
     }
   });
   return sym;
-}
+};
 
 function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
