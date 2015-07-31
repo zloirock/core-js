@@ -32,7 +32,8 @@
     "grunt": "grunt",
     "lint": "eslint es5 es6 es7 js web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises_tests_adapter",
-    "test": "npm run lint && npm run grunt client livescript karma:continuous && npm run promises-tests && lsc tests/commonjs"
+    "test": "npm run lint && npm run grunt client livescript karma:continuous && npm run promises-tests && lsc tests/commonjs",
+    "lt": "npm run lint && npm run grunt client livescript karma:lt && npm run promises-tests && lsc tests/commonjs"
   },
   "license": "MIT",
   "keywords": [
