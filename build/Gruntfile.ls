@@ -47,7 +47,7 @@ module.exports = (grunt)->
       continuous:
         configFile: './tests/karma.conf.js'
         singleRun: true
-        browsers: ['PhantomJS']
+        browsers: <[PhantomJS PhantomJS2]>
   grunt.registerTask \build (options)->
     done = @async!
     err, it <- build {
