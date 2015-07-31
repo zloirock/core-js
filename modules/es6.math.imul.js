@@ -3,7 +3,7 @@ var $def = require('./$.def');
 
 // WebKit fails with big numbers
 $def($def.S + $def.F * require('./$.throws')(function(){
-  return Math.imul(0xffffffff, 5) != -5;
+  //return Math.imul(0xffffffff, 5) != -5;
 }), 'Math', {
   imul: function imul(x, y){
     var UINT16 = 0xffff
