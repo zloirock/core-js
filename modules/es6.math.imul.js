@@ -1,7 +1,10 @@
 // 20.2.2.18 Math.imul(x, y)
 var $def = require('./$.def');
 
-$def($def.S, 'Math', {
+// WebKit fails with big numbers
+$def($def.S + $def.F * require('./$.throws')(function(){
+  return Math.imul(0xffffffff, 5) != -5;
+}), 'Math', {
   imul: function imul(x, y){
     var UINT16 = 0xffff
       , xn = +x

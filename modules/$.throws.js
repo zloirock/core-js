@@ -1,7 +1,6 @@
 module.exports = function(exec){
   try {
-    exec();
-    return false;
+    return !!exec();
   } catch(e){
     return true;
   }
