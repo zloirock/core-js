@@ -1218,6 +1218,11 @@ delay(1e3).then(() => log('after 1 sec'));
 - `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 
 ## Changelog
+##### 1.0.1 - 2015.07.31
+  * some fixes for final MS Edge, replaced broken native `Reflect.defineProperty`
+  * some minor fixes and optimizations
+  * changed compression `client/*.min.js` options for safe `Function#name` and `Function#length`, should be fixed [#92](https://github.com/zloirock/core-js/issues/92)
+
 ##### 1.0.0 - 2015.07.22
   * added logic for [well-known symbols](#ecmascript-6-string--regexp):
     * `Symbol.match`
