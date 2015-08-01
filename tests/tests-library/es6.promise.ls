@@ -26,9 +26,10 @@ test 'Promise.all' !->
   # call @@iterator in Array with custom iterator
   a = []
   done = no
+  a['@@iterator'] = void
   a[iterator] = ->
     done := on
-    core.getIterFn([])call @
+    core.getIteratorMethod([])call @
   core.Promise.all a
   ok done
 test 'Promise.race' !->
@@ -45,9 +46,10 @@ test 'Promise.race' !->
   # call @@iterator in Array with custom iterator
   a = []
   done = no
+  a['@@iterator'] = void
   a[iterator] = ->
     done := on
-    core.getIterFn([])call @
+    core.getIteratorMethod([])call @
   core.Promise.race a
   ok done
 test 'Promise.resolve' !->

@@ -1656,6 +1656,7 @@
     eq(inst.length, 2);
     a = [1, 2, 3];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
@@ -1854,6 +1855,7 @@
     ok(done, '.return #throw');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
@@ -3118,9 +3120,10 @@
     ok(passed, 'works with iterables');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
-      return core.getIterFn([]).call(this);
+      return core.getIteratorMethod([]).call(this);
     };
     core.Promise.all(a);
     ok(done);
@@ -3139,9 +3142,10 @@
     ok(passed, 'works with iterables');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
-      return core.getIterFn([]).call(this);
+      return core.getIteratorMethod([]).call(this);
     };
     core.Promise.race(a);
     ok(done);
@@ -3815,6 +3819,7 @@
     ok(done, '.return #throw');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
@@ -4732,6 +4737,7 @@
     ok(!('clear' in WeakMap.prototype), 'should not contains `.clear` method');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
@@ -4826,6 +4832,7 @@
     ok(!('clear' in WeakSet.prototype), 'should not contains `.clear` method');
     a = [];
     done = false;
+    a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);

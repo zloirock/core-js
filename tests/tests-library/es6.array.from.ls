@@ -53,6 +53,7 @@ test 'Array.from' !->
   # call @@iterator in Array with custom iterator
   a = [1 2 3]
   done = no
+  a['@@iterator'] = void
   a[iterator] = ->
     done := on
     core.getIteratorMethod([])call @

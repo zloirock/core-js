@@ -33,6 +33,7 @@ test 'WeakSet' !->
   # call @@iterator in Array with custom iterator
   a = []
   done = no
+  a['@@iterator'] = void
   a[iterator] = ->
     done := on
     core.getIteratorMethod([])call @
