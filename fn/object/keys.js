@@ -1,2 +1,2 @@
-require('../../modules/es6.object.statics-accept-primitives');
+require('../../modules/es6.object.keys');
 module.exports = require('../../modules/$.core').Object.keys;

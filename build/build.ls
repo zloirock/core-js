@@ -7,7 +7,16 @@ list = <[
   es6.object.is
   es6.object.set-prototype-of
   es6.object.to-string
-  es6.object.statics-accept-primitives
+  es6.object.freeze
+  es6.object.seal
+  es6.object.prevent-extensions
+  es6.object.is-frozen
+  es6.object.is-sealed
+  es6.object.is-extensible
+  es6.object.get-own-property-descriptor
+  es6.object.get-prototype-of
+  es6.object.keys
+  es6.object.get-own-property-names
   es6.function.name
   es6.function.has-instance
   es6.number.constructor
