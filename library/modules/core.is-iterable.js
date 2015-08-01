@@ -1,12 +1,7 @@
-var global    = require('./$.global')
-  , has       = require('./$.has')
-  , classof   = require('./$.classof')
+var classof   = require('./$.classof')
   , ITERATOR  = require('./$.wks')('iterator')
   , Iterators = require('./$.iterators');
 module.exports = require('./$.core').isIterable = function(it){
-  var O      = Object(it)
-    , Symbol = global.Symbol;
-  return (Symbol && Symbol.iterator || '@@iterator') in O
-    || ITERATOR in O
-    || has(Iterators, classof(O));
+  var O = Object(it);
+  return ITERATOR in O || '@@iterator' in O || Iterators.hasOwnProperty(classof(O));
 };

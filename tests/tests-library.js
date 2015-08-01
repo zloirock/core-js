@@ -505,7 +505,7 @@
   global = Function('return this')();
   ref$ = core.Array, from = ref$.from, values = ref$.values;
   test('core.getIteratorMethod', function(){
-    var getIteratorMethod, iterFn, iter, _Symbol, I, O;
+    var getIteratorMethod, iterFn, iter;
     getIteratorMethod = core.getIteratorMethod;
     ok(typeof getIteratorMethod === 'function', 'Is function');
     strictEqual(getIteratorMethod({}), void 8);
@@ -517,25 +517,18 @@
       return arguments;
     }());
     ok(typeof iterFn === 'function');
-    _Symbol = global.Symbol;
-    I = Math.random();
-    O = {
-      0: 'a',
-      1: 'b',
-      2: 'c',
-      length: 3
-    };
-    O[I] = function(){
-      return values(this);
-    };
-    strictEqual(getIteratorMethod(O), void 8);
-    global.Symbol = {
-      iterator: I
-    };
-    strictEqual(getIteratorMethod(O), O[I]);
-    deepEqual(from(getIteratorMethod(O).call(O)), ['a', 'b', 'c']);
-    global.Symbol = _Symbol;
-    strictEqual(getIteratorMethod(O), void 8);
+    /*
+    _Symbol = global.Symbol
+    I = Math.random!
+    O = {0: \a, 1: \b, 2: \c, length: 3}
+    O[I] = -> values @
+    strictEqual getIteratorMethod(O), void
+    global.Symbol = {iterator: I}
+    strictEqual getIteratorMethod(O), O[I]
+    deepEqual from(getIteratorMethod(O).call O), <[a b c]>
+    global.Symbol = _Symbol
+    strictEqual getIteratorMethod(O), void
+    */
   });
 }).call(this);
 
@@ -546,7 +539,7 @@
   global = Function('return this')();
   ref$ = core.Array, from = ref$.from, values = ref$.values;
   test('core.getIterator', function(){
-    var getIterator, iter, _Symbol, I, O, e;
+    var getIterator, iter;
     getIterator = core.getIterator;
     ok(typeof getIterator === 'function', 'Is function');
     throws(function(){
@@ -558,35 +551,21 @@
       return arguments;
     }());
     ok('next' in iter);
-    _Symbol = global.Symbol;
-    I = Math.random();
-    O = {
-      0: 'a',
-      1: 'b',
-      2: 'c',
-      length: 3
-    };
-    O[I] = function(){
-      return values(this);
-    };
-    throws(function(){
-      getIterator(O);
-    }, TypeError);
-    global.Symbol = {
-      iterator: I
-    };
-    try {
-      getIterator(O);
-      ok(true);
-    } catch (e$) {
-      e = e$;
-      ok(false);
-    }
-    deepEqual(from(getIterator(O)), ['a', 'b', 'c']);
-    global.Symbol = _Symbol;
-    throws(function(){
-      getIterator(O);
-    }, TypeError);
+    /*
+    _Symbol = global.Symbol
+    I = Math.random!
+    O = {0: \a, 1: \b, 2: \c, length: 3}
+    O[I] = -> values @
+    throws (!-> getIterator O), TypeError
+    global.Symbol = {iterator: I}
+    try
+      getIterator O
+      ok on
+    catch => ok no
+    deepEqual from(getIterator O), <[a b c]>
+    global.Symbol = _Symbol
+    throws (!-> getIterator O), TypeError
+    */
   });
 }).call(this);
 
@@ -597,7 +576,7 @@
   global = Function('return this')();
   values = core.Array.values;
   test('core.isIterable', function(){
-    var isIterable, _Symbol, I, o;
+    var isIterable;
     isIterable = core.isIterable;
     ok(typeof isIterable === 'function', 'Is function');
     ok(!isIterable({}));
@@ -605,24 +584,17 @@
     ok(isIterable(function(){
       return arguments;
     }()));
-    _Symbol = global.Symbol;
-    I = Math.random();
-    o = {
-      0: 'a',
-      1: 'b',
-      2: 'c',
-      length: 3
-    };
-    o[I] = function(){
-      return values(this);
-    };
-    ok(!isIterable(o));
-    global.Symbol = {
-      iterator: I
-    };
-    ok(isIterable(o));
-    global.Symbol = _Symbol;
-    ok(!isIterable(o));
+    /*
+    _Symbol = global.Symbol
+    I = Math.random!
+    o = {0: \a, 1: \b, 2: \c, length: 3}
+    o[I] = -> values @
+    ok !isIterable o
+    global.Symbol = {iterator: I}
+    ok isIterable o
+    global.Symbol = _Symbol
+    ok !isIterable o
+    */
   });
 }).call(this);
 

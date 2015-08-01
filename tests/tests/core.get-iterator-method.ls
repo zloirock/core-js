@@ -12,7 +12,7 @@ test 'core.getIteratorMethod' !->
   ok \next of iter
   iter = getIteratorMethod (->&)!
   ok typeof iterFn is \function
-  
+  /*
   _Symbol = global.Symbol
   I = Math.random!
   O = {0: \a, 1: \b, 2: \c, length: 3}
@@ -23,3 +23,4 @@ test 'core.getIteratorMethod' !->
   deepEqual from(getIteratorMethod(O).call O), <[a b c]>
   global.Symbol = _Symbol
   strictEqual getIteratorMethod(O), void
+  */

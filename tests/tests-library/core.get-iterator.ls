@@ -10,7 +10,7 @@ test 'core.getIterator' !->
   ok \next of iter
   iter = getIterator (->&)!
   ok \next of iter
-  
+  /*
   _Symbol = global.Symbol
   I = Math.random!
   O = {0: \a, 1: \b, 2: \c, length: 3}
@@ -24,3 +24,4 @@ test 'core.getIterator' !->
   deepEqual from(getIterator O), <[a b c]>
   global.Symbol = _Symbol
   throws (!-> getIterator O), TypeError
+  */

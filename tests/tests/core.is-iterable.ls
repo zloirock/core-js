@@ -7,7 +7,7 @@ test 'core.isIterable' !->
   ok !isIterable {}
   ok isIterable []
   ok isIterable (->&)!
-  
+  /*
   _Symbol = global.Symbol
   I = Math.random!
   o = {0: \a, 1: \b, 2: \c, length: 3}
@@ -17,3 +17,4 @@ test 'core.isIterable' !->
   ok isIterable o
   global.Symbol = _Symbol
   ok !isIterable o
+  */
