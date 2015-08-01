@@ -1,13 +1,11 @@
-var $        = require('./$')
-  , core     = require('./$.core')
-  , $def     = require('./$.def')
+var $def     = require('./$.def')
   , toObject = require('./$.to-object')
   , isObject = require('./$.is-object');
-$.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
+
+require('./$').each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
   'getOwnPropertyDescriptor,getPrototypeOf,keys,getOwnPropertyNames').split(',')
 , function(KEY, ID){
-  var fn     = (core.Object || {})[KEY] || Object[KEY]
-    , forced = 0
+  var fn     = (require('./$.core').Object || {})[KEY] || Object[KEY]
     , method = {};
   method[KEY] = ID == 0 ? function freeze(it){
     return isObject(it) ? fn(it) : it;
@@ -28,10 +26,6 @@ $.each.call(('freeze,seal,preventExtensions,isFrozen,isSealed,isExtensible,' +
   } : ID == 8 ? function keys(it){
     return fn(toObject(it));
   } : require('./$.get-names').get;
-  try {
-    fn('z');
-  } catch(e){
-    forced = 1;
-  }
-  $def($def.S + $def.F * forced, 'Object', method);
+
+  $def($def.S + $def.F * require('./$.fails')(function(){ fn(1); }), 'Object', method);
 });
