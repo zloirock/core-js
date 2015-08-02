@@ -91,6 +91,8 @@ list = <[
   es7.string.at
   es7.string.lpad
   es7.string.rpad
+  es7.string.trim-left
+  es7.string.trim-right
   es7.regexp.escape
   es7.object.get-own-property-descriptors
   es7.object.values

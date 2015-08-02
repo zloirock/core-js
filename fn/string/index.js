@@ -13,6 +13,8 @@ require('../../modules/es6.regexp.split');
 require('../../modules/es7.string.at');
 require('../../modules/es7.string.lpad');
 require('../../modules/es7.string.rpad');
+require('../../modules/es7.string.trim-left');
+require('../../modules/es7.string.trim-right');
 require('../../modules/core.string.escape-html');
 require('../../modules/core.string.unescape-html');
 module.exports = require('../../modules/$.core').String;
