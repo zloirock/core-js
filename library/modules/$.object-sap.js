@@ -1,4 +1,4 @@
-// Most Object methods should accept primitives
+// most Object methods by ES6 should accept primitives
 module.exports = function(KEY, exec){
   var $def = require('./$.def')
     , fn   = (require('./$.core').Object || {})[KEY] || Object[KEY]

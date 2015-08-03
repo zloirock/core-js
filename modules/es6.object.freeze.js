@@ -3,6 +3,6 @@ var isObject = require('./$.is-object');
 
 require('./$.object-sap')('freeze', function($freeze){
   return function freeze(it){
-    return isObject(it) ? $freeze(it) : it;
+    return $freeze && isObject(it) ? $freeze(it) : it;
   };
 });
