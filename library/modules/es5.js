@@ -282,13 +282,6 @@ $def($def.P, 'Array', {
   }
 });
 
-// 21.1.3.25 / 15.5.4.20 String.prototype.trim()
-require('./$.string-trim')('trim', function($trim){
-  return function trim(){
-    return $trim(this, 3);
-  };
-});
-
 // 20.3.3.1 / 15.9.4.4 Date.now()
 $def($def.S, 'Date', {now: function now(){ return +new Date; }});
 

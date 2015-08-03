@@ -48,12 +48,13 @@ list = <[
   es6.math.trunc
   es6.string.from-code-point
   es6.string.raw
-  es6.string.iterator
+  es6.string.trim
   es6.string.code-point-at
   es6.string.ends-with
   es6.string.includes
   es6.string.repeat
   es6.string.starts-with
+  es6.string.iterator
   es6.array.from
   es6.array.of
   es6.array.iterator
