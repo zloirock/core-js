@@ -90,8 +90,8 @@ list = <[
   es6.reflect.set-prototype-of
   es7.array.includes
   es7.string.at
-  es7.string.lpad
-  es7.string.rpad
+  es7.string.pad-left
+  es7.string.pad-right
   es7.string.trim-left
   es7.string.trim-right
   es7.regexp.escape

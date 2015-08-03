@@ -5124,29 +5124,27 @@
   var eq, toString$ = {}.toString;
   QUnit.module('ES7');
   eq = strictEqual;
-  test('String#lpad', function(){
-    var lpad;
-    lpad = core.String.lpad;
-    ok(toString$.call(lpad).slice(8, -1) === 'Function', 'Is function');
-    eq(lpad('abc', 5), '  abc');
-    eq(lpad('abc', 4, 'de'), 'eabc');
-    eq(lpad('abc'), 'abc');
-    eq(lpad('abc', 5, '_'), '__abc');
-    eq(lpad('', 0), '');
+  test('String#padLeft', function(){
+    var padLeft;
+    padLeft = core.String.padLeft;
+    ok(toString$.call(padLeft).slice(8, -1) === 'Function', 'Is function');
+    eq(padLeft('abc', 5), '  abc');
+    eq(padLeft('abc', 4, 'de'), 'eabc');
+    eq(padLeft('abc'), 'abc');
+    eq(padLeft('abc', 5, '_'), '__abc');
+    eq(padLeft('', 0), '');
+    eq(padLeft('foo', 1), 'foo');
     throws(function(){
-      return lpad('foo', 1);
-    }, RangeError);
-    throws(function(){
-      return lpad('foo', Infinity);
+      return padLeft('foo', Infinity);
     }, RangeError);
     if (!function(){
       return this;
     }()) {
       throws(function(){
-        return lpad(null, 0);
+        return padLeft(null, 0);
       }, TypeError);
       throws(function(){
-        return lpad(void 8, 0);
+        return padLeft(void 8, 0);
       }, TypeError);
     }
   });
@@ -5158,29 +5156,27 @@
   var eq, toString$ = {}.toString;
   QUnit.module('ES7');
   eq = strictEqual;
-  test('String#rpad', function(){
-    var rpad;
-    rpad = core.String.rpad;
-    ok(toString$.call(rpad).slice(8, -1) === 'Function', 'Is function');
-    eq(rpad('abc', 5), 'abc  ');
-    eq(rpad('abc', 4, 'de'), 'abcd');
-    eq(rpad('abc'), 'abc');
-    eq(rpad('abc', 5, '_'), 'abc__');
-    eq(rpad('', 0), '');
+  test('String#padRight', function(){
+    var padRight;
+    padRight = core.String.padRight;
+    ok(toString$.call(padRight).slice(8, -1) === 'Function', 'Is function');
+    eq(padRight('abc', 5), 'abc  ');
+    eq(padRight('abc', 4, 'de'), 'abcd');
+    eq(padRight('abc'), 'abc');
+    eq(padRight('abc', 5, '_'), 'abc__');
+    eq(padRight('', 0), '');
+    eq(padRight('foo', 1), 'foo');
     throws(function(){
-      return rpad('foo', 1);
-    }, RangeError);
-    throws(function(){
-      return rpad('foo', Infinity);
+      return padRight('foo', Infinity);
     }, RangeError);
     if (!function(){
       return this;
     }()) {
       throws(function(){
-        return rpad(null, 0);
+        return padRight(null, 0);
       }, TypeError);
       throws(function(){
-        return rpad(void 8, 0);
+        return padRight(void 8, 0);
       }, TypeError);
     }
   });

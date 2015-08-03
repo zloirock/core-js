@@ -6771,32 +6771,27 @@
   var eq, toString$ = {}.toString;
   QUnit.module('ES7');
   eq = strictEqual;
-  test('String#lpad', function(){
-    ok(toString$.call(String.prototype.lpad).slice(8, -1) === 'Function', 'Is function');
-    eq(String.prototype.lpad.length, 1, 'arity is 1');
-    ok(/native code/.test(String.prototype.lpad), 'looks like native');
-    if ('name' in String.prototype.lpad) {
-      eq(String.prototype.lpad.name, 'lpad', 'name is "lpad"');
+  test('String#padLeft', function(){
+    ok(toString$.call(String.prototype.padLeft).slice(8, -1) === 'Function', 'Is function');
+    eq(String.prototype.padLeft.length, 1, 'arity is 1');
+    ok(/native code/.test(String.prototype.padLeft), 'looks like native');
+    if ('name' in String.prototype.padLeft) {
+      eq(String.prototype.padLeft.name, 'padLeft', 'name is "padLeft"');
     }
-    eq('abc'.lpad(5), '  abc');
-    eq('abc'.lpad(4, 'de'), 'eabc');
-    eq('abc'.lpad(), 'abc');
-    eq('abc'.lpad(5, '_'), '__abc');
-    eq(''.lpad(0), '');
-    throws(function(){
-      return 'foo'.lpad(1);
-    }, RangeError);
-    throws(function(){
-      return 'foo'.lpad(Infinity);
-    }, RangeError);
+    eq('abc'.padLeft(5), '  abc');
+    eq('abc'.padLeft(4, 'de'), 'eabc');
+    eq('abc'.padLeft(), 'abc');
+    eq('abc'.padLeft(5, '_'), '__abc');
+    eq(''.padLeft(0), '');
+    eq('foo'.padLeft(1), 'foo');
     if (!function(){
       return this;
     }()) {
       throws(function(){
-        return String.prototype.lpad.call(null, 0);
+        return String.prototype.padLeft.call(null, 0);
       }, TypeError);
       throws(function(){
-        return String.prototype.lpad.call(void 8, 0);
+        return String.prototype.padLeft.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -6808,32 +6803,27 @@
   var eq, toString$ = {}.toString;
   QUnit.module('ES7');
   eq = strictEqual;
-  test('String#rpad', function(){
-    ok(toString$.call(String.prototype.rpad).slice(8, -1) === 'Function', 'Is function');
-    eq(String.prototype.rpad.length, 1, 'length is 1');
-    ok(/native code/.test(String.prototype.rpad), 'looks like native');
-    if ('name' in String.prototype.rpad) {
-      eq(String.prototype.rpad.name, 'rpad', 'name is "rpad"');
+  test('String#padRight', function(){
+    ok(toString$.call(String.prototype.padRight).slice(8, -1) === 'Function', 'Is function');
+    eq(String.prototype.padRight.length, 1, 'length is 1');
+    ok(/native code/.test(String.prototype.padRight), 'looks like native');
+    if ('name' in String.prototype.padRight) {
+      eq(String.prototype.padRight.name, 'padRight', 'name is "padRight"');
     }
-    eq('abc'.rpad(5), 'abc  ');
-    eq('abc'.rpad(4, 'de'), 'abcd');
-    eq('abc'.rpad(), 'abc');
-    eq('abc'.rpad(5, '_'), 'abc__');
-    eq(''.rpad(0), '');
-    throws(function(){
-      return 'foo'.rpad(1);
-    }, RangeError);
-    throws(function(){
-      return 'foo'.rpad(Infinity);
-    }, RangeError);
+    eq('abc'.padRight(5), 'abc  ');
+    eq('abc'.padRight(4, 'de'), 'abcd');
+    eq('abc'.padRight(), 'abc');
+    eq('abc'.padRight(5, '_'), 'abc__');
+    eq(''.padRight(0), '');
+    eq('foo'.padRight(1), 'foo');
     if (!function(){
       return this;
     }()) {
       throws(function(){
-        return String.prototype.rpad.call(null, 0);
+        return String.prototype.padRight.call(null, 0);
       }, TypeError);
       throws(function(){
-        return String.prototype.rpad.call(void 8, 0);
+        return String.prototype.padRight.call(void 8, 0);
       }, TypeError);
     }
   });
