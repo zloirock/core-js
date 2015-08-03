@@ -1,3 +1,4 @@
+'use strict';
 var $                = require('./$')
   , SUPPORT_DESC     = require('./$.support-desc')
   , createDesc       = require('./$.property-desc')
@@ -26,11 +27,6 @@ var $                = require('./$')
   , getOwnDescriptor = $.getDesc
   , defineProperties = $.setDescs
   , $indexOf         = require('./$.array-includes')(false)
-  , $forEach         = arrayMethod(0)
-  , $map             = arrayMethod(1)
-  , $filter          = arrayMethod(2)
-  , $some            = arrayMethod(3)
-  , $every           = arrayMethod(4)
   , factories        = {}
   , IE8_DOM_DEFINE;
 
@@ -150,7 +146,7 @@ var construct = function(F, len, args){
 
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
 $def($def.P, 'Function', {
-  bind: function(that /*, args... */){
+  bind: function bind(that /*, args... */){
     var fn       = aFunction(this)
       , partArgs = _slice.call(arguments, 1);
     var bound = function(/* args... */){
@@ -168,7 +164,7 @@ var buggySlice = fails(function(){
 });
 
 $def($def.P + $def.F * buggySlice, 'Array', {
-  slice: function slice(begin, end){
+  slice: function(begin, end){
     var len   = toLength(this.length)
       , klass = cof(this);
     end = end === undefined ? len : end;
@@ -185,7 +181,7 @@ $def($def.P + $def.F * buggySlice, 'Array', {
   }
 });
 $def($def.P + $def.F * (ES5Object != Object), 'Array', {
-  join: function join(){
+  join: function(){
     return _join.apply(ES5Object(this), arguments);
   }
 });
@@ -217,37 +213,30 @@ var createArrayReduce = function(isRight){
     return memo;
   };
 };
+var unbind = function($fn){
+  return function(arg/*, that = undefined */){
+    return $fn(this, arg, arguments[1]);
+  };
+};
 $def($def.P, 'Array', {
   // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
-  forEach: $.each = $.each || function forEach(callbackfn/*, that = undefined */){
-    return $forEach(this, callbackfn, arguments[1]);
-  },
+  forEach: $.each = $.each || unbind(arrayMethod(0)),
   // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
-  map: function map(callbackfn/*, that = undefined */){
-    return $map(this, callbackfn, arguments[1]);
-  },
+  map: unbind(arrayMethod(1)),
   // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
-  filter: function filter(callbackfn/*, that = undefined */){
-    return $filter(this, callbackfn, arguments[1]);
-  },
+  filter: unbind(arrayMethod(2)),
   // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-  some: function some(callbackfn/*, that = undefined */){
-    return $some(this, callbackfn, arguments[1]);
-  },
+  some: unbind(arrayMethod(3)),
   // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-  every: function every(callbackfn/*, that = undefined */){
-    return $every(this, callbackfn, arguments[1]);
-  },
+  every: unbind(arrayMethod(4)),
   // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
   reduce: createArrayReduce(false),
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
   reduceRight: createArrayReduce(true),
   // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: function indexOf(el /*, fromIndex = 0 */){
-    return $indexOf(this, el, arguments[1]);
-  },
+  indexOf: unbind($indexOf),
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-  lastIndexOf: function lastIndexOf(el, fromIndex /* = @[*-1] */){
+  lastIndexOf: function(el, fromIndex /* = @[*-1] */){
     var O      = toObject(this)
       , length = toLength(O.length)
       , index  = length - 1;
@@ -259,7 +248,7 @@ $def($def.P, 'Array', {
 });
 
 // 20.3.3.1 / 15.9.4.4 Date.now()
-$def($def.S, 'Date', {now: function now(){ return +new Date; }});
+$def($def.S, 'Date', {now: function(){ return +new Date; }});
 
 var lz = function(num){
   return num > 9 ? num : '0' + num;
