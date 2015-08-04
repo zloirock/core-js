@@ -5134,9 +5134,6 @@
     eq(padLeft('abc', 5, '_'), '__abc');
     eq(padLeft('', 0), '');
     eq(padLeft('foo', 1), 'foo');
-    throws(function(){
-      return padLeft('foo', Infinity);
-    }, RangeError);
     if (!function(){
       return this;
     }()) {
@@ -5166,9 +5163,6 @@
     eq(padRight('abc', 5, '_'), 'abc__');
     eq(padRight('', 0), '');
     eq(padRight('foo', 1), 'foo');
-    throws(function(){
-      return padRight('foo', Infinity);
-    }, RangeError);
     if (!function(){
       return this;
     }()) {

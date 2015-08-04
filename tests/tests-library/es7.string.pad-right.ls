@@ -13,7 +13,6 @@ test 'String#padRight' !->
   eq padRight(\abc 5 '_'), 'abc__'
   eq padRight('', 0), ''
   eq padRight(\foo 1), \foo
-  throws (-> padRight \foo Infinity), RangeError
 
   if !(-> @)!
     throws (-> padRight null, 0), TypeError
