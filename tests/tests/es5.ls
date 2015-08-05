@@ -262,9 +262,6 @@ test 'Array#reduceRight' !->
   , 42
   [42 43]reduceRight ->
     ok it is 43
-test 'String#trim' !->
-  ok isFunction(String::trim), 'Is function'
-  ok '   q w e \n  'trim! is 'q w e', 'Remove whitespaces at left & right side of string'
 test 'Date.now' !->
   {now} = Date
   ok isFunction(now), 'Is function'

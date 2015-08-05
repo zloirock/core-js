@@ -273,10 +273,6 @@ test 'Array#reduceRight' !->
   , 42
   reduceRight [42 43], ->
     ok it is 43
-test 'String#trim' !->
-  {trim} = core.String
-  ok isFunction(trim), 'Is function'
-  ok trim('   q w e \n  ') is 'q w e', 'Remove whitespaces at left & right side of string'
 test 'Date.now' !->
   {now} = core.Date
   ok isFunction(now), 'Is function'
