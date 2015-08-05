@@ -24,7 +24,7 @@
     "karma-ie-launcher": "0.2.x",
     "karma-firefox-launcher": "0.1.x",
     "karma-phantomjs-launcher": "0.2.x",
-    "karma-phantomjs2-launcher": "0.1.x",
+    "karma-phantomjs2-launcher": "0.3.x",
     "promises-aplus-tests": "2.1.x",
     "eslint": "1.0.x"
   },
