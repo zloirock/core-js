@@ -31,7 +31,7 @@ if(!setTask || !clearTask){
     queue[++counter] = function(){
       invoke(typeof fn == 'function' ? fn : Function(fn), args);
     };
-    defer(counter + '');
+    defer(counter);
     return counter;
   };
   clearTask = function clearImmediate(id){
@@ -52,7 +52,7 @@ if(!setTask || !clearTask){
   // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if(global.addEventListener && typeof postMessage == 'function' && !global.importScript){
     defer = function(id){
-      global.postMessage(id, '*');
+      global.postMessage(id + '', '*');
     };
     global.addEventListener('message', listner, false);
   // IE8-
