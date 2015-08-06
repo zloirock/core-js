@@ -52,11 +52,15 @@ test 'RegExp#@@search' !->
   eq /Four/[Symbol.search]('one two three four five'), -1
 
 test '@@search logic' !->
+  'use strict'
+  strict = !(-> @)!
+  str = if strict => \qwe else Object \qwe
+  num = if strict => 123 else Object 123
   O = {(Symbol.search): -> {value: it}}
-  eq 'qwe'search(O)value, \qwe
-  eq ''search.call(123, O)value, 123
+  eq str.search(O)value, str
+  eq ''search.call(num, O)value, num
   re = /./
   re[Symbol.search] = -> {value: it}
-  eq 'qwe'search(re)value, \qwe
-  eq ''search.call(123, re)value, 123
+  eq str.search(re)value, str
+  eq ''search.call(num, re)value, num
   

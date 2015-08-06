@@ -4347,22 +4347,32 @@
     }
   });
   test('@@match logic', function(){
-    var O, ref$, re;
+    'use strict';
+    var strict, str, num, O, ref$, re;
+    strict = !function(){
+      return this;
+    }();
+    str = strict
+      ? 'qwe'
+      : Object('qwe');
+    num = strict
+      ? 123
+      : Object(123);
     O = (ref$ = {}, ref$[Symbol.match] = function(it){
       return {
         value: it
       };
     }, ref$);
-    eq('qwe'.match(O).value, 'qwe');
-    eq(''.match.call(123, O).value, 123);
+    eq(str.match(O).value, str);
+    eq(''.match.call(num, O).value, num);
     re = /./;
     re[Symbol.match] = function(it){
       return {
         value: it
       };
     };
-    eq('qwe'.match(re).value, 'qwe');
-    eq(''.match.call(123, re).value, 123);
+    eq(str.match(re).value, str);
+    eq(''.match.call(num, re).value, num);
   });
 }).call(this);
 
@@ -4492,17 +4502,27 @@
     }), '12abc def34');
   });
   test('@@replace logic', function(){
-    var O, ref$, re;
+    'use strict';
+    var strict, str, num, O, ref$, re;
+    strict = !function(){
+      return this;
+    }();
+    str = strict
+      ? 'qwe'
+      : Object('qwe');
+    num = strict
+      ? 123
+      : Object(123);
     O = (ref$ = {}, ref$[Symbol.replace] = function(a, b){
       return {
         a: a,
         b: b
       };
     }, ref$);
-    eq('qwe'.replace(O, 42).a, 'qwe');
-    eq('qwe'.replace(O, 42).b, 42);
-    eq(''.replace.call(123, O, 42).a, 123);
-    eq(''.replace.call(123, O, 42).b, 42);
+    eq(str.replace(O, 42).a, str);
+    eq(str.replace(O, 42).b, 42);
+    eq(''.replace.call(num, O, 42).a, num);
+    eq(''.replace.call(num, O, 42).b, 42);
     re = /./;
     re[Symbol.replace] = function(a, b){
       return {
@@ -4510,10 +4530,10 @@
         b: b
       };
     };
-    eq('qwe'.replace(re, 42).a, 'qwe');
-    eq('qwe'.replace(re, 42).b, 42);
-    eq(''.replace.call(123, re, 42).a, 123);
-    eq(''.replace.call(123, re, 42).b, 42);
+    eq(str.replace(re, 42).a, str);
+    eq(str.replace(re, 42).b, 42);
+    eq(''.replace.call(num, re, 42).a, num);
+    eq(''.replace.call(num, re, 42).b, 42);
   });
 }).call(this);
 
@@ -4602,22 +4622,32 @@
     eq(/Four/[Symbol.search]('one two three four five'), -1);
   });
   test('@@search logic', function(){
-    var O, ref$, re;
+    'use strict';
+    var strict, str, num, O, ref$, re;
+    strict = !function(){
+      return this;
+    }();
+    str = strict
+      ? 'qwe'
+      : Object('qwe');
+    num = strict
+      ? 123
+      : Object(123);
     O = (ref$ = {}, ref$[Symbol.search] = function(it){
       return {
         value: it
       };
     }, ref$);
-    eq('qwe'.search(O).value, 'qwe');
-    eq(''.search.call(123, O).value, 123);
+    eq(str.search(O).value, str);
+    eq(''.search.call(num, O).value, num);
     re = /./;
     re[Symbol.search] = function(it){
       return {
         value: it
       };
     };
-    eq('qwe'.search(re).value, 'qwe');
-    eq(''.search.call(123, re).value, 123);
+    eq(str.search(re).value, str);
+    eq(''.search.call(num, re).value, num);
   });
 }).call(this);
 
@@ -5239,17 +5269,27 @@
     eq(/\s/[Symbol.split]('a b c de f', 10).length, 5);
   });
   test('@@split logic', function(){
-    var O, ref$, re;
+    'use strict';
+    var strict, str, num, O, ref$, re;
+    strict = !function(){
+      return this;
+    }();
+    str = strict
+      ? 'qwe'
+      : Object('qwe');
+    num = strict
+      ? 123
+      : Object(123);
     O = (ref$ = {}, ref$[Symbol.split] = function(a, b){
       return {
         a: a,
         b: b
       };
     }, ref$);
-    eq('qwe'.split(O, 42).a, 'qwe');
-    eq('qwe'.split(O, 42).b, 42);
-    eq(''.split.call(123, O, 42).a, 123);
-    eq(''.split.call(123, O, 42).b, 42);
+    eq(str.split(O, 42).a, str);
+    eq(str.split(O, 42).b, 42);
+    eq(''.split.call(num, O, 42).a, num);
+    eq(''.split.call(num, O, 42).b, 42);
     re = /./;
     re[Symbol.split] = function(a, b){
       return {
@@ -5257,10 +5297,10 @@
         b: b
       };
     };
-    eq('qwe'.split(re, 42).a, 'qwe');
-    eq('qwe'.split(re, 42).b, 42);
-    eq(''.split.call(123, re, 42).a, 123);
-    eq(''.split.call(123, re, 42).b, 42);
+    eq(str.split(re, 42).a, str);
+    eq(str.split(re, 42).b, 42);
+    eq(''.split.call(num, re, 42).a, num);
+    eq(''.split.call(num, re, 42).b, 42);
   });
 }).call(this);
 

@@ -527,15 +527,19 @@ test 'RegExp#@@split' !->
   eq /\s/[Symbol.split]('a b c de f' 10).length, 5
 
 test '@@split logic' !->
+  'use strict'
+  strict = !(-> @)!
+  str = if strict => \qwe else Object \qwe
+  num = if strict => 123 else Object 123
   O = {(Symbol.split): (a, b)-> {a, b}}
-  eq 'qwe'split(O, 42)a, \qwe
-  eq 'qwe'split(O, 42)b, 42
-  eq ''split.call(123, O, 42)a, 123
-  eq ''split.call(123, O, 42)b, 42
+  eq str.split(O, 42)a, str
+  eq str.split(O, 42)b, 42
+  eq ''split.call(num, O, 42)a, num
+  eq ''split.call(num, O, 42)b, 42
   re = /./
   re[Symbol.split] = (a, b)-> {a, b}
-  eq 'qwe'split(re, 42)a, \qwe
-  eq 'qwe'split(re, 42)b, 42
-  eq ''split.call(123, re, 42)a, 123
-  eq ''split.call(123, re, 42)b, 42
+  eq str.split(re, 42)a, str
+  eq str.split(re, 42)b, 42
+  eq ''split.call(num, re, 42)a, num
+  eq ''split.call(num, re, 42)b, 42
   

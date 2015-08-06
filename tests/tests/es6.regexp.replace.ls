@@ -75,14 +75,18 @@ test 'RegExp#@@replace' !->
   eq /([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', -> &.2 + &.1), '12abc def34'
 
 test '@@replace logic' !->
+  'use strict'
+  strict = !(-> @)!
+  str = if strict => \qwe else Object \qwe
+  num = if strict => 123 else Object 123
   O = {(Symbol.replace): (a, b)-> {a, b}}
-  eq 'qwe'replace(O, 42)a, \qwe
-  eq 'qwe'replace(O, 42)b, 42
-  eq ''replace.call(123, O, 42)a, 123
-  eq ''replace.call(123, O, 42)b, 42
+  eq str.replace(O, 42)a, str
+  eq str.replace(O, 42)b, 42
+  eq ''replace.call(num, O, 42)a, num
+  eq ''replace.call(num, O, 42)b, 42
   re = /./
   re[Symbol.replace] = (a, b)-> {a, b}
-  eq 'qwe'replace(re, 42)a, \qwe
-  eq 'qwe'replace(re, 42)b, 42
-  eq ''replace.call(123, re, 42)a, 123
-  eq ''replace.call(123, re, 42)b, 42
+  eq str.replace(re, 42)a, str
+  eq str.replace(re, 42)b, 42
+  eq ''replace.call(num, re, 42)a, num
+  eq ''replace.call(num, re, 42)b, 42
