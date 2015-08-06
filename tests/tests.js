@@ -4354,7 +4354,7 @@
       };
     }, ref$);
     eq('qwe'.match(O).value, 'qwe');
-    eq(''.match.call(123, O).value, '123');
+    eq(''.match.call(123, O).value, 123);
     re = /./;
     re[Symbol.match] = function(it){
       return {
@@ -4362,7 +4362,7 @@
       };
     };
     eq('qwe'.match(re).value, 'qwe');
-    eq(''.match.call(123, re).value, '123');
+    eq(''.match.call(123, re).value, 123);
   });
 }).call(this);
 
@@ -4501,7 +4501,7 @@
     }, ref$);
     eq('qwe'.replace(O, 42).a, 'qwe');
     eq('qwe'.replace(O, 42).b, 42);
-    eq(''.replace.call(123, O, 42).a, '123');
+    eq(''.replace.call(123, O, 42).a, 123);
     eq(''.replace.call(123, O, 42).b, 42);
     re = /./;
     re[Symbol.replace] = function(a, b){
@@ -4512,7 +4512,7 @@
     };
     eq('qwe'.replace(re, 42).a, 'qwe');
     eq('qwe'.replace(re, 42).b, 42);
-    eq(''.replace.call(123, re, 42).a, '123');
+    eq(''.replace.call(123, re, 42).a, 123);
     eq(''.replace.call(123, re, 42).b, 42);
   });
 }).call(this);
@@ -4609,7 +4609,7 @@
       };
     }, ref$);
     eq('qwe'.search(O).value, 'qwe');
-    eq(''.search.call(123, O).value, '123');
+    eq(''.search.call(123, O).value, 123);
     re = /./;
     re[Symbol.search] = function(it){
       return {
@@ -4617,7 +4617,7 @@
       };
     };
     eq('qwe'.search(re).value, 'qwe');
-    eq(''.search.call(123, re).value, '123');
+    eq(''.search.call(123, re).value, 123);
   });
 }).call(this);
 
@@ -5248,7 +5248,7 @@
     }, ref$);
     eq('qwe'.split(O, 42).a, 'qwe');
     eq('qwe'.split(O, 42).b, 42);
-    eq(''.split.call(123, O, 42).a, '123');
+    eq(''.split.call(123, O, 42).a, 123);
     eq(''.split.call(123, O, 42).b, 42);
     re = /./;
     re[Symbol.split] = function(a, b){
@@ -5259,7 +5259,7 @@
     };
     eq('qwe'.split(re, 42).a, 'qwe');
     eq('qwe'.split(re, 42).b, 42);
-    eq(''.split.call(123, re, 42).a, '123');
+    eq(''.split.call(123, re, 42).a, 123);
     eq(''.split.call(123, re, 42).b, 42);
   });
 }).call(this);

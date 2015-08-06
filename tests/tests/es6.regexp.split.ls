@@ -530,12 +530,12 @@ test '@@split logic' !->
   O = {(Symbol.split): (a, b)-> {a, b}}
   eq 'qwe'split(O, 42)a, \qwe
   eq 'qwe'split(O, 42)b, 42
-  eq ''split.call(123, O, 42)a, \123
+  eq ''split.call(123, O, 42)a, 123
   eq ''split.call(123, O, 42)b, 42
   re = /./
   re[Symbol.split] = (a, b)-> {a, b}
   eq 'qwe'split(re, 42)a, \qwe
   eq 'qwe'split(re, 42)b, 42
-  eq ''split.call(123, re, 42)a, \123
+  eq ''split.call(123, re, 42)a, 123
   eq ''split.call(123, re, 42)b, 42
   

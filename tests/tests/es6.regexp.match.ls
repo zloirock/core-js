@@ -178,9 +178,9 @@ test 'RegExp#@@match' !->
 test '@@match logic' !->
   O = {(Symbol.match): -> {value: it}}
   eq 'qwe'match(O)value, \qwe
-  eq ''match.call(123, O)value, \123
+  eq ''match.call(123, O)value, 123
   re = /./
   re[Symbol.match] = -> {value: it}
   eq 'qwe'match(re)value, \qwe
-  eq ''match.call(123, re)value, \123
+  eq ''match.call(123, re)value, 123
   

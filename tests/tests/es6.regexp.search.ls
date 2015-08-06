@@ -54,9 +54,9 @@ test 'RegExp#@@search' !->
 test '@@search logic' !->
   O = {(Symbol.search): -> {value: it}}
   eq 'qwe'search(O)value, \qwe
-  eq ''search.call(123, O)value, \123
+  eq ''search.call(123, O)value, 123
   re = /./
   re[Symbol.search] = -> {value: it}
   eq 'qwe'search(re)value, \qwe
-  eq ''search.call(123, re)value, \123
+  eq ''search.call(123, re)value, 123
   

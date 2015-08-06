@@ -78,11 +78,11 @@ test '@@replace logic' !->
   O = {(Symbol.replace): (a, b)-> {a, b}}
   eq 'qwe'replace(O, 42)a, \qwe
   eq 'qwe'replace(O, 42)b, 42
-  eq ''replace.call(123, O, 42)a, \123
+  eq ''replace.call(123, O, 42)a, 123
   eq ''replace.call(123, O, 42)b, 42
   re = /./
   re[Symbol.replace] = (a, b)-> {a, b}
   eq 'qwe'replace(re, 42)a, \qwe
   eq 'qwe'replace(re, 42)b, 42
-  eq ''replace.call(123, re, 42)a, \123
+  eq ''replace.call(123, re, 42)a, 123
   eq ''replace.call(123, re, 42)b, 42
