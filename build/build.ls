@@ -137,6 +137,16 @@ libraryBlacklist = <[
   es6.number.constructor
 ]>
 
+es5SpecialCase = <[
+  es6.object.freeze
+  es6.object.seal
+  es6.object.prevent-extensions
+  es6.object.is-frozen
+  es6.object.is-sealed
+  es6.object.is-extensible
+  es6.string.trim
+]>
+
 module.exports = ({modules = [], blacklist = [], library = no}, next)!->
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
     check = (err)->
@@ -145,6 +155,7 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
         on
 
     if @exp => for experimental => @[..] = on
+    if @es5 => for es5SpecialCase => @[..] = on
     for ns of @
       if @[ns]
         for name in list
