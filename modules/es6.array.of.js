@@ -1,3 +1,4 @@
+'use strict';
 var $def = require('./$.def');
 $def($def.S, 'Array', {
   // 22.1.2.3 Array.of( ...items)

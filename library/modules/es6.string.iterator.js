@@ -1,3 +1,4 @@
+'use strict';
 var $at  = require('./$.string-at')(true);
 
 // 21.1.3.27 String.prototype[@@iterator]()

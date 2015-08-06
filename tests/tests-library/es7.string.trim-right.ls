@@ -1,3 +1,5 @@
+'use strict';
+
 QUnit.module \ES7
 
 eq = strictEqual

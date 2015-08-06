@@ -1,3 +1,4 @@
+'use strict';
 // Based on https://github.com/zenparsing/es-observable/blob/master/src/Observable.js
 var global     = require('./$.global')
   , core       = require('./$.core')

@@ -1,3 +1,4 @@
+'use strict';
 var setUnscope = require('./$.unscope')
   , step       = require('./$.iter-step')
   , Iterators  = require('./$.iterators')
