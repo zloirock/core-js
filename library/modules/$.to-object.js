@@ -1,5 +1,5 @@
-var ES5Object = require('./$.es5-object')
-  , defined   = require('./$.defined');
-module.exports = function(it, realString){
-  return (realString ? Object : ES5Object)(defined(it));
+// 7.1.13 ToObject(argument)
+var defined = require('./$.defined');
+module.exports = function(it){
+  return Object(defined(it));
 };

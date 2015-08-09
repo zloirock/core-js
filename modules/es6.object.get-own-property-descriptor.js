@@ -1,8 +1,8 @@
 // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
-var toObject = require('./$.to-object');
+var toIObject = require('./$.to-iobject');
 
 require('./$.object-sap')('getOwnPropertyDescriptor', function($getOwnPropertyDescriptor){
   return function getOwnPropertyDescriptor(it, key){
-    return $getOwnPropertyDescriptor(toObject(it), key);
+    return $getOwnPropertyDescriptor(toIObject(it), key);
   };
 });

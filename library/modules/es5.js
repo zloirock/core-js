@@ -14,10 +14,11 @@ var $                = require('./$')
   , anObject         = require('./$.an-object')
   , aFunction        = require('./$.a-function')
   , toObject         = require('./$.to-object')
+  , toIObject        = require('./$.to-iobject')
   , toInteger        = require('./$.to-integer')
   , toIndex          = require('./$.to-index')
   , toLength         = require('./$.to-length')
-  , ES5Object        = require('./$.es5-object')
+  , IObject          = require('./$.iobject')
   , fails            = require('./$.fails')
   , ObjectProto      = Object.prototype
   , A                = []
@@ -96,7 +97,7 @@ var createDict = function(){
 };
 var createGetKeys = function(names, length){
   return function(object){
-    var O      = toObject(object)
+    var O      = toIObject(object)
       , i      = 0
       , result = []
       , key;
@@ -112,7 +113,7 @@ var Empty = function(){};
 $def($def.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
-    O = toObject(O, true);
+    O = toObject(O);
     if(has(O, IE_PROTO))return O[IE_PROTO];
     if(typeof O.constructor == 'function' && O instanceof O.constructor){
       return O.constructor.prototype;
@@ -180,9 +181,9 @@ $def($def.P + $def.F * buggySlice, 'Array', {
     return cloned;
   }
 });
-$def($def.P + $def.F * (ES5Object != Object), 'Array', {
+$def($def.P + $def.F * (IObject != Object), 'Array', {
   join: function(){
-    return _join.apply(ES5Object(this), arguments);
+    return _join.apply(IObject(this), arguments);
   }
 });
 
@@ -192,7 +193,7 @@ $def($def.S, 'Array', {isArray: function(arg){ return cof(arg) == 'Array'; }});
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
     aFunction(callbackfn);
-    var O      = toObject(this)
+    var O      = IObject(this)
       , length = toLength(O.length)
       , index  = isRight ? length - 1 : 0
       , i      = isRight ? -1 : 1;
@@ -237,7 +238,7 @@ $def($def.P, 'Array', {
   indexOf: methodize($indexOf),
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
   lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-    var O      = toObject(this)
+    var O      = toIObject(this)
       , length = toLength(O.length)
       , index  = length - 1;
     if(arguments.length > 1)index = Math.min(index, toInteger(fromIndex));

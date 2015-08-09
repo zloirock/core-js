@@ -14,7 +14,7 @@ var $              = require('./$')
   , $names         = require('./$.get-names')
   , enumKeys       = require('./$.enum-keys')
   , anObject       = require('./$.an-object')
-  , toObject       = require('./$.to-object')
+  , toIObject      = require('./$.to-iobject')
   , createDesc     = require('./$.property-desc')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
@@ -72,7 +72,7 @@ function defineProperty(it, key, D){
 }
 function defineProperties(it, P){
   anObject(it);
-  var keys = enumKeys(P = toObject(P))
+  var keys = enumKeys(P = toIObject(P))
     , i    = 0
     , l = keys.length
     , key;
@@ -88,12 +88,12 @@ function propertyIsEnumerable(key){
     ? E : true;
 }
 function getOwnPropertyDescriptor(it, key){
-  var D = getDesc(it = toObject(it), key);
+  var D = getDesc(it = toIObject(it), key);
   if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
   return D;
 }
 function getOwnPropertyNames(it){
-  var names  = getNames(toObject(it))
+  var names  = getNames(toIObject(it))
     , result = []
     , i      = 0
     , key;
@@ -101,7 +101,7 @@ function getOwnPropertyNames(it){
   return result;
 }
 function getOwnPropertySymbols(it){
-  var names  = getNames(toObject(it))
+  var names  = getNames(toIObject(it))
     , result = []
     , i      = 0
     , key;

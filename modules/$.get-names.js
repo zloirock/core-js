@@ -1,7 +1,7 @@
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
-var toString = {}.toString
-  , toObject = require('./$.to-object')
-  , getNames = require('./$').getNames;
+var toString  = {}.toString
+  , toIObject = require('./$.to-iobject')
+  , getNames  = require('./$').getNames;
 
 var windowNames = typeof window == 'object' && Object.getOwnPropertyNames
   ? Object.getOwnPropertyNames(window) : [];
@@ -16,5 +16,5 @@ var getWindowNames = function(it){
 
 module.exports.get = function getOwnPropertyNames(it){
   if(windowNames && toString.call(it) == '[object Window]')return getWindowNames(it);
-  return getNames(toObject(it));
+  return getNames(toIObject(it));
 };

@@ -10,7 +10,7 @@ var $            = require('./$')
   , isIterable   = require('./core.is-iterable')
   , step         = require('./$.iter-step')
   , isObject     = require('./$.is-object')
-  , toObject     = require('./$.to-object')
+  , toIObject    = require('./$.to-iobject')
   , SUPPORT_DESC = require('./$.support-desc')
   , has          = require('./$.has')
   , getKeys      = $.getKeys;
@@ -28,7 +28,7 @@ var createDictMethod = function(TYPE){
     , IS_EVERY = TYPE == 4;
   return function(object, callbackfn, that /* = undefined */){
     var f      = ctx(callbackfn, that, 3)
-      , O      = toObject(object)
+      , O      = toIObject(object)
       , result = IS_MAP || TYPE == 7 || TYPE == 2
           ? new (typeof this == 'function' ? this : Dict) : undefined
       , key, val, res;
@@ -57,10 +57,10 @@ var createDictIter = function(kind){
   };
 };
 var DictIterator = function(iterated, kind){
-  this._t = toObject(iterated); // target
-  this._a = getKeys(iterated);  // keys
-  this._i = 0;                  // next index
-  this._k = kind;               // kind
+  this._t = toIObject(iterated); // target
+  this._a = getKeys(iterated);   // keys
+  this._i = 0;                   // next index
+  this._k = kind;                // kind
 };
 require('./$.iter-create')(DictIterator, 'Dict', function(){
   var that = this
@@ -94,7 +94,7 @@ Dict.prototype = null;
 
 function reduce(object, mapfn, init){
   aFunction(mapfn);
-  var O      = toObject(object)
+  var O      = toIObject(object)
     , keys   = getKeys(O)
     , length = keys.length
     , i      = 0

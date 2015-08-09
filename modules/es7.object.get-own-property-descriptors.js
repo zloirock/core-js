@@ -2,12 +2,12 @@
 var $          = require('./$')
   , $def       = require('./$.def')
   , ownKeys    = require('./$.own-keys')
-  , toObject   = require('./$.to-object')
+  , toIObject  = require('./$.to-iobject')
   , createDesc = require('./$.property-desc');
 
 $def($def.S, 'Object', {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object){
-    var O       = toObject(object)
+    var O       = toIObject(object)
       , setDesc = $.setDesc
       , getDesc = $.getDesc
       , keys    = ownKeys(O)

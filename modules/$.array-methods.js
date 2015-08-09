@@ -5,10 +5,10 @@
 // 4 -> Array#every
 // 5 -> Array#find
 // 6 -> Array#findIndex
-var toObject  = require('./$.to-object')
-  , ES5Object = require('./$.es5-object')
-  , ctx       = require('./$.ctx')
-  , toLength  = require('./$.to-length');
+var ctx      = require('./$.ctx')
+  , IObject  = require('./$.iobject')
+  , toObject = require('./$.to-object')
+  , toLength = require('./$.to-length');
 module.exports = function(TYPE){
   var IS_MAP        = TYPE == 1
     , IS_FILTER     = TYPE == 2
@@ -17,8 +17,8 @@ module.exports = function(TYPE){
     , IS_FIND_INDEX = TYPE == 6
     , NO_HOLES      = TYPE == 5 || IS_FIND_INDEX;
   return function($this, callbackfn, that){
-    var O      = toObject($this, true)
-      , self   = ES5Object(O)
+    var O      = toObject($this)
+      , self   = IObject(O)
       , f      = ctx(callbackfn, that, 3)
       , length = toLength(self.length)
       , index  = 0
