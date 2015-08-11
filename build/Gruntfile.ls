@@ -17,9 +17,10 @@ module.exports = (grunt)->
         banner: config.banner
     livescript: src: files:
       './tests/tests.js': './tests/tests/*'
-      './tests/tests-library.js': './tests/tests-library/*'
+      './tests/library.js': './tests/library/*'
+      './tests/es.js': './tests/tests/es*'
       './build/index.js': './build/build.ls*'
-    clean: ['./library']
+    clean: <[./library]>
     copy: lib: files:
       * expand: on
         cwd: './'

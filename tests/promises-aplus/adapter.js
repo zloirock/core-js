@@ -1,7 +1,7 @@
 // Adapter for "promises-aplus-tests" test runner
 delete global.Promise;
 
-var Promise = require('../index.js').Promise;
+var Promise = require('../../index.js').Promise;
 
 module.exports.deferred = function __deferred__() {
 	var o = {};
