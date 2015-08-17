@@ -1,6 +1,6 @@
 # core-js
 
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](https://www.npmjs.com/package/core-js) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](http://npm-stat.com/charts.html?package=core-js&author=&from=2014-11-18&to=2114-11-18) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
 
 Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
@@ -73,14 +73,18 @@ You can require only needed modules.
 require('core-js/es5'); // if you need support IE8-
 require('core-js/fn/set');
 require('core-js/fn/array/from');
+require('core-js/fn/array/find-index');
 Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+[1, 2, NaN, 3, 4].findIndex(isNaN);   // => 2
 
 // or, w/o global namespace pollution:
 
-var core = require('core-js/library/es5'); // if you need support IE8-
-var Set  = require('core-js/library/fn/set');
-var from = require('core-js/library/fn/array/from');
-from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
+var core      = require('core-js/library/es5'); // if you need support IE8-
+var Set       = require('core-js/library/fn/set');
+var from      = require('core-js/library/fn/array/from');
+var findIndex = require('core-js/library/fn/array/find-index');
+from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
+findIndex([1, 2, NaN, 3, 4], isNaN); // => 2
 ```
 Available entry points for methods / constructors, as above examples, excluding features from [`es5`](#ecmascript-5) module (this module requires completely in ES3 environment before all other modules).
 
@@ -116,12 +120,6 @@ Object
   .defineProperties(target, descriptors) -> target, cap for ie8-
   .getOwnPropertyDescriptor(object, key) -> desc
   .getOwnPropertyNames(object) -> array
-  .seal(object) -> object, cap for ie8-
-  .freeze(object) -> object, cap for ie8-
-  .preventExtensions(object) -> object, cap for ie8-
-  .isSealed(object) -> bool, cap for ie8-
-  .isFrozen(object) -> bool, cap for ie8-
-  .isExtensible(object) -> bool, cap for ie8-
   .keys(object) -> array
 Array
   .isArray(var) -> bool
@@ -138,11 +136,21 @@ Array
   #reduceRight(fn(memo, val, index, @), memo?) -> var
 Function
   #bind(object, ...args) -> boundFn(...args)
-String
-  #trim() -> str
 Date
   .now() -> int
   #toISOString() -> string
+```
+Some features moved to [another modules / namespaces](#ecmascript-6), but available as part of `es5` namespace too:
+```js
+Object
+  .seal(object) -> object, cap for ie8-
+  .freeze(object) -> object, cap for ie8-
+  .preventExtensions(object) -> object, cap for ie8-
+  .isSealed(object) -> bool, cap for ie8-
+  .isFrozen(object) -> bool, cap for ie8-
+  .isExtensible(object) -> bool, cap for ie8-
+String
+  #trim() -> str
 ```
 
 ### ECMAScript 6
@@ -182,7 +190,21 @@ O[Symbol.toStringTag] = 'Foo';
 
 (function foo(){}).name // => 'foo'
 ```
-Module `es6.object.statics-accept-primitives`. In ES6 most `Object` static methods should work with primitives. [Example](http://goo.gl/35lPSi):
+In ES6 most `Object` static methods should work with primitives. Modules `es6.object.freeze`, `es6.object.seal`, `es6.object.prevent-extensions`, `es6.object.is-frozen`, `es6.object.is-sealed`, `es6.object.is-extensible`, `es6.object.get-own-property-descriptor`, `es6.object.get-prototype-of`, `es6.object.keys`, `es6.object.get-own-property-names`.
+```javascript
+Object
+  .freeze(var) -> var
+  .seal(var) -> var
+  .preventExtensions(var) -> var
+  .isFrozen(var) -> bool
+  .isSealed(var) -> bool
+  .isExtensible(var) -> bool
+  .getOwnPropertyDescriptor(var, key) -> desc | undefined
+  .getPrototypeOf(var) -> object | null
+  .keys(var) -> array
+  .getOwnPropertyNames(var) -> array
+```
+[Example](http://goo.gl/35lPSi):
 ```javascript
 Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
@@ -224,7 +246,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String & RegExp
-`String`: modules `es6.string.from-code-point`, `es6.string.raw`, `es6.string.code-point-at`, `es6.string.ends-with`, `es6.string.includes`, `es6.string.repeat` and `es6.string.starts-with`.
+`String`: modules `es6.string.from-code-point`, `es6.string.raw`, `es6.string.code-point-at`, `es6.string.ends-with`, `es6.string.includes`, `es6.string.repeat`, `es6.string.starts-with` and `es6.string.trim`.
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -234,6 +256,7 @@ String
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
+  #trim() -> str, ES6 fix
 ```
 `RegExp`: modules `es6.regexp.constructor` and `es6.regexp.flags`.
 ```
@@ -345,7 +368,15 @@ Object
   .getOwnPropertySymbols(object) -> array
 ```
 Also wrapped some `Object` methods for correct work with `Symbol` polyfill.
-
+```js
+Object
+  .create(proto | null, descriptors?) -> object
+  .defineProperty(target, key, desc) -> target
+  .defineProperties(target, descriptors) -> target
+  .getOwnPropertyDescriptor(var, key) -> desc | undefined
+  .getOwnPropertyNames(var) -> array
+  #propertyIsEnumerable(key) -> bool
+```
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
 var Person = (function(){
@@ -761,7 +792,8 @@ instance.c; // => 42
 ### ECMAScript 7
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module `es7.array.includes`
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module `es7.string.at`
-* `String#lpad`, `String#rpad` [proposal](http://wiki.ecmascript.org/doku.php?id=strawman:string_padding) - modules `es7.string.lpad`, `es7.string.rpad`
+* `String#padLeft`, `String#padRight` [proposal](https://github.com/ljharb/proposal-string-pad-left-right) - modules `es7.string.pad-left`, `es7.string.pad-right`
+* `String#trimLeft`, `String#trimRight` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules `es7.string.trim-left`, `es7.string.trim-right`
 * `Object.values`, `Object.entries` [tc39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-04/apr-9.md#51-objectentries-objectvalues) - modules `es7.object.values`, `es7.object.entries`
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module `es7.object.get-own-property-descriptors`
 * `RegExp.escape` [proposal](https://github.com/benjamingr/RexExp.escape) - module `es7.regexp.escape`
@@ -772,8 +804,10 @@ Array
   #includes(var, from?) -> bool
 String
   #at(index) -> string
-  #lpad(length, fillStr = ' ') -> string
-  #rpad(length, fillStr = ' ') -> string
+  #padLeft(length, fillStr = ' ') -> string
+  #padRight(length, fillStr = ' ') -> string
+  #trimLeft() -> string
+  #trimRight() -> string
 Object
   .values(object) -> array
   .entries(object) -> array
@@ -785,7 +819,7 @@ Map
 Set
   #toJSON() -> array
 ```
-[Examples](http://goo.gl/XTsVCF):
+[Examples](http://goo.gl/oMEYBJ):
 ```javascript
 [1, 2, 3].includes(2);        // => true
 [1, 2, 3].includes(4);        // => false
@@ -799,10 +833,10 @@ Array(1).includes(undefined); // => true
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 
-'hello'.lpad(10);         // => '     hello'
-'hello'.lpad(10, '1234'); // => '41234hello'
-'hello'.rpad(10);         // => 'hello     '
-'hello'.rpad(10, '1234'); // => 'hello12341'
+'hello'.padLeft(10);          // => '     hello'
+'hello'.padLeft(10, '1234');  // => '41234hello'
+'hello'.padRight(10);         // => 'hello     '
+'hello'.padRight(10, '1234'); // => 'hello12341'
 
 Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
 Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
@@ -1218,6 +1252,26 @@ delay(1e3).then(() => log('after 1 sec'));
 - `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 
 ## Changelog
+##### 1.1.0 - 2015.08.17
+  * updated [string padding](#ecmascript-7) to [actual proposal](https://github.com/ljharb/proposal-string-pad-left-right) - renamed, minor internal changes:
+    * `String#lpad` -> `String#padLeft`
+    * `String#rpad` -> `String#padRight`
+  * added [string trim functions](#ecmascript-7) - [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), defacto standard - required only for IE11- and fixed for some old engines:
+    * `String#trimLeft`
+    * `String#trimRight`
+  * [`String#trim`](#ecmascript-6-string--regexp) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
+  * splitted [`es6.object.statics-accept-primitives`](#ecmascript-6-object--function)
+  * caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](#ecmascript-6-object--function)
+  * `es5` [namespace](#commonjs) also includes modules, moved to `es6` namespace - you can use it as before
+  * increased `MessageChannel` priority in `$.task`, [#95](https://github.com/zloirock/core-js/issues/95)
+  * does not get `global.Symbol` on each getting iterator, if you wanna use alternative `Symbol` shim - add it before `core-js`
+  * [`Reflect.construct`](#ecmascript-6-reflect) optimized and fixed for some cases
+  * simplified [`Reflect.enumerate`](#ecmascript-6-reflect), see [this question](https://esdiscuss.org/topic/question-about-enumerate-and-property-decision-timing)
+  * some corrections in [`Math.acosh`](#ecmascript-6-number--math)
+  * fixed [`Math.imul`](#ecmascript-6-number--math) for old WebKit
+  * some fixes in string / RegExp [well-known symbols](#ecmascript-6-string--regexp) logic
+  * some other fixes and optimizations
+
 ##### 1.0.1 - 2015.07.31
   * some fixes for final MS Edge, replaced broken native `Reflect.defineProperty`
   * some minor fixes and optimizations
