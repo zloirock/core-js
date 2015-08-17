@@ -9,8 +9,9 @@ $.each.call(('assert,clear,count,debug,dir,dirxml,error,exception,' +
     'markTimeline,profile,profileEnd,table,time,timeEnd,timeline,' +
     'timelineEnd,timeStamp,trace,warn').split(','), function(key){
   log[key] = function(){
-    if(enabled && global.console && typeof console[key] == 'function'){
-      return Function.apply.call(console[key], console, arguments);
+    var $console = global.console;
+    if(enabled && $console && $console[key]){
+      return Function.apply.call($console[key], $console, arguments);
     }
   };
 });
