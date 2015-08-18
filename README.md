@@ -819,7 +819,7 @@ Map
 Set
   #toJSON() -> array
 ```
-[Examples](http://goo.gl/oMEYBJ):
+[Examples](http://goo.gl/aUZQRH):
 ```javascript
 [1, 2, 3].includes(2);        // => true
 [1, 2, 3].includes(4);        // => false
@@ -837,6 +837,9 @@ Array(1).includes(undefined); // => true
 'hello'.padLeft(10, '1234');  // => '41234hello'
 'hello'.padRight(10);         // => 'hello     '
 'hello'.padRight(10, '1234'); // => 'hello12341'
+
+'   hello   '.trimLeft();  // => 'hello   '
+'   hello   '.trimRight(); // => '   hello'
 
 Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
 Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
