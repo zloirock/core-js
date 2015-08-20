@@ -6,8 +6,7 @@ var global    = require('./$.global')
 
 function flush(){
   while(head){
-    // currently we use it only for Promise and errors will be caught in tasks
-    head.fn.call();
+    head.fn.call(); // <- currently we use it only for Promise - try / catch not required
     head = head.next;
   } last = undefined;
 }
@@ -17,7 +16,7 @@ if(require('./$.cof')(process) == 'process'){
   notify = function(){
     process.nextTick(flush);
   };
-// Browsers with MutationObserver
+// browsers with MutationObserver
 } else if(Observer){
   var toggle = 1
     , node   = document.createTextNode('');

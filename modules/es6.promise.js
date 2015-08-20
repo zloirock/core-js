@@ -17,7 +17,8 @@ var $          = require('./$')
   , RECORD     = require('./$.uid')('record')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
-  , isNode     = classof(global.process) == 'process'
+  , process    = global.process
+  , isNode     = classof(process) == 'process'
   , P          = global[PROMISE]
   , Wrapper;
 
