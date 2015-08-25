@@ -52,6 +52,12 @@ test 'Object.getOwnPropertySymbols' !->
   deq getOwnPropertyNames(foo)sort!, <[a d s]>
   eq getOwnPropertySymbols(foo).length, 1
 
+if JSON?
+  test 'Symbols & JSON.stringify' !->
+    eq JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'value'
+    if descriptors => eq JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'key'
+
+
 if descriptors
   test 'Symbols & descriptors' !->
     {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = core.Object

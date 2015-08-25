@@ -118,6 +118,9 @@ if(!useNative){
   $redef($Symbol.prototype, 'toString', function(){
     return this._k;
   });
+  $redef($Symbol.prototype, 'toJSON', function(){
+    return null;
+  });
 
   $.create     = create;
   $.isEnum     = propertyIsEnumerable;
