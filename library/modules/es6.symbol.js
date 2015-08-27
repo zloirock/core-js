@@ -18,7 +18,7 @@ var $              = require('./$')
   , createDesc     = require('./$.property-desc')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
-  , $create        = $.create
+  , _create        = $.create
   , getNames       = $names.get
   , $Symbol        = global.Symbol
   , setter         = false
@@ -31,7 +31,7 @@ var $              = require('./$')
 
 var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
   try {
-    return $create(setDesc({}, HIDDEN, {
+    return _create(setDesc({}, HIDDEN, {
       get: function(){
         return setDesc(this, HIDDEN, {value: false})[HIDDEN];
       }
@@ -47,7 +47,7 @@ var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
 }() : setDesc;
 
 var wrap = function(tag){
-  var sym = AllSymbols[tag] = $create($Symbol.prototype);
+  var sym = AllSymbols[tag] = _create($Symbol.prototype);
   sym._k = tag;
   SUPPORT_DESC && setter && setSymbolDesc(ObjectProto, tag, {
     configurable: true,
@@ -59,55 +59,55 @@ var wrap = function(tag){
   return sym;
 };
 
-function defineProperty(it, key, D){
+var $defineProperty = function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
     if(!D.enumerable){
       if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
       if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
-      D = $create(D, {enumerable: createDesc(0, false)});
+      D = _create(D, {enumerable: createDesc(0, false)});
     } return setSymbolDesc(it, key, D);
   } return setDesc(it, key, D);
-}
-function defineProperties(it, P){
+};
+var $defineProperties = function defineProperties(it, P){
   anObject(it);
   var keys = enumKeys(P = toIObject(P))
     , i    = 0
     , l = keys.length
     , key;
-  while(l > i)defineProperty(it, key = keys[i++], P[key]);
+  while(l > i)$defineProperty(it, key = keys[i++], P[key]);
   return it;
-}
-function create(it, P){
-  return P === undefined ? $create(it) : defineProperties($create(it), P);
-}
-function propertyIsEnumerable(key){
+};
+var $create = function create(it, P){
+  return P === undefined ? _create(it) : $defineProperties(_create(it), P);
+};
+var $propertyIsEnumerable = function propertyIsEnumerable(key){
   var E = isEnum.call(this, key);
   return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key]
     ? E : true;
-}
-function getOwnPropertyDescriptor(it, key){
+};
+var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key){
   var D = getDesc(it = toIObject(it), key);
   if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
   return D;
-}
-function getOwnPropertyNames(it){
+};
+var $getOwnPropertyNames = function getOwnPropertyNames(it){
   var names  = getNames(toIObject(it))
     , result = []
     , i      = 0
     , key;
   while(names.length > i)if(!has(AllSymbols, key = names[i++]) && key != HIDDEN)result.push(key);
   return result;
-}
-function getOwnPropertySymbols(it){
+};
+var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
   var names  = getNames(toIObject(it))
     , result = []
     , i      = 0
     , key;
   while(names.length > i)if(has(AllSymbols, key = names[i++]))result.push(AllSymbols[key]);
   return result;
-}
+};
 
 // 19.4.1.1 Symbol([description])
 if(!useNative){
@@ -119,16 +119,16 @@ if(!useNative){
     return this._k;
   });
 
-  $.create     = create;
-  $.isEnum     = propertyIsEnumerable;
-  $.getDesc    = getOwnPropertyDescriptor;
-  $.setDesc    = defineProperty;
-  $.setDescs   = defineProperties;
-  $.getNames   = $names.get = getOwnPropertyNames;
-  $.getSymbols = getOwnPropertySymbols;
+  $.create     = $create;
+  $.isEnum     = $propertyIsEnumerable;
+  $.getDesc    = $getOwnPropertyDescriptor;
+  $.setDesc    = $defineProperty;
+  $.setDescs   = $defineProperties;
+  $.getNames   = $names.get = $getOwnPropertyNames;
+  $.getSymbols = $getOwnPropertySymbols;
 
   if(SUPPORT_DESC && !require('./$.library')){
-    $redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
+    $redef(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
   }
 }
 
@@ -179,17 +179,17 @@ $def($def.S, 'Symbol', symbolStatics);
 
 $def($def.S + $def.F * !useNative, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
-  create: create,
+  create: $create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
-  defineProperty: defineProperty,
+  defineProperty: $defineProperty,
   // 19.1.2.3 Object.defineProperties(O, Properties)
-  defineProperties: defineProperties,
+  defineProperties: $defineProperties,
   // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
-  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
   // 19.1.2.7 Object.getOwnPropertyNames(O)
-  getOwnPropertyNames: getOwnPropertyNames,
+  getOwnPropertyNames: $getOwnPropertyNames,
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
-  getOwnPropertySymbols: getOwnPropertySymbols
+  getOwnPropertySymbols: $getOwnPropertySymbols
 });
 
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
