@@ -54,8 +54,9 @@ test 'Object.getOwnPropertySymbols' !->
 
 if JSON?
   test 'Symbols & JSON.stringify' !->
-    eq JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'value'
-    if descriptors => eq JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'key'
+    eq JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'array value'
+    eq JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
+    if descriptors => eq JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
 
 
 if descriptors

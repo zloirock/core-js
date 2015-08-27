@@ -115,7 +115,7 @@ if(!useNative){
     if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
     return wrap(uid(arguments[0]));
   };
-  $redef($Symbol.prototype, 'toString', function(){
+  $redef($Symbol.prototype, 'toString', function toString(){
     return this._k;
   });
 
@@ -131,6 +131,11 @@ if(!useNative){
     $redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
   }
 }
+
+// MS Edge converts symbols to JSON as '{}'
+if(!useNative || require('./$.fails')(function(){
+  return JSON.stringify([$Symbol()]) != '[null]';
+}))$redef($Symbol.prototype, 'toJSON', function toJSON(){ /* return undefined */ });
 
 var symbolStatics = {
   // 19.4.2.1 Symbol.for(key)
