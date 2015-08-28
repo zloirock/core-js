@@ -1270,6 +1270,11 @@ delay(1e3).then(() => log('after 1 sec'));
 - `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 
 ## Changelog
+##### 1.1.2 - 2015.08.28
+  * added `toJSON` method to [`Symbol`](#ecmascript-6-symbol) polyfill and to MS Edge implementation for expected `JSON.stringify` result w/o patching this method
+  * replaced [`Reflect.construct`](#ecmascript-6-reflect) implementations w/o correct support third argument
+  * fixed `global` detection with changed `document.domain` in ~IE8, [#100](https://github.com/zloirock/core-js/issues/100)
+
 ##### 1.1.1 - 2015.08.20
   * added more correct microtask implementation for [`Promise`](#ecmascript-6-promise)
 

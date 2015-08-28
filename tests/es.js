@@ -2610,6 +2610,7 @@
       return this.x = 42;
     }, [], Array);
     eq(inst.x, 42, 'constructor with newTarget');
+    ok(inst instanceof Array, 'prototype with newTarget');
     throws(function(){
       return construct(42, []);
     }, TypeError, 'throws on primitive');
@@ -5239,6 +5240,18 @@
     deq(getOwnPropertyNames(foo).sort(), ['a', 'd', 's']);
     eq(getOwnPropertySymbols(foo).length, 1);
   });
+  if (typeof JSON != 'undefined' && JSON !== null) {
+    test('Symbols & JSON.stringify', function(){
+      var ref$;
+      eq(JSON.stringify([1, Symbol('foo'), false, Symbol('bar'), {}]), '[1,null,false,null,{}]', 'array value');
+      eq(JSON.stringify({
+        foo: Symbol('foo')
+      }), '{}', 'object value');
+      if (descriptors) {
+        eq(JSON.stringify((ref$ = {}, ref$[Symbol('foo')] = 1, ref$.bar = 2, ref$)), '{"bar":2}', 'object key');
+      }
+    });
+  }
   if (descriptors) {
     test('Symbols & descriptors', function(){
       var create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, d, e, f, i, j, proto, ref$, O, desc;

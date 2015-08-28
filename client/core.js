@@ -1,5 +1,5 @@
 /**
- * core-js 1.1.1
+ * core-js 1.1.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -512,8 +512,10 @@
 /* 7 */
 /***/ function(module, exports) {
 
-	var global = typeof self != 'undefined' && self.Math == Math ? self : Function('return this')();
-	module.exports = global;
+	// https://github.com/zloirock/core-js/issues/86#issuecomment-115759028
+	var UNDEFINED = 'undefined';
+	var global = module.exports = typeof window != UNDEFINED && window.Math == Math
+	  ? window : typeof self != UNDEFINED && self.Math == Math ? self : Function('return this')();
 	if(typeof __g == 'number')__g = global; // eslint-disable-line no-undef
 
 /***/ },
@@ -901,7 +903,7 @@
 	  , createDesc     = __webpack_require__(5)
 	  , getDesc        = $.getDesc
 	  , setDesc        = $.setDesc
-	  , $create        = $.create
+	  , _create        = $.create
 	  , getNames       = $names.get
 	  , $Symbol        = global.Symbol
 	  , setter         = false
@@ -914,7 +916,7 @@
 
 	var setSymbolDesc = SUPPORT_DESC ? function(){ // fallback for old Android
 	  try {
-	    return $create(setDesc({}, HIDDEN, {
+	    return _create(setDesc({}, HIDDEN, {
 	      get: function(){
 	        return setDesc(this, HIDDEN, {value: false})[HIDDEN];
 	      }
@@ -930,7 +932,7 @@
 	}() : setDesc;
 
 	var wrap = function(tag){
-	  var sym = AllSymbols[tag] = $create($Symbol.prototype);
+	  var sym = AllSymbols[tag] = _create($Symbol.prototype);
 	  sym._k = tag;
 	  SUPPORT_DESC && setter && setSymbolDesc(ObjectProto, tag, {
 	    configurable: true,
@@ -942,55 +944,55 @@
 	  return sym;
 	};
 
-	function defineProperty(it, key, D){
+	var $defineProperty = function defineProperty(it, key, D){
 	  if(D && has(AllSymbols, key)){
 	    if(!D.enumerable){
 	      if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
 	      it[HIDDEN][key] = true;
 	    } else {
 	      if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
-	      D = $create(D, {enumerable: createDesc(0, false)});
+	      D = _create(D, {enumerable: createDesc(0, false)});
 	    } return setSymbolDesc(it, key, D);
 	  } return setDesc(it, key, D);
-	}
-	function defineProperties(it, P){
+	};
+	var $defineProperties = function defineProperties(it, P){
 	  anObject(it);
 	  var keys = enumKeys(P = toIObject(P))
 	    , i    = 0
 	    , l = keys.length
 	    , key;
-	  while(l > i)defineProperty(it, key = keys[i++], P[key]);
+	  while(l > i)$defineProperty(it, key = keys[i++], P[key]);
 	  return it;
-	}
-	function create(it, P){
-	  return P === undefined ? $create(it) : defineProperties($create(it), P);
-	}
-	function propertyIsEnumerable(key){
+	};
+	var $create = function create(it, P){
+	  return P === undefined ? _create(it) : $defineProperties(_create(it), P);
+	};
+	var $propertyIsEnumerable = function propertyIsEnumerable(key){
 	  var E = isEnum.call(this, key);
 	  return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key]
 	    ? E : true;
-	}
-	function getOwnPropertyDescriptor(it, key){
+	};
+	var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key){
 	  var D = getDesc(it = toIObject(it), key);
 	  if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
 	  return D;
-	}
-	function getOwnPropertyNames(it){
+	};
+	var $getOwnPropertyNames = function getOwnPropertyNames(it){
 	  var names  = getNames(toIObject(it))
 	    , result = []
 	    , i      = 0
 	    , key;
 	  while(names.length > i)if(!has(AllSymbols, key = names[i++]) && key != HIDDEN)result.push(key);
 	  return result;
-	}
-	function getOwnPropertySymbols(it){
+	};
+	var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
 	  var names  = getNames(toIObject(it))
 	    , result = []
 	    , i      = 0
 	    , key;
 	  while(names.length > i)if(has(AllSymbols, key = names[i++]))result.push(AllSymbols[key]);
 	  return result;
-	}
+	};
 
 	// 19.4.1.1 Symbol([description])
 	if(!useNative){
@@ -998,22 +1000,27 @@
 	    if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
 	    return wrap(uid(arguments[0]));
 	  };
-	  $redef($Symbol.prototype, 'toString', function(){
+	  $redef($Symbol.prototype, 'toString', function toString(){
 	    return this._k;
 	  });
 
-	  $.create     = create;
-	  $.isEnum     = propertyIsEnumerable;
-	  $.getDesc    = getOwnPropertyDescriptor;
-	  $.setDesc    = defineProperty;
-	  $.setDescs   = defineProperties;
-	  $.getNames   = $names.get = getOwnPropertyNames;
-	  $.getSymbols = getOwnPropertySymbols;
+	  $.create     = $create;
+	  $.isEnum     = $propertyIsEnumerable;
+	  $.getDesc    = $getOwnPropertyDescriptor;
+	  $.setDesc    = $defineProperty;
+	  $.setDescs   = $defineProperties;
+	  $.getNames   = $names.get = $getOwnPropertyNames;
+	  $.getSymbols = $getOwnPropertySymbols;
 
 	  if(SUPPORT_DESC && !__webpack_require__(37)){
-	    $redef(ObjectProto, 'propertyIsEnumerable', propertyIsEnumerable, true);
+	    $redef(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
 	  }
 	}
+
+	// MS Edge converts symbols to JSON as '{}'
+	if(!useNative || __webpack_require__(4)(function(){
+	  return JSON.stringify([$Symbol()]) != '[null]';
+	}))$redef($Symbol.prototype, 'toJSON', function toJSON(){ /* return undefined */ });
 
 	var symbolStatics = {
 	  // 19.4.2.1 Symbol.for(key)
@@ -1057,17 +1064,17 @@
 
 	$def($def.S + $def.F * !useNative, 'Object', {
 	  // 19.1.2.2 Object.create(O [, Properties])
-	  create: create,
+	  create: $create,
 	  // 19.1.2.4 Object.defineProperty(O, P, Attributes)
-	  defineProperty: defineProperty,
+	  defineProperty: $defineProperty,
 	  // 19.1.2.3 Object.defineProperties(O, Properties)
-	  defineProperties: defineProperties,
+	  defineProperties: $defineProperties,
 	  // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
-	  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+	  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
 	  // 19.1.2.7 Object.getOwnPropertyNames(O)
-	  getOwnPropertyNames: getOwnPropertyNames,
+	  getOwnPropertyNames: $getOwnPropertyNames,
 	  // 19.1.2.8 Object.getOwnPropertySymbols(O)
-	  getOwnPropertySymbols: getOwnPropertySymbols
+	  getOwnPropertySymbols: $getOwnPropertySymbols
 	});
 
 	// 19.4.3.5 Symbol.prototype[@@toStringTag]
@@ -3041,7 +3048,7 @@
 	  , process   = global.process
 	  , head, last, notify;
 
-	function flush(){
+	var flush = function(){
 	  while(head){
 	    head.fn.call(); // <- currently we use it only for Promise - try / catch not required
 	    head = head.next;
@@ -3627,7 +3634,12 @@
 	  , isObject  = __webpack_require__(9)
 	  , bind      = Function.bind || __webpack_require__(13).Function.prototype.bind;
 
-	$def($def.S, 'Reflect', {
+	// MS Edge supports only 2 arguments
+	// FF Nightly sets third argument as `new.target`, but does not create `this` from it
+	$def($def.S + $def.F * __webpack_require__(4)(function(){
+	  function F(){}
+	  return !(Reflect.construct(function(){}, [], F) instanceof F);
+	}), 'Reflect', {
 	  construct: function construct(Target, args /*, newTarget*/){
 	    aFunction(Target);
 	    if(arguments.length < 3){
@@ -3822,8 +3834,9 @@
 
 	// all object keys, includes non-enumerable and symbols
 	var $        = __webpack_require__(2)
-	  , anObject = __webpack_require__(26);
-	module.exports = function ownKeys(it){
+	  , anObject = __webpack_require__(26)
+	  , Reflect  = __webpack_require__(7).Reflect;
+	module.exports = Reflect && Reflect.ownKeys || function ownKeys(it){
 	  var keys       = $.getNames(anObject(it))
 	    , getSymbols = $.getSymbols;
 	  return getSymbols ? keys.concat(getSymbols(it)) : keys;

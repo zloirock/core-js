@@ -4,7 +4,7 @@ var global    = require('./$.global')
   , process   = global.process
   , head, last, notify;
 
-function flush(){
+var flush = function(){
   while(head){
     head.fn.call(); // <- currently we use it only for Promise - try / catch not required
     head = head.next;

@@ -9,9 +9,8 @@ var $         = require('./$')
 // MS Edge supports only 2 arguments
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 $def($def.S + $def.F * require('./$.fails')(function(){
-  function A(){}
-  function B(){}
-  return !(Reflect.construct(A, [], B) instanceof B);
+  function F(){}
+  return !(Reflect.construct(function(){}, [], F) instanceof F);
 }), 'Reflect', {
   construct: function construct(Target, args /*, newTarget*/){
     aFunction(Target);

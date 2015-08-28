@@ -1,7 +1,7 @@
 {
   "name": "core.js",
   "main": "client/core.js",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Standard Library",
   "keywords": [
     "ES6",
