@@ -2,7 +2,7 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](http://npm-stat.com/charts.html?package=core-js&author=&from=2014-11-18&to=2114-11-18) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
 
-Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbols), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promises), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
+Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbol), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promise), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
@@ -28,11 +28,18 @@ core.setImmediate(core.log, 42);                // => 42
 - [API](#api)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
-  - [ECMAScript 6: Symbols](#ecmascript-6-symbols)
-  - [ECMAScript 6: Collections](#ecmascript-6-collections)
-  - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
-  - [ECMAScript 6: Promises](#ecmascript-6-promises)
-  - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
+    - [ECMAScript 6: Object](#ecmascript-6-object)
+    - [ECMAScript 6: Function](#ecmascript-6-function)
+    - [ECMAScript 6: Array](#ecmascript-6-array)
+    - [ECMAScript 6: String](#ecmascript-6-string)
+    - [ECMAScript 6: RegExp](#ecmascript-6-regexp)
+    - [ECMAScript 6: Number](#ecmascript-6-number)
+    - [ECMAScript 6: Math](#ecmascript-6-math)
+    - [ECMAScript 6: Symbol](#ecmascript-6-symbol)
+    - [ECMAScript 6: Collections](#ecmascript-6-collections)
+    - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
+    - [ECMAScript 6: Promise](#ecmascript-6-promise)
+    - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [setTimeout / setInterval](#settimeout--setinterval)
@@ -154,19 +161,16 @@ String
 ```
 
 ### ECMAScript 6
-#### ECMAScript 6: Object & Function
-Modules [`es6.object.assign`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.assign.js), [`es6.object.is`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.is.js), [`es6.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.set-prototype-of.js), [`es6.object.to-string`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.to-string.js), [`es6.function.name`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.function.name.js) and [`es6.function.has-instance`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.function.has-instance.js).
+#### ECMAScript 6: Object
+Modules [`es6.object.assign`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.assign.js), [`es6.object.is`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.is.js), [`es6.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.set-prototype-of.js) and [`es6.object.to-string`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.to-string.js).
 ```javascript
 Object
   .assign(target, ...src) -> target
   .is(a, b) -> bool
-  .setPrototypeOf(target, proto | null) -> target, sham (required __proto__)
+  .setPrototypeOf(target, proto | null) -> target (required __proto__ - IE11+)
   #toString() -> string, ES6 fix: @@toStringTag support
-Function
-  #name -> string (IE9+)
-  #@@hasInstance(var) -> bool
 ```
-[Example](http://goo.gl/UN5ZDT):
+[Example](http://goo.gl/VzmY3j):
 ```javascript
 var foo = {q: 1, w: 2}
   , bar = {e: 3, r: 4}
@@ -187,8 +191,6 @@ new Child instanceof Parent; // => true
 var O = {};
 O[Symbol.toStringTag] = 'Foo';
 '' + O; // => '[object Foo]'
-
-(function foo(){}).name // => 'foo'
 ```
 In ES6 most `Object` static methods should work with primitives. Modules [`es6.object.freeze`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.freeze.js), [`es6.object.seal`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.seal.js), [`es6.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.prevent-extensions.js), [`es6.object.is-frozen`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.is-frozen.js), [`es6.object.is-sealed`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.is-sealed.js), [`es6.object.is-extensible`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.is-extensible.js), [`es6.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.get-own-property-descriptor.js), [`es6.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.get-prototype-of.js), [`es6.object.keys`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.keys.js), [`es6.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.object.get-own-property-names.js).
 ```javascript
@@ -208,6 +210,17 @@ Object
 ```javascript
 Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
+```
+#### ECMAScript 6: Function
+Modules [`es6.function.name`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.function.name.js) and [`es6.function.has-instance`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.function.has-instance.js).
+```javascript
+Function
+  #name -> string (IE9+)
+  #@@hasInstance(var) -> bool
+```
+[Example](http://goo.gl/zqu3Wp):
+```javascript
+(function foo(){}).name // => 'foo'
 ```
 #### ECMAScript 6: Array
 Modules [`es6.array.from`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.from.js), [`es6.array.of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.of.js), [`es6.array.copy-within`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.copy-within.js), [`es6.array.fill`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.fill.js), [`es6.array.find`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.find.js) and [`es6.array.find-index`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.find-index.js).
@@ -245,8 +258,8 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
-#### ECMAScript 6: String & RegExp
-`String`: modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.raw.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.trim.js).
+#### ECMAScript 6: String
+Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.raw.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.trim.js).
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -258,25 +271,7 @@ String
   #codePointAt(pos) -> uint
   #trim() -> str, ES6 fix
 ```
-`RegExp`: modules [`es6.regexp.constructor`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.constructor.js) and [`es6.regexp.flags`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.flags.js).
-```
-[new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags (IE9+)
-  #flags -> str (IE9+)
-```
-Support well-known symbols `@@match`, `@@replace`, `@@search` and `@@split`: modules [`es6.regexp.match`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.match.js), [`es6.regexp.replace`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.replace.js), [`es6.regexp.search`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.search.js) and [`es6.regexp.split`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.split.js).
-```
-String
-  #match(tpl) -> var, ES6 fix for support @@match
-  #replace(tpl, replacer) -> var, ES6 fix for support @@replace
-  #search(tpl) -> var, ES6 fix for support @@search
-  #split(tpl, limit) -> var, ES6 fix for support @@split
-RegExp
-  #@@match(str) -> array | null
-  #@@replace(str, replacer) -> string
-  #@@search(str) -> index
-  #@@split(str, limit) -> array
-```
-[Examples](http://goo.gl/lMLr7f):
+[Examples](http://goo.gl/RMyFBo):
 ```javascript
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
@@ -293,7 +288,26 @@ String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 var name = 'Bob';
 String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!' (ES6 template string syntax)
 String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
+```
+#### ECMAScript 6: RegExp
+Modules [`es6.regexp.constructor`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.constructor.js) and [`es6.regexp.flags`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.flags.js).
 
+Support well-known [symbols](#ecmascript-6-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es6.regexp.match`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.match.js), [`es6.regexp.replace`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.replace.js), [`es6.regexp.search`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.search.js) and [`es6.regexp.split`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.regexp.split.js).
+```
+String
+  #match(tpl) -> var, ES6 fix for support @@match
+  #replace(tpl, replacer) -> var, ES6 fix for support @@replace
+  #search(tpl) -> var, ES6 fix for support @@search
+  #split(tpl, limit) -> var, ES6 fix for support @@split
+[new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags (IE9+)
+  #flags -> str (IE9+)
+  #@@match(str) -> array | null
+  #@@replace(str, replacer) -> string
+  #@@search(str) -> index
+  #@@split(str, limit) -> array
+```
+[Examples](http://goo.gl/vLV603):
+```javascript
 RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;    // => ''
@@ -304,7 +318,7 @@ RegExp(/./g, 'm'); // => /./m
 'foo'.search({[Symbol.search]: _ => 3});   // => 3
 'foo'.split({[Symbol.split]: _ => 4});     // => 4
 ```
-#### ECMAScript 6: Number & Math
+#### ECMAScript 6: Number
 Module [`es6.number.constructor`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.constructor.js). `Number` constructor support binary and octal literals, [example](http://goo.gl/jRd6b3):
 ```javascript
 Number('0b1010101'); // => 85
@@ -312,7 +326,7 @@ Number('0o7654321'); // => 2054353
 ```
 `Number`: modules [`es6.number.epsilon`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.epsilon.js), [`es6.number.is-finite`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.is-finite.js), [`es6.number.is-integer`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.is-integer.js), [`es6.number.is-nan`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.is-nan.js), [`es6.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.is-safe-integer.js), [`es6.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.max-safe-integer.js), [`es6.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.min-safe-integer.js), [`es6.number.parse-float`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.parse-float.js), [`es6.number.parse-int`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.number.parse-int.js).
 ```javascript
-Number
+[new] Number(var) -> number | number object
   .EPSILON -> num
   .isFinite(num) -> bool
   .isInteger(num) -> bool
@@ -323,6 +337,7 @@ Number
   .parseFloat(str) -> num
   .parseInt(str) -> int
 ```
+#### ECMAScript 6: Math
 `Math`: modules [`es6.math.acosh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.acosh.js), [`es6.math.asinh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.asinh.js), [`es6.math.atanh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.atanh.js), [`es6.math.cbrt`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.cbrt.js), [`es6.math.clz32`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.clz32.js), [`es6.math.cosh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.cosh.js), [`es6.math.expm1`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.expm1.js), [`es6.math.fround`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.fround.js), [`es6.math.hypot`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.hypot.js), [`es6.math.imul`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.imul.js), [`es6.math.log10`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.log10.js), [`es6.math.log1p`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.log1p.js), [`es6.math.log2`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.log2.js), [`es6.math.sign`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.sign.js), [`es6.math.sinh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.sinh.js), [`es6.math.tanh`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.tanh.js), [`es6.math.trunc`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.math.trunc.js).
 ```javascript
 Math
@@ -345,7 +360,7 @@ Math
   .trunc(num) -> num
 ```
 
-### ECMAScript 6: Symbols
+#### ECMAScript 6: Symbol
 Module [`es6.symbol`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.symbol.js).
 ```javascript
 Symbol(description?) -> symbol
@@ -434,7 +449,7 @@ for(var key in o2)log(key); // nothing
 ```
 * Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
 
-### ECMAScript 6: Collections
+#### ECMAScript 6: Collections
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map
 Module [`es6.map`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.map.js). About iterators from this module [here](#ecmascript-6-iterators).
@@ -558,7 +573,7 @@ log(wset.has(b));   // => false
 * Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collections, leak.
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
-### ECMAScript 6: Iterators
+#### ECMAScript 6: Iterators
 Modules [`es6.string.iterator`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.string.iterator.js) and [`es6.array.iterator`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.array.iterator.js):
 ```javascript
 String
@@ -569,7 +584,7 @@ Array
   #entries() -> iterator (entries)
   #@@iterator() -> iterator
 Arguments
-  #@@iterator() -> iterator (sham, available only in core-js methods)
+  #@@iterator() -> iterator (available only in core-js methods)
 ```
 Modules [`es6.map`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.map.js) and [`es6.set`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.set.js):
 ```javascript
@@ -665,7 +680,7 @@ log(iter.next().value); // undefined
 
 log(core.getIteratorMethod({})); // undefined
 ```
-### ECMAScript 6: Promises
+#### ECMAScript 6: Promise
 Module [`es6.promise`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.promise.js).
 ```javascript
 new Promise(executor(resolve(var), reject(var))) -> promise
@@ -756,7 +771,7 @@ async function sleepError(time, msg){
 ```
 `core-js` `Promise` supports (but not adds to native implementations) unhandled rejection tracking. In browser you will see notify in console, in node.js / io.js you can use [`unhandledRejection`](https://gist.github.com/benjamingr/0237932cee84712951a2) event.
 
-### ECMAScript 6: Reflect
+#### ECMAScript 6: Reflect
 Modules [`es6.reflect.apply`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.apply.js), [`es6.reflect.construct`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.construct.js), [`es6.reflect.define-property`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.define-property.js), [`es6.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.delete-property.js), [`es6.reflect.enumerate`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.enumerate.js), [`es6.reflect.get`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.get.js), [`es6.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.get-own-property-descriptor.js), [`es6.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.get-prototype-of.js), [`es6.reflect.has`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.has.js), [`es6.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.is-extensible.js), [`es6.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.own-keys.js), [`es6.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.prevent-extensions.js), [`es6.reflect.set`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.set.js), [`es6.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/es6.reflect.set-prototype-of.js).
 ```javascript
 Reflect
@@ -773,7 +788,7 @@ Reflect
   .ownKeys(target) -> array
   .preventExtensions(target) -> bool
   .set(target, propertyKey, V, receiver?) -> bool
-  .setPrototypeOf(target, proto) -> bool, sham(ie11+)
+  .setPrototypeOf(target, proto) -> bool (required __proto__ - IE11+)
 ```
 [Example](http://goo.gl/gVT0cH):
 ```javascript
@@ -1233,7 +1248,7 @@ String
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
 ### delay
-Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/core.delay.js). [Promise](#ecmascript-6-promises)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
+Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.1.1/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
 ```javascript
 delay(1e3).then(() => log('after 1 sec'));
 
@@ -1256,7 +1271,7 @@ delay(1e3).then(() => log('after 1 sec'));
 
 ## Changelog
 ##### 1.1.1 - 2015.08.20
-  * added more correct microtask implementation for [`Promise`](#ecmascript-6-promises)
+  * added more correct microtask implementation for [`Promise`](#ecmascript-6-promise)
 
 ##### 1.1.0 - 2015.08.17
   * updated [string padding](#ecmascript-7) to [actual proposal](https://github.com/ljharb/proposal-string-pad-left-right) - renamed, minor internal changes:
@@ -1265,17 +1280,17 @@ delay(1e3).then(() => log('after 1 sec'));
   * added [string trim functions](#ecmascript-7) - [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), defacto standard - required only for IE11- and fixed for some old engines:
     * `String#trimLeft`
     * `String#trimRight`
-  * [`String#trim`](#ecmascript-6-string--regexp) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
-  * splitted [`es6.object.statics-accept-primitives`](#ecmascript-6-object--function)
-  * caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](#ecmascript-6-object--function)
+  * [`String#trim`](#ecmascript-6-string) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
+  * splitted [`es6.object.statics-accept-primitives`](#ecmascript-6-object)
+  * caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](#ecmascript-6-object)
   * `es5` [namespace](#commonjs) also includes modules, moved to `es6` namespace - you can use it as before
   * increased `MessageChannel` priority in `$.task`, [#95](https://github.com/zloirock/core-js/issues/95)
   * does not get `global.Symbol` on each getting iterator, if you wanna use alternative `Symbol` shim - add it before `core-js`
   * [`Reflect.construct`](#ecmascript-6-reflect) optimized and fixed for some cases
   * simplified [`Reflect.enumerate`](#ecmascript-6-reflect), see [this question](https://esdiscuss.org/topic/question-about-enumerate-and-property-decision-timing)
-  * some corrections in [`Math.acosh`](#ecmascript-6-number--math)
-  * fixed [`Math.imul`](#ecmascript-6-number--math) for old WebKit
-  * some fixes in string / RegExp [well-known symbols](#ecmascript-6-string--regexp) logic
+  * some corrections in [`Math.acosh`](#ecmascript-6-math)
+  * fixed [`Math.imul`](#ecmascript-6-math) for old WebKit
+  * some fixes in string / RegExp [well-known symbols](#ecmascript-6-regexp) logic
   * some other fixes and optimizations
 
 ##### 1.0.1 - 2015.07.31
@@ -1284,13 +1299,13 @@ delay(1e3).then(() => log('after 1 sec'));
   * changed compression `client/*.min.js` options for safe `Function#name` and `Function#length`, should be fixed [#92](https://github.com/zloirock/core-js/issues/92)
 
 ##### 1.0.0 - 2015.07.22
-  * added logic for [well-known symbols](#ecmascript-6-string--regexp):
+  * added logic for [well-known symbols](#ecmascript-6-regexp):
     * `Symbol.match`
     * `Symbol.replace`
     * `Symbol.split`
     * `Symbol.search`
   * actualized and optimized work with iterables:
-    * optimized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](#ecmascript-6-collections), [`Promise.all`, `Promise.race`](#ecmascript-6-promises) for default `Array Iterator`
+    * optimized  [`Map`, `Set`, `WeakMap`, `WeakSet` constructors](#ecmascript-6-collections), [`Promise.all`, `Promise.race`](#ecmascript-6-promise) for default `Array Iterator`
     * optimized  [`Array.from`](#ecmascript-6-array) for default `Array Iterator`
     * added [`core.getIteratorMethod`](#ecmascript-6-iterators) helper
   * uses enumerable properties in shimmed instances - collections, iterators, etc for optimize performance
@@ -1299,9 +1314,9 @@ delay(1e3).then(() => log('after 1 sec'));
   * removed obsolete `.clear` methods native [`Weak`-collections](#ecmascript-6-collections)
   * maximum modularity, reduced minimal custom build size, separated into submodules:
     * [`es6.reflect`](#ecmascript-6-reflect)
-    * [`es6.regexp`](#ecmascript-6-string--regexp)
-    * [`es6.math`](#ecmascript-6-number--math)
-    * [`es6.number`](#ecmascript-6-number--math)
+    * [`es6.regexp`](#ecmascript-6-regexp)
+    * [`es6.math`](#ecmascript-6-math)
+    * [`es6.number`](#ecmascript-6-number)
     * [`es7.object.to-array`](#ecmascript-7)
     * [`core.object`](#object)
     * [`core.string`](#escaping-html)
@@ -1327,13 +1342,13 @@ delay(1e3).then(() => log('after 1 sec'));
   * fixed conflict with webpack dev server + IE buggy behavior
 
 ##### 0.9.16 - 2015.06.11
-  * more correct order resolving thenable in [`Promise`](#ecmascript-6-promises) polyfill
+  * more correct order resolving thenable in [`Promise`](#ecmascript-6-promise) polyfill
   * uses polyfill instead of [buggy V8 `Promise`](https://github.com/zloirock/core-js/issues/78)
 
 ##### 0.9.15 - 2015.06.09
   * [collections](#ecmascript-6-collections) from `library` version return wrapped native instances
   * fixed collections prototype methods in `library` version
-  * optimized [`Math.hypot`](#ecmascript-6-number--math)
+  * optimized [`Math.hypot`](#ecmascript-6-math)
 
 ##### 0.9.14 - 2015.06.04
   * updated [`Promise.resolve` behavior](https://esdiscuss.org/topic/fixing-promise-resolve)
@@ -1341,7 +1356,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * some other fixes
 
 ##### 0.9.13 - 2015.05.25
-  * added fallback for [`Symbol` polyfill](#ecmascript-6-symbols) for old Android
+  * added fallback for [`Symbol` polyfill](#ecmascript-6-symbol) for old Android
   * some other fixes
 
 ##### 0.9.12 - 2015.05.24
@@ -1359,12 +1374,12 @@ delay(1e3).then(() => log('after 1 sec'));
   * added proto versions of methods to export object in `default` version for consistency with `library` version
 
 ##### 0.9.9 - 2015.05.14
-  * wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](#ecmascript-6-symbols)
+  * wrapped `Object#propertyIsEnumerable` for [`Symbol` polyfill](#ecmascript-6-symbol)
   * [added proto versions of methods to `library` for ES7 bind syntax](https://github.com/zloirock/core-js/issues/65)
   * some other fixes
 
 ##### 0.9.8 - 2015.05.12
-  * fixed [`Math.hypot`](#ecmascript-6-number--math) with negative arguments
+  * fixed [`Math.hypot`](#ecmascript-6-math) with negative arguments
   * added `Object#toString.toString` as fallback for [`lodash` `isNative`](https://github.com/lodash/lodash/issues/1197)
 
 ##### 0.9.7 - 2015.05.07
@@ -1384,13 +1399,13 @@ delay(1e3).then(() => log('after 1 sec'));
   * some fixes and optimizations
 
 ##### 0.9.2 - 2015.04.25
-  * more correct [`Promise`](#ecmascript-6-promises) unhandled rejection tracking and resolving / rejection priority
+  * more correct [`Promise`](#ecmascript-6-promise) unhandled rejection tracking and resolving / rejection priority
 
 ##### 0.9.1 - 2015.04.25
-  * fixed `__proto__`-based [`Promise`](#ecmascript-6-promises) subclassing in some environments
+  * fixed `__proto__`-based [`Promise`](#ecmascript-6-promise) subclassing in some environments
 
 ##### 0.9.0 - 2015.04.24
-  * added correct [symbols](#ecmascript-6-symbols) descriptors
+  * added correct [symbols](#ecmascript-6-symbol) descriptors
     * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
     * added [single entry points](#commonjs) for `Object.{create, defineProperty, defineProperties}`
   * added [`Map#toJSON`](#ecmascript-7)
@@ -1405,7 +1420,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * fixed `Array` statics with single entry points
 
 ##### 0.8.2 - 2015.04.13
-  * [`Math.fround`](#ecmascript-6-number--math) now also works in IE9-
+  * [`Math.fround`](#ecmascript-6-math) now also works in IE9-
   * added [`Set#toJSON`](#ecmascript-7)
   * some optimizations and fixes
 
@@ -1435,7 +1450,7 @@ delay(1e3).then(() => log('after 1 sec'));
 
 ##### 0.6.0 - 2015.02.23
   * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
-  * added basic support [`Promise`](#ecmascript-6-promises) unhandled rejection tracking in shim
+  * added basic support [`Promise`](#ecmascript-6-promise) unhandled rejection tracking in shim
   * added [`Object.getOwnPropertyDescriptors`](#ecmascript-7)
   * removed `console` cap - creates too many problems - you can use [`core.log`](#console) module as that
   * restructuring [namespaces](#custom-build)
@@ -1445,7 +1460,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * some fixes
 
 ##### 0.5.3 - 2015.02.14
-  * added [support binary and octal literals](#ecmascript-6-number--math) to `Number` constructor
+  * added [support binary and octal literals](#ecmascript-6-number) to `Number` constructor
   * added [`Date#toISOString`](#ecmascript-5)
 
 ##### 0.5.2 - 2015.02.10
@@ -1462,7 +1477,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * some fixes
 
 ##### 0.4.10 - 2015.01.28
-  * [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols) polyfill returns array of wrapped keys
+  * [`Object.getOwnPropertySymbols`](#ecmascript-6-symbol) polyfill returns array of wrapped keys
 
 ##### 0.4.9 - 2015.01.27
   * FF20-24 fix
@@ -1474,7 +1489,7 @@ delay(1e3).then(() => log('after 1 sec'));
   * added support frozen objects as [collections](#ecmascript-6-collections) keys
 
 ##### 0.4.6 - 2015.01.21
-  * added [`Object.getOwnPropertySymbols`](#ecmascript-6-symbols)
+  * added [`Object.getOwnPropertySymbols`](#ecmascript-6-symbol)
   * added [`NodeList.prototype[@@iterator]`](#ecmascript-6-iterators)
   * added basic `@@species` logic - getter in native constructors
   * removed `Function#by`
@@ -1537,11 +1552,11 @@ delay(1e3).then(() => log('after 1 sec'));
 
 ##### 0.2.4 - 2014.12.17
   * better compliance of ES6
-  * added [`Math.fround`](#ecmascript-6-number--math) (IE10+)
+  * added [`Math.fround`](#ecmascript-6-math) (IE10+)
   * some fixes
 
 ##### 0.2.3 - 2014.12.15
-  * [Symbols](#ecmascript-6-symbols):
+  * [Symbols](#ecmascript-6-symbol):
     * added option to disable addition setter to `Object.prototype` for Symbol polyfill:
       * added `Symbol.useSimple`
       * added `Symbol.useSetter`
@@ -1557,8 +1572,8 @@ delay(1e3).then(() => log('after 1 sec'));
       * added `Symbol.unscopables`
 
 ##### 0.2.2 - 2014.12.13
-  * added [`RegExp#flags`](#ecmascript-6-string--regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
-  * added [`String.raw`](#ecmascript-6-string--regexp)
+  * added [`RegExp#flags`](#ecmascript-6-regexp) ([December 2014 Draft Rev 29](http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#december_6_2014_draft_rev_29))
+  * added [`String.raw`](#ecmascript-6-string)
 
 ##### 0.2.1 - 2014.12.12
   * repair converting -0 to +0 in [native collections](#ecmascript-6-collections)
@@ -1584,8 +1599,8 @@ delay(1e3).then(() => log('after 1 sec'));
 
 ##### 0.1.5 - 2014.12.01
   * added [`Array#copyWithin`](#ecmascript-6-array)
-  * added [`String#codePointAt`](#ecmascript-6-string--regexp)
-  * added [`String.fromCodePoint`](#ecmascript-6-string--regexp)
+  * added [`String#codePointAt`](#ecmascript-6-string)
+  * added [`String.fromCodePoint`](#ecmascript-6-string)
 
 ##### 0.1.4 - 2014.11.27
   * added [`Dict.mapPairs`](#dict)
@@ -1593,7 +1608,7 @@ delay(1e3).then(() => log('after 1 sec'));
 ##### 0.1.3 - 2014.11.20
   * [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
     * [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
-      * `String#contains` -> [`String#includes`](#ecmascript-6-string--regexp)
+      * `String#contains` -> [`String#includes`](#ecmascript-6-string)
       * `Array#contains` -> [`Array#includes`](#ecmascript-7)
       * `Dict.contains` -> [`Dict.includes`](#dict)
     * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
