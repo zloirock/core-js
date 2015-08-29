@@ -1,5 +1,5 @@
 /**
- * core-js 1.1.2
+ * core-js 1.1.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -2751,17 +2751,27 @@
 	  , macrotask = __webpack_require__(123).set
 	  , Observer  = global.MutationObserver || global.WebKitMutationObserver
 	  , process   = global.process
+	  , isNode    = __webpack_require__(11)(process) == 'process'
 	  , head, last, notify;
 
 	var flush = function(){
+	  var parent, domain;
+	  if(isNode && (parent = process.domain)){
+	    process.domain = null;
+	    parent.exit();
+	  }
 	  while(head){
+	    domain = head.domain;
+	    if(domain)domain.enter();
 	    head.fn.call(); // <- currently we use it only for Promise - try / catch not required
+	    if(domain)domain.exit();
 	    head = head.next;
 	  } last = undefined;
+	  if(parent)parent.enter();
 	}
 
 	// Node.js
-	if(__webpack_require__(11)(process) == 'process'){
+	if(isNode){
 	  notify = function(){
 	    process.nextTick(flush);
 	  };
@@ -2787,7 +2797,7 @@
 	}
 
 	module.exports = function asap(fn){
-	  var task = {fn: fn, next: undefined};
+	  var task = {fn: fn, next: undefined, domain: isNode && process.domain};
 	  if(last)last.next = task;
 	  if(!head){
 	    head = task;
