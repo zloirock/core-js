@@ -1,4 +1,5 @@
 require! <[./build fs ./config]>
+library-tests = <[client/library.js tests/library.js]>map -> src: it
 module.exports = (grunt)->
   grunt.loadNpmTasks \grunt-contrib-clean
   grunt.loadNpmTasks \grunt-contrib-copy
@@ -43,15 +44,17 @@ module.exports = (grunt)->
         files: './tests/tests/*'
         tasks: \livescript
     karma:
-      unit:
+      'options':
         configFile: './tests/karma.conf.js'
-      continuous:
-        configFile: './tests/karma.conf.js'
-        singleRun: true
         browsers: <[PhantomJS]>
-      lt:
-        configFile: './tests/karma.conf.js'
-        singleRun: true
+        singleRun: on
+      'continuous': {}
+      'continuous-library':
+        files: library-tests
+      'lt':
+        browsers: <[PhantomJS PhantomJS2]>
+      'lt-library':
+        files: library-tests
         browsers: <[PhantomJS PhantomJS2]>
   grunt.registerTask \build (options)->
     done = @async!
