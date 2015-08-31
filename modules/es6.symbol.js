@@ -13,6 +13,7 @@ var $              = require('./$')
   , keyOf          = require('./$.keyof')
   , $names         = require('./$.get-names')
   , enumKeys       = require('./$.enum-keys')
+  , isObject       = require('./$.is-object')
   , anObject       = require('./$.an-object')
   , toIObject      = require('./$.to-iobject')
   , createDesc     = require('./$.property-desc')
@@ -135,7 +136,9 @@ if(!useNative){
 // MS Edge converts symbols to JSON as '{}'
 if(!useNative || require('./$.fails')(function(){
   return JSON.stringify([$Symbol()]) != '[null]';
-}))$redef($Symbol.prototype, 'toJSON', function toJSON(){ /* return undefined */ });
+}))$redef($Symbol.prototype, 'toJSON', function toJSON(){
+  if(useNative && isObject(this))return this;
+});
 
 var symbolStatics = {
   // 19.4.2.1 Symbol.for(key)
