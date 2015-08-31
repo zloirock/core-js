@@ -133,9 +133,10 @@ if(!useNative){
   }
 }
 
-// MS Edge converts symbols to JSON as '{}'
+// MS Edge converts symbol values to JSON as {}
+// WebKit converts symbol values in objects to JSON as null
 if(!useNative || require('./$.fails')(function(){
-  return JSON.stringify([$Symbol()]) != '[null]';
+  return JSON.stringify([{a: $Symbol()}, [$Symbol()]]) != '[{},[null]]';
 }))$redef($Symbol.prototype, 'toJSON', function toJSON(){
   if(useNative && isObject(this))return this;
 });
