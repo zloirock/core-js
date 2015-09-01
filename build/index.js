@@ -16,7 +16,7 @@
       ? ref$
       : [], library = (ref$ = arg$.library) != null ? ref$ : false;
     (function(){
-      var check, i$, x$, ref$, len$, y$, ns, name, j$, len1$, ENTRY, PATH, this$ = this;
+      var check, i$, x$, ref$, len$, y$, ns, name, j$, len1$, TARGET, this$ = this;
       check = function(err){
         if (err) {
           next(err, '');
@@ -57,43 +57,30 @@
           }
         }
       }
-      ENTRY = "./__tmp" + Math.random() + "__.js";
-      PATH = "." + (library ? '/library' : '') + "/modules/";
-      writeFile(ENTRY, list.filter(function(it){
-        return this$[it];
-      }).map(function(it){
-        return "require('" + PATH + it + "');";
-      }).join('\n'), function(err){
-        var TARGET;
+      TARGET = "./__tmp" + Math.random() + "__.js";
+      webpack({
+        entry: list.filter(function(it){
+          return this$[it];
+        }).map(function(it){
+          return "." + (library ? '/library' : '') + "/modules/" + it;
+        }),
+        output: {
+          path: '',
+          filename: TARGET
+        }
+      }, function(err, info){
         if (check(err)) {
           return;
         }
-        TARGET = "./__tmp" + Math.random() + "__.js";
-        webpack({
-          entry: ENTRY,
-          output: {
-            path: '',
-            filename: TARGET
-          }
-        }, function(err, info){
+        readFile(TARGET, function(err, script){
           if (check(err)) {
             return;
           }
-          readFile(TARGET, function(err, script){
+          unlink(TARGET, function(err){
             if (check(err)) {
               return;
             }
-            unlink(ENTRY, function(err){
-              if (check(err)) {
-                return;
-              }
-              unlink(TARGET, function(err){
-                if (check(err)) {
-                  return;
-                }
-                next(null, "" + banner + "\n!function(__e, __g, undefined){\n'use strict';\n" + script + "\n// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;\n}(1, 1);");
-              });
-            });
+            next(null, "" + banner + "\n!function(__e, __g, undefined){\n'use strict';\n" + script + "\n// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;\n}(1, 1);");
           });
         });
       });

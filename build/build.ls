@@ -167,18 +167,16 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
         if name is ns or name.indexOf("#ns.") is 0
           @[name] = no
 
-    ENTRY = "./__tmp#{ Math.random! }__.js"
-    PATH = ".#{ if library => '/library' else '' }/modules/"
-    err <-! writeFile ENTRY, list.filter(~> @[it]).map(-> "require('#PATH#it');" ).join '\n'
-    if check err => return
     TARGET = "./__tmp#{ Math.random! }__.js"
-    err, info <-! webpack entry: ENTRY, output: { path: '', filename: TARGET }
+    err, info <~! webpack do
+      entry: list.filter(~> @[it]).map ~> ".#{ if library => '/library' else '' }/modules/#it"
+      output:
+        path: ''
+        filename: TARGET
     if check err => return
-    err, script <-! readFile TARGET
+    err, script <~! readFile TARGET
     if check err => return
-    err <-! unlink ENTRY
-    if check err => return
-    err <-! unlink TARGET
+    err <~! unlink TARGET
     if check err => return
 
     next null """
