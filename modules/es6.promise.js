@@ -101,16 +101,13 @@ var notify = function(record, isReject){
     chain.length = 0;
     record.n = false;
     if(isReject)setTimeout(function(){
-      asap(function(){
-        if(isUnhandled(record.p)){
-          if(isNode){
-            process.emit('unhandledRejection', value, record.p);
-          } else if(global.console && console.error){
-            console.error('Unhandled promise rejection', value);
-          }
+      if(isUnhandled(record.p)){
+        if(isNode){
+          process.emit('unhandledRejection', value, record.p);
+        } else if(global.console && console.error){
+          console.error('Unhandled promise rejection', value);
         }
-        record.a = undefined;
-      });
+      } record.a = undefined;
     }, 1);
   });
 };
