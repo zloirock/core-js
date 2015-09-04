@@ -42,7 +42,7 @@ test 'Math.hypot' !->
   ok epsilon hypot(66 66), 93.33809511662427
   ok epsilon hypot(0.1 100), 100.0000499999875
   eq hypot(1e+300, 1e+300), 1.4142135623730952e+300
-  eq hypot(1e-300, 1e-300), 1.4142135623730952e-300
+  eq Math.floor(hypot(1e-300, 1e-300) * 1e308), 141421356
   eq hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300
   eq hypot(-3, 4), 5
   eq hypot(3, -4), 5
