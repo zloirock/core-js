@@ -16,8 +16,8 @@ test 'Reflect.ownKeys' !->
   O1[sym] = 3
   keys = ownKeys O1
   eq keys.length, 3, 'ownKeys return all own keys'
-  eq O1[keys.0], 1, 'ownKeys return all own keys: simple'
-  eq O1[keys.1], 2, 'ownKeys return all own keys: hidden'
+  ok \a in keys, 'ownKeys return all own keys: simple'
+  ok \b in keys, 'ownKeys return all own keys: hidden'
   eq O1[keys.2], 3, 'ownKeys return all own keys: symbol'
   O2 = ^^O1
   keys = ownKeys O2
