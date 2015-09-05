@@ -1,7 +1,6 @@
 'use strict';
 var global     = require('./$.global')
   , $def       = require('./$.def')
-  , BUGGY      = require('./$.iter-buggy')
   , forOf      = require('./$.for-of')
   , strictNew  = require('./$.strict-new');
 
@@ -21,7 +20,9 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       : function set(a, b){ fn.call(this, a === 0 ? 0 : a, b); return this; }
     );
   };
-  if(typeof C != 'function' || !(IS_WEAK || !BUGGY && proto.forEach && proto.entries)){
+  if(typeof C != 'function' || !(IS_WEAK || proto.forEach && !require('./$.fails')(function(){
+    new C().entries().next();
+  }))){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     require('./$.mix')(C.prototype, methods);
