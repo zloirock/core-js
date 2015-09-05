@@ -43,7 +43,12 @@ test 'Object.getOwnPropertyNames' !->
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
-  deq getOwnPropertyNames([1 2 3]), <[0 1 2 length]>
+  names = getOwnPropertyNames [1 2 3]
+  eq names.length, 4
+  ok \0 in names
+  ok \1 in names
+  ok \2 in names
+  ok \length in names
   deq getOwnPropertyNames(new fn1 1), <[w]>
   deq getOwnPropertyNames(new fn2 1), <[toString]>
   ok \toString in getOwnPropertyNames Array::
