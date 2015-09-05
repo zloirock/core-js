@@ -11,8 +11,8 @@ test '.join' !->
   ok join((-> &)(3 2 1), \|) is \3|2|1
 test '.pop' !->
   {pop} = Array
-  ok pop(args = (-> &)(1 2 3)) is 3
-  deepEqual args, (-> &)(1 2)
+  ok pop(args = {0: 1, 1: 2, 2: 3, length: 3}) is 3
+  deepEqual args, {0: 1, 1: 2, length: 2}
 test '.push' !->
   {push} = Array
   push args = (-> &)(1 2 3), 4 5
@@ -23,8 +23,8 @@ test '.reverse' !->
   deepEqual reverse((-> &)(1 2 3)), (-> &)(3 2 1)
 test '.shift' !->
   {shift} = Array
-  ok shift(args = (-> &)(1 2 3)) is 1
-  deepEqual args, (-> &)(2 3)
+  ok shift(args = {0: 1, 1: 2, 2: 3, length: 3}) is 1
+  deepEqual args, {0: 2, 1: 3, length: 2}
 test '.unshift' !->
   {unshift} = Array
   unshift args = (-> &)(1 2 3), 4 5
