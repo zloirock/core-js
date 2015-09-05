@@ -1,5 +1,4 @@
 // 19.1.3.1 Object.assign(target, source)
-var $def    = require('./$.def')
-  , $assign = require('./$.assign');
+var $def = require('./$.def');
 
-$def($def.S + $def.F, 'Object', {assign: $assign});
+$def($def.S + $def.F, 'Object', {assign: require('./$.assign')});

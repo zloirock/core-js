@@ -71,7 +71,7 @@ require('core-js/shim');
 ```
 If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/master/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/master/client/library.min.js), [shim only](https://raw.githack.com/zloirock/core-js/master/client/shim.min.js).
 
-Warning: if you uses `core-js` with extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise maybe conflicts.
+Warning: if you uses `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise maybe conflicts.
 
 ### CommonJS
 You can require only needed modules.
@@ -739,7 +739,7 @@ function timeLimit(promise, time){
 timeLimit(sleepRandom(5), 10).then(log);   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(log); // Error: Await > 10 sec
 ```
-ECMAScript 7 [async functions](https://github.com/lukehoban/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
+ECMAScript 7 [async functions](https://tc39.github.io/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
 ```javascript
 var delay = time => new Promise(resolve => setTimeout(resolve, time))
 
@@ -1270,6 +1270,12 @@ delay(1e3).then(() => log('after 1 sec'));
 - `window.fetch` is not crossplatform feature, in some environments it make no sense. For this reason I don't think it should be in `core-js`. Looking at the large number of requests it *maybe*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 
 ## Changelog
+##### 1.1.4 - 2015.09.05
+  * fixed support symbols in FF34-35 [`Object.assign`](#ecmascript-6-object)
+  * fixed [collections iterators](#ecmascript-6-iterators) in FF25-26
+  * fixed non-generic WebKit [`Array.of`](#ecmascript-6-array)
+  * some other fixes and optimizations
+
 ##### 1.1.3 - 2015.08.29
   * fixed support Node.js domains in [`Promise`](#ecmascript-6-promise), [#103](https://github.com/zloirock/core-js/issues/103)
 

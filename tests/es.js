@@ -1579,7 +1579,7 @@
     ok(epsilon(hypot(66, 66), 93.33809511662427));
     ok(epsilon(hypot(0.1, 100), 100.0000499999875));
     eq(hypot(1e+300, 1e+300), 1.4142135623730952e+300);
-    eq(hypot(1e-300, 1e-300), 1.4142135623730952e-300);
+    eq(Math.floor(hypot(1e-300, 1e-300) * 1e308), 141421356);
     eq(hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300);
     eq(hypot(-3, 4), 5);
     eq(hypot(3, -4), 5);
@@ -2972,8 +2972,8 @@
     O1[sym] = 3;
     keys = ownKeys(O1);
     eq(keys.length, 3, 'ownKeys return all own keys');
-    eq(O1[keys[0]], 1, 'ownKeys return all own keys: simple');
-    eq(O1[keys[1]], 2, 'ownKeys return all own keys: hidden');
+    ok(in$('a', keys), 'ownKeys return all own keys: simple');
+    ok(in$('b', keys), 'ownKeys return all own keys: hidden');
     eq(O1[keys[2]], 3, 'ownKeys return all own keys: symbol');
     O2 = clone$(O1);
     keys = ownKeys(O2);
@@ -2982,6 +2982,11 @@
       return ownKeys(42);
     }, TypeError, 'throws on primitive');
   });
+  function in$(x, xs){
+    var i = -1, l = xs.length >>> 0;
+    while (++i < l) if (x === xs[i]) return true;
+    return false;
+  }
   function clone$(it){
     function fun(){} fun.prototype = it;
     return new fun;
