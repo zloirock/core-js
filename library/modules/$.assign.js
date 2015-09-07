@@ -3,8 +3,12 @@ var toObject = require('./$.to-object')
   , IObject  = require('./$.iobject')
   , enumKeys = require('./$.enum-keys');
 
+// should work with symbols
 module.exports = require('./$.fails')(function(){
-  return Symbol() in Object.assign({}); // Object.assign available and Symbol is native
+  var O = {}
+    , S = Symbol();
+  O[S] = 7;
+  return Object.assign({}, O)[S] != 7;
 }) ? function assign(target, source){   // eslint-disable-line no-unused-vars
   var T = toObject(target)
     , l = arguments.length
