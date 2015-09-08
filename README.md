@@ -25,7 +25,7 @@ core.setImmediate(core.log, 42);                // => 42
   - [Basic](#basic)
   - [CommonJS](#commonjs)
   - [Custom build](#custom-build)
-- [API](#api)
+- [Features](#features)
   - [ECMAScript 5](#ecmascript-5)
   - [ECMAScript 6](#ecmascript-6)
     - [ECMAScript 6: Object](#ecmascript-6-object)
@@ -42,15 +42,17 @@ core.setImmediate(core.log, 42);                // => 42
     - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
   - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
-  - [setTimeout / setInterval](#settimeout--setinterval)
-  - [setImmediate](#setimmediate)
-  - [console](#console)
-  - [Object](#object)
-  - [Dict](#dict)
-  - [Partial application](#partial-application)
-  - [Number Iterator](#number-iterator)
-  - [Escaping HTML](#escaping-html)
-  - [delay](#delay)
+  - [Web standards](#web-standards)
+    - [setTimeout / setInterval](#settimeout--setinterval)
+    - [setImmediate](#setimmediate)
+  - [Non-standard](#non-standard)
+    - [Object](#object)
+    - [Dict](#dict)
+    - [Partial application](#partial-application)
+    - [Number Iterator](#number-iterator)
+    - [Escaping HTML](#escaping-html)
+    - [delay](#delay)
+    - [console](#console)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](#changelog)
 
@@ -116,7 +118,7 @@ require('core-js/build')({
   // ...
 });
 ```
-## API:
+## Features:
 ### ECMAScript 5
 Module [`es5`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/es5.js), nothing new - without examples.
 ```javascript
@@ -887,7 +889,8 @@ Array.reduce(form, function(memo, it){
   return memo;
 }, {}); // => {name: 'Vasya', age: '42', sex: 'yes, please'}
 ```
-### setTimeout / setInterval
+### Web standards
+#### setTimeout / setInterval
 Module [`web.timers`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/web.timers.js). Additional arguments fix for IE9-.
 ```javascript
 setTimeout(fn(...args), time, ...args) -> id
@@ -899,8 +902,8 @@ setTimeout(log.bind(null, 42), 1000);
 // After:
 setTimeout(log, 1000, 42);
 ```
-### setImmediate
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/web.immediate.js). [setImmediate](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
+#### setImmediate
+Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```javascript
 setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
@@ -915,36 +918,8 @@ clearImmediate(setImmediate(function(){
   log('Message will not be displayed');
 }));
 ```
-### Console
-Module [`core.log`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.log.js). Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
-```javascript
-log ==== log.log
-  .{...console API}
-  .enable() -> void
-  .disable() -> void
-```
-```javascript
-// Before:
-if(window.console && console.warn)console.warn(42);
-// After:
-log.warn(42);
-
-// Before:
-setTimeout(console.warn.bind(console, 42), 1000);
-[1, 2, 3].forEach(console.warn, console);
-// After:
-setTimeout(log.warn, 1000, 42);
-[1, 2, 3].forEach(log.warn);
-
-// log is shortcut for log.log
-setImmediate(log, 42); // => 42
-
-log.disable();
-log.warn('Console is disabled, you will not see this message.');
-log.enable();
-log.warn('Console is enabled again.');
-```
-### Object
+### Non-standard
+#### Object
 Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.object.is-object.js), [`core.object.classof`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.object.classof.js), [`core.object.define`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.object.define.js), [`core.object.make`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.object.make.js).
 ```javascript
 Object
@@ -1049,7 +1024,7 @@ vector.y++;
 log(vector.xy);  // => 15.811388300841896
 log(vector.xyz); // => 25.495097567963924
 ```
-### Dict
+#### Dict
 Module [`core.dict`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```javascript
 [new] Dict(iterable (entries) | object ?) -> dict
@@ -1192,7 +1167,7 @@ Dict.reduce(dict, function(memo, it){
   return memo + it;
 }, ''); // => '123'
 ```
-### Partial application
+#### Partial application
 Module [`core.function.part`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.function.part.js).
 ```javascript
 Function
@@ -1212,7 +1187,7 @@ fn3(2, 3);    // => 1, 2, 3, 4
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
 ```
-### Number Iterator
+#### Number Iterator
 Modules [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.number.iterator.js).
 ```javascript
 Number
@@ -1235,7 +1210,7 @@ Array.from(10, function(it){
 
 Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
 ```
-### Escaping HTML
+#### Escaping HTML
 Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.string.unescape-html.js).
 ```javascript
 String
@@ -1247,7 +1222,7 @@ String
 '<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
-### delay
+#### delay
 Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
 ```javascript
 delay(1e3).then(() => log('after 1 sec'));
@@ -1258,6 +1233,35 @@ delay(1e3).then(() => log('after 1 sec'));
   
   while(await delay(3e3))log('each 3 sec');
 })();
+```
+#### Console
+Module [`core.log`](https://github.com/zloirock/core-js/blob/v1.1.4/modules/core.log.js). Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
+```javascript
+log ==== log.log
+  .{...console API}
+  .enable() -> void
+  .disable() -> void
+```
+```javascript
+// Before:
+if(window.console && console.warn)console.warn(42);
+// After:
+log.warn(42);
+
+// Before:
+setTimeout(console.warn.bind(console, 42), 1000);
+[1, 2, 3].forEach(console.warn, console);
+// After:
+setTimeout(log.warn, 1000, 42);
+[1, 2, 3].forEach(log.warn);
+
+// log is shortcut for log.log
+setImmediate(log, 42); // => 42
+
+log.disable();
+log.warn('Console is disabled, you will not see this message.');
+log.enable();
+log.warn('Console is enabled again.');
 ```
 
 ## Missing polyfills
