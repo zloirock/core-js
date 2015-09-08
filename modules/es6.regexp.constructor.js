@@ -1,11 +1,11 @@
-var $       = require('./$')
-  , global  = require('./$.global')
-  , cof     = require('./$.cof')
-  , $flags  = require('./$.flags')
-  , $RegExp = global.RegExp
-  , Base    = $RegExp
-  , proto   = $RegExp.prototype
-  , re      = /a/g
+var $        = require('./$')
+  , global   = require('./$.global')
+  , isRegExp = require('./$.is-regexp')
+  , $flags   = require('./$.flags')
+  , $RegExp  = global.RegExp
+  , Base     = $RegExp
+  , proto    = $RegExp.prototype
+  , re       = /a/g
   // "new" creates a new object
   , CORRECT_NEW = new $RegExp(re) !== re
   // RegExp allows a regex with flags as the pattern
@@ -18,7 +18,7 @@ var $       = require('./$')
 if(require('./$.support-desc')){
   if(!CORRECT_NEW || !ALLOWS_RE_WITH_FLAGS){
     $RegExp = function RegExp(pattern, flags){
-      var patternIsRegExp  = cof(pattern) == 'RegExp'
+      var patternIsRegExp  = isRegExp(pattern)
         , flagsIsUndefined = flags === undefined;
       if(!(this instanceof $RegExp) && patternIsRegExp && flagsIsUndefined)return pattern;
       return CORRECT_NEW
