@@ -1,3 +1,4 @@
+// 7.2.8 IsRegExp(argument)
 var isObject    = require('./$.is-object')
   , cof         = require('./$.cof')
   , MATCH       = require('./$.wks')('match')
@@ -5,5 +6,5 @@ var isObject    = require('./$.is-object')
 module.exports = function(it){
   return RegExpProto.hasOwnProperty(MATCH)
     ? isObject(it) && it[MATCH] !== undefined
-    : cof(it) == 'RegExp';
+    : cof(it) == 'RegExp'; // if @@match isn't implemented use classof check
 };
