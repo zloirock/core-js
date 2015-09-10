@@ -188,7 +188,7 @@ $def($def.P + $def.F * (IObject != Object), 'Array', {
 });
 
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-$def($def.S, 'Array', {isArray: function(arg){ return cof(arg) == 'Array'; }});
+$def($def.S, 'Array', {isArray: require('./$.is-array')});
 
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
