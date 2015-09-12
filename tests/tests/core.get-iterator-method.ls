@@ -1,26 +1,15 @@
-QUnit.module \core-js
-global = Function('return this')!
+{module, test} = QUnit
+module \core-js
+
 {from} = Array
 
-test 'core.getIteratorMethod' !->
+test 'core.getIteratorMethod' (assert)->
   {getIteratorMethod} = core
-  ok typeof getIteratorMethod is \function, 'Is function'
-  strictEqual getIteratorMethod({}), void
+  assert.ok typeof getIteratorMethod is \function, 'Is function'
+  assert.strictEqual getIteratorMethod({}), void
   iterFn = getIteratorMethod []
-  ok typeof iterFn is \function
+  assert.ok typeof iterFn is \function
   iter = iterFn.call []
-  ok \next of iter
+  assert.ok \next of iter
   iter = getIteratorMethod (->&)!
-  ok typeof iterFn is \function
-  /*
-  _Symbol = global.Symbol
-  I = Math.random!
-  O = {0: \a, 1: \b, 2: \c, length: 3}
-  O[I] = Array::values
-  strictEqual getIteratorMethod(O), void
-  global.Symbol = {iterator: I}
-  strictEqual getIteratorMethod(O), Array::values
-  deepEqual from(getIteratorMethod(O).call O), <[a b c]>
-  global.Symbol = _Symbol
-  strictEqual getIteratorMethod(O), void
-  */
+  assert.ok typeof iterFn is \function

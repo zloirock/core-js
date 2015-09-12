@@ -1,20 +1,18 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-eq = strictEqual
-
-test 'Array#find' !->
+test 'Array#find' (assert)->
   {find} = core.Array
-  ok typeof! find is \Function, 'Is function'
+  assert.ok typeof! find is \Function, 'Is function'
   find arr = [1], (val, key, that)->
-    eq @, ctx
-    eq val, 1
-    eq key, 0
-    eq that, arr
+    assert.strictEqual @, ctx
+    assert.strictEqual val, 1
+    assert.strictEqual key, 0
+    assert.strictEqual that, arr
   , ctx = {}
-  eq find([1 3 NaN, 42 {}], (is 42)), 42
-  eq find([1 3 NaN, 42 {}], (is 43)), void
+  assert.strictEqual find([1 3 NaN, 42 {}], (is 42)), 42
+  assert.strictEqual find([1 3 NaN, 42 {}], (is 43)), void
   if !(-> @)!
-    throws (-> find null, 0), TypeError
-    throws (-> find void, 0), TypeError
+    assert.throws (-> find null, 0), TypeError
+    assert.throws (-> find void, 0), TypeError

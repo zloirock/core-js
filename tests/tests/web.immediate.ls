@@ -1,42 +1,33 @@
-QUnit.module 'Immediate'
+{module, test} = QUnit
+module 'Immediate'
 
 isFunction = -> typeof! it  is \Function
-
-eq = strictEqual
-
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 
-test 'setImmediate / clearImmediate' !->
-  it.expect 10
-
-  ok isFunction(setImmediate), 'setImmediate is function'
-  ok isFunction(clearImmediate), 'clearImmediate is function'
-
-  ok /native code/.test(setImmediate), 'setImmediate looks like native'
-  ok /native code/.test(clearImmediate), 'clearImmediate looks like native'
-  
-  eq setImmediate.name, \setImmediate, 'setImmediate.name is "setImmediate"'
-  eq clearImmediate.name, \clearImmediate, 'clearImmediate.name is "clearImmediate"'
-
+test 'setImmediate / clearImmediate' (assert)->
+  assert.expect 10
+  assert.ok isFunction(setImmediate), 'setImmediate is function'
+  assert.ok isFunction(clearImmediate), 'clearImmediate is function'
+  assert.ok /native code/.test(setImmediate), 'setImmediate looks like native'
+  assert.ok /native code/.test(clearImmediate), 'clearImmediate looks like native'
+  assert.strictEqual setImmediate.name, \setImmediate, 'setImmediate.name is "setImmediate"'
+  assert.strictEqual clearImmediate.name, \clearImmediate, 'clearImmediate.name is "clearImmediate"'
   var def
   timeLimitedPromise(1e3, (res)-> setImmediate ->
     def := \a
     res!
-  ) .then  -> ok on 'setImmediate works'
-    .catch -> ok no 'setImmediate works'
-    .then it.async!
-
-  eq def, void, 'setImmediate is async'
-
+  ) .then  -> assert.ok on 'setImmediate works'
+    .catch -> assert.ok no 'setImmediate works'
+    .then assert.async!
+  assert.strictEqual def, void, 'setImmediate is async'
   timeLimitedPromise(1e3, (res)-> setImmediate(((a, b)-> res a +  b), \a \b))
-    .then  -> eq it, \ab, 'setImmediate works with additional args'
-    .catch -> ok no 'setImmediate works with additional args'
-    .then it.async!
-
+    .then  -> assert.strictEqual it, \ab, 'setImmediate works with additional args'
+    .catch -> assert.ok no 'setImmediate works with additional args'
+    .then assert.async!
   timeLimitedPromise(50, (res)-> clearImmediate setImmediate res)
-    .then  -> ok no 'clearImmediate works'
-    .catch -> ok on 'clearImmediate works'
-    .then it.async!
+    .then  -> assert.ok no 'clearImmediate works'
+    .catch -> assert.ok on 'clearImmediate works'
+    .then assert.async!
 
 (-> if window? => window.onload = it else it!) <| -> setTimeout _, 5e3 <| ->
   x = 0

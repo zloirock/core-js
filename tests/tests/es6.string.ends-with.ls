@@ -1,28 +1,26 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-eq = strictEqual
-
-test 'String#endsWith' !->
-  ok typeof! String::endsWith is \Function, 'Is function'
-  eq String::endsWith.length, 1, 'arity is 1'
-  ok /native code/.test(String::endsWith), 'looks like native'
-  if \name of String::endsWith => eq String::endsWith.name, \endsWith, 'name is "endsWith"'
-  ok 'undefined'endsWith!
-  ok not 'undefined'endsWith null
-  ok 'abc'endsWith ''
-  ok 'abc'endsWith 'c'
-  ok 'abc'endsWith 'bc'
-  ok not 'abc'endsWith 'ab'
-  ok 'abc'endsWith '' NaN
-  ok not 'abc'endsWith \c -1
-  ok 'abc'endsWith \a 1
-  ok 'abc'endsWith \c Infinity
-  ok 'abc'endsWith \a on
-  ok not 'abc'endsWith \c \x
-  ok not 'abc'endsWith \a \x
+test 'String#endsWith' (assert)->
+  assert.ok typeof! String::endsWith is \Function, 'Is function'
+  assert.strictEqual String::endsWith.length, 1, 'arity is 1'
+  assert.ok /native code/.test(String::endsWith), 'looks like native'
+  assert.strictEqual String::endsWith.name, \endsWith, 'name is "endsWith"'
+  assert.ok 'undefined'endsWith!
+  assert.ok not 'undefined'endsWith null
+  assert.ok 'abc'endsWith ''
+  assert.ok 'abc'endsWith 'c'
+  assert.ok 'abc'endsWith 'bc'
+  assert.ok not 'abc'endsWith 'ab'
+  assert.ok 'abc'endsWith '' NaN
+  assert.ok not 'abc'endsWith \c -1
+  assert.ok 'abc'endsWith \a 1
+  assert.ok 'abc'endsWith \c Infinity
+  assert.ok 'abc'endsWith \a on
+  assert.ok not 'abc'endsWith \c \x
+  assert.ok not 'abc'endsWith \a \x
   if !(-> @)!
-    throws (-> String::endsWith.call null, '.'), TypeError
-    throws (-> String::endsWith.call void, '.'), TypeError
-  throws (-> 'qwe'endsWith /./), TypeError
+    assert.throws (-> String::endsWith.call null, '.'), TypeError
+    assert.throws (-> String::endsWith.call void, '.'), TypeError
+  assert.throws (-> 'qwe'endsWith /./), TypeError

@@ -1,29 +1,25 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
 {defineProperty, create} = core.Object
-
 MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
-eq = strictEqual
-
-test 'Reflect.get' !->
+test 'Reflect.get' (assert)->
   {get} = core.Reflect
-  ok typeof! get is \Function, 'Reflect.get is function'
+  assert.ok typeof! get is \Function, 'Reflect.get is function'
   #eq get.length, 2, 'arity is 2' # fails in MS Edge
-  if \name of get => eq get.name, \get, 'name is "get"'
-  eq get({qux: 987}, \qux), 987
+  if \name of get
+    assert.strictEqual get.name, \get, 'name is "get"'
+  assert.strictEqual get({qux: 987}, \qux), 987
   
   if MODERN
-    target = create defineProperty({z:3}, \w, {get: -> @}), {
-      x: { value: 1 },
-      y: { get: -> @ },
-    }
+    target = create defineProperty({z:3}, \w, {get: -> @}), do
+      x: value: 1
+      y: get: -> @
     receiver = {}
-    
-    eq get(target, \x, receiver), 1,        'get x'
-    eq get(target, \y, receiver), receiver, 'get y'
-    eq get(target, \z, receiver), 3,        'get z'
-    eq get(target, \w, receiver), receiver, 'get w'
-    eq get(target, \u, receiver), void,     'get u'
-  
-  throws (-> get 42 \constructor), TypeError, 'throws on primitive'
+    assert.strictEqual get(target, \x, receiver), 1,        'get x'
+    assert.strictEqual get(target, \y, receiver), receiver, 'get y'
+    assert.strictEqual get(target, \z, receiver), 3,        'get z'
+    assert.strictEqual get(target, \w, receiver), receiver, 'get w'
+    assert.strictEqual get(target, \u, receiver), void,     'get u'
+  assert.throws (-> get 42 \constructor), TypeError, 'throws on primitive'

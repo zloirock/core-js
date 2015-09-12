@@ -1,15 +1,15 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-test 'String#includes' !->
+test 'String#includes' (assert)->
   {includes} = core.String
-  ok typeof! includes is \Function, 'Is function'
-  ok not includes 'abc'
-  ok includes 'aundefinedb'
-  ok includes 'abcd' \b 1
-  ok not includes 'abcd' \b 2
+  assert.ok typeof! includes is \Function, 'Is function'
+  assert.ok not includes 'abc'
+  assert.ok includes 'aundefinedb'
+  assert.ok includes 'abcd' \b 1
+  assert.ok not includes 'abcd' \b 2
   if !(-> @)!
-    throws (-> includes null, '.'), TypeError
-    throws (-> includes void, '.'), TypeError
-  throws (-> includes 'foo[a-z]+(bar)?' /[a-z]+/), TypeError
+    assert.throws (-> includes null, '.'), TypeError
+    assert.throws (-> includes void, '.'), TypeError
+  assert.throws (-> includes 'foo[a-z]+(bar)?' /[a-z]+/), TypeError

@@ -1,20 +1,20 @@
 'use strict'
+{module, test} = QUnit
+module \ES7
 
-QUnit.module \ES7
-
-test 'Array#includes' !->
+test 'Array#includes' (assert)->
   {includes} = core.Array
-  ok typeof! includes is \Function, 'Is function'
+  assert.ok typeof! includes is \Function, 'Is function'
   arr = [1 2 3 -0 o = {}]
-  ok includes arr, 1
-  ok includes arr, -0
-  ok includes arr, 0
-  ok includes arr, o
-  ok !includes arr, 4
-  ok !includes arr, -0.5
-  ok !includes arr, {}
-  ok includes Array(1), void
-  ok includes [NaN], NaN
+  assert.ok includes arr, 1
+  assert.ok includes arr, -0
+  assert.ok includes arr, 0
+  assert.ok includes arr, o
+  assert.ok !includes arr, 4
+  assert.ok !includes arr, -0.5
+  assert.ok !includes arr, {}
+  assert.ok includes Array(1), void
+  assert.ok includes [NaN], NaN
   if !(-> @)!
-    throws (-> includes null, 0), TypeError
-    throws (-> includes void, 0), TypeError
+    assert.throws (-> includes null, 0), TypeError
+    assert.throws (-> includes void, 0), TypeError

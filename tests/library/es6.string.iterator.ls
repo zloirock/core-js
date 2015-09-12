@@ -1,20 +1,18 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-deq = deepEqual
-isFunction = -> typeof! it is \Function
-isIterator = -> typeof it is \object && isFunction it.next
+isIterator = -> typeof it is \object && typeof! it.next is \Function
 
-test 'String#@@iterator' !->
+test 'String#@@iterator' (assert)->
   iter = core.getIterator 'qwe'
-  eq iter[core.Symbol?toStringTag], 'String Iterator'
-  deq iter.next!, {value: \q, done: no}
-  deq iter.next!, {value: \w, done: no}
-  deq iter.next!, {value: \e, done: no}
-  deq iter.next!, {value: void, done: on}
-  eq core.Array.from(\𠮷𠮷𠮷).length, 3
+  assert.strictEqual iter[core.Symbol?toStringTag], 'String Iterator'
+  assert.deepEqual iter.next!, {value: \q, done: no}
+  assert.deepEqual iter.next!, {value: \w, done: no}
+  assert.deepEqual iter.next!, {value: \e, done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}
+  assert.strictEqual core.Array.from(\𠮷𠮷𠮷).length, 3
   iter = core.getIterator '𠮷𠮷𠮷'
-  deq iter.next!, {value: \𠮷, done: no}
-  deq iter.next!, {value: \𠮷, done: no}
-  deq iter.next!, {value: \𠮷, done: no}
-  deq iter.next!, {value: void, done: on}
+  assert.deepEqual iter.next!, {value: \𠮷, done: no}
+  assert.deepEqual iter.next!, {value: \𠮷, done: no}
+  assert.deepEqual iter.next!, {value: \𠮷, done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}

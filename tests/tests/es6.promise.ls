@@ -1,19 +1,26 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
+
 isFunction = -> typeof! it is \Function
 {iterator} = Symbol
-test 'Promise' !->
-  ok isFunction((global? && global || window)Promise), 'Is function'
-  ok /native code/.test(Promise), 'looks like native'
-test 'Promise#then' !->
-  ok isFunction(Promise::then), 'Is function'
-  ok /native code/.test(Promise::then), 'looks like native'
-test 'Promise#catch' !->
-  ok isFunction(Promise::catch), 'Is function'
-test 'Promise#@@toStringTag' !->
-  ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
-test 'Promise.all' !->
-  ok isFunction(Promise.all), 'Is function'
-  ok /native code/.test(Promise.all), 'looks like native'
+
+test 'Promise' (assert)->
+  assert.ok isFunction((global? && global || window)Promise), 'Is function'
+  assert.ok /native code/.test(Promise), 'looks like native'
+
+test 'Promise#then' (assert)->
+  assert.ok isFunction(Promise::then), 'Is function'
+  assert.ok /native code/.test(Promise::then), 'looks like native'
+
+test 'Promise#catch' (assert)->
+  assert.ok isFunction(Promise::catch), 'Is function'
+
+test 'Promise#@@toStringTag' (assert)->
+  assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
+
+test 'Promise.all' (assert)->
+  assert.ok isFunction(Promise.all), 'Is function'
+  assert.ok /native code/.test(Promise.all), 'looks like native'
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -22,7 +29,7 @@ test 'Promise.all' !->
     passed := on
     next!
   Promise.all iter .catch ->
-  ok passed, 'works with iterables'
+  assert.ok passed, 'works with iterables'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
@@ -30,10 +37,11 @@ test 'Promise.all' !->
     done := on
     [][iterator]call @
   Promise.all a
-  ok done
-test 'Promise.race' !->
-  ok isFunction(Promise.race), 'Is function'
-  ok /native code/.test(Promise.race), 'looks like native'
+  assert.ok done
+
+test 'Promise.race' (assert)->
+  assert.ok isFunction(Promise.race), 'Is function'
+  assert.ok /native code/.test(Promise.race), 'looks like native'
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -42,7 +50,7 @@ test 'Promise.race' !->
     passed := on
     next!
   Promise.race iter .catch ->
-  ok passed, 'works with iterables'
+  assert.ok passed, 'works with iterables'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
@@ -50,39 +58,40 @@ test 'Promise.race' !->
     done := on
     [][iterator]call @
   Promise.race a
-  ok done
-test 'Promise.resolve' !->
-  ok isFunction(Promise.resolve), 'Is function'
-  ok /native code/.test(Promise.resolve), 'looks like native'
-test 'Promise.reject' !->
-  ok isFunction(Promise.reject), 'Is function'
-  ok /native code/.test(Promise.reject), 'looks like native'
+  assert.ok done
+
+test 'Promise.resolve' (assert)->
+  assert.ok isFunction(Promise.resolve), 'Is function'
+  assert.ok /native code/.test(Promise.resolve), 'looks like native'
+
+test 'Promise.reject' (assert)->
+  assert.ok isFunction(Promise.reject), 'Is function'
+  assert.ok /native code/.test(Promise.reject), 'looks like native'
+
 if Object.setPrototypeOf
-  test 'Promise subclassing' !->
+  test 'Promise subclassing' (assert)->
     # this is ES5 syntax to create a valid ES6 subclass
-    SubPromise = (x) ->
-      self = new Promise(x)
-      Object.setPrototypeOf(self, SubPromise.prototype)
+    SubPromise = ->
+      self = new Promise it
+      Object.setPrototypeOf self, SubPromise::
       self.mine = 'subclass'
       self
-    Object.setPrototypeOf(SubPromise, Promise)
-    SubPromise.prototype = Object.create(Promise.prototype)
-    SubPromise.prototype.constructor = SubPromise
+    Object.setPrototypeOf SubPromise, Promise
+    SubPromise:: = Object.create Promise::
+    SubPromise::@@ = SubPromise
     # now let's see if this works like a proper subclass.
-    p1 = SubPromise.resolve(5)
-    strictEqual p1.mine, 'subclass'
-    p1 = p1.then( (x) -> strictEqual x, 5 )
-    strictEqual p1.mine, 'subclass'
-
-    p2 = new SubPromise( (r) -> r(6) )
-    strictEqual p2.mine, 'subclass'
-    p2 = p2.then( (x) -> strictEqual x, 6 )
-    strictEqual p2.mine, 'subclass'
-
-    p3 = SubPromise.all([p1, p2])
-    strictEqual p3.mine, 'subclass'
+    p1 = SubPromise.resolve 5
+    assert.strictEqual p1.mine, 'subclass'
+    p1 = p1.then -> assert.strictEqual it, 5
+    assert.strictEqual p1.mine, 'subclass'
+    p2 = new SubPromise -> it 6
+    assert.strictEqual p2.mine, 'subclass'
+    p2 = p2.then -> assert.strictEqual it, 6
+    assert.strictEqual p2.mine, 'subclass'
+    p3 = SubPromise.all [p1, p2]
+    assert.strictEqual p3.mine, 'subclass'
     # double check
-    ok p3 instanceof Promise
-    ok p3 instanceof SubPromise
+    assert.ok p3 instanceof Promise
+    assert.ok p3 instanceof SubPromise
     # check the async values
-    p3.then( it.async!, ((e) -> ok(false, e)) )
+    p3.then assert.async!, -> assert.ok it, no

@@ -1,21 +1,19 @@
 'use strict'
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-deq = deepEqual
-eq = strictEqual
-
-test 'Array#fill' !->
-  ok typeof! Array::fill is \Function, 'Is function'
-  eq Array::fill.length, 1, 'length is 1'
-  ok /native code/.test(Array::fill), 'looks like native'
-  if \name of Array::fill => eq Array::fill.name, \fill, 'name is "fill"'
-  strictEqual (a = Array(5)fill(5)), a
-  deq Array(5)fill(5), [5 5 5 5 5]
-  deq Array(5)fill(5 1), [void 5 5 5 5]
-  deq Array(5)fill(5 1 4), [void 5 5 5 void]
-  deq Array(5)fill(5 6 1), [void void void void void]
-  deq Array(5)fill(5 -3 4), [void void 5 5 void]
+test 'Array#fill' (assert)->
+  assert.ok typeof! Array::fill is \Function, 'Is function'
+  assert.strictEqual Array::fill.length, 1, 'length is 1'
+  assert.ok /native code/.test(Array::fill), 'looks like native'
+  assert.strictEqual Array::fill.name, \fill, 'name is "fill"'
+  assert.strictEqual (a = Array(5)fill(5)), a
+  assert.deepEqual Array(5)fill(5), [5 5 5 5 5]
+  assert.deepEqual Array(5)fill(5 1), [void 5 5 5 5]
+  assert.deepEqual Array(5)fill(5 1 4), [void 5 5 5 void]
+  assert.deepEqual Array(5)fill(5 6 1), [void void void void void]
+  assert.deepEqual Array(5)fill(5 -3 4), [void void 5 5 void]
   if !(-> @)!
-    throws (-> Array::fill.call null, 0), TypeError
-    throws (-> Array::fill.call void, 0), TypeError
-  ok \fill of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+    assert.throws (-> Array::fill.call null, 0), TypeError
+    assert.throws (-> Array::fill.call void, 0), TypeError
+  assert.ok \fill of Array::[Symbol.unscopables], 'In Array#@@unscopables'

@@ -1,5 +1,7 @@
-QUnit.module \ES6
-test 'Function#@@hasInstance' !->
-  ok Symbol.hasInstance of Function::
-  ok Function[Symbol.hasInstance] ->
-  ok !Function[Symbol.hasInstance] {}
+{module, test} = QUnit
+module \ES6
+
+test 'Function#@@hasInstance' (assert)->
+  assert.ok Symbol.hasInstance of Function::
+  assert.ok Function[Symbol.hasInstance] ->
+  assert.ok !Function[Symbol.hasInstance] {}

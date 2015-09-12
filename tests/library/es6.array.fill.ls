@@ -1,18 +1,16 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-deq = deepEqual
-
-test 'Array#fill' !->
+test 'Array#fill' (assert)->
   {fill} = core.Array
-  ok typeof! fill is \Function, 'Is function'
-  strictEqual (a = fill Array(5), 5), a
-  deq fill(Array(5), 5), [5 5 5 5 5]
-  deq fill(Array(5), 5 1), [void 5 5 5 5]
-  deq fill(Array(5), 5 1 4), [void 5 5 5 void]
-  deq fill(Array(5), 5 6 1), [void void void void void]
-  deq fill(Array(5), 5 -3 4), [void void 5 5 void]
+  assert.ok typeof! fill is \Function, 'Is function'
+  assert.strictEqual (a = fill Array(5), 5), a
+  assert.deepEqual fill(Array(5), 5), [5 5 5 5 5]
+  assert.deepEqual fill(Array(5), 5 1), [void 5 5 5 5]
+  assert.deepEqual fill(Array(5), 5 1 4), [void 5 5 5 void]
+  assert.deepEqual fill(Array(5), 5 6 1), [void void void void void]
+  assert.deepEqual fill(Array(5), 5 -3 4), [void void 5 5 void]
   if !(-> @)!
-    throws (-> fill null, 0), TypeError
-    throws (-> fill void, 0), TypeError
+    assert.throws (-> fill null, 0), TypeError
+    assert.throws (-> fill void, 0), TypeError

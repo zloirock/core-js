@@ -1,14 +1,14 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-
-test 'String.raw' !->
+test 'String.raw' (assert)->
   {raw} = core.String
-  ok typeof! raw is \Function, 'Is function'
-  eq raw.length, 1, 'arity is 1'
-  if \name of raw => eq raw.name, \raw, 'name is "raw"'
-  eq raw({raw: ['Hi\\n', '!']} , \Bob), 'Hi\\nBob!', 'raw is array'
-  eq raw({raw: \test}, 0, 1, 2), 't0e1s2t', 'raw is string'
-  eq raw({raw: \test}, 0), 't0est', 'lacks substituting'
-  throws (-> raw {}), TypeError
-  throws (-> raw {raw: null}), TypeError
+  assert.ok typeof! raw is \Function, 'Is function'
+  assert.strictEqual raw.length, 1, 'arity is 1'
+  if \name of raw
+    assert.strictEqual raw.name, \raw, 'name is "raw"'
+  assert.strictEqual raw({raw: ['Hi\\n', '!']} , \Bob), 'Hi\\nBob!', 'raw is array'
+  assert.strictEqual raw({raw: \test}, 0, 1, 2), 't0e1s2t', 'raw is string'
+  assert.strictEqual raw({raw: \test}, 0), 't0est', 'lacks substituting'
+  assert.throws (-> raw {}), TypeError
+  assert.throws (-> raw {raw: null}), TypeError

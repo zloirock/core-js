@@ -1,23 +1,21 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-eq = strictEqual
-
-test 'Array#find' !->
-  ok typeof! Array::find is \Function, 'Is function'
-  eq Array::find.length, 1, 'length is 1'
-  ok /native code/.test(Array::find), 'looks like native'
-  if \name of Array::find => eq Array::find.name, \find, 'name is "find"'
+test 'Array#find' (assert)->
+  assert.ok typeof! Array::find is \Function, 'Is function'
+  assert.strictEqual Array::find.length, 1, 'length is 1'
+  assert.ok /native code/.test(Array::find), 'looks like native'
+  assert.strictEqual Array::find.name, \find, 'name is "find"'
   (arr = [1])find (val, key, that)->
-    eq @, ctx
-    eq val, 1
-    eq key, 0
-    eq that, arr
+    assert.strictEqual @, ctx
+    assert.strictEqual val, 1
+    assert.strictEqual key, 0
+    assert.strictEqual that, arr
   , ctx = {}
-  eq [1 3 NaN, 42 {}]find((is 42)), 42
-  eq [1 3 NaN, 42 {}]find((is 43)), void
+  assert.strictEqual [1 3 NaN, 42 {}]find((is 42)), 42
+  assert.strictEqual [1 3 NaN, 42 {}]find((is 43)), void
   if !(-> @)!
-    throws (-> Array::find.call null, 0), TypeError
-    throws (-> Array::find.call void, 0), TypeError
-  ok \find of Array::[Symbol.unscopables], 'In Array#@@unscopables'
+    assert.throws (-> Array::find.call null, 0), TypeError
+    assert.throws (-> Array::find.call void, 0), TypeError
+  assert.ok \find of Array::[Symbol.unscopables], 'In Array#@@unscopables'

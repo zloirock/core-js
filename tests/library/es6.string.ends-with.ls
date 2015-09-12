@@ -1,24 +1,24 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-test 'String#endsWith' !->
+test 'String#endsWith' (assert)->
   {endsWith} = core.String
-  ok typeof! endsWith is \Function, 'Is function'
-  ok endsWith 'undefined'
-  ok not endsWith 'undefined' null
-  ok endsWith 'abc' ''
-  ok endsWith 'abc' 'c'
-  ok endsWith 'abc' 'bc'
-  ok not endsWith 'abc' 'ab'
-  ok endsWith 'abc' '' NaN
-  ok not endsWith 'abc' \c -1
-  ok endsWith 'abc' \a 1
-  ok endsWith 'abc' \c Infinity
-  ok endsWith 'abc' \a on
-  ok not endsWith 'abc' \c \x
-  ok not endsWith 'abc' \a \x
+  assert.ok typeof! endsWith is \Function, 'Is function'
+  assert.ok endsWith 'undefined'
+  assert.ok not endsWith 'undefined' null
+  assert.ok endsWith 'abc' ''
+  assert.ok endsWith 'abc' 'c'
+  assert.ok endsWith 'abc' 'bc'
+  assert.ok not endsWith 'abc' 'ab'
+  assert.ok endsWith 'abc' '' NaN
+  assert.ok not endsWith 'abc' \c -1
+  assert.ok endsWith 'abc' \a 1
+  assert.ok endsWith 'abc' \c Infinity
+  assert.ok endsWith 'abc' \a on
+  assert.ok not endsWith 'abc' \c \x
+  assert.ok not endsWith 'abc' \a \x
   if !(-> @)!
-    throws (-> endsWith null, '.'), TypeError
-    throws (-> endsWith void, '.'), TypeError
-  throws (-> endsWith 'qwe' /./), TypeError
+    assert.throws (-> endsWith null, '.'), TypeError
+    assert.throws (-> endsWith void, '.'), TypeError
+  assert.throws (-> endsWith 'qwe' /./), TypeError

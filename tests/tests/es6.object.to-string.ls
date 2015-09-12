@@ -1,40 +1,39 @@
 'use strict'
 
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-
-test 'Object#toString' !->
-  ok /native code/.test(Object::toString), 'looks like native'
+test 'Object#toString' (assert)->
+  assert.ok /native code/.test(Object::toString), 'looks like native'
   {toString} = Object::
   if !(-> @)!
-    eq toString.call(null), '[object Null]', 'classof null is `Null`'
-    eq toString.call(void), '[object Undefined]', 'classof void is `Undefined`'
-  eq toString.call(true), '[object Boolean]', 'classof bool is `Boolean`'
-  eq toString.call('string'), '[object String]', 'classof string is `String`'
-  eq toString.call(7), '[object Number]', 'classof number is `Number`'
-  eq toString.call(Symbol!), '[object Symbol]', 'classof symbol is `Symbol`'
-  eq toString.call(new Boolean no), '[object Boolean]', 'classof new Boolean is `Boolean`'
-  eq toString.call(new String ''), '[object String]', 'classof new String is `String`'
-  eq toString.call(new Number 7), '[object Number]', 'classof new Number is `Number`'
-  eq '' + {}, '[object Object]', 'classof {} is `Object`'
-  eq toString.call([]), '[object Array]', 'classof array is `Array`'
-  eq toString.call(->), '[object Function]', 'classof function is `Function`'
-  eq toString.call(/./), '[object RegExp]', 'classof regexp is `Undefined`'
-  eq toString.call(TypeError!), '[object Error]', 'classof new TypeError is `RegExp`'
-  eq toString.call((->&)!), '[object Arguments]', 'classof arguments list is `Arguments`'
-  eq '' + new Set, '[object Set]', 'classof undefined is `Map`'
-  eq '' + new Map, '[object Map]', 'classof map is `Undefined`'
-  eq '' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`'
-  eq '' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`'
-  eq '' + new Promise(->), '[object Promise]', 'classof promise is `Promise`'
-  eq '' + ''[Symbol.iterator]!, '[object String Iterator]', 'classof String Iterator is `String Iterator`'
-  eq '' + []entries!, '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`'
-  eq '' + new Set!entries!, '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`'
-  eq '' + new Map!entries!, '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`'
-  eq '' + Math, '[object Math]', 'classof Math is `Math`'
+    assert.strictEqual toString.call(null), '[object Null]', 'classof null is `Null`'
+    assert.strictEqual toString.call(void), '[object Undefined]', 'classof void is `Undefined`'
+  assert.strictEqual toString.call(true), '[object Boolean]', 'classof bool is `Boolean`'
+  assert.strictEqual toString.call('string'), '[object String]', 'classof string is `String`'
+  assert.strictEqual toString.call(7), '[object Number]', 'classof number is `Number`'
+  assert.strictEqual toString.call(Symbol!), '[object Symbol]', 'classof symbol is `Symbol`'
+  assert.strictEqual toString.call(new Boolean no), '[object Boolean]', 'classof new Boolean is `Boolean`'
+  assert.strictEqual toString.call(new String ''), '[object String]', 'classof new String is `String`'
+  assert.strictEqual toString.call(new Number 7), '[object Number]', 'classof new Number is `Number`'
+  assert.strictEqual '' + {}, '[object Object]', 'classof {} is `Object`'
+  assert.strictEqual toString.call([]), '[object Array]', 'classof array is `Array`'
+  assert.strictEqual toString.call(->), '[object Function]', 'classof function is `Function`'
+  assert.strictEqual toString.call(/./), '[object RegExp]', 'classof regexp is `Undefined`'
+  assert.strictEqual toString.call(TypeError!), '[object Error]', 'classof new TypeError is `RegExp`'
+  assert.strictEqual toString.call((->&)!), '[object Arguments]', 'classof arguments list is `Arguments`'
+  assert.strictEqual '' + new Set, '[object Set]', 'classof undefined is `Map`'
+  assert.strictEqual '' + new Map, '[object Map]', 'classof map is `Undefined`'
+  assert.strictEqual '' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`'
+  assert.strictEqual '' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`'
+  assert.strictEqual '' + new Promise(->), '[object Promise]', 'classof promise is `Promise`'
+  assert.strictEqual '' + ''[Symbol.iterator]!, '[object String Iterator]', 'classof String Iterator is `String Iterator`'
+  assert.strictEqual '' + []entries!, '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`'
+  assert.strictEqual '' + new Set!entries!, '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`'
+  assert.strictEqual '' + new Map!entries!, '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`'
+  assert.strictEqual '' + Math, '[object Math]', 'classof Math is `Math`'
   if JSON?
-    eq toString.call(JSON), '[object JSON]', 'classof JSON is `JSON`'
+    assert.strictEqual toString.call(JSON), '[object JSON]', 'classof JSON is `JSON`'
   class Class
     @::[Symbol.toStringTag] = \Class
-  eq '' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]'
+  assert.strictEqual '' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]'

@@ -1,14 +1,11 @@
-QUnit.module \ES7
+{module, test} = QUnit
+module \ES7
 
-eq = strictEqual
-deq = deepEqual
-
-test 'Object.values' !->
+test 'Object.values' (assert)->
   {values, create, assign} = core.Object
-  ok typeof! values is \Function, 'Is function'
-  eq values.length, 1, 'arity is 1'
-  if \name of values => eq values.name, \values, 'name is "values"'
-  deq values({q:1, w:2, e:3}), [1 2 3]
-  deq values(new String \qwe), [\q \w \e]
-  deq values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]
-
+  assert.ok typeof! values is \Function, 'Is function'
+  assert.strictEqual values.length, 1, 'arity is 1'
+  if \name of values => assert.strictEqual values.name, \values, 'name is "values"'
+  assert.deepEqual values({q:1, w:2, e:3}), [1 2 3]
+  assert.deepEqual values(new String \qwe), [\q \w \e]
+  assert.deepEqual values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]

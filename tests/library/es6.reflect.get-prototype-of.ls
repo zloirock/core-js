@@ -1,11 +1,11 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-
-test 'Reflect.getPrototypeOf' !->
+test 'Reflect.getPrototypeOf' (assert)->
   {getPrototypeOf} = core.Reflect
-  ok typeof! getPrototypeOf is \Function, 'Reflect.getPrototypeOf is function'
-  eq getPrototypeOf.length, 1, 'arity is 1'
-  if \name of getPrototypeOf => eq getPrototypeOf.name, \getPrototypeOf, 'name is "getPrototypeOf"'
-  eq getPrototypeOf([]), Array::
-  throws (-> getPrototypeOf 42), TypeError, 'throws on primitive'
+  assert.ok typeof! getPrototypeOf is \Function, 'Reflect.getPrototypeOf is function'
+  assert.strictEqual getPrototypeOf.length, 1, 'arity is 1'
+  if \name of getPrototypeOf
+    assert.strictEqual getPrototypeOf.name, \getPrototypeOf, 'name is "getPrototypeOf"'
+  assert.strictEqual getPrototypeOf([]), Array::
+  assert.throws (-> getPrototypeOf 42), TypeError, 'throws on primitive'

@@ -1,4 +1,5 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-test 'Number.MIN_SAFE_INTEGER' !->
-  strictEqual Number.MIN_SAFE_INTEGER, -2^53 + 1, 'Is -2^53 + 1'
+test 'Number.MIN_SAFE_INTEGER' (assert)->
+  assert.strictEqual Number.MIN_SAFE_INTEGER, -2^53 + 1, 'Is -2^53 + 1'

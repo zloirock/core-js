@@ -1,19 +1,16 @@
 'use strict';
+{module, test} = QUnit
+module \ES7
 
-QUnit.module \ES7
-
-eq = strictEqual
-
-test 'String#padLeft' !->
+test 'String#padLeft' (assert)->
   {padLeft} = core.String
-  ok typeof! padLeft is \Function, 'Is function'
-  eq padLeft(\abc 5), '  abc'
-  eq padLeft(\abc 4 \de), \eabc
-  eq padLeft(\abc),  \abc
-  eq padLeft(\abc 5 '_'), '__abc'
-  eq padLeft('' 0), ''
-  eq padLeft(\foo 1), \foo
-
+  assert.ok typeof! padLeft is \Function, 'Is function'
+  assert.strictEqual padLeft(\abc 5), '  abc'
+  assert.strictEqual padLeft(\abc 4 \de), \eabc
+  assert.strictEqual padLeft(\abc),  \abc
+  assert.strictEqual padLeft(\abc 5 '_'), '__abc'
+  assert.strictEqual padLeft('' 0), ''
+  assert.strictEqual padLeft(\foo 1), \foo
   if !(-> @)!
-    throws (-> padLeft null, 0), TypeError
-    throws (-> padLeft void, 0), TypeError
+    assert.throws (-> padLeft null, 0), TypeError
+    assert.throws (-> padLeft void, 0), TypeError

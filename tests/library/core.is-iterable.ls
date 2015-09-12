@@ -1,21 +1,11 @@
-QUnit.module \core-js
-global = Function('return this')!
+{module, test} = QUnit
+module \core-js
+
 {values} = core.Array
 
-test 'core.isIterable' !->
+test 'core.isIterable' (assert)->
   {isIterable} = core
-  ok typeof isIterable is \function, 'Is function'
-  ok !isIterable {}
-  ok isIterable []
-  ok isIterable (->&)!
-  /*
-  _Symbol = global.Symbol
-  I = Math.random!
-  o = {0: \a, 1: \b, 2: \c, length: 3}
-  o[I] = -> values @
-  ok !isIterable o
-  global.Symbol = {iterator: I}
-  ok isIterable o
-  global.Symbol = _Symbol
-  ok !isIterable o
-  */
+  assert.ok typeof isIterable is \function, 'Is function'
+  assert.ok !isIterable {}
+  assert.ok isIterable []
+  assert.ok isIterable (->&)!

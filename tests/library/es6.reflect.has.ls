@@ -1,14 +1,14 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-
-test 'Reflect.has' !->
+test 'Reflect.has' (assert)->
   {has} = core.Reflect
-  ok typeof! has is \Function, 'Reflect.has is function'
-  eq has.length, 2, 'arity is 2'
-  if \name of has => eq has.name, \has, 'name is "has"'
-  O = {qux: 987}
-  eq has(O, \qux), on
-  eq has(O, \qwe), no
-  eq has(O, \toString), on
-  throws (-> has 42, \constructor), TypeError, 'throws on primitive'
+  assert.ok typeof! has is \Function, 'Reflect.has is function'
+  assert.strictEqual has.length, 2, 'arity is 2'
+  if \name of has
+    assert.strictEqual has.name, \has, 'name is "has"'
+  O = qux: 987
+  assert.strictEqual has(O, \qux), on
+  assert.strictEqual has(O, \qwe), no
+  assert.strictEqual has(O, \toString), on
+  assert.throws (-> has 42, \constructor), TypeError, 'throws on primitive'

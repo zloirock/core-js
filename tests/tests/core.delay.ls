@@ -1,12 +1,14 @@
-QUnit.module \core-js
+{module, test} = QUnit
+module \core-js
+
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 
-test 'delay' !->
-  it.expect 3
-  ok typeof! delay is \Function, 'is function'
-  ok delay(42) instanceof Promise, 'returns promises'
+test 'delay' (assert)->
+  assert.expect 3
+  assert.ok typeof! delay is \Function, 'is function'
+  assert.ok delay(42) instanceof Promise, 'returns promises'
   
   timeLimitedPromise(1e3, !(res)-> delay(10).then !-> res it)
-    .then  -> ok it is on, 'resolves as `true`'
-    .catch -> ok no 'rejected'
-    .then it.async!
+    .then  -> assert.ok it is on, 'resolves as `true`'
+    .catch -> assert.ok no 'rejected'
+    .then assert.async!

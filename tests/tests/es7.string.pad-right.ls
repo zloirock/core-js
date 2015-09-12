@@ -1,21 +1,18 @@
 'use strict';
+{module, test} = QUnit
+module \ES7
 
-QUnit.module \ES7
-
-eq = strictEqual
-
-test 'String#padRight' !->
-  ok typeof! String::padRight is \Function, 'Is function'
-  eq String::padRight.length, 1, 'length is 1'
-  ok /native code/.test(String::padRight), 'looks like native'
-  if \name of String::padRight => eq String::padRight.name, \padRight, 'name is "padRight"'
-  eq 'abc'padRight(5), 'abc  '
-  eq 'abc'padRight(4, \de), \abcd
-  eq 'abc'padRight!,  \abc
-  eq 'abc'padRight(5 '_'), 'abc__'
-  eq ''padRight(0), ''
-  eq 'foo'padRight(1), \foo
-
+test 'String#padRight' (assert)->
+  assert.ok typeof! String::padRight is \Function, 'Is function'
+  assert.strictEqual String::padRight.length, 1, 'length is 1'
+  assert.ok /native code/.test(String::padRight), 'looks like native'
+  assert.strictEqual String::padRight.name, \padRight, 'name is "padRight"'
+  assert.strictEqual 'abc'padRight(5), 'abc  '
+  assert.strictEqual 'abc'padRight(4, \de), \abcd
+  assert.strictEqual 'abc'padRight!,  \abc
+  assert.strictEqual 'abc'padRight(5 '_'), 'abc__'
+  assert.strictEqual ''padRight(0), ''
+  assert.strictEqual 'foo'padRight(1), \foo
   if !(-> @)!
-    throws (-> String::padRight.call null, 0), TypeError
-    throws (-> String::padRight.call void, 0), TypeError
+    assert.throws (-> String::padRight.call null, 0), TypeError
+    assert.throws (-> String::padRight.call void, 0), TypeError

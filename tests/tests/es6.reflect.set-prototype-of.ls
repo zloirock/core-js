@@ -1,17 +1,16 @@
 if Object.setPrototypeOf || '__proto__' of {}
-  QUnit.module \ES6
+  {module, test} = QUnit
+  module \ES6
 
-  eq = strictEqual
-
-  test 'Reflect.setPrototypeOf' !->
+  test 'Reflect.setPrototypeOf' (assert)->
     {setPrototypeOf} = Reflect
-    ok typeof! setPrototypeOf is \Function, 'Reflect.setPrototypeOf is function'
-    #eq setPrototypeOf.length, 2, 'arity is 2' # fails in MS Edge
-    ok /native code/.test(setPrototypeOf), 'looks like native'
-    if \name of setPrototypeOf => eq setPrototypeOf.name, \setPrototypeOf, 'name is "setPrototypeOf"'
+    assert.ok typeof! setPrototypeOf is \Function, 'Reflect.setPrototypeOf is function'
+    #assert.strictEqual setPrototypeOf.length, 2, 'arity is 2' # fails in MS Edge
+    assert.ok /native code/.test(setPrototypeOf), 'looks like native'
+    assert.strictEqual setPrototypeOf.name, \setPrototypeOf, 'name is "setPrototypeOf"'
     obj = {}
-    ok setPrototypeOf(obj, Array::), on
-    ok obj instanceof Array
-    throws (-> setPrototypeOf {}, 42), TypeError
-    throws (-> setPrototypeOf 42, {}), TypeError, 'throws on primitive'
-    ok setPrototypeOf(o = {}, o) is no, 'false on recursive __proto__'
+    assert.ok setPrototypeOf(obj, Array::), on
+    assert.ok obj instanceof Array
+    assert.throws (-> setPrototypeOf {}, 42), TypeError
+    assert.throws (-> setPrototypeOf 42, {}), TypeError, 'throws on primitive'
+    assert.ok setPrototypeOf(o = {}, o) is no, 'false on recursive __proto__'

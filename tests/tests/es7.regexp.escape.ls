@@ -1,12 +1,11 @@
-QUnit.module \ES7
+{module, test} = QUnit
+module \ES7
 
-eq = strictEqual
-
-test 'RegExp.escape' !->
+test 'RegExp.escape' (assert)->
   {escape} = RegExp
-  ok typeof! escape is \Function, 'Is function'
-  ok /native code/.test(escape), 'looks like native'
-  eq escape.length, 1, 'arity is 1'
-  if \name of escape => eq escape.name, \escape, 'name is "escape"'
-  eq escape('qwe asd'), 'qwe asd', "Don't change simple string"
-  eq escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars'
+  assert.ok typeof! escape is \Function, 'Is function'
+  assert.ok /native code/.test(escape), 'looks like native'
+  assert.strictEqual escape.length, 1, 'arity is 1'
+  assert.strictEqual escape.name, \escape, 'name is "escape"'
+  assert.strictEqual escape('qwe asd'), 'qwe asd', "Don't change simple string"
+  assert.strictEqual escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars'

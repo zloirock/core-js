@@ -1,38 +1,36 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
 isFunction = -> typeof! it is \Function
-
 {WeakMap, Map} = core
 {freeze} = core.Object
 {values} = core.Array
 {iterator} = core.Symbol
 
-eq = strictEqual
-
-test 'WeakMap' !->
-  ok isFunction(WeakMap), 'Is function'
-  ok \delete of WeakMap::, 'delete in WeakMap.prototype'
-  ok \get    of WeakMap::, 'get in WeakMap.prototype'
-  ok \has    of WeakMap::, 'has in WeakMap.prototype'
-  ok \set    of WeakMap::, 'set in WeakMap.prototype'
-  ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
-  eq new WeakMap(values [[a = {}, b = {}]]).get(a), b, 'Init WeakMap from iterator #1'
-  eq new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
-  eq new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
+test 'WeakMap' (assert)->
+  assert.ok isFunction(WeakMap), 'Is function'
+  assert.ok \delete of WeakMap::, 'delete in WeakMap.prototype'
+  assert.ok \get    of WeakMap::, 'get in WeakMap.prototype'
+  assert.ok \has    of WeakMap::, 'has in WeakMap.prototype'
+  assert.ok \set    of WeakMap::, 'set in WeakMap.prototype'
+  assert.ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
+  assert.strictEqual new WeakMap(values [[a = {}, b = {}]]).get(a), b, 'Init WeakMap from iterator #1'
+  assert.strictEqual new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
+  assert.strictEqual new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
-  eq M.has(f), on, 'works with frozen objects, #1'
-  eq M.get(f), 42, 'works with frozen objects, #2'
+  assert.strictEqual M.has(f), on, 'works with frozen objects, #1'
+  assert.strictEqual M.get(f), 42, 'works with frozen objects, #2'
   M.delete f
-  eq M.has(f), no, 'works with frozen objects, #3'
-  eq M.get(f), void, 'works with frozen objects, #4'
+  assert.strictEqual M.has(f), no, 'works with frozen objects, #3'
+  assert.strictEqual M.get(f), void, 'works with frozen objects, #4'
   # return #throw
   done = no
   iter = values [null, 1, 2]
   iter.return = -> done := on
   try => new WeakMap iter
-  ok done, '.return #throw'
-  ok !(\clear of WeakMap::), 'should not contains `.clear` method'
+  assert.ok done, '.return #throw'
+  assert.ok !(\clear of WeakMap::), 'should not contains `.clear` method'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
@@ -41,33 +39,37 @@ test 'WeakMap' !->
     done := on
     core.getIteratorMethod([])call @
   new WeakMap a
-  ok done
+  assert.ok done
 
-test 'WeakMap#delete' !->
-  ok isFunction(WeakMap::delete), 'Is function'
+test 'WeakMap#delete' (assert)->
+  assert.ok isFunction(WeakMap::delete), 'Is function'
   M = new WeakMap [[a = {}, 42], [b = {}, 21]]
-  ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
+  assert.ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
-  ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
-test 'WeakMap#get' !->
-  ok isFunction(WeakMap::get), 'Is function'
+  assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
+
+test 'WeakMap#get' (assert)->
+  assert.ok isFunction(WeakMap::get), 'Is function'
   M = new WeakMap!
-  eq M.get({}), void, 'WeakMap .get() before .set() return undefined'
+  assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
   M.set a = {}, 42
-  eq M.get(a), 42, 'WeakMap .get() return value'
+  assert.strictEqual M.get(a), 42, 'WeakMap .get() return value'
   M.delete a
-  eq M.get(a), void, 'WeakMap .get() after .delete() return undefined'
-test 'WeakMap#has' !->
-  ok isFunction(WeakMap::has), 'Is function'
+  assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
+
+test 'WeakMap#has' (assert)->
+  assert.ok isFunction(WeakMap::has), 'Is function'
   M = new WeakMap!
-  ok !M.has({}), 'WeakMap .has() before .set() return false'
+  assert.ok !M.has({}), 'WeakMap .has() before .set() return false'
   M.set a = {}, 42
-  ok M.has(a), 'WeakMap .has() return true'
+  assert.ok M.has(a), 'WeakMap .has() return true'
   M.delete a
-  ok !M.has(a), 'WeakMap .has() after .delete() return false'
-test 'WeakMap#set' !->
-  ok isFunction(WeakMap::set), 'Is function'
-  ok (w = new WeakMap)set(a = {}, 42) is w, 'chaining'
-  ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
-test 'WeakMap#@@toStringTag' !->
-  eq WeakMap::[core.Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'
+  assert.ok !M.has(a), 'WeakMap .has() after .delete() return false'
+
+test 'WeakMap#set' (assert)->
+  assert.ok isFunction(WeakMap::set), 'Is function'
+  assert.ok (w = new WeakMap)set(a = {}, 42) is w, 'chaining'
+  assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
+
+test 'WeakMap#@@toStringTag' (assert)->
+  assert.strictEqual WeakMap::[core.Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'

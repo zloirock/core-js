@@ -1,23 +1,23 @@
 'use strict'
+{module, test} = QUnit
+module \ES6
 
-QUnit.module \ES6
-
-test 'String#startsWith' !->
+test 'String#startsWith' (assert)->
   {startsWith} = core.String
-  ok typeof! startsWith is \Function, 'Is function'
-  ok startsWith 'undefined'
-  ok not startsWith 'undefined' null
-  ok startsWith 'abc' ''
-  ok startsWith 'abc' 'a'
-  ok startsWith 'abc' 'ab'
-  ok not startsWith 'abc' 'bc'
-  ok startsWith 'abc' '' NaN
-  ok startsWith 'abc' \a -1
-  ok not startsWith 'abc' \a 1
-  ok not startsWith 'abc' \a Infinity
-  ok startsWith 'abc' \b on
-  ok startsWith 'abc' \a \x
+  assert.ok typeof! startsWith is \Function, 'Is function'
+  assert.ok startsWith 'undefined'
+  assert.ok not startsWith 'undefined' null
+  assert.ok startsWith 'abc' ''
+  assert.ok startsWith 'abc' 'a'
+  assert.ok startsWith 'abc' 'ab'
+  assert.ok not startsWith 'abc' 'bc'
+  assert.ok startsWith 'abc' '' NaN
+  assert.ok startsWith 'abc' \a -1
+  assert.ok not startsWith 'abc' \a 1
+  assert.ok not startsWith 'abc' \a Infinity
+  assert.ok startsWith 'abc' \b on
+  assert.ok startsWith 'abc' \a \x
   if !(-> @)!
-    throws (-> startsWith null, '.'), TypeError
-    throws (-> startsWith void, '.'), TypeError
-  throws (-> startsWith 'qwe' /./), TypeError
+    assert.throws (-> startsWith null, '.'), TypeError
+    assert.throws (-> startsWith void, '.'), TypeError
+  assert.throws (-> startsWith 'qwe' /./), TypeError

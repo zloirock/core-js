@@ -1,14 +1,14 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
-eq = strictEqual
-
-test 'Reflect.apply' !->
+test 'Reflect.apply' (assert)->
   {apply} = core.Reflect
-  ok typeof! apply is \Function, 'Reflect.apply is function'
-  eq apply.length, 3, 'arity is 3'
-  if \name of apply => eq apply.name, \apply, 'name is "apply"'
-  eq apply(Array::push, [1 2], [3 4 5]), 5
+  assert.ok typeof! apply is \Function, 'Reflect.apply is function'
+  assert.strictEqual apply.length, 3, 'arity is 3'
+  if \name of apply
+    assert.strictEqual apply.name, \apply, 'name is "apply"'
+  assert.strictEqual apply(Array::push, [1 2], [3 4 5]), 5
   C = (a, b, c)-> a + b + c
   C.apply = 42
-  eq apply(C, null, <[foo bar baz]>), \foobarbaz, 'works with redefined apply'
-  throws (-> apply 42, null, []), TypeError, 'throws on primitive'
+  assert.strictEqual apply(C, null, <[foo bar baz]>), \foobarbaz, 'works with redefined apply'
+  assert.throws (-> apply 42, null, []), TypeError, 'throws on primitive'

@@ -1,10 +1,9 @@
-QUnit.module 'core-js'
+{module, test} = QUnit
+module 'core-js'
 
-eq = strictEqual
-
-test 'String#escapeHTML' !->
+test 'String#escapeHTML' (assert)->
   {escapeHTML} = core.String
-  ok typeof! escapeHTML is \Function, 'Is function'
-  eq escapeHTML('qwe, asd'), 'qwe, asd'
-  eq escapeHTML('<div>qwe</div>'), '&lt;div&gt;qwe&lt;/div&gt;'
-  eq escapeHTML("&<>\"'"), '&amp;&lt;&gt;&quot;&apos;'
+  assert.ok typeof! escapeHTML is \Function, 'Is function'
+  assert.strictEqual escapeHTML('qwe, asd'), 'qwe, asd'
+  assert.strictEqual escapeHTML('<div>qwe</div>'), '&lt;div&gt;qwe&lt;/div&gt;'
+  assert.strictEqual escapeHTML("&<>\"'"), '&amp;&lt;&gt;&quot;&apos;'

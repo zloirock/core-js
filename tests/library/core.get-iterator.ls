@@ -1,27 +1,13 @@
-QUnit.module \core-js
-global = Function('return this')!
+{module, test} = QUnit
+module \core-js
+
 {from, values} = core.Array
 
-test 'core.getIterator' !->
+test 'core.getIterator' (assert)->
   {getIterator} = core
-  ok typeof getIterator is \function, 'Is function'
-  throws (!-> getIterator {}), TypeError
+  assert.ok typeof getIterator is \function, 'Is function'
+  assert.throws (!-> getIterator {}), TypeError
   iter = getIterator []
-  ok \next of iter
+  assert.ok \next of iter
   iter = getIterator (->&)!
-  ok \next of iter
-  /*
-  _Symbol = global.Symbol
-  I = Math.random!
-  O = {0: \a, 1: \b, 2: \c, length: 3}
-  O[I] = -> values @
-  throws (!-> getIterator O), TypeError
-  global.Symbol = {iterator: I}
-  try
-    getIterator O
-    ok on
-  catch => ok no
-  deepEqual from(getIterator O), <[a b c]>
-  global.Symbol = _Symbol
-  throws (!-> getIterator O), TypeError
-  */
+  assert.ok \next of iter

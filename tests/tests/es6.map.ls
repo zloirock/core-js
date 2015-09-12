@@ -1,4 +1,5 @@
-QUnit.module \ES6
+{module, test} = QUnit
+module \ES6
 
 isFunction = -> typeof! it is \Function
 isIterator = -> typeof it is \object && isFunction it.next
@@ -7,30 +8,27 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
 {iterator} = Symbol
 
-eq = strictEqual
-deq = deepEqual
-
-test 'Map' !->
-  ok isFunction(Map), 'Is function'
-  ok /native code/.test(Map), 'looks like native'
-  if \name of Map => eq Map.name, \Map, 'name is "Map"'
-  eq Map.length, 0, 'length is 0'
-  ok \clear   of Map::, 'clear in Map.prototype'
-  ok \delete  of Map::, 'delete in Map.prototype'
-  ok \forEach of Map::, 'forEach in Map.prototype'
-  ok \get     of Map::, 'get in Map.prototype'
-  ok \has     of Map::, 'has in Map.prototype'
-  ok \set     of Map::, 'set in Map.prototype'
-  ok new Map instanceof Map, 'new Map instanceof Map'
-  eq new Map([1 2 3]entries!).size, 3, 'Init from iterator #1'
-  eq new Map(new Map [1 2 3]entries!).size, 3, 'Init from iterator #2'
-  eq new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
+test 'Map' (assert)->
+  assert.ok isFunction(Map), 'Is function'
+  assert.ok /native code/.test(Map), 'looks like native'
+  assert.strictEqual Map.name, \Map, 'name is "Map"'
+  assert.strictEqual Map.length, 0, 'length is 0'
+  assert.ok \clear   of Map::, 'clear in Map.prototype'
+  assert.ok \delete  of Map::, 'delete in Map.prototype'
+  assert.ok \forEach of Map::, 'forEach in Map.prototype'
+  assert.ok \get     of Map::, 'get in Map.prototype'
+  assert.ok \has     of Map::, 'has in Map.prototype'
+  assert.ok \set     of Map::, 'set in Map.prototype'
+  assert.ok new Map instanceof Map, 'new Map instanceof Map'
+  assert.strictEqual new Map([1 2 3]entries!).size, 3, 'Init from iterator #1'
+  assert.strictEqual new Map(new Map [1 2 3]entries!).size, 3, 'Init from iterator #2'
+  assert.strictEqual new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
   # return #throw
   done = no
   iter = [null, 1, 2]values!
   iter.return = -> done := on
   try => new Map iter
-  ok done, '.return #throw'
+  assert.ok done, '.return #throw'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
@@ -38,44 +36,47 @@ test 'Map' !->
     done := on
     [][iterator]call @
   new Map a
-  ok done
-test 'Map#clear' !->
-  ok isFunction(Map::clear), 'Is function'
-  ok /native code/.test(Map::clear), 'looks like native'
+  assert.ok done
+
+test 'Map#clear' (assert)->
+  assert.ok isFunction(Map::clear), 'Is function'
+  assert.ok /native code/.test(Map::clear), 'looks like native'
   M = new Map
   M.clear!
-  eq M.size, 0
+  assert.strictEqual M.size, 0
   M = new Map!set 1 2 .set 2 3 .set 1 4
   M.clear!
-  eq M.size, 0
-  ok !M.has 1
-  ok !M.has 2
+  assert.strictEqual M.size, 0
+  assert.ok !M.has 1
+  assert.ok !M.has 2
   M = new Map!set 1 2 .set f = freeze({}), 3
   M.clear!
-  eq M.size, 0, 'Support frozen objects'
-  ok !M.has 1
-  ok !M.has f
-test 'Map#delete' !->
-  ok isFunction(Map::delete), 'Is function'
-  ok /native code/.test(Map::delete), 'looks like native'
+  assert.strictEqual M.size, 0, 'Support frozen objects'
+  assert.ok !M.has 1
+  assert.ok !M.has f
+
+test 'Map#delete' (assert)->
+  assert.ok isFunction(Map::delete), 'Is function'
+  assert.ok /native code/.test(Map::delete), 'looks like native'
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
-  eq M.size, 5
-  ok M.delete(NaN)
-  eq M.size, 4
-  ok !M.delete(4)
-  eq M.size, 4
+  assert.strictEqual M.size, 5
+  assert.ok M.delete(NaN)
+  assert.strictEqual M.size, 4
+  assert.ok !M.delete(4)
+  assert.strictEqual M.size, 4
   M.delete []
-  eq M.size, 4
+  assert.strictEqual M.size, 4
   M.delete a
-  eq M.size, 3
+  assert.strictEqual M.size, 3
   M.set freeze(f = {}), 42
-  eq M.size, 4
+  assert.strictEqual M.size, 4
   M.delete f
-  eq M.size, 3
-test 'Map#forEach' !->
-  ok isFunction(Map::forEach), 'Is function'
-  ok /native code/.test(Map::forEach), 'looks like native'
+  assert.strictEqual M.size, 3
+
+test 'Map#forEach' (assert)->
+  assert.ok isFunction(Map::forEach), 'Is function'
+  assert.ok /native code/.test(Map::forEach), 'looks like native'
   r = {}
   var T
   count = 0
@@ -83,8 +84,8 @@ test 'Map#forEach' !->
   M.forEach (value, key)!->
     count++
     r[value] = key
-  eq count, 5
-  deq r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
+  assert.strictEqual count, 5
+  assert.deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
   map = new Map [[\0 9], [\1 9], [\2 9], [\3 9]]
   s = "";
   map.forEach (value, key)->
@@ -94,142 +95,152 @@ test 'Map#forEach' !->
       map.delete \3
       map.delete \1
       map.set \4 9
-  eq s, \0124
+  assert.strictEqual s, \0124
   map = new Map [[\0 1]]
   s = "";
   map.forEach ->
     map.delete \0
     if s isnt '' => throw '!!!'
     s += it
-  eq s, \1
-test 'Map#get' !->
-  ok isFunction(Map::get), 'Is function'
-  ok /native code/.test(Map::get), 'looks like native'
+  assert.strictEqual s, \1
+
+test 'Map#get' (assert)->
+  assert.ok isFunction(Map::get), 'Is function'
+  assert.ok /native code/.test(Map::get), 'looks like native'
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
-  eq M.get(NaN), 1
-  eq M.get(4), void
-  eq M.get({}), void
-  eq M.get(o), o
-  eq M.get(f), 42
-  eq M.get(2), 5
-test 'Map#has' !->
-  ok isFunction(Map::has), 'Is function'
-  ok /native code/.test(Map::has), 'looks like native'
+  assert.strictEqual M.get(NaN), 1
+  assert.strictEqual M.get(4), void
+  assert.strictEqual M.get({}), void
+  assert.strictEqual M.get(o), o
+  assert.strictEqual M.get(f), 42
+  assert.strictEqual M.get(2), 5
+
+test 'Map#has' (assert)->
+  assert.ok isFunction(Map::has), 'Is function'
+  assert.ok /native code/.test(Map::has), 'looks like native'
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
-  ok M.has NaN
-  ok M.has o
-  ok M.has 2
-  ok M.has f
-  ok not M.has 4
-  ok not M.has {}
-test 'Map#set' !->
-  ok isFunction(Map::set), 'Is function'
-  ok /native code/.test(Map::set), 'looks like native'
+  assert.ok M.has NaN
+  assert.ok M.has o
+  assert.ok M.has 2
+  assert.ok M.has f
+  assert.ok not M.has 4
+  assert.ok not M.has {}
+
+test 'Map#set' (assert)->
+  assert.ok isFunction(Map::set), 'Is function'
+  assert.ok /native code/.test(Map::set), 'looks like native'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
-  ok M.size is 5
+  assert.ok M.size is 5
   chain = M.set(7 2)
-  eq chain, M
+  assert.strictEqual chain, M
   M.set 7 2
-  eq M.size, 6
-  eq M.get(7), 2
-  eq M.get(NaN), 1
+  assert.strictEqual M.size, 6
+  assert.strictEqual M.get(7), 2
+  assert.strictEqual M.get(NaN), 1
   M.set NaN, 42
-  eq M.size, 6
-  eq M.get(NaN), 42
+  assert.strictEqual M.size, 6
+  assert.strictEqual M.get(NaN), 42
   M.set {}, 11
-  eq M.size, 7
-  eq M.get(o), o
+  assert.strictEqual M.size, 7
+  assert.strictEqual M.get(o), o
   M.set o, 27
-  eq M.size, 7
-  eq M.get(o), 27
-  eq new Map!set(NaN, 2)set(NaN, 3)set(NaN, 4)size, 1
+  assert.strictEqual M.size, 7
+  assert.strictEqual M.get(o), 27
+  assert.strictEqual new Map!set(NaN, 2)set(NaN, 3)set(NaN, 4)size, 1
   M = new Map!set freeze(f = {}), 42
-  eq M.get(f), 42
-test 'Map#size' !->
+  assert.strictEqual M.get(f), 42
+
+test 'Map#size' (assert)->
   size = new Map!set 2 1 .size
-  eq typeof size, \number, 'size is number'
-  eq size, 1, 'size is correct'
+  assert.strictEqual typeof size, \number, 'size is number'
+  assert.strictEqual size, 1, 'size is correct'
   if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
     sizeDesc = getOwnPropertyDescriptor Map::, \size
-    ok sizeDesc && sizeDesc.get, 'size is getter'
-    ok sizeDesc && !sizeDesc.set, 'size isnt setter'
-    throws (-> Map::size), TypeError
-test 'Map & -0' !->
+    assert.ok sizeDesc && sizeDesc.get, 'size is getter'
+    assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'
+    assert.throws (-> Map::size), TypeError
+
+test 'Map & -0' (assert)->
   map = new Map
   map.set -0, 1
-  eq map.size, 1
-  ok map.has 0
-  ok map.has -0
-  eq map.get(0), 1
-  eq map.get(-0), 1
+  assert.strictEqual map.size, 1
+  assert.ok map.has 0
+  assert.ok map.has -0
+  assert.strictEqual map.get(0), 1
+  assert.strictEqual map.get(-0), 1
   map.forEach (val, key)->
-    ok !same key, -0
+    assert.ok !same key, -0
   map.delete -0
-  eq map.size, 0
+  assert.strictEqual map.size, 0
   map = new Map [[-0 1]]
   map.forEach (val, key)->
-    ok !same key, -0
-test 'Map#@@toStringTag' !->
-  eq Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
+    assert.ok !same key, -0
 
-test 'Map Iterator' !->
+test 'Map#@@toStringTag' (assert)->
+  assert.strictEqual Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
+
+test 'Map Iterator' (assert)->
   map = new Map [[\a 1], [\b 2], [\c 3], [\d 4]]
   keys = []
   iterator = map.keys!
   keys.push iterator.next!value
-  ok map.delete \a
-  ok map.delete \b
-  ok map.delete \c
+  assert.ok map.delete \a
+  assert.ok map.delete \b
+  assert.ok map.delete \c
   map.set \e
   keys.push iterator.next!value
   keys.push iterator.next!value
-  ok iterator.next!done
+  assert.ok iterator.next!done
   map.set \f
-  ok iterator.next!done
-  deq keys, <[a d e]>
-test 'Map#keys' !->
-  ok typeof Map::keys is \function, 'Is function'
-  ok /native code/.test(Map::keys), 'looks like native'
+  assert.ok iterator.next!done
+  assert.deepEqual keys, <[a d e]>
+
+test 'Map#keys' (assert)->
+  assert.ok typeof Map::keys is \function, 'Is function'
+  assert.ok /native code/.test(Map::keys), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
-  ok isIterator(iter), 'Return iterator'
-  eq iter[Symbol?toStringTag], 'Map Iterator'
-  deq iter.next!, {value: \a, done: no}
-  deq iter.next!, {value: \s, done: no}
-  deq iter.next!, {value: \d, done: no}
-  deq iter.next!, {value: void, done: on}
-test 'Map#values' !->
-  ok typeof Map::values is \function, 'Is function'
-  ok /native code/.test(Map::values), 'looks like native'
+  assert.ok isIterator(iter), 'Return iterator'
+  assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
+  assert.deepEqual iter.next!, {value: \a, done: no}
+  assert.deepEqual iter.next!, {value: \s, done: no}
+  assert.deepEqual iter.next!, {value: \d, done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}
+
+test 'Map#values' (assert)->
+  assert.ok typeof Map::values is \function, 'Is function'
+  assert.ok /native code/.test(Map::values), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
-  ok isIterator(iter), 'Return iterator'
-  eq iter[Symbol?toStringTag], 'Map Iterator'
-  deq iter.next!, {value: \q, done: no}
-  deq iter.next!, {value: \w, done: no}
-  deq iter.next!, {value: \e, done: no}
-  deq iter.next!, {value: void, done: on}
-test 'Map#entries' !->
-  ok typeof Map::entries is \function, 'Is function'
-  ok /native code/.test(Map::entries), 'looks like native'
+  assert.ok isIterator(iter), 'Return iterator'
+  assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
+  assert.deepEqual iter.next!, {value: \q, done: no}
+  assert.deepEqual iter.next!, {value: \w, done: no}
+  assert.deepEqual iter.next!, {value: \e, done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}
+
+test 'Map#entries' (assert)->
+  assert.ok typeof Map::entries is \function, 'Is function'
+  assert.ok /native code/.test(Map::entries), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
-  ok isIterator(iter), 'Return iterator'
-  eq iter[Symbol?toStringTag], 'Map Iterator'
-  deq iter.next!, {value: [\a \q], done: no}
-  deq iter.next!, {value: [\s \w], done: no}
-  deq iter.next!, {value: [\d \e], done: no}
-  deq iter.next!, {value: void, done: on}
-test 'Map#@@iterator' !->
-  ok typeof Map::[Symbol?iterator] is \function, 'Is function'
-  ok /native code/.test(Map::[Symbol?iterator]), 'looks like native'
-  eq Map::[Symbol?iterator], Map::entries
+  assert.ok isIterator(iter), 'Return iterator'
+  assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
+  assert.deepEqual iter.next!, {value: [\a \q], done: no}
+  assert.deepEqual iter.next!, {value: [\s \w], done: no}
+  assert.deepEqual iter.next!, {value: [\d \e], done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}
+
+test 'Map#@@iterator' (assert)->
+  assert.ok typeof Map::[Symbol?iterator] is \function, 'Is function'
+  assert.ok /native code/.test(Map::[Symbol?iterator]), 'looks like native'
+  assert.strictEqual Map::[Symbol?iterator], Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!
-  ok isIterator(iter), 'Return iterator'
-  eq iter[Symbol?toStringTag], 'Map Iterator'
-  deq iter.next!, {value: [\a \q], done: no}
-  deq iter.next!, {value: [\s \w], done: no}
-  deq iter.next!, {value: [\d \e], done: no}
-  deq iter.next!, {value: void, done: on}
+  assert.ok isIterator(iter), 'Return iterator'
+  assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
+  assert.deepEqual iter.next!, {value: [\a \q], done: no}
+  assert.deepEqual iter.next!, {value: [\s \w], done: no}
+  assert.deepEqual iter.next!, {value: [\d \e], done: no}
+  assert.deepEqual iter.next!, {value: void, done: on}

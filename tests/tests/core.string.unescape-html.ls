@@ -1,11 +1,11 @@
-QUnit.module \core-js
-eq = strictEqual
+{module, test} = QUnit
+module \core-js
 
-test 'String#unescapeHTML' !->
-  ok typeof! String::unescapeHTML is \Function, 'Is function'
-  ok /native code/.test(String::unescapeHTML), 'looks like native'
-  eq String::unescapeHTML.length, 0, 'arity is 0'
-  if \name of String::unescapeHTML => eq String::unescapeHTML.name, \unescapeHTML, 'name is "unescapeHTML"'
-  eq 'qwe, asd'.unescapeHTML!, 'qwe, asd'
-  eq '&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML!, '<div>qwe</div>'
-  eq '&amp;&lt;&gt;&quot;&apos;'.unescapeHTML!, "&<>\"'"
+test 'String#unescapeHTML' (assert)->
+  assert.ok typeof! String::unescapeHTML is \Function, 'Is function'
+  assert.ok /native code/.test(String::unescapeHTML), 'looks like native'
+  assert.strictEqual String::unescapeHTML.length, 0, 'arity is 0'
+  assert.strictEqual String::unescapeHTML.name, \unescapeHTML, 'name is "unescapeHTML"'
+  assert.strictEqual 'qwe, asd'.unescapeHTML!, 'qwe, asd'
+  assert.strictEqual '&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML!, '<div>qwe</div>'
+  assert.strictEqual '&amp;&lt;&gt;&quot;&apos;'.unescapeHTML!, "&<>\"'"
