@@ -10,6 +10,8 @@ G = global? && global || window
 
 test 'Symbol' (assert)->
   assert.ok isFunction(Symbol), 'Is function'
+  #assert.strictEqual Symbol.length, 0 'length is 0' # fails in most engines
+  assert.strictEqual Symbol.name, \Symbol, 'name is "Symbol"'
   assert.ok /native code/.test(Symbol), 'looks like native'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
@@ -30,8 +32,12 @@ test 'Well-known Symbols' (assert)->
 
 test 'Global symbol registry' (assert)->
   assert.ok isFunction(Symbol.for), 'Symbol.for is function'
-  assert.ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  assert.strictEqual Symbol.for.length, 1 'length is 1'
+  #assert.strictEqual Symbol.for.name, \for, 'name is "for"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
+  assert.ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  assert.strictEqual Symbol.keyFor.length, 1 'length is 1'
+  assert.strictEqual Symbol.keyFor.name, \keyFor, 'name is "keyFor"'
   assert.ok /native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native'
   symbol = Symbol.for \foo
   assert.strictEqual Symbol.for(\foo), symbol
@@ -43,6 +49,9 @@ test 'Symbol#@@toStringTag' (assert)->
 test 'Object.getOwnPropertySymbols' (assert)->
   {getOwnPropertySymbols, getOwnPropertyNames} = Object
   assert.ok isFunction(getOwnPropertySymbols), 'Is function'
+  assert.strictEqual getOwnPropertySymbols.length, 1 'length is 1'
+  assert.strictEqual getOwnPropertySymbols.name, \getOwnPropertySymbols, 'name is "getOwnPropertySymbols"'
+  assert.ok /native code/.test(getOwnPropertySymbols), 'Object.getOwnPropertySymbols looks like native'
   obj = {q: 1, w: 2, e: 3}
   obj[Symbol()] = 42
   obj[Symbol()] = 43

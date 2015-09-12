@@ -5,7 +5,7 @@ test 'String#search regression' (assert)->
   assert.ok typeof! ''search is \Function, 'String#search is function'
   assert.strictEqual ''search.length, 1, 'String#search length is 1'
   assert.ok /native code/.test(''search), 'looks like native'
-  assert.strictEqual ''search.name, \search, 'String#search is "search" (can fail if compressed)'
+  assert.strictEqual ''search.name, \search, 'String#search is "search"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/search
   instance = Object on
   instance.search = String::search

@@ -5,6 +5,8 @@ test 'Math.sign' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {sign} = Math
   assert.ok typeof! sign is \Function, 'Is function'
+  assert.strictEqual sign.name, \sign, 'name is "sign"'
+  assert.strictEqual sign.length, 1, 'length is 1'
   assert.ok /native code/.test(sign), 'looks like native'
   sameValue sign(NaN), NaN
   sameValue sign!, NaN

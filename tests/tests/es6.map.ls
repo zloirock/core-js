@@ -40,6 +40,8 @@ test 'Map' (assert)->
 
 test 'Map#clear' (assert)->
   assert.ok isFunction(Map::clear), 'Is function'
+  assert.strictEqual Map::clear.name, \clear, 'name is "clear"'
+  assert.strictEqual Map::clear.length, 0, 'length is 0'
   assert.ok /native code/.test(Map::clear), 'looks like native'
   M = new Map
   M.clear!
@@ -57,6 +59,8 @@ test 'Map#clear' (assert)->
 
 test 'Map#delete' (assert)->
   assert.ok isFunction(Map::delete), 'Is function'
+  #assert.strictEqual Map::delete.name, \delete, 'name is "delete"' # can't be polyfilled in some environments
+  assert.strictEqual Map::delete.length, 1, 'length is 1'
   assert.ok /native code/.test(Map::delete), 'looks like native'
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
@@ -76,6 +80,8 @@ test 'Map#delete' (assert)->
 
 test 'Map#forEach' (assert)->
   assert.ok isFunction(Map::forEach), 'Is function'
+  assert.strictEqual Map::forEach.name, \forEach, 'name is "forEach"'
+  assert.strictEqual Map::forEach.length, 1, 'length is 1'
   assert.ok /native code/.test(Map::forEach), 'looks like native'
   r = {}
   var T
@@ -106,6 +112,8 @@ test 'Map#forEach' (assert)->
 
 test 'Map#get' (assert)->
   assert.ok isFunction(Map::get), 'Is function'
+  assert.strictEqual Map::get.name, \get, 'name is "get"'
+  assert.strictEqual Map::get.length, 1, 'length is 1'
   assert.ok /native code/.test(Map::get), 'looks like native'
   o = {}
   f = freeze {}
@@ -119,6 +127,8 @@ test 'Map#get' (assert)->
 
 test 'Map#has' (assert)->
   assert.ok isFunction(Map::has), 'Is function'
+  assert.strictEqual Map::has.name, \has, 'name is "has"'
+  assert.strictEqual Map::has.length, 1, 'length is 1'
   assert.ok /native code/.test(Map::has), 'looks like native'
   o = {}
   f = freeze {}
@@ -132,6 +142,8 @@ test 'Map#has' (assert)->
 
 test 'Map#set' (assert)->
   assert.ok isFunction(Map::set), 'Is function'
+  assert.strictEqual Map::set.name, \set, 'name is "set"'
+  assert.strictEqual Map::set.length, 2, 'length is 2'
   assert.ok /native code/.test(Map::set), 'looks like native'
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
@@ -202,6 +214,8 @@ test 'Map Iterator' (assert)->
 
 test 'Map#keys' (assert)->
   assert.ok typeof Map::keys is \function, 'Is function'
+  assert.strictEqual Map::keys.name, \keys, 'name is "keys"'
+  assert.strictEqual Map::keys.length, 0, 'length is 0'
   assert.ok /native code/.test(Map::keys), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   assert.ok isIterator(iter), 'Return iterator'
@@ -213,6 +227,8 @@ test 'Map#keys' (assert)->
 
 test 'Map#values' (assert)->
   assert.ok typeof Map::values is \function, 'Is function'
+  assert.strictEqual Map::values.name, \values, 'name is "values"'
+  assert.strictEqual Map::values.length, 0, 'length is 0'
   assert.ok /native code/.test(Map::values), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   assert.ok isIterator(iter), 'Return iterator'
@@ -224,6 +240,8 @@ test 'Map#values' (assert)->
 
 test 'Map#entries' (assert)->
   assert.ok typeof Map::entries is \function, 'Is function'
+  assert.strictEqual Map::entries.name, \entries, 'name is "entries"'
+  assert.strictEqual Map::entries.length, 0, 'length is 0'
   assert.ok /native code/.test(Map::entries), 'looks like native'
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   assert.ok isIterator(iter), 'Return iterator'
@@ -235,6 +253,8 @@ test 'Map#entries' (assert)->
 
 test 'Map#@@iterator' (assert)->
   assert.ok typeof Map::[Symbol?iterator] is \function, 'Is function'
+  assert.strictEqual Map::entries.name, \entries, 'name is "entries"'
+  assert.strictEqual Map::entries.length, 0, 'length is 0'
   assert.ok /native code/.test(Map::[Symbol?iterator]), 'looks like native'
   assert.strictEqual Map::[Symbol?iterator], Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!

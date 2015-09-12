@@ -5,6 +5,8 @@ test 'Math.imul' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {imul} = Math
   assert.ok typeof! imul is \Function, 'Is function'
+  assert.strictEqual imul.name, \imul, 'name is "imul"'
+  assert.strictEqual imul.length, 2, 'length is 2'
   assert.ok /native code/.test(imul), 'looks like native'
   sameValue imul(0, 0), 0
   assert.strictEqual imul(123, 456), 56088

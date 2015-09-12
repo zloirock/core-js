@@ -6,6 +6,8 @@ test 'Math.fround' (assert)->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = Math
   assert.ok typeof! fround is \Function, 'Is function'
+  assert.strictEqual fround.name, \fround, 'name is "fround"'
+  assert.strictEqual fround.length, 1, 'length is 1'
   assert.ok /native code/.test(fround), 'looks like native'
   sameValue fround(void), NaN
   sameValue fround(NaN), NaN

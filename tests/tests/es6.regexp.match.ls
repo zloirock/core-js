@@ -7,7 +7,7 @@ test 'String#match regression' (assert)->
   assert.ok typeof! ''match is \Function, 'String#match is function'
   assert.strictEqual ''match.length, 1, 'String#match length is 1'
   assert.ok /native code/.test(''match), 'looks like native'
-  assert.strictEqual ''match.name, \match, 'String#match is "match" (can fail if compressed)'
+  assert.strictEqual ''match.name, \match, 'String#match is "match"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/match
   instance = Object on
   instance.match = String::match

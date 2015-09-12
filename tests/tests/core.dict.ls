@@ -8,6 +8,9 @@ global = @
 
 test 'Dict' (assert)->
   assert.ok isFunction(global.Dict), 'Is function'
+  assert.strictEqual Dict.length, 1, 'length is 1'
+  assert.strictEqual Dict.name, \Dict, 'name is "Dict"'
+  assert.ok /native code/.test(Dict), 'looks like native'
   dict1 = Dict!
   assert.ok dict1 not instanceof Object
   assert.deepEqual keys(dict1), []

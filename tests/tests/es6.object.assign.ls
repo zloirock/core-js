@@ -6,8 +6,9 @@ descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 test 'Object.assign' (assert)->
   {assign, defineProperty} = Object
   assert.ok typeof! assign is \Function, 'Is function'
-  assert.ok /native code/.test(assign), 'looks like native'
+  assert.strictEqual assign.length, 2, 'length is 2'
   assert.strictEqual assign.name, \assign, 'name is "assign"'
+  assert.ok /native code/.test(assign), 'looks like native'
   foo = q: 1
   assert.strictEqual foo, assign(foo, bar: 2), 'assign return target'
   assert.strictEqual foo.bar, 2, 'assign define properties'

@@ -6,6 +6,8 @@ test 'Math.log10' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {log10} = Math
   assert.ok typeof! log10 is \Function, 'Is function'
+  assert.strictEqual log10.name, \log10, 'name is "log10"'
+  assert.strictEqual log10.length, 1, 'length is 1'
   assert.ok /native code/.test(log10), 'looks like native'
   sameValue log10(''), log10 0
   sameValue log10(NaN), NaN

@@ -6,6 +6,8 @@ test 'Math.hypot' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {hypot, sqrt} = Math
   assert.ok typeof! hypot is \Function, 'Is function'
+  assert.strictEqual hypot.name, \hypot, 'name is "hypot"'
+  assert.strictEqual hypot.length, 2, 'length is 2'
   assert.ok /native code/.test(hypot), 'looks like native'
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1

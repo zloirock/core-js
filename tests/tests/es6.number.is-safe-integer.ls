@@ -5,6 +5,8 @@ test 'Number.isSafeInteger' (assert)->
   {isSafeInteger} = Number
   {create} = Object
   assert.ok typeof! isSafeInteger is \Function, 'Is function'
+  assert.strictEqual isSafeInteger.name, \isSafeInteger, 'name is "isSafeInteger"'
+  assert.strictEqual isSafeInteger.length, 1, 'length is 1'
   assert.ok /native code/.test(isSafeInteger), 'looks like native'
   for [1 -1 2^16 2^16 - 1 2^31 2^31 - 1 2^32 2^32 - 1 -0 16~1fffffffffffff -16~1fffffffffffff]
     assert.ok isSafeInteger(..), "isSafeInteger #{typeof ..} #{..}"

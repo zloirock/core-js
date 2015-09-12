@@ -6,6 +6,8 @@ test 'Math.tanh' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {tanh} = Math
   assert.ok typeof! tanh is \Function, 'Is function'
+  assert.strictEqual tanh.name, \tanh, 'name is "tanh"'
+  assert.strictEqual tanh.length, 1, 'length is 1'
   assert.ok /native code/.test(tanh), 'looks like native'
   sameValue tanh(NaN), NaN
   sameValue tanh(0), 0

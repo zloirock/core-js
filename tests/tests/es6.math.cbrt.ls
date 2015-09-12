@@ -6,6 +6,8 @@ test 'Math.cbrt' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {cbrt} = Math
   assert.ok typeof! cbrt is \Function, 'Is function'
+  assert.strictEqual cbrt.name, \cbrt, 'name is "cbrt"'
+  assert.strictEqual cbrt.length, 1, 'length is 1'
   assert.ok /native code/.test(cbrt), 'looks like native'
   sameValue cbrt(NaN), NaN
   sameValue cbrt(0), 0

@@ -41,12 +41,16 @@ test 'WeakSet' (assert)->
 
 test 'WeakSet#add' (assert)->
   assert.ok isFunction(WeakSet::add), 'Is function'
+  assert.strictEqual WeakSet::add.name, \add, 'name is "add"'
+  assert.strictEqual WeakSet::add.length, 1, 'length is 1'
   assert.ok /native code/.test(WeakSet::add), 'looks like native'
   assert.ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   assert.ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
 
 test 'WeakSet#delete' (assert)->
   assert.ok isFunction(WeakSet::delete), 'Is function'
+  #assert.strictEqual WeakSet::delete.name, \delete, 'name is "delete"' # can't be polyfilled in some environments
+  assert.strictEqual WeakSet::delete.length, 1, 'length is 1'
   assert.ok /native code/.test(WeakSet::delete), 'looks like native'
   S = new WeakSet!
     .add a = {}
@@ -57,6 +61,8 @@ test 'WeakSet#delete' (assert)->
 
 test 'WeakSet#has' (assert)->
   assert.ok isFunction(WeakSet::has), 'Is function'
+  assert.strictEqual WeakSet::has.name, \has, 'name is "has"'
+  assert.strictEqual WeakSet::has.length, 1, 'length is 1'
   assert.ok /native code/.test(WeakSet::has), 'looks like native'
   M = new WeakSet!
   assert.ok not M.has({}), 'WeakSet has`nt value'

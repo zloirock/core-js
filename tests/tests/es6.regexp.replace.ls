@@ -5,7 +5,7 @@ test 'String#replace regression' (assert)->
   assert.ok typeof! ''replace is \Function, 'String#replace is function'
   assert.strictEqual ''replace.length, 2, 'String#replace length is 2'
   assert.ok /native code/.test(''replace), 'looks like native'
-  assert.strictEqual ''replace.name, \replace, 'String#replace is "replace" (can fail if compressed)'
+  assert.strictEqual ''replace.name, \replace, 'String#replace is "replace"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/replace
   instance = Object true
   instance.replace = String::replace

@@ -5,7 +5,7 @@ test 'String#split regression' (assert)->
   assert.ok typeof! ''split is \Function, 'String#split is function'
   assert.strictEqual ''split.length, 2, 'String#split length is 2'
   assert.ok /native code/.test(''split), 'looks like native'
-  assert.strictEqual ''split.name, \split, 'String#split is "split" (can fail if compressed)'
+  assert.strictEqual ''split.name, \split, 'String#split is "split"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/split
   instance = Object on
   instance.split = String::split
