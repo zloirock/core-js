@@ -10,7 +10,7 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {iterator} = core.Symbol
 
 test 'Set' (assert)->
-  assert.ok isFunction(Set), 'Is function'
+  assert.ok isFunction(Set), 'is function'
   assert.ok \add     of Set::, 'add in Set.prototype'
   assert.ok \clear   of Set::, 'clear in Set.prototype'
   assert.ok \delete  of Set::, 'delete in Set.prototype'
@@ -47,7 +47,7 @@ test 'Set' (assert)->
   assert.ok done
 
 test 'Set#add' (assert)->
-  assert.ok isFunction(Set::add), 'Is function'
+  assert.ok isFunction(Set::add), 'is function'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   assert.strictEqual S.size, 5
@@ -66,7 +66,7 @@ test 'Set#add' (assert)->
   assert.ok S.has f
 
 test 'Set#clear' (assert)->
-  assert.ok isFunction(Set::clear), 'Is function'
+  assert.ok isFunction(Set::clear), 'is function'
   S = new Set
   S.clear!
   assert.strictEqual S.size, 0
@@ -83,7 +83,7 @@ test 'Set#clear' (assert)->
   assert.ok !S.has f
 
 test 'Set#delete' (assert)->
-  assert.ok isFunction(Set::delete), 'Is function'
+  assert.ok isFunction(Set::delete), 'is function'
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   assert.strictEqual S.size, 5
@@ -101,7 +101,7 @@ test 'Set#delete' (assert)->
   assert.strictEqual S.size, 3
 
 test 'Set#forEach' (assert)->
-  assert.ok isFunction(Set::forEach), 'Is function'
+  assert.ok isFunction(Set::forEach), 'is function'
   r = []
   count = 0
   S = new Set [1 2 3 2 1]
@@ -129,7 +129,7 @@ test 'Set#forEach' (assert)->
   assert.strictEqual s, \0
 
 test 'Set#has' (assert)->
-  assert.ok isFunction(Set::has), 'Is function'
+  assert.ok isFunction(Set::has), 'is function'
   a = []
   f = freeze {}
   S = new Set [NaN, 2 3 2 1 f, a]
@@ -184,7 +184,7 @@ test 'Set Iterator' (assert)->
   assert.deepEqual keys, <[a d e]>
 
 test 'Set#keys' (assert)->
-  assert.ok typeof Set::keys is \function, 'Is function'
+  assert.ok typeof Set::keys is \function, 'is function'
   iter = new Set(<[q w e]>)keys!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -194,7 +194,7 @@ test 'Set#keys' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Set#values' (assert)->
-  assert.ok typeof Set::values is \function, 'Is function'
+  assert.ok typeof Set::values is \function, 'is function'
   iter = new Set(<[q w e]>)values!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -204,7 +204,7 @@ test 'Set#values' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Set#entries' (assert)->
-  assert.ok typeof Set::entries is \function, 'Is function'
+  assert.ok typeof Set::entries is \function, 'is function'
   iter = new Set(<[q w e]>)entries!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'

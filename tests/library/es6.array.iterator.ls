@@ -7,7 +7,7 @@ isIterator = -> typeof it is \object && isFunction it.next
 {keys, values, entries} = core.Array
 
 test 'Array#@@iterator' (assert)->
-  assert.ok isFunction(values), 'Is function'
+  assert.ok isFunction(values), 'is function'
   iter = core.getIterator <[q w e]>
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
@@ -17,7 +17,7 @@ test 'Array#@@iterator' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Array#keys' (assert)->
-  assert.ok isFunction(keys), 'Is function'
+  assert.ok isFunction(keys), 'is function'
   iter = keys <[q w e]>
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
@@ -27,7 +27,7 @@ test 'Array#keys' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Array#values' (assert)->
-  assert.ok isFunction(values), 'Is function'
+  assert.ok isFunction(values), 'is function'
   iter = values <[q w e]>
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
@@ -37,7 +37,7 @@ test 'Array#values' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Array#entries' (assert)->
-  assert.ok isFunction(entries), 'Is function'
+  assert.ok isFunction(entries), 'is function'
   iter = entries <[q w e]>
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'

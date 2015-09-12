@@ -3,7 +3,7 @@ module \ES7
 
 test 'Object.entries' (assert)->
   {entries, create, assign} = core.Object
-  assert.ok typeof! entries is \Function, 'Is function'
+  assert.ok typeof! entries is \Function, 'is function'
   assert.strictEqual entries.length, 1, 'arity is 1'
   if \name of entries => assert.strictEqual entries.name, \entries, 'name is "entries"'
   assert.deepEqual entries({q:1, w:2, e:3}), [[\q 1] [\w 2] [\e 3]]

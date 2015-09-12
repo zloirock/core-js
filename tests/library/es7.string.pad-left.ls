@@ -4,7 +4,7 @@ module \ES7
 
 test 'String#padLeft' (assert)->
   {padLeft} = core.String
-  assert.ok typeof! padLeft is \Function, 'Is function'
+  assert.ok typeof! padLeft is \Function, 'is function'
   assert.strictEqual padLeft(\abc 5), '  abc'
   assert.strictEqual padLeft(\abc 4 \de), \eabc
   assert.strictEqual padLeft(\abc),  \abc

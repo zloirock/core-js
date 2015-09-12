@@ -3,7 +3,7 @@ module \ES7
 
 test 'Object.values' (assert)->
   {values, create, assign} = Object
-  assert.ok typeof! values is \Function, 'Is function'
+  assert.ok typeof! values is \Function, 'is function'
   assert.ok /native code/.test(values), 'looks like native'
   assert.strictEqual values.length, 1, 'arity is 1'
   assert.strictEqual values.name, \values, 'name is "values"'

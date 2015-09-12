@@ -3,9 +3,9 @@
 module \ES7
 
 test 'Array#includes' (assert)->
-  assert.ok typeof! Array::includes is \Function, 'Is function'
+  assert.ok typeof! Array::includes is \Function, 'is function'
   assert.strictEqual Array::includes.name, \includes, 'name is "includes"'
-  assert.strictEqual Array::includes.length, 1, 'length is 1'
+  assert.strictEqual Array::includes.length, 1, 'arity is 1'
   assert.ok /native code/.test(Array::includes), 'looks like native'
   arr = [1 2 3 -0 o = {}]
   assert.ok arr.includes 1

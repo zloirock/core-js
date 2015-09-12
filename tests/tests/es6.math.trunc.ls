@@ -4,9 +4,9 @@ module \ES6
 test 'Math.trunc' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {trunc} = Math
-  assert.ok typeof! trunc is \Function, 'Is function'
+  assert.ok typeof! trunc is \Function, 'is function'
   assert.strictEqual trunc.name, \trunc, 'name is "trunc"'
-  assert.strictEqual trunc.length, 1, 'length is 1'
+  assert.strictEqual trunc.length, 1, 'arity is 1'
   assert.ok /native code/.test(trunc), 'looks like native'
   sameValue trunc(NaN), NaN, 'NaN -> NaN'
   sameValue trunc(-0), -0, '-0 -> -0'

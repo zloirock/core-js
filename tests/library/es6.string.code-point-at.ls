@@ -4,7 +4,7 @@ module \ES6
 
 test 'String#codePointAt' (assert)->
   {codePointAt} = core.String
-  assert.ok typeof! codePointAt is \Function, 'Is function'
+  assert.ok typeof! codePointAt is \Function, 'is function'
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
   assert.strictEqual codePointAt('abc\uD834\uDF06def', ''), 0x61
   assert.strictEqual codePointAt('abc\uD834\uDF06def', \_), 0x61

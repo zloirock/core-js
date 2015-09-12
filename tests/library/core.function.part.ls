@@ -7,7 +7,7 @@ isFunction = -> typeof! it  is \Function
 test 'Function#part' (assert)->
   {part} = core.Function
   $ = core._
-  assert.ok isFunction(part), 'Is function'
+  assert.ok isFunction(part), 'is function'
   assert.ok part((-> typeof! it is \String), \qwe)!
   obj = a: 42
   obj.fn = part (-> @a + it), 21

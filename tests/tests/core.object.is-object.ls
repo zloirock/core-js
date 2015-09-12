@@ -3,7 +3,7 @@ module \core-js
 
 test 'Object.isObject' (assert)->
   {isObject} = Object
-  assert.ok typeof! isObject is \Function, 'Is function'
+  assert.ok typeof! isObject is \Function, 'is function'
   assert.ok not isObject(void), 'isObject undefined return false'
   assert.ok not isObject(null), 'isObject null return false'
   assert.ok not isObject(1), 'isObject number return false'

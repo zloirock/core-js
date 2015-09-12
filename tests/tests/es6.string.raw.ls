@@ -3,7 +3,7 @@ module \ES6
 
 test 'String.raw' (assert)->
   {raw} = String
-  assert.ok typeof! raw is \Function, 'Is function'
+  assert.ok typeof! raw is \Function, 'is function'
   assert.strictEqual raw.length, 1, 'arity is 1'
   assert.ok /native code/.test(raw), 'looks like native'
   assert.strictEqual raw.name, \raw, 'name is "raw"'

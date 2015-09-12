@@ -5,19 +5,19 @@ isFunction = -> typeof! it is \Function
 {iterator} = core.Symbol
 
 test 'Promise' (assert)->
-  assert.ok isFunction(core.Promise), 'Is function'
+  assert.ok isFunction(core.Promise), 'is function'
 
 test 'Promise#then' (assert)->
-  assert.ok isFunction(core.Promise::then), 'Is function'
+  assert.ok isFunction(core.Promise::then), 'is function'
 
 test 'Promise#catch' (assert)->
-  assert.ok isFunction(core.Promise::catch), 'Is function'
+  assert.ok isFunction(core.Promise::catch), 'is function'
 
 test 'Promise#@@toStringTag' (assert)->
   assert.ok core.Promise::[core.Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
 test 'Promise.all' (assert)->
-  assert.ok isFunction(core.Promise.all), 'Is function'
+  assert.ok isFunction(core.Promise.all), 'is function'
   # works with iterables
   passed = no
   iter = core.Array.values [1 2 3]
@@ -38,7 +38,7 @@ test 'Promise.all' (assert)->
   assert.ok done
 
 test 'Promise.race' (assert)->
-  assert.ok isFunction(core.Promise.race), 'Is function'
+  assert.ok isFunction(core.Promise.race), 'is function'
   # works with iterables
   passed = no
   iter = core.Array.values [1 2 3]
@@ -59,10 +59,10 @@ test 'Promise.race' (assert)->
   assert.ok done
 
 test 'Promise.resolve' (assert)->
-  assert.ok isFunction(core.Promise.resolve), 'Is function'
+  assert.ok isFunction(core.Promise.resolve), 'is function'
 
 test 'Promise.reject' (assert)->
-  assert.ok isFunction(core.Promise.reject), 'Is function'
+  assert.ok isFunction(core.Promise.reject), 'is function'
 
 if core.Object.setPrototypeOf
   test 'Promise subclassing' (assert)->

@@ -9,7 +9,7 @@ descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 G = global? && global || window
 
 test 'Symbol' (assert)->
-  assert.ok isFunction(Symbol), 'Is function'
+  assert.ok isFunction(Symbol), 'is function'
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   assert.ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -39,7 +39,7 @@ test 'Symbol#@@toStringTag' (assert)->
 
 test 'Object.getOwnPropertySymbols' (assert)->
   {getOwnPropertySymbols, getOwnPropertyNames} = core.Object
-  assert.ok isFunction(getOwnPropertySymbols), 'Is function'
+  assert.ok isFunction(getOwnPropertySymbols), 'is function'
   obj = {q: 1, w: 2, e: 3}
   obj[Symbol()] = 42
   obj[Symbol()] = 43

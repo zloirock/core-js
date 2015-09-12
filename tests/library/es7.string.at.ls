@@ -4,7 +4,7 @@ module \ES7
 
 test 'String#at' (assert)->
   {at} = core.String
-  assert.ok typeof! at is \Function, 'Is function'
+  assert.ok typeof! at is \Function, 'is function'
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol
   assert.strictEqual at('abc\uD834\uDF06def', -Infinity), ''

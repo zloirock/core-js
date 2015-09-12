@@ -6,7 +6,7 @@ test 'Math.hypot' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {hypot} = core.Math
   {sqrt} = Math
-  assert.ok typeof! hypot is \Function, 'Is function'
+  assert.ok typeof! hypot is \Function, 'is function'
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1
   sameValue hypot('', 0), 0

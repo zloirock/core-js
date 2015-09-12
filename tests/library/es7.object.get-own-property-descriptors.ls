@@ -6,7 +6,7 @@ descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 test 'Object.getOwnPropertyDescriptors' (assert)->
   {getOwnPropertyDescriptors} = core.Object
-  assert.ok typeof! getOwnPropertyDescriptors is \Function, 'Is function'
+  assert.ok typeof! getOwnPropertyDescriptors is \Function, 'is function'
   O = create {q: 1}, e: value: 3
   O.w = 2
   s = core.Symbol \s

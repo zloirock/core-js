@@ -5,25 +5,25 @@ isFunction = -> typeof! it is \Function
 
 test 'Object.getOwnPropertyDescriptor' (assert)->
   {getOwnPropertyDescriptor} = Object
-  assert.ok isFunction(getOwnPropertyDescriptor), 'Is function'
+  assert.ok isFunction(getOwnPropertyDescriptor), 'is function'
   assert.deepEqual getOwnPropertyDescriptor(q:42, \q), {+writable, +enumerable, +configurable, value: 42}
   assert.ok getOwnPropertyDescriptor({}, \toString) is void
 
 test 'Object.defineProperty' (assert)->
   {defineProperty} = Object
-  assert.ok isFunction(defineProperty), 'Is function'
+  assert.ok isFunction(defineProperty), 'is function'
   assert.ok (rez = defineProperty src = {}, \q, value: 42) is src
   assert.ok rez.q is 42
 
 test 'Object.defineProperties' (assert)->
   {defineProperties} = Object
-  assert.ok isFunction(defineProperties), 'Is function'
+  assert.ok isFunction(defineProperties), 'is function'
   assert.ok (rez = defineProperties src = {}, q: {value: 42}, w: value: 33) is src
   assert.ok rez.q is 42 and rez.w is 33
 
 test 'Object.getPrototypeOf' (assert)->
   {create, getPrototypeOf} = Object
-  assert.ok isFunction(getPrototypeOf), 'Is function'
+  assert.ok isFunction(getPrototypeOf), 'is function'
   assert.ok getPrototypeOf({}) is Object::
   assert.ok getPrototypeOf([]) is Array::
   assert.ok getPrototypeOf(new class fn) is fn::
@@ -39,7 +39,7 @@ test 'Object.getPrototypeOf' (assert)->
 
 test 'Object.getOwnPropertyNames' (assert)->
   {getOwnPropertyNames} = Object
-  assert.ok isFunction(getOwnPropertyNames), 'Is function'
+  assert.ok isFunction(getOwnPropertyNames), 'is function'
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
@@ -65,7 +65,7 @@ test 'Object.create' (assert)->
       for getOwnPropertyNames(object)
         .. in result or result.push ..
     result
-  assert.ok isFunction(create), 'Is function'
+  assert.ok isFunction(create), 'is function'
   assert.ok isPrototype obj = q:1, create(obj)
   assert.ok create(obj)q is 1
   fn = -> @a = 1
@@ -80,7 +80,7 @@ test 'Object.create' (assert)->
 
 test 'Object.keys' (assert)->
   {keys} = Object
-  assert.ok isFunction(keys), 'Is function'
+  assert.ok isFunction(keys), 'is function'
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1
@@ -91,36 +91,36 @@ test 'Object.keys' (assert)->
 
 test 'Object.seal' (assert)->
   {seal} = Object
-  assert.ok isFunction(seal), 'Is function'
+  assert.ok isFunction(seal), 'is function'
   assert.strictEqual seal(a = {}), a
 
 test 'Object.freeze' (assert)->
   {freeze} = Object
-  assert.ok isFunction(freeze), 'Is function'
+  assert.ok isFunction(freeze), 'is function'
   assert.strictEqual freeze(a = {}), a
 
 test 'Object.preventExtensions' (assert)->
   {preventExtensions} = Object
-  assert.ok isFunction(preventExtensions), 'Is function'
+  assert.ok isFunction(preventExtensions), 'is function'
   assert.strictEqual preventExtensions(a = {}), a
 
 test 'Object.isSealed' (assert)->
   {isSealed} = Object
-  assert.ok isFunction(isSealed), 'Is function'
+  assert.ok isFunction(isSealed), 'is function'
   assert.strictEqual isSealed({}), no
 
 test 'Object.isFrozen' (assert)->
   {isFrozen} = Object
-  assert.ok isFunction(isFrozen), 'Is function'
+  assert.ok isFunction(isFrozen), 'is function'
   assert.strictEqual isFrozen({}), no
 
 test 'Object.isExtensible' (assert)->
   {isExtensible} = Object
-  assert.ok isFunction(isExtensible), 'Is function'
+  assert.ok isFunction(isExtensible), 'is function'
   assert.strictEqual isExtensible({}), on
 
 test 'Function#bind' (assert)->
-  assert.ok isFunction(Function::bind), 'Is function'
+  assert.ok isFunction(Function::bind), 'is function'
   obj = a: 42
   assert.ok 42 is (-> @a)bind(obj)!
   assert.ok void is new ((->)bind obj)!a
@@ -140,7 +140,7 @@ test 'Function#bind' (assert)->
 
 test 'Array.isArray' (assert)->
   {isArray} = Array
-  assert.ok isFunction(isArray), 'Is function'
+  assert.ok isFunction(isArray), 'is function'
   assert.ok not isArray {}
   assert.ok not isArray do -> &
   assert.ok isArray []
@@ -291,11 +291,11 @@ test 'Array#reduceRight' (assert)->
 
 test 'Date.now' (assert)->
   {now} = Date
-  assert.ok isFunction(now), 'Is function'
+  assert.ok isFunction(now), 'is function'
   assert.ok +new Date - now! < 10, 'Date.now() ~ +new Date'
 
 test 'Date#toISOString' (assert)->
-  assert.ok isFunction(Date::toISOString), 'Is function'
+  assert.ok isFunction(Date::toISOString), 'is function'
   assert.strictEqual new Date(0).toISOString(), '1970-01-01T00:00:00.000Z'
   assert.strictEqual new Date(1e12+1).toISOString(), '2001-09-09T01:46:40.001Z'
   assert.strictEqual new Date(-5e13-1).toISOString(), '0385-07-25T07:06:39.999Z'

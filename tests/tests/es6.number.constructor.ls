@@ -11,10 +11,10 @@ $check = (assert)-> (a, b)->
 
 test 'Number constructor: regression' (assert)->
   check = $check assert
-  assert.ok typeof! Number is \Function, 'Number is function'
-  assert.strictEqual Number.length, 1, 'Number.length is 1'
+  assert.ok typeof! Number is \Function, 'is function'
+  assert.strictEqual Number.length, 1, 'arity is 1'
   assert.ok /native code/.test(Number), 'looks like native'
-  assert.strictEqual Number.name, \Number, 'Number.name is "Number" (can fail if compressed)'
+  assert.strictEqual Number.name, \Number, 'name is "Number"'
   check 42, 42
   check 42.42, 42.42
   check new Number(42), 42

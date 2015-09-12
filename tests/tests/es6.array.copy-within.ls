@@ -3,8 +3,8 @@
 module \ES6
 
 test 'Array#copyWithin' (assert)->
-  assert.ok typeof! Array::copyWithin is \Function, 'Is function'
-  assert.strictEqual Array::copyWithin.length, 2, 'length is 2'
+  assert.ok typeof! Array::copyWithin is \Function, 'is function'
+  assert.strictEqual Array::copyWithin.length, 2, 'arity is 2'
   assert.ok /native code/.test(Array::copyWithin), 'looks like native'
   assert.strictEqual Array::copyWithin.name, \copyWithin, 'name is "copyWithin"'
   assert.strictEqual (a = [1]copyWithin(0)), a

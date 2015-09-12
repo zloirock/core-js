@@ -3,7 +3,7 @@
 module \ES7
 
 test 'String#at' (assert)->
-  assert.ok typeof! String::at is \Function, 'Is function'
+  assert.ok typeof! String::at is \Function, 'is function'
   assert.strictEqual String::at.length, 1, 'arity is 1'
   assert.ok /native code/.test(String::at), 'looks like native'
   assert.strictEqual String::at.name, \at, 'name is "at"'

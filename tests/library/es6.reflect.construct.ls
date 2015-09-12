@@ -5,7 +5,7 @@ module \ES6
 
 test 'Reflect.construct' (assert)->
   {construct} = core.Reflect
-  assert.ok typeof! construct is \Function, 'Reflect.construct is function'
+  assert.ok typeof! construct is \Function, 'is function'
   assert.strictEqual construct.length, 2, 'arity is 2'
   if \name of construct
     assert.strictEqual construct.name, \construct, 'name is "construct"'

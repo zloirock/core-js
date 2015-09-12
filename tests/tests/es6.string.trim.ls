@@ -3,7 +3,7 @@
 module \ES6
 
 test 'String#trim' (assert)->
-  assert.ok typeof! ''trim is \Function, 'Is function'
+  assert.ok typeof! ''trim is \Function, 'is function'
   assert.strictEqual String::trim.length, 0, 'arity is 0'
   assert.ok /native code/.test(String::trim), 'looks like native'
   assert.strictEqual String::trim.name, \trim, 'name is "trim"'

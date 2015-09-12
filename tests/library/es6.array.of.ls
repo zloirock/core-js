@@ -2,8 +2,8 @@
 module \ES6
 
 test 'Array.of' (assert)->
-  assert.ok typeof! core.Array.of is \Function, 'Is function'
-  assert.strictEqual core.Array.of.length, 0, 'length is 0'
+  assert.ok typeof! core.Array.of is \Function, 'is function'
+  assert.strictEqual core.Array.of.length, 0, 'arity is 0'
   assert.deepEqual core.Array.of(1), [1]
   assert.deepEqual core.Array.of(1 2 3), [1 2 3]
   # generic

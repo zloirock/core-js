@@ -3,8 +3,8 @@
 module \ES6
 
 test 'Array#find' (assert)->
-  assert.ok typeof! Array::find is \Function, 'Is function'
-  assert.strictEqual Array::find.length, 1, 'length is 1'
+  assert.ok typeof! Array::find is \Function, 'is function'
+  assert.strictEqual Array::find.length, 1, 'arity is 1'
   assert.ok /native code/.test(Array::find), 'looks like native'
   assert.strictEqual Array::find.name, \find, 'name is "find"'
   (arr = [1])find (val, key, that)->

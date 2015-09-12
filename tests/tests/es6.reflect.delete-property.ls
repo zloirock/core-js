@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.deleteProperty' (assert)->
   {deleteProperty} = Reflect
-  assert.ok typeof! deleteProperty is \Function, 'Reflect.deleteProperty is function'
+  assert.ok typeof! deleteProperty is \Function, 'is function'
   assert.strictEqual deleteProperty.length, 2, 'arity is 2'
   assert.ok /native code/.test(deleteProperty), 'looks like native'
   assert.strictEqual deleteProperty.name, \deleteProperty, 'name is "deleteProperty"'

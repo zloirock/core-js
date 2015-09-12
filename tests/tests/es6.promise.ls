@@ -5,20 +5,20 @@ isFunction = -> typeof! it is \Function
 {iterator} = Symbol
 
 test 'Promise' (assert)->
-  assert.ok isFunction((global? && global || window)Promise), 'Is function'
-  assert.strictEqual Promise.length, 1, 'length is 1'
+  assert.ok isFunction((global? && global || window)Promise), 'is function'
+  assert.strictEqual Promise.length, 1, 'arity is 1'
   assert.strictEqual Promise.name, \Promise, 'name is "Promise"'
   assert.ok /native code/.test(Promise), 'looks like native'
 
 test 'Promise#then' (assert)->
-  assert.ok isFunction(Promise::then), 'Is function'
-  assert.strictEqual Promise::then.length, 2, 'length is 2'
+  assert.ok isFunction(Promise::then), 'is function'
+  assert.strictEqual Promise::then.length, 2, 'arity is 2'
   assert.strictEqual Promise::then.name, \then, 'name is "then"'
   assert.ok /native code/.test(Promise::then), 'looks like native'
 
 test 'Promise#catch' (assert)->
-  assert.ok isFunction(Promise::catch), 'Is function'
-  assert.strictEqual Promise::catch.length, 1, 'length is 1'
+  assert.ok isFunction(Promise::catch), 'is function'
+  assert.strictEqual Promise::catch.length, 1, 'arity is 1'
   #assert.strictEqual Promise::catch.name, \catch, 'name is "catch"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Promise::then), 'looks like native'
 
@@ -26,8 +26,8 @@ test 'Promise#@@toStringTag' (assert)->
   assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
 test 'Promise.all' (assert)->
-  assert.ok isFunction(Promise.all), 'Is function'
-  assert.strictEqual Promise.all.length, 1, 'length is 1'
+  assert.ok isFunction(Promise.all), 'is function'
+  assert.strictEqual Promise.all.length, 1, 'arity is 1'
   assert.strictEqual Promise.all.name, \all, 'name is "all"'
   assert.ok /native code/.test(Promise.all), 'looks like native'
   # works with iterables
@@ -49,8 +49,8 @@ test 'Promise.all' (assert)->
   assert.ok done
 
 test 'Promise.race' (assert)->
-  assert.ok isFunction(Promise.race), 'Is function'
-  assert.strictEqual Promise.race.length, 1, 'length is 1'
+  assert.ok isFunction(Promise.race), 'is function'
+  assert.strictEqual Promise.race.length, 1, 'arity is 1'
   assert.strictEqual Promise.race.name, \race, 'name is "race"'
   assert.ok /native code/.test(Promise.race), 'looks like native'
   # works with iterables
@@ -72,14 +72,14 @@ test 'Promise.race' (assert)->
   assert.ok done
 
 test 'Promise.resolve' (assert)->
-  assert.ok isFunction(Promise.resolve), 'Is function'
-  assert.strictEqual Promise.resolve.length, 1, 'length is 1'
+  assert.ok isFunction(Promise.resolve), 'is function'
+  assert.strictEqual Promise.resolve.length, 1, 'arity is 1'
   assert.strictEqual Promise.resolve.name, \resolve, 'name is "resolve"'
   assert.ok /native code/.test(Promise.resolve), 'looks like native'
 
 test 'Promise.reject' (assert)->
-  assert.ok isFunction(Promise.reject), 'Is function'
-  assert.strictEqual Promise.reject.length, 1, 'length is 1'
+  assert.ok isFunction(Promise.reject), 'is function'
+  assert.strictEqual Promise.reject.length, 1, 'arity is 1'
   assert.strictEqual Promise.reject.name, \reject, 'name is "reject"'
   assert.ok /native code/.test(Promise.reject), 'looks like native'
 

@@ -3,7 +3,7 @@ module \ES6
 
 test 'Reflect.getOwnPropertyDescriptor' (assert)->
   {getOwnPropertyDescriptor} = Reflect
-  assert.ok typeof! getOwnPropertyDescriptor is \Function, 'Reflect.getOwnPropertyDescriptor is function'
+  assert.ok typeof! getOwnPropertyDescriptor is \Function, 'is function'
   assert.strictEqual getOwnPropertyDescriptor.length, 2, 'arity is 2'
   assert.ok /native code/.test(getOwnPropertyDescriptor), 'looks like native'
   assert.strictEqual getOwnPropertyDescriptor.name, \getOwnPropertyDescriptor, 'name is "getOwnPropertyDescriptor"'

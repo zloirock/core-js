@@ -5,9 +5,9 @@ test 'Math.log2' (assert)->
   epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {log2} = Math
-  assert.ok typeof! log2 is \Function, 'Is function'
+  assert.ok typeof! log2 is \Function, 'is function'
   assert.strictEqual log2.name, \log2, 'name is "log2"'
-  assert.strictEqual log2.length, 1, 'length is 1'
+  assert.strictEqual log2.length, 1, 'arity is 1'
   assert.ok /native code/.test(log2), 'looks like native'
   sameValue log2(''), log2 0
   sameValue log2(NaN), NaN

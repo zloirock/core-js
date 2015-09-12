@@ -4,8 +4,8 @@ if Object.setPrototypeOf or '__proto__' of Object::
   
   test 'Object.setPrototypeOf' (assert)->
     {setPrototypeOf} = Object
-    assert.ok typeof! setPrototypeOf is \Function, 'Is function'
-    assert.strictEqual setPrototypeOf.length, 2, 'length is 2'
+    assert.ok typeof! setPrototypeOf is \Function, 'is function'
+    assert.strictEqual setPrototypeOf.length, 2, 'arity is 2'
     assert.strictEqual setPrototypeOf.name, \setPrototypeOf, 'name is "setPrototypeOf"'
     assert.ok /native code/.test(setPrototypeOf), 'looks like native'
     assert.ok \apply of setPrototypeOf({} Function::), 'Parent properties in target'

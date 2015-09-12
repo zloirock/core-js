@@ -4,8 +4,8 @@ module \ES6
 test 'Array.from' (assert)->
   {from, values} = core.Array
   {iterator} = core.Symbol
-  assert.ok typeof! from is \Function, 'Is function'
-  assert.strictEqual from.length, 1, 'length is 1'
+  assert.ok typeof! from is \Function, 'is function'
+  assert.strictEqual from.length, 1, 'arity is 1'
   assert.deepEqual from(\123), <[1 2 3]>
   assert.deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
   from al = (-> &)(1), (val, key)->

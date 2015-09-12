@@ -2,7 +2,7 @@
 module \core-js
 
 test 'String#unescapeHTML' (assert)->
-  assert.ok typeof! String::unescapeHTML is \Function, 'Is function'
+  assert.ok typeof! String::unescapeHTML is \Function, 'is function'
   assert.ok /native code/.test(String::unescapeHTML), 'looks like native'
   assert.strictEqual String::unescapeHTML.length, 0, 'arity is 0'
   assert.strictEqual String::unescapeHTML.name, \unescapeHTML, 'name is "unescapeHTML"'

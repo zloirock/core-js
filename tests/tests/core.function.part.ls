@@ -4,7 +4,7 @@ module \core-js
 isFunction = -> typeof! it  is \Function
 
 test 'Function#part' (assert)->
-  assert.ok isFunction(Function::part), 'Is function'
+  assert.ok isFunction(Function::part), 'is function'
   assert.ok (-> typeof! it is \String)part(\qwe)!
   obj = a: 42
   obj.fn = (-> @a + it)part 21

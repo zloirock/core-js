@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.preventExtensions' (assert)->
   {preventExtensions} = core.Reflect
-  assert.ok typeof! preventExtensions is \Function, 'Reflect.preventExtensions is function'
+  assert.ok typeof! preventExtensions is \Function, 'is function'
   assert.strictEqual preventExtensions.length, 1, 'arity is 1'
   if \name of preventExtensions
     assert.strictEqual preventExtensions.name, \preventExtensions, 'name is "preventExtensions"'

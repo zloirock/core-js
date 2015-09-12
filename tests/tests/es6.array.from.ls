@@ -4,8 +4,8 @@ module \ES6
 test 'Array.from' (assert)->
   {from} = Array
   {iterator} = Symbol
-  assert.ok typeof! from is \Function, 'Is function'
-  assert.strictEqual Array.from.length, 1, 'length is 1'
+  assert.ok typeof! from is \Function, 'is function'
+  assert.strictEqual Array.from.length, 1, 'arity is 1'
   assert.ok /native code/.test(Array.from), 'looks like native'
   assert.strictEqual Array.from.name, \from, 'name is "from"'
   assert.deepEqual from(\123), <[1 2 3]>

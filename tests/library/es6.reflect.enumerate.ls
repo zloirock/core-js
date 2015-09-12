@@ -8,7 +8,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 test 'Reflect.enumerate' (assert)->
   {enumerate} = core.Reflect
   {iterator} = core.Symbol
-  assert.ok typeof! enumerate is \Function, 'Reflect.enumerate is function'
+  assert.ok typeof! enumerate is \Function, 'is function'
   assert.strictEqual enumerate.length, 1, 'arity is 1'
   if \name of enumerate
     assert.strictEqual enumerate.name, \enumerate, 'name is "enumerate"'

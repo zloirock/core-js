@@ -3,8 +3,8 @@
 module \ES6
 
 test 'Array#findIndex' (assert)->
-  assert.ok typeof! Array::findIndex is \Function, 'Is function'
-  assert.strictEqual Array::findIndex.length, 1, 'length is 1'
+  assert.ok typeof! Array::findIndex is \Function, 'is function'
+  assert.strictEqual Array::findIndex.length, 1, 'arity is 1'
   assert.ok /native code/.test(Array::findIndex), 'looks like native'
   assert.strictEqual Array::findIndex.name, \findIndex, 'name is "findIndex"'
   (arr = [1])findIndex (val, key, that)->

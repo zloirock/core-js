@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.get' (assert)->
   {get} = core.Reflect
-  assert.ok typeof! get is \Function, 'Reflect.get is function'
+  assert.ok typeof! get is \Function, 'is function'
   #eq get.length, 2, 'arity is 2' # fails in MS Edge
   if \name of get
     assert.strictEqual get.name, \get, 'name is "get"'

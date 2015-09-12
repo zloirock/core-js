@@ -3,7 +3,7 @@ module \ES7
 
 test 'Object.entries' (assert)->
   {entries, create, assign} = Object
-  assert.ok typeof! entries is \Function, 'Is function'
+  assert.ok typeof! entries is \Function, 'is function'
   assert.ok /native code/.test(entries), 'looks like native'
   assert.strictEqual entries.length, 1, 'arity is 1'
   assert.strictEqual entries.name, \entries, 'name is "entries"'

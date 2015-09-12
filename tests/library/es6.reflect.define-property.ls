@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.defineProperty' (assert)->
   {defineProperty} = core.Reflect
-  assert.ok typeof! defineProperty is \Function, 'Reflect.defineProperty is function'
+  assert.ok typeof! defineProperty is \Function, 'is function'
   assert.strictEqual defineProperty.length, 3, 'arity is 3'
   if \name of defineProperty
     assert.strictEqual defineProperty.name, \defineProperty, 'name is "defineProperty"'

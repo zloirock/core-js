@@ -3,8 +3,8 @@ module \ES6
 
 test 'Object.is' (assert)->
   same = Object.is
-  assert.ok typeof! same is \Function, 'Is function'
-  assert.strictEqual same.length, 2, 'length is 2'
+  assert.ok typeof! same is \Function, 'is function'
+  assert.strictEqual same.length, 2, 'arity is 2'
   assert.strictEqual same.name, \is, 'name is "is"'
   assert.ok /native code/.test(same), 'looks like native'
   assert.ok same(1 1), '1 is 1'

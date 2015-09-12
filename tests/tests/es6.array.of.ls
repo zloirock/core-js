@@ -2,8 +2,8 @@
 module \ES6
 
 test 'Array.of' (assert)->
-  assert.ok typeof! Array.of is \Function, 'Is function'
-  assert.strictEqual Array.of.length, 0, 'length is 0'
+  assert.ok typeof! Array.of is \Function, 'is function'
+  assert.strictEqual Array.of.length, 0, 'arity is 0'
   assert.ok /native code/.test(Array.of), 'looks like native'
   assert.strictEqual Array.of.name, \of, 'name is "of"'
   assert.deepEqual Array.of(1), [1]

@@ -4,7 +4,7 @@ module \ES6
 test 'Math.imul' (assert)->
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {imul} = core.Math
-  assert.ok typeof! imul is \Function, 'Is function'
+  assert.ok typeof! imul is \Function, 'is function'
   sameValue imul(0, 0), 0
   assert.strictEqual imul(123, 456), 56088
   assert.strictEqual imul(-123, 456), -56088

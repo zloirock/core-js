@@ -6,7 +6,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.set' (assert)->
   {set} = core.Reflect
-  assert.ok typeof! set is \Function, 'Reflect.set is function'
+  assert.ok typeof! set is \Function, 'is function'
   #eq set.length, 3, 'arity is 3' # fails in MS Edge
   if \name of set
     assert.strictEqual set.name, \set, 'name is "set"'

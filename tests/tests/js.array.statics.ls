@@ -222,7 +222,7 @@ test '.findIndex' (assert)->
 
 test '.keys' (assert)->
   {keys} = Array
-  assert.ok typeof keys is \function, 'Is function'
+  assert.ok typeof keys is \function, 'is function'
   iter1 = keys (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -238,7 +238,7 @@ test '.keys' (assert)->
 
 test '.values' (assert)->
   {values} = Array
-  assert.ok typeof values is \function, 'Is function'
+  assert.ok typeof values is \function, 'is function'
   iter1 = values (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -254,7 +254,7 @@ test '.values' (assert)->
 
 test '.entries' (assert)->
   {entries} = Array
-  assert.ok typeof entries is \function, 'Is function'
+  assert.ok typeof entries is \function, 'is function'
   iter1 = entries (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -270,7 +270,7 @@ test '.entries' (assert)->
 
 test '.includes' (assert)->
   {includes} = Array
-  assert.ok isFunction(includes), 'Is function'
+  assert.ok isFunction(includes), 'is function'
   args = (->&)(1 2 3 -0 NaN, o = {})
   assert.ok includes args, 1
   assert.ok includes args, -0

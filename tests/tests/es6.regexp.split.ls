@@ -2,10 +2,10 @@
 module \ES6
 
 test 'String#split regression' (assert)->
-  assert.ok typeof! ''split is \Function, 'String#split is function'
-  assert.strictEqual ''split.length, 2, 'String#split length is 2'
+  assert.ok typeof! ''split is \Function, 'is function'
+  assert.strictEqual ''split.length, 2, 'arity is 2'
   assert.ok /native code/.test(''split), 'looks like native'
-  assert.strictEqual ''split.name, \split, 'String#split is "split"'
+  assert.strictEqual ''split.name, \split, 'name is "split"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/split
   instance = Object on
   instance.split = String::split
@@ -518,8 +518,8 @@ test 'String#split regression' (assert)->
   */
 
 test 'RegExp#@@split' (assert)->
-  assert.ok typeof! /./[Symbol.split] is \Function, 'RegExp#@@split is function'
-  assert.strictEqual /./[Symbol.split].length, 2, 'RegExp#@@split length is 2'
+  assert.ok typeof! /./[Symbol.split] is \Function, 'is function'
+  assert.strictEqual /./[Symbol.split].length, 2, 'arity is 2'
   assert.strictEqual /\s/[Symbol.split]('a b c de f').length, 5
   assert.strictEqual /\s/[Symbol.split]('a b c de f' void).length, 5
   assert.strictEqual /\s/[Symbol.split]('a b c de f' 1).length, 1

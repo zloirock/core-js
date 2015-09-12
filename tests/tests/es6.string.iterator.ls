@@ -5,7 +5,7 @@ isFunction = -> typeof! it is \Function
 isIterator = -> typeof it is \object && isFunction it.next
 
 test 'String#@@iterator' (assert)->
-  assert.ok isFunction(String::[Symbol?iterator]), 'Is function'
+  assert.ok isFunction(String::[Symbol?iterator]), 'is function'
   iter = 'qwe'[Symbol?iterator]!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'String Iterator'

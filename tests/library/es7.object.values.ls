@@ -3,7 +3,7 @@ module \ES7
 
 test 'Object.values' (assert)->
   {values, create, assign} = core.Object
-  assert.ok typeof! values is \Function, 'Is function'
+  assert.ok typeof! values is \Function, 'is function'
   assert.strictEqual values.length, 1, 'arity is 1'
   if \name of values => assert.strictEqual values.name, \values, 'name is "values"'
   assert.deepEqual values({q:1, w:2, e:3}), [1 2 3]

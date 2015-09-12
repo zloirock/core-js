@@ -6,7 +6,7 @@ module \ES6
 test 'Reflect.ownKeys' (assert)->
   {ownKeys} = Reflect
   sym = Symbol \c
-  assert.ok typeof! ownKeys is \Function, 'Reflect.ownKeys is function'
+  assert.ok typeof! ownKeys is \Function, 'is function'
   assert.strictEqual ownKeys.length, 1, 'arity is 1'
   assert.ok /native code/.test(ownKeys), 'looks like native'
   assert.strictEqual ownKeys.name, \ownKeys, 'name is "ownKeys"'

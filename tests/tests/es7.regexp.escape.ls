@@ -3,7 +3,7 @@ module \ES7
 
 test 'RegExp.escape' (assert)->
   {escape} = RegExp
-  assert.ok typeof! escape is \Function, 'Is function'
+  assert.ok typeof! escape is \Function, 'is function'
   assert.ok /native code/.test(escape), 'looks like native'
   assert.strictEqual escape.length, 1, 'arity is 1'
   assert.strictEqual escape.name, \escape, 'name is "escape"'

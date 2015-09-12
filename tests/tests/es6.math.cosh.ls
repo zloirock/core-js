@@ -5,9 +5,9 @@ test 'Math.cosh' (assert)->
   epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {cosh} = Math
-  assert.ok typeof! cosh is \Function, 'Is function'
+  assert.ok typeof! cosh is \Function, 'is function'
   assert.strictEqual cosh.name, \cosh, 'name is "cosh"'
-  assert.strictEqual cosh.length, 1, 'length is 1'
+  assert.strictEqual cosh.length, 1, 'arity is 1'
   assert.ok /native code/.test(cosh), 'looks like native'
   sameValue cosh(NaN), NaN
   assert.strictEqual cosh(0), 1

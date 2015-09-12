@@ -5,7 +5,7 @@ descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 
 test 'Object.assign' (assert)->
   {assign, defineProperty} = core.Object
-  assert.ok typeof! assign is \Function, 'Is function'
+  assert.ok typeof! assign is \Function, 'is function'
   foo = q: 1
   assert.strictEqual foo, assign(foo, bar: 2), 'assign return target'
   assert.strictEqual foo.bar, 2, 'assign define properties'

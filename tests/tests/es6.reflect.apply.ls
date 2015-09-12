@@ -3,7 +3,7 @@ module \ES6
 
 test 'Reflect.apply' (assert)->
   {apply} = Reflect
-  assert.ok typeof! apply is \Function, 'Reflect.apply is function'
+  assert.ok typeof! apply is \Function, 'is function'
   assert.strictEqual apply.length, 3, 'arity is 3'
   assert.ok /native code/.test(apply), 'looks like native'
   assert.strictEqual apply.name, \apply, 'name is "apply"'

@@ -2,10 +2,10 @@
 module \ES6
 
 test 'String#search regression' (assert)->
-  assert.ok typeof! ''search is \Function, 'String#search is function'
-  assert.strictEqual ''search.length, 1, 'String#search length is 1'
+  assert.ok typeof! ''search is \Function, 'is function'
+  assert.strictEqual ''search.length, 1, 'arity is 1'
   assert.ok /native code/.test(''search), 'looks like native'
-  assert.strictEqual ''search.name, \search, 'String#search is "search"'
+  assert.strictEqual ''search.name, \search, 'name is "search"'
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/search
   instance = Object on
   instance.search = String::search
@@ -45,8 +45,8 @@ test 'String#search regression' (assert)->
   assert.strictEqual aString.search(/of/), aString.search(/of/g), 'S15.5.4.12_A3_T2'
 
 test 'RegExp#@@search' (assert)->
-  assert.ok typeof! /./[Symbol.search] is \Function, 'RegExp#@@search is function'
-  assert.strictEqual /./[Symbol.search].length, 1, 'RegExp#@@search length is 1'
+  assert.ok typeof! /./[Symbol.search] is \Function, 'is function'
+  assert.strictEqual /./[Symbol.search].length, 1, 'arity is 1'
   assert.strictEqual /four/[Symbol.search]('one two three four five'), 14
   assert.strictEqual /Four/[Symbol.search]('one two three four five'), -1
 

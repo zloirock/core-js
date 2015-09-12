@@ -7,10 +7,10 @@ isFunction = -> typeof! it is \Function
 {iterator} = Symbol
 
 test 'WeakMap' (assert)->
-  assert.ok isFunction(WeakMap), 'Is function'
+  assert.ok isFunction(WeakMap), 'is function'
   assert.ok /native code/.test(WeakMap), 'looks like native'
   assert.strictEqual WeakMap.name, \WeakMap, 'name is "WeakMap"'
-  assert.strictEqual WeakMap.length, 0, 'length is 0'
+  assert.strictEqual WeakMap.length, 0, 'arity is 0'
   assert.ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   assert.ok \get    of WeakMap::, 'get in WeakMap.prototype'
   assert.ok \has    of WeakMap::, 'has in WeakMap.prototype'
@@ -43,9 +43,9 @@ test 'WeakMap' (assert)->
   assert.ok done
 
 test 'WeakMap#delete' (assert)->
-  assert.ok isFunction(WeakMap::delete), 'Is function'
+  assert.ok isFunction(WeakMap::delete), 'is function'
   #assert.strictEqual WeakMap::delete.name, \delete, 'name is "delete"' # can't be polyfilled in some environments
-  #assert.strictEqual WeakMap::delete.length, 1, 'length is 1'
+  #assert.strictEqual WeakMap::delete.length, 1, 'arity is 1'
   assert.ok /native code/.test(WeakMap::delete), 'looks like native'
   M = new WeakMap!
     .set a = {}, 42
@@ -55,9 +55,9 @@ test 'WeakMap#delete' (assert)->
   assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
 
 test 'WeakMap#get' (assert)->
-  assert.ok isFunction(WeakMap::get), 'Is function'
+  assert.ok isFunction(WeakMap::get), 'is function'
   assert.strictEqual WeakMap::get.name, \get, 'name is "get"'
-  #assert.strictEqual WeakMap::get.length, 1, 'length is 1'
+  #assert.strictEqual WeakMap::get.length, 1, 'arity is 1'
   assert.ok /native code/.test(WeakMap::get), 'looks like native'
   M = new WeakMap!
   assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
@@ -67,9 +67,9 @@ test 'WeakMap#get' (assert)->
   assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
 
 test 'WeakMap#has' (assert)->
-  assert.ok isFunction(WeakMap::has), 'Is function'
+  assert.ok isFunction(WeakMap::has), 'is function'
   assert.strictEqual WeakMap::has.name, \has, 'name is "has"'
-  #assert.strictEqual WeakMap::has.length, 1, 'length is 1'
+  #assert.strictEqual WeakMap::has.length, 1, 'arity is 1'
   assert.ok /native code/.test(WeakMap::has), 'looks like native'
   M = new WeakMap!
   assert.ok !M.has({}), 'WeakMap .has() before .set() return false'
@@ -79,9 +79,9 @@ test 'WeakMap#has' (assert)->
   assert.ok !M.has(a), 'WeakMap .has() after .delete() return false'
 
 test 'WeakMap#set' (assert)->
-  assert.ok isFunction(WeakMap::set), 'Is function'
+  assert.ok isFunction(WeakMap::set), 'is function'
   assert.strictEqual WeakMap::set.name, \set, 'name is "set"'
-  assert.strictEqual WeakMap::set.length, 2, 'length is 2'
+  assert.strictEqual WeakMap::set.length, 2, 'arity is 2'
   assert.ok /native code/.test(WeakMap::set), 'looks like native'
   assert.ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
   assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'

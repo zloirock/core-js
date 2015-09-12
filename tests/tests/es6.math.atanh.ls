@@ -5,9 +5,9 @@ test 'Math.atanh' (assert)->
   epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {atanh} = Math
-  assert.ok typeof! atanh is \Function, 'Is function'
+  assert.ok typeof! atanh is \Function, 'is function'
   assert.strictEqual atanh.name, \atanh, 'name is "atanh"'
-  assert.strictEqual atanh.length, 1, 'length is 1'
+  assert.strictEqual atanh.length, 1, 'arity is 1'
   assert.ok /native code/.test(atanh), 'looks like native'
   sameValue atanh(NaN), NaN
   sameValue atanh(-2), NaN

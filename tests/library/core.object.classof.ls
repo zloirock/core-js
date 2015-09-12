@@ -3,7 +3,7 @@ module 'core-js'
 
 test 'Object.classof' (assert)->
   {classof} = core.Object
-  assert.ok typeof! classof is \Function, 'Is function'
+  assert.ok typeof! classof is \Function, 'is function'
   assert.ok classof(void) is \Undefined, 'classof undefined is `Undefined`'
   assert.ok classof(null) is \Null, 'classof null is `Null`'
   assert.ok classof(true) is \Boolean, 'classof bool is `Boolean`'

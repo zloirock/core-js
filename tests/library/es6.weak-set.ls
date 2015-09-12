@@ -8,7 +8,7 @@ isFunction = -> typeof! it is \Function
 {iterator} = core.Symbol
 
 test 'WeakSet' (assert)->
-  assert.ok isFunction(WeakSet), 'Is function'
+  assert.ok isFunction(WeakSet), 'is function'
   assert.ok \add    of WeakSet::, 'add in WeakSet.prototype'
   assert.ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   assert.ok \has    of WeakSet::, 'has in WeakSet.prototype'
@@ -39,12 +39,12 @@ test 'WeakSet' (assert)->
   assert.ok done
 
 test 'WeakSet#add' (assert)->
-  assert.ok isFunction(WeakSet::add), 'Is function'
+  assert.ok isFunction(WeakSet::add), 'is function'
   assert.ok (w = new WeakSet)add({}) is w, 'chaining'
   assert.ok (try new WeakSet!add(42); no; catch => on), 'throws with primitive keys'
 
 test 'WeakSet#delete' (assert)->
-  assert.ok isFunction(WeakSet::delete), 'Is function'
+  assert.ok isFunction(WeakSet::delete), 'is function'
   S = new WeakSet!
     .add a = {}
     .add b = {}
@@ -53,7 +53,7 @@ test 'WeakSet#delete' (assert)->
   assert.ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
 
 test 'WeakSet#has' (assert)->
-  assert.ok isFunction(WeakSet::has), 'Is function'
+  assert.ok isFunction(WeakSet::has), 'is function'
   M = new WeakSet!
   assert.ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

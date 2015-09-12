@@ -3,7 +3,7 @@
 module \ES6
 
 test 'String#codePointAt' (assert)->
-  assert.ok typeof! String::codePointAt is \Function, 'Is function'
+  assert.ok typeof! String::codePointAt is \Function, 'is function'
   assert.strictEqual String::codePointAt.length, 1, 'arity is 1'
   assert.ok /native code/.test(String::codePointAt), 'looks like native'
   assert.strictEqual String::codePointAt.name, \codePointAt, 'name is "codePointAt"'

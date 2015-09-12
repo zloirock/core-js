@@ -3,8 +3,8 @@
 module \ES6
 
 test 'Array#fill' (assert)->
-  assert.ok typeof! Array::fill is \Function, 'Is function'
-  assert.strictEqual Array::fill.length, 1, 'length is 1'
+  assert.ok typeof! Array::fill is \Function, 'is function'
+  assert.strictEqual Array::fill.length, 1, 'arity is 1'
   assert.ok /native code/.test(Array::fill), 'looks like native'
   assert.strictEqual Array::fill.name, \fill, 'name is "fill"'
   assert.strictEqual (a = Array(5)fill(5)), a

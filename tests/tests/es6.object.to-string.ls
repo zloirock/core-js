@@ -4,7 +4,7 @@
 module \ES6
 
 test 'Object#toString' (assert)->
-  assert.strictEqual Object::toString.length, 0, 'length is 0'
+  assert.strictEqual Object::toString.length, 0, 'arity is 0'
   assert.strictEqual Object::toString.name, \toString, 'name is "toString"'
   assert.ok /native code/.test(Object::toString), 'looks like native'
   {toString} = Object::

@@ -3,7 +3,7 @@
 module \ES6
 
 test 'String#startsWith' (assert)->
-  assert.ok typeof! String::startsWith is \Function, 'Is function'
+  assert.ok typeof! String::startsWith is \Function, 'is function'
   assert.strictEqual String::startsWith.length, 1, 'arity is 1'
   assert.ok /native code/.test(String::startsWith), 'looks like native'
   assert.strictEqual String::startsWith.name, \startsWith, 'name is "startsWith"'

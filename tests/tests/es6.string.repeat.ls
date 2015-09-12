@@ -3,7 +3,7 @@
 module \ES6
 
 test 'String#repeat' (assert)->
-  assert.ok typeof! String::repeat is \Function, 'Is function'
+  assert.ok typeof! String::repeat is \Function, 'is function'
   assert.strictEqual String::repeat.length, 1, 'arity is 1'
   assert.ok /native code/.test(String::repeat), 'looks like native'
   assert.strictEqual String::repeat.name, \repeat, 'name is "repeat"'

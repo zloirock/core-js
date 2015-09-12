@@ -5,9 +5,9 @@ test 'Math.hypot' (assert)->
   epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
   sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {hypot, sqrt} = Math
-  assert.ok typeof! hypot is \Function, 'Is function'
+  assert.ok typeof! hypot is \Function, 'is function'
   assert.strictEqual hypot.name, \hypot, 'name is "hypot"'
-  assert.strictEqual hypot.length, 2, 'length is 2'
+  assert.strictEqual hypot.length, 2, 'arity is 2'
   assert.ok /native code/.test(hypot), 'looks like native'
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1
