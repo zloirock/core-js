@@ -9,10 +9,11 @@ var check = function(O, proto){
 };
 module.exports = {
   set: Object.setPrototypeOf || ('__proto__' in {} ? // eslint-disable-line no-proto
-    function(buggy, set){
+    function(test, buggy, set){
       try {
         set = require('./$.ctx')(Function.call, getDesc(Object.prototype, '__proto__').set, 2);
-        set({}, []);
+        set(test, []);
+        buggy = !(test instanceof Array);
       } catch(e){ buggy = true; }
       return function setPrototypeOf(O, proto){
         check(O, proto);
@@ -20,6 +21,6 @@ module.exports = {
         else set(O, proto);
         return O;
       };
-    }() : undefined),
+    }({}, false) : undefined),
   check: check
 };
