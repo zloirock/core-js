@@ -1,15 +1,18 @@
+// 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
-var $def     = require('./$.def')
-  , toLength = require('./$.to-length')
-  , context  = require('./$.string-context');
+var $def        = require('./$.def')
+  , toLength    = require('./$.to-length')
+  , context     = require('./$.string-context')
+  , STARTS_WITH = 'startsWith'
+  , $startsWith = ''[STARTS_WITH];
 
-// should throw error on regex
-$def($def.P + $def.F * !require('./$.fails')(function(){ 'q'.startsWith(/./); }), 'String', {
-  // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
+$def($def.P + $def.F * require('./$.fails-is-regexp')(STARTS_WITH), 'String', {
   startsWith: function startsWith(searchString /*, position = 0 */){
-    var that   = context(this, searchString, 'startsWith')
+    var that   = context(this, searchString, STARTS_WITH)
       , index  = toLength(Math.min(arguments[1], that.length))
       , search = String(searchString);
-    return that.slice(index, index + search.length) === search;
+    return $startsWith
+      ? $startsWith.call(that, search, index)
+      : that.slice(index, index + search.length) === search;
   }
 });

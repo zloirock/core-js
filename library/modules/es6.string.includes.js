@@ -1,10 +1,11 @@
+// 21.1.3.7 String.prototype.includes(searchString, position = 0)
 'use strict';
-var $def    = require('./$.def')
-  , context = require('./$.string-context');
+var $def     = require('./$.def')
+  , context  = require('./$.string-context')
+  , INCLUDES = 'includes';
 
-$def($def.P, 'String', {
-  // 21.1.3.7 String.prototype.includes(searchString, position = 0)
+$def($def.P + $def.F * require('./$.fails-is-regexp')(INCLUDES), 'String', {
   includes: function includes(searchString /*, position = 0 */){
-    return !!~context(this, searchString, 'includes').indexOf(searchString, arguments[1]);
+    return !!~context(this, searchString, INCLUDES).indexOf(searchString, arguments[1]);
   }
 });
