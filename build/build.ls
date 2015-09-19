@@ -88,6 +88,8 @@ list = <[
   es6.reflect.prevent-extensions
   es6.reflect.set
   es6.reflect.set-prototype-of
+  es6.typed-arrays.array-buffer
+  es6.typed-arrays.data-view
   es7.array.includes
   es7.string.at
   es7.string.pad-left
@@ -121,7 +123,8 @@ list = <[
 ]>
 
 experimental = <[
-  
+  es6.typed-arrays.array-buffer
+  es6.typed-arrays.data-view
 ]>
 
 libraryBlacklist = <[
