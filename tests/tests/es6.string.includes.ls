@@ -14,4 +14,13 @@ test 'String#includes' (assert)->
   if !(-> @)!
     assert.throws (-> String::includes.call null, '.'), TypeError
     assert.throws (-> String::includes.call void, '.'), TypeError
-  assert.throws (-> 'foo[a-z]+(bar)?'includes /[a-z]+/), TypeError
+  re = /./
+  assert.throws (-> '/./'includes re), TypeError
+  re[Symbol?match] = no
+  assert.ok try '/./'includes re
+  catch e => no
+  O = {}
+  assert.ok try '[object Object]'includes O
+  catch e => no
+  O[Symbol?match] = on
+  assert.throws (-> '[object Object]'includes O), TypeError

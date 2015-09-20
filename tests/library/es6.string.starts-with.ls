@@ -20,4 +20,13 @@ test 'String#startsWith' (assert)->
   if !(-> @)!
     assert.throws (-> startsWith null, '.'), TypeError
     assert.throws (-> startsWith void, '.'), TypeError
-  assert.throws (-> startsWith 'qwe' /./), TypeError
+  re = /./
+  assert.throws (-> startsWith '/./' re), TypeError
+  re[core.Symbol?match] = no
+  assert.ok try startsWith '/./' re
+  catch e => no
+  O = {}
+  assert.ok try startsWith '[object Object]' O
+  catch e => no
+  O[core.Symbol?match] = on
+  assert.throws (-> startsWith '[object Object]' O), TypeError

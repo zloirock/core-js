@@ -22,4 +22,13 @@ test 'String#startsWith' (assert)->
   if !(-> @)!
     assert.throws (-> String::startsWith.call null, '.'), TypeError
     assert.throws (-> String::startsWith.call void, '.'), TypeError
-  assert.throws (-> 'qwe'startsWith /./), TypeError
+  re = /./
+  assert.throws (-> '/./'startsWith re), TypeError
+  re[Symbol?match] = no
+  assert.ok try '/./'startsWith re
+  catch e => no
+  O = {}
+  assert.ok try '[object Object]'startsWith O
+  catch e => no
+  O[Symbol?match] = on
+  assert.throws (-> '[object Object]'startsWith O), TypeError

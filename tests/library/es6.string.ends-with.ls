@@ -21,4 +21,13 @@ test 'String#endsWith' (assert)->
   if !(-> @)!
     assert.throws (-> endsWith null, '.'), TypeError
     assert.throws (-> endsWith void, '.'), TypeError
-  assert.throws (-> endsWith 'qwe' /./), TypeError
+  re = /./
+  assert.throws (-> endsWith '/./' re), TypeError
+  re[core.Symbol?match] = no
+  assert.ok try endsWith '/./' re
+  catch e => no
+  O = {}
+  assert.ok try endsWith '[object Object]' O
+  catch e => no
+  O[core.Symbol?match] = on
+  assert.throws (-> endsWith '[object Object]' O), TypeError

@@ -12,4 +12,13 @@ test 'String#includes' (assert)->
   if !(-> @)!
     assert.throws (-> includes null, '.'), TypeError
     assert.throws (-> includes void, '.'), TypeError
-  assert.throws (-> includes 'foo[a-z]+(bar)?' /[a-z]+/), TypeError
+  re = /./
+  assert.throws (-> includes '/./' re), TypeError
+  re[core.Symbol?match] = no
+  assert.ok try includes '/./' re
+  catch e => no
+  O = {}
+  assert.ok try includes '[object Object]' O
+  catch e => no
+  O[core.Symbol?match] = on
+  assert.throws (-> includes '[object Object]' O), TypeError
