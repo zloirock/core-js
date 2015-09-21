@@ -3,18 +3,23 @@ module \ES6
 
 if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
   test 'RegExp constructor' (assert)->
-    assert.ok typeof! RegExp is \Function, 'is function'
+    assert.strictEqual typeof! RegExp, \Function, 'is function'
     assert.strictEqual RegExp.length, 2, 'arity is 2'
     assert.ok /native code/.test(RegExp), 'looks like native'
     assert.strictEqual RegExp.name, \RegExp, 'name is "RegExp"'
-    a = /a/g
-    assert.ok typeof! RegExp! is \RegExp
-    assert.ok typeof! new RegExp! is \RegExp
-    b = new RegExp a
-    assert.ok a isnt b, 'a isnt b'
-    c = RegExp a
-    assert.ok a is c, 'a is c'
-    assert.strictEqual String(b), '/a/g', 'b is /a/g'
+    assert.strictEqual typeof! RegExp!, \RegExp
+    assert.strictEqual typeof! new RegExp!, \RegExp
+    re = /a/g
+    assert.notStrictEqual re, new RegExp(re), 'new RegExp(re) isnt re'
+    assert.strictEqual re, RegExp(re), 'RegExp(re) is re'
+    re[Symbol?match] = no
+    assert.notStrictEqual re, RegExp(re), 'RegExp(re) isnt re, changed Symbol.match'
+    O = {}
+    assert.notStrictEqual O, RegExp(O), 'RegExp(O) isnt O'
+    O[Symbol?match] = on
+    O.constructor = RegExp
+    assert.strictEqual O, RegExp(O), 'RegExp(O) is O, changed Symbol.match'
+    assert.strictEqual String(re), '/a/g', 'b is /a/g'
     # allows a regex with flags as the pattern
     assert.strictEqual String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags'
     assert.ok new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof'
