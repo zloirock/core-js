@@ -193,9 +193,11 @@ if(!useNative){
         fail: typeof onRejected == 'function'  ? onRejected  : false
       };
       var promise = react.P = new (S != undefined ? S : P)(function(res, rej){
-        react.res = aFunction(res);
-        react.rej = aFunction(rej);
+        react.res = res;
+        react.rej = rej;
       });
+      aFunction(react.res);
+      aFunction(react.rej);
       var record = this[RECORD];
       record.c.push(react);
       if(record.a)record.a.push(react);
