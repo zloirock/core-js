@@ -1,4 +1,5 @@
 var $         = require('./$')
+  , has       = require('./$.has')
   , toIObject = require('./$.to-iobject');
 module.exports = function(isEntries){
   return function(it){
@@ -6,10 +7,9 @@ module.exports = function(isEntries){
       , keys   = $.getKeys(O)
       , length = keys.length
       , i      = 0
-      , result = Array(length)
+      , result = []
       , key;
-    if(isEntries)while(length > i)result[i] = [key = keys[i++], O[key]];
-    else while(length > i)result[i] = O[keys[i++]];
+    while(length > i)has(O, key = keys[i++]) && result.push(isEntries ? [key, O[key]] : O[key]);
     return result;
   };
 };
