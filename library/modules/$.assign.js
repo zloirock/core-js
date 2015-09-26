@@ -1,7 +1,8 @@
 // 19.1.2.1 Object.assign(target, source, ...)
 var toObject = require('./$.to-object')
   , IObject  = require('./$.iobject')
-  , enumKeys = require('./$.enum-keys');
+  , enumKeys = require('./$.enum-keys')
+  , has      = require('./$.has');
 
 // should work with symbols and should have deterministic property order (V8 bug)
 module.exports = require('./$.fails')(function(){
@@ -23,7 +24,7 @@ module.exports = require('./$.fails')(function(){
       , length = keys.length
       , j      = 0
       , key;
-    while(length > j)T[key = keys[j++]] = S[key];
+    while(length > j)if(has(S, key = keys[j++]))T[key] = S[key];
   }
   return T;
 } : Object.assign;
