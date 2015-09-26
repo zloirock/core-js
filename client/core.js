@@ -1,5 +1,5 @@
 /**
- * core-js 1.1.4
+ * core-js 1.2.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -609,7 +609,7 @@
 /* 13 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '1.1.4'};
+	var core = module.exports = {version: '1.2.0'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
