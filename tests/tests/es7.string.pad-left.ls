@@ -8,7 +8,7 @@ test 'String#padLeft' (assert)->
   assert.ok /native code/.test(String::padLeft), 'looks like native'
   assert.strictEqual String::padLeft.name, \padLeft, 'name is "padLeft"'
   assert.strictEqual 'abc'padLeft(5), '  abc'
-  assert.strictEqual 'abc'padLeft(4 \de), \eabc
+  assert.strictEqual 'abc'padLeft(4 \de), \dabc
   assert.strictEqual 'abc'padLeft!,  \abc
   assert.strictEqual 'abc'padLeft(5 '_'), '__abc'
   assert.strictEqual ''padLeft(0), ''
