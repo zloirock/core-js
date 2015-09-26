@@ -41,5 +41,5 @@ test 'Object.assign' (assert)->
   # test deterministic property order, theoretical can fail with deterministic, but wrong, order
   string = 'abcdefghijklmnopqrst';
   O = {}
-  for string => O[..] = ..
+  for string.split('') => O[..] = ..
   assert.strictEqual keys(assign {}, O)join(''), string
