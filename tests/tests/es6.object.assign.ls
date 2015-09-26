@@ -4,7 +4,7 @@ module \ES6
 descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 
 test 'Object.assign' (assert)->
-  {assign, defineProperty} = Object
+  {assign, keys, defineProperty} = Object
   assert.ok typeof! assign is \Function, 'is function'
   assert.strictEqual assign.length, 2, 'arity is 2'
   assert.strictEqual assign.name, \assign, 'name is "assign"'
@@ -37,3 +37,8 @@ test 'Object.assign' (assert)->
     assert.strictEqual O.b, void, \b
     assert.strictEqual O[c], \c, \c
     assert.strictEqual O[d], void, \d
+  # test deterministic property order, theoretical can fail with deterministic, but wrong, order
+  string = 'abcdefghijklmnopqrst';
+  O = {}
+  for string => O[..] = ..
+  assert.strictEqual keys(assign {}, O)join(''), string
