@@ -3,12 +3,16 @@ var toObject = require('./$.to-object')
   , IObject  = require('./$.iobject')
   , enumKeys = require('./$.enum-keys');
 
-// should work with symbols
+// should work with symbols and should have deterministic property order (V8 bug)
 module.exports = require('./$.fails')(function(){
-  var O = {}
-    , S = Symbol();
-  O[S] = 7;
-  return Object.assign({}, O)[S] != 7;
+  var a = Object.assign
+    , A = {}
+    , B = {}
+    , S = Symbol()
+    , K = 'abcdefghijklmnopqrst';
+  A[S] = 7;
+  K.split('').forEach(function(k){ B[k] = k; });
+  return a({}, A)[S] != 7 || Object.keys(a({}, B)).join('') != K;
 }) ? function assign(target, source){   // eslint-disable-line no-unused-vars
   var T = toObject(target)
     , l = arguments.length
