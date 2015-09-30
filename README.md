@@ -1085,7 +1085,7 @@ dict.toString;            // => undefined
 Dict.isDict({});     // => false
 Dict.isDict(Dict()); // => true
 ```
-`Dict.keys`, `Dict.values` and `Dict.entries` returns iterators for objects, [examples](http://goo.gl/4u8UDK):
+`Dict.keys`, `Dict.values` and `Dict.entries` returns iterators for objects, [examples](http://goo.gl/xAvECH):
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
@@ -1099,8 +1099,6 @@ for(var [key, val] of Dict.entries(dict)){
 }
 
 new Map(Dict.entries(dict)); // => Map {a: 1, b: 2, c: 3}
-
-new Map((for([k, v] of Dict.entries(dict))if(v % 2)[k + k, v * v])); // =>  Map {aa: 1, cc: 9}
 ```
 Basic dict operations for objects with prototype [example](http://goo.gl/B28UnG):
 ```js
@@ -1212,22 +1210,17 @@ Modules [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.2.0
 Number
   #@@iterator() -> iterator
 ```
-[Examples](http://goo.gl/RI60Ot):
+[Examples](http://goo.gl/o45pCN):
 ```javascript
 for(var i of 3)log(i); // => 0, 1, 2
 
-Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
+[...10]; // => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-Array.from(10); // => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
 
 Array.from(10, function(it){
   return this + it * it;
 }, .42); // => [0.42, 1.42, 4.42, 9.42, 16.42, 25.42, 36.42, 49.42, 64.42, 81.42]
-
-// Comprehensions:
-[for(i of 10)if(i % 2)i * i]; // => [1, 9, 25, 49, 81]
-
-Dict((for(i of 3)['key' + i, !(i % 2)])); // => {key0: true, key1: false, key2: true}
 ```
 #### Escaping HTML
 Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v1.2.0/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v1.2.0/modules/core.string.unescape-html.js).
