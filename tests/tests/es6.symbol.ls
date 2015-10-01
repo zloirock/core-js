@@ -65,9 +65,10 @@ test 'Object.getOwnPropertySymbols' (assert)->
 if JSON?
   test 'Symbols & JSON.stringify' (assert)->
     assert.strictEqual JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'array value'
-    # early WebKit implementation returns '{"foo":null}', it can't be shimmed w/o completely replacement JSON.stringify, but already fixed in dev versions, temporary disable this test
-    # assert.strictEqual JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
+    assert.strictEqual JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
     if descriptors => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
+    assert.strictEqual JSON.stringify(Symbol \foo), void, 'symbol value'
+    if typeof Symbol! is \symbol => assert.strictEqual JSON.stringify(Object Symbol \foo), '{}', 'boxed symbol'
 
 if descriptors
   test 'Symbols & descriptors' (assert)->
