@@ -1,5 +1,5 @@
 /**
- * core-js 1.2.0
+ * core-js 1.2.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -609,7 +609,7 @@
 /* 13 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '1.2.0'};
+	var core = module.exports = {version: '1.2.1'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -943,6 +943,7 @@
 	  , keyOf          = __webpack_require__(35)
 	  , $names         = __webpack_require__(36)
 	  , enumKeys       = __webpack_require__(37)
+	  , isArray        = __webpack_require__(26)
 	  , isObject       = __webpack_require__(9)
 	  , anObject       = __webpack_require__(29)
 	  , toIObject      = __webpack_require__(30)
@@ -952,6 +953,8 @@
 	  , _create        = $.create
 	  , getNames       = $names.get
 	  , $Symbol        = global.Symbol
+	  , $JSON          = global.JSON
+	  , _stringify     = $JSON && $JSON.stringify
 	  , setter         = false
 	  , HIDDEN         = wks('_hidden')
 	  , isEnum         = $.isEnum
@@ -983,6 +986,10 @@
 	    }
 	  });
 	  return sym;
+	};
+
+	var isSymbol = function(it){
+	  return typeof it == 'symbol';
 	};
 
 	var $defineProperty = function defineProperty(it, key, D){
@@ -1034,16 +1041,41 @@
 	  while(names.length > i)if(has(AllSymbols, key = names[i++]))result.push(AllSymbols[key]);
 	  return result;
 	};
+	var $stringify = function stringify(it){
+	  var args = [it]
+	    , i    = 1
+	    , replacer, $replacer;
+	  while(arguments.length > i)args.push(arguments[i++]);
+	  replacer = args[1];
+	  if(typeof replacer == 'function')$replacer = replacer;
+	  if($replacer || !isArray(replacer))replacer = function(key, value){
+	    if($replacer)value = $replacer.call(this, key, value);
+	    if(!isSymbol(value))return value;
+	  };
+	  args[1] = replacer;
+	  return _stringify.apply($JSON, args);
+	};
+	var buggyJSON = $fails(function(){
+	  var S = $Symbol();
+	  // MS Edge converts symbol values to JSON as {}
+	  // WebKit converts symbol values to JSON as null
+	  // V8 throws on boxed symbols
+	  return _stringify([S]) != '[null]' || _stringify({a: S}) != '{}' || _stringify(Object(S)) != '{}';
+	});
 
 	// 19.4.1.1 Symbol([description])
 	if(!useNative){
 	  $Symbol = function Symbol(){
-	    if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor');
+	    if(isSymbol(this))throw TypeError('Symbol is not a constructor');
 	    return wrap(uid(arguments[0]));
 	  };
 	  $redef($Symbol.prototype, 'toString', function toString(){
 	    return this._k;
 	  });
+
+	  isSymbol = function(it){
+	    return it instanceof $Symbol;
+	  };
 
 	  $.create     = $create;
 	  $.isEnum     = $propertyIsEnumerable;
@@ -1057,13 +1089,6 @@
 	    $redef(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
 	  }
 	}
-
-	// MS Edge converts symbol values to JSON as {}
-	if(!useNative || $fails(function(){
-	  return JSON.stringify([$Symbol()]) != '[null]';
-	}))$redef($Symbol.prototype, 'toJSON', function toJSON(){
-	  if(useNative && isObject(this))return this;
-	});
 
 	var symbolStatics = {
 	  // 19.4.2.1 Symbol.for(key)
@@ -1119,6 +1144,9 @@
 	  // 19.1.2.8 Object.getOwnPropertySymbols(O)
 	  getOwnPropertySymbols: $getOwnPropertySymbols
 	});
+
+	// 24.3.2 JSON.stringify(value [, replacer [, space]])
+	$JSON && $def($def.S + $def.F * (!useNative || buggyJSON), 'JSON', {stringify: $stringify});
 
 	// 19.4.3.5 Symbol.prototype[@@toStringTag]
 	setTag($Symbol, 'Symbol');
@@ -3242,7 +3270,7 @@
 	    defer = ctx(port.postMessage, port, 1);
 	  // Browsers with postMessage, skip WebWorkers
 	  // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
-	  } else if(global.addEventListener && typeof postMessage == 'function' && !global.importScript){
+	  } else if(global.addEventListener && typeof postMessage == 'function' && !global.importScripts){
 	    defer = function(id){
 	      global.postMessage(id + '', '*');
 	    };

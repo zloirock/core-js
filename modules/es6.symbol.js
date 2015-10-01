@@ -122,7 +122,7 @@ var $stringify = function stringify(it){
   if($replacer || !isArray(replacer))replacer = function(key, value){
     if($replacer)value = $replacer.call(this, key, value);
     if(!isSymbol(value))return value;
-  }
+  };
   args[1] = replacer;
   return _stringify.apply($JSON, args);
 };

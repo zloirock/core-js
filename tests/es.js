@@ -5347,8 +5347,15 @@
     test('Symbols & JSON.stringify', function(assert){
       var ref$;
       assert.strictEqual(JSON.stringify([1, Symbol('foo'), false, Symbol('bar'), {}]), '[1,null,false,null,{}]', 'array value');
+      assert.strictEqual(JSON.stringify({
+        foo: Symbol('foo')
+      }), '{}', 'object value');
       if (descriptors) {
-        return assert.strictEqual(JSON.stringify((ref$ = {}, ref$[Symbol('foo')] = 1, ref$.bar = 2, ref$)), '{"bar":2}', 'object key');
+        assert.strictEqual(JSON.stringify((ref$ = {}, ref$[Symbol('foo')] = 1, ref$.bar = 2, ref$)), '{"bar":2}', 'object key');
+      }
+      assert.strictEqual(JSON.stringify(Symbol('foo')), void 8, 'symbol value');
+      if (typeof Symbol() === 'symbol') {
+        return assert.strictEqual(JSON.stringify(Object(Symbol('foo'))), '{}', 'boxed symbol');
       }
     });
   }
