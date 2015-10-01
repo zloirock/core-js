@@ -384,7 +384,7 @@ Symbol(description?) -> symbol
 Object
   .getOwnPropertySymbols(object) -> array
 ```
-Also wrapped some `Object` methods for correct work with `Symbol` polyfill.
+Also wrapped some methods for correct work with `Symbol` polyfill.
 ```js
 Object
   .create(proto | null, descriptors?) -> object
@@ -393,6 +393,8 @@ Object
   .getOwnPropertyDescriptor(var, key) -> desc | undefined
   .getOwnPropertyNames(var) -> array
   #propertyIsEnumerable(key) -> bool
+JSON
+  .stringify(target, replacer?, space?) -> string | undefined
 ```
 [Basic example](http://goo.gl/BbvWFc):
 ```javascript
