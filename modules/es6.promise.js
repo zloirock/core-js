@@ -1,26 +1,16 @@
 'use strict';
 var $          = require('./$')
-  , LIBRARY    = require('./$.library')
   , global     = require('./$.global')
-  , ctx        = require('./$.ctx')
   , classof    = require('./$.classof')
   , $def       = require('./$.def')
-  , isObject   = require('./$.is-object')
-  , anObject   = require('./$.an-object')
-  , aFunction  = require('./$.a-function')
-  , strictNew  = require('./$.strict-new')
   , forOf      = require('./$.for-of')
   , setProto   = require('./$.set-proto').set
-  , same       = require('./$.same')
   , species    = require('./$.species')
-  , SPECIES    = require('./$.wks')('species')
-  , RECORD     = require('./$.uid')('record')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
   , process    = global.process
   , isNode     = classof(process) == 'process'
-  , P          = global[PROMISE]
-  , Wrapper;
+  , P          = global[PROMISE];
 
 var testResolve = function(sub){
   var test = new P(function(){});
@@ -92,7 +82,7 @@ if(!useNative){
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 require('./$.tag')(P, PROMISE);
 species(P);
-species(Wrapper = require('./$.core')[PROMISE]);
+species(require('./$.core')[PROMISE]);
 
 // statics
 $def($def.S + $def.F * !useNative, PROMISE, {
