@@ -7,6 +7,9 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
+  "dependencies": {
+    "yaku": "0.7.x"
+  },
   "devDependencies": {
     "webpack": "1.12.x",
     "LiveScript": "1.3.x",
