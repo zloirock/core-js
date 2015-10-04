@@ -1,4 +1,6 @@
 'use strict';
+var DEBUG = true;
+
 if(require('./$.support-desc')){
   var global          = require('./$.global')
     , $               = require('./$')
@@ -11,6 +13,7 @@ if(require('./$.support-desc')){
     , $DataView       = global.DataView
     , Math            = global.Math
     , parseInt        = global.parseInt
+    , BYTE_LENGTH     = 'byteLength'
     , useNativeBuffer = !!($ArrayBuffer && $DataView);
 
   var abs   = Math.abs
@@ -185,37 +188,44 @@ if(require('./$.support-desc')){
   };
 
   var get = function(view, bytes, index, conversion, isLittleEndian){
-    if(index < 0 || index + bytes > view._l)throw RangeError();
+    var numIndex = +index
+      , intIndex = toInteger(numIndex);
+    if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError();
     var store = view._b._b
-      , start = index + view._o
+      , start = intIndex + view._o
       , pack  = store.slice(start, start + bytes);
     isLittleEndian || pack.reverse();
     return conversion(pack);
   };
   var set = function(view, bytes, index, conversion, value, isLittleEndian){
-    if(index < 0 || index + bytes > view._l)throw RangeError();
+    var numIndex = +index
+      , intIndex = toInteger(numIndex);
+    if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError();
     var store = view._b._b
-      , start = index + view._o
-      , pack  = conversion(value);
+      , start = intIndex + view._o
+      , pack  = conversion(+value);
     isLittleEndian || pack.reverse();
     for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
   };
 
-  if(/*true){//*/!useNativeBuffer){
+  if(DEBUG || !useNativeBuffer){
     $ArrayBuffer = function ArrayBuffer(length){
       strictNew(this, $ArrayBuffer, 'ArrayBuffer');
-      this._b = $fill.call(Array(length), 0);
-      this._l = length;
+      var numberLength = +length
+        , byteLength   = toLength(numberLength);
+      if(numberLength != byteLength)throw RangeError();
+      this._b = $fill.call(Array(byteLength), 0);
+      this._l = byteLength;
     };
-    addGetter($ArrayBuffer, 'byteLength', '_l');
+    addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
 
     $DataView = function DataView(buffer /*, byteOffset, byteLength */){
       strictNew(this, $DataView, 'DataView');
       if(!(buffer instanceof $ArrayBuffer))throw TypeError();
-      var bufferLength = buffer._b.length
+      var bufferLength = buffer._l
         , byteLength   = arguments[2]
         , offset       = toInteger(arguments[1]);
-      if(offset < 0)throw RangeError();
+      if(offset < 0 || offset > bufferLength)throw RangeError();
       byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
       if(offset + byteLength > bufferLength)throw RangeError();
       this._b = buffer;
@@ -223,7 +233,7 @@ if(require('./$.support-desc')){
       this._l = byteLength;
     };
     addGetter($DataView, 'buffer', '_b');
-    addGetter($DataView, 'byteLength', '_l');
+    addGetter($DataView, BYTE_LENGTH, '_l');
     addGetter($DataView, 'byteOffset', '_o');
     $mix($DataView.prototype, {
       getInt8: function getInt8(byteOffset){
