@@ -198,16 +198,14 @@ DEBUG && ('Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,Uint16Array,Int32Ar
   delete global[it];
 });
 
-module.exports = function(TYPE, BYTES, wrapper){
-  var NAME         = TYPE + 'Array'
-    , $cre         = /Clamped/
-    , KEY          = TYPE.replace($cre, '')
-    , GETTER       = 'get' + KEY
-    , SETTER       = 'set' + KEY
-    , CLAMPED      = $cre.test(NAME)
-    , $TypedArray  = global[NAME]
-    , Base         = $TypedArray
-    , O            = {};
+module.exports = function(KEY, BYTES, wrapper, CLAMPED){
+  CLAMPED = !!CLAMPED;
+  var NAME        = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
+    , GETTER      = 'get' + KEY
+    , SETTER      = 'set' + KEY
+    , $TypedArray = global[NAME]
+    , Base        = $TypedArray
+    , O           = {};
   var addElement = function(that, index){
     setDesc(that, index, {
       get: function(){
