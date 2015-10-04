@@ -1270,10 +1270,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.acosh', function(assert){
-    var epsilon, acosh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var acosh;
     acosh = Math.acosh;
     assert.ok(toString$.call(acosh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(acosh.name, 'acosh', 'name is "acosh"');
@@ -1285,11 +1282,11 @@
     assert.same(acosh(-1e300), NaN);
     assert.same(acosh(1), 0);
     assert.strictEqual(acosh(Infinity), Infinity);
-    assert.ok(epsilon(acosh(1234), 7.811163220849231));
-    assert.ok(epsilon(acosh(8.88), 2.8737631531629235));
-    assert.ok(epsilon(acosh(1e+160), 369.10676205960726));
-    assert.ok(epsilon(acosh(Number.MAX_VALUE), 710.475860073944));
-    return assert.ok(epsilon(acosh(1 + Number.EPSILON), 2.1073424255447017e-8));
+    assert.epsilon(acosh(1234), 7.811163220849231);
+    assert.epsilon(acosh(8.88), 2.8737631531629235);
+    assert.epsilon(acosh(1e+160), 369.10676205960726);
+    assert.epsilon(acosh(Number.MAX_VALUE), 710.475860073944);
+    return assert.epsilon(acosh(1 + Number.EPSILON), 2.1073424255447017e-8);
   });
 }).call(this);
 
@@ -1299,10 +1296,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.asinh', function(assert){
-    var epsilon, asinh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var asinh;
     asinh = Math.asinh;
     assert.ok(toString$.call(asinh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(asinh.name, 'asinh', 'name is "asinh"');
@@ -1313,11 +1307,11 @@
     assert.same(asinh(-0), -0);
     assert.strictEqual(asinh(Infinity), Infinity);
     assert.strictEqual(asinh(-Infinity), -Infinity);
-    assert.ok(epsilon(asinh(1234), 7.811163549201245));
-    assert.ok(epsilon(asinh(9.99), 2.997227420191335));
-    assert.ok(epsilon(asinh(1e150), 346.0809111296668));
-    assert.ok(epsilon(asinh(1e7), 16.811242831518268));
-    return assert.ok(epsilon(asinh(-1e7), -16.811242831518268));
+    assert.epsilon(asinh(1234), 7.811163549201245);
+    assert.epsilon(asinh(9.99), 2.997227420191335);
+    assert.epsilon(asinh(1e150), 346.0809111296668);
+    assert.epsilon(asinh(1e7), 16.811242831518268);
+    return assert.epsilon(asinh(-1e7), -16.811242831518268);
   });
 }).call(this);
 
@@ -1327,10 +1321,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.atanh', function(assert){
-    var epsilon, atanh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var atanh;
     atanh = Math.atanh;
     assert.ok(toString$.call(atanh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(atanh.name, 'atanh', 'name is "atanh"');
@@ -1347,9 +1338,9 @@
     assert.same(atanh(-0), -0);
     assert.same(atanh(-1e300), NaN);
     assert.same(atanh(1e300), NaN);
-    assert.ok(epsilon(atanh(0.5), 0.5493061443340549));
-    assert.ok(epsilon(atanh(-0.5), -0.5493061443340549));
-    return assert.ok(epsilon(atanh(0.444), 0.47720201260109457));
+    assert.epsilon(atanh(0.5), 0.5493061443340549);
+    assert.epsilon(atanh(-0.5), -0.5493061443340549);
+    return assert.epsilon(atanh(0.444), 0.47720201260109457);
   });
 }).call(this);
 
@@ -1359,10 +1350,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.cbrt', function(assert){
-    var epsilon, cbrt;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var cbrt;
     cbrt = Math.cbrt;
     assert.ok(toString$.call(cbrt).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(cbrt.name, 'cbrt', 'name is "cbrt"');
@@ -1375,8 +1363,8 @@
     assert.strictEqual(cbrt(-Infinity), -Infinity);
     assert.strictEqual(cbrt(-8), -2);
     assert.strictEqual(cbrt(8), 2);
-    assert.ok(epsilon(cbrt(-1000), -10));
-    return assert.ok(epsilon(cbrt(1000), 10));
+    assert.epsilon(cbrt(-1000), -10);
+    return assert.epsilon(cbrt(1000), 10);
   });
 }).call(this);
 
@@ -1407,10 +1395,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.cosh', function(assert){
-    var epsilon, cosh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var cosh;
     cosh = Math.cosh;
     assert.ok(toString$.call(cosh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(cosh.name, 'cosh', 'name is "cosh"');
@@ -1421,10 +1406,10 @@
     assert.strictEqual(cosh(-0), 1);
     assert.strictEqual(cosh(Infinity), Infinity);
     assert.strictEqual(cosh(-Infinity), Infinity);
-    assert.ok(epsilon(cosh(12), 81377.39571257407, 3e-11));
-    assert.ok(epsilon(cosh(22), 1792456423.065795780980053377, 1e-5));
-    assert.ok(epsilon(cosh(-10), 11013.23292010332313972137));
-    return assert.ok(epsilon(cosh(-23), 4872401723.1244513000, 1e-5));
+    assert.epsilon(cosh(12), 81377.39571257407, 3e-11);
+    assert.epsilon(cosh(22), 1792456423.065795780980053377, 1e-5);
+    assert.epsilon(cosh(-10), 11013.23292010332313972137);
+    return assert.epsilon(cosh(-23), 4872401723.1244513000, 1e-5);
   });
 }).call(this);
 
@@ -1434,10 +1419,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.expm1', function(assert){
-    var epsilon, expm1;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var expm1;
     expm1 = Math.expm1;
     assert.ok(toString$.call(expm1).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(expm1.name, 'expm1', 'name is "expm1"');
@@ -1448,7 +1430,7 @@
     assert.same(expm1(-0), -0);
     assert.strictEqual(expm1(Infinity), Infinity);
     assert.strictEqual(expm1(-Infinity), -1);
-    return assert.ok(epsilon(expm1(10), 22025.465794806718, assert.ok(epsilon(expm1(-10), -0.9999546000702375))));
+    return assert.epsilon(expm1(10), 22025.465794806718, assert.epsilon(expm1(-10), -0.9999546000702375));
   });
 }).call(this);
 
@@ -1497,10 +1479,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.hypot', function(assert){
-    var epsilon, hypot, sqrt;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
     assert.ok(toString$.call(hypot).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(hypot.name, 'hypot', 'name is "hypot"');
@@ -1534,8 +1513,8 @@
     assert.strictEqual(hypot(1, 0, 0), 1);
     assert.strictEqual(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4));
     assert.strictEqual(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5));
-    assert.ok(epsilon(hypot(66, 66), 93.33809511662427));
-    assert.ok(epsilon(hypot(0.1, 100), 100.0000499999875));
+    assert.epsilon(hypot(66, 66), 93.33809511662427);
+    assert.epsilon(hypot(0.1, 100), 100.0000499999875);
     assert.strictEqual(hypot(1e+300, 1e+300), 1.4142135623730952e+300);
     assert.strictEqual(Math.floor(hypot(1e-300, 1e-300) * 1e308), 141421356);
     assert.strictEqual(hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300);
@@ -1600,10 +1579,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log10', function(assert){
-    var epsilon, log10;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var log10;
     log10 = Math.log10;
     assert.ok(toString$.call(log10).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log10.name, 'log10', 'name is "log10"');
@@ -1616,11 +1592,11 @@
     assert.same(log10(-0), -Infinity);
     assert.same(log10(1), 0);
     assert.same(log10(Infinity), Infinity);
-    assert.ok(epsilon(log10(0.1), -1));
-    assert.ok(epsilon(log10(0.5), -0.3010299956639812));
-    assert.ok(epsilon(log10(1.5), 0.17609125905568124));
-    assert.ok(epsilon(log10(5), 0.6989700043360189));
-    return assert.ok(epsilon(log10(50), 1.6989700043360187));
+    assert.epsilon(log10(0.1), -1);
+    assert.epsilon(log10(0.5), -0.3010299956639812);
+    assert.epsilon(log10(1.5), 0.17609125905568124);
+    assert.epsilon(log10(5), 0.6989700043360189);
+    return assert.epsilon(log10(50), 1.6989700043360187);
   });
 }).call(this);
 
@@ -1630,10 +1606,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log1p', function(assert){
-    var epsilon, log1p;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var log1p;
     log1p = Math.log1p;
     assert.ok(toString$.call(log1p).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log1p.name, 'log1p', 'name is "log1p"');
@@ -1646,8 +1619,8 @@
     assert.same(log1p(0), 0);
     assert.same(log1p(-0), -0);
     assert.same(log1p(Infinity), Infinity);
-    assert.ok(epsilon(log1p(5), 1.791759469228055));
-    return assert.ok(epsilon(log1p(50), 3.9318256327243257));
+    assert.epsilon(log1p(5), 1.791759469228055);
+    return assert.epsilon(log1p(50), 3.9318256327243257);
   });
 }).call(this);
 
@@ -1657,10 +1630,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log2', function(assert){
-    var epsilon, log2;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var log2;
     log2 = Math.log2;
     assert.ok(toString$.call(log2).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log2.name, 'log2', 'name is "log2"');
@@ -1675,7 +1645,7 @@
     assert.same(log2(Infinity), Infinity);
     assert.same(log2(0.5), -1);
     assert.same(log2(32), 5);
-    return assert.ok(epsilon(log2(5), 2.321928094887362));
+    return assert.epsilon(log2(5), 2.321928094887362);
   });
 }).call(this);
 
@@ -1710,10 +1680,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.sinh', function(assert){
-    var epsilon, sinh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var sinh;
     sinh = Math.sinh;
     assert.ok(toString$.call(sinh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(sinh.name, 'sinh', 'name is "sinh"');
@@ -1724,8 +1691,8 @@
     assert.same(sinh(-0), -0);
     assert.strictEqual(sinh(Infinity), Infinity);
     assert.strictEqual(sinh(-Infinity), -Infinity);
-    assert.ok(epsilon(sinh(-5), -74.20321057778875));
-    assert.ok(epsilon(sinh(2), 3.6268604078470186));
+    assert.epsilon(sinh(-5), -74.20321057778875);
+    assert.epsilon(sinh(2), 3.6268604078470186);
     return assert.strictEqual(sinh(-2e-17), -2e-17);
   });
 }).call(this);
@@ -1736,10 +1703,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.tanh', function(assert){
-    var epsilon, tanh;
-    epsilon = function(a, b, E){
-      return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
+    var tanh;
     tanh = Math.tanh;
     assert.ok(toString$.call(tanh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(tanh.name, 'tanh', 'name is "tanh"');
@@ -1750,7 +1714,7 @@
     assert.same(tanh(-0), -0);
     assert.strictEqual(tanh(Infinity), 1);
     assert.strictEqual(tanh(90), 1);
-    return assert.ok(epsilon(tanh(10), 0.9999999958776927));
+    return assert.epsilon(tanh(10), 0.9999999958776927);
   });
 }).call(this);
 

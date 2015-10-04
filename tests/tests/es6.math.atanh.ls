@@ -2,7 +2,6 @@
 module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
 test 'Math.atanh' (assert)->
-  epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
   {atanh} = Math
   assert.ok typeof! atanh is \Function, 'is function'
   assert.strictEqual atanh.name, \atanh, 'name is "atanh"'
@@ -19,6 +18,6 @@ test 'Math.atanh' (assert)->
   assert.same atanh(-0), -0
   assert.same atanh(-1e300), NaN
   assert.same atanh(1e300), NaN
-  assert.ok epsilon atanh(0.5), 0.5493061443340549
-  assert.ok epsilon atanh(-0.5), -0.5493061443340549
-  assert.ok epsilon atanh(0.444), 0.47720201260109457
+  assert.epsilon atanh(0.5), 0.5493061443340549
+  assert.epsilon atanh(-0.5), -0.5493061443340549
+  assert.epsilon atanh(0.444), 0.47720201260109457
