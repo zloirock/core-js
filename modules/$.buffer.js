@@ -16,6 +16,8 @@ if(require('./$.support-desc')){
     , BYTE_LENGTH     = 'byteLength'
     , useNativeBuffer = !!($ArrayBuffer && $DataView);
 
+  if(DEBUG)useNativeBuffer = false;
+
   var abs   = Math.abs
     , pow   = Math.pow
     , min   = Math.min
@@ -208,7 +210,7 @@ if(require('./$.support-desc')){
     for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
   };
 
-  if(DEBUG || !useNativeBuffer){
+  if(!useNativeBuffer){
     $ArrayBuffer = function ArrayBuffer(length){
       strictNew(this, $ArrayBuffer, 'ArrayBuffer');
       var numberLength = +length
