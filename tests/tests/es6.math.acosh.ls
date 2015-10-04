@@ -3,17 +3,16 @@ module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
 test 'Math.acosh' (assert)->
   epsilon = (a, b, E)-> Math.abs(a - b) <= if E? => E else 1e-11
-  sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
   {acosh} = Math
   assert.ok typeof! acosh is \Function, 'is function'
   assert.strictEqual acosh.name, \acosh, 'name is "acosh"'
   assert.strictEqual acosh.length, 1, 'arity is 1'
   assert.ok /native code/.test(acosh), 'looks like native'
-  sameValue acosh(NaN), NaN
-  sameValue acosh(0.5), NaN
-  sameValue acosh(-1), NaN
-  sameValue acosh(-1e300), NaN
-  sameValue acosh(1), 0
+  assert.same acosh(NaN), NaN
+  assert.same acosh(0.5), NaN
+  assert.same acosh(-1), NaN
+  assert.same acosh(-1e300), NaN
+  assert.same acosh(1), 0
   assert.strictEqual acosh(Infinity), Infinity
   assert.ok epsilon acosh(1234), 7.811163220849231
   assert.ok epsilon acosh(8.88), 2.8737631531629235

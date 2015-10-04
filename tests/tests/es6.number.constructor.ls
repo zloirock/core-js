@@ -2,12 +2,11 @@
 module \ES6
 
 $check = (assert)-> (a, b)->
-  sameValue = (a, b, c)-> assert.ok (if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b), c
-  sameValue Number(a), b, "Number #{typeof a} #a -> #b"
+  assert.same Number(a), b, "Number #{typeof a} #a -> #b"
   x = new Number a
   assert.ok x is Object(x), "new Number #{typeof a} #a is object"
   assert.strictEqual typeof! x, \Number, "classof new Number #{typeof a} #a is Number"
-  sameValue x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
+  assert.same x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
 
 test 'Number constructor: regression' (assert)->
   check = $check assert

@@ -1270,25 +1270,20 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.acosh', function(assert){
-    var epsilon, sameValue, acosh;
+    var epsilon, acosh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     acosh = Math.acosh;
     assert.ok(toString$.call(acosh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(acosh.name, 'acosh', 'name is "acosh"');
     assert.strictEqual(acosh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(acosh), 'looks like native');
-    sameValue(acosh(NaN), NaN);
-    sameValue(acosh(0.5), NaN);
-    sameValue(acosh(-1), NaN);
-    sameValue(acosh(-1e300), NaN);
-    sameValue(acosh(1), 0);
+    assert.same(acosh(NaN), NaN);
+    assert.same(acosh(0.5), NaN);
+    assert.same(acosh(-1), NaN);
+    assert.same(acosh(-1e300), NaN);
+    assert.same(acosh(1), 0);
     assert.strictEqual(acosh(Infinity), Infinity);
     assert.ok(epsilon(acosh(1234), 7.811163220849231));
     assert.ok(epsilon(acosh(8.88), 2.8737631531629235));
@@ -1304,23 +1299,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.asinh', function(assert){
-    var epsilon, sameValue, asinh;
+    var epsilon, asinh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     asinh = Math.asinh;
     assert.ok(toString$.call(asinh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(asinh.name, 'asinh', 'name is "asinh"');
     assert.strictEqual(asinh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(asinh), 'looks like native');
-    sameValue(asinh(NaN), NaN);
-    sameValue(asinh(0), 0);
-    sameValue(asinh(-0), -0);
+    assert.same(asinh(NaN), NaN);
+    assert.same(asinh(0), 0);
+    assert.same(asinh(-0), -0);
     assert.strictEqual(asinh(Infinity), Infinity);
     assert.strictEqual(asinh(-Infinity), -Infinity);
     assert.ok(epsilon(asinh(1234), 7.811163549201245));
@@ -1337,31 +1327,26 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.atanh', function(assert){
-    var epsilon, sameValue, atanh;
+    var epsilon, atanh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     atanh = Math.atanh;
     assert.ok(toString$.call(atanh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(atanh.name, 'atanh', 'name is "atanh"');
     assert.strictEqual(atanh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(atanh), 'looks like native');
-    sameValue(atanh(NaN), NaN);
-    sameValue(atanh(-2), NaN);
-    sameValue(atanh(-1.5), NaN);
-    sameValue(atanh(2), NaN);
-    sameValue(atanh(1.5), NaN);
+    assert.same(atanh(NaN), NaN);
+    assert.same(atanh(-2), NaN);
+    assert.same(atanh(-1.5), NaN);
+    assert.same(atanh(2), NaN);
+    assert.same(atanh(1.5), NaN);
     assert.strictEqual(atanh(-1), -Infinity);
     assert.strictEqual(atanh(1), Infinity);
-    sameValue(atanh(0), 0);
-    sameValue(atanh(-0), -0);
-    sameValue(atanh(-1e300), NaN);
-    sameValue(atanh(1e300), NaN);
+    assert.same(atanh(0), 0);
+    assert.same(atanh(-0), -0);
+    assert.same(atanh(-1e300), NaN);
+    assert.same(atanh(1e300), NaN);
     assert.ok(epsilon(atanh(0.5), 0.5493061443340549));
     assert.ok(epsilon(atanh(-0.5), -0.5493061443340549));
     return assert.ok(epsilon(atanh(0.444), 0.47720201260109457));
@@ -1374,23 +1359,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.cbrt', function(assert){
-    var epsilon, sameValue, cbrt;
+    var epsilon, cbrt;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     cbrt = Math.cbrt;
     assert.ok(toString$.call(cbrt).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(cbrt.name, 'cbrt', 'name is "cbrt"');
     assert.strictEqual(cbrt.length, 1, 'arity is 1');
     assert.ok(/native code/.test(cbrt), 'looks like native');
-    sameValue(cbrt(NaN), NaN);
-    sameValue(cbrt(0), 0);
-    sameValue(cbrt(-0), -0);
+    assert.same(cbrt(NaN), NaN);
+    assert.same(cbrt(0), 0);
+    assert.same(cbrt(-0), -0);
     assert.strictEqual(cbrt(Infinity), Infinity);
     assert.strictEqual(cbrt(-Infinity), -Infinity);
     assert.strictEqual(cbrt(-8), -2);
@@ -1406,12 +1386,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.clz32', function(assert){
-    var sameValue, clz32;
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
-    };
+    var clz32;
     clz32 = Math.clz32;
     assert.ok(toString$.call(clz32).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(clz32.name, 'clz32', 'name is "clz32"');
@@ -1419,9 +1394,9 @@
     assert.ok(/native code/.test(clz32), 'looks like native');
     assert.strictEqual(clz32(0), 32);
     assert.strictEqual(clz32(1), 31);
-    sameValue(clz32(-1), 0);
+    assert.same(clz32(-1), 0);
     assert.strictEqual(clz32(0.6), 32);
-    sameValue(clz32(Math.pow(2, 32) - 1), 0);
+    assert.same(clz32(Math.pow(2, 32) - 1), 0);
     return assert.strictEqual(clz32(Math.pow(2, 32)), 32);
   });
 }).call(this);
@@ -1432,21 +1407,16 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.cosh', function(assert){
-    var epsilon, sameValue, cosh;
+    var epsilon, cosh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     cosh = Math.cosh;
     assert.ok(toString$.call(cosh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(cosh.name, 'cosh', 'name is "cosh"');
     assert.strictEqual(cosh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(cosh), 'looks like native');
-    sameValue(cosh(NaN), NaN);
+    assert.same(cosh(NaN), NaN);
     assert.strictEqual(cosh(0), 1);
     assert.strictEqual(cosh(-0), 1);
     assert.strictEqual(cosh(Infinity), Infinity);
@@ -1464,23 +1434,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.expm1', function(assert){
-    var epsilon, sameValue, expm1;
+    var epsilon, expm1;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     expm1 = Math.expm1;
     assert.ok(toString$.call(expm1).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(expm1.name, 'expm1', 'name is "expm1"');
     assert.strictEqual(expm1.length, 1, 'arity is 1');
     assert.ok(/native code/.test(expm1), 'looks like native');
-    sameValue(expm1(NaN), NaN);
-    sameValue(expm1(0), 0);
-    sameValue(expm1(-0), -0);
+    assert.same(expm1(NaN), NaN);
+    assert.same(expm1(0), 0);
+    assert.same(expm1(-0), -0);
     assert.strictEqual(expm1(Infinity), Infinity);
     assert.strictEqual(expm1(-Infinity), -1);
     return assert.ok(epsilon(expm1(10), 22025.465794806718, assert.ok(epsilon(expm1(-10), -0.9999546000702375))));
@@ -1493,23 +1458,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.fround', function(assert){
-    var sameValue, fround, maxFloat32, minFloat32;
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
-    };
+    var fround, maxFloat32, minFloat32;
     fround = Math.fround;
     assert.ok(toString$.call(fround).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(fround.name, 'fround', 'name is "fround"');
     assert.strictEqual(fround.length, 1, 'arity is 1');
     assert.ok(/native code/.test(fround), 'looks like native');
-    sameValue(fround(void 8), NaN);
-    sameValue(fround(NaN), NaN);
-    sameValue(fround(0), 0);
-    sameValue(fround(-0), -0);
-    sameValue(fround(Number.MIN_VALUE), 0);
-    sameValue(fround(-Number.MIN_VALUE), -0);
+    assert.same(fround(void 8), NaN);
+    assert.same(fround(NaN), NaN);
+    assert.same(fround(0), 0);
+    assert.same(fround(-0), -0);
+    assert.same(fround(Number.MIN_VALUE), 0);
+    assert.same(fround(-Number.MIN_VALUE), -0);
     assert.strictEqual(fround(Infinity), Infinity);
     assert.strictEqual(fround(-Infinity), -Infinity);
     assert.strictEqual(fround(1.7976931348623157e+308), Infinity);
@@ -1524,8 +1484,8 @@
     assert.strictEqual(fround(maxFloat32 + Math.pow(2, Math.pow(2, 8 - 1) - 1 - 23 - 2)), maxFloat32);
     assert.strictEqual(fround(minFloat32), minFloat32);
     assert.strictEqual(fround(-minFloat32), -minFloat32);
-    sameValue(fround(minFloat32 / 2), 0);
-    sameValue(fround(-minFloat32 / 2), -0);
+    assert.same(fround(minFloat32 / 2), 0);
+    assert.same(fround(-minFloat32 / 2), -0);
     assert.strictEqual(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
     return assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
   });
@@ -1537,14 +1497,9 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.hypot', function(assert){
-    var epsilon, sameValue, hypot, sqrt;
+    var epsilon, hypot, sqrt;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     hypot = Math.hypot, sqrt = Math.sqrt;
     assert.ok(toString$.call(hypot).slice(8, -1) === 'Function', 'is function');
@@ -1553,25 +1508,25 @@
     assert.ok(/native code/.test(hypot), 'looks like native');
     assert.strictEqual(hypot(), 0);
     assert.strictEqual(hypot(1), 1);
-    sameValue(hypot('', 0), 0);
-    sameValue(hypot(0, ''), 0);
+    assert.same(hypot('', 0), 0);
+    assert.same(hypot(0, ''), 0);
     assert.strictEqual(hypot(Infinity, 0), Infinity);
     assert.strictEqual(hypot(-Infinity, 0), Infinity);
     assert.strictEqual(hypot(0, Infinity), Infinity);
     assert.strictEqual(hypot(0, -Infinity), Infinity);
     assert.strictEqual(hypot(Infinity, NaN), Infinity);
     assert.strictEqual(hypot(NaN, -Infinity), Infinity);
-    sameValue(hypot(NaN, 0), NaN);
-    sameValue(hypot(0, NaN), NaN);
-    sameValue(hypot(0, -0), 0);
-    sameValue(hypot(0, 0), 0);
-    sameValue(hypot(-0, -0), 0);
-    sameValue(hypot(-0, 0), 0);
+    assert.same(hypot(NaN, 0), NaN);
+    assert.same(hypot(0, NaN), NaN);
+    assert.same(hypot(0, -0), 0);
+    assert.same(hypot(0, 0), 0);
+    assert.same(hypot(-0, -0), 0);
+    assert.same(hypot(-0, 0), 0);
     assert.strictEqual(hypot(0, 1), 1);
     assert.strictEqual(hypot(0, -1), 1);
     assert.strictEqual(hypot(-0, 1), 1);
     assert.strictEqual(hypot(-0, -1), 1);
-    sameValue(hypot(0), 0);
+    assert.same(hypot(0), 0);
     assert.strictEqual(hypot(1), 1);
     assert.strictEqual(hypot(2), 2);
     assert.strictEqual(hypot(0, 0, 1), 1);
@@ -1595,48 +1550,43 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.imul', function(assert){
-    var sameValue, imul;
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
-    };
+    var imul;
     imul = Math.imul;
     assert.ok(toString$.call(imul).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(imul.name, 'imul', 'name is "imul"');
     assert.strictEqual(imul.length, 2, 'arity is 2');
     assert.ok(/native code/.test(imul), 'looks like native');
-    sameValue(imul(0, 0), 0);
+    assert.same(imul(0, 0), 0);
     assert.strictEqual(imul(123, 456), 56088);
     assert.strictEqual(imul(-123, 456), -56088);
     assert.strictEqual(imul(123, -456), -56088);
     assert.strictEqual(imul(19088743, 4275878552), 602016552);
-    sameValue(imul(false, 7), 0);
-    sameValue(imul(7, false), 0);
-    sameValue(imul(false, false), 0);
+    assert.same(imul(false, 7), 0);
+    assert.same(imul(7, false), 0);
+    assert.same(imul(false, false), 0);
     assert.strictEqual(imul(true, 7), 7);
     assert.strictEqual(imul(7, true), 7);
     assert.strictEqual(imul(true, true), 1);
-    sameValue(imul(void 8, 7), 0);
-    sameValue(imul(7, void 8), 0);
-    sameValue(imul(void 8, void 8), 0);
-    sameValue(imul('str', 7), 0);
-    sameValue(imul(7, 'str'), 0);
-    sameValue(imul({}, 7), 0);
-    sameValue(imul(7, {}), 0);
-    sameValue(imul([], 7), 0);
-    sameValue(imul(7, []), 0);
+    assert.same(imul(void 8, 7), 0);
+    assert.same(imul(7, void 8), 0);
+    assert.same(imul(void 8, void 8), 0);
+    assert.same(imul('str', 7), 0);
+    assert.same(imul(7, 'str'), 0);
+    assert.same(imul({}, 7), 0);
+    assert.same(imul(7, {}), 0);
+    assert.same(imul([], 7), 0);
+    assert.same(imul(7, []), 0);
     assert.strictEqual(imul(0xffffffff, 5), -5);
     assert.strictEqual(imul(0xfffffffe, 5), -10);
     assert.strictEqual(imul(2, 4), 8);
     assert.strictEqual(imul(-1, 8), -8);
     assert.strictEqual(imul(-2, -2), 4);
-    sameValue(imul(-0, 7), 0);
-    sameValue(imul(7, -0), 0);
-    sameValue(imul(0.1, 7), 0);
-    sameValue(imul(7, 0.1), 0);
-    sameValue(imul(0.9, 7), 0);
-    sameValue(imul(7, 0.9), 0);
+    assert.same(imul(-0, 7), 0);
+    assert.same(imul(7, -0), 0);
+    assert.same(imul(0.1, 7), 0);
+    assert.same(imul(7, 0.1), 0);
+    assert.same(imul(0.9, 7), 0);
+    assert.same(imul(7, 0.9), 0);
     assert.strictEqual(imul(1.1, 7), 7);
     assert.strictEqual(imul(7, 1.1), 7);
     assert.strictEqual(imul(1.9, 7), 7);
@@ -1650,27 +1600,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log10', function(assert){
-    var epsilon, sameValue, log10;
+    var epsilon, log10;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     log10 = Math.log10;
     assert.ok(toString$.call(log10).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log10.name, 'log10', 'name is "log10"');
     assert.strictEqual(log10.length, 1, 'arity is 1');
     assert.ok(/native code/.test(log10), 'looks like native');
-    sameValue(log10(''), log10(0));
-    sameValue(log10(NaN), NaN);
-    sameValue(log10(-1), NaN);
-    sameValue(log10(0), -Infinity);
-    sameValue(log10(-0), -Infinity);
-    sameValue(log10(1), 0);
-    sameValue(log10(Infinity), Infinity);
+    assert.same(log10(''), log10(0));
+    assert.same(log10(NaN), NaN);
+    assert.same(log10(-1), NaN);
+    assert.same(log10(0), -Infinity);
+    assert.same(log10(-0), -Infinity);
+    assert.same(log10(1), 0);
+    assert.same(log10(Infinity), Infinity);
     assert.ok(epsilon(log10(0.1), -1));
     assert.ok(epsilon(log10(0.5), -0.3010299956639812));
     assert.ok(epsilon(log10(1.5), 0.17609125905568124));
@@ -1685,27 +1630,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log1p', function(assert){
-    var epsilon, sameValue, log1p;
+    var epsilon, log1p;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     log1p = Math.log1p;
     assert.ok(toString$.call(log1p).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log1p.name, 'log1p', 'name is "log1p"');
     assert.strictEqual(log1p.length, 1, 'arity is 1');
     assert.ok(/native code/.test(log1p), 'looks like native');
-    sameValue(log1p(''), log1p(0));
-    sameValue(log1p(NaN), NaN);
-    sameValue(log1p(-2), NaN);
-    sameValue(log1p(-1), -Infinity);
-    sameValue(log1p(0), 0);
-    sameValue(log1p(-0), -0);
-    sameValue(log1p(Infinity), Infinity);
+    assert.same(log1p(''), log1p(0));
+    assert.same(log1p(NaN), NaN);
+    assert.same(log1p(-2), NaN);
+    assert.same(log1p(-1), -Infinity);
+    assert.same(log1p(0), 0);
+    assert.same(log1p(-0), -0);
+    assert.same(log1p(Infinity), Infinity);
     assert.ok(epsilon(log1p(5), 1.791759469228055));
     return assert.ok(epsilon(log1p(50), 3.9318256327243257));
   });
@@ -1717,29 +1657,24 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.log2', function(assert){
-    var epsilon, sameValue, log2;
+    var epsilon, log2;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     log2 = Math.log2;
     assert.ok(toString$.call(log2).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(log2.name, 'log2', 'name is "log2"');
     assert.strictEqual(log2.length, 1, 'arity is 1');
     assert.ok(/native code/.test(log2), 'looks like native');
-    sameValue(log2(''), log2(0));
-    sameValue(log2(NaN), NaN);
-    sameValue(log2(-1), NaN);
-    sameValue(log2(0), -Infinity);
-    sameValue(log2(-0), -Infinity);
-    sameValue(log2(1), 0);
-    sameValue(log2(Infinity), Infinity);
-    sameValue(log2(0.5), -1);
-    sameValue(log2(32), 5);
+    assert.same(log2(''), log2(0));
+    assert.same(log2(NaN), NaN);
+    assert.same(log2(-1), NaN);
+    assert.same(log2(0), -Infinity);
+    assert.same(log2(-0), -Infinity);
+    assert.same(log2(1), 0);
+    assert.same(log2(Infinity), Infinity);
+    assert.same(log2(0.5), -1);
+    assert.same(log2(32), 5);
     return assert.ok(epsilon(log2(5), 2.321928094887362));
   });
 }).call(this);
@@ -1750,21 +1685,16 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.sign', function(assert){
-    var sameValue, sign;
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
-    };
+    var sign;
     sign = Math.sign;
     assert.ok(toString$.call(sign).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(sign.name, 'sign', 'name is "sign"');
     assert.strictEqual(sign.length, 1, 'arity is 1');
     assert.ok(/native code/.test(sign), 'looks like native');
-    sameValue(sign(NaN), NaN);
-    sameValue(sign(), NaN);
-    sameValue(sign(-0), -0);
-    sameValue(sign(0), 0);
+    assert.same(sign(NaN), NaN);
+    assert.same(sign(), NaN);
+    assert.same(sign(-0), -0);
+    assert.same(sign(0), 0);
     assert.strictEqual(sign(Infinity), 1);
     assert.strictEqual(sign(-Infinity), -1);
     assert.strictEqual(sign(13510798882111488), 1);
@@ -1780,23 +1710,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.sinh', function(assert){
-    var epsilon, sameValue, sinh;
+    var epsilon, sinh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     sinh = Math.sinh;
     assert.ok(toString$.call(sinh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(sinh.name, 'sinh', 'name is "sinh"');
     assert.strictEqual(sinh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(sinh), 'looks like native');
-    sameValue(sinh(NaN), NaN);
-    sameValue(sinh(0), 0);
-    sameValue(sinh(-0), -0);
+    assert.same(sinh(NaN), NaN);
+    assert.same(sinh(0), 0);
+    assert.same(sinh(-0), -0);
     assert.strictEqual(sinh(Infinity), Infinity);
     assert.strictEqual(sinh(-Infinity), -Infinity);
     assert.ok(epsilon(sinh(-5), -74.20321057778875));
@@ -1811,23 +1736,18 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.tanh', function(assert){
-    var epsilon, sameValue, tanh;
+    var epsilon, tanh;
     epsilon = function(a, b, E){
       return Math.abs(a - b) <= (E != null ? E : 1e-11);
-    };
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
     };
     tanh = Math.tanh;
     assert.ok(toString$.call(tanh).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(tanh.name, 'tanh', 'name is "tanh"');
     assert.strictEqual(tanh.length, 1, 'arity is 1');
     assert.ok(/native code/.test(tanh), 'looks like native');
-    sameValue(tanh(NaN), NaN);
-    sameValue(tanh(0), 0);
-    sameValue(tanh(-0), -0);
+    assert.same(tanh(NaN), NaN);
+    assert.same(tanh(0), 0);
+    assert.same(tanh(-0), -0);
     assert.strictEqual(tanh(Infinity), 1);
     assert.strictEqual(tanh(90), 1);
     return assert.ok(epsilon(tanh(10), 0.9999999958776927));
@@ -1840,24 +1760,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Math.trunc', function(assert){
-    var sameValue, trunc;
-    sameValue = function(a, b, c){
-      return assert.ok(a === b
-        ? a !== 0 || 1 / a === 1 / b
-        : a != a && b != b, c);
-    };
+    var trunc;
     trunc = Math.trunc;
     assert.ok(toString$.call(trunc).slice(8, -1) === 'Function', 'is function');
     assert.strictEqual(trunc.name, 'trunc', 'name is "trunc"');
     assert.strictEqual(trunc.length, 1, 'arity is 1');
     assert.ok(/native code/.test(trunc), 'looks like native');
-    sameValue(trunc(NaN), NaN, 'NaN -> NaN');
-    sameValue(trunc(-0), -0, '-0 -> -0');
-    sameValue(trunc(0), 0, '0 -> 0');
-    sameValue(trunc(Infinity), Infinity, 'Infinity -> Infinity');
-    sameValue(trunc(-Infinity), -Infinity, '-Infinity -> -Infinity');
-    sameValue(trunc(null), 0, 'null -> 0');
-    sameValue(trunc({}), NaN, '{} -> NaN');
+    assert.same(trunc(NaN), NaN, 'NaN -> NaN');
+    assert.same(trunc(-0), -0, '-0 -> -0');
+    assert.same(trunc(0), 0, '0 -> 0');
+    assert.same(trunc(Infinity), Infinity, 'Infinity -> Infinity');
+    assert.same(trunc(-Infinity), -Infinity, '-Infinity -> -Infinity');
+    assert.same(trunc(null), 0, 'null -> 0');
+    assert.same(trunc({}), NaN, '{} -> NaN');
     assert.strictEqual(trunc([]), 0, '[] -> 0');
     assert.strictEqual(trunc(1.01), 1, '1.01 -> 0');
     assert.strictEqual(trunc(1.99), 1, '1.99 -> 0');
@@ -1876,17 +1791,12 @@
   module('ES6');
   $check = function(assert){
     return function(a, b){
-      var sameValue, x;
-      sameValue = function(a, b, c){
-        return assert.ok(a === b
-          ? a !== 0 || 1 / a === 1 / b
-          : a != a && b != b, c);
-      };
-      sameValue(Number(a), b, "Number " + typeof a + " " + a + " -> " + b);
+      var x;
+      assert.same(Number(a), b, "Number " + typeof a + " " + a + " -> " + b);
       x = new Number(a);
       assert.ok(x === Object(x), "new Number " + typeof a + " " + a + " is object");
       assert.strictEqual(toString$.call(x).slice(8, -1), 'Number', "classof new Number " + typeof a + " " + a + " is Number");
-      return sameValue(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
+      return assert.same(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
     };
   };
   test('Number constructor: regression', function(assert){

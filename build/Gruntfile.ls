@@ -1,5 +1,5 @@
 require! <[./build fs ./config]>
-library-tests = <[client/library.js tests/library.js]>map -> src: it
+library-tests = <[client/library.js tests/helpers.js tests/library.js]>map -> src: it
 module.exports = (grunt)->
   grunt.loadNpmTasks \grunt-contrib-clean
   grunt.loadNpmTasks \grunt-contrib-copy
@@ -17,6 +17,7 @@ module.exports = (grunt)->
         sourceMap: on
         banner: config.banner
     livescript: src: files:
+      './tests/helpers.js': './tests/helpers/*'
       './tests/tests.js': './tests/tests/*'
       './tests/library.js': './tests/library/*'
       './tests/es.js': './tests/tests/es*'
