@@ -1,14 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
 {WeakMap, Map} = core
 {freeze} = core.Object
 {values} = core.Array
 {iterator} = core.Symbol
 
 test 'WeakMap' (assert)->
-  assert.ok isFunction(WeakMap), 'is function'
+  assert.isFunction WeakMap
   assert.ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   assert.ok \get    of WeakMap::, 'get in WeakMap.prototype'
   assert.ok \has    of WeakMap::, 'has in WeakMap.prototype'
@@ -42,14 +41,14 @@ test 'WeakMap' (assert)->
   assert.ok done
 
 test 'WeakMap#delete' (assert)->
-  assert.ok isFunction(WeakMap::delete), 'is function'
+  assert.isFunction WeakMap::delete
   M = new WeakMap [[a = {}, 42], [b = {}, 21]]
   assert.ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
   assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
 
 test 'WeakMap#get' (assert)->
-  assert.ok isFunction(WeakMap::get), 'is function'
+  assert.isFunction WeakMap::get
   M = new WeakMap!
   assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
   M.set a = {}, 42
@@ -58,7 +57,7 @@ test 'WeakMap#get' (assert)->
   assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
 
 test 'WeakMap#has' (assert)->
-  assert.ok isFunction(WeakMap::has), 'is function'
+  assert.isFunction WeakMap::has
   M = new WeakMap!
   assert.ok !M.has({}), 'WeakMap .has() before .set() return false'
   M.set a = {}, 42
@@ -67,7 +66,7 @@ test 'WeakMap#has' (assert)->
   assert.ok !M.has(a), 'WeakMap .has() after .delete() return false'
 
 test 'WeakMap#set' (assert)->
-  assert.ok isFunction(WeakMap::set), 'is function'
+  assert.isFunction WeakMap::set
   assert.ok (w = new WeakMap)set(a = {}, 42) is w, 'chaining'
   assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
 

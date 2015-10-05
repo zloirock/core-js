@@ -3,10 +3,10 @@
 module \ES6
 
 test 'String#includes' (assert)->
-  assert.ok typeof! String::includes is \Function, 'is function'
-  assert.strictEqual String::includes.length, 1, 'arity is 1'
-  assert.ok /native code/.test(String::includes), 'looks like native'
-  assert.strictEqual String::includes.name, \includes, 'name is "includes"'
+  assert.isFunction String::includes
+  assert.arity String::includes, 1
+  assert.name String::includes, \includes
+  assert.looksNative String::includes
   assert.ok not 'abc'includes!
   assert.ok 'aundefinedb'includes!
   assert.ok 'abcd'includes \b 1

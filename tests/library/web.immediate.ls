@@ -1,14 +1,13 @@
 {module, test} = QUnit
 module 'Immediate'
 
-isFunction = -> typeof! it  is \Function
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 {setImmediate, clearImmediate, Promise} = core
 
 test 'setImmediate / clearImmediate' (assert)->
   assert.expect 6
-  assert.ok isFunction(setImmediate), 'setImmediate is function'
-  assert.ok isFunction(clearImmediate), 'clearImmediate is function'
+  assert.isFunction setImmediate, 'setImmediate is function'
+  assert.isFunction clearImmediate, 'clearImmediate is function'
   var def
   timeLimitedPromise(1e3, (res)-> setImmediate ->
     def := \a

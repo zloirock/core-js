@@ -4,10 +4,10 @@ module \ES6
 test 'Array.from' (assert)->
   {from} = Array
   {iterator} = Symbol
-  assert.ok typeof! from is \Function, 'is function'
-  assert.strictEqual Array.from.length, 1, 'arity is 1'
-  assert.ok /native code/.test(Array.from), 'looks like native'
-  assert.strictEqual Array.from.name, \from, 'name is "from"'
+  assert.isFunction from
+  assert.arity from, 1
+  assert.name from, \from
+  assert.looksNative from
   assert.deepEqual from(\123), <[1 2 3]>
   assert.deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}), [1 2 3]
   from al = (-> &)(1), (val, key)->

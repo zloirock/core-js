@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the base 2 logarithm of x.
 test 'Math.log2' (assert)->
   {log2} = core.Math
-  assert.ok typeof! log2 is \Function, 'is function'
+  assert.isFunction log2
   assert.same log2(''), log2 0
   assert.same log2(NaN), NaN
   assert.same log2(-1), NaN

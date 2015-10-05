@@ -1,12 +1,11 @@
 {module, test} = QUnit
 module 'Mozilla JavaScript Array statics'
 
-isFunction = -> typeof! it is \Function
 {slice} = Array::
 
 test 'are functions' (assert)->
   for <[concat join pop push reverse shift slice sort splice unshift indexOf lastIndexOf every some forEach map filter reduce reduceRight copyWithin fill find findIndex keys values entries includes]>
-    assert.ok isFunction(Array[..]), "Array.#{..} is function"
+    assert.isFunction Array[..], "Array.#{..} is function"
 
 test '.join' (assert)->
   {join} = Array
@@ -222,7 +221,6 @@ test '.findIndex' (assert)->
 
 test '.keys' (assert)->
   {keys} = Array
-  assert.ok typeof keys is \function, 'is function'
   iter1 = keys (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -238,7 +236,6 @@ test '.keys' (assert)->
 
 test '.values' (assert)->
   {values} = Array
-  assert.ok typeof values is \function, 'is function'
   iter1 = values (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -254,7 +251,6 @@ test '.values' (assert)->
 
 test '.entries' (assert)->
   {entries} = Array
-  assert.ok typeof entries is \function, 'is function'
   iter1 = entries (->&)(\q \w \e)
   assert.ok typeof iter1 is \object, 'Iterator is object'
   assert.ok typeof iter1.next is \function, 'Iterator has .next method'
@@ -270,7 +266,6 @@ test '.entries' (assert)->
 
 test '.includes' (assert)->
   {includes} = Array
-  assert.ok isFunction(includes), 'is function'
   args = (->&)(1 2 3 -0 NaN, o = {})
   assert.ok includes args, 1
   assert.ok includes args, -0

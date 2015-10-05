@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the base 10 logarithm of x.
 test 'Math.log10' (assert)->
   {log10} = Math
-  assert.ok typeof! log10 is \Function, 'is function'
-  assert.strictEqual log10.name, \log10, 'name is "log10"'
-  assert.strictEqual log10.length, 1, 'arity is 1'
-  assert.ok /native code/.test(log10), 'looks like native'
+  assert.isFunction log10
+  assert.name log10, \log10
+  assert.arity log10, 1
+  assert.looksNative log10
   assert.same log10(''), log10 0
   assert.same log10(NaN), NaN
   assert.same log10(-1), NaN

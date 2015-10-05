@@ -4,7 +4,7 @@ module \ES6
 
 test 'Array#find' (assert)->
   {find} = core.Array
-  assert.ok typeof! find is \Function, 'is function'
+  assert.isFunction find
   find arr = [1], (val, key, that)->
     assert.strictEqual @, ctx
     assert.strictEqual val, 1

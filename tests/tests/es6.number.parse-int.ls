@@ -2,7 +2,7 @@
 module \ES6
 
 test 'Number.parseInt' (assert)->
-  assert.ok typeof! Number.parseInt is \Function, 'is function'
-  assert.strictEqual Number.parseInt.name, \parseInt, 'name is "parseInt"'
-  assert.strictEqual Number.parseInt.length, 2, 'arity is 2'
-  assert.ok /native code/.test(Number.parseInt), 'looks like native'
+  assert.isFunction Number.parseInt
+  assert.name Number.parseInt, \parseInt
+  assert.arity Number.parseInt, 2
+  assert.looksNative Number.parseInt

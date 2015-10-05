@@ -5,10 +5,10 @@ module \ES6
 
 test 'Reflect.construct' (assert)->
   {construct} = Reflect
-  assert.ok typeof! construct is \Function, 'is function'
-  assert.strictEqual construct.length, 2, 'arity is 2'
-  assert.ok /native code/.test(construct), 'looks like native'
-  assert.strictEqual construct.name, \construct, 'name is "construct"'
+  assert.isFunction construct
+  assert.arity construct, 2
+  assert.name construct, \construct
+  assert.looksNative construct
   C = (a, b, c)-> @qux = a + b + c
   assert.strictEqual construct(C, <[foo bar baz]>).qux, \foobarbaz, \basic
   C.apply = 42

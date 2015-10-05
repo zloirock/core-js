@@ -4,10 +4,10 @@ module \ES6
 global = Function('return this')!
 
 test 'String#match regression' (assert)->
-  assert.ok typeof! ''match is \Function, 'is function'
-  assert.strictEqual ''match.length, 1, 'arity is 1'
-  assert.ok /native code/.test(''match), 'looks like native'
-  assert.strictEqual ''match.name, \match, 'name is "match"'
+  assert.isFunction ''match
+  assert.arity ''match, 1
+  assert.name ''match, \match
+  assert.looksNative ''match
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/match
   instance = Object on
   instance.match = String::match
@@ -165,8 +165,8 @@ test 'String#match regression' (assert)->
   assert.strictEqual ''match.call(num, re)input, String(num), 'S15.5.4.10_A2_T18 #4'
 
 test 'RegExp#@@match' (assert)->
-  assert.ok typeof! /./[Symbol.match] is \Function, 'is function'
-  assert.strictEqual /./[Symbol.match].length, 1, 'arity is 1'
+  assert.isFunction /./[Symbol.match]
+  assert.arity /./[Symbol.match], 1
   string = "Boston, MA 02134"
   matches = [\02134 \02134 void]
   assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol.match](string).length, 3

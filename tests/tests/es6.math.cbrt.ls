@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the cube root of x.
 test 'Math.cbrt' (assert)->
   {cbrt} = Math
-  assert.ok typeof! cbrt is \Function, 'is function'
-  assert.strictEqual cbrt.name, \cbrt, 'name is "cbrt"'
-  assert.strictEqual cbrt.length, 1, 'arity is 1'
-  assert.ok /native code/.test(cbrt), 'looks like native'
+  assert.isFunction cbrt
+  assert.name cbrt, \cbrt
+  assert.arity cbrt, 1
+  assert.looksNative cbrt
   assert.same cbrt(NaN), NaN
   assert.same cbrt(0), 0
   assert.same cbrt(-0), -0

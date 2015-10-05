@@ -3,10 +3,10 @@ module \ES6
 # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
 test 'Math.hypot' (assert)->
   {hypot, sqrt} = Math
-  assert.ok typeof! hypot is \Function, 'is function'
-  assert.strictEqual hypot.name, \hypot, 'name is "hypot"'
-  assert.strictEqual hypot.length, 2, 'arity is 2'
-  assert.ok /native code/.test(hypot), 'looks like native'
+  assert.isFunction hypot
+  assert.name hypot, \hypot
+  assert.arity hypot, 2
+  assert.looksNative hypot
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1
   assert.same hypot('', 0), 0

@@ -1,16 +1,14 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
-
 {freeze} = Object
 {iterator} = Symbol
 
 test 'WeakSet' (assert)->
-  assert.ok isFunction(WeakSet), 'is function'
-  assert.ok /native code/.test(WeakSet), 'looks like native'
-  assert.strictEqual WeakSet.name, \WeakSet, 'name is "WeakSet"'
-  assert.strictEqual WeakSet.length, 0, 'arity is 0'
+  assert.isFunction WeakSet
+  assert.name WeakSet, \WeakSet
+  assert.arity WeakSet, 0
+  assert.looksNative WeakSet
   assert.ok \add    of WeakSet::, 'add in WeakSet.prototype'
   assert.ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   assert.ok \has    of WeakSet::, 'has in WeakSet.prototype'
@@ -40,18 +38,18 @@ test 'WeakSet' (assert)->
   assert.ok done
 
 test 'WeakSet#add' (assert)->
-  assert.ok isFunction(WeakSet::add), 'is function'
-  assert.strictEqual WeakSet::add.name, \add, 'name is "add"'
-  assert.strictEqual WeakSet::add.length, 1, 'arity is 1'
-  assert.ok /native code/.test(WeakSet::add), 'looks like native'
+  assert.isFunction WeakSet::add
+  assert.name WeakSet::add, \add
+  assert.arity WeakSet::add, 1
+  assert.looksNative WeakSet::add
   assert.ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
   assert.ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
 
 test 'WeakSet#delete' (assert)->
-  assert.ok isFunction(WeakSet::delete), 'is function'
-  #assert.strictEqual WeakSet::delete.name, \delete, 'name is "delete"' # can't be polyfilled in some environments
-  assert.strictEqual WeakSet::delete.length, 1, 'arity is 1'
-  assert.ok /native code/.test(WeakSet::delete), 'looks like native'
+  assert.isFunction WeakSet::delete
+  #assert.name WeakSet::delete, \delete # can't be polyfilled in some environments
+  assert.arity WeakSet::delete, 1
+  assert.looksNative WeakSet::delete
   S = new WeakSet!
     .add a = {}
     .add b = {}
@@ -60,10 +58,10 @@ test 'WeakSet#delete' (assert)->
   assert.ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
 
 test 'WeakSet#has' (assert)->
-  assert.ok isFunction(WeakSet::has), 'is function'
-  assert.strictEqual WeakSet::has.name, \has, 'name is "has"'
-  assert.strictEqual WeakSet::has.length, 1, 'arity is 1'
-  assert.ok /native code/.test(WeakSet::has), 'looks like native'
+  assert.isFunction WeakSet::has
+  assert.name WeakSet::has, \has
+  assert.arity WeakSet::has, 1
+  assert.looksNative WeakSet::has
   M = new WeakSet!
   assert.ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

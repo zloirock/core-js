@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic sine of x.
 test 'Math.sinh' (assert)->
   {sinh} = core.Math
-  assert.ok typeof! sinh is \Function, 'is function'
+  assert.isFunction sinh
   assert.same sinh(NaN), NaN
   assert.same sinh(0), 0
   assert.same sinh(-0), -0 

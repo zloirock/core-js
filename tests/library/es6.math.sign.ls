@@ -3,7 +3,7 @@ module \ES6
 # Returns the sign of the x, indicating whether x is positive, negative or zero.
 test 'Math.sign' (assert)->
   {sign} = core.Math
-  assert.ok typeof! sign is \Function, 'is function'
+  assert.isFunction sign
   assert.same sign(NaN), NaN
   assert.same sign!, NaN
   assert.same sign(-0), -0

@@ -1,8 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
-isIterator = -> typeof it is \object && isFunction it.next
+isIterator = -> typeof it is \object && typeof it.next is \function
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Map, Symbol} = core
 {getOwnPropertyDescriptor, freeze} = core.Object
@@ -10,7 +9,7 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {iterator} = core.Symbol
 
 test 'Map' (assert)->
-  assert.ok isFunction(Map), 'is function'
+  assert.isFunction Map
   assert.ok \clear   of Map::, 'clear in Map.prototype'
   assert.ok \delete  of Map::, 'delete in Map.prototype'
   assert.ok \forEach of Map::, 'forEach in Map.prototype'
@@ -38,7 +37,7 @@ test 'Map' (assert)->
   assert.ok done
 
 test 'Map#clear' (assert)->
-  assert.ok isFunction(Map::clear), 'is function'
+  assert.isFunction Map::clear
   M = new Map
   M.clear!
   assert.strictEqual M.size, 0
@@ -54,7 +53,7 @@ test 'Map#clear' (assert)->
   assert.ok !M.has f
 
 test 'Map#delete' (assert)->
-  assert.ok isFunction(Map::delete), 'is function'
+  assert.isFunction Map::delete
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
   assert.strictEqual M.size, 5
@@ -72,7 +71,7 @@ test 'Map#delete' (assert)->
   assert.strictEqual M.size, 3
 
 test 'Map#forEach' (assert)->
-  assert.ok isFunction(Map::forEach), 'is function'
+  assert.isFunction Map::forEach
   r = {}
   var T
   count = 0
@@ -101,7 +100,7 @@ test 'Map#forEach' (assert)->
   assert.strictEqual s, \1
 
 test 'Map#get' (assert)->
-  assert.ok isFunction(Map::get), 'is function'
+  assert.isFunction Map::get
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
@@ -113,7 +112,7 @@ test 'Map#get' (assert)->
   assert.strictEqual M.get(2), 5
 
 test 'Map#has' (assert)->
-  assert.ok isFunction(Map::has), 'is function'
+  assert.isFunction Map::has
   o = {}
   f = freeze {}
   M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
@@ -125,7 +124,7 @@ test 'Map#has' (assert)->
   assert.ok not M.has {}
 
 test 'Map#set' (assert)->
-  assert.ok isFunction(Map::set), 'is function'
+  assert.isFunction Map::set
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
   assert.ok M.size is 5
@@ -194,7 +193,7 @@ test 'Map Iterator' (assert)->
   assert.deepEqual keys, <[a d e]>
 
 test 'Map#keys' (assert)->
-  assert.ok typeof Map::keys is \function, 'is function'
+  assert.isFunction Map::keys
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
@@ -204,7 +203,7 @@ test 'Map#keys' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Map#values' (assert)->
-  assert.ok typeof Map::values is \function, 'is function'
+  assert.isFunction Map::values
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
@@ -214,7 +213,7 @@ test 'Map#values' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Map#entries' (assert)->
-  assert.ok typeof Map::entries is \function, 'is function'
+  assert.isFunction Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'

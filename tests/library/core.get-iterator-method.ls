@@ -5,7 +5,7 @@ module \core-js
 
 test 'core.getIteratorMethod' (assert)->
   {getIteratorMethod} = core
-  assert.ok typeof getIteratorMethod is \function, 'is function'
+  assert.isFunction getIteratorMethod
   assert.strictEqual getIteratorMethod({}), void
   iterFn = getIteratorMethod []
   assert.ok typeof iterFn is \function

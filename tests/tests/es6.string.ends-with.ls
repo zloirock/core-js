@@ -3,10 +3,10 @@
 module \ES6
 
 test 'String#endsWith' (assert)->
-  assert.ok typeof! String::endsWith is \Function, 'is function'
-  assert.strictEqual String::endsWith.length, 1, 'arity is 1'
-  assert.ok /native code/.test(String::endsWith), 'looks like native'
-  assert.strictEqual String::endsWith.name, \endsWith, 'name is "endsWith"'
+  assert.isFunction String::endsWith
+  assert.arity String::endsWith, 1
+  assert.name String::endsWith, \endsWith
+  assert.looksNative String::endsWith
   assert.ok 'undefined'endsWith!
   assert.ok not 'undefined'endsWith null
   assert.ok 'abc'endsWith ''

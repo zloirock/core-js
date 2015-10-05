@@ -3,10 +3,10 @@
 module \ES7
 
 test 'String#padLeft' (assert)->
-  assert.ok typeof! String::padLeft is \Function, 'is function'
-  assert.strictEqual String::padLeft.length, 1, 'arity is 1'
-  assert.ok /native code/.test(String::padLeft), 'looks like native'
-  assert.strictEqual String::padLeft.name, \padLeft, 'name is "padLeft"'
+  assert.isFunction String::padLeft
+  assert.arity String::padLeft, 1
+  assert.name String::padLeft, \padLeft
+  assert.looksNative String::padLeft
   assert.strictEqual 'abc'padLeft(5), '  abc'
   assert.strictEqual 'abc'padLeft(4 \de), \dabc
   assert.strictEqual 'abc'padLeft!,  \abc

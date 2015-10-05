@@ -3,10 +3,10 @@
 module \ES6
 
 test 'String#repeat' (assert)->
-  assert.ok typeof! String::repeat is \Function, 'is function'
-  assert.strictEqual String::repeat.length, 1, 'arity is 1'
-  assert.ok /native code/.test(String::repeat), 'looks like native'
-  assert.strictEqual String::repeat.name, \repeat, 'name is "repeat"'
+  assert.isFunction String::repeat
+  assert.arity String::repeat, 1
+  assert.name String::repeat, \repeat
+  assert.looksNative String::repeat
   assert.strictEqual 'qwe'repeat(3), \qweqweqwe
   assert.strictEqual 'qwe'repeat(2.5), \qweqwe
   assert.throws (-> 'qwe'repeat -1), RangeError

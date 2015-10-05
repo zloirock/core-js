@@ -4,7 +4,7 @@ module \ES6
 # The result is computed in a way that is accurate even when the value of x is close to zero.
 test 'Math.log1p' (assert)->
   {log1p} = core.Math
-  assert.ok typeof! log1p is \Function, 'is function'
+  assert.isFunction log1p
   assert.same log1p(''), log1p 0
   assert.same log1p(NaN), NaN
   assert.same log1p(-2), NaN

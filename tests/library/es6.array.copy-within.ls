@@ -4,7 +4,7 @@ module \ES6
 
 test 'Array#copyWithin' (assert)->
   {copyWithin} = core.Array
-  assert.ok typeof! copyWithin is \Function, 'is function'
+  assert.isFunction copyWithin
   assert.strictEqual (a = copyWithin [1], 0), a
   assert.deepEqual copyWithin([1 2 3 4 5], 0 3), [4 5 3 4 5]
   assert.deepEqual copyWithin([1 2 3 4 5], 1 3), [1 4 5 4 5]

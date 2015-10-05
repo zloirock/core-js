@@ -3,7 +3,7 @@ module \core-js
 
 test 'Number#@@iterator' (assert)->
   {iterator, toStringTag} = Symbol
-  assert.ok typeof! Number::[iterator] is \Function, 'is function'
+  assert.isFunction Number::[iterator]
   iter1 = 2[iterator]!
   assert.ok iter1[toStringTag] is 'Number Iterator', '@@toStringTag'
   assert.deepEqual iter1.next!, {done: no, value: 0}, '2 #1'

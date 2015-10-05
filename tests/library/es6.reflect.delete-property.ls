@@ -6,10 +6,10 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.deleteProperty' (assert)->
   {deleteProperty} = core.Reflect
-  assert.ok typeof! deleteProperty is \Function, 'is function'
-  assert.strictEqual deleteProperty.length, 2, 'arity is 2'
+  assert.isFunction deleteProperty
+  assert.arity deleteProperty, 2
   if \name of deleteProperty
-    assert.strictEqual deleteProperty.name, \deleteProperty, 'name is "deleteProperty"'
+    assert.name deleteProperty, \deleteProperty
   O = {bar: 456}
   assert.strictEqual deleteProperty(O, \bar), on
   assert.ok \bar not in O

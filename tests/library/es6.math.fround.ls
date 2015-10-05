@@ -4,7 +4,7 @@ module \ES6
 test 'Math.fround' (assert)->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = core.Math
-  assert.ok typeof! fround is \Function, 'is function'
+  assert.isFunction fround
   assert.same fround(void), NaN
   assert.same fround(NaN), NaN
   assert.same fround(0), 0

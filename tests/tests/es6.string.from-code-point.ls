@@ -3,10 +3,10 @@ module \ES6
 
 test 'String.fromCodePoint' (assert)->
   {fromCodePoint} = String
-  assert.ok typeof! fromCodePoint is \Function, 'is function'
-  assert.strictEqual fromCodePoint.length, 1, 'arity is 1'
-  assert.ok /native code/.test(fromCodePoint), 'looks like native'
-  assert.strictEqual fromCodePoint.name, \fromCodePoint, 'name is "fromCodePoint"'
+  assert.isFunction fromCodePoint
+  assert.arity fromCodePoint, 1
+  assert.name fromCodePoint, \fromCodePoint
+  assert.looksNative fromCodePoint
   # tests from https://github.com/mathiasbynens/String.fromCodePoint/blob/master/tests/tests.js
   assert.strictEqual fromCodePoint(''), '\0'
   assert.strictEqual fromCodePoint!, ''

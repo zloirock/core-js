@@ -5,7 +5,7 @@ module \core-js
 
 test 'core.getIterator' (assert)->
   {getIterator} = core
-  assert.ok typeof getIterator is \function, 'is function'
+  assert.isFunction getIterator
   assert.throws (!-> getIterator {}), TypeError
   iter = getIterator []
   assert.ok \next of iter

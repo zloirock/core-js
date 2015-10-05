@@ -3,7 +3,7 @@ module \core-js
 
 test 'Object.define' (assert)->
   {define, defineProperty} = Object
-  assert.ok typeof! define is \Function, 'is function'
+  assert.isFunction define
   foo = q:1
   assert.ok foo is define foo, w:2
   assert.ok foo.w is 2

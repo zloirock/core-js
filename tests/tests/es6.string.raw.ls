@@ -3,10 +3,10 @@ module \ES6
 
 test 'String.raw' (assert)->
   {raw} = String
-  assert.ok typeof! raw is \Function, 'is function'
-  assert.strictEqual raw.length, 1, 'arity is 1'
-  assert.ok /native code/.test(raw), 'looks like native'
-  assert.strictEqual raw.name, \raw, 'name is "raw"'
+  assert.isFunction raw
+  assert.arity raw, 1
+  assert.name raw, \raw
+  assert.looksNative raw
   assert.strictEqual raw({raw: ['Hi\\n', '!']} , \Bob), 'Hi\\nBob!', 'raw is array'
   assert.strictEqual raw({raw: \test}, 0, 1, 2), 't0e1s2t', 'raw is string'
   assert.strictEqual raw({raw: \test}, 0), 't0est', 'lacks substituting'

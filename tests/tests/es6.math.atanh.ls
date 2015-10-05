@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
 test 'Math.atanh' (assert)->
   {atanh} = Math
-  assert.ok typeof! atanh is \Function, 'is function'
-  assert.strictEqual atanh.name, \atanh, 'name is "atanh"'
-  assert.strictEqual atanh.length, 1, 'arity is 1'
-  assert.ok /native code/.test(atanh), 'looks like native'
+  assert.isFunction atanh
+  assert.name atanh, \atanh
+  assert.arity atanh, 1
+  assert.looksNative atanh
   assert.same atanh(NaN), NaN
   assert.same atanh(-2), NaN
   assert.same atanh(-1.5), NaN

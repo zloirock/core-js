@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic tangent of x.
 test 'Math.atanh' (assert)->
   {atanh} = core.Math
-  assert.ok typeof! atanh is \Function, 'is function'
+  assert.isFunction atanh
   assert.same atanh(NaN), NaN
   assert.same atanh(-2), NaN
   assert.same atanh(-1.5), NaN

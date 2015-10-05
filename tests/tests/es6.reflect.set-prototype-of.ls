@@ -4,10 +4,10 @@ if Object.setPrototypeOf || '__proto__' of {}
 
   test 'Reflect.setPrototypeOf' (assert)->
     {setPrototypeOf} = Reflect
-    assert.ok typeof! setPrototypeOf is \Function, 'is function'
-    #assert.strictEqual setPrototypeOf.length, 2, 'arity is 2' # fails in MS Edge
-    assert.ok /native code/.test(setPrototypeOf), 'looks like native'
-    assert.strictEqual setPrototypeOf.name, \setPrototypeOf, 'name is "setPrototypeOf"'
+    assert.isFunction setPrototypeOf
+    #assert.arity setPrototypeOf, 2 # fails in MS Edge
+    assert.name setPrototypeOf, \setPrototypeOf
+    assert.looksNative setPrototypeOf
     obj = {}
     assert.ok setPrototypeOf(obj, Array::), on
     assert.ok obj instanceof Array

@@ -3,10 +3,10 @@ module \ES6
 
 test 'Reflect.apply' (assert)->
   {apply} = core.Reflect
-  assert.ok typeof! apply is \Function, 'is function'
-  assert.strictEqual apply.length, 3, 'arity is 3'
+  assert.isFunction apply
+  assert.arity apply, 3
   if \name of apply
-    assert.strictEqual apply.name, \apply, 'name is "apply"'
+    assert.name apply, \apply
   assert.strictEqual apply(Array::push, [1 2], [3 4 5]), 5
   C = (a, b, c)-> a + b + c
   C.apply = 42

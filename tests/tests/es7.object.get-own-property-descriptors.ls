@@ -6,10 +6,10 @@ descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 
 test 'Object.getOwnPropertyDescriptors' (assert)->
   {getOwnPropertyDescriptors} = Object
-  assert.ok typeof! getOwnPropertyDescriptors is \Function, 'is function'
-  assert.strictEqual getOwnPropertyDescriptors.length, 1, 'arity is 1'
-  assert.strictEqual getOwnPropertyDescriptors.name, \getOwnPropertyDescriptors, 'name is "getOwnPropertyDescriptors"'
-  assert.ok /native code/.test(getOwnPropertyDescriptors), 'looks like native'
+  assert.isFunction getOwnPropertyDescriptors
+  assert.arity getOwnPropertyDescriptors, 1
+  assert.name getOwnPropertyDescriptors, \getOwnPropertyDescriptors
+  assert.looksNative getOwnPropertyDescriptors
   O = create {q: 1}, e: value: 3
   O.w = 2
   s = Symbol \s

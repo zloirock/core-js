@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic sine of x.
 test 'Math.sinh' (assert)->
   {sinh} = Math
-  assert.ok typeof! sinh is \Function, 'is function'
-  assert.strictEqual sinh.name, \sinh, 'name is "sinh"'
-  assert.strictEqual sinh.length, 1, 'arity is 1'
-  assert.ok /native code/.test(sinh), 'looks like native'
+  assert.isFunction sinh
+  assert.name sinh, \sinh
+  assert.arity sinh, 1
+  assert.looksNative sinh
   assert.same sinh(NaN), NaN
   assert.same sinh(0), 0
   assert.same sinh(-0), -0 

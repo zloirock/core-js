@@ -1,23 +1,22 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
 {iterator} = core.Symbol
 
 test 'Promise' (assert)->
-  assert.ok isFunction(core.Promise), 'is function'
+  assert.isFunction core.Promise
 
 test 'Promise#then' (assert)->
-  assert.ok isFunction(core.Promise::then), 'is function'
+  assert.isFunction core.Promise::then
 
 test 'Promise#catch' (assert)->
-  assert.ok isFunction(core.Promise::catch), 'is function'
+  assert.isFunction core.Promise::catch
 
 test 'Promise#@@toStringTag' (assert)->
   assert.ok core.Promise::[core.Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
 test 'Promise.all' (assert)->
-  assert.ok isFunction(core.Promise.all), 'is function'
+  assert.isFunction core.Promise.all
   # works with iterables
   passed = no
   iter = core.Array.values [1 2 3]
@@ -38,7 +37,7 @@ test 'Promise.all' (assert)->
   assert.ok done
 
 test 'Promise.race' (assert)->
-  assert.ok isFunction(core.Promise.race), 'is function'
+  assert.isFunction core.Promise.race
   # works with iterables
   passed = no
   iter = core.Array.values [1 2 3]
@@ -59,10 +58,10 @@ test 'Promise.race' (assert)->
   assert.ok done
 
 test 'Promise.resolve' (assert)->
-  assert.ok isFunction(core.Promise.resolve), 'is function'
+  assert.isFunction core.Promise.resolve
 
 test 'Promise.reject' (assert)->
-  assert.ok isFunction(core.Promise.reject), 'is function'
+  assert.isFunction core.Promise.reject
 
 if core.Object.setPrototypeOf
   test 'Promise subclassing' (assert)->

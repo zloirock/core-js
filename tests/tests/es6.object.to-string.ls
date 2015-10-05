@@ -4,9 +4,9 @@
 module \ES6
 
 test 'Object#toString' (assert)->
-  assert.strictEqual Object::toString.length, 0, 'arity is 0'
-  assert.strictEqual Object::toString.name, \toString, 'name is "toString"'
-  assert.ok /native code/.test(Object::toString), 'looks like native'
+  assert.arity Object::toString, 0
+  assert.name Object::toString, \toString
+  assert.looksNative Object::toString
   {toString} = Object::
   if !(-> @)!
     assert.strictEqual toString.call(null), '[object Null]', 'classof null is `Null`'

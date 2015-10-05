@@ -1,18 +1,17 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
-isIterator = -> typeof it is \object && isFunction it.next
+isIterator = -> typeof it is \object && typeof it.next is \function
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
 {iterator} = Symbol
 
 test 'Set' (assert)->
-  assert.ok isFunction(Set), 'is function'
-  assert.ok /native code/.test(Set), 'looks like native'
-  assert.strictEqual Set.name, \Set, 'name is "Set"'
-  assert.strictEqual Set.length, 0, 'arity is 0'
+  assert.isFunction Set
+  assert.name Set, \Set
+  assert.arity Set, 0
+  assert.looksNative Set
   assert.ok \add     of Set::, 'add in Set.prototype'
   assert.ok \clear   of Set::, 'clear in Set.prototype'
   assert.ok \delete  of Set::, 'delete in Set.prototype'
@@ -48,10 +47,10 @@ test 'Set' (assert)->
   assert.ok done
 
 test 'Set#add' (assert)->
-  assert.ok isFunction(Set::add), 'is function'
-  assert.strictEqual Set::add.name, \add, 'name is "add"'
-  assert.strictEqual Set::add.length, 1, 'arity is 1'
-  assert.ok /native code/.test(Set::add), 'looks like native'
+  assert.isFunction Set::add
+  assert.name Set::add, \add
+  assert.arity Set::add, 1
+  assert.looksNative Set::add
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   assert.strictEqual S.size, 5
@@ -70,10 +69,10 @@ test 'Set#add' (assert)->
   assert.ok S.has f
 
 test 'Set#clear' (assert)->
-  assert.ok isFunction(Set::clear), 'is function'
-  assert.strictEqual Set::clear.name, \clear, 'name is "clear"'
-  assert.strictEqual Set::clear.length, 0, 'arity is 0'
-  assert.ok /native code/.test(Set::clear), 'looks like native'
+  assert.isFunction Set::clear
+  assert.name Set::clear, \clear
+  assert.arity Set::clear, 0
+  assert.looksNative Set::clear
   S = new Set
   S.clear!
   assert.strictEqual S.size, 0
@@ -90,10 +89,10 @@ test 'Set#clear' (assert)->
   assert.ok !S.has f
 
 test 'Set#delete' (assert)->
-  assert.ok isFunction(Set::delete), 'is function'
-  #assert.strictEqual Set::delete.name, \delete, 'name is "delete"' # can't be polyfilled in some environments
-  assert.strictEqual Set::delete.length, 1, 'arity is 1'
-  assert.ok /native code/.test(Set::delete), 'looks like native'
+  assert.isFunction Set::delete
+  #assert.name Set::delete, \delete # can't be polyfilled in some environments
+  assert.arity Set::delete, 1
+  assert.looksNative Set::delete
   a = []
   S = new Set [NaN, 2 3 2 1 a]
   assert.strictEqual S.size, 5
@@ -111,10 +110,10 @@ test 'Set#delete' (assert)->
   assert.strictEqual S.size, 3
 
 test 'Set#forEach' (assert)->
-  assert.ok isFunction(Set::forEach), 'is function'
-  assert.strictEqual Set::forEach.name, \forEach, 'name is "forEach"'
-  assert.strictEqual Set::forEach.length, 1, 'arity is 1'
-  assert.ok /native code/.test(Set::forEach), 'looks like native'
+  assert.isFunction Set::forEach
+  assert.name Set::forEach, \forEach
+  assert.arity Set::forEach, 1
+  assert.looksNative Set::forEach
   r = []
   count = 0
   S = new Set [1 2 3 2 1]
@@ -142,10 +141,10 @@ test 'Set#forEach' (assert)->
   assert.strictEqual s, \0
 
 test 'Set#has' (assert)->
-  assert.ok isFunction(Set::has), 'is function'
-  assert.strictEqual Set::has.name, \has, 'name is "has"'
-  assert.strictEqual Set::has.length, 1, 'arity is 1'
-  assert.ok /native code/.test(Set::has), 'looks like native'
+  assert.isFunction Set::has
+  assert.name Set::has, \has
+  assert.arity Set::has, 1
+  assert.looksNative Set::has
   a = []
   f = freeze {}
   S = new Set [NaN, 2 3 2 1 f, a]
@@ -201,9 +200,9 @@ test 'Set Iterator' (assert)->
 
 test 'Set#keys' (assert)->
   assert.ok typeof Set::keys is \function, 'is function'
-  assert.strictEqual Set::keys.name, \values, 'name is "values"'
-  assert.strictEqual Set::keys.length, 0, 'arity is 0'
-  assert.ok /native code/.test(Set::keys), 'looks like native'
+  assert.name Set::keys, \values
+  assert.arity Set::keys, 0
+  assert.looksNative Set::keys
   assert.strictEqual Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   assert.ok isIterator(iter), 'Return iterator'
@@ -215,9 +214,9 @@ test 'Set#keys' (assert)->
 
 test 'Set#values' (assert)->
   assert.ok typeof Set::values is \function, 'is function'
-  assert.strictEqual Set::values.name, \values, 'name is "values"'
-  assert.strictEqual Set::values.length, 0, 'arity is 0'
-  assert.ok /native code/.test(Set::values), 'looks like native'
+  assert.name Set::values, \values
+  assert.arity Set::values, 0
+  assert.looksNative Set::values
   iter = new Set(<[q w e]>)values!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -228,9 +227,9 @@ test 'Set#values' (assert)->
 
 test 'Set#entries' (assert)->
   assert.ok typeof Set::entries is \function, 'is function'
-  assert.strictEqual Set::entries.name, \entries, 'name is "entries"'
-  assert.strictEqual Set::entries.length, 0, 'arity is 0'
-  assert.ok /native code/.test(Set::entries), 'looks like native'
+  assert.name Set::entries, \entries
+  assert.arity Set::entries, 0
+  assert.looksNative Set::entries
   iter = new Set(<[q w e]>)entries!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -241,9 +240,9 @@ test 'Set#entries' (assert)->
 
 test 'Set#@@iterator' (assert)->
   assert.ok typeof Set::[Symbol?iterator] is \function, 'is function'
-  assert.strictEqual Set::[Symbol?iterator].name, \values, 'name is "values"'
-  assert.strictEqual Set::[Symbol?iterator].length, 0, 'arity is 0'
-  assert.ok /native code/.test(Set::[Symbol?iterator]), 'looks like native'
+  assert.name Set::[Symbol?iterator], \values
+  assert.arity Set::[Symbol?iterator], 0
+  assert.looksNative Set::[Symbol?iterator]
   assert.strictEqual Set::[Symbol?iterator], Set::values
   iter = new Set(<[q w e]>)[Symbol?iterator]!
   assert.ok isIterator(iter), 'Return iterator'

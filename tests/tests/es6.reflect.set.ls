@@ -6,10 +6,10 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.set' (assert)->
   {set} = Reflect
-  assert.ok typeof! set is \Function, 'is function'
-  #assert.strictEqual set.length, 3, 'arity is 3' # fails in MS Edge
-  assert.ok /native code/.test(set), 'looks like native'
-  assert.strictEqual set.name, \set, 'name is "set"'
+  assert.isFunction set
+  #assert.arity set, 3 # fails in MS Edge
+  assert.name set, \set
+  assert.looksNative set
   obj = {}
   assert.ok set(obj, \quux, 654), on
   assert.strictEqual obj.quux, 654

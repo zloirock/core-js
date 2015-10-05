@@ -3,10 +3,10 @@ module \ES6
 
 test 'Math.clz32' (assert)->
   {clz32} = Math
-  assert.ok typeof! clz32 is \Function, 'is function'
-  assert.strictEqual clz32.name, \clz32, 'name is "clz32"'
-  assert.strictEqual clz32.length, 1, 'arity is 1'
-  assert.ok /native code/.test(clz32), 'looks like native'
+  assert.isFunction clz32
+  assert.name clz32, \clz32
+  assert.arity clz32, 1
+  assert.looksNative clz32
   assert.strictEqual clz32(0), 32
   assert.strictEqual clz32(1), 31
   assert.same clz32(-1), 0

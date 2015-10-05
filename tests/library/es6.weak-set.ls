@@ -1,14 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
 {WeakSet} = core
 {freeze} = core.Object
 {values} = core.Array
 {iterator} = core.Symbol
 
 test 'WeakSet' (assert)->
-  assert.ok isFunction(WeakSet), 'is function'
+  assert.isFunction WeakSet
   assert.ok \add    of WeakSet::, 'add in WeakSet.prototype'
   assert.ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   assert.ok \has    of WeakSet::, 'has in WeakSet.prototype'
@@ -39,12 +38,12 @@ test 'WeakSet' (assert)->
   assert.ok done
 
 test 'WeakSet#add' (assert)->
-  assert.ok isFunction(WeakSet::add), 'is function'
+  assert.isFunction WeakSet::add
   assert.ok (w = new WeakSet)add({}) is w, 'chaining'
   assert.ok (try new WeakSet!add(42); no; catch => on), 'throws with primitive keys'
 
 test 'WeakSet#delete' (assert)->
-  assert.ok isFunction(WeakSet::delete), 'is function'
+  assert.isFunction WeakSet::delete
   S = new WeakSet!
     .add a = {}
     .add b = {}
@@ -53,7 +52,7 @@ test 'WeakSet#delete' (assert)->
   assert.ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
 
 test 'WeakSet#has' (assert)->
-  assert.ok isFunction(WeakSet::has), 'is function'
+  assert.isFunction WeakSet::has
   M = new WeakSet!
   assert.ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

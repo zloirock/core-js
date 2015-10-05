@@ -3,7 +3,7 @@ module \ES6
 
 test 'Object.is' (assert)->
   same = core.Object.is
-  assert.ok typeof! same is \Function, 'is function'
+  assert.isFunction same
   assert.ok same(1 1), '1 is 1'
   assert.ok same(NaN, NaN), '1 is 1'
   assert.ok not same(0 -0), '0 isnt -0'

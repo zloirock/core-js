@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
 test 'Math.cosh' (assert)->
   {cosh} = Math
-  assert.ok typeof! cosh is \Function, 'is function'
-  assert.strictEqual cosh.name, \cosh, 'name is "cosh"'
-  assert.strictEqual cosh.length, 1, 'arity is 1'
-  assert.ok /native code/.test(cosh), 'looks like native'
+  assert.isFunction cosh
+  assert.name cosh, \cosh
+  assert.arity cosh, 1
+  assert.looksNative cosh
   assert.same cosh(NaN), NaN
   assert.strictEqual cosh(0), 1
   assert.strictEqual cosh(-0), 1

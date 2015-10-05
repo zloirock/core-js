@@ -3,7 +3,7 @@ module \ES6
 
 test 'Math.clz32' (assert)->
   {clz32} = core.Math
-  assert.ok typeof! clz32 is \Function, 'is function'
+  assert.isFunction clz32
   assert.strictEqual clz32(0), 32
   assert.strictEqual clz32(1), 31
   assert.same clz32(-1), 0

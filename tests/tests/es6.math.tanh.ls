@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
 test 'Math.tanh' (assert)->
   {tanh} = Math
-  assert.ok typeof! tanh is \Function, 'is function'
-  assert.strictEqual tanh.name, \tanh, 'name is "tanh"'
-  assert.strictEqual tanh.length, 1, 'arity is 1'
-  assert.ok /native code/.test(tanh), 'looks like native'
+  assert.isFunction tanh
+  assert.name tanh, \tanh
+  assert.arity tanh, 1
+  assert.looksNative tanh
   assert.same tanh(NaN), NaN
   assert.same tanh(0), 0
   assert.same tanh(-0), -0

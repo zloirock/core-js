@@ -4,7 +4,7 @@ module \ES6
 
 test 'String#repeat' (assert)->
   {repeat} = core.String
-  assert.ok typeof! repeat is \Function, 'is function'
+  assert.isFunction repeat
   assert.strictEqual repeat('qwe' 3), \qweqweqwe
   assert.strictEqual repeat('qwe' 2.5), \qweqwe
   assert.throws (-> repeat 'qwe' -1), RangeError

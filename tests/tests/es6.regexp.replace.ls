@@ -2,10 +2,10 @@
 module \ES6
 
 test 'String#replace regression' (assert)->
-  assert.ok typeof! ''replace is \Function, 'is function'
-  assert.strictEqual ''replace.length, 2, 'arity is 2'
-  assert.ok /native code/.test(''replace), 'looks like native'
-  assert.strictEqual ''replace.name, \replace, 'name is "replace"'
+  assert.isFunction ''replace
+  assert.arity ''replace, 2
+  assert.name ''replace, \replace
+  assert.looksNative ''replace
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/replace
   instance = Object true
   instance.replace = String::replace
@@ -69,8 +69,8 @@ test 'String#replace regression' (assert)->
   assert.strictEqual 'aaaaaaaaaa,aaaaaaaaaaaaaaa'replace(/^(a+)\1*,\1+$/, '$1'), \aaaaa, 'S15.5.4.11_A5_T1'
 
 test 'RegExp#@@replace' (assert)->
-  assert.ok typeof! /./[Symbol.replace] is \Function, 'is function'
-  assert.strictEqual /./[Symbol.replace].length, 2, 'arity is 2'
+  assert.isFunction /./[Symbol.replace]
+  assert.arity /./[Symbol.replace], 2
   assert.strictEqual /([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', -> &.2 + &.1), '12abc def34'
 
 test '@@replace logic' (assert)->

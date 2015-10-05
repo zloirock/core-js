@@ -6,7 +6,7 @@ timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (re
 
 test 'delay' (assert)->
   assert.expect 3
-  assert.ok typeof! delay is \Function, 'is function'
+  assert.isFunction delay
   assert.ok delay(42) instanceof Promise, 'returns promises'
   timeLimitedPromise(1e3, !(res)-> delay(10).then !-> res it)
     .then  -> assert.ok it is on, 'resolves as `true`'

@@ -4,7 +4,7 @@ module \ES6
 
 test 'Array#findIndex' (assert)->
   {findIndex} = core.Array
-  assert.ok typeof! findIndex is \Function, 'is function'
+  assert.isFunction findIndex
   findIndex arr = [1], (val, key, that)->
     assert.strictEqual @, ctx
     assert.strictEqual val, 1

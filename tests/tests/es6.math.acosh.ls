@@ -3,10 +3,10 @@ module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
 test 'Math.acosh' (assert)->
   {acosh} = Math
-  assert.ok typeof! acosh is \Function, 'is function'
-  assert.strictEqual acosh.name, \acosh, 'name is "acosh"'
-  assert.strictEqual acosh.length, 1, 'arity is 1'
-  assert.ok /native code/.test(acosh), 'looks like native'
+  assert.isFunction acosh
+  assert.name acosh, \acosh
+  assert.arity acosh, 1
+  assert.looksNative acosh
   assert.same acosh(NaN), NaN
   assert.same acosh(0.5), NaN
   assert.same acosh(-1), NaN

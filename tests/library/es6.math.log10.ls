@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the base 10 logarithm of x.
 test 'Math.log10' (assert)->
   {log10} = core.Math
-  assert.ok typeof! log10 is \Function, 'is function'
+  assert.isFunction log10
   assert.same log10(''), log10 0
   assert.same log10(NaN), NaN
   assert.same log10(-1), NaN

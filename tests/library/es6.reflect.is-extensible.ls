@@ -6,10 +6,10 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.isExtensible' (assert)->
   {isExtensible} = core.Reflect
-  assert.ok typeof! isExtensible is \Function, 'is function'
-  assert.strictEqual isExtensible.length, 1, 'arity is 1'
+  assert.isFunction isExtensible
+  assert.arity isExtensible, 1
   if \name of isExtensible
-    assert.strictEqual isExtensible.name, \isExtensible, 'name is "isExtensible"'
+    assert.name isExtensible, \isExtensible
   assert.ok isExtensible {}
   if MODERN
     assert.ok !isExtensible preventExtensions {}

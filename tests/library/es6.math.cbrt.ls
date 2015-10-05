@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the cube root of x.
 test 'Math.cbrt' (assert)->
   {cbrt} = core.Math
-  assert.ok typeof! cbrt is \Function, 'is function'
+  assert.isFunction cbrt
   assert.same cbrt(NaN), NaN
   assert.same cbrt(0), 0
   assert.same cbrt(-0), -0

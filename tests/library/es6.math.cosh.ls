@@ -3,7 +3,7 @@ module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
 test 'Math.cosh' (assert)->
   {cosh} = core.Math
-  assert.ok typeof! cosh is \Function, 'is function'
+  assert.isFunction cosh
   assert.same cosh(NaN), NaN
   assert.strictEqual cosh(0), 1
   assert.strictEqual cosh(-0), 1

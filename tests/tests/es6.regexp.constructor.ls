@@ -3,10 +3,10 @@ module \ES6
 
 if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
   test 'RegExp constructor' (assert)->
-    assert.strictEqual typeof! RegExp, \Function, 'is function'
-    assert.strictEqual RegExp.length, 2, 'arity is 2'
-    assert.ok /native code/.test(RegExp), 'looks like native'
-    assert.strictEqual RegExp.name, \RegExp, 'name is "RegExp"'
+    assert.isFunction RegExp
+    assert.arity RegExp, 2
+    assert.name RegExp, \RegExp
+    assert.looksNative RegExp
     assert.strictEqual typeof! RegExp!, \RegExp
     assert.strictEqual typeof! new RegExp!, \RegExp
     re = /a/g

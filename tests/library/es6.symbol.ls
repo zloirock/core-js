@@ -3,13 +3,11 @@ module \ES6
 
 {Symbol, JSON} = core
 {defineProperty, getOwnPropertyDescriptor, create} = core.Object
-isFunction = -> typeof! it is \Function
-isNative = -> /\[native code\]\s*\}\s*$/.test it
 descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 G = global? && global || window
 
 test 'Symbol' (assert)->
-  assert.ok isFunction(Symbol), 'is function'
+  assert.isFunction Symbol
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   assert.ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -28,8 +26,8 @@ test 'Well-known Symbols' (assert)->
     assert.ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
 
 test 'Global symbol registry' (assert)->
-  assert.ok isFunction(Symbol.for), 'Symbol.for is function'
-  assert.ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  assert.isFunction Symbol.for, 'Symbol.for is function'
+  assert.isFunction Symbol.keyFor, 'Symbol.keyFor is function'
   symbol = Symbol.for \foo
   assert.strictEqual Symbol.for(\foo), symbol
   assert.strictEqual Symbol.keyFor(symbol), \foo
@@ -39,7 +37,7 @@ test 'Symbol#@@toStringTag' (assert)->
 
 test 'Object.getOwnPropertySymbols' (assert)->
   {getOwnPropertySymbols, getOwnPropertyNames} = core.Object
-  assert.ok isFunction(getOwnPropertySymbols), 'is function'
+  assert.isFunction getOwnPropertySymbols
   obj = {q: 1, w: 2, e: 3}
   obj[Symbol()] = 42
   obj[Symbol()] = 43

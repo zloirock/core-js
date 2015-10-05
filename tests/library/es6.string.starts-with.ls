@@ -4,7 +4,7 @@ module \ES6
 
 test 'String#startsWith' (assert)->
   {startsWith} = core.String
-  assert.ok typeof! startsWith is \Function, 'is function'
+  assert.isFunction startsWith
   assert.ok startsWith 'undefined'
   assert.ok not startsWith 'undefined' null
   assert.ok startsWith 'abc' ''

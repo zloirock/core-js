@@ -4,10 +4,10 @@ module \ES6
 test 'Math.fround' (assert)->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = Math
-  assert.ok typeof! fround is \Function, 'is function'
-  assert.strictEqual fround.name, \fround, 'name is "fround"'
-  assert.strictEqual fround.length, 1, 'arity is 1'
-  assert.ok /native code/.test(fround), 'looks like native'
+  assert.isFunction fround
+  assert.name fround, \fround
+  assert.arity fround, 1
+  assert.looksNative fround
   assert.same fround(void), NaN
   assert.same fround(NaN), NaN
   assert.same fround(0), 0

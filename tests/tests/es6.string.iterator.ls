@@ -1,11 +1,10 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
-isIterator = -> typeof it is \object && isFunction it.next
+isIterator = -> typeof it is \object && typeof it.next is \function
 
 test 'String#@@iterator' (assert)->
-  assert.ok isFunction(String::[Symbol?iterator]), 'is function'
+  assert.isFunction String::[Symbol?iterator]
   iter = 'qwe'[Symbol?iterator]!
   assert.ok isIterator(iter), 'Return iterator'
   assert.strictEqual iter[Symbol?toStringTag], 'String Iterator'

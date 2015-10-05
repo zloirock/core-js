@@ -3,7 +3,7 @@ module \ES6
 
 test 'Math.imul' (assert)->
   {imul} = core.Math
-  assert.ok typeof! imul is \Function, 'is function'
+  assert.isFunction imul
   assert.same imul(0, 0), 0
   assert.strictEqual imul(123, 456), 56088
   assert.strictEqual imul(-123, 456), -56088

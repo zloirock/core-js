@@ -4,7 +4,7 @@ module \ES6
 test 'Math.hypot' (assert)->
   {hypot} = core.Math
   {sqrt} = Math
-  assert.ok typeof! hypot is \Function, 'is function'
+  assert.isFunction hypot
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1
   assert.same hypot('', 0), 0

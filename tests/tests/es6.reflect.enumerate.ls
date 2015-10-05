@@ -8,10 +8,10 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 test 'Reflect.enumerate' (assert)->
   {enumerate} = Reflect
   {iterator} = Symbol
-  assert.ok typeof! enumerate is \Function, 'is function'
-  assert.strictEqual enumerate.length, 1, 'arity is 1'
-  assert.ok /native code/.test(enumerate), 'looks like native'
-  assert.strictEqual enumerate.name, \enumerate, 'name is "enumerate"'
+  assert.isFunction enumerate
+  assert.arity enumerate, 1
+  assert.name enumerate, \enumerate
+  assert.looksNative enumerate
   obj = {foo: 1, bar: 2}
   i = enumerate obj
   assert.ok iterator of i, 'returns iterator'

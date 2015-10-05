@@ -2,17 +2,15 @@
 module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = Object
-isFunction = -> typeof! it is \Function
-isNative = -> /\[native code\]\s*\}\s*$/.test it
 
 descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 G = global? && global || window
 
 test 'Symbol' (assert)->
-  assert.ok isFunction(Symbol), 'is function'
+  assert.isFunction Symbol
   #assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
-  assert.strictEqual Symbol.name, \Symbol, 'name is "Symbol"'
-  assert.ok /native code/.test(Symbol), 'looks like native'
+  assert.name Symbol, \Symbol
+  assert.looksNative Symbol
   s1 = Symbol 'foo'
   s2 = Symbol 'foo'
   assert.ok s1 isnt s2, 'Symbol("foo") !== Symbol("foo")'
@@ -31,11 +29,11 @@ test 'Well-known Symbols' (assert)->
     assert.ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
 
 test 'Global symbol registry' (assert)->
-  assert.ok isFunction(Symbol.for), 'Symbol.for is function'
+  assert.isFunction Symbol.for, 'Symbol.for is function'
   assert.strictEqual Symbol.for.length, 1 'Symbol.for arity is 1'
   #assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
-  assert.ok isFunction(Symbol.keyFor), 'Symbol.keyFor is function'
+  assert.isFunction Symbol.keyFor, 'Symbol.keyFor is function'
   assert.strictEqual Symbol.keyFor.length, 1 'Symbol.keyFor arity is 1'
   assert.strictEqual Symbol.keyFor.name, \keyFor, 'Symbol.keyFor.name is "keyFor"'
   assert.ok /native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native'
@@ -48,10 +46,10 @@ test 'Symbol#@@toStringTag' (assert)->
 
 test 'Object.getOwnPropertySymbols' (assert)->
   {getOwnPropertySymbols, getOwnPropertyNames} = Object
-  assert.ok isFunction(getOwnPropertySymbols), 'is function'
+  assert.isFunction getOwnPropertySymbols
   assert.strictEqual getOwnPropertySymbols.length, 1 'arity is 1'
-  assert.strictEqual getOwnPropertySymbols.name, \getOwnPropertySymbols, 'name is "getOwnPropertySymbols"'
-  assert.ok /native code/.test(getOwnPropertySymbols), 'looks like native'
+  assert.name getOwnPropertySymbols, \getOwnPropertySymbols
+  assert.looksNative getOwnPropertySymbols
   obj = {q: 1, w: 2, e: 3}
   obj[Symbol()] = 42
   obj[Symbol()] = 43

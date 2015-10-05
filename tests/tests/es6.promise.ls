@@ -1,35 +1,34 @@
 {module, test} = QUnit
 module \ES6
 
-isFunction = -> typeof! it is \Function
 {iterator} = Symbol
 
 test 'Promise' (assert)->
-  assert.ok isFunction((global? && global || window)Promise), 'is function'
-  assert.strictEqual Promise.length, 1, 'arity is 1'
-  assert.strictEqual Promise.name, \Promise, 'name is "Promise"'
-  assert.ok /native code/.test(Promise), 'looks like native'
+  assert.isFunction Promise
+  assert.arity Promise, 1
+  assert.name Promise, \Promise
+  assert.looksNative Promise
 
 test 'Promise#then' (assert)->
-  assert.ok isFunction(Promise::then), 'is function'
-  assert.strictEqual Promise::then.length, 2, 'arity is 2'
-  assert.strictEqual Promise::then.name, \then, 'name is "then"'
-  assert.ok /native code/.test(Promise::then), 'looks like native'
+  assert.isFunction Promise::then
+  assert.arity Promise::then, 2
+  assert.name Promise::then, \then
+  assert.looksNative Promise::then
 
 test 'Promise#catch' (assert)->
-  assert.ok isFunction(Promise::catch), 'is function'
-  assert.strictEqual Promise::catch.length, 1, 'arity is 1'
-  #assert.strictEqual Promise::catch.name, \catch, 'name is "catch"' # can't be polyfilled in some environments
-  assert.ok /native code/.test(Promise::then), 'looks like native'
+  assert.isFunction Promise::catch
+  assert.arity Promise::catch, 1
+  #assert.name Promise::catch, \catch # can't be polyfilled in some environments
+  assert.looksNative Promise::then
 
 test 'Promise#@@toStringTag' (assert)->
   assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
 test 'Promise.all' (assert)->
-  assert.ok isFunction(Promise.all), 'is function'
-  assert.strictEqual Promise.all.length, 1, 'arity is 1'
-  assert.strictEqual Promise.all.name, \all, 'name is "all"'
-  assert.ok /native code/.test(Promise.all), 'looks like native'
+  assert.isFunction Promise.all
+  assert.arity Promise.all, 1
+  assert.name Promise.all, \all
+  assert.looksNative Promise.all
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -49,10 +48,10 @@ test 'Promise.all' (assert)->
   assert.ok done
 
 test 'Promise.race' (assert)->
-  assert.ok isFunction(Promise.race), 'is function'
-  assert.strictEqual Promise.race.length, 1, 'arity is 1'
-  assert.strictEqual Promise.race.name, \race, 'name is "race"'
-  assert.ok /native code/.test(Promise.race), 'looks like native'
+  assert.isFunction Promise.race
+  assert.arity Promise.race, 1
+  assert.name Promise.race, \race
+  assert.looksNative Promise.race
   # works with iterables
   passed = no
   iter = [1 2 3].values!
@@ -72,16 +71,16 @@ test 'Promise.race' (assert)->
   assert.ok done
 
 test 'Promise.resolve' (assert)->
-  assert.ok isFunction(Promise.resolve), 'is function'
-  assert.strictEqual Promise.resolve.length, 1, 'arity is 1'
-  assert.strictEqual Promise.resolve.name, \resolve, 'name is "resolve"'
-  assert.ok /native code/.test(Promise.resolve), 'looks like native'
+  assert.isFunction Promise.resolve
+  assert.arity Promise.resolve, 1
+  assert.name Promise.resolve, \resolve
+  assert.looksNative Promise.resolve
 
 test 'Promise.reject' (assert)->
-  assert.ok isFunction(Promise.reject), 'is function'
-  assert.strictEqual Promise.reject.length, 1, 'arity is 1'
-  assert.strictEqual Promise.reject.name, \reject, 'name is "reject"'
-  assert.ok /native code/.test(Promise.reject), 'looks like native'
+  assert.isFunction Promise.reject
+  assert.arity Promise.reject, 1
+  assert.name Promise.reject, \reject
+  assert.looksNative Promise.reject
 
 if Object.setPrototypeOf
   test 'Promise subclassing' (assert)->

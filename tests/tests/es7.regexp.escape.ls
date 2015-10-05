@@ -3,9 +3,9 @@ module \ES7
 
 test 'RegExp.escape' (assert)->
   {escape} = RegExp
-  assert.ok typeof! escape is \Function, 'is function'
-  assert.ok /native code/.test(escape), 'looks like native'
-  assert.strictEqual escape.length, 1, 'arity is 1'
-  assert.strictEqual escape.name, \escape, 'name is "escape"'
+  assert.isFunction escape
+  assert.arity escape, 1
+  assert.name escape, \escape
+  assert.looksNative escape
   assert.strictEqual escape('qwe asd'), 'qwe asd', "Don't change simple string"
   assert.strictEqual escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars'

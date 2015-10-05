@@ -4,7 +4,7 @@ module \ES6
 
 test 'String#endsWith' (assert)->
   {endsWith} = core.String
-  assert.ok typeof! endsWith is \Function, 'is function'
+  assert.isFunction endsWith
   assert.ok endsWith 'undefined'
   assert.ok not endsWith 'undefined' null
   assert.ok endsWith 'abc' ''

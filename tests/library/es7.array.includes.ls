@@ -4,7 +4,7 @@ module \ES7
 
 test 'Array#includes' (assert)->
   {includes} = core.Array
-  assert.ok typeof! includes is \Function, 'is function'
+  assert.isFunction includes
   arr = [1 2 3 -0 o = {}]
   assert.ok includes arr, 1
   assert.ok includes arr, -0

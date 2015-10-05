@@ -1,16 +1,15 @@
 {module, test} = QUnit
 module \core-js
 
-isFunction = -> typeof! it is \Function
 {keys, create, assign} = Object
 {from} = Array
 global = @
 
 test 'Dict' (assert)->
-  assert.ok isFunction(global.Dict), 'is function'
-  assert.strictEqual Dict.length, 1, 'arity is 1'
-  assert.strictEqual Dict.name, \Dict, 'name is "Dict"'
-  assert.ok /native code/.test(Dict), 'looks like native'
+  assert.isFunction Dict
+  assert.arity Dict, 1
+  assert.name Dict, \Dict
+  assert.looksNative Dict
   dict1 = Dict!
   assert.ok dict1 not instanceof Object
   assert.deepEqual keys(dict1), []
@@ -33,7 +32,7 @@ test 'Dict' (assert)->
 
 test 'Dict.every' (assert)->
   {every} = Dict
-  assert.ok isFunction(every), 'is function'
+  assert.isFunction every
   every obj = {q: 1} (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -45,7 +44,7 @@ test 'Dict.every' (assert)->
 
 test 'Dict.filter' (assert)->
   {filter} = Dict
-  assert.ok isFunction(filter), 'is function'
+  assert.isFunction filter
   filter obj = {q: 1}, (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -56,7 +55,7 @@ test 'Dict.filter' (assert)->
 
 test 'Dict.find' (assert)->
   {find} = Dict
-  assert.ok isFunction(find), 'is function'
+  assert.isFunction find
   find obj = {q: 1}, (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -67,7 +66,7 @@ test 'Dict.find' (assert)->
 
 test 'Dict.findKey' (assert)->
   {findKey} = Dict
-  assert.ok isFunction(findKey), 'is function'
+  assert.isFunction findKey
   findKey obj = {q: 1}, (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -78,7 +77,7 @@ test 'Dict.findKey' (assert)->
 
 test 'Dict.forEach' (assert)->
   {forEach} = Dict
-  assert.ok isFunction(forEach), 'is function'
+  assert.isFunction forEach
   forEach obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -103,14 +102,14 @@ test 'Dict.forEach' (assert)->
 
 test 'Dict.keyOf' (assert)->
   {keyOf} = Dict
-  assert.ok isFunction(keyOf), 'is function'
+  assert.isFunction keyOf
   assert.ok keyOf({q:1 w:2 e:3} 2)     is \w
   assert.ok keyOf({q:1 w:2 e:3} 4)     is void
   assert.ok keyOf({q:1 w:2 e:NaN} NaN) is void
 
 test 'Dict.map' (assert)->
   {map} = Dict
-  assert.ok isFunction(map), 'is function'
+  assert.isFunction map
   map obj = {q: 1}, (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -121,7 +120,7 @@ test 'Dict.map' (assert)->
 
 test 'Dict.mapPairs' (assert)->
   {mapPairs} = Dict
-  assert.ok isFunction(mapPairs), 'is function'
+  assert.isFunction mapPairs
   mapPairs obj = {q: 1}, (val, key, that)->
     assert.ok val  is 1
     assert.ok key  is \q
@@ -132,7 +131,7 @@ test 'Dict.mapPairs' (assert)->
 
 test 'Dict.reduce' (assert)->
   {reduce} = Dict
-  assert.ok isFunction(reduce), 'is function'
+  assert.isFunction reduce
   reduce (obj = a:1), (memo, val, key, that)->
     assert.ok memo is foo
     assert.ok val  is 1
@@ -151,7 +150,7 @@ test 'Dict.reduce' (assert)->
 
 test 'Dict.some' (assert)->
   {some} = Dict
-  assert.ok isFunction(some), 'is function'
+  assert.isFunction some
   some obj = {q: 1}, (val, key, that)->
     assert.ok val is 1
     assert.ok key is \q
@@ -163,7 +162,7 @@ test 'Dict.some' (assert)->
 
 test 'Dict.includes' (assert)->
   {includes} = Dict
-  assert.ok isFunction(includes), 'is function'
+  assert.isFunction includes
   dict = {q:1, w: NaN, e: -0, r: o = {}}
   assert.ok includes dict, 1
   assert.ok includes dict, -0
@@ -176,7 +175,7 @@ test 'Dict.includes' (assert)->
 
 test 'Dict.has' (assert)->
   {has} = Dict
-  assert.ok isFunction(has), 'is function'
+  assert.isFunction has
   assert.ok has q:1, \q
   assert.ok not has q:1, \w
   assert.ok has [1] 0
@@ -186,7 +185,7 @@ test 'Dict.has' (assert)->
 
 test 'Dict.get' (assert)->
   {get} = Dict
-  assert.ok isFunction(get), 'is function'
+  assert.isFunction get
   assert.ok get(q:1, \q) is 1
   assert.ok get(q:1, \w) is void
   assert.ok get([1] 0) is 1
@@ -196,7 +195,7 @@ test 'Dict.get' (assert)->
 
 test 'Dict.values' (assert)->
   {values} = Dict
-  assert.ok isFunction(values), 'is function'
+  assert.isFunction values
   iter = values {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.ok \next of iter
@@ -206,7 +205,7 @@ test 'Dict.values' (assert)->
 
 test 'Dict.keys' (assert)->
   {keys} = Dict
-  assert.ok isFunction(keys), 'is function'
+  assert.isFunction keys
   iter = keys {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.ok \next of iter
@@ -216,7 +215,7 @@ test 'Dict.keys' (assert)->
 
 test 'Dict.entries' (assert)->
   {entries} = Dict
-  assert.ok isFunction(entries), 'is function'
+  assert.isFunction entries
   iter = entries {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.ok \next of iter

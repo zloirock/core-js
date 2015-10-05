@@ -4,7 +4,7 @@ module \ES6
 
 test 'String#includes' (assert)->
   {includes} = core.String
-  assert.ok typeof! includes is \Function, 'is function'
+  assert.isFunction includes
   assert.ok not includes 'abc'
   assert.ok includes 'aundefinedb'
   assert.ok includes 'abcd' \b 1

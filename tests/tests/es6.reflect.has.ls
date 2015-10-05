@@ -3,10 +3,10 @@ module \ES6
 
 test 'Reflect.has' (assert)->
   {has} = Reflect
-  assert.ok typeof! has is \Function, 'is function'
-  assert.strictEqual has.length, 2, 'arity is 2'
-  assert.ok /native code/.test(has), 'looks like native'
-  assert.strictEqual has.name, \has, 'name is "has"'
+  assert.isFunction has
+  assert.arity has, 2
+  assert.name has, \has
+  assert.looksNative has
   O = {qux: 987}
   assert.strictEqual has(O, \qux), on
   assert.strictEqual has(O, \qwe), no

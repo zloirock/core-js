@@ -4,7 +4,7 @@ module \ES6
 
 test 'Array#fill' (assert)->
   {fill} = core.Array
-  assert.ok typeof! fill is \Function, 'is function'
+  assert.isFunction fill
   assert.strictEqual (a = fill Array(5), 5), a
   assert.deepEqual fill(Array(5), 5), [5 5 5 5 5]
   assert.deepEqual fill(Array(5), 5 1), [void 5 5 5 5]
