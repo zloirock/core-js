@@ -1,6 +1,6 @@
 var $         = require('./$')
-  , has       = require('./$.has')
-  , toIObject = require('./$.to-iobject');
+  , toIObject = require('./$.to-iobject')
+  , isEnum    = $.isEnum;
 module.exports = function(isEntries){
   return function(it){
     var O      = toIObject(it)
@@ -9,7 +9,8 @@ module.exports = function(isEntries){
       , i      = 0
       , result = []
       , key;
-    while(length > i)has(O, key = keys[i++]) && result.push(isEntries ? [key, O[key]] : O[key]);
-    return result;
+    while(length > i)if(isEnum.call(O, key = keys[i++])){
+      result.push(isEntries ? [key, O[key]] : O[key]);
+    } return result;
   };
 };
