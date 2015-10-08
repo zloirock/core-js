@@ -516,7 +516,9 @@
     iter = getIteratorMethod(function(){
       return arguments;
     }());
-    return assert.ok(typeof iterFn === 'function');
+    assert.ok(typeof iterFn === 'function');
+    assert.ok(getIteratorMethod(Array.prototype));
+    assert.ok(getIteratorMethod(String.prototype));
   });
 }).call(this);
 
@@ -553,9 +555,11 @@
     assert.isFunction(isIterable);
     assert.ok(!isIterable({}));
     assert.ok(isIterable([]));
-    return assert.ok(isIterable(function(){
+    assert.ok(isIterable(function(){
       return arguments;
     }()));
+    assert.ok(isIterable(Array.prototype));
+    assert.ok(isIterable(String.prototype));
   });
 }).call(this);
 
