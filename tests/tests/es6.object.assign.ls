@@ -38,6 +38,7 @@ test 'Object.assign' (assert)->
     assert.strictEqual O[c], \c, \c
     assert.strictEqual O[d], void, \d
     try assert.strictEqual Function('return Object.assign({b: 1}, {get a(){delete this.b;},b: 2})')!b, 1
+    try assert.strictEqual Function('return Object.assign({b: 1}, {get a(){Object.defineProperty(this, "b", {value:4,enumerable:false});},b: 2})')!b, 1
   # test deterministic property order, theoretical can fail with deterministic, but wrong, order
   string = 'abcdefghijklmnopqrst';
   O = {}
