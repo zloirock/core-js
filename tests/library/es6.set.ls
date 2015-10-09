@@ -1,7 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-isIterator = -> typeof it is \object && typeof it.next is \function
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Set, Symbol} = core
 {getOwnPropertyDescriptor, freeze} = core.Object
@@ -185,7 +184,7 @@ test 'Set Iterator' (assert)->
 test 'Set#keys' (assert)->
   assert.isFunction Set::keys
   iter = new Set(<[q w e]>)keys!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -195,7 +194,7 @@ test 'Set#keys' (assert)->
 test 'Set#values' (assert)->
   assert.isFunction Set::values
   iter = new Set(<[q w e]>)values!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -205,7 +204,7 @@ test 'Set#values' (assert)->
 test 'Set#entries' (assert)->
   assert.isFunction Set::entries
   iter = new Set(<[q w e]>)entries!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: [\q \q], done: no}
   assert.deepEqual iter.next!, {value: [\w \w], done: no}
@@ -214,7 +213,7 @@ test 'Set#entries' (assert)->
 
 test 'Set#@@iterator' (assert)->
   iter = core.getIterator(new Set <[q w e]>)
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

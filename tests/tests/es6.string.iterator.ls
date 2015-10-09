@@ -1,12 +1,10 @@
 {module, test} = QUnit
 module \ES6
 
-isIterator = -> typeof it is \object && typeof it.next is \function
-
 test 'String#@@iterator' (assert)->
   assert.isFunction String::[Symbol?iterator]
   iter = 'qwe'[Symbol?iterator]!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'String Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

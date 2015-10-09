@@ -1,8 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-isIterator = -> typeof it is \object && typeof it.next is \function
-
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
 {iterator} = Symbol
@@ -217,7 +215,7 @@ test 'Map#keys' (assert)->
   assert.arity Map::keys, 0
   assert.looksNative Map::keys
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \a, done: no}
   assert.deepEqual iter.next!, {value: \s, done: no}
@@ -230,7 +228,7 @@ test 'Map#values' (assert)->
   assert.arity Map::values, 0
   assert.looksNative Map::values
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -243,7 +241,7 @@ test 'Map#entries' (assert)->
   assert.arity Map::entries, 0
   assert.looksNative Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}
@@ -257,7 +255,7 @@ test 'Map#@@iterator' (assert)->
   assert.looksNative Map::[Symbol?iterator]
   assert.strictEqual Map::[Symbol?iterator], Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}

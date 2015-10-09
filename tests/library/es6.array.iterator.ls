@@ -1,14 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-isIterator = -> typeof it is \object && typeof it.next is \function
 {Symbol} = core
 {keys, values, entries} = core.Array
 
 test 'Array#@@iterator' (assert)->
   assert.isFunction values
   iter = core.getIterator <[q w e]>
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -18,7 +17,7 @@ test 'Array#@@iterator' (assert)->
 test 'Array#keys' (assert)->
   assert.isFunction keys
   iter = keys <[q w e]>
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: 0, done: no}
   assert.deepEqual iter.next!, {value: 1, done: no}
@@ -28,7 +27,7 @@ test 'Array#keys' (assert)->
 test 'Array#values' (assert)->
   assert.isFunction values
   iter = values <[q w e]>
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -38,7 +37,7 @@ test 'Array#values' (assert)->
 test 'Array#entries' (assert)->
   assert.isFunction entries
   iter = entries <[q w e]>
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: [0 \q], done: no}
   assert.deepEqual iter.next!, {value: [1 \w], done: no}

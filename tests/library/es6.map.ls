@@ -1,7 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-isIterator = -> typeof it is \object && typeof it.next is \function
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Map, Symbol} = core
 {getOwnPropertyDescriptor, freeze} = core.Object
@@ -195,7 +194,7 @@ test 'Map Iterator' (assert)->
 test 'Map#keys' (assert)->
   assert.isFunction Map::keys
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \a, done: no}
   assert.deepEqual iter.next!, {value: \s, done: no}
@@ -205,7 +204,7 @@ test 'Map#keys' (assert)->
 test 'Map#values' (assert)->
   assert.isFunction Map::values
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -215,7 +214,7 @@ test 'Map#values' (assert)->
 test 'Map#entries' (assert)->
   assert.isFunction Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}
@@ -224,7 +223,7 @@ test 'Map#entries' (assert)->
 
 test 'Map#@@iterator' (assert)->
   iter = core.getIterator new Map [[\a \q],[\s \w],[\d \e]]
-  assert.ok isIterator(iter), 'Return iterator'
+  assert.isIterator iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}
