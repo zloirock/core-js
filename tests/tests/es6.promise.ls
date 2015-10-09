@@ -32,10 +32,10 @@ test 'Promise.all' (assert)->
   # works with iterables
   passed = no
   iter = [1 2 3].values!
-  next = iter~next
+  iter._oldNext = iter.next
   iter.next = ->
     passed := on
-    next!
+    iter._oldNext!
   Promise.all iter .catch ->
   assert.ok passed, 'works with iterables'
   # call @@iterator in Array with custom iterator
@@ -55,10 +55,10 @@ test 'Promise.race' (assert)->
   # works with iterables
   passed = no
   iter = [1 2 3].values!
-  next = iter~next
+  iter._oldNext = iter.next
   iter.next = ->
     passed := on
-    next!
+    iter._oldNext!
   Promise.race iter .catch ->
   assert.ok passed, 'works with iterables'
   # call @@iterator in Array with custom iterator
