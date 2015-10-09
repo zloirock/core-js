@@ -48,22 +48,20 @@ var useNative = function(){
 
 // constructor polyfill
 if(!useNative){
-  var Yaku = require('yaku');
-  // 25.4.3.1 Promise(executor)
-  P = Yaku;
+  var P = require('/Users/ys/cradle/yaku/src/yaku');
+  var toString = 'toString';
+  var nativeCode = function () { return '[native code]'; }
 
   // TODO: use core-js [[toString]]
   // I haven't read much of the architecture of core-js, temporarily hard-coded it.
-  Yaku.toString = function () { return '[native code]'; };
-  Yaku.prototype.then.toString = function () { return '[native code]'; };
-  Yaku.prototype['catch'].toString = function () { return '[native code]'; };
-  Yaku.resolve.toString = function () { return '[native code]'; };
-  Yaku.reject.toString = function () { return '[native code]'; };
-  Yaku.all.toString = function () { return '[native code]'; };
-  Yaku.race.toString = function () { return '[native code]'; };
+  P[toString] = nativeCode;
+  P.prototype.then[toString] = nativeCode;
+  P.prototype['catch'][toString] = nativeCode;
+  P.resolve[toString] = nativeCode;
+  P.reject[toString] = nativeCode;
+  P.all[toString] = nativeCode;
+  P.race[toString] = nativeCode;
   // TODO END
-
-  require('./$.mix')(P.prototype, Yaku.prototype);
 
   P.nextTick = asap;
   P.onUnhandledRejection = function (value, promise) {
@@ -83,41 +81,3 @@ $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 require('./$.tag')(P, PROMISE);
 species(P);
 species(require('./$.core')[PROMISE]);
-
-// statics
-$def($def.S + $def.F * !useNative, PROMISE, {
-  // 25.4.4.5 Promise.reject(r)
-  reject: Yaku.reject
-});
-$def($def.S + $def.F * (!useNative || testResolve(true)), PROMISE, {
-  // 25.4.4.6 Promise.resolve(x)
-  resolve: Yaku.resolve
-});
-$def($def.S + $def.F * !(useNative && require('./$.iter-detect')(function(iter){
-  P.all(iter)['catch'](function(){});
-})), PROMISE, {
-  // 25.4.4.1 Promise.all(iterable)
-  all: function all(iterable){
-    var values = [];
-    return new P(function(res, rej){
-      forOf(iterable, false, values.push, values);
-      var remaining = values.length
-        , results   = Array(remaining);
-      if(remaining)$.each.call(values, function(promise, index){
-        P.resolve(promise).then(function(value){
-          results[index] = value;
-          --remaining || res(results);
-        }, rej);
-      });
-      else res(results);
-    });
-  },
-  // 25.4.4.4 Promise.race(iterable)
-  race: function race(iterable){
-    return new P(function(res, rej){
-      forOf(iterable, false, function(promise){
-        P.resolve(promise).then(res, rej);
-      });
-    });
-  }
-});
