@@ -1,15 +1,11 @@
 'use strict';
 var $          = require('./$')
   , global     = require('./$.global')
-  , classof    = require('./$.classof')
   , $def       = require('./$.def')
-  , forOf      = require('./$.for-of')
   , setProto   = require('./$.set-proto').set
   , species    = require('./$.species')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
-  , process    = global.process
-  , isNode     = classof(process) == 'process'
   , P          = global[PROMISE];
 
 var testResolve = function(sub){
@@ -48,32 +44,22 @@ var useNative = function(){
 
 // constructor polyfill
 if(!useNative){
-  var P = require('/Users/ys/cradle/yaku/src/yaku');
-  var toString = 'toString';
-  var nativeCode = function () { return '[native code]'; }
+  P = require('yaku');
+  require('yaku/lib/globalizeUnhandledRejection')();
+  P.nextTick = asap;
 
   // TODO: use core-js [[toString]]
   // I haven't read much of the architecture of core-js, temporarily hard-coded it.
-  P[toString] = nativeCode;
-  P.prototype.then[toString] = nativeCode;
-  P.prototype['catch'][toString] = nativeCode;
-  P.resolve[toString] = nativeCode;
-  P.reject[toString] = nativeCode;
-  P.all[toString] = nativeCode;
-  P.race[toString] = nativeCode;
+  var toString = 'toString';
+  P[toString]
+    = P.prototype.then[toString]
+    = P.prototype['catch'][toString]
+    = P.resolve[toString]
+    = P.reject[toString]
+    = P.all[toString]
+    = P.race[toString]
+    = function () { return '[native code]'; };
   // TODO END
-
-  P.nextTick = asap;
-  P.onUnhandledRejection = function (value, promise) {
-    var handler, console;
-    if(isNode){
-      process.emit('unhandledRejection', value, promise);
-    } else if(handler = global.onunhandledrejection){
-      handler({promise: promise, reason: value});
-    } else if((console = global.console) && console.error){
-      console.error('Unhandled promise rejection', value);
-    }
-  };
 }
 
 // export
