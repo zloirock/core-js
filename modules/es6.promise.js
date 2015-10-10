@@ -2,6 +2,7 @@
 var $          = require('./$')
   , global     = require('./$.global')
   , $def       = require('./$.def')
+  , $mix       = require('./$.mix')
   , setProto   = require('./$.set-proto').set
   , species    = require('./$.species')
   , asap       = require('./$.microtask')
@@ -41,25 +42,13 @@ var useNative = function(){
   return works;
 }();
 
-
-// constructor polyfill
 if(!useNative){
   P = require('yaku');
   require('yaku/lib/globalizeUnhandledRejection')();
   P.nextTick = asap;
 
-  // TODO: use core-js [[toString]]
-  // I haven't read much of the architecture of core-js, temporarily hard-coded it.
-  var toString = 'toString';
-  P[toString]
-    = P.prototype.then[toString]
-    = P.prototype['catch'][toString]
-    = P.resolve[toString]
-    = P.reject[toString]
-    = P.all[toString]
-    = P.race[toString]
-    = function () { return '[native code]'; };
-  // TODO END
+  $mix(P, P);
+  $mix(P.prototype, P.prototype);
 }
 
 // export
