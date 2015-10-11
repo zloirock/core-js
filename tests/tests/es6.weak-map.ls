@@ -2,7 +2,6 @@
 module \ES6
 
 {freeze} = Object
-{iterator} = Symbol
 
 test 'WeakMap' (assert)->
   assert.isFunction WeakMap
@@ -14,8 +13,7 @@ test 'WeakMap' (assert)->
   assert.ok \has    of WeakMap::, 'has in WeakMap.prototype'
   assert.ok \set    of WeakMap::, 'set in WeakMap.prototype'
   assert.ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
-  assert.strictEqual new WeakMap([[a = {}, b = {}]].values!).get(a), b, 'Init WeakMap from iterator #1'
-  assert.strictEqual new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
+  assert.strictEqual new WeakMap(createIterable [[a = {}, 42]]).get(a), 42, 'Init from iterable'
   assert.strictEqual new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
@@ -26,17 +24,16 @@ test 'WeakMap' (assert)->
   assert.strictEqual M.get(f), void
   # return #throw
   done = no
-  iter = [null, 1, 2]values!
-  iter.return = -> done := on
+  iter = createIterable [null, 1, 2], return: -> done := on
   try => new WeakMap iter
   assert.ok done, '.return #throw'
   assert.ok !(\clear of WeakMap::), 'should not contains `.clear` method'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   new WeakMap a
   assert.ok done
 

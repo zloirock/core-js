@@ -3,7 +3,7 @@ module 'core-js'
 
 {Dict, Set, Symbol} = core
 {keys, create, assign, make} = core.Object
-{from, values} = core.Array
+{from} = core.Array
 
 test 'Dict' (assert)->
   assert.isFunction Dict
@@ -15,15 +15,14 @@ test 'Dict' (assert)->
   assert.deepEqual keys(dict2), <[q w]>
   assert.ok dict2.q is 1
   assert.ok dict2.w is 2
-  dict3 = Dict new Set([1 2])entries!
+  dict3 = Dict createIterable [[1 1], [2 2]]
   assert.ok dict3 not instanceof Object
   assert.deepEqual keys(dict3), <[1 2]>
   assert.ok dict3.1 is 1
   assert.ok dict3.2 is 2
   # return #throw
   done = no
-  iter = values [null, 1, 2]
-  iter.return = -> done := on
+  iter = createIterable [null, 1, 2], return: -> done := on
   try => new Dict iter
   assert.ok done, '.return #throw'
 
@@ -195,7 +194,7 @@ test 'Dict.values' (assert)->
   assert.isFunction values
   iter = values {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
-  assert.ok \next of iter
+  assert.isIterator iter
   assert.deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
   assert.deepEqual from(values(new String \qwe)), <[q w e]>
   assert.deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
@@ -205,7 +204,7 @@ test 'Dict.keys' (assert)->
   assert.isFunction keys
   iter = keys {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
-  assert.ok \next of iter
+  assert.isIterator iter
   assert.deepEqual from(keys({q:1, w:2, e:3})), <[q w e]>
   assert.deepEqual from(keys(new String \qwe)), <[0 1 2]>
   assert.deepEqual from(keys(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), <[a s d]>
@@ -215,7 +214,7 @@ test 'Dict.entries' (assert)->
   assert.isFunction entries
   iter = entries {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
-  assert.ok \next of iter
+  assert.isIterator iter
   assert.deepEqual from(entries({q:1, w:2, e:3})),[[\q 1] [\w 2] [\e 3]]
   assert.deepEqual from(entries(new String \qwe)), [[\0 \q] [\1 \w] [\2 \e]]
   assert.deepEqual from(entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [[\a 4] [\s 5] [\d 6]]

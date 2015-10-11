@@ -3,7 +3,6 @@ module \ES6
 
 {WeakMap, Map} = core
 {freeze} = core.Object
-{values} = core.Array
 {iterator} = core.Symbol
 
 test 'WeakMap' (assert)->
@@ -13,8 +12,7 @@ test 'WeakMap' (assert)->
   assert.ok \has    of WeakMap::, 'has in WeakMap.prototype'
   assert.ok \set    of WeakMap::, 'set in WeakMap.prototype'
   assert.ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
-  assert.strictEqual new WeakMap(values [[a = {}, b = {}]]).get(a), b, 'Init WeakMap from iterator #1'
-  assert.strictEqual new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2'
+  assert.strictEqual new WeakMap(createIterable [[a = {}, 42]]).get(a), 42, 'Init from iterable'
   assert.strictEqual new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
@@ -25,8 +23,7 @@ test 'WeakMap' (assert)->
   assert.strictEqual M.get(f), void, 'works with frozen objects, #4'
   # return #throw
   done = no
-  iter = values [null, 1, 2]
-  iter.return = -> done := on
+  iter = createIterable [null, 1, 2], return: -> done := on
   try => new WeakMap iter
   assert.ok done, '.return #throw'
   assert.ok !(\clear of WeakMap::), 'should not contains `.clear` method'

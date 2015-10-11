@@ -3,7 +3,6 @@ module \ES6
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
-{iterator} = Symbol
 
 test 'Set' (assert)->
   assert.isFunction Set
@@ -16,8 +15,7 @@ test 'Set' (assert)->
   assert.ok \forEach of Set::, 'forEach in Set.prototype'
   assert.ok \has     of Set::, 'has in Set.prototype'
   assert.ok new Set instanceof Set, 'new Set instanceof Set'
-  assert.strictEqual new Set([1 2 3 2 1]values!).size, 3, 'Init from iterator #1'
-  assert.strictEqual new Set([1 2 3 2 1]).size, 3, 'Init Set from iterator #2'
+  assert.strictEqual new Set(createIterable [1 2 3]).size, 3, 'Init from iterable'
   assert.strictEqual new Set([freeze({}), 1]).size, 2, 'Support frozen objects'
   S = new Set [1 2 3 2 1]
   assert.strictEqual S.size, 3
@@ -28,8 +26,7 @@ test 'Set' (assert)->
   if Array.from => assert.deepEqual Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
   # return #throw
   done = no
-  iter = [null, 1, 2]values!
-  iter.return = -> done := on
+  iter = createIterable [null, 1, 2], return: -> done := on
   _add = Set::add
   Set::add = -> throw 42
   try => new Set iter
@@ -38,9 +35,9 @@ test 'Set' (assert)->
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   new Set a
   assert.ok done
 

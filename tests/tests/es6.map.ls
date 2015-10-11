@@ -3,7 +3,6 @@ module \ES6
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
-{iterator} = Symbol
 
 test 'Map' (assert)->
   assert.isFunction Map
@@ -17,21 +16,19 @@ test 'Map' (assert)->
   assert.ok \has     of Map::, 'has in Map.prototype'
   assert.ok \set     of Map::, 'set in Map.prototype'
   assert.ok new Map instanceof Map, 'new Map instanceof Map'
-  assert.strictEqual new Map([1 2 3]entries!).size, 3, 'Init from iterator #1'
-  assert.strictEqual new Map(new Map [1 2 3]entries!).size, 3, 'Init from iterator #2'
+  assert.strictEqual new Map(createIterable [[1 1], [2 2], [3 3]]).size, 3, 'Init from iterable'
   assert.strictEqual new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
   # return #throw
   done = no
-  iter = [null, 1, 2]values!
-  iter.return = -> done := on
+  iter = createIterable [null 1 2], return: -> done := on
   try => new Map iter
   assert.ok done, '.return #throw'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   new Map a
   assert.ok done
 

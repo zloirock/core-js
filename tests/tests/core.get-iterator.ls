@@ -6,8 +6,7 @@ module \core-js
 test 'core.getIterator' (assert)->
   {getIterator} = core
   assert.isFunction getIterator
+  assert.isIterator getIterator []
+  assert.isIterator getIterator (->&)!
+  assert.isIterator getIterator createIterable []
   assert.throws (!-> getIterator {}), TypeError
-  iter = getIterator []
-  assert.ok \next of iter
-  iter = getIterator (->&)!
-  assert.ok \next of iter

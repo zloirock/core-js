@@ -3,7 +3,6 @@ module \ES6
 
 test 'Array.from' (assert)->
   {from} = Array
-  {iterator} = Symbol
   assert.isFunction from
   assert.arity from, 1
   assert.name from, \from
@@ -21,24 +20,22 @@ test 'Array.from' (assert)->
     assert.strictEqual key, 0
   , ctx = {}
   assert.deepEqual from({length: 3, 0: 1, 1: 2, 2: 3}, (^2)), [1 4 9]
-  assert.deepEqual from(new Set [1 2 3 2 1]), [1 2 3], 'Works with iterators'
+  assert.deepEqual from(createIterable [1 2 3]), [1 2 3], 'Works with iterators'
   assert.throws (-> from null), TypeError
   assert.throws (-> from void), TypeError
   # return #default
   done = on
-  iter = [1 2 3]values!
-  iter.return = -> done := no
+  iter = createIterable [1 2 3], return: -> done := no
   from iter, -> return no
   assert.ok done, '.return #default'
   # return #throw
   done = no
-  iter = [1 2 3]values!
-  iter.return = -> done := on
+  iter = createIterable [1 2 3], return: -> done := on
   try => from iter, -> throw 42
   assert.ok done, '.return #throw'
   # generic, iterable case
   F = !->
-  inst = from.call F, [1, 2]
+  inst = from.call F, createIterable [1, 2]
   assert.ok inst instanceof F
   assert.strictEqual inst.0, 1
   assert.strictEqual inst.1, 2
@@ -52,8 +49,8 @@ test 'Array.from' (assert)->
   # call @@iterator in Array with custom iterator
   a = [1 2 3]
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   assert.deepEqual from(a), [1 2 3]
   assert.ok done

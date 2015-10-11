@@ -19,13 +19,10 @@ test 'Promise.all' (assert)->
   assert.isFunction core.Promise.all
   # works with iterables
   passed = no
-  iter = core.Array.values [1 2 3]
-  next = iter~next
-  iter.next = ->
-    passed := on
-    next!
+  iter = createIterable [1 2 3]
   core.Promise.all iter .catch ->
-  assert.ok passed, 'works with iterables'
+  assert.ok iter.received, 'works with iterables: iterator received'
+  assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
@@ -40,13 +37,10 @@ test 'Promise.race' (assert)->
   assert.isFunction core.Promise.race
   # works with iterables
   passed = no
-  iter = core.Array.values [1 2 3]
-  next = iter~next
-  iter.next = ->
-    passed := on
-    next!
+  iter = createIterable [1 2 3]
   core.Promise.race iter .catch ->
-  assert.ok passed, 'works with iterables'
+  assert.ok iter.received, 'works with iterables: iterator received'
+  assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
   a = []
   done = no

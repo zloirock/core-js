@@ -1,17 +1,15 @@
 {module, test} = QUnit
 module \core-js
 
-{from, values} = core.Array
-
 test 'core.getIteratorMethod' (assert)!->
   {getIteratorMethod} = core
   assert.isFunction getIteratorMethod
+  iterable = createIterable []
+  iterFn = getIteratorMethod iterable
+  assert.isFunction iterFn
+  assert.isIterator iterFn.call iterable
+  assert.isFunction getIteratorMethod []
+  assert.isFunction getIteratorMethod (->&)!
+  assert.isFunction getIteratorMethod Array::
+  assert.isFunction getIteratorMethod String::
   assert.strictEqual getIteratorMethod({}), void
-  iterFn = getIteratorMethod []
-  assert.ok typeof iterFn is \function
-  iter = iterFn.call []
-  assert.ok \next of iter
-  iter = getIteratorMethod (->&)!
-  assert.ok typeof iterFn is \function
-  assert.ok getIteratorMethod Array::
-  assert.ok getIteratorMethod String::

@@ -2,7 +2,6 @@
 module \ES6
 
 {freeze} = Object
-{iterator} = Symbol
 
 test 'WeakSet' (assert)->
   assert.isFunction WeakSet
@@ -13,8 +12,7 @@ test 'WeakSet' (assert)->
   assert.ok \delete of WeakSet::, 'delete in WeakSet.prototype'
   assert.ok \has    of WeakSet::, 'has in WeakSet.prototype'
   assert.ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
-  assert.ok new WeakSet([a = {}].values!).has(a), 'Init WeakSet from iterator #1'
-  assert.ok new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2'
+  assert.ok new WeakSet(createIterable [a = {}]).has(a), 'Init from iterable'
   assert.ok new WeakSet([freeze f = {}]).has(f), 'Support frozen objects'
   S = new WeakSet
   S.add freeze f = {}
@@ -23,17 +21,16 @@ test 'WeakSet' (assert)->
   assert.strictEqual S.has(f), no
   # return #throw
   done = no
-  iter = [null, 1, 2]values!
-  iter.return = -> done := on
+  iter = createIterable [null, 1, 2], return: -> done := on
   try => new WeakSet iter
   assert.ok done, '.return #throw'
   assert.ok !(\clear of WeakSet::), 'should not contains `.clear` method'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   new WeakSet a
   assert.ok done
 

@@ -1,8 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-{iterator} = Symbol
-
 test 'Promise' (assert)->
   assert.isFunction Promise
   assert.arity Promise, 1
@@ -30,20 +28,16 @@ test 'Promise.all' (assert)->
   assert.name Promise.all, \all
   assert.looksNative Promise.all
   # works with iterables
-  passed = no
-  iter = [1 2 3].values!
-  next = iter~next
-  iter.next = ->
-    passed := on
-    next!
+  iter = createIterable [1 2 3]
   Promise.all iter .catch ->
-  assert.ok passed, 'works with iterables'
+  assert.ok iter.received, 'works with iterables: iterator received'
+  assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   Promise.all a
   assert.ok done
 
@@ -53,20 +47,16 @@ test 'Promise.race' (assert)->
   assert.name Promise.race, \race
   assert.looksNative Promise.race
   # works with iterables
-  passed = no
-  iter = [1 2 3].values!
-  next = iter~next
-  iter.next = ->
-    passed := on
-    next!
+  iter = createIterable [1 2 3]
   Promise.race iter .catch ->
-  assert.ok passed, 'works with iterables'
+  assert.ok iter.received, 'works with iterables: iterator received'
+  assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
   a = []
   done = no
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
-    [][iterator]call @
+    [][Symbol?iterator]call @
   Promise.race a
   assert.ok done
 

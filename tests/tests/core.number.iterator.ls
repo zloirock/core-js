@@ -5,6 +5,7 @@ test 'Number#@@iterator' (assert)->
   {iterator, toStringTag} = Symbol
   assert.isFunction Number::[iterator]
   iter1 = 2[iterator]!
+  assert.isIterator iter1
   assert.ok iter1[toStringTag] is 'Number Iterator', '@@toStringTag'
   assert.deepEqual iter1.next!, {done: no, value: 0}, '2 #1'
   assert.deepEqual iter1.next!, {done: no, value: 1}, '2 #2'
