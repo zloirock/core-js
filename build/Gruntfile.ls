@@ -21,6 +21,7 @@ module.exports = (grunt)->
       './tests/tests.js': './tests/tests/*'
       './tests/library.js': './tests/library/*'
       './tests/es.js': './tests/tests/es*'
+      './tests/experimental.js': './tests/experimental/*'
       './build/index.js': './build/build.ls*'
     clean: <[./library]>
     copy: lib: files:
