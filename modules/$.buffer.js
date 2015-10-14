@@ -221,12 +221,11 @@ if(require('./$.support-desc')){
     };
     addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
 
-    $DataView = function DataView(buffer /*, byteOffset, byteLength */){
+    $DataView = function DataView(buffer, byteOffset, byteLength){
       strictNew(this, $DataView, 'DataView');
       if(!(buffer instanceof $ArrayBuffer))throw TypeError();
       var bufferLength = buffer._l
-        , byteLength   = arguments[2]
-        , offset       = toInteger(arguments[1]);
+        , offset       = toInteger(byteOffset);
       if(offset < 0 || offset > bufferLength)throw RangeError();
       byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
       if(offset + byteLength > bufferLength)throw RangeError();

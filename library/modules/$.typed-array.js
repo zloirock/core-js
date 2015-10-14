@@ -9,6 +9,7 @@ var global            = require('./$.global')
   , $                 = require('./$')
   , setDesc           = $.setDesc
   , getDesc           = $.getDesc
+  , ctx               = require('./$.ctx')
   , strictNew         = require('./$.strict-new')
   , propertyDesc      = require('./$.property-desc')
   , $hide             = require('./$.hide')
@@ -18,8 +19,11 @@ var global            = require('./$.global')
   , toIndex           = require('./$.to-index')
   , isObject          = require('./$.is-object')
   , toObject          = require('./$.to-object')
+  , iterCall          = require('./$.iter-call')
+  , isArrayIter       = require('./$.is-array-iter')
   , isIterable        = require('./core.is-iterable')
-  , TYPED_ARRAY       = require('./$.wks')('_typed')
+  , getIterFn         = require('./core.get-iterator-method')
+  , wks               = require('./$.wks')
   , arrayMethods      = require('./$.array-methods')
   , arrayIncludes     = require('./$.array-includes')
   , $fill             = require('./$.array-fill')
@@ -42,23 +46,44 @@ var global            = require('./$.global')
   , $slice            = [].slice
   , $toString         = [].toString
   , $toLocaleString   = [].toLocaleString
+  , TYPED_ARRAY       = wks('typed_array')
+  , TYPED_CONSTRUCTOR = wks('typed_constructor')
   , BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
 
 var validate = function(it){
   if(isObject(it) && TYPED_ARRAY in it)return it;
-  throw TypeError(it + ' is not TypedArray!');
+  throw TypeError(it + ' is not a typed array!');
 };
 
 var fromList = function(C, list){
   var index  = 0
     , length = list.length
-    , result = new C(length);
+    , result = allocate(C, length);
   while(length > index)result[index] = list[index++];
   return result;
 };
 
+var allocate = function(C, length){
+  if(!(isObject(C) && TYPED_CONSTRUCTOR in C))throw TypeError('It is not a typed array constructor!');
+  return new C(length);  
+}
+
 var $from = function from(source /*, mapfn, thisArg */){
-  return fromList(this, isIterable(source) ? Array.from(source) : source); // TODO
+  var O       = toObject(source)
+    , mapfn   = arguments[1]
+    , mapping = mapfn !== undefined
+    , iterFn  = getIterFn(O)
+    , i, length, values, result, step, iterator;
+  if(iterFn != undefined && !isArrayIter(iterFn)){
+    for(iterator = iterFn.call(O), values = [], i = 0; !(step = iterator.next()).done; i++){
+      values.push(step.value);
+    } O = values;
+  }
+  if(mapping)mapfn = ctx(mapfn, arguments[2], 2);
+  for(i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++){
+    result[i] = mapping ? mapfn(O[i], i) : O[i];
+  }
+  return result;
 };
 
 var addGetter = function(C, key, internal){
@@ -176,7 +201,7 @@ var proto = {
 
 var isTADesc = function(target, key){
   return isObject(target) && TYPED_ARRAY in target
-    && (typeof key == 'string' || typeof key == 'number') && isInteger(+key);
+    && (typeof key == 'string' || typeof key == 'number') && isInteger(+key); // <- use toPrimitive
 };
 var $getDesc = $.getDesc = function getOwnPropertyDescriptor(target, key){
   return isTADesc(target, key) ? propertyDesc(2, target[key]) : getDesc(target, key);
@@ -188,7 +213,7 @@ var $setDesc = $.setDesc = function defineProperty(target, key, desc){
   } else return setDesc(target, key, desc);
 };
 
-$def($def.S + $def.F * DEBUG, 'Object', {
+DEBUG && $def($def.S + $def.F * DEBUG, 'Object', {
   getOwnPropertyDescriptor: $getDesc,
   defineProperty: $setDesc
 });
@@ -261,7 +286,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     addGetter($TypedArray, 'length', 'e');
     $hide($TypedArray, BYTES_PER_ELEMENT, BYTES);
     $hide($TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
-  } else if(!require('./$.iter-detect')(function(iter){ new $TypedArray(iter); })){
+  } else if(!require('./$.iter-detect')(function(iter){ new $TypedArray(iter); }, true)){
     $TypedArray = wrapper(function(that, data, $offset, $length){
       strictNew(that, $TypedArray, NAME);
       if(isObject(it) && isIterable(it))return $from.call($TypedArray, data);
@@ -269,6 +294,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     });
     $TypedArray.prototype = Base.prototype;
   }
+  $hide($TypedArray, TYPED_CONSTRUCTOR, true);
   $hide($TypedArray.prototype, TYPED_ARRAY, true);
   DEBUG && require('./$.mix')($TypedArray.prototype, proto);
   DEBUG && require('./$.mix')($TypedArray, statics);
