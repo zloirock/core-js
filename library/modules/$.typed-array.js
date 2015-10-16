@@ -64,8 +64,9 @@ var fromList = function(C, list){
 };
 
 var allocate = function(C, length){
-  if(!(isObject(C) && TYPED_CONSTRUCTOR in C))throw TypeError('It is not a typed array constructor!');
-  return new C(length);  
+  if(!(isObject(C) && TYPED_CONSTRUCTOR in C)){
+    throw TypeError('It is not a typed array constructor!');
+  } return new C(length);  
 }
 
 var $from = function from(source /*, mapfn, thisArg */){
