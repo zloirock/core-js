@@ -186,13 +186,12 @@ var symbolStatics = {
 // 19.4.2.13 Symbol.toStringTag
 // 19.4.2.14 Symbol.unscopables
 $.each.call((
-    'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
-    'species,split,toPrimitive,toStringTag,unscopables'
-  ).split(','), function(it){
-    var sym = wks(it);
-    symbolStatics[it] = useNative ? sym : wrap(sym);
-  }
-);
+  'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
+  'species,split,toPrimitive,toStringTag,unscopables'
+).split(','), function(it){
+  var sym = wks(it);
+  symbolStatics[it] = useNative ? sym : wrap(sym);
+});
 
 setter = true;
 
