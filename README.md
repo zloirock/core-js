@@ -54,7 +54,7 @@ core.setImmediate(core.log, 42);                // => 42
     - [delay](#delay)
     - [console](#console)
 - [Missing polyfills](#missing-polyfills)
-- [Changelog](https://github.com/zloirock/core-js/CHANGELOG.md)
+- [Changelog](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md)
 
 ## Usage
 ### Basic
