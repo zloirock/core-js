@@ -79,7 +79,7 @@ if(require('./$.support-desc')){
   };
   var packIEEE754 = function(v, ebits, fbits) {
     var bias = (1 << ebits - 1) - 1
-      , s, e, f, ln, i, bits, str, bytes;
+      , s, e, f, i, bits, str, bytes;
     // Compute sign, exponent, fraction
     if (v !== v) {
       // NaN

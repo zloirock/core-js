@@ -26,7 +26,7 @@
     "karma-phantomjs-launcher": "0.2.x",
     "karma-phantomjs2-launcher": "^0.3.2",
     "promises-aplus-tests": "2.1.x",
-    "eslint": "1.6.x"
+    "eslint": "1.7.x"
   },
   "scripts": {
     "grunt": "grunt",

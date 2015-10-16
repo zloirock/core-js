@@ -19,7 +19,6 @@ var global            = require('./$.global')
   , toIndex           = require('./$.to-index')
   , isObject          = require('./$.is-object')
   , toObject          = require('./$.to-object')
-  , iterCall          = require('./$.iter-call')
   , isArrayIter       = require('./$.is-array-iter')
   , isIterable        = require('./core.is-iterable')
   , getIterFn         = require('./core.get-iterator-method')
@@ -66,8 +65,8 @@ var fromList = function(C, list){
 var allocate = function(C, length){
   if(!(isObject(C) && TYPED_CONSTRUCTOR in C)){
     throw TypeError('It is not a typed array constructor!');
-  } return new C(length);  
-}
+  } return new C(length);
+};
 
 var $from = function from(source /*, mapfn, thisArg */){
   var O       = toObject(source)
@@ -133,7 +132,7 @@ var proto = {
   includes: function includes(searchElement /*, fromIndex */){
     return $includes(validate(this), searchElement, arguments[1]);
   },
-  join: function join(separator){
+  join: function join(separator){ // eslint-disable-line no-unused-vars
     return $join.apply(validate(this), arguments);
   },
   lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line
@@ -196,7 +195,7 @@ var proto = {
   },
   values: function values(){
     // looks like Array equal + ValidateTypedArray
-  },
+  }
   // @@iterator
 };
 
@@ -245,7 +244,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
       },
       enumerable: true
     });
-  }
+  };
   if(!$ArrayBuffer)return;
   if(!$TypedArray || !$buffer.useNative){
     $TypedArray = wrapper(function(that, data, $offset, $length){
@@ -287,10 +286,12 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     addGetter($TypedArray, 'length', 'e');
     $hide($TypedArray, BYTES_PER_ELEMENT, BYTES);
     $hide($TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
-  } else if(!require('./$.iter-detect')(function(iter){ new $TypedArray(iter); }, true)){
+  } else if(!require('./$.iter-detect')(function(iter){
+    new $TypedArray(iter); // eslint-disable-line no-new
+  }, true)){
     $TypedArray = wrapper(function(that, data, $offset, $length){
       strictNew(that, $TypedArray, NAME);
-      if(isObject(it) && isIterable(it))return $from.call($TypedArray, data);
+      if(isObject(data) && isIterable(data))return $from.call($TypedArray, data);
       return new $TypedArray(data, $offset, $length);
     });
     $TypedArray.prototype = Base.prototype;

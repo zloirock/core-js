@@ -18,7 +18,7 @@ var ASC = function(original, length){
   if(isArray(original) && isObject(C = original.constructor)){
     C = C[SPECIES];
     if(C === null)C = undefined;
-  } return new(C === undefined ? Array : C)(length);
+  } return new (C === undefined ? Array : C)(length);
 };
 module.exports = function(TYPE){
   var IS_MAP        = TYPE == 1

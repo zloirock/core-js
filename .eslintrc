@@ -15,6 +15,7 @@
     "no-extra-parens": 2,
     "new-parens": 0,
     "new-cap": [2, {"newIsCap": true, "capIsNew": false}],
+    "no-wrap-func": 0,
     "no-use-before-define": 0,
     "no-cond-assign": 0,
     "no-underscore-dangle": 0,

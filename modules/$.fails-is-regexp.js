@@ -6,6 +6,6 @@ module.exports = function(KEY){
     try {
       re[require('./$.wks')('match')] = false;
       return !'/./'[KEY](re);
-    } catch(e){ /* empty */ }
+    } catch(f){ /* empty */ }
   } return true;
 };
