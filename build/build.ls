@@ -1,4 +1,4 @@
-require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, webpack}
+require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, path, webpack}
 
 list = <[
   es5
@@ -190,7 +190,8 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
 
     TARGET = "./__tmp#{ Math.random! }__.js"
     err, info <~! webpack do
-      entry: list.filter(~> @[it]).map ~> ".#{ if library => '/library' else '' }/modules/#it"
+      entry: list.filter(~> @[it]).map ~>
+        path.join(__dirname, '../', "#{ if library => '/library' else '' }/modules/#it")
       output:
         path: ''
         filename: TARGET
