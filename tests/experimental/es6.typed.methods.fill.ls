@@ -6,9 +6,9 @@ test '%TypedArrayPrototype%.fill', !(assert)~>
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
     assert.isFunction Typed::fill, "#{..}::fill is function"
-    assert.arity Typed::fill, 1,  "#{..}::fill arity is 1"
-    assert.name Typed::fill, \fill,  "#{..}::fill name is 'fill'"
-    assert.looksNative Typed::fill,  "#{..}::fill looks native"
+    assert.arity Typed::fill, 1, "#{..}::fill arity is 1"
+    assert.name Typed::fill, \fill, "#{..}::fill name is 'fill'"
+    assert.looksNative Typed::fill, "#{..}::fill looks native"
     assert.strictEqual (a = new Typed(5)fill(5)), a, 'return this'
     assert.arrayEqual new Typed(5)fill(5), [5 5 5 5 5], 'basic'
     assert.arrayEqual new Typed(5)fill(5 1), [0 5 5 5 5], 'start index'
