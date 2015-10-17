@@ -18,4 +18,11 @@ test '%TypedArrayPrototype%.find', !(assert)~>
     , ctx = {}
     assert.same new Typed([1 2 3])find(-> !(it % 2)), 2
     assert.same new Typed([1 2 3])find((is 4)), void
+    v = ''
+    k = ''
+    new Typed([1 2 3])find (a, b)!->
+      v += a
+      k += b
+    assert.same v, \123
+    assert.same k, \012
     assert.throws (!-> Typed::find.call [0], -> on), "isn't generic"

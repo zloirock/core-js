@@ -19,4 +19,11 @@ test '%TypedArrayPrototype%.filter', !(assert)~>
     instance = new Typed([1 2 3 4 5 6 7 8 9])filter((% 2))
     assert.ok instance instanceof Typed, 'correct instance'
     assert.arrayEqual instance, [1 3 5 7 9], 'works'
+    v = ''
+    k = ''
+    new Typed([1 2 3])filter (a, b)!->
+      v += a
+      k += b
+    assert.same v, \123
+    assert.same k, \012
     assert.throws (!-> Typed::filter.call [0], -> on), "isn't generic"

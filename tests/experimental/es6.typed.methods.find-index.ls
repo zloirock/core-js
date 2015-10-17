@@ -18,4 +18,11 @@ test '%TypedArrayPrototype%.findIndex', !(assert)~>
     , ctx = {}
     assert.same new Typed([1 2 3])findIndex(-> !(it % 2)), 1
     assert.same new Typed([1 2 3])findIndex((is 4)), -1
+    v = ''
+    k = ''
+    new Typed([1 2 3])findIndex (a, b)!->
+      v += a
+      k += b
+    assert.same v, \123
+    assert.same k, \012
     assert.throws (!-> Typed::findIndex.call [0], -> on), "isn't generic"

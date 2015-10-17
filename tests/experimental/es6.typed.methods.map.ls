@@ -19,4 +19,11 @@ test '%TypedArrayPrototype%.map', !(assert)~>
     instance = new Typed([1 2 3 4 5])map (* 2)
     assert.ok instance instanceof Typed, 'correct instance'
     assert.arrayEqual instance, [2 4 6 8 10], 'works'
+    v = ''
+    k = ''
+    new Typed([1 2 3])map (a, b)!->
+      v += a
+      k += b
+    assert.same v, \123
+    assert.same k, \012
     assert.throws (!-> Typed::map.call [0], -> on), "isn't generic"
