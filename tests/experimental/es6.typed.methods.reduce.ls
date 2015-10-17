@@ -22,4 +22,12 @@ test '%TypedArrayPrototype%.reduce', !(assert)~>
       assert.same val, 2, 'correct start value without initial accumulator'
       assert.same key, 1, 'correct start index without initial accumulator'
     assert.same new Typed([1 2 3])reduce((+)), 6, 'works without initial accumulator'
+    v = ''
+    k = ''
+    new Typed([1 2 3])reduce (memo, a, b)!->
+      v += a
+      k += b
+    , 0
+    assert.same v, \123,'correct order #1'
+    assert.same k, \012,'correct order #2'
     assert.throws (!-> Typed::reduce.call [0], -> on), "isn't generic"
