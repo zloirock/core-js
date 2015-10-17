@@ -7,13 +7,15 @@ test 'Array#findIndex' (assert)->
   assert.arity Array::findIndex, 1
   assert.name Array::findIndex, \findIndex
   assert.looksNative Array::findIndex
-  (arr = [1])findIndex (val, key, that)->
-    assert.strictEqual @, ctx
-    assert.strictEqual val, 1
-    assert.strictEqual key, 0
-    assert.strictEqual that, arr
+  (a = [1])findIndex (val, key, that)->
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
-  assert.strictEqual [1 3 NaN, 42 {}]findIndex((is 42)), 3
+  assert.same [1 3 NaN, 42 {}]findIndex((is 42)), 3
+  assert.same [1 3 NaN, 42 {}]findIndex((is 43)), -1
   if !(-> @)!
     assert.throws (-> Array::findIndex.call null, 0), TypeError
     assert.throws (-> Array::findIndex.call void, 0), TypeError
