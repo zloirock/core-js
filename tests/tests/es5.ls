@@ -188,10 +188,11 @@ test 'Array#lastIndexOf' (assert)->
 
 test 'Array#every' (assert)->
   (a = [1])every (val, key, that)->
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-    assert.ok @    is ctx
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
   assert.ok [1 2 3]every -> typeof! it is \Number
   assert.ok [1 2 3]every (<4)
@@ -205,10 +206,11 @@ test 'Array#every' (assert)->
 
 test 'Array#some' (assert)->
   (a = [1])some (val, key, that)->
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-    assert.ok @    is ctx
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
   assert.ok [1 \2 3]some -> typeof! it is \Number
   assert.ok [1 2 3]some (<3)
@@ -222,10 +224,11 @@ test 'Array#some' (assert)->
 
 test 'Array#forEach' (assert)->
   (a = [1])forEach (val, key, that)!->
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-    assert.ok @    is ctx
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
   rez = ''
   [1 2 3]forEach !-> rez += it
@@ -247,10 +250,11 @@ test 'Array#forEach' (assert)->
 
 test 'Array#map' (assert)->
   (a = [1])map (val, key, that)->
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-    assert.ok @    is ctx
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
   assert.deepEqual [2 3 4] [1 2 3]map (+ 1)
   assert.deepEqual [1 3 5] [1 2 3]map ( + )
@@ -258,34 +262,61 @@ test 'Array#map' (assert)->
 
 test 'Array#filter' (assert)->
   (a = [1])filter (val, key, that)->
-    assert.ok val is 1
-    assert.ok key is 0
-    assert.ok that is a
-    assert.ok @ is ctx
+    assert.same &length, 3, 'correct number of callback arguments'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+    assert.same @, ctx, 'correct callback context'
   , ctx = {}
-  assert.deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof! it is \Number
+  assert.deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof it is \number
 
 test 'Array#reduce' (assert)->
-  assert.ok -5 is [5 4 3 2 1]reduce (-)
   (a = [1])reduce (memo, val, key, that)->
-    assert.ok memo is 42
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-  , 42
-  [42 43]reduce ->
-    assert.ok it is 42
+    assert.same &length, 4, 'correct number of callback arguments'
+    assert.same memo, accumulator, 'correct callback accumulator'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+  , accumulator = {}
+  assert.same [1 2 3]reduce((+), 1), 7, 'works with initial accumulator'
+  (a = [1 2])reduce (memo, val, key, that)->
+    assert.same memo, 1, 'correct default accumulator'
+    assert.same val, 2, 'correct start value without initial accumulator'
+    assert.same key, 1, 'correct start index without initial accumulator'
+  assert.same [1 2 3]reduce((+)), 6, 'works without initial accumulator'
+  v = ''
+  k = ''
+  [1 2 3]reduce (memo, a, b)!->
+    v += a
+    k += b
+  , 0
+  assert.same v, \123,'correct order #1'
+  assert.same k, \012,'correct order #2'
+  assert.same Array::reduce.call({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
 
 test 'Array#reduceRight' (assert)->
-  assert.ok -5 is [1 2 3 4 5]reduceRight (-)
   (a = [1])reduceRight (memo, val, key, that)->
-    assert.ok memo is 42
-    assert.ok val  is 1
-    assert.ok key  is 0
-    assert.ok that is a
-  , 42
-  [42 43]reduceRight ->
-    assert.ok it is 43
+    assert.same &length, 4, 'correct number of callback arguments'
+    assert.same memo, accumulator, 'correct callback accumulator'
+    assert.same val, 1, 'correct value in callback'
+    assert.same key, 0, 'correct index in callback'
+    assert.same that, a, 'correct link to array in callback'
+  , accumulator = {}
+  assert.same [1 2 3]reduceRight((+), 1), 7, 'works with initial accumulator'
+  (a = [1 2])reduceRight (memo, val, key, that)->
+    assert.same memo, 2, 'correct default accumulator'
+    assert.same val, 1, 'correct start value without initial accumulator'
+    assert.same key, 0, 'correct start index without initial accumulator'
+  assert.same [1 2 3]reduceRight((+)), 6, 'works without initial accumulator'
+  v = ''
+  k = ''
+  [1 2 3]reduceRight (memo, a, b)!->
+    v += a
+    k += b
+  , 0
+  assert.same v, \321,'correct order #1'
+  assert.same k, \210,'correct order #2'
+  assert.same Array::reduceRight.call({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
 
 test 'Date.now' (assert)->
   {now} = Date
