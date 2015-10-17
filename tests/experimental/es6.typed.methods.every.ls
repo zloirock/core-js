@@ -21,8 +21,13 @@ test '%TypedArrayPrototype%.every', !(assert)~>
     assert.ok not new Typed([1 2 3])every (<3)
     assert.ok not new Typed([1 2 3])every -> typeof it is \string
     assert.ok new Typed([1 2 3])every (-> +@ is 1 ), 1
-    rez = ''
-    new Typed([1 2 3])every -> rez += &1
-    assert.same rez, \012
+    v = ''
+    k = ''
+    new Typed([1 2 3])every (a, b)->
+      v += a
+      k += b
+      on
+    assert.same v, \123
+    assert.same k, \012
     assert.ok (arr = new Typed [1 2 3])every -> &2 is arr
     assert.throws (!-> Typed::every.call [0], -> on), "isn't generic"
