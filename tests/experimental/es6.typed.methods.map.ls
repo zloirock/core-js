@@ -1,22 +1,22 @@
 {module, test} = QUnit
 module \ES6
-test '%TypedArrayPrototype%.filter', !(assert)~>
+test '%TypedArrayPrototype%.map', !(assert)~>
   global = Function('return this')!
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
-    assert.isFunction Typed::filter, "#{..}::filter is function"
-    assert.arity Typed::filter, 1, "#{..}::filter arity is 1"
-    assert.name Typed::filter, \filter, "#{..}::filter name is 'filter'"
-    assert.looksNative Typed::filter, "#{..}::filter looks native"
-    (a = new Typed [1])filter (val, key, that)->
+    assert.isFunction Typed::map, "#{..}::map is function"
+    assert.arity Typed::map, 1, "#{..}::map arity is 1"
+    assert.name Typed::map, \map, "#{..}::map name is 'map'"
+    assert.looksNative Typed::map, "#{..}::map looks native"
+    (a = new Typed [1])map (val, key, that)->
       assert.same &length, 3, 'correct number of callback arguments'
       assert.same val, 1, 'correct value in callback'
       assert.same key, 0, 'correct index in callback'
       assert.same that, a, 'correct link to array in callback'
       assert.same @, ctx, 'correct callback context'
     , ctx = {}
-    instance = new Typed([1 2 3 4 5 6 7 8 9])filter((% 2))
+    instance = new Typed([1 2 3 4 5])map (* 2)
     assert.ok instance instanceof Typed, 'correct instance'
-    assert.arrayEqual instance, [1 3 5 7 9], 'works'
-    assert.throws (!-> Typed::filter.call [0], -> on), "isn't generic"
+    assert.arrayEqual instance, [2 4 6 8 10], 'works'
+    assert.throws (!-> Typed::map.call [0], -> on), "isn't generic"
