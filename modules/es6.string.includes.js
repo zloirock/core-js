@@ -6,6 +6,6 @@ var $def     = require('./$.def')
 
 $def($def.P + $def.F * require('./$.fails-is-regexp')(INCLUDES), 'String', {
   includes: function includes(searchString /*, position = 0 */){
-    return !!~context(this, searchString, INCLUDES).indexOf(searchString, arguments[1]);
+    return !!~context(this, searchString, INCLUDES).indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }
 });

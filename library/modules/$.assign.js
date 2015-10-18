@@ -14,14 +14,15 @@ module.exports = require('./$.fails')(function(){
   K.split('').forEach(function(k){ B[k] = k; });
   return a({}, A)[S] != 7 || Object.keys(a({}, B)).join('') != K;
 }) ? function assign(target, source){ // eslint-disable-line no-unused-vars
-  var T = toObject(target)
-    , l = arguments.length
-    , i = 1
+  var T     = toObject(target)
+    , $$    = arguments
+    , $$len = $$.length
+    , index = 1
     , getKeys    = $.getKeys
     , getSymbols = $.getSymbols
     , isEnum     = $.isEnum;
-  while(l > i){
-    var S      = IObject(arguments[i++])
+  while($$len > index){
+    var S      = IObject($$[index++])
       , keys   = getSymbols ? getKeys(S).concat(getSymbols(S)) : getKeys(S)
       , length = keys.length
       , j      = 0

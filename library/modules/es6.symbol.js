@@ -114,8 +114,9 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
 var $stringify = function stringify(it){
   var args = [it]
     , i    = 1
+    , $$   = arguments
     , replacer, $replacer;
-  while(arguments.length > i)args.push(arguments[i++]);
+  while($$.length > i)args.push($$[i++]);
   replacer = args[1];
   if(typeof replacer == 'function')$replacer = replacer;
   if($replacer || !isArray(replacer))replacer = function(key, value){
@@ -137,7 +138,7 @@ var buggyJSON = $fails(function(){
 if(!useNative){
   $Symbol = function Symbol(){
     if(isSymbol(this))throw TypeError('Symbol is not a constructor');
-    return wrap(uid(arguments[0]));
+    return wrap(uid(arguments.length > 0 ? arguments[0] : undefined));
   };
   $redef($Symbol.prototype, 'toString', function toString(){
     return this._k;

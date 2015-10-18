@@ -6,8 +6,10 @@ var toObject = require('./$.to-object')
 module.exports = [].fill || function fill(value /*, start = 0, end = @length */){
   var O      = toObject(this, true)
     , length = toLength(O.length)
-    , index  = toIndex(arguments[1], length)
-    , end    = arguments[2]
+    , $$     = arguments
+    , $$len  = $$.length
+    , index  = toIndex($$len > 1 ? $$[1] : undefined, length)
+    , end    = $$len > 2 ? $$[2] : undefined
     , endPos = end === undefined ? length : toIndex(end, length);
   while(endPos > index)O[index++] = value;
   return O;

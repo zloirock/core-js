@@ -9,7 +9,8 @@ var $def      = require('./$.def')
 $def($def.P + $def.F * require('./$.fails-is-regexp')(ENDS_WITH), 'String', {
   endsWith: function endsWith(searchString /*, endPosition = @length */){
     var that = context(this, searchString, ENDS_WITH)
-      , endPosition = arguments[1]
+      , $$   = arguments
+      , endPosition = $$.length > 1 ? $$[1] : undefined
       , len    = toLength(that.length)
       , end    = endPosition === undefined ? len : Math.min(toLength(endPosition), len)
       , search = String(searchString);

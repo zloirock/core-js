@@ -7,12 +7,13 @@ var $def    = require('./$.def')
 $def($def.S + $def.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   fromCodePoint: function fromCodePoint(x){ // eslint-disable-line no-unused-vars
-    var res = []
-      , len = arguments.length
-      , i   = 0
+    var res   = []
+      , $$    = arguments
+      , $$len = $$.length
+      , i     = 0
       , code;
-    while(len > i){
-      code = +arguments[i++];
+    while($$len > i){
+      code = +$$[i++];
       if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
       res.push(code < 0x10000
         ? fromCharCode(code)

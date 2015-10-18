@@ -5,7 +5,7 @@
   },
   "rules": {
     "indent": [2, 2, {"VariableDeclarator": 2, "SwitchCase": 1}],
-    "max-len": [2, 100, 2],
+    "max-len": [2, 125, 2],
     "eol-last": 0,
     "camelcase": 2,
     "brace-style": [2, "1tbs", { "allowSingleLine": true }],

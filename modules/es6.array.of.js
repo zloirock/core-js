@@ -9,10 +9,11 @@ $def($def.S + $def.F * require('./$.fails')(function(){
   // 22.1.2.3 Array.of( ...items)
   of: function of(/* ...args */){
     var index  = 0
-      , length = arguments.length
-      , result = new (typeof this == 'function' ? this : Array)(length);
-    while(length > index)result[index] = arguments[index++];
-    result.length = length;
+      , $$     = arguments
+      , $$len  = $$.length
+      , result = new (typeof this == 'function' ? this : Array)($$len);
+    while($$len > index)result[index] = $$[index++];
+    result.length = $$len;
     return result;
   }
 });

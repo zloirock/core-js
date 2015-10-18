@@ -244,22 +244,22 @@ if(require('./$.support-desc')){
         return get(this, 1, byteOffset, unpackU8);
       },
       getInt16: function getInt16(byteOffset /*, littleEndian */){
-        return get(this, 2, byteOffset, unpackI16, arguments[1]);
+        return get(this, 2, byteOffset, unpackI16, arguments.length > 1 ? arguments[1] : undefined);
       },
       getUint16: function getUint16(byteOffset /*, littleEndian */){
-        return get(this, 2, byteOffset, unpackU16, arguments[1]);
+        return get(this, 2, byteOffset, unpackU16, arguments.length > 1 ? arguments[1] : undefined);
       },
       getInt32: function getInt32(byteOffset /*, littleEndian */){
-        return get(this, 4, byteOffset, unpackI32, arguments[1]);
+        return get(this, 4, byteOffset, unpackI32, arguments.length > 1 ? arguments[1] : undefined);
       },
       getUint32: function getUint32(byteOffset /*, littleEndian */){
-        return get(this, 4, byteOffset, unpackU32, arguments[1]);
+        return get(this, 4, byteOffset, unpackU32, arguments.length > 1 ? arguments[1] : undefined);
       },
       getFloat32: function getFloat32(byteOffset /*, littleEndian */){
-        return get(this, 4, byteOffset, unpackF32, arguments[1]);
+        return get(this, 4, byteOffset, unpackF32, arguments.length > 1 ? arguments[1] : undefined);
       },
       getFloat64: function getFloat64(byteOffset /*, littleEndian */){
-        return get(this, 8, byteOffset, unpackF64, arguments[1]);
+        return get(this, 8, byteOffset, unpackF64, arguments.length > 1 ? arguments[1] : undefined);
       },
       setInt8: function setInt8(byteOffset, value){
         return set(this, 1, byteOffset, packI8, value);
@@ -268,22 +268,22 @@ if(require('./$.support-desc')){
         return set(this, 1, byteOffset, packU8, value);
       },
       setInt16: function setInt16(byteOffset, value /*, littleEndian */){
-        return set(this, 2, byteOffset, packI16, value, arguments[2]);
+        return set(this, 2, byteOffset, packI16, value, arguments.length > 2 ? arguments[2] : undefined);
       },
       setUint16: function setUint16(byteOffset, value /*, littleEndian */){
-        return set(this, 2, byteOffset, packU16, value, arguments[2]);
+        return set(this, 2, byteOffset, packU16, value, arguments.length > 2 ? arguments[2] : undefined);
       },
       setInt32: function setInt32(byteOffset, value /*, littleEndian */){
-        return set(this, 4, byteOffset, packI32, value, arguments[2]);
+        return set(this, 4, byteOffset, packI32, value, arguments.length > 2 ? arguments[2] : undefined);
       },
       setUint32: function setUint32(byteOffset, value /*, littleEndian */){
-        return set(this, 4, byteOffset, packU32, value, arguments[2]);
+        return set(this, 4, byteOffset, packU32, value, arguments.length > 2 ? arguments[2] : undefined);
       },
       setFloat32: function setFloat32(byteOffset, value /*, littleEndian */){
-        return set(this, 4, byteOffset, packF32, value, arguments[2]);
+        return set(this, 4, byteOffset, packF32, value, arguments.length > 2 ? arguments[2] : undefined);
       },
       setFloat64: function setFloat64(byteOffset, value /*, littleEndian */){
-        return set(this, 8, byteOffset, packF64, value, arguments[2]);
+        return set(this, 8, byteOffset, packF64, value, arguments.length > 2 ? arguments[2] : undefined);
       }
     });
   }

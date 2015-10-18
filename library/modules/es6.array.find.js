@@ -8,7 +8,7 @@ var KEY    = 'find'
 if(KEY in [])Array(1)[KEY](function(){ forced = false; });
 $def($def.P + $def.F * forced, 'Array', {
   find: function find(callbackfn/*, that = undefined */){
-    return $find(this, callbackfn, arguments[1]);
+    return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
 require('./$.unscope')(KEY);

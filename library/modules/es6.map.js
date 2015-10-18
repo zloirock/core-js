@@ -3,7 +3,7 @@ var strong = require('./$.collection-strong');
 
 // 23.1 Map Objects
 require('./$.collection')('Map', function(get){
-  return function Map(){ return get(this, arguments[0]); };
+  return function Map(){ return get(this, arguments.length > 0 ? arguments[0] : undefined); };
 }, {
   // 23.1.3.6 Map.prototype.get(key)
   get: function get(key){

@@ -9,7 +9,8 @@ var $def        = require('./$.def')
 $def($def.P + $def.F * require('./$.fails-is-regexp')(STARTS_WITH), 'String', {
   startsWith: function startsWith(searchString /*, position = 0 */){
     var that   = context(this, searchString, STARTS_WITH)
-      , index  = toLength(Math.min(arguments[1], that.length))
+      , $$     = arguments
+      , index  = toLength(Math.min($$.length > 1 ? $$[1] : undefined, that.length))
       , search = String(searchString);
     return $startsWith
       ? $startsWith.call(that, search, index)

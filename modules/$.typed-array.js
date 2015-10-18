@@ -70,7 +70,9 @@ var allocate = function(C, length){
 
 var $from = function from(source /*, mapfn, thisArg */){
   var O       = toObject(source)
-    , mapfn   = arguments[1]
+    , $$      = arguments
+    , $$len   = $$.length
+    , mapfn   = $$len > 1 ? $$[1] : undefined
     , mapping = mapfn !== undefined
     , iterFn  = getIterFn(O)
     , i, length, values, result, step, iterator;
@@ -79,7 +81,7 @@ var $from = function from(source /*, mapfn, thisArg */){
       values.push(step.value);
     } O = values;
   }
-  if(mapping)mapfn = ctx(mapfn, arguments[2], 2);
+  if(mapping && $$len > 2)mapfn = ctx(mapfn, $$[2], 2);
   for(i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++){
     result[i] = mapping ? mapfn(O[i], i) : O[i];
   }
@@ -106,45 +108,45 @@ var proto = {
   // get length
   // constructor
   copyWithin: function copyWithin(target, start /*, end */){
-    return $copyWithin.call(validate(this), target, start, arguments[2]);
+    return $copyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
   },
   every: function every(callbackfn /*, thisArg */){
-    return $every(validate(this), callbackfn, arguments[1]);
+    return $every(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
-  fill: function fill(value /*, start, end */){
-    return $fill.call(validate(this), value, arguments[1], arguments[2]);
+  fill: function fill(value /*, start, end */){ // eslint-disable-line no-unused-vars
+    return $fill.apply(validate(this), arguments);
   },
   filter: function filter(callbackfn /*, thisArg */){
-    return fromList(this.constructor, $filter(validate(this), callbackfn, arguments[1])); // TMP
+    return fromList(this.constructor, $filter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined));
   },
   find: function find(predicate /*, thisArg */){
-    return $find(validate(this), predicate, arguments[1]);
+    return $find(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
   },
   findIndex: function findIndex(predicate /*, thisArg */){
-    return $findIndex(validate(this), predicate, arguments[1]);
+    return $findIndex(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
   },
   forEach: function forEach(callbackfn /*, thisArg */){
-    $forEach(validate(this), callbackfn, arguments[1]);
+    $forEach(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
   indexOf: function indexOf(searchElement /*, fromIndex */){
-    return $indexOf(validate(this), searchElement, arguments[1]);
+    return $indexOf(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
   },
   includes: function includes(searchElement /*, fromIndex */){
-    return $includes(validate(this), searchElement, arguments[1]);
+    return $includes(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
   },
   join: function join(separator){ // eslint-disable-line no-unused-vars
     return $join.apply(validate(this), arguments);
   },
-  lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line
+  lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line no-unused-vars
     return $lastIndexOf.apply(validate(this), arguments);
   },
   map: function map(mapfn /*, thisArg */){
-    return fromList(this.constructor, $map(validate(this), mapfn, arguments[1])); // TMP
+    return fromList(this.constructor, $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined));
   },
-  reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line
+  reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
     return $reduce.apply(validate(this), arguments);
   },
-  reduceRight: function reduceRight(callbackfn /*, initialValue */){ // eslint-disable-line
+  reduceRight: function reduceRight(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
     return $reduceRight.apply(validate(this), arguments);
   },
   reverse: function reverse(){
@@ -152,7 +154,7 @@ var proto = {
   },
   set: function set(arrayLike /*, offset */){
     validate(this);
-    var offset = toInteger(arguments[1]);
+    var offset = toInteger(arguments.length > 1 ? arguments[1] : undefined);
     if(offset < 0)throw RangeError();
     var length = this.length;
     var src    = toObject(arrayLike);
@@ -165,7 +167,7 @@ var proto = {
     return fromList(this.constructor, $slice.call(validate(this), start, end)); // TODO
   },
   some: function some(callbackfn /*, thisArg */){
-    return $some(validate(this), callbackfn, arguments[1]);
+    return $some(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
   sort: function sort(comparefn){
     return $sort.call(validate(this), comparefn);
@@ -173,8 +175,10 @@ var proto = {
   subarray: function subarray(/* begin, end */){
     var O      = validate(this)
       , length = O.length
-      , begin  = toIndex(arguments[0], length)
-      , end    = arguments[1];
+      , $$     = arguments
+      , $$len  = $$.length
+      , begin  = toIndex($$len > 0 ? $$[0] : undefined, length)
+      , end    = $$len > 1 ? $$[1] : undefined;
     return new O.constructor( // <- TODO SpeciesConstructor
       O.buffer,
       O.byteOffset + begin * O.BYTES_PER_ELEMENT,

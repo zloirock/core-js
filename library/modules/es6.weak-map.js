@@ -10,7 +10,7 @@ var $            = require('./$')
 
 // 23.3 WeakMap Objects
 var $WeakMap = require('./$.collection')('WeakMap', function(get){
-  return function WeakMap(){ return get(this, arguments[0]); };
+  return function WeakMap(){ return get(this, arguments.length > 0 ? arguments[0] : undefined); };
 }, {
   // 23.3.3.3 WeakMap.prototype.get(key)
   get: function get(key){
