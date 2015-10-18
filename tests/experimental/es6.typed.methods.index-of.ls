@@ -14,4 +14,4 @@ test '%TypedArrayPrototype%.indexOf', !(assert)~>
     assert.same new Typed([1 2 3])indexOf(2 1), 1
     assert.same new Typed([1 2 3])indexOf(2 -1), -1
     assert.same new Typed([1 2 3])indexOf(2 -2), 1
-    assert.throws (!-> Typed::indexOf.call [1 2]), "isn't generic"
+    assert.throws (!-> Typed::indexOf.call [1 2], 1), "isn't generic"
