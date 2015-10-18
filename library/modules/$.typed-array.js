@@ -185,7 +185,7 @@ var proto = {
     return $toLocaleString.apply(validate(this), arguments);
   },
   toString: function toString(){
-    return $toString.call(validate(this));
+    return $toString.call(this);
   },
   entries: function entries(){
     // looks like Array equal + ValidateTypedArray
