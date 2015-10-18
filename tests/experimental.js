@@ -1120,6 +1120,7 @@
       assert.name(Typed.prototype.toString, 'toString', x$ + "::toString name is 'toString'");
       assert.looksNative(Typed.prototype.toString, x$ + "::toString looks native");
       assert.same(new Typed([1, 2, 3]).toString(), '1,2,3', 'works');
+      assert.same(Typed.prototype.toString.call([1, 2, 3]), '1,2,3', "generic");
     }
   });
 }).call(this);

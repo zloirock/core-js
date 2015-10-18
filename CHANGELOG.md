@@ -1,4 +1,9 @@
 ## Changelog
+##### 1.2.2 - 2015.10.18
+* improved optimisations for V8
+* fixed build process from external packages, [#120](https://github.com/zloirock/core-js/pull/120)
+* one more `Object.{assign, values, entries}` fix for [**very** specific case](https://github.com/ljharb/proposal-object-values-entries/issues/5)
+
 ##### 1.2.1 - 2015.10.02
 * replaced fix `JSON.stringify` + `Symbol` behavior from `.toJSON` method to wrapping `JSON.stringify` - little more correct, [compat-table/642](https://github.com/kangax/compat-table/pull/642)
 * fixed typo which broke tasks scheduler in WebWorkers in old FF, [#114](https://github.com/zloirock/core-js/pull/114)

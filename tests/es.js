@@ -265,6 +265,8 @@
     assert.ok(0 === [1, 1, 1].indexOf(1));
     assert.ok(-1 === [1, 2, 3].indexOf(1, 1));
     assert.ok(1 === [1, 2, 3].indexOf(2, 1));
+    assert.ok(-1 === [1, 2, 3].indexOf(2, -1));
+    assert.ok(1 === [1, 2, 3].indexOf(2, -2));
     assert.ok(-1 === [NaN].indexOf(NaN));
     assert.ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
     return assert.ok(-1 === Array(1).indexOf(void 8));
@@ -273,16 +275,19 @@
     assert.strictEqual(2, [1, 1, 1].lastIndexOf(1));
     assert.strictEqual(-1, [1, 2, 3].lastIndexOf(3, 1));
     assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, 1));
+    assert.strictEqual(-1, [1, 2, 3].lastIndexOf(2, -3));
+    assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, -2));
     assert.strictEqual(-1, [NaN].lastIndexOf(NaN));
     return assert.strictEqual(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   });
   test('Array#every', function(assert){
     var a, ctx, rez, arr;
     (a = [1]).every(function(val, key, that){
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      assert.ok(that === a);
-      return assert.ok(this === ctx);
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok([1, 2, 3].every(function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -311,10 +316,11 @@
   test('Array#some', function(assert){
     var a, ctx, rez, arr;
     (a = [1]).some(function(val, key, that){
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      assert.ok(that === a);
-      return assert.ok(this === ctx);
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok([1, '2', 3].some(function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -344,10 +350,11 @@
   test('Array#forEach', function(assert){
     var a, ctx, rez, arr;
     (a = [1]).forEach(function(val, key, that){
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      assert.ok(that === a);
-      assert.ok(this === ctx);
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     rez = '';
     [1, 2, 3].forEach(function(it){
@@ -380,10 +387,11 @@
   test('Array#map', function(assert){
     var a, ctx;
     (a = [1]).map(function(val, key, that){
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      assert.ok(that === a);
-      return assert.ok(this === ctx);
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.deepEqual([2, 3, 4], [1, 2, 3].map((function(it){
       return it + 1;
@@ -398,44 +406,87 @@
   test('Array#filter', function(assert){
     var a, ctx;
     (a = [1]).filter(function(val, key, that){
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      assert.ok(that === a);
-      return assert.ok(this === ctx);
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     return assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function(it){
-      return toString$.call(it).slice(8, -1) === 'Number';
+      return typeof it === 'number';
     }));
   });
   test('Array#reduce', function(assert){
-    var a;
-    assert.ok(-5 === [5, 4, 3, 2, 1].reduce(curry$(function(x$, y$){
-      return x$ - y$;
-    })));
+    var a, accumulator, v, k;
     (a = [1]).reduce(function(memo, val, key, that){
-      assert.ok(memo === 42);
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      return assert.ok(that === a);
-    }, 42);
-    return [42, 43].reduce(function(it){
-      return assert.ok(it === 42);
+      assert.same(arguments.length, 4, 'correct number of callback arguments');
+      assert.same(memo, accumulator, 'correct callback accumulator');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      return assert.same(that, a, 'correct link to array in callback');
+    }, accumulator = {});
+    assert.same([1, 2, 3].reduce(curry$(function(x$, y$){
+      return x$ + y$;
+    }), 1), 7, 'works with initial accumulator');
+    (a = [1, 2]).reduce(function(memo, val, key, that){
+      assert.same(memo, 1, 'correct default accumulator');
+      assert.same(val, 2, 'correct start value without initial accumulator');
+      return assert.same(key, 1, 'correct start index without initial accumulator');
     });
+    assert.same([1, 2, 3].reduce(curry$(function(x$, y$){
+      return x$ + y$;
+    })), 6, 'works without initial accumulator');
+    v = '';
+    k = '';
+    [1, 2, 3].reduce(function(memo, a, b){
+      v += a;
+      k += b;
+    }, 0);
+    assert.same(v, '123', 'correct order #1');
+    assert.same(k, '012', 'correct order #2');
+    return assert.same(Array.prototype.reduce.call({
+      0: 1,
+      1: 2,
+      length: 2
+    }, curry$(function(x$, y$){
+      return x$ + y$;
+    })), 3, 'generic');
   });
   test('Array#reduceRight', function(assert){
-    var a;
-    assert.ok(-5 === [1, 2, 3, 4, 5].reduceRight(curry$(function(x$, y$){
-      return x$ - y$;
-    })));
+    var a, accumulator, v, k;
     (a = [1]).reduceRight(function(memo, val, key, that){
-      assert.ok(memo === 42);
-      assert.ok(val === 1);
-      assert.ok(key === 0);
-      return assert.ok(that === a);
-    }, 42);
-    return [42, 43].reduceRight(function(it){
-      return assert.ok(it === 43);
+      assert.same(arguments.length, 4, 'correct number of callback arguments');
+      assert.same(memo, accumulator, 'correct callback accumulator');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      return assert.same(that, a, 'correct link to array in callback');
+    }, accumulator = {});
+    assert.same([1, 2, 3].reduceRight(curry$(function(x$, y$){
+      return x$ + y$;
+    }), 1), 7, 'works with initial accumulator');
+    (a = [1, 2]).reduceRight(function(memo, val, key, that){
+      assert.same(memo, 2, 'correct default accumulator');
+      assert.same(val, 1, 'correct start value without initial accumulator');
+      return assert.same(key, 0, 'correct start index without initial accumulator');
     });
+    assert.same([1, 2, 3].reduceRight(curry$(function(x$, y$){
+      return x$ + y$;
+    })), 6, 'works without initial accumulator');
+    v = '';
+    k = '';
+    [1, 2, 3].reduceRight(function(memo, a, b){
+      v += a;
+      k += b;
+    }, 0);
+    assert.same(v, '321', 'correct order #1');
+    assert.same(k, '210', 'correct order #2');
+    return assert.same(Array.prototype.reduceRight.call({
+      0: 1,
+      1: 2,
+      length: 2
+    }, curry$(function(x$, y$){
+      return x$ + y$;
+    })), 3, 'generic');
   });
   test('Date.now', function(assert){
     var now;
@@ -555,20 +606,24 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array#findIndex', function(assert){
-    var arr, ctx;
+    var a, ctx;
     assert.isFunction(Array.prototype.findIndex);
     assert.arity(Array.prototype.findIndex, 1);
     assert.name(Array.prototype.findIndex, 'findIndex');
     assert.looksNative(Array.prototype.findIndex);
-    (arr = [1]).findIndex(function(val, key, that){
-      assert.strictEqual(this, ctx);
-      assert.strictEqual(val, 1);
-      assert.strictEqual(key, 0);
-      return assert.strictEqual(that, arr);
+    (a = [1]).findIndex(function(val, key, that){
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
-    assert.strictEqual([1, 3, NaN, 42, {}].findIndex((function(it){
+    assert.same([1, 3, NaN, 42, {}].findIndex((function(it){
       return it === 42;
     })), 3);
+    assert.same([1, 3, NaN, 42, {}].findIndex((function(it){
+      return it === 43;
+    })), -1);
     if (!function(){
       return this;
     }()) {
@@ -590,21 +645,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array#find', function(assert){
-    var arr, ctx;
+    var a, ctx;
     assert.isFunction(Array.prototype.find);
     assert.arity(Array.prototype.find, 1);
     assert.name(Array.prototype.find, 'find');
     assert.looksNative(Array.prototype.find);
-    (arr = [1]).find(function(val, key, that){
-      assert.strictEqual(this, ctx);
-      assert.strictEqual(val, 1);
-      assert.strictEqual(key, 0);
-      return assert.strictEqual(that, arr);
+    (a = [1]).find(function(val, key, that){
+      assert.same(arguments.length, 3, 'correct number of callback arguments');
+      assert.same(val, 1, 'correct value in callback');
+      assert.same(key, 0, 'correct index in callback');
+      assert.same(that, a, 'correct link to array in callback');
+      return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
-    assert.strictEqual([1, 3, NaN, 42, {}].find((function(it){
+    assert.same([1, 3, NaN, 42, {}].find((function(it){
       return it === 42;
     })), 42);
-    assert.strictEqual([1, 3, NaN, 42, {}].find((function(it){
+    assert.same([1, 3, NaN, 42, {}].find((function(it){
       return it === 43;
     })), void 8);
     if (!function(){
@@ -627,9 +683,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array.from', function(assert){
-    var from, iterator, al, ctx, done, iter, F, inst, a;
+    var from, al, ctx, done, iter, F, inst, a;
     from = Array.from;
-    iterator = Symbol.iterator;
     assert.isFunction(from);
     assert.arity(from, 1);
     assert.name(from, 'from');
@@ -661,7 +716,7 @@
     }, (function(it){
       return Math.pow(it, 2);
     })), [1, 4, 9]);
-    assert.deepEqual(from(new Set([1, 2, 3, 2, 1])), [1, 2, 3], 'Works with iterators');
+    assert.deepEqual(from(createIterable([1, 2, 3])), [1, 2, 3], 'Works with iterators');
     assert.throws(function(){
       return from(null);
     }, TypeError);
@@ -669,19 +724,21 @@
       return from(void 8);
     }, TypeError);
     done = true;
-    iter = [1, 2, 3].values();
-    iter['return'] = function(){
-      return done = false;
-    };
+    iter = createIterable([1, 2, 3], {
+      'return': function(){
+        return done = false;
+      }
+    });
     from(iter, function(){
       return false;
     });
     assert.ok(done, '.return #default');
     done = false;
-    iter = [1, 2, 3].values();
-    iter['return'] = function(){
-      return done = true;
-    };
+    iter = createIterable([1, 2, 3], {
+      'return': function(){
+        return done = true;
+      }
+    });
     try {
       from(iter, function(){
         throw 42;
@@ -689,7 +746,7 @@
     } catch (e$) {}
     assert.ok(done, '.return #throw');
     F = function(){};
-    inst = from.call(F, [1, 2]);
+    inst = from.call(F, createIterable([1, 2]));
     assert.ok(inst instanceof F);
     assert.strictEqual(inst[0], 1);
     assert.strictEqual(inst[1], 2);
@@ -705,9 +762,9 @@
     assert.strictEqual(inst.length, 2);
     a = [1, 2, 3];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     assert.deepEqual(from(a), [1, 2, 3]);
     return assert.ok(done);
@@ -716,12 +773,9 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, isIterator;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  isIterator = function(it){
-    return typeof it === 'object' && typeof it.next === 'function';
-  };
   test('Array#keys', function(assert){
     var iter;
     assert.isFunction(Array.prototype.keys);
@@ -729,7 +783,7 @@
     assert.name(Array.prototype.keys, 'keys');
     assert.looksNative(Array.prototype.keys);
     iter = ['q', 'w', 'e'].keys();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 0,
@@ -755,7 +809,7 @@
     assert.arity(Array.prototype.values, 0);
     assert.looksNative(Array.prototype.values);
     iter = ['q', 'w', 'e'].values();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -782,7 +836,7 @@
     assert.name(Array.prototype.entries, 'entries');
     assert.looksNative(Array.prototype.entries);
     iter = ['q', 'w', 'e'].entries();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: [0, 'q'],
@@ -809,7 +863,7 @@
     assert.looksNative(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -893,12 +947,9 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, isIterator, same, getOwnPropertyDescriptor, freeze, iterator;
+  var module, test, same, getOwnPropertyDescriptor, freeze;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  isIterator = function(it){
-    return typeof it === 'object' && typeof it.next === 'function';
-  };
   same = function(a, b){
     if (a === b) {
       return a !== 0 || 1 / a === 1 / b;
@@ -907,7 +958,6 @@
     }
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
-  iterator = Symbol.iterator;
   test('Map', function(assert){
     var done, iter, a;
     assert.isFunction(Map);
@@ -921,23 +971,23 @@
     assert.ok('has' in Map.prototype, 'has in Map.prototype');
     assert.ok('set' in Map.prototype, 'set in Map.prototype');
     assert.ok(new Map instanceof Map, 'new Map instanceof Map');
-    assert.strictEqual(new Map([1, 2, 3].entries()).size, 3, 'Init from iterator #1');
-    assert.strictEqual(new Map(new Map([1, 2, 3].entries())).size, 3, 'Init from iterator #2');
+    assert.strictEqual(new Map(createIterable([[1, 1], [2, 2], [3, 3]])).size, 3, 'Init from iterable');
     assert.strictEqual(new Map([[freeze({}), 1], [2, 3]]).size, 2, 'Support frozen objects');
     done = false;
-    iter = [null, 1, 2].values();
-    iter['return'] = function(){
-      return done = true;
-    };
+    iter = createIterable([null, 1, 2], {
+      'return': function(){
+        return done = true;
+      }
+    });
     try {
       new Map(iter);
     } catch (e$) {}
     assert.ok(done, '.return #throw');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new Map(a);
     return assert.ok(done);
@@ -1155,7 +1205,7 @@
     assert.arity(Map.prototype.keys, 0);
     assert.looksNative(Map.prototype.keys);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'a',
@@ -1181,7 +1231,7 @@
     assert.arity(Map.prototype.values, 0);
     assert.looksNative(Map.prototype.values);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -1207,7 +1257,7 @@
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -1234,7 +1284,7 @@
     assert.looksNative(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -2187,6 +2237,9 @@
       try {
         assert.strictEqual(Function('return Object.assign({b: 1}, {get a(){delete this.b;},b: 2})')().b, 1);
       } catch (e$) {}
+      try {
+        assert.strictEqual(Function('return Object.assign({b: 1}, {get a(){Object.defineProperty(this, "b", {value:4,enumerable:false});},b: 2})')().b, 1);
+      } catch (e$) {}
     }
     string = 'abcdefghijklmnopqrst';
     O = {};
@@ -2358,10 +2411,9 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, iterator;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  iterator = Symbol.iterator;
   test('Promise', function(assert){
     assert.isFunction(Promise);
     assert.arity(Promise, 1);
@@ -2383,49 +2435,39 @@
     return assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('Promise.all', function(assert){
-    var passed, iter, next, a, done;
+    var iter, a, done;
     assert.isFunction(Promise.all);
     assert.arity(Promise.all, 1);
     assert.name(Promise.all, 'all');
     assert.looksNative(Promise.all);
-    passed = false;
-    iter = [1, 2, 3].values();
-    next = bind$(iter, 'next');
-    iter.next = function(){
-      passed = true;
-      return next();
-    };
+    iter = createIterable([1, 2, 3]);
     Promise.all(iter)['catch'](function(){});
-    assert.ok(passed, 'works with iterables');
+    assert.ok(iter.received, 'works with iterables: iterator received');
+    assert.ok(iter.called, 'works with iterables: next called');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     Promise.all(a);
     return assert.ok(done);
   });
   test('Promise.race', function(assert){
-    var passed, iter, next, a, done;
+    var iter, a, done;
     assert.isFunction(Promise.race);
     assert.arity(Promise.race, 1);
     assert.name(Promise.race, 'race');
     assert.looksNative(Promise.race);
-    passed = false;
-    iter = [1, 2, 3].values();
-    next = bind$(iter, 'next');
-    iter.next = function(){
-      passed = true;
-      return next();
-    };
+    iter = createIterable([1, 2, 3]);
     Promise.race(iter)['catch'](function(){});
-    assert.ok(passed, 'works with iterables');
+    assert.ok(iter.received, 'works with iterables: iterator received');
+    assert.ok(iter.called, 'works with iterables: next called');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     Promise.race(a);
     return assert.ok(done);
@@ -2477,9 +2519,6 @@
         return assert.ok(it, false);
       });
     });
-  }
-  function bind$(obj, key, target){
-    return function(){ return (target || obj)[key].apply(obj, arguments) };
   }
 }).call(this);
 
@@ -4282,12 +4321,9 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, isIterator, same, getOwnPropertyDescriptor, freeze, iterator;
+  var module, test, same, getOwnPropertyDescriptor, freeze;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  isIterator = function(it){
-    return typeof it === 'object' && typeof it.next === 'function';
-  };
   same = function(a, b){
     if (a === b) {
       return a !== 0 || 1 / a === 1 / b;
@@ -4296,7 +4332,6 @@
     }
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
-  iterator = Symbol.iterator;
   test('Set', function(assert){
     var S, r, done, iter, _add, a;
     assert.isFunction(Set);
@@ -4309,8 +4344,7 @@
     assert.ok('forEach' in Set.prototype, 'forEach in Set.prototype');
     assert.ok('has' in Set.prototype, 'has in Set.prototype');
     assert.ok(new Set instanceof Set, 'new Set instanceof Set');
-    assert.strictEqual(new Set([1, 2, 3, 2, 1].values()).size, 3, 'Init from iterator #1');
-    assert.strictEqual(new Set([1, 2, 3, 2, 1]).size, 3, 'Init Set from iterator #2');
+    assert.strictEqual(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
     assert.strictEqual(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
     S = new Set([1, 2, 3, 2, 1]);
     assert.strictEqual(S.size, 3);
@@ -4324,10 +4358,11 @@
       assert.deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
     }
     done = false;
-    iter = [null, 1, 2].values();
-    iter['return'] = function(){
-      return done = true;
-    };
+    iter = createIterable([null, 1, 2], {
+      'return': function(){
+        return done = true;
+      }
+    });
     _add = Set.prototype.add;
     Set.prototype.add = function(){
       throw 42;
@@ -4339,9 +4374,9 @@
     assert.ok(done, '.return #throw');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new Set(a);
     return assert.ok(done);
@@ -4532,7 +4567,7 @@
     assert.looksNative(Set.prototype.keys);
     assert.strictEqual(Set.prototype.keys, Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).keys();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4558,7 +4593,7 @@
     assert.arity(Set.prototype.values, 0);
     assert.looksNative(Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).values();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4584,7 +4619,7 @@
     assert.arity(Set.prototype.entries, 0);
     assert.looksNative(Set.prototype.entries);
     iter = new Set(['q', 'w', 'e']).entries();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: ['q', 'q'],
@@ -4611,7 +4646,7 @@
     assert.looksNative(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Set.prototype.values);
     iter = new Set(['q', 'w', 'e'])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4908,17 +4943,14 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, isIterator;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  isIterator = function(it){
-    return typeof it === 'object' && typeof it.next === 'function';
-  };
   test('String#@@iterator', function(assert){
     var iter;
     assert.isFunction(String.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     iter = 'qwe'[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
-    assert.ok(isIterator(iter), 'Return iterator');
+    assert.isIterator(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'String Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -5388,13 +5420,12 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, freeze, iterator;
+  var module, test, freeze;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   freeze = Object.freeze;
-  iterator = Symbol.iterator;
   test('WeakMap', function(assert){
-    var a, b, f, M, done, iter;
+    var a, f, M, done, iter;
     assert.isFunction(WeakMap);
     assert.name(WeakMap, 'WeakMap');
     assert.arity(WeakMap, 0);
@@ -5404,8 +5435,7 @@
     assert.ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
     assert.ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
     assert.ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
-    assert.strictEqual(new WeakMap([[a = {}, b = {}]].values()).get(a), b, 'Init WeakMap from iterator #1');
-    assert.strictEqual(new WeakMap(new Map([[a = {}, b = {}]])).get(a), b, 'Init WeakMap from iterator #2');
+    assert.strictEqual(new WeakMap(createIterable([[a = {}, 42]])).get(a), 42, 'Init from iterable');
     assert.strictEqual(new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects');
     M = new WeakMap;
     M.set(freeze(f = {}), 42);
@@ -5415,10 +5445,11 @@
     assert.strictEqual(M.has(f), false);
     assert.strictEqual(M.get(f), void 8);
     done = false;
-    iter = [null, 1, 2].values();
-    iter['return'] = function(){
-      return done = true;
-    };
+    iter = createIterable([null, 1, 2], {
+      'return': function(){
+        return done = true;
+      }
+    });
     try {
       new WeakMap(iter);
     } catch (e$) {}
@@ -5426,9 +5457,9 @@
     assert.ok(!('clear' in WeakMap.prototype), 'should not contains `.clear` method');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new WeakMap(a);
     return assert.ok(done);
@@ -5490,11 +5521,10 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, freeze, iterator;
+  var module, test, freeze;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   freeze = Object.freeze;
-  iterator = Symbol.iterator;
   test('WeakSet', function(assert){
     var a, f, S, done, iter;
     assert.isFunction(WeakSet);
@@ -5505,8 +5535,7 @@
     assert.ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
     assert.ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
     assert.ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
-    assert.ok(new WeakSet([a = {}].values()).has(a), 'Init WeakSet from iterator #1');
-    assert.ok(new WeakSet([a = {}]).has(a), 'Init WeakSet from iterator #2');
+    assert.ok(new WeakSet(createIterable([a = {}])).has(a), 'Init from iterable');
     assert.ok(new WeakSet([freeze(f = {})]).has(f), 'Support frozen objects');
     S = new WeakSet;
     S.add(freeze(f = {}));
@@ -5514,10 +5543,11 @@
     S['delete'](f);
     assert.strictEqual(S.has(f), false);
     done = false;
-    iter = [null, 1, 2].values();
-    iter['return'] = function(){
-      return done = true;
-    };
+    iter = createIterable([null, 1, 2], {
+      'return': function(){
+        return done = true;
+      }
+    });
     try {
       new WeakSet(iter);
     } catch (e$) {}
@@ -5525,9 +5555,9 @@
     assert.ok(!('clear' in WeakSet.prototype), 'should not contains `.clear` method');
     a = [];
     done = false;
-    a[iterator] = function(){
+    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
       done = true;
-      return [][iterator].call(this);
+      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new WeakSet(a);
     return assert.ok(done);
@@ -5657,7 +5687,10 @@
       d: 6
     })), [['a', 4], ['s', 5], ['d', 6]]);
     try {
-      return assert.deepEqual(Function('return Object.entries({a: 1, get b(){delete this.c;return 2},c: 3})')(), [['a', 1], ['b', 2]]);
+      assert.deepEqual(Function('return Object.entries({a: 1, get b(){delete this.c;return 2},c: 3})')(), [['a', 1], ['b', 2]]);
+    } catch (e$) {}
+    try {
+      return assert.deepEqual(Function('return Object.entries({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
   });
 }).call(this);
@@ -5749,7 +5782,10 @@
       d: 6
     })), [4, 5, 6]);
     try {
-      return assert.deepEqual(Function('return Object.values({a: 1, get b(){delete this.c;return 2},c: 3})')(), [1, 2]);
+      assert.deepEqual(Function('return Object.values({a: 1, get b(){delete this.c;return 2},c: 3})')(), [1, 2]);
+    } catch (e$) {}
+    try {
+      return assert.deepEqual(Function('return Object.values({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
   });
 }).call(this);
