@@ -175,6 +175,8 @@ test 'Array#indexOf' (assert)->
   assert.ok 0  is [1 1 1]indexOf 1
   assert.ok -1 is [1 2 3]indexOf 1 1
   assert.ok 1  is [1 2 3]indexOf 2 1
+  assert.ok -1 is [1 2 3]indexOf 2 -1
+  assert.ok 1  is [1 2 3]indexOf 2 -2
   assert.ok -1 is [NaN]indexOf NaN
   assert.ok 3  is Array(2)concat([1 2 3])indexOf 2
   assert.ok -1 is Array(1)indexOf void
