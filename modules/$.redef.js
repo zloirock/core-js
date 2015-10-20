@@ -13,8 +13,8 @@ require('./$.core').inspectSource = function(it){
 
 (module.exports = function(O, key, val, safe){
   if(typeof val == 'function'){
-    hide(val, SRC, O[key] ? '' + O[key] : TPL.join(String(key)));
-    if(!('name' in val))val.name = key;
+    val.hasOwnProperty(SRC) || hide(val, SRC, O[key] ? '' + O[key] : TPL.join(String(key)));
+    val.hasOwnProperty('name') || hide(val, 'name', key);
   }
   if(O === global){
     O[key] = val;
