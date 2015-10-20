@@ -6,6 +6,7 @@ test 'Number#@@iterator' (assert)->
   {toStringTag} = core.Symbol
   iter1 = getIterator 2
   assert.isIterator iter1
+  assert.isIterable iter1
   assert.ok iter1[toStringTag] is 'Number Iterator', '@@toStringTag'
   assert.deepEqual iter1.next!, {done: no, value: 0}, '2 #1'
   assert.deepEqual iter1.next!, {done: no, value: 1}, '2 #2'

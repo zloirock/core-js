@@ -201,6 +201,7 @@ test 'Set#keys' (assert)->
   assert.strictEqual Set::keys, Set::values
   iter = new Set(<[q w e]>)keys!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -214,6 +215,7 @@ test 'Set#values' (assert)->
   assert.looksNative Set::values
   iter = new Set(<[q w e]>)values!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -227,6 +229,7 @@ test 'Set#entries' (assert)->
   assert.looksNative Set::entries
   iter = new Set(<[q w e]>)entries!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: [\q \q], done: no}
   assert.deepEqual iter.next!, {value: [\w \w], done: no}
@@ -234,13 +237,14 @@ test 'Set#entries' (assert)->
   assert.deepEqual iter.next!, {value: void, done: on}
 
 test 'Set#@@iterator' (assert)->
-  assert.ok typeof Set::[Symbol?iterator] is \function, 'is function'
+  assert.isIterable Set::
   assert.name Set::[Symbol?iterator], \values
   assert.arity Set::[Symbol?iterator], 0
   assert.looksNative Set::[Symbol?iterator]
   assert.strictEqual Set::[Symbol?iterator], Set::values
   iter = new Set(<[q w e]>)[Symbol?iterator]!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

@@ -195,6 +195,7 @@ test 'Dict.values' (assert)->
   iter = values {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.isIterator iter
+  assert.isIterable iter
   assert.deepEqual from(values({q:1, w:2, e:3})), [1 2 3]
   assert.deepEqual from(values(new String \qwe)), <[q w e]>
   assert.deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
@@ -205,6 +206,7 @@ test 'Dict.keys' (assert)->
   iter = keys {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.isIterator iter
+  assert.isIterable iter
   assert.deepEqual from(keys({q:1, w:2, e:3})), <[q w e]>
   assert.deepEqual from(keys(new String \qwe)), <[0 1 2]>
   assert.deepEqual from(keys(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), <[a s d]>
@@ -215,6 +217,7 @@ test 'Dict.entries' (assert)->
   iter = entries {}
   assert.ok iter[Symbol?toStringTag] is 'Dict Iterator'
   assert.isIterator iter
+  assert.isIterable iter
   assert.deepEqual from(entries({q:1, w:2, e:3})),[[\q 1] [\w 2] [\e 3]]
   assert.deepEqual from(entries(new String \qwe)), [[\0 \q] [\1 \w] [\2 \e]]
   assert.deepEqual from(entries(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [[\a 4] [\s 5] [\d 6]]

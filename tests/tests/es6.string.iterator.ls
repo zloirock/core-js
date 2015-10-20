@@ -2,9 +2,10 @@
 module \ES6
 
 test 'String#@@iterator' (assert)->
-  assert.isFunction String::[Symbol?iterator]
+  assert.isIterable String::
   iter = 'qwe'[Symbol?iterator]!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'String Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

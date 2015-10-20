@@ -14,7 +14,7 @@ test 'Reflect.enumerate' (assert)->
   assert.looksNative enumerate
   obj = {foo: 1, bar: 2}
   i = enumerate obj
-  assert.ok iterator of i, 'returns iterator'
+  assert.isIterable i
   assert.deepEqual from(i), <[foo bar]>, 'bisic'
   obj = {q: 1, w: 2, e: 3}
   i = enumerate obj

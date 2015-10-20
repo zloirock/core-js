@@ -183,6 +183,7 @@ test 'Set#keys' (assert)->
   assert.isFunction Set::keys
   iter = new Set(<[q w e]>)keys!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -193,6 +194,7 @@ test 'Set#values' (assert)->
   assert.isFunction Set::values
   iter = new Set(<[q w e]>)values!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -203,6 +205,7 @@ test 'Set#entries' (assert)->
   assert.isFunction Set::entries
   iter = new Set(<[q w e]>)entries!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: [\q \q], done: no}
   assert.deepEqual iter.next!, {value: [\w \w], done: no}
@@ -212,6 +215,7 @@ test 'Set#entries' (assert)->
 test 'Set#@@iterator' (assert)->
   iter = core.getIterator(new Set <[q w e]>)
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

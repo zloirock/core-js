@@ -192,6 +192,7 @@ test 'Map#keys' (assert)->
   assert.isFunction Map::keys
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \a, done: no}
   assert.deepEqual iter.next!, {value: \s, done: no}
@@ -202,6 +203,7 @@ test 'Map#values' (assert)->
   assert.isFunction Map::values
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -212,6 +214,7 @@ test 'Map#entries' (assert)->
   assert.isFunction Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}
@@ -221,6 +224,7 @@ test 'Map#entries' (assert)->
 test 'Map#@@iterator' (assert)->
   iter = core.getIterator new Map [[\a \q],[\s \w],[\d \e]]
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}

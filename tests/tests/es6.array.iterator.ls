@@ -8,6 +8,7 @@ test 'Array#keys' (assert)->
   assert.looksNative Array::keys
   iter = <[q w e]>keys!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: 0, done: no}
   assert.deepEqual iter.next!, {value: 1, done: no}
@@ -22,6 +23,7 @@ test 'Array#values' (assert)->
   assert.looksNative Array::values
   iter = <[q w e]>values!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
@@ -36,6 +38,7 @@ test 'Array#entries' (assert)->
   assert.looksNative Array::entries
   iter = <[q w e]>entries!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: [0 \q], done: no}
   assert.deepEqual iter.next!, {value: [1 \w], done: no}
@@ -44,13 +47,14 @@ test 'Array#entries' (assert)->
   assert.ok \entries of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
 test 'Array#@@iterator' (assert)->
-  assert.isFunction Array::[Symbol?iterator]
+  assert.isIterable Array::
   assert.arity Array::[Symbol?iterator], 0
   #assert.name Array::[Symbol?iterator], \values # fails in V8
   assert.looksNative Array::[Symbol?iterator]
   assert.strictEqual Array::[Symbol?iterator], Array::values
   iter = <[q w e]>[Symbol?iterator]!
   assert.isIterator iter
+  assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
