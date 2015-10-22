@@ -1,4 +1,9 @@
 ## Changelog
+##### 1.2.3 - 2015.10.23
+* fixed some problems related old V8 bug `Object('a').propertyIsEnumerable(0) // => false`, for example, `Object.assign({}, 'qwe')` from the last release
+* fixed `.name` property and `Function#toString` conversion some polyfilled methods
+* fixed `Math.imul` arity in Safari 8-
+
 ##### 1.2.2 - 2015.10.18
 * improved optimisations for V8
 * fixed build process from external packages, [#120](https://github.com/zloirock/core-js/pull/120)

@@ -784,6 +784,7 @@
     assert.looksNative(Array.prototype.keys);
     iter = ['q', 'w', 'e'].keys();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 0,
@@ -810,6 +811,7 @@
     assert.looksNative(Array.prototype.values);
     iter = ['q', 'w', 'e'].values();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -837,6 +839,7 @@
     assert.looksNative(Array.prototype.entries);
     iter = ['q', 'w', 'e'].entries();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: [0, 'q'],
@@ -858,12 +861,13 @@
   });
   test('Array#@@iterator', function(assert){
     var iter;
-    assert.isFunction(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
+    assert.isIterable(Array.prototype);
     assert.arity(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
     assert.looksNative(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -1206,6 +1210,7 @@
     assert.looksNative(Map.prototype.keys);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'a',
@@ -1232,6 +1237,7 @@
     assert.looksNative(Map.prototype.values);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -1258,6 +1264,7 @@
     assert.looksNative(Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -1278,13 +1285,14 @@
   });
   test('Map#@@iterator', function(assert){
     var iter;
-    assert.isFunction(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
+    assert.isIterable(Map.prototype);
     assert.name(Map.prototype.entries, 'entries');
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -2710,7 +2718,7 @@
       bar: 2
     };
     i = enumerate(obj);
-    assert.ok(iterator in i, 'returns iterator');
+    assert.isIterable(i);
     assert.deepEqual(from(i), ['foo', 'bar'], 'bisic');
     obj = {
       q: 1,
@@ -4568,6 +4576,7 @@
     assert.strictEqual(Set.prototype.keys, Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).keys();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4594,6 +4603,7 @@
     assert.looksNative(Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).values();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4620,6 +4630,7 @@
     assert.looksNative(Set.prototype.entries);
     iter = new Set(['q', 'w', 'e']).entries();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: ['q', 'q'],
@@ -4640,13 +4651,14 @@
   });
   test('Set#@@iterator', function(assert){
     var iter;
-    assert.ok(typeof Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] === 'function', 'is function');
+    assert.isIterable(Set.prototype);
     assert.name(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
     assert.arity(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
     assert.looksNative(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Set.prototype.values);
     iter = new Set(['q', 'w', 'e'])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -4948,9 +4960,10 @@
   module('ES6');
   test('String#@@iterator', function(assert){
     var iter;
-    assert.isFunction(String.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
+    assert.isIterable(String.prototype);
     iter = 'qwe'[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'String Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',

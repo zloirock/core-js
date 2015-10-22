@@ -396,6 +396,7 @@
     iter = values({});
     assert.ok(iter[Symbol != null ? Symbol.toStringTag : void 8] === 'Dict Iterator');
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.deepEqual(from(values({
       q: 1,
       w: 2,
@@ -419,6 +420,7 @@
     iter = keys({});
     assert.ok(iter[Symbol != null ? Symbol.toStringTag : void 8] === 'Dict Iterator');
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.deepEqual(from(keys({
       q: 1,
       w: 2,
@@ -442,6 +444,7 @@
     iter = entries({});
     assert.ok(iter[Symbol != null ? Symbol.toStringTag : void 8] === 'Dict Iterator');
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.deepEqual(from(entries({
       q: 1,
       w: 2,
@@ -658,6 +661,7 @@
     toStringTag = core.Symbol.toStringTag;
     iter1 = getIterator(2);
     assert.isIterator(iter1);
+    assert.isIterable(iter1);
     assert.ok(iter1[toStringTag] === 'Number Iterator', '@@toStringTag');
     assert.deepEqual(iter1.next(), {
       done: false,
@@ -1661,6 +1665,7 @@
     assert.isFunction(values);
     iter = core.getIterator(['q', 'w', 'e']);
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -1684,6 +1689,7 @@
     assert.isFunction(keys);
     iter = keys(['q', 'w', 'e']);
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 0,
@@ -1707,6 +1713,7 @@
     assert.isFunction(values);
     iter = values(['q', 'w', 'e']);
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -1730,6 +1737,7 @@
     assert.isFunction(entries);
     iter = entries(['q', 'w', 'e']);
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Array Iterator');
     assert.deepEqual(iter.next(), {
       value: [0, 'q'],
@@ -2023,6 +2031,7 @@
     assert.isFunction(Map.prototype.keys);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'a',
@@ -2046,6 +2055,7 @@
     assert.isFunction(Map.prototype.values);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -2069,6 +2079,7 @@
     assert.isFunction(Map.prototype.entries);
     iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -2091,6 +2102,7 @@
     var iter;
     iter = core.getIterator(new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]));
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Map Iterator');
     assert.deepEqual(iter.next(), {
       value: ['a', 'q'],
@@ -3203,7 +3215,7 @@
       bar: 2
     };
     i = enumerate(obj);
-    assert.ok(iterator in i, 'returns iterator');
+    assert.isIterable(i);
     assert.deepEqual(from(i), ['foo', 'bar'], 'bisic');
     obj = {
       q: 1,
@@ -3806,6 +3818,7 @@
     assert.isFunction(Set.prototype.keys);
     iter = new Set(['q', 'w', 'e']).keys();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -3829,6 +3842,7 @@
     assert.isFunction(Set.prototype.values);
     iter = new Set(['q', 'w', 'e']).values();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
@@ -3852,6 +3866,7 @@
     assert.isFunction(Set.prototype.entries);
     iter = new Set(['q', 'w', 'e']).entries();
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: ['q', 'q'],
@@ -3874,6 +3889,7 @@
     var iter;
     iter = core.getIterator(new Set(['q', 'w', 'e']));
     assert.isIterator(iter);
+    assert.isIterable(iter);
     assert.strictEqual(iter[Symbol != null ? Symbol.toStringTag : void 8], 'Set Iterator');
     assert.deepEqual(iter.next(), {
       value: 'q',
