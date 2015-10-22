@@ -14,6 +14,7 @@ var $          = require('./$')
   , same       = require('./$.same')
   , species    = require('./$.species')
   , SPECIES    = require('./$.wks')('species')
+  , speciesConstructor = require('./$.species-constructor')
   , RECORD     = require('./$.uid')('record')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
@@ -187,12 +188,11 @@ if(!useNative){
   require('./$.mix')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
-      var S = anObject(anObject(this).constructor)[SPECIES];
       var react = {
         ok:   typeof onFulfilled == 'function' ? onFulfilled : true,
         fail: typeof onRejected == 'function'  ? onRejected  : false
       };
-      var promise = react.P = new (S != undefined ? S : P)(function(res, rej){
+      var promise = react.P = new (speciesConstructor(this, P))(function(res, rej){
         react.res = res;
         react.rej = rej;
       });
