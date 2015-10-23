@@ -28,6 +28,8 @@ var global             = require('./$.global')
   , $fill              = require('./$.array-fill')
   , $copyWithin        = require('./$.array-copy-within')
   , speciesConstructor = require('./$.species-constructor')
+  , $iterators         = require('./es6.array.iterator')
+  , Iterators          = require('./$.iterators')
   , $forEach           = arrayMethods(0)
   , $map               = arrayMethods(1)
   , $filter            = arrayMethods(2)
@@ -37,6 +39,9 @@ var global             = require('./$.global')
   , $findIndex         = arrayMethods(6)
   , $indexOf           = arrayIncludes(false)
   , $includes          = arrayIncludes(true)
+  , $values            = $iterators.values
+  , $keys              = $iterators.keys
+  , $entries           = $iterators.entries
   , $lastIndexOf       = [].lastIndexOf
   , $reduce            = [].reduce
   , $reduceRight       = [].reduceRight
@@ -46,6 +51,8 @@ var global             = require('./$.global')
   , $slice             = [].slice
   , $toString          = [].toString
   , $toLocaleString    = [].toLocaleString
+  , ITERATOR           = wks('iterator')
+  , TAG                = wks('toStringTag')
   , TYPED_ARRAY        = wks('typed_array')
   , TYPED_CONSTRUCTOR  = wks('typed_constructor')
   , DEF_CONSTRUCTOR    = wks('def_constructor')
@@ -107,8 +114,6 @@ var statics = {
 };
 
 var proto = {
-  // get length
-  // constructor
   copyWithin: function copyWithin(target, start /*, end */){
     return $copyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
   },
@@ -119,7 +124,7 @@ var proto = {
     return $fill.apply(validate(this), arguments);
   },
   filter: function filter(callbackfn /*, thisArg */){
-    return fromList(this, $filter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined));
+    return fromList(this, $filter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
   },
   find: function find(predicate /*, thisArg */){
     return $find(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
@@ -143,7 +148,7 @@ var proto = {
     return $lastIndexOf.apply(validate(this), arguments);
   },
   map: function map(mapfn /*, thisArg */){
-    return fromList(this, $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined));
+    return fromList(this, $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
   },
   reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
     return $reduce.apply(validate(this), arguments);
@@ -190,19 +195,16 @@ var proto = {
   toLocaleString: function toLocaleString(){
     return $toLocaleString.apply(validate(this), arguments);
   },
-  toString: function toString(){
-    return $toString.call(this);
-  },
+  toString: $toString,
   entries: function entries(){
-    // looks like Array equal + ValidateTypedArray
+    return $entries.call(validate(this));
   },
   keys: function keys(){
-    // looks like Array equal + ValidateTypedArray
+    return $keys.call(validate(this));
   },
   values: function values(){
-    // looks like Array equal + ValidateTypedArray
+    return $values.call(validate(this));
   }
-  // @@iterator
 };
 
 var isTADesc = function(target, key){
@@ -302,11 +304,19 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     });
     $TypedArray.prototype = Base.prototype;
   }
+  var $TypedArrayPrototype = $TypedArray.prototype;
   $hide($TypedArray, TYPED_CONSTRUCTOR, true);
-  $hide($TypedArray.prototype, TYPED_ARRAY, true);
-  $hide($TypedArray.prototype, DEF_CONSTRUCTOR, $TypedArray);
-  DEBUG && require('./$.mix')($TypedArray.prototype, proto);
-  DEBUG && require('./$.mix')($TypedArray, statics);
+  $hide($TypedArrayPrototype, TYPED_ARRAY, NAME);
+  $hide($TypedArrayPrototype, DEF_CONSTRUCTOR, $TypedArray);
+  TAG in $TypedArrayPrototype || $.setDesc($TypedArrayPrototype, TAG, {
+    get: function(){ return NAME; }
+  });
+  if(DEBUG){
+    require('./$.mix')($TypedArray, statics);
+    require('./$.mix')($TypedArrayPrototype, proto);
+    $hide($TypedArrayPrototype, ITERATOR, proto.values);
+    Iterators[NAME] = proto.value;
+  }
   O[NAME] = $TypedArray;
   $def($def.G + $def.F * ($TypedArray != Base), O);
 };
