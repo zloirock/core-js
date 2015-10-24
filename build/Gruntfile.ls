@@ -53,11 +53,6 @@ module.exports = (grunt)->
       'continuous': {}
       'continuous-library':
         files: library-tests
-      'lt':
-        browsers: <[PhantomJS PhantomJS2]>
-      'lt-library':
-        files: library-tests
-        browsers: <[PhantomJS PhantomJS2]>
   grunt.registerTask \build (options)->
     done = @async!
     err, it <- build {

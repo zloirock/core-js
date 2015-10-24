@@ -24,7 +24,6 @@
     "karma-ie-launcher": "0.2.x",
     "karma-firefox-launcher": "0.1.x",
     "karma-phantomjs-launcher": "0.2.x",
-    "karma-phantomjs2-launcher": "^0.3.2",
     "promises-aplus-tests": "2.1.x",
     "eslint": "~1.7.1"
   },
@@ -32,8 +31,7 @@
     "grunt": "grunt",
     "lint": "eslint es5 es6 es7 js web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
-    "test": "npm run lint && npm run grunt livescript client karma:continuous library karma:continuous-library && npm run promises-tests && lsc tests/commonjs",
-    "lt": "npm run lint && npm run grunt livescript client karma:lt library karma:lt-library && npm run promises-tests && lsc tests/commonjs"
+    "test": "npm run lint && npm run grunt livescript client karma:continuous library karma:continuous-library && npm run promises-tests && lsc tests/commonjs"
   },
   "license": "MIT",
   "keywords": [
