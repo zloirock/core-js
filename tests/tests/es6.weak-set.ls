@@ -13,7 +13,9 @@ test 'WeakSet' (assert)->
   assert.ok \has    of WeakSet::, 'has in WeakSet.prototype'
   assert.ok new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet'
   assert.ok new WeakSet(createIterable [a = {}]).has(a), 'Init from iterable'
-  assert.ok new WeakSet([freeze f = {}]).has(f), 'Support frozen objects'
+  assert.ok (new WeakSet!
+    ..add freeze f = {}
+  ).has(f), 'Support frozen objects'
   S = new WeakSet
   S.add freeze f = {}
   assert.strictEqual S.has(f), on
@@ -39,8 +41,10 @@ test 'WeakSet#add' (assert)->
   assert.name WeakSet::add, \add
   assert.arity WeakSet::add, 1
   assert.looksNative WeakSet::add
-  assert.ok new WeakSet!add(a = {}), 'WeakSet.prototype.add works with object as keys'
-  assert.ok (try new WeakSet!add(42); no; catch => on), 'WeakSet.prototype.add throw with primitive keys'
+  assert.ok new WeakSet!add(a = {}), 'works with object as keys'
+  assert.ok (try new WeakSet!add(42); no; catch => on), 'throws with primitive keys'
+  wset = new WeakSet!
+  assert.same wset.add({}), wset, 'return this'
 
 test 'WeakSet#delete' (assert)->
   assert.isFunction WeakSet::delete
@@ -48,8 +52,8 @@ test 'WeakSet#delete' (assert)->
   assert.arity WeakSet::delete, 1
   assert.looksNative WeakSet::delete
   S = new WeakSet!
-    .add a = {}
-    .add b = {}
+    ..add a = {}
+    ..add b = {}
   assert.ok S.has(a) && S.has(b), 'WeakSet has values before .delete()'
   S.delete a
   assert.ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'

@@ -965,20 +965,19 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Map', function(assert){
-    var done, iter, a;
+    var x$, done, iter, a;
     assert.isFunction(Map);
     assert.arity(Map, 0);
     assert.name(Map, 'Map');
     assert.looksNative(Map);
     assert.ok('clear' in Map.prototype, 'clear in Map.prototype');
     assert.ok('delete' in Map.prototype, 'delete in Map.prototype');
-    assert.ok('forEach' in Map.prototype, 'forEach in Map.prototype');
     assert.ok('get' in Map.prototype, 'get in Map.prototype');
     assert.ok('has' in Map.prototype, 'has in Map.prototype');
     assert.ok('set' in Map.prototype, 'set in Map.prototype');
     assert.ok(new Map instanceof Map, 'new Map instanceof Map');
     assert.strictEqual(new Map(createIterable([[1, 1], [2, 2], [3, 3]])).size, 3, 'Init from iterable');
-    assert.strictEqual(new Map([[freeze({}), 1], [2, 3]]).size, 2, 'Support frozen objects');
+    assert.strictEqual((x$ = new Map(), x$.set(freeze({}), 1), x$.set(2, 3), x$).size, 2, 'Support frozen objects');
     done = false;
     iter = createIterable([null, 1, 2], {
       'return': function(){
@@ -999,7 +998,7 @@
     return assert.ok(done);
   });
   test('Map#clear', function(assert){
-    var M, f;
+    var M, x$, y$, f;
     assert.isFunction(Map.prototype.clear);
     assert.arity(Map.prototype.clear, 0);
     assert.name(Map.prototype.clear, 'clear');
@@ -1007,25 +1006,36 @@
     M = new Map;
     M.clear();
     assert.strictEqual(M.size, 0);
-    M = new Map().set(1, 2).set(2, 3).set(1, 4);
+    x$ = M = new Map();
+    x$.set(1, 2);
+    x$.set(2, 3);
+    x$.set(1, 4);
     M.clear();
     assert.strictEqual(M.size, 0);
     assert.ok(!M.has(1));
     assert.ok(!M.has(2));
-    M = new Map().set(1, 2).set(f = freeze({}), 3);
+    y$ = M = new Map();
+    y$.set(1, 2);
+    y$.set(f = freeze({}), 3);
     M.clear();
     assert.strictEqual(M.size, 0, 'Support frozen objects');
     assert.ok(!M.has(1));
     return assert.ok(!M.has(f));
   });
   test('Map#delete', function(assert){
-    var a, M, f;
+    var a, x$, M, f;
     assert.isFunction(Map.prototype['delete']);
     assert.arity(Map.prototype['delete'], 1);
     (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Map.prototype['delete'], 'delete');
     assert.looksNative(Map.prototype['delete']);
     a = [];
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
+    x$ = M = new Map();
+    x$.set(NaN, 1);
+    x$.set(2, 1);
+    x$.set(3, 1);
+    x$.set(2, 5);
+    x$.set(1, 4);
+    x$.set(a, {});
     assert.strictEqual(M.size, 5);
     assert.ok(M['delete'](NaN));
     assert.strictEqual(M.size, 4);
@@ -1041,14 +1051,20 @@
     return assert.strictEqual(M.size, 3);
   });
   test('Map#forEach', function(assert){
-    var r, T, count, M, a, map, s;
+    var r, T, count, x$, M, a, y$, map, s, z$;
     assert.isFunction(Map.prototype.forEach);
     assert.arity(Map.prototype.forEach, 1);
     assert.name(Map.prototype.forEach, 'forEach');
     assert.looksNative(Map.prototype.forEach);
     r = {};
     count = 0;
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(a = {}, 9);
+    x$ = M = new Map();
+    x$.set(NaN, 1);
+    x$.set(2, 1);
+    x$.set(3, 7);
+    x$.set(2, 5);
+    x$.set(1, 4);
+    x$.set(a = {}, 9);
     M.forEach(function(value, key){
       count++;
       r[value] = key;
@@ -1061,7 +1077,11 @@
       4: 1,
       9: a
     });
-    map = new Map([['0', 9], ['1', 9], ['2', 9], ['3', 9]]);
+    y$ = map = new Map();
+    y$.set('0', 9);
+    y$.set('1', 9);
+    y$.set('2', 9);
+    y$.set('3', 9);
     s = "";
     map.forEach(function(value, key){
       s += key;
@@ -1073,7 +1093,8 @@
       }
     });
     assert.strictEqual(s, '0124');
-    map = new Map([['0', 1]]);
+    z$ = map = new Map();
+    z$.set('0', 1);
     s = "";
     map.forEach(function(it){
       map['delete']('0');
@@ -1085,14 +1106,21 @@
     return assert.strictEqual(s, '1');
   });
   test('Map#get', function(assert){
-    var o, f, M;
+    var o, f, x$, M;
     assert.isFunction(Map.prototype.get);
     assert.name(Map.prototype.get, 'get');
     assert.arity(Map.prototype.get, 1);
     assert.looksNative(Map.prototype.get);
     o = {};
     f = freeze({});
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
+    x$ = M = new Map();
+    x$.set(NaN, 1);
+    x$.set(2, 1);
+    x$.set(3, 1);
+    x$.set(2, 5);
+    x$.set(1, 4);
+    x$.set(f, 42);
+    x$.set(o, o);
     assert.strictEqual(M.get(NaN), 1);
     assert.strictEqual(M.get(4), void 8);
     assert.strictEqual(M.get({}), void 8);
@@ -1101,14 +1129,21 @@
     return assert.strictEqual(M.get(2), 5);
   });
   test('Map#has', function(assert){
-    var o, f, M;
+    var o, f, x$, M;
     assert.isFunction(Map.prototype.has);
     assert.name(Map.prototype.has, 'has');
     assert.arity(Map.prototype.has, 1);
     assert.looksNative(Map.prototype.has);
     o = {};
     f = freeze({});
-    M = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [f, 42], [o, o]]);
+    x$ = M = new Map();
+    x$.set(NaN, 1);
+    x$.set(2, 1);
+    x$.set(3, 1);
+    x$.set(2, 5);
+    x$.set(1, 4);
+    x$.set(f, 42);
+    x$.set(o, o);
     assert.ok(M.has(NaN));
     assert.ok(M.has(o));
     assert.ok(M.has(2));
@@ -1117,13 +1152,19 @@
     return assert.ok(!M.has({}));
   });
   test('Map#set', function(assert){
-    var o, M, chain, f;
+    var o, x$, M, chain, y$, f;
     assert.isFunction(Map.prototype.set);
     assert.name(Map.prototype.set, 'set');
     assert.arity(Map.prototype.set, 2);
     assert.looksNative(Map.prototype.set);
     o = {};
-    M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(o, o);
+    x$ = M = new Map();
+    x$.set(NaN, 1);
+    x$.set(2, 1);
+    x$.set(3, 1);
+    x$.set(2, 5);
+    x$.set(1, 4);
+    x$.set(o, o);
     assert.ok(M.size === 5);
     chain = M.set(7, 2);
     assert.strictEqual(chain, M);
@@ -1140,13 +1181,13 @@
     M.set(o, 27);
     assert.strictEqual(M.size, 7);
     assert.strictEqual(M.get(o), 27);
-    assert.strictEqual(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size, 1);
+    assert.strictEqual((y$ = new Map(), y$.set(NaN, 2), y$.set(NaN, 3), y$.set(NaN, 4), y$).size, 1);
     M = new Map().set(freeze(f = {}), 42);
     return assert.strictEqual(M.get(f), 42);
   });
   test('Map#size', function(assert){
-    var size, sizeDesc;
-    size = new Map().set(2, 1).size;
+    var size, x$, sizeDesc;
+    size = (x$ = new Map(), x$.set(2, 1), x$).size;
     assert.strictEqual(typeof size, 'number', 'size is number');
     assert.strictEqual(size, 1, 'size is correct');
     if (function(){
@@ -1167,7 +1208,7 @@
     }
   });
   test('Map & -0', function(assert){
-    var map;
+    var map, x$;
     map = new Map;
     map.set(-0, 1);
     assert.strictEqual(map.size, 1);
@@ -1180,7 +1221,8 @@
     });
     map['delete'](-0);
     assert.strictEqual(map.size, 0);
-    map = new Map([[-0, 1]]);
+    x$ = map = new Map();
+    x$.set(-0, 1);
     return map.forEach(function(val, key){
       return assert.ok(!same(key, -0));
     });
@@ -1189,8 +1231,12 @@
     return assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
   });
   test('Map Iterator', function(assert){
-    var map, keys, iterator;
-    map = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4]]);
+    var x$, map, keys, iterator;
+    x$ = map = new Map();
+    x$.set('a', 1);
+    x$.set('b', 2);
+    x$.set('c', 3);
+    x$.set('d', 4);
     keys = [];
     iterator = map.keys();
     keys.push(iterator.next().value);
@@ -1206,12 +1252,12 @@
     return assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Map#keys', function(assert){
-    var iter;
+    var iter, x$;
     assert.isFunction(Map.prototype.keys);
     assert.name(Map.prototype.keys, 'keys');
     assert.arity(Map.prototype.keys, 0);
     assert.looksNative(Map.prototype.keys);
-    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
+    iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).keys();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -1233,12 +1279,12 @@
     });
   });
   test('Map#values', function(assert){
-    var iter;
+    var iter, x$;
     assert.isFunction(Map.prototype.values);
     assert.name(Map.prototype.values, 'values');
     assert.arity(Map.prototype.values, 0);
     assert.looksNative(Map.prototype.values);
-    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
+    iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).values();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -1260,12 +1306,12 @@
     });
   });
   test('Map#entries', function(assert){
-    var iter;
+    var iter, x$;
     assert.isFunction(Map.prototype.entries);
     assert.name(Map.prototype.entries, 'entries');
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype.entries);
-    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
+    iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).entries();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -1287,13 +1333,13 @@
     });
   });
   test('Map#@@iterator', function(assert){
-    var iter;
+    var iter, x$;
     assert.isIterable(Map.prototype);
     assert.name(Map.prototype.entries, 'entries');
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Map.prototype.entries);
-    iter = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
+    iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$)[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map Iterator');
@@ -2385,7 +2431,7 @@
     assert.strictEqual(toString.call(true), '[object Boolean]', 'classof bool is `Boolean`');
     assert.strictEqual(toString.call('string'), '[object String]', 'classof string is `String`');
     assert.strictEqual(toString.call(7), '[object Number]', 'classof number is `Number`');
-    assert.strictEqual(toString.call(Symbol()), '[object Symbol]', 'classof symbol is `Symbol`');
+    (typeof Symbol != 'undefined' && Symbol !== null) && assert.strictEqual(toString.call(Symbol()), '[object Symbol]', 'classof symbol is `Symbol`');
     assert.strictEqual(toString.call(new Boolean(false)), '[object Boolean]', 'classof new Boolean is `Boolean`');
     assert.strictEqual(toString.call(new String('')), '[object String]', 'classof new String is `String`');
     assert.strictEqual(toString.call(new Number(7)), '[object Number]', 'classof new Number is `Number`');
@@ -2397,15 +2443,33 @@
     assert.strictEqual(toString.call(function(){
       return arguments;
     }()), '[object Arguments]', 'classof arguments list is `Arguments`');
-    assert.strictEqual('' + new Set, '[object Set]', 'classof undefined is `Map`');
-    assert.strictEqual('' + new Map, '[object Map]', 'classof map is `Undefined`');
-    assert.strictEqual('' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`');
-    assert.strictEqual('' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`');
-    assert.strictEqual('' + new Promise(function(){}), '[object Promise]', 'classof promise is `Promise`');
-    assert.strictEqual('' + ''[Symbol.iterator](), '[object String Iterator]', 'classof String Iterator is `String Iterator`');
-    assert.strictEqual('' + [].entries(), '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`');
-    assert.strictEqual('' + new Set().entries(), '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`');
-    assert.strictEqual('' + new Map().entries(), '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`');
+    if (typeof Set != 'undefined' && Set !== null) {
+      assert.strictEqual('' + new Set, '[object Set]', 'classof set is `Set`');
+    }
+    if (typeof Map != 'undefined' && Map !== null) {
+      assert.strictEqual('' + new Map, '[object Map]', 'classof map is `Map`');
+    }
+    if (typeof WeakSet != 'undefined' && WeakSet !== null) {
+      assert.strictEqual('' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`');
+    }
+    if (typeof WeakMap != 'undefined' && WeakMap !== null) {
+      assert.strictEqual('' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`');
+    }
+    if (typeof Promise != 'undefined' && Promise !== null) {
+      assert.strictEqual('' + new Promise(function(){}), '[object Promise]', 'classof promise is `Promise`');
+    }
+    if (''[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]) {
+      assert.strictEqual('' + ''[Symbol.iterator](), '[object String Iterator]', 'classof String Iterator is `String Iterator`');
+    }
+    if ([].entries) {
+      assert.strictEqual('' + [].entries(), '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`');
+    }
+    if ((typeof Set != 'undefined' && Set !== null) && Set.entries) {
+      assert.strictEqual('' + new Set().entries(), '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`');
+    }
+    if ((typeof Map != 'undefined' && Map !== null) && Map.entries) {
+      assert.strictEqual('' + new Map().entries(), '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`');
+    }
     assert.strictEqual('' + Math, '[object Math]', 'classof Math is `Math`');
     if (typeof JSON != 'undefined' && JSON !== null) {
       assert.strictEqual(toString.call(JSON), '[object JSON]', 'classof JSON is `JSON`');
@@ -2413,7 +2477,7 @@
     Class = (function(){
       Class.displayName = 'Class';
       var prototype = Class.prototype, constructor = Class;
-      Class.prototype[Symbol.toStringTag] = 'Class';
+      Class.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8] = 'Class';
       function Class(){}
       return Class;
     }());
@@ -4432,7 +4496,7 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Set', function(assert){
-    var S, r, done, iter, _add, a;
+    var x$, y$, S, r, z$, z1$, done, iter, _add, a;
     assert.isFunction(Set);
     assert.name(Set, 'Set');
     assert.arity(Set, 0);
@@ -4440,21 +4504,25 @@
     assert.ok('add' in Set.prototype, 'add in Set.prototype');
     assert.ok('clear' in Set.prototype, 'clear in Set.prototype');
     assert.ok('delete' in Set.prototype, 'delete in Set.prototype');
-    assert.ok('forEach' in Set.prototype, 'forEach in Set.prototype');
     assert.ok('has' in Set.prototype, 'has in Set.prototype');
     assert.ok(new Set instanceof Set, 'new Set instanceof Set');
     assert.strictEqual(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
-    assert.strictEqual(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
-    S = new Set([1, 2, 3, 2, 1]);
+    assert.strictEqual((x$ = new Set(), x$.add(freeze({})), x$.add(1), x$).size, 2, 'Support frozen objects');
+    y$ = S = new Set();
+    y$.add(1);
+    y$.add(2);
+    y$.add(3);
+    y$.add(2);
+    y$.add(1);
     assert.strictEqual(S.size, 3);
     r = [];
     S.forEach(function(v){
       return r.push(v);
     });
     assert.deepEqual(r, [1, 2, 3]);
-    assert.strictEqual(new Set([NaN, NaN, NaN]).size, 1);
+    assert.strictEqual((z$ = new Set(), z$.add(NaN), z$.add(NaN), z$.add(NaN), z$).size, 1);
     if (Array.from) {
-      assert.deepEqual(Array.from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
+      assert.deepEqual(Array.from((z1$ = new Set([3, 4]), z1$.add(2), z1$.add(1), z1$)), [3, 4, 2, 1]);
     }
     done = false;
     iter = createIterable([null, 1, 2], {
@@ -4481,13 +4549,19 @@
     return assert.ok(done);
   });
   test('Set#add', function(assert){
-    var a, S, chain, f;
+    var a, x$, S, chain, y$, f;
     assert.isFunction(Set.prototype.add);
     assert.name(Set.prototype.add, 'add');
     assert.arity(Set.prototype.add, 1);
     assert.looksNative(Set.prototype.add);
     a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
+    x$ = S = new Set();
+    x$.add(NaN);
+    x$.add(2);
+    x$.add(3);
+    x$.add(2);
+    x$.add(1);
+    x$.add(a);
     assert.strictEqual(S.size, 5);
     chain = S.add(NaN);
     assert.strictEqual(chain, S);
@@ -4500,11 +4574,12 @@
     assert.strictEqual(S.size, 6);
     S.add(4);
     assert.strictEqual(S.size, 7);
-    S = new Set().add(freeze(f = {}));
+    y$ = S = new Set();
+    y$.add(freeze(f = {}));
     return assert.ok(S.has(f));
   });
   test('Set#clear', function(assert){
-    var S, f;
+    var S, x$, y$, f;
     assert.isFunction(Set.prototype.clear);
     assert.name(Set.prototype.clear, 'clear');
     assert.arity(Set.prototype.clear, 0);
@@ -4512,26 +4587,39 @@
     S = new Set;
     S.clear();
     assert.strictEqual(S.size, 0);
-    S = new Set([1, 2, 3, 2, 1]);
+    x$ = S = new Set();
+    x$.add(1);
+    x$.add(2);
+    x$.add(3);
+    x$.add(2);
+    x$.add(1);
     S.clear();
     assert.strictEqual(S.size, 0);
     assert.ok(!S.has(1));
     assert.ok(!S.has(2));
     assert.ok(!S.has(3));
-    S = new Set([1, f = freeze({})]);
+    y$ = S = new Set();
+    y$.add(1);
+    y$.add(f = freeze({}));
     S.clear();
     assert.strictEqual(S.size, 0, 'Support frozen objects');
     assert.ok(!S.has(1));
     return assert.ok(!S.has(f));
   });
   test('Set#delete', function(assert){
-    var a, S, f;
+    var a, x$, S, f;
     assert.isFunction(Set.prototype['delete']);
     (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Set.prototype['delete'], 'delete');
     assert.arity(Set.prototype['delete'], 1);
     assert.looksNative(Set.prototype['delete']);
     a = [];
-    S = new Set([NaN, 2, 3, 2, 1, a]);
+    x$ = S = new Set();
+    x$.add(NaN);
+    x$.add(2);
+    x$.add(3);
+    x$.add(2);
+    x$.add(1);
+    x$.add(a);
     assert.strictEqual(S.size, 5);
     assert.strictEqual(S['delete'](NaN), true);
     assert.strictEqual(S.size, 4);
@@ -4547,21 +4635,30 @@
     return assert.strictEqual(S.size, 3);
   });
   test('Set#forEach', function(assert){
-    var r, count, S, set, s;
+    var r, count, x$, S, y$, set, s, z$;
     assert.isFunction(Set.prototype.forEach);
     assert.name(Set.prototype.forEach, 'forEach');
     assert.arity(Set.prototype.forEach, 1);
     assert.looksNative(Set.prototype.forEach);
     r = [];
     count = 0;
-    S = new Set([1, 2, 3, 2, 1]);
+    x$ = S = new Set();
+    x$.add(1);
+    x$.add(2);
+    x$.add(3);
+    x$.add(2);
+    x$.add(1);
     S.forEach(function(value){
       count++;
       r.push(value);
     });
     assert.strictEqual(count, 3);
     assert.deepEqual(r, [1, 2, 3]);
-    set = new Set(['0', '1', '2', '3']);
+    y$ = set = new Set();
+    y$.add('0');
+    y$.add('1');
+    y$.add('2');
+    y$.add('3');
     s = "";
     set.forEach(function(it){
       s += it;
@@ -4573,7 +4670,8 @@
       }
     });
     assert.strictEqual(s, '0124');
-    set = new Set(['0']);
+    z$ = set = new Set();
+    z$.add('0');
     s = "";
     set.forEach(function(it){
       set['delete']('0');
@@ -4585,14 +4683,21 @@
     return assert.strictEqual(s, '0');
   });
   test('Set#has', function(assert){
-    var a, f, S;
+    var a, f, x$, S;
     assert.isFunction(Set.prototype.has);
     assert.name(Set.prototype.has, 'has');
     assert.arity(Set.prototype.has, 1);
     assert.looksNative(Set.prototype.has);
     a = [];
     f = freeze({});
-    S = new Set([NaN, 2, 3, 2, 1, f, a]);
+    x$ = S = new Set();
+    x$.add(NaN);
+    x$.add(2);
+    x$.add(3);
+    x$.add(2);
+    x$.add(1);
+    x$.add(f);
+    x$.add(a);
     assert.ok(S.has(NaN));
     assert.ok(S.has(a));
     assert.ok(S.has(f));
@@ -4601,8 +4706,8 @@
     return assert.ok(!S.has([]));
   });
   test('Set#size', function(assert){
-    var size, sizeDesc;
-    size = new Set([1]).size;
+    var size, x$, sizeDesc;
+    size = (x$ = new Set(), x$.add(1), x$).size;
     assert.strictEqual(typeof size, 'number', 'size is number');
     assert.strictEqual(size, 1, 'size is correct');
     if (function(){
@@ -4623,7 +4728,7 @@
     }
   });
   test('Set & -0', function(assert){
-    var set;
+    var set, x$;
     set = new Set;
     set.add(-0);
     assert.strictEqual(set.size, 1);
@@ -4634,7 +4739,8 @@
     });
     set['delete'](-0);
     assert.strictEqual(set.size, 0);
-    set = new Set([-0]);
+    x$ = set = new Set();
+    x$.add(-0);
     return set.forEach(function(key){
       return assert.ok(!same(key, -0));
     });
@@ -4643,8 +4749,12 @@
     return assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');
   });
   test('Set Iterator', function(assert){
-    var set, keys, iterator;
-    set = new Set(['a', 'b', 'c', 'd']);
+    var x$, set, keys, iterator;
+    x$ = set = new Set();
+    x$.add('a');
+    x$.add('b');
+    x$.add('c');
+    x$.add('d');
     keys = [];
     iterator = set.keys();
     keys.push(iterator.next().value);
@@ -4660,13 +4770,13 @@
     return assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Set#keys', function(assert){
-    var iter;
+    var iter, x$;
     assert.ok(typeof Set.prototype.keys === 'function', 'is function');
     assert.name(Set.prototype.keys, 'values');
     assert.arity(Set.prototype.keys, 0);
     assert.looksNative(Set.prototype.keys);
     assert.strictEqual(Set.prototype.keys, Set.prototype.values);
-    iter = new Set(['q', 'w', 'e']).keys();
+    iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).keys();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -4688,12 +4798,12 @@
     });
   });
   test('Set#values', function(assert){
-    var iter;
+    var iter, x$;
     assert.ok(typeof Set.prototype.values === 'function', 'is function');
     assert.name(Set.prototype.values, 'values');
     assert.arity(Set.prototype.values, 0);
     assert.looksNative(Set.prototype.values);
-    iter = new Set(['q', 'w', 'e']).values();
+    iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).values();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -4715,12 +4825,12 @@
     });
   });
   test('Set#entries', function(assert){
-    var iter;
+    var iter, x$;
     assert.ok(typeof Set.prototype.entries === 'function', 'is function');
     assert.name(Set.prototype.entries, 'entries');
     assert.arity(Set.prototype.entries, 0);
     assert.looksNative(Set.prototype.entries);
-    iter = new Set(['q', 'w', 'e']).entries();
+    iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).entries();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -4742,13 +4852,13 @@
     });
   });
   test('Set#@@iterator', function(assert){
-    var iter;
+    var iter, x$;
     assert.isIterable(Set.prototype);
     assert.name(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
     assert.arity(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
     assert.looksNative(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Set.prototype.values);
-    iter = new Set(['q', 'w', 'e'])[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
+    iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$)[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
     assert.isIterable(iter);
     assert.strictEqual(iter[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set Iterator');
@@ -5532,7 +5642,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakMap', function(assert){
-    var a, f, M, done, iter;
+    var a, x$, f, M, done, iter;
     assert.isFunction(WeakMap);
     assert.name(WeakMap, 'WeakMap');
     assert.arity(WeakMap, 0);
@@ -5543,7 +5653,7 @@
     assert.ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
     assert.ok(new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap');
     assert.strictEqual(new WeakMap(createIterable([[a = {}, 42]])).get(a), 42, 'Init from iterable');
-    assert.strictEqual(new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects');
+    assert.strictEqual((x$ = new WeakMap(), x$.set(f = freeze({}), 42), x$).get(f), 42, 'Support frozen objects');
     M = new WeakMap;
     M.set(freeze(f = {}), 42);
     assert.strictEqual(M.has(f), true);
@@ -5572,12 +5682,14 @@
     return assert.ok(done);
   });
   test('WeakMap#delete', function(assert){
-    var M, a, b;
+    var x$, M, a, b;
     assert.isFunction(WeakMap.prototype['delete']);
     (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(WeakMap.prototype['delete'], 'delete');
     (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakMap.prototype['delete'], 1);
     assert.looksNative(WeakMap.prototype['delete']);
-    M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
+    x$ = M = new WeakMap();
+    x$.set(a = {}, 42);
+    x$.set(b = {}, 21);
     assert.ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
     M['delete'](a);
     return assert.ok(!M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()');
@@ -5609,13 +5721,13 @@
     return assert.ok(!M.has(a), 'WeakMap .has() after .delete() return false');
   });
   test('WeakMap#set', function(assert){
-    var a, e;
+    var x$, a, e, wmap;
     assert.isFunction(WeakMap.prototype.set);
     assert.name(WeakMap.prototype.set, 'set');
     assert.arity(WeakMap.prototype.set, 2);
     assert.looksNative(WeakMap.prototype.set);
-    assert.ok(new WeakMap().set(a = {}, 42), 'WeakMap.prototype.set works with object as keys');
-    return assert.ok((function(){
+    assert.same((x$ = new WeakMap(), x$.set(a = {}, 42), x$).get(a), 42, 'works with object as keys');
+    assert.ok((function(){
       try {
         new WeakMap().set(42, 42);
         return false;
@@ -5623,7 +5735,9 @@
         e = e$;
         return true;
       }
-    }()), 'WeakMap.prototype.set throw with primitive keys');
+    }()), 'throws with primitive keys');
+    wmap = new WeakMap();
+    return assert.same(wmap.set({}, 1), wmap, 'return this');
   });
   test('WeakMap#@@toStringTag', function(assert){
     return assert.strictEqual(WeakMap.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
@@ -5637,7 +5751,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakSet', function(assert){
-    var a, f, S, done, iter;
+    var a, x$, f, S, done, iter;
     assert.isFunction(WeakSet);
     assert.name(WeakSet, 'WeakSet');
     assert.arity(WeakSet, 0);
@@ -5647,7 +5761,7 @@
     assert.ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
     assert.ok(new WeakSet instanceof WeakSet, 'new WeakSet instanceof WeakSet');
     assert.ok(new WeakSet(createIterable([a = {}])).has(a), 'Init from iterable');
-    assert.ok(new WeakSet([freeze(f = {})]).has(f), 'Support frozen objects');
+    assert.ok((x$ = new WeakSet(), x$.add(freeze(f = {})), x$).has(f), 'Support frozen objects');
     S = new WeakSet;
     S.add(freeze(f = {}));
     assert.strictEqual(S.has(f), true);
@@ -5674,13 +5788,13 @@
     return assert.ok(done);
   });
   test('WeakSet#add', function(assert){
-    var a, e;
+    var a, e, wset;
     assert.isFunction(WeakSet.prototype.add);
     assert.name(WeakSet.prototype.add, 'add');
     assert.arity(WeakSet.prototype.add, 1);
     assert.looksNative(WeakSet.prototype.add);
-    assert.ok(new WeakSet().add(a = {}), 'WeakSet.prototype.add works with object as keys');
-    return assert.ok((function(){
+    assert.ok(new WeakSet().add(a = {}), 'works with object as keys');
+    assert.ok((function(){
       try {
         new WeakSet().add(42);
         return false;
@@ -5688,14 +5802,18 @@
         e = e$;
         return true;
       }
-    }()), 'WeakSet.prototype.add throw with primitive keys');
+    }()), 'throws with primitive keys');
+    wset = new WeakSet();
+    return assert.same(wset.add({}), wset, 'return this');
   });
   test('WeakSet#delete', function(assert){
-    var S, a, b;
+    var x$, S, a, b;
     assert.isFunction(WeakSet.prototype['delete']);
     (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakSet.prototype['delete'], 1);
     assert.looksNative(WeakSet.prototype['delete']);
-    S = new WeakSet().add(a = {}).add(b = {});
+    x$ = S = new WeakSet();
+    x$.add(a = {});
+    x$.add(b = {});
     assert.ok(S.has(a) && S.has(b), 'WeakSet has values before .delete()');
     S['delete'](a);
     return assert.ok(!S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()');

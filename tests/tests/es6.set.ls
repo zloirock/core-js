@@ -12,18 +12,32 @@ test 'Set' (assert)->
   assert.ok \add     of Set::, 'add in Set.prototype'
   assert.ok \clear   of Set::, 'clear in Set.prototype'
   assert.ok \delete  of Set::, 'delete in Set.prototype'
-  assert.ok \forEach of Set::, 'forEach in Set.prototype'
   assert.ok \has     of Set::, 'has in Set.prototype'
   assert.ok new Set instanceof Set, 'new Set instanceof Set'
   assert.strictEqual new Set(createIterable [1 2 3]).size, 3, 'Init from iterable'
-  assert.strictEqual new Set([freeze({}), 1]).size, 2, 'Support frozen objects'
-  S = new Set [1 2 3 2 1]
+  assert.strictEqual (new Set!
+    ..add freeze({})
+    ..add 1
+  ).size, 2, 'Support frozen objects'
+  S = new Set!
+    ..add 1
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
   assert.strictEqual S.size, 3
   r = []
   S.forEach (v)-> r.push v
   assert.deepEqual r, [1 2 3]
-  assert.strictEqual new Set([NaN, NaN, NaN])size, 1
-  if Array.from => assert.deepEqual Array.from(new Set([3 4]).add 2 .add 1), [3 4 2 1]
+  assert.strictEqual (new Set!
+    ..add NaN
+    ..add NaN
+    ..add NaN
+  )size, 1
+  if Array.from => assert.deepEqual Array.from((new Set([3 4])
+    ..add 2
+    ..add 1
+  )), [3 4 2 1]
   # return #throw
   done = no
   iter = createIterable [null, 1, 2], return: -> done := on
@@ -47,7 +61,13 @@ test 'Set#add' (assert)->
   assert.arity Set::add, 1
   assert.looksNative Set::add
   a = []
-  S = new Set [NaN, 2 3 2 1 a]
+  S = new Set!
+    ..add NaN
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
+    ..add a
   assert.strictEqual S.size, 5
   chain = S.add NaN
   assert.strictEqual chain, S
@@ -60,7 +80,8 @@ test 'Set#add' (assert)->
   assert.strictEqual S.size, 6
   S.add 4
   assert.strictEqual S.size, 7
-  S = new Set!add freeze f = {}
+  S = new Set!
+    ..add freeze f = {}
   assert.ok S.has f
 
 test 'Set#clear' (assert)->
@@ -71,13 +92,20 @@ test 'Set#clear' (assert)->
   S = new Set
   S.clear!
   assert.strictEqual S.size, 0
-  S = new Set [1 2 3 2 1]
+  S = new Set!
+    ..add 1
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
   S.clear!
   assert.strictEqual S.size, 0
   assert.ok !S.has 1
   assert.ok !S.has 2
   assert.ok !S.has 3
-  S = new Set [1 f = freeze {}]
+  S = new Set!
+    ..add 1
+    ..add f = freeze {}
   S.clear!
   assert.strictEqual S.size, 0, 'Support frozen objects'
   assert.ok !S.has 1
@@ -89,7 +117,13 @@ test 'Set#delete' (assert)->
   assert.arity Set::delete, 1
   assert.looksNative Set::delete
   a = []
-  S = new Set [NaN, 2 3 2 1 a]
+  S = new Set!
+    ..add NaN
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
+    ..add a
   assert.strictEqual S.size, 5
   assert.strictEqual S.delete(NaN), on
   assert.strictEqual S.size, 4
@@ -99,7 +133,7 @@ test 'Set#delete' (assert)->
   assert.strictEqual S.size, 4
   S.delete a
   assert.strictEqual S.size, 3
-  S.add freeze(f = {})
+  S.add freeze f = {}
   assert.strictEqual S.size, 4
   S.delete f
   assert.strictEqual S.size, 3
@@ -111,13 +145,22 @@ test 'Set#forEach' (assert)->
   assert.looksNative Set::forEach
   r = []
   count = 0
-  S = new Set [1 2 3 2 1]
+  S = new Set!
+    ..add 1
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
   S.forEach (value)!->
     count++
     r.push value
   assert.strictEqual count, 3
   assert.deepEqual r, [1 2 3]
-  set = new Set <[0 1 2 3]>
+  set = new Set!
+    ..add \0
+    ..add \1
+    ..add \2
+    ..add \3
   s = "";
   set.forEach ->
     s += it;
@@ -127,7 +170,8 @@ test 'Set#forEach' (assert)->
       set.delete \1
       set.add \4
   assert.strictEqual s, \0124
-  set = new Set <[0]>
+  set = new Set!
+    ..add \0
   s = "";
   set.forEach ->
     set.delete \0
@@ -142,7 +186,14 @@ test 'Set#has' (assert)->
   assert.looksNative Set::has
   a = []
   f = freeze {}
-  S = new Set [NaN, 2 3 2 1 f, a]
+  S = new Set!
+    ..add NaN
+    ..add 2
+    ..add 3
+    ..add 2
+    ..add 1
+    ..add f
+    ..add a
   assert.ok S.has NaN
   assert.ok S.has a
   assert.ok S.has f
@@ -151,7 +202,9 @@ test 'Set#has' (assert)->
   assert.ok not S.has []
 
 test 'Set#size' (assert)->
-  size = new Set([1]).size
+  size = (new Set!
+    ..add 1
+  )size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
   if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
@@ -170,7 +223,8 @@ test 'Set & -0' (assert)->
     assert.ok !same it, -0
   set.delete -0
   assert.strictEqual set.size, 0
-  set = new Set [-0]
+  set = new Set!
+    ..add -0
   set.forEach (key)->
     assert.ok !same key, -0
 
@@ -178,7 +232,11 @@ test 'Set#@@toStringTag' (assert)->
   assert.strictEqual Set::[Symbol?toStringTag], \Set, 'Set::@@toStringTag is `Set`'
 
 test 'Set Iterator' (assert)->
-  set = new Set <[a b c d]>
+  set = new Set!
+    ..add \a
+    ..add \b
+    ..add \c
+    ..add \d
   keys = []
   iterator = set.keys!
   keys.push iterator.next!value
@@ -199,7 +257,11 @@ test 'Set#keys' (assert)->
   assert.arity Set::keys, 0
   assert.looksNative Set::keys
   assert.strictEqual Set::keys, Set::values
-  iter = new Set(<[q w e]>)keys!
+  iter = (new Set!
+    ..add \q
+    ..add \w
+    ..add \e
+  )keys!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -213,7 +275,11 @@ test 'Set#values' (assert)->
   assert.name Set::values, \values
   assert.arity Set::values, 0
   assert.looksNative Set::values
-  iter = new Set(<[q w e]>)values!
+  iter = (new Set!
+    ..add \q
+    ..add \w
+    ..add \e
+  )values!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -227,7 +293,11 @@ test 'Set#entries' (assert)->
   assert.name Set::entries, \entries
   assert.arity Set::entries, 0
   assert.looksNative Set::entries
-  iter = new Set(<[q w e]>)entries!
+  iter = (new Set!
+    ..add \q
+    ..add \w
+    ..add \e
+  )entries!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
@@ -242,7 +312,11 @@ test 'Set#@@iterator' (assert)->
   assert.arity Set::[Symbol?iterator], 0
   assert.looksNative Set::[Symbol?iterator]
   assert.strictEqual Set::[Symbol?iterator], Set::values
-  iter = new Set(<[q w e]>)[Symbol?iterator]!
+  iter = (new Set!
+    ..add \q
+    ..add \w
+    ..add \e
+  )[Symbol?iterator]!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'

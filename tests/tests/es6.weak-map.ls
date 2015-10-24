@@ -14,7 +14,9 @@ test 'WeakMap' (assert)->
   assert.ok \set    of WeakMap::, 'set in WeakMap.prototype'
   assert.ok new WeakMap instanceof WeakMap, 'new WeakMap instanceof WeakMap'
   assert.strictEqual new WeakMap(createIterable [[a = {}, 42]]).get(a), 42, 'Init from iterable'
-  assert.strictEqual new WeakMap([[f = freeze({}), 42]]).get(f), 42, 'Support frozen objects'
+  assert.strictEqual (new WeakMap!
+    ..set f = freeze({}), 42
+  )get(f), 42, 'Support frozen objects'
   M = new WeakMap
   M.set freeze(f = {}), 42
   assert.strictEqual M.has(f), on
@@ -43,8 +45,8 @@ test 'WeakMap#delete' (assert)->
   NATIVE? and assert.arity WeakMap::delete, 1
   assert.looksNative WeakMap::delete
   M = new WeakMap!
-    .set a = {}, 42
-    .set b = {}, 21
+    ..set a = {}, 42
+    ..set b = {}, 21
   assert.ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
   assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
@@ -78,8 +80,12 @@ test 'WeakMap#set' (assert)->
   assert.name WeakMap::set, \set
   assert.arity WeakMap::set, 2
   assert.looksNative WeakMap::set
-  assert.ok new WeakMap!set(a = {}, 42), 'WeakMap.prototype.set works with object as keys'
-  assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'WeakMap.prototype.set throw with primitive keys'
+  assert.same (new WeakMap!
+    ..set a = {}, 42
+  )get(a), 42, 'works with object as keys'
+  assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
+  wmap = new WeakMap!
+  assert.same wmap.set({}, 1), wmap, 'return this'
 
 test 'WeakMap#@@toStringTag' (assert)->
   assert.strictEqual WeakMap::[Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'

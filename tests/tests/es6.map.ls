@@ -9,15 +9,17 @@ test 'Map' (assert)->
   assert.arity Map, 0
   assert.name Map, \Map
   assert.looksNative Map
-  assert.ok \clear   of Map::, 'clear in Map.prototype'
-  assert.ok \delete  of Map::, 'delete in Map.prototype'
-  assert.ok \forEach of Map::, 'forEach in Map.prototype'
-  assert.ok \get     of Map::, 'get in Map.prototype'
-  assert.ok \has     of Map::, 'has in Map.prototype'
-  assert.ok \set     of Map::, 'set in Map.prototype'
+  assert.ok \clear  of Map::, 'clear in Map.prototype'
+  assert.ok \delete of Map::, 'delete in Map.prototype'
+  assert.ok \get    of Map::, 'get in Map.prototype'
+  assert.ok \has    of Map::, 'has in Map.prototype'
+  assert.ok \set    of Map::, 'set in Map.prototype'
   assert.ok new Map instanceof Map, 'new Map instanceof Map'
   assert.strictEqual new Map(createIterable [[1 1], [2 2], [3 3]]).size, 3, 'Init from iterable'
-  assert.strictEqual new Map([[freeze({}), 1], [2 3]]).size, 2, 'Support frozen objects'
+  assert.strictEqual (new Map!
+    ..set freeze({}), 1
+    ..set 2 3    
+  ).size, 2, 'Support frozen objects'
   # return #throw
   done = no
   iter = createIterable [null 1 2], return: -> done := on
@@ -40,12 +42,17 @@ test 'Map#clear' (assert)->
   M = new Map
   M.clear!
   assert.strictEqual M.size, 0
-  M = new Map!set 1 2 .set 2 3 .set 1 4
+  M = new Map!
+    ..set 1 2
+    ..set 2 3
+    ..set 1 4
   M.clear!
   assert.strictEqual M.size, 0
   assert.ok !M.has 1
   assert.ok !M.has 2
-  M = new Map!set 1 2 .set f = freeze({}), 3
+  M = new Map!
+    ..set 1 2
+    ..set f = freeze({}), 3
   M.clear!
   assert.strictEqual M.size, 0, 'Support frozen objects'
   assert.ok !M.has 1
@@ -57,7 +64,13 @@ test 'Map#delete' (assert)->
   NATIVE? and assert.name Map::delete, \delete # can't be polyfilled in some environments
   assert.looksNative Map::delete
   a = []
-  M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
+  M = new Map!
+    ..set NaN, 1
+    ..set 2 1
+    ..set 3 1
+    ..set 2 5
+    ..set 1 4
+    ..set a, {}
   assert.strictEqual M.size, 5
   assert.ok M.delete(NaN)
   assert.strictEqual M.size, 4
@@ -80,13 +93,23 @@ test 'Map#forEach' (assert)->
   r = {}
   var T
   count = 0
-  M = new Map!set NaN, 1 .set 2 1 .set 3 7 .set 2 5 .set 1 4 .set a = {}, 9
+  M = new Map!
+    ..set NaN, 1
+    ..set 2 1
+    ..set 3 7
+    ..set 2 5
+    ..set 1 4
+    ..set a = {}, 9
   M.forEach (value, key)!->
     count++
     r[value] = key
   assert.strictEqual count, 5
   assert.deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
-  map = new Map [[\0 9], [\1 9], [\2 9], [\3 9]]
+  map = new Map!
+    ..set \0 9
+    ..set \1 9
+    ..set \2 9
+    ..set \3 9
   s = "";
   map.forEach (value, key)->
     s += key;
@@ -96,7 +119,8 @@ test 'Map#forEach' (assert)->
       map.delete \1
       map.set \4 9
   assert.strictEqual s, \0124
-  map = new Map [[\0 1]]
+  map = new Map!
+    ..set \0 1
   s = "";
   map.forEach ->
     map.delete \0
@@ -111,7 +135,14 @@ test 'Map#get' (assert)->
   assert.looksNative Map::get
   o = {}
   f = freeze {}
-  M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
+  M = new Map!
+    ..set NaN, 1
+    ..set 2 1
+    ..set 3 1
+    ..set 2 5
+    ..set 1 4
+    ..set f, 42
+    ..set o, o
   assert.strictEqual M.get(NaN), 1
   assert.strictEqual M.get(4), void
   assert.strictEqual M.get({}), void
@@ -126,7 +157,14 @@ test 'Map#has' (assert)->
   assert.looksNative Map::has
   o = {}
   f = freeze {}
-  M = new Map  [[NaN, 1], [2 1], [3 1], [2 5], [1 4], [f, 42], [o, o]]
+  M = new Map!
+    ..set NaN, 1
+    ..set 2 1
+    ..set 3 1
+    ..set 2 5
+    ..set 1 4
+    ..set f, 42
+    ..set o, o
   assert.ok M.has NaN
   assert.ok M.has o
   assert.ok M.has 2
@@ -140,7 +178,13 @@ test 'Map#set' (assert)->
   assert.arity Map::set, 2
   assert.looksNative Map::set
   o = {}
-  M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
+  M = new Map!
+    ..set NaN, 1
+    ..set 2 1
+    ..set 3 1
+    ..set 2 5
+    ..set 1 4
+    ..set o, o
   assert.ok M.size is 5
   chain = M.set(7 2)
   assert.strictEqual chain, M
@@ -157,12 +201,17 @@ test 'Map#set' (assert)->
   M.set o, 27
   assert.strictEqual M.size, 7
   assert.strictEqual M.get(o), 27
-  assert.strictEqual new Map!set(NaN, 2)set(NaN, 3)set(NaN, 4)size, 1
+  assert.strictEqual (new Map!
+    ..set NaN, 2
+    ..set NaN, 3
+    ..set NaN, 4
+  )size, 1
   M = new Map!set freeze(f = {}), 42
   assert.strictEqual M.get(f), 42
 
 test 'Map#size' (assert)->
-  size = new Map!set 2 1 .size
+  size = (new Map!
+    ..set 2 1)size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
   if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
@@ -183,7 +232,8 @@ test 'Map & -0' (assert)->
     assert.ok !same key, -0
   map.delete -0
   assert.strictEqual map.size, 0
-  map = new Map [[-0 1]]
+  map = new Map!
+    ..set -0 1
   map.forEach (val, key)->
     assert.ok !same key, -0
 
@@ -191,7 +241,11 @@ test 'Map#@@toStringTag' (assert)->
   assert.strictEqual Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
 
 test 'Map Iterator' (assert)->
-  map = new Map [[\a 1], [\b 2], [\c 3], [\d 4]]
+  map = new Map!
+    ..set \a 1
+    ..set \b 2
+    ..set \c 3
+    ..set \d 4
   keys = []
   iterator = map.keys!
   keys.push iterator.next!value
@@ -211,7 +265,11 @@ test 'Map#keys' (assert)->
   assert.name Map::keys, \keys
   assert.arity Map::keys, 0
   assert.looksNative Map::keys
-  iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
+  iter = (new Map!
+    ..set \a \q
+    ..set \s \w
+    ..set \d \e
+  )keys!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
@@ -225,7 +283,11 @@ test 'Map#values' (assert)->
   assert.name Map::values, \values
   assert.arity Map::values, 0
   assert.looksNative Map::values
-  iter = new Map([[\a \q],[\s \w],[\d \e]])values!
+  iter = (new Map!
+    ..set \a \q
+    ..set \s \w
+    ..set \d \e
+  )values!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
@@ -239,7 +301,11 @@ test 'Map#entries' (assert)->
   assert.name Map::entries, \entries
   assert.arity Map::entries, 0
   assert.looksNative Map::entries
-  iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
+  iter = (new Map!
+    ..set \a \q
+    ..set \s \w
+    ..set \d \e
+  )entries!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
@@ -254,7 +320,11 @@ test 'Map#@@iterator' (assert)->
   assert.arity Map::entries, 0
   assert.looksNative Map::[Symbol?iterator]
   assert.strictEqual Map::[Symbol?iterator], Map::entries
-  iter = new Map([[\a \q],[\s \w],[\d \e]])[Symbol?iterator]!
+  iter = (new Map!
+    ..set \a \q
+    ..set \s \w
+    ..set \d \e
+  )[Symbol?iterator]!
   assert.isIterator iter
   assert.isIterable iter
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
