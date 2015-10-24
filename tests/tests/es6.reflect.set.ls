@@ -7,7 +7,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 test 'Reflect.set' (assert)->
   {set} = Reflect
   assert.isFunction set
-  #assert.arity set, 3 # fails in MS Edge
+  NATIVE? and assert.arity set, 3 # fails in MS Edge
   assert.name set, \set
   assert.looksNative set
   obj = {}

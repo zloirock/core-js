@@ -54,7 +54,7 @@ test 'Map#clear' (assert)->
 test 'Map#delete' (assert)->
   assert.isFunction Map::delete
   assert.arity Map::delete, 1
-  #assert.name Map::delete, \delete # can't be polyfilled in some environments
+  NATIVE? and assert.name Map::delete, \delete # can't be polyfilled in some environments
   assert.looksNative Map::delete
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}

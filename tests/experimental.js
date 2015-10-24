@@ -14,6 +14,12 @@
     assert.throws(function(){
       new ArrayBuffer(-1);
     }, RangeError, 'negative length');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(function(){
+      new ArrayBuffer();
+    }, RangeError, 'missed length');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(function(){
+      new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
+    }, RangeError, 'absurd length');
   });
 }).call(this);
 
@@ -681,6 +687,7 @@
       assert.arrayEqual(Typed.from([1, 2, 3], fn$), [1, 4, 9], 'accept callback');
       Typed.from([1], fn1$, O = {});
       assert.throws(fn2$, "isn't generic #1");
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn3$, "isn't generic #2");
     }
     function fn$(it){
       return it * it;
@@ -693,6 +700,9 @@
     }
     function fn2$(){
       Typed.from.call(void 8, []);
+    }
+    function fn3$(){
+      Typed.from.call(Array, []);
     }
   });
 }).call(this);
@@ -733,7 +743,7 @@
   global = Function('return this')();
   arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
   test('%TypedArrayPrototype%.keys', function(assert){
-    var i$, x$, ref$, len$, Typed, iter, results$ = [];
+    var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -757,15 +767,18 @@
         value: 2,
         done: false
       }, 'step 3');
-      results$.push(assert.deepEqual(iter.next(), {
+      assert.deepEqual(iter.next(), {
         value: void 8,
         done: true
-      }, 'done'));
+      }, 'done');
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
     }
-    return results$;
+    function fn$(){
+      Typed.prototype.keys.call([1, 2]);
+    }
   });
   test('%TypedArrayPrototype%.values', function(assert){
-    var i$, x$, ref$, len$, Typed, iter, results$ = [];
+    var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -789,15 +802,18 @@
         value: 3,
         done: false
       }, 'step 3');
-      results$.push(assert.deepEqual(iter.next(), {
+      assert.deepEqual(iter.next(), {
         value: void 8,
         done: true
-      }, 'done'));
+      }, 'done');
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
     }
-    return results$;
+    function fn$(){
+      Typed.prototype.values.call([1, 2]);
+    }
   });
   test('%TypedArrayPrototype%.entries', function(assert){
-    var i$, x$, ref$, len$, Typed, iter, results$ = [];
+    var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -821,15 +837,18 @@
         value: [2, 3],
         done: false
       }, 'step 3');
-      results$.push(assert.deepEqual(iter.next(), {
+      assert.deepEqual(iter.next(), {
         value: void 8,
         done: true
-      }, 'done'));
+      }, 'done');
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
     }
-    return results$;
+    function fn$(){
+      Typed.prototype.entries.call([1, 2]);
+    }
   });
   test('%TypedArrayPrototype%.@@iterator', function(assert){
-    var i$, x$, ref$, len$, Typed, iter, results$ = [];
+    var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -854,12 +873,15 @@
         value: 3,
         done: false
       }, 'step 3');
-      results$.push(assert.deepEqual(iter.next(), {
+      assert.deepEqual(iter.next(), {
         value: void 8,
         done: true
-      }, 'done'));
+      }, 'done');
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
     }
-    return results$;
+    function fn$(){
+      Typed.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call([1, 2]);
+    }
   });
 }).call(this);
 
@@ -989,9 +1011,13 @@
       assert.ok(inst instanceof Typed, 'correct instance with several arguments');
       assert.arrayEqual(inst, [1, 2, 3], 'correct elements with several arguments');
       assert.throws(fn$, "isn't generic #1");
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn1$, "isn't generic #2");
     }
     function fn$(){
       Typed.of.call(void 8, 1);
+    }
+    function fn1$(){
+      Typed.of.call(Array, 1);
     }
   });
 }).call(this);

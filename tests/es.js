@@ -808,6 +808,7 @@
     var iter;
     assert.isFunction(Array.prototype.values);
     assert.arity(Array.prototype.values, 0);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Array.prototype.values, 'values');
     assert.looksNative(Array.prototype.values);
     iter = ['q', 'w', 'e'].values();
     assert.isIterator(iter);
@@ -863,6 +864,7 @@
     var iter;
     assert.isIterable(Array.prototype);
     assert.arity(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
     assert.looksNative(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
@@ -1020,6 +1022,7 @@
     var a, M, f;
     assert.isFunction(Map.prototype['delete']);
     assert.arity(Map.prototype['delete'], 1);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Map.prototype['delete'], 'delete');
     assert.looksNative(Map.prototype['delete']);
     a = [];
     M = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(a, {});
@@ -1763,7 +1766,8 @@
     assert.same(tanh(-0), -0);
     assert.strictEqual(tanh(Infinity), 1);
     assert.strictEqual(tanh(90), 1);
-    return assert.epsilon(tanh(10), 0.9999999958776927);
+    assert.epsilon(tanh(10), 0.9999999958776927);
+    return (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.strictEqual(tanh(710), 1);
   });
 }).call(this);
 
@@ -2437,6 +2441,7 @@
   test('Promise#catch', function(assert){
     assert.isFunction(Promise.prototype['catch']);
     assert.arity(Promise.prototype['catch'], 1);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Promise.prototype['catch'], 'catch');
     return assert.looksNative(Promise.prototype.then);
   });
   test('Promise#@@toStringTag', function(assert){
@@ -2805,6 +2810,7 @@
     var get, target, receiver;
     get = Reflect.get;
     assert.isFunction(get);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(get, 2);
     assert.name(get, 'get');
     assert.looksNative(get);
     assert.strictEqual(get({
@@ -2983,6 +2989,7 @@
       var setPrototypeOf, obj, o;
       setPrototypeOf = Reflect.setPrototypeOf;
       assert.isFunction(setPrototypeOf);
+      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(setPrototypeOf, 2);
       assert.name(setPrototypeOf, 'setPrototypeOf');
       assert.looksNative(setPrototypeOf);
       obj = {};
@@ -3018,6 +3025,7 @@
     var set, obj, target, receiver, out;
     set = Reflect.set;
     assert.isFunction(set);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(set, 3);
     assert.name(set, 'set');
     assert.looksNative(set);
     obj = {};
@@ -3284,6 +3292,7 @@
     string = "Boston, Mass. 02134";
     assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[0], '02134', 'S15.5.4.10_A2_T6 #1');
     assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[1], '02134', 'S15.5.4.10_A2_T6 #2');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[2], void 8, 'S15.5.4.10_A2_T6 #3');
     assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
     assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
     assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
@@ -3451,18 +3460,41 @@
         return '\u0041B';
       }
     }, function(){}), 'undefinedBABABAB', 'S15.5.4.11_A1_T10');
-    /* wrong order in some old environments
-    try
-      'ABB\u0041BABAB'replace {toString: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
-      assert.ok no, 'S15.5.4.11_A1_T11 #1 lead to throwing exception'
-    catch e
-      assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T11 #2'
-    try
-      Object('ABB\u0041BABAB')replace {toString: (->{}), valueOf: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
-      assert.ok no, 'S15.5.4.11_A1_T12 #1 lead to throwing exception'
-    catch e
-      assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T12 #2'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      try {
+        'ABB\u0041BABAB'.replace({
+          toString: function(){
+            throw 'insearchValue';
+          }
+        }, {
+          toString: function(){
+            throw 'inreplaceValue';
+          }
+        });
+        assert.ok(false, 'S15.5.4.11_A1_T11 #1 lead to throwing exception');
+      } catch (e$) {
+        e = e$;
+        assert.strictEqual(e, 'insearchValue', 'S15.5.4.11_A1_T11 #2');
+      }
+      try {
+        Object('ABB\u0041BABAB').replace({
+          toString: function(){
+            return {};
+          },
+          valueOf: function(){
+            throw 'insearchValue';
+          }
+        }, {
+          toString: function(){
+            throw 'inreplaceValue';
+          }
+        });
+        assert.ok(false, 'S15.5.4.11_A1_T12 #1 lead to throwing exception');
+      } catch (e$) {
+        e = e$;
+        assert.strictEqual(e, 'insearchValue', 'S15.5.4.11_A1_T12 #2');
+      }
+    }
     try {
       'ABB\u0041BABAB\u0031BBAA'.replace({
         toString: function(){
@@ -3689,7 +3721,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('String#split regression', function(assert){
-    var instance, split, e, string, i$, to$, i, expected, results$ = [];
+    var instance, split, e, F, string, i$, to$, i, expected, results$ = [];
     assert.isFunction(''.split);
     assert.arity(''.split, 2);
     assert.name(''.split, 'split');
@@ -3717,23 +3749,25 @@
     assert.strictEqual(split.length, 2, 'S15.5.4.14_A1_T5 #3');
     assert.strictEqual(split[0], 'g', 'S15.5.4.14_A1_T5 #4');
     assert.strictEqual(split[1], 'una', 'S15.5.4.14_A1_T5 #5');
-    /* wrong behavior in some old browsers
-    split = Object(\1undefined)split void
-    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T6 #1'
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T6 #2'
-    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T6 #3'
-    assert.strictEqual split.0, \1undefined, 'S15.5.4.14_A1_T6 #4'
-    split = 'undefinedd'split void
-    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T7 #1'
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T7 #2'
-    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T7 #3'
-    assert.strictEqual split.0, \undefinedd, 'S15.5.4.14_A1_T7 #4'
-    split = String({toString: ->})split void
-    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T8 #1'
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T8 #2'
-    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T8 #3'
-    assert.strictEqual split.0, \undefined, 'S15.5.4.14_A1_T8 #4'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      split = Object('1undefined').split(void 8);
+      assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T6 #1');
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T6 #2');
+      assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T6 #3');
+      assert.strictEqual(split[0], '1undefined', 'S15.5.4.14_A1_T6 #4');
+      split = 'undefinedd'.split(void 8);
+      assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T7 #1');
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T7 #2');
+      assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T7 #3');
+      assert.strictEqual(split[0], 'undefinedd', 'S15.5.4.14_A1_T7 #4');
+      split = String({
+        toString: function(){}
+      }).split(void 8);
+      assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T8 #1');
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T8 #2');
+      assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T8 #3');
+      assert.strictEqual(split[0], 'undefined', 'S15.5.4.14_A1_T8 #4');
+    }
     split = new String({
       valueOf: function(){},
       toString: void 8
@@ -3770,13 +3804,26 @@
       e = e$;
       assert.strictEqual(e, 'intointeger', 'S15.5.4.14_A1_T11 #2');
     }
-    /* wrong behavior in old IE
-    try
-      new String('ABB\u0041BABAB')split {toString: -> '\u0041B'}, {valueOf: (-> {}), toString: -> throw \intointeger}
-      assert.ok no, 'S15.5.4.14_A1_T12 #1 lead to throwing exception'
-    catch e
-      assert.strictEqual e, \intointeger, 'S15.5.4.14_A1_T12 #2'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      try {
+        new String('ABB\u0041BABAB').split({
+          toString: function(){
+            return '\u0041B';
+          }
+        }, {
+          valueOf: function(){
+            return {};
+          },
+          toString: function(){
+            throw 'intointeger';
+          }
+        });
+        assert.ok(false, 'S15.5.4.14_A1_T12 #1 lead to throwing exception');
+      } catch (e$) {
+        e = e$;
+        assert.strictEqual(e, 'intointeger', 'S15.5.4.14_A1_T12 #2');
+      }
+    }
     split = 'ABB\u0041BABAB\u0042cc^^\u0042Bvv%%B\u0042xxx'.split({
       toString: function(){
         return '\u0042\u0042';
@@ -3794,25 +3841,59 @@
     assert.strictEqual(split.length, 2, 'S15.5.4.14_A1_T13 #3');
     assert.strictEqual(split[0], 'A', 'S15.5.4.14_A1_T13 #4');
     assert.strictEqual(split[1], 'ABABA', 'S15.5.4.14_A1_T13 #5');
-    /* wrong behavior in old IE
-    try
-      instance = Object 10001.10001
-      instance.split = String::split
-      instance.split {toString: -> throw \intostr}, {valueOf: -> throw \intoint}
-      assert.ok no, 'S15.5.4.14_A1_T14 #1 lead to throwing exception'
-    catch e
-      assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T14 #2'
-    try
-      class F
-        costructor: (@value)->
-        valueOf: -> ''+@value
-        toString: -> new Number
-        split: String::split
-      new F!split {toString: (-> {}), valueOf: -> throw \intostr}, {valueOf: -> throw \intoint}
-      assert.ok no, 'S15.5.4.14_A1_T15 #1 lead to throwing exception'
-    catch e
-      assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T15 #2'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      try {
+        instance = Object(10001.10001);
+        instance.split = String.prototype.split;
+        instance.split({
+          toString: function(){
+            throw 'intostr';
+          }
+        }, {
+          valueOf: function(){
+            throw 'intoint';
+          }
+        });
+        assert.ok(false, 'S15.5.4.14_A1_T14 #1 lead to throwing exception');
+      } catch (e$) {
+        e = e$;
+        assert.strictEqual(e, 'intoint', 'S15.5.4.14_A1_T14 #2');
+      }
+      try {
+        F = (function(){
+          F.displayName = 'F';
+          var prototype = F.prototype, constructor = F;
+          prototype.costructor = function(value){
+            this.value = value;
+          };
+          prototype.valueOf = function(){
+            return '' + this.value;
+          };
+          prototype.toString = function(){
+            return new Number;
+          };
+          prototype.split = String.prototype.split;
+          function F(){}
+          return F;
+        }());
+        new F().split({
+          toString: function(){
+            return {};
+          },
+          valueOf: function(){
+            throw 'intostr';
+          }
+        }, {
+          valueOf: function(){
+            throw 'intoint';
+          }
+        });
+        assert.ok(false, 'S15.5.4.14_A1_T15 #1 lead to throwing exception');
+      } catch (e$) {
+        e = e$;
+        assert.strictEqual(e, 'intoint', 'S15.5.4.14_A1_T15 #2');
+      }
+    }
     try {
       String.prototype.split.call(6776767677.006771122677555, {
         toString: function(){
@@ -3879,13 +3960,13 @@
       i = i$;
       assert.strictEqual(split[i], string.charAt(i), "S15.5.4.14_A2_T6 #" + (i + 3));
     }
-    /* wrong behavior in some old browsers
-    string = 'thisundefinedisundefinedaundefinedstringundefinedobject'
-    split = string.split void
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T7 #1'
-    assert.strictEqual split.length, 1, 'S15.5.4.14_A2_T7 #2'
-    assert.strictEqual split.0, string, 'S15.5.4.14_A2_T7 #3'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      string = 'thisundefinedisundefinedaundefinedstringundefinedobject';
+      split = string.split(void 8);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T7 #1');
+      assert.strictEqual(split.length, 1, 'S15.5.4.14_A2_T7 #2');
+      assert.strictEqual(split[0], string, 'S15.5.4.14_A2_T7 #3');
+    }
     string = 'thisnullisnullanullstringnullobject';
     expected = ['this', 'is', 'a', 'string', 'object'];
     split = string.split(null);
@@ -4068,13 +4149,13 @@
     split = instance.split(1, 'boo');
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T36 #1');
     assert.strictEqual(split.length, 0, 'S15.5.4.14_A2_T36 #2');
-    /* wrong behavior in most browsers
-    instance = Object 100111122133144155
-    instance.split = String::split
-    split = instance.split 1, -Math.pow(2 32) + 1
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T37 #1'
-    assert.strictEqual split.length, 0, 'S15.5.4.14_A2_T37 #2'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      instance = Object(100111122133144155);
+      instance.split = String.prototype.split;
+      split = instance.split(1, -Math.pow(2, 32) + 1);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T37 #1');
+      assert.strictEqual(split.length, 0, 'S15.5.4.14_A2_T37 #2');
+    }
     instance = Object(100111122133144155);
     instance.split = String.prototype.split;
     split = instance.split(1, NaN);
@@ -4160,14 +4241,14 @@
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A3_T11 #1');
     assert.strictEqual(split.length, 1, 'S15.5.4.14_A3_T11 #2');
     assert.strictEqual(split[0], ' ', 'S15.5.4.14_A3_T11 #3');
-    /* wrong behavior in old IE
-    split = Object(\hello)split /l/
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T1 #1'
-    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T1 #2'
-    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T1 #3'
-    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T1 #4'
-    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T1 #5'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      split = Object('hello').split(/l/);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T1 #1');
+      assert.strictEqual(split.length, 3, 'S15.5.4.14_A4_T1 #2');
+      assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T1 #3');
+      assert.strictEqual(split[1], '', 'S15.5.4.14_A4_T1 #4');
+      assert.strictEqual(split[2], 'o', 'S15.5.4.14_A4_T1 #5');
+    }
     split = Object('hello').split(/l/, 0);
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T2 #1');
     assert.strictEqual(split.length, 0, 'S15.5.4.14_A4_T2 #2');
@@ -4175,31 +4256,31 @@
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T3 #1');
     assert.strictEqual(split.length, 1, 'S15.5.4.14_A4_T3 #2');
     assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T3 #3');
-    /* wrong behavior in old IE
-    split = Object(\hello)split /l/, 2
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T4 #1'
-    assert.strictEqual split.length, 2, 'S15.5.4.14_A4_T4 #2'
-    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T4 #3'
-    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T4 #4'
-    split = Object(\hello)split /l/, 3
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T5 #1'
-    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T5 #2'
-    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T5 #3'
-    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T5 #4'
-    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T5 #5'
-    split = Object(\hello)split /l/, 4
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T6 #1'
-    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T6 #2'
-    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T6 #3'
-    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T6 #4'
-    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T6 #5'
-    split = Object(\hello)split /l/, void
-    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T7 #1'
-    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T7 #2'
-    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T7 #3'
-    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T7 #4'
-    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T7 #5'
-    */
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      split = Object('hello').split(/l/, 2);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T4 #1');
+      assert.strictEqual(split.length, 2, 'S15.5.4.14_A4_T4 #2');
+      assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T4 #3');
+      assert.strictEqual(split[1], '', 'S15.5.4.14_A4_T4 #4');
+      split = Object('hello').split(/l/, 3);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T5 #1');
+      assert.strictEqual(split.length, 3, 'S15.5.4.14_A4_T5 #2');
+      assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T5 #3');
+      assert.strictEqual(split[1], '', 'S15.5.4.14_A4_T5 #4');
+      assert.strictEqual(split[2], 'o', 'S15.5.4.14_A4_T5 #5');
+      split = Object('hello').split(/l/, 4);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T6 #1');
+      assert.strictEqual(split.length, 3, 'S15.5.4.14_A4_T6 #2');
+      assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T6 #3');
+      assert.strictEqual(split[1], '', 'S15.5.4.14_A4_T6 #4');
+      assert.strictEqual(split[2], 'o', 'S15.5.4.14_A4_T6 #5');
+      split = Object('hello').split(/l/, void 8);
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T7 #1');
+      assert.strictEqual(split.length, 3, 'S15.5.4.14_A4_T7 #2');
+      assert.strictEqual(split[0], 'he', 'S15.5.4.14_A4_T7 #3');
+      assert.strictEqual(split[1], '', 'S15.5.4.14_A4_T7 #4');
+      assert.strictEqual(split[2], 'o', 'S15.5.4.14_A4_T7 #5');
+    }
     split = Object('hello').split(/l/, 'hi');
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T8 #1');
     assert.strictEqual(split.length, 0, 'S15.5.4.14_A4_T8 #2');
@@ -4279,9 +4360,19 @@
     assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T22 #2');
     for (i$ = 0, to$ = expected.length; i$ < to$; ++i$) {
       i = i$;
-      results$.push(assert.strictEqual(expected[i], split[i], "S15.5.4.14_A4_T22 #" + (i + 3)));
+      assert.strictEqual(expected[i], split[i], "S15.5.4.14_A4_T22 #" + (i + 3));
     }
-    return results$;
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      split = Object('abc').split(/[a-z]/);
+      expected = ['', '', '', ''];
+      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T24 #1');
+      assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T24 #2');
+      for (i$ = 0, to$ = expected.length; i$ < to$; ++i$) {
+        i = i$;
+        results$.push(assert.strictEqual(expected[i], split[i], "S15.5.4.14_A4_T24 #" + (i + 3)));
+      }
+      return results$;
+    }
   });
   test('RegExp#@@split', function(assert){
     assert.isFunction(/./[Symbol.split]);
@@ -4436,6 +4527,7 @@
   test('Set#delete', function(assert){
     var a, S, f;
     assert.isFunction(Set.prototype['delete']);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(Set.prototype['delete'], 'delete');
     assert.arity(Set.prototype['delete'], 1);
     assert.looksNative(Set.prototype['delete']);
     a = [];
@@ -5175,6 +5267,7 @@
   test('Symbol', function(assert){
     var s1, s2, O, count, i;
     assert.isFunction(Symbol);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.strictEqual(Symbol.length, 0, 'arity is 0');
     assert.name(Symbol, 'Symbol');
     assert.looksNative(Symbol);
     s1 = Symbol('foo');
@@ -5205,6 +5298,7 @@
     var symbol;
     assert.isFunction(Symbol['for'], 'Symbol.for is function');
     assert.strictEqual(Symbol['for'].length, 1, 'Symbol.for arity is 1');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.strictEqual(Symbol['for'].name, 'for', 'Symbol.for.name is "for"');
     assert.ok(/native code/.test(Symbol['for']), 'Symbol.for looks like native');
     assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
     assert.strictEqual(Symbol.keyFor.length, 1, 'Symbol.keyFor arity is 1');
@@ -5480,6 +5574,8 @@
   test('WeakMap#delete', function(assert){
     var M, a, b;
     assert.isFunction(WeakMap.prototype['delete']);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.name(WeakMap.prototype['delete'], 'delete');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakMap.prototype['delete'], 1);
     assert.looksNative(WeakMap.prototype['delete']);
     M = new WeakMap().set(a = {}, 42).set(b = {}, 21);
     assert.ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
@@ -5490,6 +5586,7 @@
     var M, a;
     assert.isFunction(WeakMap.prototype.get);
     assert.name(WeakMap.prototype.get, 'get');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakMap.prototype.get, 1);
     assert.looksNative(WeakMap.prototype.get);
     M = new WeakMap();
     assert.strictEqual(M.get({}), void 8, 'WeakMap .get() before .set() return undefined');
@@ -5502,6 +5599,7 @@
     var M, a;
     assert.isFunction(WeakMap.prototype.has);
     assert.name(WeakMap.prototype.has, 'has');
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakMap.prototype.has, 1);
     assert.looksNative(WeakMap.prototype.has);
     M = new WeakMap();
     assert.ok(!M.has({}), 'WeakMap .has() before .set() return false');
@@ -5595,7 +5693,7 @@
   test('WeakSet#delete', function(assert){
     var S, a, b;
     assert.isFunction(WeakSet.prototype['delete']);
-    assert.arity(WeakSet.prototype['delete'], 1);
+    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(WeakSet.prototype['delete'], 1);
     assert.looksNative(WeakSet.prototype['delete']);
     S = new WeakSet().add(a = {}).add(b = {});
     assert.ok(S.has(a) && S.has(b), 'WeakSet has values before .delete()');

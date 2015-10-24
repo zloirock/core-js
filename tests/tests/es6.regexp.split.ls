@@ -30,23 +30,22 @@ test 'String#split regression' (assert)->
   assert.strictEqual split.length, 2, 'S15.5.4.14_A1_T5 #3'
   assert.strictEqual split.0, \g, 'S15.5.4.14_A1_T5 #4'
   assert.strictEqual split.1, \una, 'S15.5.4.14_A1_T5 #5'
-  /* wrong behavior in some old browsers
-  split = Object(\1undefined)split void
-  assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T6 #1'
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T6 #2'
-  assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T6 #3'
-  assert.strictEqual split.0, \1undefined, 'S15.5.4.14_A1_T6 #4'
-  split = 'undefinedd'split void
-  assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T7 #1'
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T7 #2'
-  assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T7 #3'
-  assert.strictEqual split.0, \undefinedd, 'S15.5.4.14_A1_T7 #4'
-  split = String({toString: ->})split void
-  assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T8 #1'
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T8 #2'
-  assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T8 #3'
-  assert.strictEqual split.0, \undefined, 'S15.5.4.14_A1_T8 #4'
-  */
+  if NATIVE? # wrong behavior in some old browsers
+    split = Object(\1undefined)split void
+    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T6 #1'
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T6 #2'
+    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T6 #3'
+    assert.strictEqual split.0, \1undefined, 'S15.5.4.14_A1_T6 #4'
+    split = 'undefinedd'split void
+    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T7 #1'
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T7 #2'
+    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T7 #3'
+    assert.strictEqual split.0, \undefinedd, 'S15.5.4.14_A1_T7 #4'
+    split = String({toString: ->})split void
+    assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T8 #1'
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T8 #2'
+    assert.strictEqual split.length, 1, 'S15.5.4.14_A1_T8 #3'
+    assert.strictEqual split.0, \undefined, 'S15.5.4.14_A1_T8 #4'
   split = new String({valueOf: (->), toString: void})split ->
   assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T9 #1'
   assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T9 #2'
@@ -62,38 +61,36 @@ test 'String#split regression' (assert)->
     assert.ok no, 'S15.5.4.14_A1_T11 #1 lead to throwing exception'
   catch e
     assert.strictEqual e, \intointeger, 'S15.5.4.14_A1_T11 #2'
-  /* wrong behavior in old IE
-  try
-    new String('ABB\u0041BABAB')split {toString: -> '\u0041B'}, {valueOf: (-> {}), toString: -> throw \intointeger}
-    assert.ok no, 'S15.5.4.14_A1_T12 #1 lead to throwing exception'
-  catch e
-    assert.strictEqual e, \intointeger, 'S15.5.4.14_A1_T12 #2'
-  */
+  if NATIVE? # wrong behavior in old IE
+    try
+      new String('ABB\u0041BABAB')split {toString: -> '\u0041B'}, {valueOf: (-> {}), toString: -> throw \intointeger}
+      assert.ok no, 'S15.5.4.14_A1_T12 #1 lead to throwing exception'
+    catch e
+      assert.strictEqual e, \intointeger, 'S15.5.4.14_A1_T12 #2'
   split = 'ABB\u0041BABAB\u0042cc^^\u0042Bvv%%B\u0042xxx'split {toString: -> '\u0042\u0042'}, {valueOf: (-> {}), toString: -> \2}
   assert.strictEqual typeof split, \object, 'S15.5.4.14_A1_T13 #1'
   assert.strictEqual split@@, Array, 'S15.5.4.14_A1_T13 #2'
   assert.strictEqual split.length, 2, 'S15.5.4.14_A1_T13 #3'
   assert.strictEqual split.0, \A, 'S15.5.4.14_A1_T13 #4'
   assert.strictEqual split.1, \ABABA, 'S15.5.4.14_A1_T13 #5'
-  /* wrong behavior in old IE
-  try
-    instance = Object 10001.10001
-    instance.split = String::split
-    instance.split {toString: -> throw \intostr}, {valueOf: -> throw \intoint}
-    assert.ok no, 'S15.5.4.14_A1_T14 #1 lead to throwing exception'
-  catch e
-    assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T14 #2'
-  try
-    class F
-      costructor: (@value)->
-      valueOf: -> ''+@value
-      toString: -> new Number
-      split: String::split
-    new F!split {toString: (-> {}), valueOf: -> throw \intostr}, {valueOf: -> throw \intoint}
-    assert.ok no, 'S15.5.4.14_A1_T15 #1 lead to throwing exception'
-  catch e
-    assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T15 #2'
-  */
+  if NATIVE? # wrong behavior in old IE
+    try
+      instance = Object 10001.10001
+      instance.split = String::split
+      instance.split {toString: -> throw \intostr}, {valueOf: -> throw \intoint}
+      assert.ok no, 'S15.5.4.14_A1_T14 #1 lead to throwing exception'
+    catch e
+      assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T14 #2'
+    try
+      class F
+        costructor: (@value)->
+        valueOf: -> ''+@value
+        toString: -> new Number
+        split: String::split
+      new F!split {toString: (-> {}), valueOf: -> throw \intostr}, {valueOf: -> throw \intoint}
+      assert.ok no, 'S15.5.4.14_A1_T15 #1 lead to throwing exception'
+    catch e
+      assert.strictEqual e, \intoint, 'S15.5.4.14_A1_T15 #2'
   try
     String::split.call 6776767677.006771122677555, {toString: -> /\u0037\u0037/g}
     assert.ok no, 'S15.5.4.14_A1_T16 #1 lead to throwing exception'
@@ -152,13 +149,12 @@ test 'String#split regression' (assert)->
   assert.strictEqual split.length, string.length, 'S15.5.4.14_A2_T6 #2'
   for i til split.length
     assert.strictEqual split[i], string.charAt(i), "S15.5.4.14_A2_T6 #" + (i + 3)
-  /* wrong behavior in some old browsers
-  string = 'thisundefinedisundefinedaundefinedstringundefinedobject'
-  split = string.split void
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T7 #1'
-  assert.strictEqual split.length, 1, 'S15.5.4.14_A2_T7 #2'
-  assert.strictEqual split.0, string, 'S15.5.4.14_A2_T7 #3'
-  */
+  if NATIVE? # wrong behavior in some old browsers
+    string = 'thisundefinedisundefinedaundefinedstringundefinedobject'
+    split = string.split void
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T7 #1'
+    assert.strictEqual split.length, 1, 'S15.5.4.14_A2_T7 #2'
+    assert.strictEqual split.0, string, 'S15.5.4.14_A2_T7 #3'
   string = \thisnullisnullanullstringnullobject
   expected = <[this is a string object]>
   split = string.split null
@@ -321,13 +317,12 @@ test 'String#split regression' (assert)->
   split = instance.split 1 \boo
   assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T36 #1'
   assert.strictEqual split.length, 0, 'S15.5.4.14_A2_T36 #2'
-  /* wrong behavior in most browsers
-  instance = Object 100111122133144155
-  instance.split = String::split
-  split = instance.split 1, -Math.pow(2 32) + 1
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T37 #1'
-  assert.strictEqual split.length, 0, 'S15.5.4.14_A2_T37 #2'
-  */
+  if NATIVE? # wrong behavior in most browsers
+    instance = Object 100111122133144155
+    instance.split = String::split
+    split = instance.split 1, -Math.pow(2 32) + 1
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A2_T37 #1'
+    assert.strictEqual split.length, 0, 'S15.5.4.14_A2_T37 #2'
   instance = Object 100111122133144155
   instance.split = String::split
   split = instance.split 1 NaN
@@ -403,14 +398,13 @@ test 'String#split regression' (assert)->
   assert.strictEqual split@@, Array, 'S15.5.4.14_A3_T11 #1'
   assert.strictEqual split.length, 1, 'S15.5.4.14_A3_T11 #2'
   assert.strictEqual split.0, ' ', 'S15.5.4.14_A3_T11 #3'
-  /* wrong behavior in old IE
-  split = Object(\hello)split /l/
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T1 #1'
-  assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T1 #2'
-  assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T1 #3'
-  assert.strictEqual split.1, '', 'S15.5.4.14_A4_T1 #4'
-  assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T1 #5'
-  */
+  if NATIVE? # wrong behavior in old IE
+    split = Object(\hello)split /l/
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T1 #1'
+    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T1 #2'
+    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T1 #3'
+    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T1 #4'
+    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T1 #5'
   split = Object(\hello)split /l/, 0
   assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T2 #1'
   assert.strictEqual split.length, 0, 'S15.5.4.14_A4_T2 #2'
@@ -418,31 +412,30 @@ test 'String#split regression' (assert)->
   assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T3 #1'
   assert.strictEqual split.length, 1, 'S15.5.4.14_A4_T3 #2'
   assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T3 #3'
-  /* wrong behavior in old IE
-  split = Object(\hello)split /l/, 2
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T4 #1'
-  assert.strictEqual split.length, 2, 'S15.5.4.14_A4_T4 #2'
-  assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T4 #3'
-  assert.strictEqual split.1, '', 'S15.5.4.14_A4_T4 #4'
-  split = Object(\hello)split /l/, 3
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T5 #1'
-  assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T5 #2'
-  assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T5 #3'
-  assert.strictEqual split.1, '', 'S15.5.4.14_A4_T5 #4'
-  assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T5 #5'
-  split = Object(\hello)split /l/, 4
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T6 #1'
-  assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T6 #2'
-  assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T6 #3'
-  assert.strictEqual split.1, '', 'S15.5.4.14_A4_T6 #4'
-  assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T6 #5'
-  split = Object(\hello)split /l/, void
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T7 #1'
-  assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T7 #2'
-  assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T7 #3'
-  assert.strictEqual split.1, '', 'S15.5.4.14_A4_T7 #4'
-  assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T7 #5'
-  */
+  if NATIVE? # wrong behavior in old IE
+    split = Object(\hello)split /l/, 2
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T4 #1'
+    assert.strictEqual split.length, 2, 'S15.5.4.14_A4_T4 #2'
+    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T4 #3'
+    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T4 #4'
+    split = Object(\hello)split /l/, 3
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T5 #1'
+    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T5 #2'
+    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T5 #3'
+    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T5 #4'
+    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T5 #5'
+    split = Object(\hello)split /l/, 4
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T6 #1'
+    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T6 #2'
+    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T6 #3'
+    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T6 #4'
+    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T6 #5'
+    split = Object(\hello)split /l/, void
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T7 #1'
+    assert.strictEqual split.length, 3, 'S15.5.4.14_A4_T7 #2'
+    assert.strictEqual split.0, 'he', 'S15.5.4.14_A4_T7 #3'
+    assert.strictEqual split.1, '', 'S15.5.4.14_A4_T7 #4'
+    assert.strictEqual split.2, 'o', 'S15.5.4.14_A4_T7 #5'
   split = Object(\hello)split /l/, \hi
   assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T8 #1'
   assert.strictEqual split.length, 0, 'S15.5.4.14_A4_T8 #2'
@@ -508,14 +501,13 @@ test 'String#split regression' (assert)->
   assert.strictEqual split.length, expected.length, 'S15.5.4.14_A4_T22 #2'
   for i til expected.length
     assert.strictEqual expected[i], split[i], "S15.5.4.14_A4_T22 #" + (i + 3)
-  /* wrong behavior in old IE
-  split = Object(\abc)split /[a-z]/
-  expected = ['' '' '' '']
-  assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T24 #1'
-  assert.strictEqual split.length, expected.length, 'S15.5.4.14_A4_T24 #2'
-  for i til expected.length
-    assert.strictEqual expected[i], split[i], "S15.5.4.14_A4_T24 #" + (i + 3)
-  */
+  if NATIVE? # wrong behavior in old IE
+    split = Object(\abc)split /[a-z]/
+    expected = ['' '' '' '']
+    assert.strictEqual split@@, Array, 'S15.5.4.14_A4_T24 #1'
+    assert.strictEqual split.length, expected.length, 'S15.5.4.14_A4_T24 #2'
+    for i til expected.length
+      assert.strictEqual expected[i], split[i], "S15.5.4.14_A4_T24 #" + (i + 3)
 
 test 'RegExp#@@split' (assert)->
   assert.isFunction /./[Symbol.split]
@@ -541,4 +533,3 @@ test '@@split logic' (assert)->
   assert.strictEqual str.split(re, 42)b, 42
   assert.strictEqual ''split.call(num, re, 42)a, num
   assert.strictEqual ''split.call(num, re, 42)b, 42
-  

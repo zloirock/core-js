@@ -8,7 +8,7 @@ G = global? && global || window
 
 test 'Symbol' (assert)->
   assert.isFunction Symbol
-  #assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
+  NATIVE? and assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
   assert.name Symbol, \Symbol
   assert.looksNative Symbol
   s1 = Symbol 'foo'
@@ -31,7 +31,7 @@ test 'Well-known Symbols' (assert)->
 test 'Global symbol registry' (assert)->
   assert.isFunction Symbol.for, 'Symbol.for is function'
   assert.strictEqual Symbol.for.length, 1 'Symbol.for arity is 1'
-  #assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
+  NATIVE? and assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
   assert.isFunction Symbol.keyFor, 'Symbol.keyFor is function'
   assert.strictEqual Symbol.keyFor.length, 1 'Symbol.keyFor arity is 1'

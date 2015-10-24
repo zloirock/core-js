@@ -5,7 +5,7 @@ if Object.setPrototypeOf || '__proto__' of {}
   test 'Reflect.setPrototypeOf' (assert)->
     {setPrototypeOf} = Reflect
     assert.isFunction setPrototypeOf
-    #assert.arity setPrototypeOf, 2 # fails in MS Edge
+    NATIVE? and assert.arity setPrototypeOf, 2 # fails in MS Edge
     assert.name setPrototypeOf, \setPrototypeOf
     assert.looksNative setPrototypeOf
     obj = {}

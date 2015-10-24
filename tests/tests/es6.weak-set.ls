@@ -44,7 +44,7 @@ test 'WeakSet#add' (assert)->
 
 test 'WeakSet#delete' (assert)->
   assert.isFunction WeakSet::delete
-  #assert.name WeakSet::delete, \delete # can't be polyfilled in some environments
+  NATIVE? and #assert.name WeakSet::delete, \delete # can't be polyfilled in some environments
   assert.arity WeakSet::delete, 1
   assert.looksNative WeakSet::delete
   S = new WeakSet!

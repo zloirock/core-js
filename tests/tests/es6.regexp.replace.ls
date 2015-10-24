@@ -20,18 +20,17 @@ test 'String#replace regression' (assert)->
   assert.strictEqual String({toString: ->})replace(/e/g, void), \undundefinedfinundefinedd, 'S15.5.4.11_A1_T8'
   assert.strictEqual new String({valueOf: (->), toString: void})replace((->)!, (a1, a2, a3)-> a1 + a2 + a3), \undefined0undefined, 'S15.5.4.11_A1_T9'
   assert.strictEqual 'ABB\u0041BABAB'replace({toString: -> '\u0041B'}, ->), \undefinedBABABAB, 'S15.5.4.11_A1_T10'
-  /* wrong order in some old environments
-  try
-    'ABB\u0041BABAB'replace {toString: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
-    assert.ok no, 'S15.5.4.11_A1_T11 #1 lead to throwing exception'
-  catch e
-    assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T11 #2'
-  try
-    Object('ABB\u0041BABAB')replace {toString: (->{}), valueOf: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
-    assert.ok no, 'S15.5.4.11_A1_T12 #1 lead to throwing exception'
-  catch e
-    assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T12 #2'
-  */
+  if NATIVE? # wrong order in some old environments
+    try
+      'ABB\u0041BABAB'replace {toString: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
+      assert.ok no, 'S15.5.4.11_A1_T11 #1 lead to throwing exception'
+    catch e
+      assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T11 #2'
+    try
+      Object('ABB\u0041BABAB')replace {toString: (->{}), valueOf: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
+      assert.ok no, 'S15.5.4.11_A1_T12 #1 lead to throwing exception'
+    catch e
+      assert.strictEqual e, \insearchValue, 'S15.5.4.11_A1_T12 #2'
   try
     'ABB\u0041BABAB\u0031BBAA'replace {toString: (->{}), valueOf: -> throw \insearchValue}, {toString: -> 1}
     assert.ok no, 'S15.5.4.11_A1_T13 #1 lead to throwing exception'

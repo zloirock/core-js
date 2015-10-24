@@ -16,7 +16,7 @@ test 'Promise#then' (assert)->
 test 'Promise#catch' (assert)->
   assert.isFunction Promise::catch
   assert.arity Promise::catch, 1
-  #assert.name Promise::catch, \catch # can't be polyfilled in some environments
+  NATIVE? and assert.name Promise::catch, \catch # can't be polyfilled in some environments
   assert.looksNative Promise::then
 
 test 'Promise#@@toStringTag' (assert)->

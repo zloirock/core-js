@@ -7,7 +7,7 @@ MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 test 'Reflect.get' (assert)->
   {get} = Reflect
   assert.isFunction get
-  #assert.arity get, 2 # fails in MS Edge
+  NATIVE? and assert.arity get, 2 # fails in MS Edge
   assert.name get, \get
   assert.looksNative get
   assert.strictEqual get({qux: 987}, \qux), 987

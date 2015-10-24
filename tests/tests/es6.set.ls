@@ -85,7 +85,7 @@ test 'Set#clear' (assert)->
 
 test 'Set#delete' (assert)->
   assert.isFunction Set::delete
-  #assert.name Set::delete, \delete # can't be polyfilled in some environments
+  NATIVE? and assert.name Set::delete, \delete # can't be polyfilled in some environments
   assert.arity Set::delete, 1
   assert.looksNative Set::delete
   a = []

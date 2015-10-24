@@ -4,7 +4,7 @@ module \ES6
 global = Function('return this')!
 arrays = <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
 
-test '%TypedArrayPrototype%.keys' (assert)->
+test '%TypedArrayPrototype%.keys' (assert)!->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for arrays
     Typed = global[..]
@@ -20,9 +20,9 @@ test '%TypedArrayPrototype%.keys' (assert)->
     assert.deepEqual iter.next!, {value: 1, done: no}, 'step 2'
     assert.deepEqual iter.next!, {value: 2, done: no}, 'step 3'
     assert.deepEqual iter.next!, {value: void, done: on}, 'done'
-    #assert.throws (!-> Typed::keys.call [1 2]), "isn't generic" # fails in V8 and edge
+    NATIVE? and assert.throws (!-> Typed::keys.call [1 2]), "isn't generic" # fails in V8 and edge
 
-test '%TypedArrayPrototype%.values' (assert)->
+test '%TypedArrayPrototype%.values' (assert)!->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for arrays
     Typed = global[..]
@@ -38,9 +38,9 @@ test '%TypedArrayPrototype%.values' (assert)->
     assert.deepEqual iter.next!, {value: 2, done: no}, 'step 2'
     assert.deepEqual iter.next!, {value: 3, done: no}, 'step 3'
     assert.deepEqual iter.next!, {value: void, done: on}, 'done'
-    #assert.throws (!-> Typed::values.call [1 2]), "isn't generic" # fails in V8 and edge
+    NATIVE? and assert.throws (!-> Typed::values.call [1 2]), "isn't generic" # fails in V8 and edge
 
-test '%TypedArrayPrototype%.entries' (assert)->
+test '%TypedArrayPrototype%.entries' (assert)!->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for arrays
     Typed = global[..]
@@ -56,9 +56,9 @@ test '%TypedArrayPrototype%.entries' (assert)->
     assert.deepEqual iter.next!, {value: [1 2], done: no}, 'step 2'
     assert.deepEqual iter.next!, {value: [2 3], done: no}, 'step 3'
     assert.deepEqual iter.next!, {value: void, done: on}, 'done'
-    #assert.throws (!-> Typed::entries.call [1 2]), "isn't generic" # fails in V8 and edge
+    NATIVE? and assert.throws (!-> Typed::entries.call [1 2]), "isn't generic" # fails in V8 and edge
 
-test '%TypedArrayPrototype%.@@iterator' (assert)->
+test '%TypedArrayPrototype%.@@iterator' (assert)!->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for arrays
     Typed = global[..]
@@ -75,4 +75,4 @@ test '%TypedArrayPrototype%.@@iterator' (assert)->
     assert.deepEqual iter.next!, {value: 2, done: no}, 'step 2'
     assert.deepEqual iter.next!, {value: 3, done: no}, 'step 3'
     assert.deepEqual iter.next!, {value: void, done: on}, 'done'
-    #assert.throws (!-> Typed::[Symbol?iterator]call [1 2]), "isn't generic" # fails in V8 and edge
+    NATIVE? and assert.throws (!-> Typed::[Symbol?iterator]call [1 2]), "isn't generic" # fails in V8 and edge

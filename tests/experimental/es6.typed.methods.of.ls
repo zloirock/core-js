@@ -19,4 +19,4 @@ test '%TypedArray%.of', !(assert)~>
     assert.ok inst instanceof Typed, 'correct instance with several arguments'
     assert.arrayEqual inst, [1 2 3], 'correct elements with several arguments'
     assert.throws (!-> Typed.of.call void, 1), "isn't generic #1"
-    #assert.throws (!-> Typed.of.call Array, 1), "isn't generic #2" # fails in V8 and FF
+    NATIVE? and assert.throws (!-> Typed.of.call Array, 1), "isn't generic #2" # fails in V8 and FF
