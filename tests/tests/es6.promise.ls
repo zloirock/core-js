@@ -1,28 +1,57 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Promise' (assert)->
+MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+
+test 'Promise' !(assert)->
   assert.isFunction Promise
   assert.arity Promise, 1
   assert.name Promise, \Promise
   assert.looksNative Promise
 
-test 'Promise#then' (assert)->
+# related https://github.com/zloirock/core-js/issues/78
+if MODERN => test 'Promise operations order' !(assert)->
+  assert.expect 1
+  expected = \DEHAFGBC
+  async = assert.async!
+  result = ''
+  var resolve
+  p = new Promise (r)!-> resolve := r
+  resolve then: !->
+    result += \A
+    throw Error!
+  p.catch !-> result += \B
+  p.catch !->
+    result += \C
+    assert.same result, expected
+    async!
+  var resolve2
+  p2 = new Promise (r)!-> resolve2 := r
+  resolve2 Object.defineProperty {}, \then, get: !->
+    result += \D
+    throw Error!
+  result += \E
+  p2.catch !-> result += \F
+  p2.catch !-> result += \G
+  result += \H
+  setTimeout 1e3, !-> if ~result.indexOf(\G) => assert.same result, expected
+
+test 'Promise#then' !(assert)->
   assert.isFunction Promise::then
   assert.arity Promise::then, 2
   assert.name Promise::then, \then
   assert.looksNative Promise::then
 
-test 'Promise#catch' (assert)->
+test 'Promise#catch' !(assert)->
   assert.isFunction Promise::catch
   assert.arity Promise::catch, 1
   NATIVE? and assert.name Promise::catch, \catch # can't be polyfilled in some environments
   assert.looksNative Promise::then
 
-test 'Promise#@@toStringTag' (assert)->
+test 'Promise#@@toStringTag' !(assert)->
   assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
-test 'Promise.all' (assert)->
+test 'Promise.all' !(assert)->
   assert.isFunction Promise.all
   assert.arity Promise.all, 1
   assert.name Promise.all, \all
@@ -41,7 +70,7 @@ test 'Promise.all' (assert)->
   Promise.all a
   assert.ok done
 
-test 'Promise.race' (assert)->
+test 'Promise.race' !(assert)->
   assert.isFunction Promise.race
   assert.arity Promise.race, 1
   assert.name Promise.race, \race
@@ -60,20 +89,20 @@ test 'Promise.race' (assert)->
   Promise.race a
   assert.ok done
 
-test 'Promise.resolve' (assert)->
+test 'Promise.resolve' !(assert)->
   assert.isFunction Promise.resolve
   assert.arity Promise.resolve, 1
   assert.name Promise.resolve, \resolve
   assert.looksNative Promise.resolve
 
-test 'Promise.reject' (assert)->
+test 'Promise.reject' !(assert)->
   assert.isFunction Promise.reject
   assert.arity Promise.reject, 1
   assert.name Promise.reject, \reject
   assert.looksNative Promise.reject
 
 if Object.setPrototypeOf
-  test 'Promise subclassing' (assert)->
+  test 'Promise subclassing' !(assert)->
     # this is ES5 syntax to create a valid ES6 subclass
     SubPromise = ->
       self = new Promise it

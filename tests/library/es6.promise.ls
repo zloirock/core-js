@@ -1,26 +1,56 @@
 {module, test} = QUnit
 module \ES6
 
-{iterator} = core.Symbol
+MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
 
-test 'Promise' (assert)->
-  assert.isFunction core.Promise
+{Promise, Symbol} = core
+{iterator} = Symbol
 
-test 'Promise#then' (assert)->
-  assert.isFunction core.Promise::then
+test 'Promise' (assert)!->
+  assert.isFunction Promise
 
-test 'Promise#catch' (assert)->
-  assert.isFunction core.Promise::catch
+# related https://github.com/zloirock/core-js/issues/78
+if MODERN => test 'Promise operations order' !(assert)->
+  assert.expect 1
+  expected = \DEHAFGBC
+  async = assert.async!
+  result = ''
+  var resolve
+  p = new Promise (r)!-> resolve := r
+  resolve then: !->
+    result += \A
+    throw Error!
+  p.catch !-> result += \B
+  p.catch !->
+    result += \C
+    assert.same result, expected
+    async!
+  var resolve2
+  p2 = new Promise (r)!-> resolve2 := r
+  resolve2 Object.defineProperty {}, \then, get: !->
+    result += \D
+    throw Error!
+  result += \E
+  p2.catch !-> result += \F
+  p2.catch !-> result += \G
+  result += \H
+  setTimeout 1e3, !-> if ~result.indexOf(\G) => assert.same result, expected
 
-test 'Promise#@@toStringTag' (assert)->
-  assert.ok core.Promise::[core.Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
+test 'Promise#then' (assert)!->
+  assert.isFunction Promise::then
 
-test 'Promise.all' (assert)->
-  assert.isFunction core.Promise.all
+test 'Promise#catch' (assert)!->
+  assert.isFunction Promise::catch
+
+test 'Promise#@@toStringTag' (assert)!->
+  assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
+
+test 'Promise.all' (assert)!->
+  assert.isFunction Promise.all
   # works with iterables
   passed = no
   iter = createIterable [1 2 3]
-  core.Promise.all iter .catch ->
+  Promise.all iter .catch ->
   assert.ok iter.received, 'works with iterables: iterator received'
   assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
@@ -30,15 +60,15 @@ test 'Promise.all' (assert)->
   a[iterator] = ->
     done := on
     core.getIteratorMethod([])call @
-  core.Promise.all a
+  Promise.all a
   assert.ok done
 
-test 'Promise.race' (assert)->
-  assert.isFunction core.Promise.race
+test 'Promise.race' (assert)!->
+  assert.isFunction Promise.race
   # works with iterables
   passed = no
   iter = createIterable [1 2 3]
-  core.Promise.race iter .catch ->
+  Promise.race iter .catch ->
   assert.ok iter.received, 'works with iterables: iterator received'
   assert.ok iter.called, 'works with iterables: next called'
   # call @@iterator in Array with custom iterator
@@ -47,26 +77,26 @@ test 'Promise.race' (assert)->
   a['@@iterator'] = void
   a[iterator] = ->
     done := on
-    core.getIteratorMethod([])call @
-  core.Promise.race a
+    getIteratorMethod([])call @
+  Promise.race a
   assert.ok done
 
-test 'Promise.resolve' (assert)->
-  assert.isFunction core.Promise.resolve
+test 'Promise.resolve' (assert)!->
+  assert.isFunction Promise.resolve
 
-test 'Promise.reject' (assert)->
-  assert.isFunction core.Promise.reject
+test 'Promise.reject' (assert)!->
+  assert.isFunction Promise.reject
 
 if core.Object.setPrototypeOf
-  test 'Promise subclassing' (assert)->
+  test 'Promise subclassing' (assert)!->
     # this is ES5 syntax to create a valid ES6 subclass
     SubPromise = ->
-      self = new core.Promise it
+      self = new Promise it
       core.Object.setPrototypeOf self, SubPromise::
       self.mine = 'subclass'
       self
-    core.Object.setPrototypeOf SubPromise, core.Promise
-    SubPromise:: = core.Object.create core.Promise::
+    core.Object.setPrototypeOf SubPromise, Promise
+    SubPromise:: = core.Object.create Promise::
     SubPromise::@@ = SubPromise
     # now let's see if this works like a proper subclass.
     p1 = SubPromise.resolve 5
@@ -80,7 +110,7 @@ if core.Object.setPrototypeOf
     p3 = SubPromise.all [p1, p2]
     assert.strictEqual p3.mine, 'subclass'
     # double check
-    assert.ok p3 instanceof core.Promise
+    assert.ok p3 instanceof Promise
     assert.ok p3 instanceof SubPromise
     # check the async values
     p3.then assert.async!, -> assert.ok it, no
