@@ -3437,7 +3437,7 @@
       });
       result += 'H';
       setTimeout(1e3, function(){
-        if (~result.indexOf('G')) {
+        if (~result.indexOf('C')) {
           assert.same(result, expected);
         }
       });

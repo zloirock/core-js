@@ -34,7 +34,7 @@ if MODERN => test 'Promise operations order' !(assert)->
   p2.catch !-> result += \F
   p2.catch !-> result += \G
   result += \H
-  setTimeout 1e3, !-> if ~result.indexOf(\G) => assert.same result, expected
+  setTimeout 1e3, !-> if ~result.indexOf(\C) => assert.same result, expected
 
 test 'Promise#then' (assert)!->
   assert.isFunction Promise::then
