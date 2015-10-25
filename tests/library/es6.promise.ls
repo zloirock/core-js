@@ -1,13 +1,21 @@
+'use strict'
 {module, test} = QUnit
 module \ES6
 
+global = Function('return this')!
 MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+STRICT = !(-> @)!
 
 {Promise, Symbol} = core
 {iterator} = Symbol
 
 test 'Promise' (assert)!->
   assert.isFunction Promise
+  assert.throws (!-> Promise!), 'throws w/o `new`'
+  new Promise (resolve, reject)!->
+    assert.isFunction Promise, 'resolver is function'
+    assert.isFunction Promise, 'rejector is function'
+    assert.same @, (if STRICT => void else global), 'correct executor context'
 
 # related https://github.com/zloirock/core-js/issues/78
 if MODERN => test 'Promise operations order' !(assert)->
