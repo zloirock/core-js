@@ -179,17 +179,14 @@ var proto = {
   sort: function sort(comparefn){
     return $sort.call(validate(this), comparefn);
   },
-  subarray: function subarray(/* begin, end */){
+  subarray: function subarray(begin, end){
     var O      = validate(this)
       , length = O.length
-      , $$     = arguments
-      , $$len  = $$.length
-      , begin  = toIndex($$len > 0 ? $$[0] : undefined, length)
-      , end    = $$len > 1 ? $$[1] : undefined;
+      , $begin = toIndex(begin, length);
     return new (speciesConstructor(O, O[DEF_CONSTRUCTOR]))(
       O.buffer,
-      O.byteOffset + begin * O.BYTES_PER_ELEMENT,
-      toLength((end === undefined ? length : toIndex(end, length)) - begin)
+      O.byteOffset + $begin * O.BYTES_PER_ELEMENT,
+      toLength((end === undefined ? length : toIndex(end, length)) - $begin)
     );
   },
   toLocaleString: function toLocaleString(){
