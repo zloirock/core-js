@@ -5,7 +5,7 @@ module \ES6
 {freeze} = core.Object
 {iterator} = core.Symbol
 
-test 'WeakMap' (assert)->
+test 'WeakMap' (assert)!->
   assert.isFunction WeakMap
   assert.ok \delete of WeakMap::, 'delete in WeakMap.prototype'
   assert.ok \get    of WeakMap::, 'get in WeakMap.prototype'
@@ -37,14 +37,15 @@ test 'WeakMap' (assert)->
   new WeakMap a
   assert.ok done
 
-test 'WeakMap#delete' (assert)->
+test 'WeakMap#delete' (assert)!->
   assert.isFunction WeakMap::delete
   M = new WeakMap [[a = {}, 42], [b = {}, 21]]
   assert.ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
   assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
+  assert.ok (try !M.delete 1), 'return false on primitive'
 
-test 'WeakMap#get' (assert)->
+test 'WeakMap#get' (assert)!->
   assert.isFunction WeakMap::get
   M = new WeakMap!
   assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
@@ -52,8 +53,9 @@ test 'WeakMap#get' (assert)->
   assert.strictEqual M.get(a), 42, 'WeakMap .get() return value'
   M.delete a
   assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
+  assert.ok (try !M.get 1), 'return false on primitive'
 
-test 'WeakMap#has' (assert)->
+test 'WeakMap#has' (assert)!->
   assert.isFunction WeakMap::has
   M = new WeakMap!
   assert.ok !M.has({}), 'WeakMap .has() before .set() return false'
@@ -61,11 +63,12 @@ test 'WeakMap#has' (assert)->
   assert.ok M.has(a), 'WeakMap .has() return true'
   M.delete a
   assert.ok !M.has(a), 'WeakMap .has() after .delete() return false'
+  assert.ok (try !M.has 1), 'return false on primitive'
 
-test 'WeakMap#set' (assert)->
+test 'WeakMap#set' (assert)!->
   assert.isFunction WeakMap::set
   assert.ok (w = new WeakMap)set(a = {}, 42) is w, 'chaining'
   assert.ok (try new WeakMap!set(42, 42); no; catch => on), 'throws with primitive keys'
 
-test 'WeakMap#@@toStringTag' (assert)->
+test 'WeakMap#@@toStringTag' (assert)!->
   assert.strictEqual WeakMap::[core.Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'

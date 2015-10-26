@@ -3,7 +3,8 @@ var $          = require('./$')
   , $def       = require('./$.def')
   , hide       = require('./$.hide')
   , forOf      = require('./$.for-of')
-  , strictNew  = require('./$.strict-new');
+  , strictNew  = require('./$.strict-new')
+  , isObject   = require('./$.is-object');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = require('./$.global')[NAME]
@@ -24,10 +25,11 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });
     $.each.call('add,clear,delete,forEach,get,has,set,keys,values,entries'.split(','),function(KEY){
-      var chain = KEY == 'add' || KEY == 'set';
+      var IS_ADDER = KEY == 'add' || KEY == 'set';
       if(KEY in proto && !(IS_WEAK && KEY == 'clear'))hide(C.prototype, KEY, function(a, b){
+        if(!IS_ADDER && IS_WEAK && !isObject(a))return false;
         var result = this._c[KEY](a === 0 ? 0 : a, b);
-        return chain ? this : result;
+        return IS_ADDER ? this : result;
       });
     });
     if('size' in proto)$.setDesc(C.prototype, 'size', {

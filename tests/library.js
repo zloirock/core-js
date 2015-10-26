@@ -4738,7 +4738,7 @@
       return core.getIteratorMethod([]).call(this);
     };
     new WeakMap(a);
-    return assert.ok(done);
+    assert.ok(done);
   });
   test('WeakMap#delete', function(assert){
     var M, a, b;
@@ -4746,7 +4746,12 @@
     M = new WeakMap([[a = {}, 42], [b = {}, 21]]);
     assert.ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
     M['delete'](a);
-    return assert.ok(!M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()');
+    assert.ok(!M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()');
+    assert.ok((function(){
+      try {
+        return !M['delete'](1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakMap#get', function(assert){
     var M, a;
@@ -4756,7 +4761,12 @@
     M.set(a = {}, 42);
     assert.strictEqual(M.get(a), 42, 'WeakMap .get() return value');
     M['delete'](a);
-    return assert.strictEqual(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
+    assert.strictEqual(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
+    assert.ok((function(){
+      try {
+        return !M.get(1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakMap#has', function(assert){
     var M, a;
@@ -4766,13 +4776,18 @@
     M.set(a = {}, 42);
     assert.ok(M.has(a), 'WeakMap .has() return true');
     M['delete'](a);
-    return assert.ok(!M.has(a), 'WeakMap .has() after .delete() return false');
+    assert.ok(!M.has(a), 'WeakMap .has() after .delete() return false');
+    assert.ok((function(){
+      try {
+        return !M.has(1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakMap#set', function(assert){
     var w, a, e;
     assert.isFunction(WeakMap.prototype.set);
     assert.ok((w = new WeakMap).set(a = {}, 42) === w, 'chaining');
-    return assert.ok((function(){
+    assert.ok((function(){
       try {
         new WeakMap().set(42, 42);
         return false;
@@ -4784,7 +4799,7 @@
   });
   test('WeakMap#@@toStringTag', function(assert){
     var ref$;
-    return assert.strictEqual(WeakMap.prototype[(ref$ = core.Symbol) != null ? ref$.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
+    assert.strictEqual(WeakMap.prototype[(ref$ = core.Symbol) != null ? ref$.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
   });
 }).call(this);
 
@@ -4829,13 +4844,13 @@
       return core.getIteratorMethod([]).call(this);
     };
     new WeakSet(a);
-    return assert.ok(done);
+    assert.ok(done);
   });
   test('WeakSet#add', function(assert){
     var w, e;
     assert.isFunction(WeakSet.prototype.add);
     assert.ok((w = new WeakSet).add({}) === w, 'chaining');
-    return assert.ok((function(){
+    assert.ok((function(){
       try {
         new WeakSet().add(42);
         return false;
@@ -4851,7 +4866,12 @@
     S = new WeakSet().add(a = {}).add(b = {});
     assert.ok(S.has(a) && S.has(b), 'WeakSet has values before .delete()');
     S['delete'](a);
-    return assert.ok(!S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()');
+    assert.ok(!S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()');
+    assert.ok((function(){
+      try {
+        return !S['delete'](1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakSet#has', function(assert){
     var M, a;
@@ -4861,11 +4881,16 @@
     M.add(a = {});
     assert.ok(M.has(a), 'WeakSet has value after .add()');
     M['delete'](a);
-    return assert.ok(!M.has(a), 'WeakSet has`nt value after .delete()');
+    assert.ok(!M.has(a), 'WeakSet hasn`t value after .delete()');
+    assert.ok((function(){
+      try {
+        return !M.has(1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakSet::@@toStringTag', function(assert){
     var ref$;
-    return assert.strictEqual(WeakSet.prototype[(ref$ = core.Symbol) != null ? ref$.toStringTag : void 8], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+    assert.strictEqual(WeakSet.prototype[(ref$ = core.Symbol) != null ? ref$.toStringTag : void 8], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
   });
 }).call(this);
 

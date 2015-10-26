@@ -3,7 +3,7 @@ module \ES6
 
 {freeze} = Object
 
-test 'WeakMap' (assert)->
+test 'WeakMap' (assert)!->
   assert.isFunction WeakMap
   assert.name WeakMap, \WeakMap
   assert.arity WeakMap, 0
@@ -39,7 +39,7 @@ test 'WeakMap' (assert)->
   new WeakMap a
   assert.ok done
 
-test 'WeakMap#delete' (assert)->
+test 'WeakMap#delete' (assert)!->
   assert.isFunction WeakMap::delete
   NATIVE? and assert.name WeakMap::delete, \delete # can't be polyfilled in some environments
   NATIVE? and assert.arity WeakMap::delete, 1
@@ -50,8 +50,9 @@ test 'WeakMap#delete' (assert)->
   assert.ok M.has(a) && M.has(b), 'WeakMap has values before .delete()'
   M.delete a
   assert.ok !M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()'
+  assert.ok (try !M.delete 1), 'return false on primitive'
 
-test 'WeakMap#get' (assert)->
+test 'WeakMap#get' (assert)!->
   assert.isFunction WeakMap::get
   assert.name WeakMap::get, \get
   NATIVE? and assert.arity WeakMap::get, 1
@@ -62,8 +63,9 @@ test 'WeakMap#get' (assert)->
   assert.strictEqual M.get(a), 42, 'WeakMap .get() return value'
   M.delete a
   assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
+  assert.ok (try !M.get 1), 'return false on primitive'
 
-test 'WeakMap#has' (assert)->
+test 'WeakMap#has' (assert)!->
   assert.isFunction WeakMap::has
   assert.name WeakMap::has, \has
   NATIVE? and assert.arity WeakMap::has, 1
@@ -74,8 +76,9 @@ test 'WeakMap#has' (assert)->
   assert.ok M.has(a), 'WeakMap .has() return true'
   M.delete a
   assert.ok !M.has(a), 'WeakMap .has() after .delete() return false'
+  assert.ok (try !M.has 1), 'return false on primitive'
 
-test 'WeakMap#set' (assert)->
+test 'WeakMap#set' (assert)!->
   assert.isFunction WeakMap::set
   assert.name WeakMap::set, \set
   assert.arity WeakMap::set, 2
@@ -87,5 +90,5 @@ test 'WeakMap#set' (assert)->
   wmap = new WeakMap!
   assert.same wmap.set({}, 1), wmap, 'return this'
 
-test 'WeakMap#@@toStringTag' (assert)->
+test 'WeakMap#@@toStringTag' (assert)!->
   assert.strictEqual WeakMap::[Symbol?toStringTag], \WeakMap, 'WeakMap::@@toStringTag is `WeakMap`'

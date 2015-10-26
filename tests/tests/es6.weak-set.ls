@@ -3,7 +3,7 @@ module \ES6
 
 {freeze} = Object
 
-test 'WeakSet' (assert)->
+test 'WeakSet' (assert)!->
   assert.isFunction WeakSet
   assert.name WeakSet, \WeakSet
   assert.arity WeakSet, 0
@@ -36,7 +36,7 @@ test 'WeakSet' (assert)->
   new WeakSet a
   assert.ok done
 
-test 'WeakSet#add' (assert)->
+test 'WeakSet#add' (assert)!->
   assert.isFunction WeakSet::add
   assert.name WeakSet::add, \add
   assert.arity WeakSet::add, 1
@@ -46,7 +46,7 @@ test 'WeakSet#add' (assert)->
   wset = new WeakSet!
   assert.same wset.add({}), wset, 'return this'
 
-test 'WeakSet#delete' (assert)->
+test 'WeakSet#delete' (assert)!->
   assert.isFunction WeakSet::delete
   NATIVE? and #assert.name WeakSet::delete, \delete # can't be polyfilled in some environments
   assert.arity WeakSet::delete, 1
@@ -56,9 +56,10 @@ test 'WeakSet#delete' (assert)->
     ..add b = {}
   assert.ok S.has(a) && S.has(b), 'WeakSet has values before .delete()'
   S.delete a
-  assert.ok !S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()'
+  assert.ok !S.has(a) && S.has(b), 'WeakSet hasn`t value after .delete()'
+  assert.ok (try !S.delete 1), 'return false on primitive'
 
-test 'WeakSet#has' (assert)->
+test 'WeakSet#has' (assert)!->
   assert.isFunction WeakSet::has
   assert.name WeakSet::has, \has
   assert.arity WeakSet::has, 1
@@ -69,6 +70,7 @@ test 'WeakSet#has' (assert)->
   assert.ok M.has(a), 'WeakSet has value after .add()'
   M.delete a
   assert.ok not M.has(a), 'WeakSet has`nt value after .delete()'
+  assert.ok (try !M.has 1), 'return false on primitive'
 
-test 'WeakSet::@@toStringTag' (assert)->
+test 'WeakSet::@@toStringTag' (assert)!->
   assert.strictEqual WeakSet::[Symbol?toStringTag], \WeakSet, 'WeakSet::@@toStringTag is `WeakSet`'
