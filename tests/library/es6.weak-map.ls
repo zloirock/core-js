@@ -53,7 +53,7 @@ test 'WeakMap#get' (assert)!->
   assert.strictEqual M.get(a), 42, 'WeakMap .get() return value'
   M.delete a
   assert.strictEqual M.get(a), void, 'WeakMap .get() after .delete() return undefined'
-  assert.ok (try !M.get 1), 'return false on primitive'
+  assert.ok (try void is M.get 1), 'return undefined on primitive'
 
 test 'WeakMap#has' (assert)!->
   assert.isFunction WeakMap::has

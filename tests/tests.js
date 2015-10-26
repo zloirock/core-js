@@ -6730,9 +6730,9 @@
     assert.strictEqual(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
     assert.ok((function(){
       try {
-        return !M.get(1);
+        return void 8 === M.get(1);
       } catch (e$) {}
-    }()), 'return false on primitive');
+    }()), 'return undefined on primitive');
   });
   test('WeakMap#has', function(assert){
     var M, a;

@@ -20,7 +20,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       } : KEY == 'has' ? function has(a){
         return IS_WEAK && !isObject(a) ? false : fn.call(this, a === 0 ? 0 : a);
       } : KEY == 'get' ? function get(a){
-        return IS_WEAK && !isObject(a) ? false : fn.call(this, a === 0 ? 0 : a);
+        return IS_WEAK && !isObject(a) ? undefined : fn.call(this, a === 0 ? 0 : a);
       } : KEY == 'add' ? function add(a){ fn.call(this, a === 0 ? 0 : a); return this; }
         : function set(a, b){ fn.call(this, a === 0 ? 0 : a, b); return this; }
     );
@@ -34,7 +34,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   } else {
     var instance             = new C
       // early implementations not supports chaining
-      , CHAINING             = instance[ADDER](IS_WEAK ? {} : -0, 1)
+      , HASNT_CHAINING       = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance
       // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
       , THROWS_ON_PRIMITIVES = fails(function(){ instance.has(1); })
       // most early implementations doesn't supports iterables, most modern - not close it correctly
@@ -59,7 +59,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       fixMethod('has');
       IS_MAP && fixMethod('get');
     }
-    if(BUGGY_ZERO || CHAINING !== instance)fixMethod(ADDER);
+    if(BUGGY_ZERO || HASNT_CHAINING)fixMethod(ADDER);
     // weak collections should not contains .clear method
     if(IS_WEAK && proto.clear)delete proto.clear;
   }

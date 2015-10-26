@@ -595,6 +595,27 @@
         return Array.prototype.fill.call(void 8, 0);
       }, TypeError);
     }
+    if ((typeof NATIVE != 'undefined' && NATIVE !== null) && function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
+      assert.ok((function(){
+        try {
+          return Array.prototype.fill.call(Object.defineProperty({
+            length: -1
+          }, 0, {
+            get: function(){
+              throw Error;
+            }
+          }));
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
     return assert.ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
@@ -634,6 +655,18 @@
         return Array.prototype.findIndex.call(void 8, 0);
       }, TypeError);
     }
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.ok((function(){
+        try {
+          return Array.prototype.findIndex.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
     return assert.ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
@@ -672,6 +705,18 @@
       assert.throws(function(){
         return Array.prototype.find.call(void 8, 0);
       }, TypeError);
+    }
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.ok((function(){
+        try {
+          return Array.prototype.find.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
     }
     return assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
@@ -767,7 +812,19 @@
       return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     assert.deepEqual(from(a), [1, 2, 3]);
-    return assert.ok(done);
+    assert.ok(done);
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return Array.from({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
 }).call(this);
 
@@ -5749,7 +5806,7 @@
       return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new WeakMap(a);
-    return assert.ok(done);
+    assert.ok(done);
   });
   test('WeakMap#delete', function(assert){
     var x$, M, a, b;
@@ -5762,7 +5819,12 @@
     x$.set(b = {}, 21);
     assert.ok(M.has(a) && M.has(b), 'WeakMap has values before .delete()');
     M['delete'](a);
-    return assert.ok(!M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()');
+    assert.ok(!M.has(a) && M.has(b), 'WeakMap hasn`t value after .delete()');
+    assert.ok((function(){
+      try {
+        return !M['delete'](1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakMap#get', function(assert){
     var M, a;
@@ -5775,7 +5837,12 @@
     M.set(a = {}, 42);
     assert.strictEqual(M.get(a), 42, 'WeakMap .get() return value');
     M['delete'](a);
-    return assert.strictEqual(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
+    assert.strictEqual(M.get(a), void 8, 'WeakMap .get() after .delete() return undefined');
+    assert.ok((function(){
+      try {
+        return void 8 === M.get(1);
+      } catch (e$) {}
+    }()), 'return undefined on primitive');
   });
   test('WeakMap#has', function(assert){
     var M, a;
@@ -5788,7 +5855,12 @@
     M.set(a = {}, 42);
     assert.ok(M.has(a), 'WeakMap .has() return true');
     M['delete'](a);
-    return assert.ok(!M.has(a), 'WeakMap .has() after .delete() return false');
+    assert.ok(!M.has(a), 'WeakMap .has() after .delete() return false');
+    assert.ok((function(){
+      try {
+        return !M.has(1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakMap#set', function(assert){
     var x$, a, e, wmap;
@@ -5807,10 +5879,10 @@
       }
     }()), 'throws with primitive keys');
     wmap = new WeakMap();
-    return assert.same(wmap.set({}, 1), wmap, 'return this');
+    assert.same(wmap.set({}, 1), wmap, 'return this');
   });
   test('WeakMap#@@toStringTag', function(assert){
-    return assert.strictEqual(WeakMap.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
+    assert.strictEqual(WeakMap.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
   });
 }).call(this);
 
@@ -5855,7 +5927,7 @@
       return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new WeakSet(a);
-    return assert.ok(done);
+    assert.ok(done);
   });
   test('WeakSet#add', function(assert){
     var a, e, wset;
@@ -5874,7 +5946,7 @@
       }
     }()), 'throws with primitive keys');
     wset = new WeakSet();
-    return assert.same(wset.add({}), wset, 'return this');
+    assert.same(wset.add({}), wset, 'return this');
   });
   test('WeakSet#delete', function(assert){
     var x$, S, a, b;
@@ -5886,7 +5958,12 @@
     x$.add(b = {});
     assert.ok(S.has(a) && S.has(b), 'WeakSet has values before .delete()');
     S['delete'](a);
-    return assert.ok(!S.has(a) && S.has(b), 'WeakSet has`nt value after .delete()');
+    assert.ok(!S.has(a) && S.has(b), 'WeakSet hasn`t value after .delete()');
+    assert.ok((function(){
+      try {
+        return !S['delete'](1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakSet#has', function(assert){
     var M, a;
@@ -5899,10 +5976,15 @@
     M.add(a = {});
     assert.ok(M.has(a), 'WeakSet has value after .add()');
     M['delete'](a);
-    return assert.ok(!M.has(a), 'WeakSet has`nt value after .delete()');
+    assert.ok(!M.has(a), 'WeakSet has`nt value after .delete()');
+    assert.ok((function(){
+      try {
+        return !M.has(1);
+      } catch (e$) {}
+    }()), 'return false on primitive');
   });
   test('WeakSet::@@toStringTag', function(assert){
-    return assert.strictEqual(WeakSet.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+    assert.strictEqual(WeakSet.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
   });
 }).call(this);
 
