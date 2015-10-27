@@ -19,4 +19,6 @@ test 'Array#findIndex' (assert)->
   if !(-> @)!
     assert.throws (-> Array::findIndex.call null, 0), TypeError
     assert.throws (-> Array::findIndex.call void, 0), TypeError
+  if NATIVE?
+    assert.ok (try -1 is Array::findIndex.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
   assert.ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'

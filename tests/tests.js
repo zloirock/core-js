@@ -1140,11 +1140,17 @@
     assert.deepEqual(slice.call(str, -2, -3), []);
     if (list = typeof document != 'undefined' && document !== null ? (ref$ = document.body) != null ? ref$.childNodes : void 8 : void 8) {
       try {
-        return assert.strictEqual(toString$.call(slice.call(list)).slice(8, -1), 'Array');
+        assert.strictEqual(toString$.call(slice.call(list)).slice(8, -1), 'Array');
       } catch (e$) {
         e = e$;
-        return assert.ok(false);
+        assert.ok(false);
       }
+    }
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.deepEqual(slice.call({
+        length: -1,
+        0: 1
+      }, 0, 1), [], 'uses ToLength');
     }
   });
   test('Array#join', function(assert){
@@ -1159,7 +1165,28 @@
     assert.ok(1 === [1, 2, 3].indexOf(2, -2));
     assert.ok(-1 === [NaN].indexOf(NaN));
     assert.ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
-    return assert.ok(-1 === Array(1).indexOf(void 8));
+    assert.ok(-1 === Array(1).indexOf(void 8));
+    if ((typeof NATIVE != 'undefined' && NATIVE !== null) && function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
+      return assert.ok((function(){
+        try {
+          return -1 === Array.prototype.indexOf.call(Object.defineProperty({
+            length: -1
+          }, 0, {
+            get: function(){
+              throw Error();
+            }
+          }), 1);
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#lastIndexOf', function(assert){
     assert.strictEqual(2, [1, 1, 1].lastIndexOf(1));
@@ -1168,7 +1195,35 @@
     assert.strictEqual(-1, [1, 2, 3].lastIndexOf(2, -3));
     assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, -2));
     assert.strictEqual(-1, [NaN].lastIndexOf(NaN));
-    return assert.strictEqual(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
+    assert.strictEqual(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
+    if ((typeof NATIVE != 'undefined' && NATIVE !== null) && function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
+      return assert.ok((function(){
+        try {
+          return -1 === Array.prototype.lastIndexOf.call(Object.defineProperties({
+            length: -1
+          }, {
+            2147483646: {
+              get: function(){
+                throw Error();
+              }
+            },
+            4294967294: {
+              get: function(){
+                throw Error();
+              }
+            }
+          }), 1);
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#every', function(assert){
     var a, ctx, rez, arr;
@@ -1199,9 +1254,21 @@
       return rez += arguments[1];
     });
     assert.ok(rez === '012');
-    return assert.ok((arr = [1, 2, 3]).every(function(){
+    assert.ok((arr = [1, 2, 3]).every(function(){
       return arguments[2] === arr;
     }));
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return true === Array.prototype.every.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#some', function(assert){
     var a, ctx, rez, arr;
@@ -1233,9 +1300,21 @@
       return false;
     });
     assert.ok(rez === '012');
-    return assert.ok(!(arr = [1, 2, 3]).some(function(){
+    assert.ok(!(arr = [1, 2, 3]).some(function(){
       return arguments[2] !== arr;
     }));
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return false === Array.prototype.some.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#forEach', function(assert){
     var a, ctx, rez, arr;
@@ -1272,7 +1351,19 @@
     arr.forEach(function(arg$, k){
       rez += k;
     });
-    return assert.ok(rez === '5');
+    assert.ok(rez === '5');
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return void 8 === Array.prototype.forEach.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#map', function(assert){
     var a, ctx;
@@ -1289,9 +1380,21 @@
     assert.deepEqual([1, 3, 5], [1, 2, 3].map(curry$(function(x$, y$){
       return x$ + y$;
     })));
-    return assert.deepEqual([2, 2, 2], [1, 2, 3].map(function(){
+    assert.deepEqual([2, 2, 2], [1, 2, 3].map(function(){
       return +this;
     }, 2));
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return Array.prototype.map.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#filter', function(assert){
     var a, ctx;
@@ -1302,9 +1405,21 @@
       assert.same(that, a, 'correct link to array in callback');
       return assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
-    return assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function(it){
+    assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function(it){
       return typeof it === 'number';
     }));
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return Array.prototype.map.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          });
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#reduce', function(assert){
     var a, accumulator, v, k;
@@ -1334,13 +1449,25 @@
     }, 0);
     assert.same(v, '123', 'correct order #1');
     assert.same(k, '012', 'correct order #2');
-    return assert.same(Array.prototype.reduce.call({
+    assert.same(Array.prototype.reduce.call({
       0: 1,
       1: 2,
       length: 2
     }, curry$(function(x$, y$){
       return x$ + y$;
     })), 3, 'generic');
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return Array.prototype.reduce.call({
+            length: -1,
+            0: 1
+          }, function(){
+            throw 42;
+          }, 1);
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Array#reduceRight', function(assert){
     var a, accumulator, v, k;
@@ -1370,13 +1497,26 @@
     }, 0);
     assert.same(v, '321', 'correct order #1');
     assert.same(k, '210', 'correct order #2');
-    return assert.same(Array.prototype.reduceRight.call({
+    assert.same(Array.prototype.reduceRight.call({
       0: 1,
       1: 2,
       length: 2
     }, curry$(function(x$, y$){
       return x$ + y$;
     })), 3, 'generic');
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.ok((function(){
+        try {
+          return Array.prototype.reduceRight.call({
+            length: -1,
+            2147483646: 0,
+            4294967294: 0
+          }, function(){
+            throw 42;
+          }, 1);
+        } catch (e$) {}
+      }()), 'uses ToLength');
+    }
   });
   test('Date.now', function(assert){
     var now;
@@ -1453,6 +1593,19 @@
         return Array.prototype.copyWithin.call(void 8, 0);
       }, TypeError);
     }
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.deepEqual(Array.prototype.copyWithin.call({
+        0: 1,
+        1: 2,
+        2: 3,
+        length: -1
+      }, 1, 2), {
+        0: 1,
+        1: 2,
+        2: 3,
+        length: -1
+      }, 'uses ToLength');
+    }
     return assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
@@ -1499,8 +1652,8 @@
           return Array.prototype.fill.call(Object.defineProperty({
             length: -1
           }, 0, {
-            get: function(){
-              throw Error;
+            set: function(){
+              throw Error();
             }
           }));
         } catch (e$) {}
@@ -1548,7 +1701,7 @@
     if (typeof NATIVE != 'undefined' && NATIVE !== null) {
       assert.ok((function(){
         try {
-          return Array.prototype.findIndex.call({
+          return -1 === Array.prototype.findIndex.call({
             length: -1,
             0: 1
           }, function(){
@@ -1599,7 +1752,7 @@
     if (typeof NATIVE != 'undefined' && NATIVE !== null) {
       assert.ok((function(){
         try {
-          return Array.prototype.find.call({
+          return void 8 === Array.prototype.find.call({
             length: -1,
             0: 1
           }, function(){
@@ -1749,6 +1902,14 @@
       value: void 8,
       done: true
     });
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.deepEqual(Array.prototype.keys.call({
+        length: -1
+      }).next(), {
+        value: void 8,
+        done: true
+      }, 'uses ToLength');
+    }
     return assert.ok('keys' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#values', function(assert){
@@ -1777,6 +1938,14 @@
       value: void 8,
       done: true
     });
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.deepEqual(Array.prototype.values.call({
+        length: -1
+      }).next(), {
+        value: void 8,
+        done: true
+      }, 'uses ToLength');
+    }
     return assert.ok('values' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#entries', function(assert){
@@ -1805,6 +1974,14 @@
       value: void 8,
       done: true
     });
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      assert.deepEqual(Array.prototype.entries.call({
+        length: -1
+      }).next(), {
+        value: void 8,
+        done: true
+      }, 'uses ToLength');
+    }
     return assert.ok('entries' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#@@iterator', function(assert){
@@ -1830,10 +2007,18 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
+    if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      return assert.deepEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call({
+        length: -1
+      }).next(), {
+        value: void 8,
+        done: true
+      }, 'uses ToLength');
+    }
   });
 }).call(this);
 
@@ -6909,6 +7094,27 @@
       assert.throws(function(){
         return Array.prototype.includes.call(void 8, 0);
       }, TypeError);
+    }
+    if ((typeof NATIVE != 'undefined' && NATIVE !== null) && function(){
+      try {
+        return 2 === Object.defineProperty({}, 'a', {
+          get: function(){
+            return 2;
+          }
+        }).a;
+      } catch (e$) {}
+    }()) {
+      assert.ok((function(){
+        try {
+          return false === Array.prototype.includes.call(Object.defineProperty({
+            length: -1
+          }, 0, {
+            get: function(){
+              throw Error();
+            }
+          }), 1);
+        } catch (e$) {}
+      }()), 'uses ToLength');
     }
     return assert.ok('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });

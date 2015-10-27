@@ -23,4 +23,6 @@ test 'Array#copyWithin' (assert)->
   if !(-> @)!
     assert.throws (-> Array::copyWithin.call null, 0), TypeError
     assert.throws (-> Array::copyWithin.call void, 0), TypeError
+  if NATIVE?
+    assert.deepEqual Array::copyWithin.call({0:1, 1: 2, 2: 3, length: -1}, 1, 2), {0: 1, 1: 2, 2: 3, length: -1}, 'uses ToLength'
   assert.ok \copyWithin of Array::[Symbol.unscopables], 'In Array#@@unscopables'

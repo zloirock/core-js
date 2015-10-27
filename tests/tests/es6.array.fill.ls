@@ -16,4 +16,6 @@ test 'Array#fill' (assert)->
   if !(-> @)!
     assert.throws (-> Array::fill.call null, 0), TypeError
     assert.throws (-> Array::fill.call void, 0), TypeError
+  if NATIVE? and (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+    assert.ok (try Array::fill.call Object.defineProperty {length: -1}, 0, set: -> throw Error!), 'uses ToLength'
   assert.ok \fill of Array::[Symbol.unscopables], 'In Array#@@unscopables'

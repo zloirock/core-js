@@ -54,3 +54,5 @@ test 'Array.from' (assert)->
     [][Symbol?iterator]call @
   assert.deepEqual from(a), [1 2 3]
   assert.ok done
+  if NATIVE?
+    assert.ok (try Array.from {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'

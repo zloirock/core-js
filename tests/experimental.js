@@ -687,7 +687,10 @@
       assert.arrayEqual(Typed.from([1, 2, 3], fn$), [1, 4, 9], 'accept callback');
       Typed.from([1], fn1$, O = {});
       assert.throws(fn2$, "isn't generic #1");
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn3$, "isn't generic #2");
+      if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+        assert.throws(fn3$, "isn't generic #2");
+        assert.ok((fn4$()), 'uses ToLength');
+      }
     }
     function fn$(it){
       return it * it;
@@ -703,6 +706,16 @@
     }
     function fn3$(){
       Typed.from.call(Array, []);
+    }
+    function fn4$(){
+      try {
+        return Typed.from({
+          length: -1,
+          0: 1
+        }, function(){
+          throw 42;
+        });
+      } catch (e$) {}
     }
   });
 }).call(this);

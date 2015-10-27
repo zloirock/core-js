@@ -14,6 +14,8 @@ test 'Array#keys' (assert)->
   assert.deepEqual iter.next!, {value: 1, done: no}
   assert.deepEqual iter.next!, {value: 2, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
+  if NATIVE?
+    assert.deepEqual Array::keys.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \keys of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
 test 'Array#values' (assert)->
@@ -29,6 +31,8 @@ test 'Array#values' (assert)->
   assert.deepEqual iter.next!, {value: \w, done: no}
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
+  if NATIVE?
+    assert.deepEqual Array::values.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \values of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
 test 'Array#entries' (assert)->
@@ -44,6 +48,8 @@ test 'Array#entries' (assert)->
   assert.deepEqual iter.next!, {value: [1 \w], done: no}
   assert.deepEqual iter.next!, {value: [2 \e], done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
+  if NATIVE?
+    assert.deepEqual Array::entries.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \entries of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
 test 'Array#@@iterator' (assert)->
@@ -60,3 +66,5 @@ test 'Array#@@iterator' (assert)->
   assert.deepEqual iter.next!, {value: \w, done: no}
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
+  if NATIVE?
+    assert.deepEqual Array::[Symbol?iterator].call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'

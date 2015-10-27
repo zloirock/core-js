@@ -166,6 +166,8 @@ test 'Array#slice' (assert)->
   if list = document?body?childNodes
     try assert.strictEqual typeof! slice.call(list), \Array
     catch => assert.ok no
+  if NATIVE?
+    assert.deepEqual slice.call({length: -1, 0: 1}, 0, 1), [], 'uses ToLength'
 
 test 'Array#join' (assert)->
   assert.strictEqual Array::join.call(\123), '1,2,3'
@@ -180,6 +182,8 @@ test 'Array#indexOf' (assert)->
   assert.ok -1 is [NaN]indexOf NaN
   assert.ok 3  is Array(2)concat([1 2 3])indexOf 2
   assert.ok -1 is Array(1)indexOf void
+  if NATIVE? and (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+    assert.ok (try -1 is Array::indexOf.call Object.defineProperty({length: -1}, 0, get: -> throw Error!), 1), 'uses ToLength'
 
 test 'Array#lastIndexOf' (assert)->
   assert.strictEqual 2,  [1 1 1]lastIndexOf 1
@@ -189,6 +193,8 @@ test 'Array#lastIndexOf' (assert)->
   assert.strictEqual 1,  [1 2 3]lastIndexOf 2 -2
   assert.strictEqual -1, [NaN]lastIndexOf NaN
   assert.strictEqual 1,  [1 2 3]concat(Array 2)lastIndexOf 2
+  if NATIVE? and (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+    assert.ok (try -1 is Array::lastIndexOf.call Object.defineProperties({length: -1}, {2147483646: {get: -> throw Error!}, 4294967294: {get: -> throw Error!}}), 1), 'uses ToLength'
 
 test 'Array#every' (assert)->
   (a = [1])every (val, key, that)->
@@ -207,6 +213,8 @@ test 'Array#every' (assert)->
   [1 2 3]every -> rez += &1
   assert.ok rez is \012
   assert.ok (arr = [1 2 3])every -> &2 is arr
+  if NATIVE?
+    assert.ok (try on is Array::every.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#some' (assert)->
   (a = [1])some (val, key, that)->
@@ -225,6 +233,8 @@ test 'Array#some' (assert)->
   [1 2 3]some -> rez += &1; no
   assert.ok rez is \012
   assert.ok not (arr = [1 2 3])some -> &2 isnt arr
+  if NATIVE?
+    assert.ok (try no is Array::some.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#forEach' (assert)->
   (a = [1])forEach (val, key, that)!->
@@ -251,6 +261,8 @@ test 'Array#forEach' (assert)->
   arr.5 = ''
   arr.forEach (, k)!-> rez += k
   assert.ok rez is \5
+  if NATIVE?
+    assert.ok (try void is Array::forEach.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#map' (assert)->
   (a = [1])map (val, key, that)->
@@ -262,7 +274,9 @@ test 'Array#map' (assert)->
   , ctx = {}
   assert.deepEqual [2 3 4] [1 2 3]map (+ 1)
   assert.deepEqual [1 3 5] [1 2 3]map ( + )
-  assert.deepEqual [2 2 2] [1 2 3]map (-> +@), 2 
+  assert.deepEqual [2 2 2] [1 2 3]map (-> +@), 2
+  if NATIVE?
+    assert.ok (try Array::map.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#filter' (assert)->
   (a = [1])filter (val, key, that)->
@@ -273,6 +287,8 @@ test 'Array#filter' (assert)->
     assert.same @, ctx, 'correct callback context'
   , ctx = {}
   assert.deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof it is \number
+  if NATIVE?
+    assert.ok (try Array::map.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#reduce' (assert)->
   (a = [1])reduce (memo, val, key, that)->
@@ -297,6 +313,8 @@ test 'Array#reduce' (assert)->
   assert.same v, \123,'correct order #1'
   assert.same k, \012,'correct order #2'
   assert.same Array::reduce.call({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
+  if NATIVE?
+    assert.ok (try Array::reduce.call {length: -1, 0: 1}, (!-> throw 42), 1), 'uses ToLength'
 
 test 'Array#reduceRight' (assert)->
   (a = [1])reduceRight (memo, val, key, that)->
@@ -321,6 +339,8 @@ test 'Array#reduceRight' (assert)->
   assert.same v, \321,'correct order #1'
   assert.same k, \210,'correct order #2'
   assert.same Array::reduceRight.call({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
+  if NATIVE?
+    assert.ok (try Array::reduceRight.call {length: -1, 2147483646: 0, 4294967294: 0}, (!-> throw 42), 1), 'uses ToLength'
 
 test 'Date.now' (assert)->
   {now} = Date

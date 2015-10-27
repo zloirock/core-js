@@ -26,4 +26,6 @@ test '%TypedArray%.from', !(assert)~>
       assert.same @, O, 'correct callback context'
     , O = {}
     assert.throws (!-> Typed.from.call void, []), "isn't generic #1"
-    NATIVE? and assert.throws (!-> Typed.from.call Array, []), "isn't generic #2" # fails in FF
+    if NATIVE?
+      assert.throws (!-> Typed.from.call Array, []), "isn't generic #2" # fails in FF
+      assert.ok (try Typed.from {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
