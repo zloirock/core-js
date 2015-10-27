@@ -2947,11 +2947,11 @@
         result += 'G';
       });
       result += 'H';
-      setTimeout(1e3, function(){
+      setTimeout(function(){
         if (~result.indexOf('C')) {
           assert.same(result, expected);
         }
-      });
+      }, 1e3);
     });
   }
   test('Promise#then', function(assert){
