@@ -112,6 +112,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
   return result;
 };
 var $stringify = function stringify(it){
+  if(it === undefined || isSymbol(it))return; // IE8 returns string on undefined
   var args = [it]
     , i    = 1
     , $$   = arguments
