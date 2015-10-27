@@ -1,5 +1,3 @@
-'use strict'
-
 {module, test} = QUnit
 module \ES6
 
@@ -8,7 +6,7 @@ test 'Object#toString' (assert)->
   assert.name Object::toString, \toString
   assert.looksNative Object::toString
   {toString} = Object::
-  if !(-> @)!
+  if STRICT
     assert.strictEqual toString.call(null), '[object Null]', 'classof null is `Null`'
     assert.strictEqual toString.call(void), '[object Undefined]', 'classof void is `Undefined`'
   assert.strictEqual toString.call(true), '[object Boolean]', 'classof bool is `Boolean`'

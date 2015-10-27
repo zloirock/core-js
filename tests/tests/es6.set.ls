@@ -113,7 +113,7 @@ test 'Set#clear' (assert)->
 
 test 'Set#delete' (assert)->
   assert.isFunction Set::delete
-  NATIVE? and assert.name Set::delete, \delete # can't be polyfilled in some environments
+  NATIVE and assert.name Set::delete, \delete # can't be polyfilled in some environments
   assert.arity Set::delete, 1
   assert.looksNative Set::delete
   a = []
@@ -207,7 +207,7 @@ test 'Set#size' (assert)->
   )size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
-  if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+  if DESCRIPTORS
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     assert.ok sizeDesc && sizeDesc.get, 'size is getter'
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'

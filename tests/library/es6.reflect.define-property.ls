@@ -2,7 +2,6 @@
 module \ES6
 
 {defineProperty, getOwnPropertyDescriptor} = core.Object
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.defineProperty' (assert)->
   {defineProperty} = core.Reflect
@@ -13,7 +12,7 @@ test 'Reflect.defineProperty' (assert)->
   O = {}
   assert.strictEqual defineProperty(O, \foo, {value: 123}), on
   assert.strictEqual O.foo, 123
-  if MODERN
+  if DESCRIPTORS
     O = {}
     defineProperty O, \foo, {value: 123, enumerable: on}
     assert.deepEqual getOwnPropertyDescriptor(O, \foo), {value: 123, enumerable: on, configurable: no, writable: no}

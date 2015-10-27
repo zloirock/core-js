@@ -2,10 +2,6 @@
 {module, test} = QUnit
 module \ES6
 
-global = Function('return this')!
-MODERN = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
-STRICT = !(-> @)!
-
 test 'Promise' !(assert)->
   assert.isFunction Promise
   assert.arity Promise, 1
@@ -15,10 +11,10 @@ test 'Promise' !(assert)->
   new Promise (resolve, reject)!->
     assert.isFunction Promise, 'resolver is function'
     assert.isFunction Promise, 'rejector is function'
-    assert.same @, (if STRICT => void else global), 'correct executor context'
+    assert.same @, (-> @)!, 'correct executor context'
 
 # related https://github.com/zloirock/core-js/issues/78
-if MODERN => test 'Promise operations order' !(assert)->
+if DESCRIPTORS => test 'Promise operations order' !(assert)->
   assert.expect 1
   expected = \DEHAFGBC
   async = assert.async!
@@ -53,7 +49,7 @@ test 'Promise#then' !(assert)->
 test 'Promise#catch' !(assert)->
   assert.isFunction Promise::catch
   assert.arity Promise::catch, 1
-  NATIVE? and assert.name Promise::catch, \catch # can't be polyfilled in some environments
+  NATIVE and assert.name Promise::catch, \catch # can't be polyfilled in some environments
   assert.looksNative Promise::then
 
 test 'Promise#@@toStringTag' !(assert)->
@@ -109,7 +105,7 @@ test 'Promise.reject' !(assert)->
   assert.name Promise.reject, \reject
   assert.looksNative Promise.reject
 
-if Object.setPrototypeOf
+if PROTO
   test 'Promise subclassing' !(assert)->
     # this is ES5 syntax to create a valid ES6 subclass
     SubPromise = ->

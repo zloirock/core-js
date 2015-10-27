@@ -1,7 +1,6 @@
 {module, test} = QUnit
 module \ES7
 
-descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
 {create} = core.Object
 
 test 'Object.getOwnPropertyDescriptors' (assert)->
@@ -14,7 +13,7 @@ test 'Object.getOwnPropertyDescriptors' (assert)->
   descs = getOwnPropertyDescriptors O
   assert.strictEqual descs.q, void
   assert.deepEqual descs.w, {+enumerable, +configurable, +writable, value: 2}
-  if descriptors =>
+  if DESCRIPTORS =>
     assert.deepEqual descs.e, {-enumerable, -configurable, -writable, value: 3}
   else
     assert.deepEqual descs.e, {+enumerable, +configurable, +writable, value: 3}

@@ -1,8 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-global = Function('return this')!
-
 test 'String#match regression' (assert)->
   assert.isFunction ''match
   assert.arity ''match, 1
@@ -87,7 +85,7 @@ test 'String#match regression' (assert)->
   string = "Boston, Mass. 02134"
   assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).0, \02134, 'S15.5.4.10_A2_T6 #1'
   assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).1, \02134, 'S15.5.4.10_A2_T6 #2'
-  NATIVE? and assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).2, void, 'S15.5.4.10_A2_T6 #3' #fails in old IE
+  NATIVE and assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).2, void, 'S15.5.4.10_A2_T6 #3' #fails in old IE
   assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)length, 3, 'S15.5.4.10_A2_T6 #4'
   assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)index, 14, 'S15.5.4.10_A2_T6 #5'
   assert.strictEqual string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)input, string, 'S15.5.4.10_A2_T6 #6'
@@ -165,25 +163,24 @@ test 'String#match regression' (assert)->
   assert.strictEqual ''match.call(num, re)input, String(num), 'S15.5.4.10_A2_T18 #4'
 
 test 'RegExp#@@match' (assert)->
-  assert.isFunction /./[Symbol.match]
-  assert.arity /./[Symbol.match], 1
+  assert.isFunction /./[Symbol?match]
+  assert.arity /./[Symbol?match], 1
   string = "Boston, MA 02134"
   matches = [\02134 \02134 void]
-  assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol.match](string).length, 3
-  assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol.match](string).index, string.lastIndexOf \0
+  assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol?match](string).length, 3
+  assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol?match](string).index, string.lastIndexOf \0
   for i in matches
-    assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol.match](string)[i], matches[i]
+    assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol?match](string)[i], matches[i]
 
 test '@@match logic' (assert)->
   'use strict'
-  strict = !(-> @)!
-  str = if strict => \qwe else Object \qwe
-  num = if strict => 123 else Object 123
-  O = {(Symbol.match): -> {value: it}}
+  str = if STRICT => \qwe else Object \qwe
+  num = if STRICT => 123 else Object 123
+  O = {(Symbol?match): -> {value: it}}
   assert.strictEqual str.match(O)value, str
   assert.strictEqual ''match.call(num, O)value, num
   re = /./
-  re[Symbol.match] = -> {value: it}
+  re[Symbol?match] = -> {value: it}
   assert.strictEqual str.match(re)value, str
   assert.strictEqual ''match.call(num, re)value, num
   

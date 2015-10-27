@@ -1,8 +1,6 @@
 {module, test} = QUnit
 module \ES6
 
-descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
-
 test 'Object.assign' (assert)->
   {assign, keys, defineProperty} = core.Object
   assert.isFunction assign
@@ -17,7 +15,7 @@ test 'Object.assign' (assert)->
   assert.strictEqual typeof str, \object
   assert.strictEqual String(str), \qwe
   assert.strictEqual str.q, 1
-  if descriptors
+  if DESCRIPTORS
     foo = baz: 1
     assign foo, defineProperty {}, \bar, get: -> @baz + 1
     assert.ok foo.bar is void, "assign don't copy descriptors"

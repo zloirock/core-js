@@ -2,7 +2,6 @@
 module \ES6
 
 {defineProperty, create} = core.Object
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.get' (assert)->
   {get} = core.Reflect
@@ -12,7 +11,7 @@ test 'Reflect.get' (assert)->
     assert.name get, \get
   assert.strictEqual get({qux: 987}, \qux), 987
   
-  if MODERN
+  if DESCRIPTORS
     target = create defineProperty({z:3}, \w, {get: -> @}), do
       x: value: 1
       y: get: -> @

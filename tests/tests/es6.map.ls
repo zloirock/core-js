@@ -61,7 +61,7 @@ test 'Map#clear' (assert)->
 test 'Map#delete' (assert)->
   assert.isFunction Map::delete
   assert.arity Map::delete, 1
-  NATIVE? and assert.name Map::delete, \delete # can't be polyfilled in some environments
+  NATIVE and assert.name Map::delete, \delete # can't be polyfilled in some environments
   assert.looksNative Map::delete
   a = []
   M = new Map!
@@ -214,7 +214,7 @@ test 'Map#size' (assert)->
     ..set 2 1)size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
-  if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+  if DESCRIPTORS
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     assert.ok sizeDesc && sizeDesc.get, 'size is getter'
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'

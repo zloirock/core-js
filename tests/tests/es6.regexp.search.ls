@@ -45,21 +45,20 @@ test 'String#search regression' (assert)->
   assert.strictEqual aString.search(/of/), aString.search(/of/g), 'S15.5.4.12_A3_T2'
 
 test 'RegExp#@@search' (assert)->
-  assert.isFunction /./[Symbol.search]
-  assert.arity /./[Symbol.search], 1
-  assert.strictEqual /four/[Symbol.search]('one two three four five'), 14
-  assert.strictEqual /Four/[Symbol.search]('one two three four five'), -1
+  assert.isFunction /./[Symbol?search]
+  assert.arity /./[Symbol?search], 1
+  assert.strictEqual /four/[Symbol?search]('one two three four five'), 14
+  assert.strictEqual /Four/[Symbol?search]('one two three four five'), -1
 
 test '@@search logic' (assert)->
   'use strict'
-  strict = !(-> @)!
-  str = if strict => \qwe else Object \qwe
-  num = if strict => 123 else Object 123
-  O = {(Symbol.search): -> {value: it}}
+  str = if STRICT => \qwe else Object \qwe
+  num = if STRICT => 123 else Object 123
+  O = {(Symbol?search): -> {value: it}}
   assert.strictEqual str.search(O)value, str
   assert.strictEqual ''search.call(num, O)value, num
   re = /./
-  re[Symbol.search] = -> {value: it}
+  re[Symbol?search] = -> {value: it}
   assert.strictEqual str.search(re)value, str
   assert.strictEqual ''search.call(num, re)value, num
   

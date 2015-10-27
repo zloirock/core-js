@@ -2,16 +2,15 @@
 module \ES6
 
 {defineProperty, create} = Object
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.get' (assert)->
   {get} = Reflect
   assert.isFunction get
-  NATIVE? and assert.arity get, 2 # fails in MS Edge
+  NATIVE and assert.arity get, 2 # fails in MS Edge
   assert.name get, \get
   assert.looksNative get
   assert.strictEqual get({qux: 987}, \qux), 987
-  if MODERN
+  if DESCRIPTORS
     target = create defineProperty({z:3}, \w, {get: -> @}), do
       x: value: 1
       y: get: -> @

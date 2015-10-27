@@ -2,7 +2,6 @@
 module \ES6
 
 {defineProperty, isExtensible} = Object
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.preventExtensions' (assert)->
   {preventExtensions} = Reflect
@@ -12,6 +11,6 @@ test 'Reflect.preventExtensions' (assert)->
   assert.looksNative preventExtensions
   obj = {}
   assert.ok preventExtensions(obj), on
-  if MODERN
+  if DESCRIPTORS
     assert.ok !isExtensible obj
   assert.throws (-> preventExtensions 42), TypeError, 'throws on primitive'

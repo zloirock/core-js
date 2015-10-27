@@ -11,5 +11,4 @@ test 'core.getIteratorMethod' (assert)!->
   assert.isFunction getIteratorMethod []
   assert.isFunction getIteratorMethod (->&)!
   assert.isFunction getIteratorMethod Array::
-  assert.isFunction getIteratorMethod String::
   assert.strictEqual getIteratorMethod({}), void

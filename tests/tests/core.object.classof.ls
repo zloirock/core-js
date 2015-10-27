@@ -32,5 +32,5 @@ test 'Object.classof' (assert)->
   if JSON?
     assert.ok classof(JSON) is \JSON, 'classof JSON is `JSON`'
   class Class
-    @::[Symbol.toStringTag] = \Class
+    @::[Symbol?toStringTag] = \Class
   assert.ok classof(new Class) is \Class, 'classof user class is [Symbol.toStringTag]'

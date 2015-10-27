@@ -2,12 +2,11 @@
 module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = Object
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.set' (assert)->
   {set} = Reflect
   assert.isFunction set
-  NATIVE? and assert.arity set, 3 # fails in MS Edge
+  NATIVE and assert.arity set, 3 # fails in MS Edge
   assert.name set, \set
   assert.looksNative set
   obj = {}
@@ -18,7 +17,7 @@ test 'Reflect.set' (assert)->
   set target, \foo, 1, receiver
   assert.strictEqual target.foo, void, 'target.foo === undefined'
   assert.strictEqual receiver.foo, 1, 'receiver.foo === 1'
-  if MODERN
+  if DESCRIPTORS
     defineProperty receiver, \bar, {value: 0, writable: on, enumerable: no, configurable: on}
     set target, \bar, 1, receiver
     assert.strictEqual receiver.bar, 1, 'receiver.bar === 1'

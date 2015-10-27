@@ -3,7 +3,6 @@ module \ES6
 
 {defineProperty} = Object
 {from} = Array
-MODERN = (-> try 2 == defineProperty({}, \a, get: -> 2)a)!
 
 test 'Reflect.enumerate' (assert)->
   {enumerate} = Reflect

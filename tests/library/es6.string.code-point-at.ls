@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -55,6 +54,6 @@ test 'String#codePointAt' (assert)->
   assert.strictEqual codePointAt('\uDF06abc', NaN), 0xDF06
   assert.strictEqual codePointAt('\uDF06abc', null), 0xDF06
   assert.strictEqual codePointAt('\uDF06abc', void), 0xDF06
-  if !(-> @)!
+  if STRICT
     assert.throws (-> codePointAt null, 0), TypeError
     assert.throws (-> codePointAt void, 0), TypeError

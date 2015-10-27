@@ -14,10 +14,10 @@
     assert.throws(function(){
       new ArrayBuffer(-1);
     }, RangeError, 'negative length');
-    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(function(){
+    NATIVE && assert.throws(function(){
       new ArrayBuffer();
     }, RangeError, 'missed length');
-    (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(function(){
+    NATIVE && assert.throws(function(){
       new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
     }, RangeError, 'absurd length');
   });
@@ -373,8 +373,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.every', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -440,8 +439,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.fill', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -469,8 +467,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.filter', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -517,8 +514,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.findIndex', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, v, k;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -567,8 +563,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.find', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, v, k;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -617,8 +612,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.forEach', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, v, k;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -661,8 +655,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArray%.from', function(assert){
-    var global, i$, x$, ref$, len$, Typed, inst, O;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, inst, O;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -687,7 +680,7 @@
       assert.arrayEqual(Typed.from([1, 2, 3], fn$), [1, 4, 9], 'accept callback');
       Typed.from([1], fn1$, O = {});
       assert.throws(fn2$, "isn't generic #1");
-      if (typeof NATIVE != 'undefined' && NATIVE !== null) {
+      if (NATIVE) {
         assert.throws(fn3$, "isn't generic #2");
         assert.ok((fn4$()), 'uses ToLength');
       }
@@ -726,8 +719,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.indexOf', function(assert){
-    var global, i$, x$, ref$, len$, Typed;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -750,10 +742,9 @@
 
 // Generated by LiveScript 1.3.1
 (function(){
-  var module, test, global, arrays;
+  var module, test, arrays;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  global = Function('return this')();
   arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
   test('%TypedArrayPrototype%.keys', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
@@ -784,7 +775,7 @@
         value: void 8,
         done: true
       }, 'done');
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
+      NATIVE && assert.throws(fn$, "isn't generic");
     }
     function fn$(){
       Typed.prototype.keys.call([1, 2]);
@@ -819,7 +810,7 @@
         value: void 8,
         done: true
       }, 'done');
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
+      NATIVE && assert.throws(fn$, "isn't generic");
     }
     function fn$(){
       Typed.prototype.values.call([1, 2]);
@@ -854,7 +845,7 @@
         value: void 8,
         done: true
       }, 'done');
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
+      NATIVE && assert.throws(fn$, "isn't generic");
     }
     function fn$(){
       Typed.prototype.entries.call([1, 2]);
@@ -890,7 +881,7 @@
         value: void 8,
         done: true
       }, 'done');
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn$, "isn't generic");
+      NATIVE && assert.throws(fn$, "isn't generic");
     }
     function fn$(){
       Typed.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call([1, 2]);
@@ -904,8 +895,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.join', function(assert){
-    var global, i$, x$, ref$, len$, Typed;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -929,8 +919,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.lastIndexOf', function(assert){
-    var global, i$, x$, ref$, len$, Typed;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -957,8 +946,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.map', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1005,8 +993,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArray%.of', function(assert){
-    var global, i$, x$, ref$, len$, Typed, inst;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, inst;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1024,7 +1011,7 @@
       assert.ok(inst instanceof Typed, 'correct instance with several arguments');
       assert.arrayEqual(inst, [1, 2, 3], 'correct elements with several arguments');
       assert.throws(fn$, "isn't generic #1");
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.throws(fn1$, "isn't generic #2");
+      NATIVE && assert.throws(fn1$, "isn't generic #2");
     }
     function fn$(){
       Typed.of.call(void 8, 1);
@@ -1041,12 +1028,11 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.reduceRight', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
+    var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
     }), fn3$ = curry$(function(x$, y$){
       return x$ + y$;
     });
-    global = Function('return this')();
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1108,12 +1094,11 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.reduce', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
+    var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
     }), fn3$ = curry$(function(x$, y$){
       return x$ + y$;
     });
-    global = Function('return this')();
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1175,8 +1160,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.reverse', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1201,13 +1185,12 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.set', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, b, y$;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, b, y$;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
       assert.isFunction(Typed.prototype.set, x$ + "::set is function");
-      (typeof NATIVE != 'undefined' && NATIVE !== null) && assert.arity(Typed.prototype.set, 1, x$ + "::set arity is 1");
+      NATIVE && assert.arity(Typed.prototype.set, 1, x$ + "::set arity is 1");
       assert.name(Typed.prototype.set, 'set', x$ + "::set name is 'subarray'");
       assert.looksNative(Typed.prototype.set, x$ + "::set looks native");
       assert.same(new Typed(1).set([1]), void 8, 'void');
@@ -1254,8 +1237,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.some', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1316,8 +1298,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.subarray', function(assert){
-    var global, i$, x$, ref$, len$, Typed, a, b;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed, a, b;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1354,8 +1335,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.toLocaleString', function(assert){
-    var global, i$, x$, ref$, len$, Typed;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -1378,8 +1358,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('%TypedArrayPrototype%.toString', function(assert){
-    var global, i$, x$, ref$, len$, Typed;
-    global = Function('return this')();
+    var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];

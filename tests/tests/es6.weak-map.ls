@@ -41,8 +41,8 @@ test 'WeakMap' (assert)!->
 
 test 'WeakMap#delete' (assert)!->
   assert.isFunction WeakMap::delete
-  NATIVE? and assert.name WeakMap::delete, \delete # can't be polyfilled in some environments
-  NATIVE? and assert.arity WeakMap::delete, 1
+  NATIVE and assert.name WeakMap::delete, \delete # can't be polyfilled in some environments
+  NATIVE and assert.arity WeakMap::delete, 1
   assert.looksNative WeakMap::delete
   M = new WeakMap!
     ..set a = {}, 42
@@ -55,7 +55,7 @@ test 'WeakMap#delete' (assert)!->
 test 'WeakMap#get' (assert)!->
   assert.isFunction WeakMap::get
   assert.name WeakMap::get, \get
-  NATIVE? and assert.arity WeakMap::get, 1
+  NATIVE and assert.arity WeakMap::get, 1
   assert.looksNative WeakMap::get
   M = new WeakMap!
   assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
@@ -68,7 +68,7 @@ test 'WeakMap#get' (assert)!->
 test 'WeakMap#has' (assert)!->
   assert.isFunction WeakMap::has
   assert.name WeakMap::has, \has
-  NATIVE? and assert.arity WeakMap::has, 1
+  NATIVE and assert.arity WeakMap::has, 1
   assert.looksNative WeakMap::has
   M = new WeakMap!
   assert.ok !M.has({}), 'WeakMap .has() before .set() return false'

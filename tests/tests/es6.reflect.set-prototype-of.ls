@@ -1,11 +1,11 @@
-if Object.setPrototypeOf || '__proto__' of {}
+if PROTO
   {module, test} = QUnit
   module \ES6
 
   test 'Reflect.setPrototypeOf' (assert)->
     {setPrototypeOf} = Reflect
     assert.isFunction setPrototypeOf
-    NATIVE? and assert.arity setPrototypeOf, 2 # fails in MS Edge
+    NATIVE and assert.arity setPrototypeOf, 2 # fails in MS Edge
     assert.name setPrototypeOf, \setPrototypeOf
     assert.looksNative setPrototypeOf
     obj = {}

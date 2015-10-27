@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+if DESCRIPTORS
   test 'RegExp constructor' (assert)->
     assert.isFunction RegExp
     assert.arity RegExp, 2

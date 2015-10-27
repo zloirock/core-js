@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -11,6 +10,6 @@ test 'String#repeat' (assert)->
   assert.strictEqual 'qwe'repeat(2.5), \qweqwe
   assert.throws (-> 'qwe'repeat -1), RangeError
   assert.throws (-> 'qwe'repeat Infinity), RangeError
-  if !(-> @)!
+  if STRICT
     assert.throws (-> String::repeat.call null, 1), TypeError
     assert.throws (-> String::repeat.call void, 1), TypeError

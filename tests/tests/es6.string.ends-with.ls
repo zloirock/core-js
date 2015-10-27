@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -20,7 +19,7 @@ test 'String#endsWith' (assert)->
   assert.ok 'abc'endsWith \a on
   assert.ok not 'abc'endsWith \c \x
   assert.ok not 'abc'endsWith \a \x
-  if !(-> @)!
+  if STRICT
     assert.throws (-> String::endsWith.call null, '.'), TypeError
     assert.throws (-> String::endsWith.call void, '.'), TypeError
   re = /./

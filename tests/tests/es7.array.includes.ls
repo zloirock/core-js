@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES7
 
@@ -17,9 +16,9 @@ test 'Array#includes' (assert)->
   assert.ok !arr.includes {}
   assert.ok Array(1)includes void
   assert.ok [NaN].includes(NaN)
-  if !(-> @)!
+  if STRICT
     assert.throws (-> Array::includes.call null, 0), TypeError
     assert.throws (-> Array::includes.call void, 0), TypeError
-  if NATIVE? and (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+  if NATIVE and DESCRIPTORS
     assert.ok (try no is Array::includes.call Object.defineProperty({length: -1}, 0, get: -> throw Error!), 1), 'uses ToLength'
   assert.ok \includes of Array::[Symbol.unscopables], 'In Array#@@unscopables'

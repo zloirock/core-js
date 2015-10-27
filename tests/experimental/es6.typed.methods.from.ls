@@ -1,7 +1,6 @@
 {module, test} = QUnit
 module \ES6
 test '%TypedArray%.from', !(assert)~>
-  global = Function('return this')!
   # we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
@@ -26,6 +25,6 @@ test '%TypedArray%.from', !(assert)~>
       assert.same @, O, 'correct callback context'
     , O = {}
     assert.throws (!-> Typed.from.call void, []), "isn't generic #1"
-    if NATIVE?
+    if NATIVE
       assert.throws (!-> Typed.from.call Array, []), "isn't generic #2" # fails in FF
       assert.ok (try Typed.from {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'

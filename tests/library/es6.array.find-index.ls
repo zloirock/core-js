@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -12,6 +11,6 @@ test 'Array#findIndex' (assert)->
     assert.strictEqual that, arr
   , ctx = {}
   assert.strictEqual findIndex([1 3 NaN, 42 {}], (is 42)), 3
-  if !(-> @)!
+  if STRICT
     assert.throws (-> findIndex null, 0), TypeError
     assert.throws (-> findIndex void, 0), TypeError

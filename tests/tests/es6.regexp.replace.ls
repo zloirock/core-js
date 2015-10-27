@@ -20,7 +20,7 @@ test 'String#replace regression' (assert)->
   assert.strictEqual String({toString: ->})replace(/e/g, void), \undundefinedfinundefinedd, 'S15.5.4.11_A1_T8'
   assert.strictEqual new String({valueOf: (->), toString: void})replace((->)!, (a1, a2, a3)-> a1 + a2 + a3), \undefined0undefined, 'S15.5.4.11_A1_T9'
   assert.strictEqual 'ABB\u0041BABAB'replace({toString: -> '\u0041B'}, ->), \undefinedBABABAB, 'S15.5.4.11_A1_T10'
-  if NATIVE? # wrong order in some old environments
+  if NATIVE # wrong order in some old environments
     try
       'ABB\u0041BABAB'replace {toString: -> throw \insearchValue}, {toString: -> throw \inreplaceValue}
       assert.ok no, 'S15.5.4.11_A1_T11 #1 lead to throwing exception'
@@ -68,22 +68,21 @@ test 'String#replace regression' (assert)->
   assert.strictEqual 'aaaaaaaaaa,aaaaaaaaaaaaaaa'replace(/^(a+)\1*,\1+$/, '$1'), \aaaaa, 'S15.5.4.11_A5_T1'
 
 test 'RegExp#@@replace' (assert)->
-  assert.isFunction /./[Symbol.replace]
-  assert.arity /./[Symbol.replace], 2
-  assert.strictEqual /([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', -> &.2 + &.1), '12abc def34'
+  assert.isFunction /./[Symbol?replace]
+  assert.arity /./[Symbol?replace], 2
+  assert.strictEqual /([a-z]+)([0-9]+)/[Symbol?replace]('abc12 def34', -> &.2 + &.1), '12abc def34'
 
 test '@@replace logic' (assert)->
   'use strict'
-  strict = !(-> @)!
-  str = if strict => \qwe else Object \qwe
-  num = if strict => 123 else Object 123
-  O = {(Symbol.replace): (a, b)-> {a, b}}
+  str = if STRICT => \qwe else Object \qwe
+  num = if STRICT => 123 else Object 123
+  O = {(Symbol?replace): (a, b)-> {a, b}}
   assert.strictEqual str.replace(O, 42)a, str
   assert.strictEqual str.replace(O, 42)b, 42
   assert.strictEqual ''replace.call(num, O, 42)a, num
   assert.strictEqual ''replace.call(num, O, 42)b, 42
   re = /./
-  re[Symbol.replace] = (a, b)-> {a, b}
+  re[Symbol?replace] = (a, b)-> {a, b}
   assert.strictEqual str.replace(re, 42)a, str
   assert.strictEqual str.replace(re, 42)b, 42
   assert.strictEqual ''replace.call(num, re, 42)a, num

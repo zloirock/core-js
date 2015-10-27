@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+if DESCRIPTORS
   test 'RegExp#flags' (assert)->
     assert.strictEqual /./g.flags, \g, '/./g.flags is "g"'
     assert.strictEqual /./.flags, '', '/./.flags is ""'

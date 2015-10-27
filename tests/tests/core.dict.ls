@@ -3,7 +3,6 @@ module \core-js
 
 {keys, create, assign} = Object
 {from} = Array
-global = @
 
 test 'Dict' (assert)->
   assert.isFunction Dict

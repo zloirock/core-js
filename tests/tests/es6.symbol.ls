@@ -3,12 +3,9 @@ module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = Object
 
-descriptors = (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
-G = global? && global || window
-
 test 'Symbol' (assert)->
   assert.isFunction Symbol
-  NATIVE? and assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
+  NATIVE and assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
   assert.name Symbol, \Symbol
   assert.looksNative Symbol
   s1 = Symbol 'foo'
@@ -18,7 +15,7 @@ test 'Symbol' (assert)->
   O[s1] = 42
   assert.ok O[s1] is 42, 'Symbol() work as key'
   assert.ok O[s2] isnt 42, 'Various symbols from one description are various keys'
-  if descriptors
+  if DESCRIPTORS
     count = 0
     for i of O => count++
     assert.ok count is 0, 'object[Symbol()] is not enumerable'
@@ -31,7 +28,7 @@ test 'Well-known Symbols' (assert)->
 test 'Global symbol registry' (assert)->
   assert.isFunction Symbol.for, 'Symbol.for is function'
   assert.strictEqual Symbol.for.length, 1 'Symbol.for arity is 1'
-  NATIVE? and assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
+  NATIVE and assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
   assert.isFunction Symbol.keyFor, 'Symbol.keyFor is function'
   assert.strictEqual Symbol.keyFor.length, 1 'Symbol.keyFor arity is 1'
@@ -64,11 +61,11 @@ if JSON?
   test 'Symbols & JSON.stringify' (assert)->
     assert.strictEqual JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'array value'
     assert.strictEqual JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
-    if descriptors => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
+    if DESCRIPTORS => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
     assert.strictEqual JSON.stringify(Symbol \foo), void, 'symbol value'
     if typeof Symbol! is \symbol => assert.strictEqual JSON.stringify(Object Symbol \foo), '{}', 'boxed symbol'
 
-if descriptors
+if DESCRIPTORS
   test 'Symbols & descriptors' (assert)->
     {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
     d = Symbol \d
@@ -152,6 +149,6 @@ if descriptors
 
   for key in <[Array RegExp Map Set WeakMap WeakSet Promise]> 
     test "#key@@species" (assert)->
-      assert.strictEqual G[key][Symbol.species], G[key], "#key@@species === #key"
-      C = Object.create G[key]
+      assert.strictEqual global[key][Symbol.species], global[key], "#key@@species === #key"
+      C = Object.create global[key]
       assert.strictEqual C[Symbol.species], C, "#key sub"

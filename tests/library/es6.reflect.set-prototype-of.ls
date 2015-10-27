@@ -1,4 +1,4 @@
-if Object.setPrototypeOf || '__proto__' of {}
+if PROTO
   {module, test} = QUnit
   module \ES6
   

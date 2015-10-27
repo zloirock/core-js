@@ -1,4 +1,4 @@
-if (-> try 2 == Object.defineProperty({}, \a, get: -> 2)a)!
+if DESCRIPTORS
   {module, test} = QUnit
   module \ES6
 

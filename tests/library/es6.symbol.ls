@@ -3,8 +3,6 @@ module \ES6
 
 {Symbol, JSON} = core
 {defineProperty, getOwnPropertyDescriptor, create} = core.Object
-descriptors = (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
-G = global? && global || window
 
 test 'Symbol' (assert)->
   assert.isFunction Symbol
@@ -15,7 +13,7 @@ test 'Symbol' (assert)->
   O[s1] = 42
   assert.ok O[s1] is 42, 'Symbol() work as key'
   assert.ok O[s2] isnt 42, 'Various symbols from one description are various keys'
-  if descriptors
+  if DESCRIPTORS
     count = 0
     for i of O => count++
     assert.ok count is 0, 'object[Symbol()] is not enumerable'
@@ -52,11 +50,11 @@ if JSON?
   test 'Symbols & JSON.stringify' (assert)->
     assert.strictEqual JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'array value'
     assert.strictEqual JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
-    if descriptors => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
+    if DESCRIPTORS => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
     assert.strictEqual JSON.stringify(Symbol \foo), void, 'symbol value'
     if typeof Symbol! is \symbol => assert.strictEqual JSON.stringify(Object Symbol \foo), '{}', 'boxed symbol'
 
-if descriptors
+if DESCRIPTORS
   test 'Symbols & descriptors' (assert)->
     {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = core.Object
     d = Symbol \d

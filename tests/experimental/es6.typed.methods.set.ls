@@ -1,12 +1,11 @@
 {module, test} = QUnit
 module \ES6
 test '%TypedArrayPrototype%.set', !(assert)~>
-  global = Function('return this')!
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
     assert.isFunction Typed::set, "#{..}::set is function"
-    NATIVE? and assert.arity Typed::set, 1, "#{..}::set arity is 1" # 2 in most engines
+    NATIVE and assert.arity Typed::set, 1, "#{..}::set arity is 1" # 2 in most engines
     assert.name Typed::set, \set, "#{..}::set name is 'subarray'"
     assert.looksNative Typed::set, "#{..}::set looks native"
     assert.same new Typed(1).set([1]), void, 'void'

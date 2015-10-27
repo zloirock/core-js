@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -16,9 +15,9 @@ test 'Array#findIndex' (assert)->
   , ctx = {}
   assert.same [1 3 NaN, 42 {}]findIndex((is 42)), 3
   assert.same [1 3 NaN, 42 {}]findIndex((is 43)), -1
-  if !(-> @)!
+  if STRICT
     assert.throws (-> Array::findIndex.call null, 0), TypeError
     assert.throws (-> Array::findIndex.call void, 0), TypeError
-  if NATIVE?
+  if NATIVE and DESCRIPTORS
     assert.ok (try -1 is Array::findIndex.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
   assert.ok \findIndex of Array::[Symbol.unscopables], 'In Array#@@unscopables'

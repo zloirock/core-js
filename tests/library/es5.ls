@@ -325,7 +325,7 @@ test 'Array#reduceRight' (assert)->
   assert.same reduceRight([1 2 3], (+)), 6, 'works without initial accumulator'
   v = ''
   k = ''
-  [1 2 3]reduceRight (memo, a, b)!->
+  reduceRight [1 2 3], (memo, a, b)!->
     v += a
     k += b
   , 0

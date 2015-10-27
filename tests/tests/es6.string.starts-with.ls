@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -19,7 +18,7 @@ test 'String#startsWith' (assert)->
   assert.ok not 'abc'startsWith \a Infinity
   assert.ok 'abc'startsWith \b on
   assert.ok 'abc'startsWith \a \x
-  if !(-> @)!
+  if STRICT
     assert.throws (-> String::startsWith.call null, '.'), TypeError
     assert.throws (-> String::startsWith.call void, '.'), TypeError
   re = /./

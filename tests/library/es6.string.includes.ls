@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES6
 
@@ -9,7 +8,7 @@ test 'String#includes' (assert)->
   assert.ok includes 'aundefinedb'
   assert.ok includes 'abcd' \b 1
   assert.ok not includes 'abcd' \b 2
-  if !(-> @)!
+  if STRICT
     assert.throws (-> includes null, '.'), TypeError
     assert.throws (-> includes void, '.'), TypeError
   re = /./

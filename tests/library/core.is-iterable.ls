@@ -8,5 +8,4 @@ test 'core.isIterable' (assert)!->
   assert.ok isIterable []
   assert.ok isIterable (->&)!
   assert.ok isIterable Array::
-  assert.ok isIterable String::
   assert.ok !isIterable {}

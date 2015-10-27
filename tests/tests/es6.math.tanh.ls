@@ -13,4 +13,4 @@ test 'Math.tanh' (assert)->
   assert.strictEqual tanh(Infinity), 1
   assert.strictEqual tanh(90), 1
   assert.epsilon tanh(10), 0.9999999958776927
-  NATIVE? and assert.strictEqual tanh(710), 1 #buggy v8 implementation
+  NATIVE and assert.strictEqual tanh(710), 1 #buggy v8 implementation

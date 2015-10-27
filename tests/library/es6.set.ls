@@ -140,7 +140,7 @@ test 'Set#size' (assert)->
   size = new Set([1]).size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
-  if (-> try 2 == core.Object.defineProperty({}, \a, get: -> 2)a)!
+  if DESCRIPTORS
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     assert.ok sizeDesc && sizeDesc.get, 'size is getter'
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'

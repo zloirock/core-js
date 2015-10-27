@@ -1,4 +1,3 @@
-'use strict'
 {module, test} = QUnit
 module \ES7
 
@@ -88,6 +87,6 @@ test 'String#at' (assert)->
   assert.strictEqual at.call(42 0), \4
   assert.strictEqual at.call(42 1), \2
   assert.strictEqual at.call({toString: -> \abc}, 2), \c
-  if !(-> @)!
+  if STRICT
     assert.throws (-> String::at.call null, 0), TypeError
     assert.throws (-> String::at.call void, 0), TypeError
