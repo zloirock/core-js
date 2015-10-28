@@ -1,7 +1,9 @@
-var $def     = require('./$.def')
-  , buffer   = require('./$.buffer')
-  , toIndex  = require('./$.to-index')
-  , toLength = require('./$.to-length')
+var $def         = require('./$.def')
+  , buffer       = require('./$.buffer')
+  , toIndex      = require('./$.to-index')
+  , toLength     = require('./$.to-length')
+  , isObject     = require('./$.is-object')
+  , TYPED_ARRAY  = require('./$.wks')('typed_array')
   , $ArrayBuffer = buffer.ArrayBuffer
   , $DataView    = buffer.DataView
   , FORCED       = $def.F * !buffer.useNative
@@ -11,8 +13,8 @@ $def($def.G + $def.W + FORCED, {ArrayBuffer: $ArrayBuffer});
 
 $def($def.S + FORCED, ARRAY_BUFFER, {
   // 24.1.3.1 ArrayBuffer.isView(arg)
-  isView: function isView(it){ // eslint-disable-line no-unused-vars
-
+  isView: function isView(it){
+    return isObject(it) && (it instanceof $DataView || TYPED_ARRAY in it);
   }
 });
 
