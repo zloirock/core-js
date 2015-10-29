@@ -1430,7 +1430,7 @@
       assert.arity(Typed.prototype.toLocaleString, 0, x$ + "::toLocaleString arity is 0");
       assert.name(Typed.prototype.toLocaleString, 'toLocaleString', x$ + "::toLocaleString name is 'toLocaleString'");
       assert.looksNative(Typed.prototype.toLocaleString, x$ + "::toLocaleString looks native");
-      assert.same(new Typed([1, 2, 3]).toLocaleString(), '1,2,3', 'works');
+      assert.same(new Typed([1, 2, 3]).toLocaleString(), [1, 2, 3].toLocaleString(), 'works');
       assert.throws(fn$, "isn't generic");
     }
     function fn$(){

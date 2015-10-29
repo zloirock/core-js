@@ -8,5 +8,5 @@ test '%TypedArrayPrototype%.toLocaleString', !(assert)~>
     assert.arity Typed::toLocaleString, 0, "#{..}::toLocaleString arity is 0"
     assert.name Typed::toLocaleString, \toLocaleString, "#{..}::toLocaleString name is 'toLocaleString'"
     assert.looksNative Typed::toLocaleString, "#{..}::toLocaleString looks native"
-    assert.same new Typed([1 2 3])toLocaleString!, '1,2,3', 'works'
+    assert.same new Typed([1 2 3])toLocaleString!, [1 2 3]toLocaleString!, 'works'
     assert.throws (!-> Typed::toLocaleString.call [1 2 3]), "isn't generic"

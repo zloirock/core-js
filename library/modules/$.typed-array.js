@@ -2,6 +2,7 @@
 var DEBUG = true;
 
 var global             = require('./$.global')
+  , LIBRARY            = require('./$.library')
   , $def               = require('./$.def')
   , $buffer            = require('./$.buffer')
   , $ArrayBuffer       = $buffer.ArrayBuffer
@@ -58,6 +59,17 @@ var global             = require('./$.global')
   , DEF_CONSTRUCTOR    = wks('def_constructor')
   , BYTES_PER_ELEMENT  = 'BYTES_PER_ELEMENT';
 
+var ARRAY_NAMES = ('Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,' +
+  'Uint16Array,Int32Array,Uint32Array,Float32Array,Float64Array').split(',');
+
+DEBUG && ARRAY_NAMES.forEach(function(it){
+  delete global[it];
+});
+
+var ALL_CONSTRUCTORS = $buffer.useNative && $every(ARRAY_NAMES, function(key){
+  return global[key];
+});
+
 var validate = function(it){
   if(isObject(it) && TYPED_ARRAY in it)return it;
   throw TypeError(it + ' is not a typed array!');
@@ -101,16 +113,12 @@ var addGetter = function(C, key, internal){
   setDesc(C.prototype, key, {get: function(){ return this._d[internal]; }});
 };
 
-var statics = {
-  // @@species -> this
-  from: $from,
-  of: function of(/*...items*/){
-    var index  = 0
-      , length = arguments.length
-      , result = new this(length);
-    while(length > index)result[index] = arguments[index++];
-    return result;
-  }
+var $of = function of(/*...items*/){
+  var index  = 0
+    , length = arguments.length
+    , result = allocate(this, length);
+  while(length > index)result[index] = arguments[index++];
+  return result;
 };
 
 var proto = {
@@ -218,14 +226,9 @@ var $setDesc = $.setDesc = function defineProperty(target, key, desc){
   } else return setDesc(target, key, desc);
 };
 
-DEBUG && $def($def.S + $def.F * DEBUG, 'Object', {
+$def($def.S + $def.F * !ALL_ARRAYS, 'Object', {
   getOwnPropertyDescriptor: $getDesc,
   defineProperty: $setDesc
-});
-
-DEBUG && ('Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,Uint16Array,Int32Array,' +
-'Uint32Array,Float32Array,Float64Array').split(',').forEach(function(it){
-  delete global[it];
 });
 
 module.exports = function(KEY, BYTES, wrapper, CLAMPED){
@@ -234,7 +237,9 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     , GETTER      = 'get' + KEY
     , SETTER      = 'set' + KEY
     , $TypedArray = global[NAME]
-    , Base        = $TypedArray
+    , Base        = $TypedArray || {}
+    , FORCED      = !$TypedArray || !$buffer.useNative
+    , $iterator   = proto.values
     , O           = {};
   var addElement = function(that, index){
     setDesc(that, index, {
@@ -251,7 +256,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     });
   };
   if(!$ArrayBuffer)return;
-  if(!$TypedArray || !$buffer.useNative){
+  if(FORCED){
     $TypedArray = wrapper(function(that, data, $offset, $length){
       strictNew(that, $TypedArray, NAME);
       var index  = 0
@@ -300,20 +305,30 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
       return new $TypedArray(data, $offset, $length);
     });
     $TypedArray.prototype = Base.prototype;
+    if(!LIBRARY)$TypedArray.prototype.constructor = $TypedArray;
   }
   var $TypedArrayPrototype = $TypedArray.prototype;
+  var $nativeIterator = $TypedArrayPrototype[ITERATOR];
   $hide($TypedArray, TYPED_CONSTRUCTOR, true);
   $hide($TypedArrayPrototype, TYPED_ARRAY, NAME);
   $hide($TypedArrayPrototype, DEF_CONSTRUCTOR, $TypedArray);
   TAG in $TypedArrayPrototype || $.setDesc($TypedArrayPrototype, TAG, {
     get: function(){ return NAME; }
   });
-  if(DEBUG){
-    require('./$.mix')($TypedArray, statics);
-    require('./$.mix')($TypedArrayPrototype, proto);
-    $hide($TypedArrayPrototype, ITERATOR, proto.values);
-    Iterators[NAME] = proto.value;
-  }
+
   O[NAME] = $TypedArray;
-  $def($def.G + $def.F * ($TypedArray != Base), O);
+
+  $def($def.G + $def.W + $def.F * ($TypedArray != Base), O);
+
+  $def($def.S + $def.F * FORCED, NAME, {
+    from: Base.from || $from,
+    of: Base.of || $of
+  });
+
+  $def($def.P + $def.F * FORCED, NAME, proto);
+  
+  Iterators[NAME] = $nativeIterator || $iterator;
+  LIBRARY || $nativeIterator || $hide($TypedArrayPrototype, ITERATOR, $iterator);
+  
+  require('./$.species')(NAME);
 };
