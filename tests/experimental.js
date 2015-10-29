@@ -42,7 +42,6 @@
     assert.ok(buffer instanceof ArrayBuffer, 'correct buffer');
     assert.ok(buffer.slice() !== buffer, 'returns new buffer');
     assert.ok(buffer.slice() instanceof ArrayBuffer, 'correct instance');
-    assert.ok(buffer.slice().buffer !== array.buffer, 'with new buffer');
     assert.arrayEqual(new Uint8Array(buffer.slice()), array);
     assert.arrayEqual(new Uint8Array(buffer.slice(1, 3)), [2, 3]);
     assert.arrayEqual(new Uint8Array(buffer.slice(1, void 8)), [2, 3, 4, 5]);

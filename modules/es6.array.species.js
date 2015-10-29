@@ -1,1 +1,1 @@
-require('./$.species')(Array);
+require('./$.species')('Array');

@@ -12,7 +12,6 @@ var $          = require('./$')
   , forOf      = require('./$.for-of')
   , setProto   = require('./$.set-proto').set
   , same       = require('./$.same')
-  , species    = require('./$.species')
   , SPECIES    = require('./$.wks')('species')
   , speciesConstructor = require('./$.species-constructor')
   , RECORD     = require('./$.uid')('record')
@@ -214,8 +213,8 @@ if(!useNative){
 // export
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 require('./$.tag')(P, PROMISE);
-species(P);
-species(Wrapper = require('./$.core')[PROMISE]);
+require('./$.species')(PROMISE);
+Wrapper = require('./$.core')[PROMISE];
 
 // statics
 $def($def.S + $def.F * !useNative, PROMISE, {

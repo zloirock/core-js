@@ -2,7 +2,6 @@
 var $            = require('./$')
   , hide         = require('./$.hide')
   , ctx          = require('./$.ctx')
-  , species      = require('./$.species')
   , strictNew    = require('./$.strict-new')
   , defined      = require('./$.defined')
   , forOf        = require('./$.for-of')
@@ -152,7 +151,6 @@ module.exports = {
     }, IS_MAP ? 'entries' : 'values' , !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
-    species(C);
-    species(require('./$.core')[NAME]); // for wrapper
+    require('./$.species')(NAME);
   }
 };
