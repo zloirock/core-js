@@ -25,7 +25,7 @@
     "karma-firefox-launcher": "0.1.x",
     "karma-phantomjs-launcher": "0.2.x",
     "promises-aplus-tests": "2.1.x",
-    "eslint": "~1.7.1"
+    "eslint": "1.8.x"
   },
   "scripts": {
     "grunt": "grunt",
