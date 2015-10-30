@@ -1,3 +1,4 @@
+'use strict';
 var $def         = require('./$.def')
   , buffer       = require('./$.buffer')
   , toIndex      = require('./$.to-index')
@@ -7,6 +8,7 @@ var $def         = require('./$.def')
   , $ArrayBuffer = buffer.ArrayBuffer
   , $DataView    = buffer.DataView
   , FORCED       = $def.F * !buffer.useNative
+  , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
   , ARRAY_BUFFER = 'ArrayBuffer';
 
 $def($def.G + $def.W + FORCED, {ArrayBuffer: $ArrayBuffer});
@@ -18,9 +20,12 @@ $def($def.S + FORCED, ARRAY_BUFFER, {
   }
 });
 
-$def($def.P + FORCED, ARRAY_BUFFER, {
+$def($def.P + (FORCED || require('./$.fails')(function(){
+  return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
+})), ARRAY_BUFFER, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end){
+    if($slice !== undefined && end === undefined)return $slice.call(this, start); // FF fix
     var len    = this.byteLength
       , first  = toIndex(start, len)
       , final  = toIndex(end === undefined ? len : end, len)

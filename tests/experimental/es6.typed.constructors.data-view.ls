@@ -3,7 +3,7 @@ module \ES6
 
 test \DataView, !(assert)~>
   assert.isFunction DataView
-  assert.arity DataView, 3
+  NATIVE and assert.arity DataView, 3 # 1 in IE11
   assert.name DataView, \DataView
   assert.looksNative DataView
 

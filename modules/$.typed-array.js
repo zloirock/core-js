@@ -1,15 +1,12 @@
 'use strict';
-var DEBUG = true;
+var DEBUG = false;
 
 var global             = require('./$.global')
   , LIBRARY            = require('./$.library')
+  , $                  = require('./$')
+  , fails              = require('./$.fails')
   , $def               = require('./$.def')
   , $buffer            = require('./$.buffer')
-  , $ArrayBuffer       = $buffer.ArrayBuffer
-  , $DataView          = $buffer.DataView
-  , $                  = require('./$')
-  , setDesc            = $.setDesc
-  , getDesc            = $.getDesc
   , ctx                = require('./$.ctx')
   , strictNew          = require('./$.strict-new')
   , propertyDesc       = require('./$.property-desc')
@@ -31,6 +28,12 @@ var global             = require('./$.global')
   , speciesConstructor = require('./$.species-constructor')
   , $iterators         = require('./es6.array.iterator')
   , Iterators          = require('./$.iterators')
+  , $iterDetect        = require('./$.iter-detect')
+  , setSpecies         = require('./$.species')
+  , $ArrayBuffer       = $buffer.ArrayBuffer
+  , $DataView          = $buffer.DataView
+  , setDesc            = $.setDesc
+  , getDesc            = $.getDesc
   , $forEach           = arrayMethods(0)
   , $map               = arrayMethods(1)
   , $filter            = arrayMethods(2)
@@ -51,7 +54,7 @@ var global             = require('./$.global')
   , $sort              = [].sort
   , $slice             = [].slice
   , $toString          = [].toString
-  , $toLocaleString    = [].toLocaleString
+  , _toLocaleString    = [].toLocaleString
   , ITERATOR           = wks('iterator')
   , TAG                = wks('toStringTag')
   , TYPED_ARRAY        = wks('typed_array')
@@ -119,6 +122,9 @@ var $of = function of(/*...items*/){
     , result = allocate(this, length);
   while(length > index)result[index] = arguments[index++];
   return result;
+};
+var $toLocaleString = function toLocaleString(){
+  return _toLocaleString.apply(validate(this), arguments);
 };
 
 var proto = {
@@ -197,10 +203,6 @@ var proto = {
       toLength((end === undefined ? length : toIndex(end, length)) - $begin)
     );
   },
-  toLocaleString: function toLocaleString(){
-    return $toLocaleString.apply(validate(this), arguments);
-  },
-  toString: $toString,
   entries: function entries(){
     return $entries.call(validate(this));
   },
@@ -296,13 +298,13 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     addGetter($TypedArray, 'length', 'e');
     $hide($TypedArray, BYTES_PER_ELEMENT, BYTES);
     $hide($TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
-  } else if(!require('./$.iter-detect')(function(iter){
+  } else if(!$iterDetect(function(iter){
     new $TypedArray(iter); // eslint-disable-line no-new
   }, true)){
     $TypedArray = wrapper(function(that, data, $offset, $length){
       strictNew(that, $TypedArray, NAME);
       if(isObject(data) && isIterable(data))return $from.call($TypedArray, data);
-      return new $TypedArray(data, $offset, $length);
+      return $length === undefined ? new Base(data, $offset) : new Base(data, $offset, $length);
     });
     $TypedArray.prototype = Base.prototype;
     if(!LIBRARY)$TypedArray.prototype.constructor = $TypedArray;
@@ -320,15 +322,22 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
 
   $def($def.G + $def.W + $def.F * ($TypedArray != Base), O);
 
-  $def($def.S + $def.F * FORCED, NAME, {
+  $def($def.S + $def.F * ($TypedArray != Base), NAME, {
+    BYTES_PER_ELEMENT: BYTES,
     from: Base.from || $from,
     of: Base.of || $of
   });
 
   $def($def.P + $def.F * FORCED, NAME, proto);
+
+  $def($def.P + $def.F * ($TypedArrayPrototype.toString != $toString), NAME, {toString: $toString});
+
+  $def($def.P + $def.F * fails(function(){
+    return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
+  }), NAME, {toLocaleString: $toLocaleString});
   
   Iterators[NAME] = $nativeIterator || $iterator;
   LIBRARY || $nativeIterator || $hide($TypedArrayPrototype, ITERATOR, $iterator);
   
-  require('./$.species')(NAME);
+  setSpecies(NAME);
 };

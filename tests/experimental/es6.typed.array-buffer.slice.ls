@@ -12,7 +12,7 @@ test 'ArrayBuffer#slice', !(assert)~>
   assert.ok buffer.slice! instanceof ArrayBuffer, 'correct instance'
   assert.arrayEqual new Uint8Array(buffer.slice!), array
   assert.arrayEqual new Uint8Array(buffer.slice 1 3), [2 3]
-  assert.arrayEqual new Uint8Array(buffer.slice 1 void), [2 3 4 5]
+  assert.arrayEqual new Uint8Array(buffer.slice 1 void), [2 3 4 5] # FF buggy here
   assert.arrayEqual new Uint8Array(buffer.slice 1 -1), [2 3 4]
   assert.arrayEqual new Uint8Array(buffer.slice -2 -1), [4]
   assert.arrayEqual new Uint8Array(buffer.slice -2 -3), []

@@ -1,5 +1,5 @@
 'use strict';
-var DEBUG = true;
+var DEBUG = false;
 
 if(require('./$.support-desc')){
   var global          = require('./$.global')

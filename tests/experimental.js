@@ -86,7 +86,7 @@
   test('DataView', function(assert){
     var d;
     assert.isFunction(DataView);
-    assert.arity(DataView, 3);
+    NATIVE && assert.arity(DataView, 3);
     assert.name(DataView, 'DataView');
     assert.looksNative(DataView);
     d = new DataView(new ArrayBuffer(8));
