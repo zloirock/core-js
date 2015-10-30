@@ -1,23 +1,28 @@
 'use strict';
-var $          = require('./$')
-  , $def       = require('./$.def')
-  , hide       = require('./$.hide')
-  , forOf      = require('./$.for-of')
-  , strictNew  = require('./$.strict-new')
-  , isObject   = require('./$.is-object');
+var global      = require('./$.global')
+  , $           = require('./$')
+  , $def        = require('./$.def')
+  , fails       = require('./$.fails')
+  , hide        = require('./$.hide')
+  , mix         = require('./$.mix')
+  , forOf       = require('./$.for-of')
+  , strictNew   = require('./$.strict-new')
+  , isObject    = require('./$.is-object')
+  , DESCRIPTORS = require('./$.support-desc')
+  , setTag      = require('./$.tag');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
-  var Base  = require('./$.global')[NAME]
+  var Base  = global[NAME]
     , C     = Base
     , ADDER = IS_MAP ? 'set' : 'add'
     , proto = C && C.prototype
     , O     = {};
-  if(!require('./$.support-desc') || typeof C != 'function'
-    || !(IS_WEAK || proto.forEach && !require('./$.fails')(function(){ new C().entries().next(); }))
-  ){
+  if(!DESCRIPTORS || typeof C != 'function' || !(IS_WEAK || proto.forEach && !fails(function(){
+    new C().entries().next();
+  }))){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    require('./$.mix')(C.prototype, methods);
+    mix(C.prototype, methods);
   } else {
     C = wrapper(function(target, iterable){
       strictNew(target, C, NAME);
@@ -39,7 +44,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     });
   }
 
-  require('./$.tag')(C, NAME);
+  setTag(C, NAME);
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F, O);

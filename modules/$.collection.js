@@ -1,10 +1,14 @@
 'use strict';
-var global     = require('./$.global')
-  , $def       = require('./$.def')
-  , forOf      = require('./$.for-of')
-  , strictNew  = require('./$.strict-new')
-  , isObject   = require('./$.is-object')
-  , fails      = require('./$.fails');
+var global      = require('./$.global')
+  , $def        = require('./$.def')
+  , $redef      = require('./$.redef')
+  , mix         = require('./$.mix')
+  , forOf       = require('./$.for-of')
+  , strictNew   = require('./$.strict-new')
+  , isObject    = require('./$.is-object')
+  , fails       = require('./$.fails')
+  , $iterDetect = require('./$.iter-detect')
+  , setTag      = require('./$.tag');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = global[NAME]
@@ -14,7 +18,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     , O     = {};
   var fixMethod = function(KEY){
     var fn = proto[KEY];
-    require('./$.redef')(proto, KEY,
+    $redef(proto, KEY,
       KEY == 'delete' ? function(a){
         return IS_WEAK && !isObject(a) ? false : fn.call(this, a === 0 ? 0 : a);
       } : KEY == 'has' ? function has(a){
@@ -30,7 +34,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   }))){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    require('./$.mix')(C.prototype, methods);
+    mix(C.prototype, methods);
   } else {
     var instance             = new C
       // early implementations not supports chaining
@@ -38,7 +42,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
       , THROWS_ON_PRIMITIVES = fails(function(){ instance.has(1); })
       // most early implementations doesn't supports iterables, most modern - not close it correctly
-      , ACCEPT_ITERABLES     = require('./$.iter-detect')(function(iter){ new C(iter); }) // eslint-disable-line no-new
+      , ACCEPT_ITERABLES     = $iterDetect(function(iter){ new C(iter); }) // eslint-disable-line no-new
       // for early implementations -0 and +0 not the same
       , BUGGY_ZERO;
     if(!ACCEPT_ITERABLES){ 
@@ -64,7 +68,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     if(IS_WEAK && proto.clear)delete proto.clear;
   }
 
-  require('./$.tag')(C, NAME);
+  setTag(C, NAME);
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F * (C != Base), O);

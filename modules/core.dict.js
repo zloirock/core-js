@@ -8,6 +8,7 @@ var $            = require('./$')
   , aFunction    = require('./$.a-function')
   , forOf        = require('./$.for-of')
   , isIterable   = require('./core.is-iterable')
+  , $iterCreate  = require('./$.iter-create')
   , step         = require('./$.iter-step')
   , isObject     = require('./$.is-object')
   , toIObject    = require('./$.to-iobject')
@@ -62,7 +63,7 @@ var DictIterator = function(iterated, kind){
   this._i = 0;                   // next index
   this._k = kind;                // kind
 };
-require('./$.iter-create')(DictIterator, 'Dict', function(){
+$iterCreate(DictIterator, 'Dict', function(){
   var that = this
     , O    = that._t
     , keys = that._a
