@@ -1,4 +1,9 @@
 ## Changelog
+##### 1.2.4 - 2015.11.01
+* fixed `Number('0b12') -> NaN` case in the shim
+* fixed V8 ~ Chromium 40- bug - `Weak(Map|Set)#{delete, get, has}` should not throw errors [#124](https://github.com/zloirock/core-js/issues/124)
+* some other fixes and optimizations
+
 ##### 1.2.3 - 2015.10.23
 * fixed some problems related old V8 bug `Object('a').propertyIsEnumerable(0) // => false`, for example, `Object.assign({}, 'qwe')` from the last release
 * fixed `.name` property and `Function#toString` conversion some polyfilled methods
