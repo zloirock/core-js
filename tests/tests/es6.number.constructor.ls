@@ -23,6 +23,9 @@ test 'Number constructor: regression' (assert)->
   check \0x42, 66
   check \0X42, 66
   check \0xzzz, NaN
+  check \0x1g, NaN
+  check \+0x1, NaN
+  check \-0x1, NaN
   check new String(\42), 42
   check new String('42.42'), 42.42
   check new String(\0x42), 66
@@ -32,6 +35,13 @@ test 'Number constructor: regression' (assert)->
   check true, 1
   check new Boolean(false), 0
   check new Boolean(true), 1
+  check {}, NaN
+  check {valueOf: '1.1'}, NaN
+  check {valueOf: '1.1', toString: -> '2.2'}, 2.2
+  check {valueOf: -> '1.1'}, 1.1
+  check {valueOf: -> '1.1', toString: -> '2.2'}, 1.1
+  check {valueOf: -> '-0x1a2b3c'}, NaN
+  check {toString: -> '-0x1a2b3c'}, NaN
   check {valueOf: -> 42}, 42
   check {valueOf: -> \42}, 42
   check {valueOf: -> null}, 0
@@ -64,14 +74,24 @@ test 'Number constructor: binary' (assert)->
   check = $check assert
   check \0b1, 1
   check \0B1, 1
+  check \0b12, NaN
   check \0b234, NaN
+  check \+0b1, NaN
+  check \-0b1, NaN
   check {valueOf: -> \0b11}, 3
   check {toString: -> \0b111}, 7
+  check {valueOf: -> \0b101010}, 42
+  check {toString: -> \0b101010}, 42
 
 test 'Number constructor: octal' (assert)->
   check = $check assert
   check \0o7, 7
   check \0O7, 7
+  check \0o18, NaN
   check \0o89a, NaN
+  check \+0o1, NaN
+  check \-0o1, NaN
   check {valueOf: -> \0o77}, 63
   check {toString: -> \0o777}, 511
+  check {valueOf: -> \0o12345}, 5349
+  check {toString: -> \0o12345}, 5349

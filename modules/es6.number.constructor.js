@@ -17,13 +17,18 @@ var toPrimitive = function(it){
   if(typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to number");
 };
+var valide = function(str, maxCode){
+  for(var i = 0, l = str.length; i < l; i++)if(str.charCodeAt(i) > maxCode)return false;
+  return true;
+};
 var toNumber = function(it){
   if(isObject(it))it = toPrimitive(it);
   if(typeof it == 'string' && it.length > 2 && it.charCodeAt(0) == 48){
-    var binary = false;
+    var binary = false, substr;
     switch(it.charCodeAt(1)){
       case 66 : case 98  : binary = true;
-      case 79 : case 111 : return parseInt(it.slice(2), binary ? 2 : 8);
+      case 79 : case 111 : return valide(substr = it.slice(2), binary ? 49 : 55)
+        ? parseInt(substr, binary ? 2 : 8) : NaN;
     }
   } return +it;
 };
