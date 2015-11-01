@@ -76,6 +76,7 @@ test 'Number constructor: binary' (assert)->
   check \0B1, 1
   check \0b12, NaN
   check \0b234, NaN
+  check '0b1!', NaN
   check \+0b1, NaN
   check \-0b1, NaN
   check {valueOf: -> \0b11}, 3
@@ -89,6 +90,7 @@ test 'Number constructor: octal' (assert)->
   check \0O7, 7
   check \0o18, NaN
   check \0o89a, NaN
+  check '0o1!', NaN
   check \+0o1, NaN
   check \-0o1, NaN
   check {valueOf: -> \0o77}, 63

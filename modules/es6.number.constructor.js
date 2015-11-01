@@ -18,8 +18,10 @@ var toPrimitive = function(it){
   throw TypeError("Can't convert object to number");
 };
 var valide = function(str, maxCode){
-  for(var i = 0, l = str.length; i < l; i++)if(str.charCodeAt(i) > maxCode)return false;
-  return true;
+  for(var i = 0, l = str.length, code; i < l; i++){
+    code = str.charCodeAt(i);
+    if(code < 48 || code > maxCode)return false;
+  } return true;
 };
 var toNumber = function(it){
   if(isObject(it))it = toPrimitive(it);
