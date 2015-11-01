@@ -35,4 +35,4 @@ if(require('./$.support-desc') && (!CORRECT_NEW || require('./$.fails')(function
   require('./$.redef')(global, 'RegExp', $RegExp);
 }
 
-require('./$.species')('RegExp');
+require('./$.set-species')('RegExp');

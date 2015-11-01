@@ -213,7 +213,7 @@ if(!useNative){
 // export
 $def($def.G + $def.W + $def.F * !useNative, {Promise: P});
 require('./$.set-to-string-tag')(P, PROMISE);
-require('./$.species')(PROMISE);
+require('./$.set-species')(PROMISE);
 Wrapper = require('./$.core')[PROMISE];
 
 // statics
