@@ -11,4 +11,4 @@ $def($def.P + $def.F * forced, 'Array', {
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
-require('./$.unscope')(KEY);
+require('./$.add-to-unscopables')(KEY);
