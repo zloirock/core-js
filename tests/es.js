@@ -2071,6 +2071,8 @@
     check('0x1g', NaN);
     check('+0x1', NaN);
     check('-0x1', NaN);
+    check('+0X1', NaN);
+    check('-0X1', NaN);
     check(new String('42'), 42);
     check(new String('42.42'), 42.42);
     check(new String('0x42'), 66);
