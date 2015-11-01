@@ -17,21 +17,19 @@ var toPrimitive = function(it){
   if(typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
   throw TypeError("Can't convert object to number");
 };
-var valide = function(str, maxCode){
-  for(var i = 0, l = str.length, code; i < l; i++){
-    code = str.charCodeAt(i);
-    if(code < 48 || code > maxCode)return false;
-  } return true;
-};
 var toNumber = function(it){
   if(isObject(it))it = toPrimitive(it);
   if(typeof it == 'string' && it.length > 2 && it.charCodeAt(0) == 48){
-    var binary = false, substr;
+    var radix, maxCode;
     switch(it.charCodeAt(1)){
-      case 66 : case 98  : binary = true;
-      case 79 : case 111 : return valide(substr = it.slice(2), binary ? 49 : 55)
-        ? parseInt(substr, binary ? 2 : 8) : NaN;
+      case 66 : case 98  : radix = 2; maxCode = 49; break;
+      case 79 : case 111 : radix = 8; maxCode = 55; break;
+      default : return +it;
     }
+    for(var digits = it.slice(2), i = 0, l = digits.length, code; i < l; i++){
+      code = digits.charCodeAt(i);
+      if(code < 48 || code > maxCode)return NaN;
+    } return parseInt(digits, radix);
   } return +it;
 };
 if(!($Number('0o1') && $Number('0b1'))){
