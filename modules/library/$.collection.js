@@ -1,15 +1,15 @@
 'use strict';
-var global      = require('./$.global')
-  , $           = require('./$')
-  , $def        = require('./$.def')
-  , fails       = require('./$.fails')
-  , hide        = require('./$.hide')
-  , mix         = require('./$.mix')
-  , forOf       = require('./$.for-of')
-  , strictNew   = require('./$.strict-new')
-  , isObject    = require('./$.is-object')
-  , DESCRIPTORS = require('./$.support-desc')
-  , setTag      = require('./$.tag');
+var global         = require('./$.global')
+  , $              = require('./$')
+  , $def           = require('./$.def')
+  , fails          = require('./$.fails')
+  , hide           = require('./$.hide')
+  , mix            = require('./$.mix')
+  , forOf          = require('./$.for-of')
+  , strictNew      = require('./$.strict-new')
+  , isObject       = require('./$.is-object')
+  , DESCRIPTORS    = require('./$.support-desc')
+  , setToStringTag = require('./$.set-to-string-tag');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = global[NAME]
@@ -44,7 +44,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     });
   }
 
-  setTag(C, NAME);
+  setToStringTag(C, NAME);
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F, O);

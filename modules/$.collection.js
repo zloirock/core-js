@@ -1,14 +1,14 @@
 'use strict';
-var global      = require('./$.global')
-  , $def        = require('./$.def')
-  , $redef      = require('./$.redef')
-  , mix         = require('./$.mix')
-  , forOf       = require('./$.for-of')
-  , strictNew   = require('./$.strict-new')
-  , isObject    = require('./$.is-object')
-  , fails       = require('./$.fails')
-  , $iterDetect = require('./$.iter-detect')
-  , setTag      = require('./$.tag');
+var global         = require('./$.global')
+  , $def           = require('./$.def')
+  , $redef         = require('./$.redef')
+  , mix            = require('./$.mix')
+  , forOf          = require('./$.for-of')
+  , strictNew      = require('./$.strict-new')
+  , isObject       = require('./$.is-object')
+  , fails          = require('./$.fails')
+  , $iterDetect    = require('./$.iter-detect')
+  , setToStringTag = require('./$.set-to-string-tag');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = global[NAME]
@@ -68,7 +68,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     if(IS_WEAK && proto.clear)delete proto.clear;
   }
 
-  setTag(C, NAME);
+  setToStringTag(C, NAME);
 
   O[NAME] = C;
   $def($def.G + $def.W + $def.F * (C != Base), O);

@@ -7,7 +7,7 @@ var LIBRARY         = require('./$.library')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
   , Iterators       = require('./$.iterators')
   , $iterCreate     = require('./$.iter-create')
-  , setTag          = require('./$.tag')
+  , setToStringTag  = require('./$.set-to-string-tag')
   , getProto        = require('./$').getProto
   , BUGGY           = !([].keys && 'next' in [].keys()) // Safari has buggy iterators w/o `next`
   , FF_ITERATOR     = '@@iterator'
@@ -32,7 +32,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
   if(_native){
     var IteratorPrototype = getProto(_default.call(new Base));
     // Set @@toStringTag to native iterators
-    setTag(IteratorPrototype, TAG, true);
+    setToStringTag(IteratorPrototype, TAG, true);
     // FF fix
     if(!LIBRARY && has(proto, FF_ITERATOR))hide(IteratorPrototype, SYMBOL_ITERATOR, returnThis);
   }
