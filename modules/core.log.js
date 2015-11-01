@@ -16,7 +16,7 @@ $.each.call((
     }
   };
 });
-$def($def.G + $def.F, {log: require('./$.assign')(log.log, log, {
+$def($def.G + $def.F, {log: require('./$.object-assign')(log.log, log, {
   enable: function(){
     enabled = true;
   },
