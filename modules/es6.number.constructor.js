@@ -1,28 +1,20 @@
 'use strict';
-var $          = require('./$')
-  , global     = require('./$.global')
-  , has        = require('./$.has')
-  , cof        = require('./$.cof')
-  , isObject   = require('./$.is-object')
-  , fails      = require('./$.fails')
-  , NUMBER     = 'Number'
-  , $Number    = global[NUMBER]
-  , Base       = $Number
-  , proto      = $Number.prototype
+var $           = require('./$')
+  , global      = require('./$.global')
+  , has         = require('./$.has')
+  , cof         = require('./$.cof')
+  , toPrimitive = require('./$.to-primitive')
+  , fails       = require('./$.fails')
+  , NUMBER      = 'Number'
+  , $Number     = global[NUMBER]
+  , Base        = $Number
+  , proto       = $Number.prototype
   // Opera ~12 has broken Object#toString
-  , BROKEN_COF = cof($.create(proto)) == NUMBER;
-
-// 7.1.1 ToPrimitive(input [, PreferredType]), currently - only "number" hint case
-var toPrimitive = function(it){
-  var fn, val;
-  if(typeof (fn = it.valueOf) == 'function' && !isObject(val = fn.call(it)))return val;
-  if(typeof (fn = it.toString) == 'function' && !isObject(val = fn.call(it)))return val;
-  throw TypeError("Can't convert object to number");
-};
+  , BROKEN_COF  = cof($.create(proto)) == NUMBER;
 
 // 7.1.3 ToNumber(argument)
-var toNumber = function(it){
-  if(isObject(it))it = toPrimitive(it);
+var toNumber = function(argument){
+  var it = toPrimitive(argument, false);
   if(typeof it == 'string' && it.length > 2){
     var first = it.charCodeAt(0)
       , third, radix, maxCode;
@@ -46,8 +38,9 @@ var toNumber = function(it){
 };
 
 if(!$Number('0o1') || !$Number('0b1') || $Number('+0x1')){
-  $Number = function Number(it){
-    var that = this;
+  $Number = function Number(value){
+    var it = arguments.length < 1 ? 0 : value
+      , that = this;
     return that instanceof $Number
       // check on 1..constructor(foo) case
       && (BROKEN_COF ? fails(function(){ proto.valueOf.call(that); }) : cof(that) != NUMBER)

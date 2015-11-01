@@ -14,6 +14,8 @@ test 'Number constructor: regression' (assert)->
   assert.arity Number, 1
   assert.name Number, \Number
   assert.looksNative Number
+  assert.same Number!, 0
+  assert.same new Number!valueOf!, 0
   check 42, 42
   check 42.42, 42.42
   check new Number(42), 42
