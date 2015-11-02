@@ -46,7 +46,7 @@ if(!$Number('0o1') || !$Number('0b1') || $Number('+0x1')){
       && (BROKEN_COF ? fails(function(){ proto.valueOf.call(that); }) : cof(that) != NUMBER)
         ? new Base(toNumber(it)) : toNumber(it);
   };
-  $.each.call(require('./$.support-desc') ? $.getNames(Base) : (
+  $.each.call(require('./$.descriptors') ? $.getNames(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES6 (in case, if modules with ES6 Number statics required before):

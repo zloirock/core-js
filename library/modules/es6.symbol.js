@@ -3,7 +3,7 @@
 var $              = require('./$')
   , global         = require('./$.global')
   , has            = require('./$.has')
-  , SUPPORT_DESC   = require('./$.support-desc')
+  , DESCRIPTORS    = require('./$.descriptors')
   , $def           = require('./$.def')
   , $redef         = require('./$.redef')
   , $fails         = require('./$.fails')
@@ -34,7 +34,7 @@ var $              = require('./$')
   , ObjectProto    = Object.prototype;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
-var setSymbolDesc = SUPPORT_DESC && $fails(function(){
+var setSymbolDesc = DESCRIPTORS && $fails(function(){
   return _create(setDesc({}, 'a', {
     get: function(){ return setDesc(this, 'a', {value: 7}).a; }
   })).a != 7;
@@ -48,7 +48,7 @@ var setSymbolDesc = SUPPORT_DESC && $fails(function(){
 var wrap = function(tag){
   var sym = AllSymbols[tag] = _create($Symbol.prototype);
   sym._k = tag;
-  SUPPORT_DESC && setter && setSymbolDesc(ObjectProto, tag, {
+  DESCRIPTORS && setter && setSymbolDesc(ObjectProto, tag, {
     configurable: true,
     set: function(value){
       if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
@@ -157,7 +157,7 @@ if(!useNative){
   $.getNames   = $names.get = $getOwnPropertyNames;
   $.getSymbols = $getOwnPropertySymbols;
 
-  if(SUPPORT_DESC && !require('./$.library')){
+  if(DESCRIPTORS && !require('./$.library')){
     $redef(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
   }
 }

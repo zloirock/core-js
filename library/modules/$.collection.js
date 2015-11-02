@@ -8,7 +8,7 @@ var global         = require('./$.global')
   , forOf          = require('./$.for-of')
   , strictNew      = require('./$.strict-new')
   , isObject       = require('./$.is-object')
-  , DESCRIPTORS    = require('./$.support-desc')
+  , DESCRIPTORS    = require('./$.descriptors')
   , setToStringTag = require('./$.set-to-string-tag');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){

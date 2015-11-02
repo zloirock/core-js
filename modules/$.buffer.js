@@ -1,7 +1,7 @@
 'use strict';
 var DEBUG = false;
 
-if(require('./$.support-desc')){
+if(require('./$.descriptors')){
   var global          = require('./$.global')
     , $               = require('./$')
     , $mix            = require('./$.mix')

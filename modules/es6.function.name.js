@@ -5,7 +5,7 @@ var setDesc    = require('./$').setDesc
   , nameRE     = /^\s*function ([^ (]*)/
   , NAME       = 'name';
 // 19.2.4.2 name
-NAME in FProto || require('./$.support-desc') && setDesc(FProto, NAME, {
+NAME in FProto || require('./$.descriptors') && setDesc(FProto, NAME, {
   configurable: true,
   get: function(){
     var match = ('' + this).match(nameRE)

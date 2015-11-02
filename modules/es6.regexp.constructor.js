@@ -10,7 +10,7 @@ var $        = require('./$')
   // "new" creates a new object, old webkit buggy here
   , CORRECT_NEW = new $RegExp(re1) !== re1;
 
-if(require('./$.support-desc') && (!CORRECT_NEW || require('./$.fails')(function(){
+if(require('./$.descriptors') && (!CORRECT_NEW || require('./$.fails')(function(){
   re2[require('./$.wks')('match')] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';

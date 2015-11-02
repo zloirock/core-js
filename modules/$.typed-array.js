@@ -1,7 +1,7 @@
 'use strict';
 var DEBUG = false;
 
-var DESCRIPTORS        = require('./$.support-desc')
+var DESCRIPTORS        = require('./$.descriptors')
   , global             = require('./$.global')
   , LIBRARY            = require('./$.library')
   , $                  = require('./$')

@@ -1,6 +1,6 @@
 'use strict';
 var $                = require('./$')
-  , SUPPORT_DESC     = require('./$.support-desc')
+  , DESCRIPTORS      = require('./$.descriptors')
   , createDesc       = require('./$.property-desc')
   , html             = require('./$.html')
   , cel              = require('./$.dom-create')
@@ -31,7 +31,7 @@ var $                = require('./$')
   , factories        = {}
   , IE8_DOM_DEFINE;
 
-if(!SUPPORT_DESC){
+if(!DESCRIPTORS){
   IE8_DOM_DEFINE = !fails(function(){
     return defineProperty(cel('div'), 'a', {get: function(){ return 7; }}).a != 7;
   });
@@ -59,7 +59,7 @@ if(!SUPPORT_DESC){
     return O;
   };
 }
-$def($def.S + $def.F * !SUPPORT_DESC, 'Object', {
+$def($def.S + $def.F * !DESCRIPTORS, 'Object', {
   // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
   getOwnPropertyDescriptor: $.getDesc,
   // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
