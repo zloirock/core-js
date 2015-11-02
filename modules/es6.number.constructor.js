@@ -5,17 +5,20 @@ var $           = require('./$')
   , cof         = require('./$.cof')
   , toPrimitive = require('./$.to-primitive')
   , fails       = require('./$.fails')
+  , $trim       = require('./$.string-trim').trim
   , NUMBER      = 'Number'
   , $Number     = global[NUMBER]
   , Base        = $Number
   , proto       = $Number.prototype
   // Opera ~12 has broken Object#toString
-  , BROKEN_COF  = cof($.create(proto)) == NUMBER;
+  , BROKEN_COF  = cof($.create(proto)) == NUMBER
+  , TRIM        = 'trim' in String.prototype;
 
 // 7.1.3 ToNumber(argument)
 var toNumber = function(argument){
   var it = toPrimitive(argument, false);
   if(typeof it == 'string' && it.length > 2){
+    it = TRIM ? it.trim() : $trim(it, 3);
     var first = it.charCodeAt(0)
       , third, radix, maxCode;
     if(first === 43 || first === 45){
@@ -37,7 +40,7 @@ var toNumber = function(argument){
   } return +it;
 };
 
-if(!$Number('0o1') || !$Number('0b1') || $Number('+0x1')){
+if(!$Number('0o1') || !$Number('0b1') || $Number('+0x1') || !$Number(' 1')){
   $Number = function Number(value){
     var it = arguments.length < 1 ? 0 : value
       , that = this;

@@ -1,6 +1,8 @@
 {module, test} = QUnit
 module \ES6
 
+ws = ' \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000'
+
 $check = (assert)-> (a, b)->
   assert.same Number(a), b, "Number #{typeof a} #a -> #b"
   x = new Number a
@@ -73,6 +75,15 @@ test 'Number constructor: regression' (assert)->
     assert.ok .. of Number, "#{..} in Number"
   n = new Number 42
   assert.strictEqual typeof n@@(n), \number
+  check (ws + \42), 42
+  check (\42 + ws), 42
+  check (ws + \42 + ws), 42
+  check (ws + \0x42), 66
+  check (\0x42 + ws), 66
+  check (ws + \0x42 + ws), 66
+  check (ws + \0X42), 66
+  check (\0X42 + ws), 66
+  check (ws + \0X42 + ws), 66
 
 test 'Number constructor: binary' (assert)->
   check = $check assert
@@ -83,10 +94,22 @@ test 'Number constructor: binary' (assert)->
   check '0b1!', NaN
   check \+0b1, NaN
   check \-0b1, NaN
+  check ' 0b1', 1
+  check '0b1\n', 1
+  check '\n 0b1\n ', 1
+  check ' 0B1', 1
+  check '0B1\n', 1
+  check '\n 0B1\n ', 1
   check {valueOf: -> \0b11}, 3
   check {toString: -> \0b111}, 7
   check {valueOf: -> \0b101010}, 42
   check {toString: -> \0b101010}, 42
+  check (ws + \0b11), 3
+  check (\0b11 + ws), 3
+  check (ws + \0b11 + ws), 3
+  check (ws + \0B11), 3
+  check (\0B11 + ws), 3
+  check (ws + \0B11 + ws), 3
 
 test 'Number constructor: octal' (assert)->
   check = $check assert
@@ -97,7 +120,19 @@ test 'Number constructor: octal' (assert)->
   check '0o1!', NaN
   check \+0o1, NaN
   check \-0o1, NaN
+  check ' 0o1', 1
+  check '0o1\n', 1
+  check '\n 0o1\n ', 1
+  check ' 0O1', 1
+  check '0O1\n', 1
+  check '\n 0O1\n ', 1
   check {valueOf: -> \0o77}, 63
   check {toString: -> \0o777}, 511
   check {valueOf: -> \0o12345}, 5349
   check {toString: -> \0o12345}, 5349
+  check (ws + \0o11), 9
+  check (\0o11 + ws), 9
+  check (ws + \0o11 + ws), 9
+  check (ws + \0O11), 9
+  check (\0O11 + ws), 9
+  check (ws + \0O11 + ws), 9

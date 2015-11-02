@@ -1,13 +1,3 @@
-// 1 -> String#trimLeft
-// 2 -> String#trimRight
-// 3 -> String#trim
-var trim = function(string, TYPE){
-  string = String(defined(string));
-  if(TYPE & 1)string = string.replace(ltrim, '');
-  if(TYPE & 2)string = string.replace(rtrim, '');
-  return string;
-};
-
 var $def    = require('./$.def')
   , defined = require('./$.defined')
   , fails   = require('./$.fails')
@@ -18,10 +8,22 @@ var $def    = require('./$.def')
   , ltrim   = RegExp('^' + space + space + '*')
   , rtrim   = RegExp(space + space + '*$');
 
-module.exports = function(KEY, exec){
+var $export = function(KEY, exec){
   var exp  = {};
   exp[KEY] = exec(trim);
   $def($def.P + $def.F * fails(function(){
     return !!spaces[KEY]() || non[KEY]() != non;
   }), 'String', exp);
 };
+
+// 1 -> String#trimLeft
+// 2 -> String#trimRight
+// 3 -> String#trim
+var trim = $export.trim = function(string, TYPE){
+  string = String(defined(string));
+  if(TYPE & 1)string = string.replace(ltrim, '');
+  if(TYPE & 2)string = string.replace(rtrim, '');
+  return string;
+};
+
+module.exports = $export;
