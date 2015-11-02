@@ -1,4 +1,10 @@
 ## Changelog
+##### 1.2.5 - 2015.11.02
+* some more `Number` constructor fixes:
+  * fixed V8 ~ Node 0.8 bug: `Number('+0x1')` should be `NaN`
+  * fixed `Number(' 0b1\n')` case, should be `1`
+  * fixed `Number()` case, should be `0`
+
 ##### 1.2.4 - 2015.11.01
 * fixed `Number('0b12') -> NaN` case in the shim
 * fixed V8 ~ Chromium 40- bug - `Weak(Map|Set)#{delete, get, has}` should not throw errors [#124](https://github.com/zloirock/core-js/issues/124)

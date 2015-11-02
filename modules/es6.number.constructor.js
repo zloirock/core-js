@@ -40,7 +40,7 @@ var toNumber = function(argument){
   } return +it;
 };
 
-if(!$Number('0o1') || !$Number('0b1') || $Number('+0x1') || !$Number(' 1')){
+if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   $Number = function Number(value){
     var it = arguments.length < 1 ? 0 : value
       , that = this;

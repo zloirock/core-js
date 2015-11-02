@@ -1,7 +1,7 @@
-// true  -> String#at
-// false -> String#codePointAt
 var toInteger = require('./$.to-integer')
   , defined   = require('./$.defined');
+// true  -> String#at
+// false -> String#codePointAt
 module.exports = function(TO_STRING){
   return function(that, pos){
     var s = String(defined(that))
