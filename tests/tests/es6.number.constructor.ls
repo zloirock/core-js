@@ -3,19 +3,23 @@ module \ES6
 
 ws = ' \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000'
 
-$check = (assert)-> (a, b)->
+$check = (assert)-> (a, b)!->
   assert.same Number(a), b, "Number #{typeof a} #a -> #b"
   x = new Number a
   assert.ok x is Object(x), "new Number #{typeof a} #a is object"
   assert.strictEqual typeof! x, \Number, "classof new Number #{typeof a} #a is Number"
   assert.same x.valueOf!, b, "new Number(#{typeof a} #a).valueOf() -> #b"
 
-test 'Number constructor: regression' (assert)->
+test 'Number constructor: regression' (assert)!->
   check = $check assert
   assert.isFunction Number
   assert.arity Number, 1
   assert.name Number, \Number
   assert.looksNative Number
+  assert.same Number::constructor, Number
+  assert.same 1.constructor, Number
+  for 'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'split ','
+    assert.ok .. of Number, "Number.#{..}"
   assert.same Number!, 0
   assert.same new Number!valueOf!, 0
   check 42, 42
@@ -75,17 +79,17 @@ test 'Number constructor: regression' (assert)->
     assert.ok .. of Number, "#{..} in Number"
   n = new Number 42
   assert.strictEqual typeof n@@(n), \number
-  check (ws + \42), 42
-  check (\42 + ws), 42
-  check (ws + \42 + ws), 42
-  check (ws + \0x42), 66
-  check (\0x42 + ws), 66
-  check (ws + \0x42 + ws), 66
-  check (ws + \0X42), 66
-  check (\0X42 + ws), 66
-  check (ws + \0X42 + ws), 66
+  check "#{ws}42", 42
+  check "42#{ws}", 42
+  check "#{ws}42#{ws}", 42
+  check "#{ws}0x42", 66
+  check "0x42#{ws}", 66
+  check "#{ws}0x42#{ws}", 66
+  check "#{ws}0X42", 66
+  check "0X42#{ws}", 66
+  check "#{ws}0X42#{ws}", 66
 
-test 'Number constructor: binary' (assert)->
+test 'Number constructor: binary' (assert)!->
   check = $check assert
   check \0b1, 1
   check \0B1, 1
@@ -104,14 +108,14 @@ test 'Number constructor: binary' (assert)->
   check {toString: -> \0b111}, 7
   check {valueOf: -> \0b101010}, 42
   check {toString: -> \0b101010}, 42
-  check (ws + \0b11), 3
-  check (\0b11 + ws), 3
-  check (ws + \0b11 + ws), 3
-  check (ws + \0B11), 3
-  check (\0B11 + ws), 3
-  check (ws + \0B11 + ws), 3
+  check "#{ws}0b11", 3
+  check "0b11#{ws}", 3
+  check "#{ws}0b11#{ws}", 3
+  check "#{ws}0B11", 3
+  check "0B11#{ws}", 3
+  check "#{ws}0B11#{ws}", 3
 
-test 'Number constructor: octal' (assert)->
+test 'Number constructor: octal' (assert)!->
   check = $check assert
   check \0o7, 7
   check \0O7, 7
@@ -130,9 +134,9 @@ test 'Number constructor: octal' (assert)->
   check {toString: -> \0o777}, 511
   check {valueOf: -> \0o12345}, 5349
   check {toString: -> \0o12345}, 5349
-  check (ws + \0o11), 9
-  check (\0o11 + ws), 9
-  check (ws + \0o11 + ws), 9
-  check (ws + \0O11), 9
-  check (\0O11 + ws), 9
-  check (ws + \0O11 + ws), 9
+  check "#{ws}0o11", 9
+  check "0o11#{ws}", 9
+  check "#{ws}0o11#{ws}", 9
+  check "#{ws}0O11", 9
+  check "0O11#{ws}", 9
+  check "#{ws}0O11#{ws}", 9

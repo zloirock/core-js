@@ -2050,16 +2050,22 @@
       x = new Number(a);
       assert.ok(x === Object(x), "new Number " + typeof a + " " + a + " is object");
       assert.strictEqual(toString$.call(x).slice(8, -1), 'Number', "classof new Number " + typeof a + " " + a + " is Number");
-      return assert.same(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
+      assert.same(x.valueOf(), b, "new Number(" + typeof a + " " + a + ").valueOf() -> " + b);
     };
   };
   test('Number constructor: regression', function(assert){
-    var check, i, i$, x$, ref$, len$, n;
+    var check, i$, x$, ref$, len$, i, y$, n;
     check = $check(assert);
     assert.isFunction(Number);
     assert.arity(Number, 1);
     assert.name(Number, 'Number');
     assert.looksNative(Number);
+    assert.same(Number.prototype.constructor, Number);
+    assert.same(1 .constructor, Number);
+    for (i$ = 0, len$ = (ref$ = 'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'.split(',')).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      assert.ok(x$ in Number, "Number." + x$);
+    }
     assert.same(Number(), 0);
     assert.same(new Number().valueOf(), 0);
     check(42, 42);
@@ -2204,20 +2210,20 @@
       });
     }, TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
     for (i$ = 0, len$ = (ref$ = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY']).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      assert.ok(x$ in Number, x$ + " in Number");
+      y$ = ref$[i$];
+      assert.ok(y$ in Number, y$ + " in Number");
     }
     n = new Number(42);
     assert.strictEqual(typeof n.constructor(n), 'number');
-    check(ws + '42', 42);
-    check('42' + ws, 42);
-    check(ws + '42' + ws, 42);
-    check(ws + '0x42', 66);
-    check('0x42' + ws, 66);
-    check(ws + '0x42' + ws, 66);
-    check(ws + '0X42', 66);
-    check('0X42' + ws, 66);
-    return check(ws + '0X42' + ws, 66);
+    check(ws + "42", 42);
+    check("42" + ws, 42);
+    check(ws + "42" + ws, 42);
+    check(ws + "0x42", 66);
+    check("0x42" + ws, 66);
+    check(ws + "0x42" + ws, 66);
+    check(ws + "0X42", 66);
+    check("0X42" + ws, 66);
+    check(ws + "0X42" + ws, 66);
   });
   test('Number constructor: binary', function(assert){
     var check;
@@ -2255,12 +2261,12 @@
         return '0b101010';
       }
     }, 42);
-    check(ws + '0b11', 3);
-    check('0b11' + ws, 3);
-    check(ws + '0b11' + ws, 3);
-    check(ws + '0B11', 3);
-    check('0B11' + ws, 3);
-    return check(ws + '0B11' + ws, 3);
+    check(ws + "0b11", 3);
+    check("0b11" + ws, 3);
+    check(ws + "0b11" + ws, 3);
+    check(ws + "0B11", 3);
+    check("0B11" + ws, 3);
+    check(ws + "0B11" + ws, 3);
   });
   test('Number constructor: octal', function(assert){
     var check;
@@ -2298,12 +2304,12 @@
         return '0o12345';
       }
     }, 5349);
-    check(ws + '0o11', 9);
-    check('0o11' + ws, 9);
-    check(ws + '0o11' + ws, 9);
-    check(ws + '0O11', 9);
-    check('0O11' + ws, 9);
-    return check(ws + '0O11' + ws, 9);
+    check(ws + "0o11", 9);
+    check("0o11" + ws, 9);
+    check(ws + "0o11" + ws, 9);
+    check(ws + "0O11", 9);
+    check("0O11" + ws, 9);
+    check(ws + "0O11" + ws, 9);
   });
 }).call(this);
 
