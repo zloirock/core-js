@@ -1,6 +1,6 @@
 // 20.2.2.9 Math.cbrt(x)
 var $def = require('./$.def')
-  , sign = require('./$.sign');
+  , sign = require('./$.math-sign');
 
 $def($def.S, 'Math', {
   cbrt: function cbrt(x){

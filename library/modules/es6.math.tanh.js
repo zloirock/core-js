@@ -1,6 +1,6 @@
 // 20.2.2.33 Math.tanh(x)
 var $def  = require('./$.def')
-  , expm1 = require('./$.expm1')
+  , expm1 = require('./$.math-expm1')
   , exp   = Math.exp;
 
 $def($def.S, 'Math', {

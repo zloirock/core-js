@@ -1,6 +1,6 @@
 // 20.2.2.30 Math.sinh(x)
 var $def  = require('./$.def')
-  , expm1 = require('./$.expm1')
+  , expm1 = require('./$.math-expm1')
   , exp   = Math.exp;
 
 // V8 near Chromium 38 has a problem with very small numbers

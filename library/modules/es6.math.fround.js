@@ -1,6 +1,6 @@
 // 20.2.2.16 Math.fround(x)
 var $def  = require('./$.def')
-  , sign  = require('./$.sign')
+  , sign  = require('./$.math-sign')
   , pow   = Math.pow
   , EPSILON   = pow(2, -52)
   , EPSILON32 = pow(2, -23)

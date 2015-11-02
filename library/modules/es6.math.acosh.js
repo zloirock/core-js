@@ -1,6 +1,6 @@
 // 20.2.2.3 Math.acosh(x)
 var $def   = require('./$.def')
-  , log1p  = require('./$.log1p')
+  , log1p  = require('./$.math-log1p')
   , sqrt   = Math.sqrt
   , $acosh = Math.acosh;
 
