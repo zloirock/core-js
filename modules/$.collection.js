@@ -2,7 +2,7 @@
 var global         = require('./$.global')
   , $def           = require('./$.def')
   , redefine       = require('./$.redefine')
-  , mix            = require('./$.mix')
+  , redefineAll    = require('./$.redefine-all')
   , forOf          = require('./$.for-of')
   , strictNew      = require('./$.strict-new')
   , isObject       = require('./$.is-object')
@@ -34,7 +34,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   }))){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    mix(C.prototype, methods);
+    redefineAll(C.prototype, methods);
   } else {
     var instance             = new C
       // early implementations not supports chaining

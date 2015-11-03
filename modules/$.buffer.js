@@ -2,13 +2,13 @@
 var DEBUG = false;
 
 if(require('./$.descriptors')){
-  var global          = require('./$.global')
-    , $               = require('./$')
-    , $mix            = require('./$.mix')
-    , $fill           = require('./$.array-fill')
+  var $               = require('./$')
+    , global          = require('./$.global')
+    , redefineAll     = require('./$.redefine-all')
     , strictNew       = require('./$.strict-new')
     , toInteger       = require('./$.to-integer')
     , toLength        = require('./$.to-length')
+    , $fill           = require('./$.array-fill')
     , $ArrayBuffer    = global.ArrayBuffer
     , $DataView       = global.DataView
     , Math            = global.Math
@@ -236,7 +236,7 @@ if(require('./$.descriptors')){
     addGetter($DataView, 'buffer', '_b');
     addGetter($DataView, BYTE_LENGTH, '_l');
     addGetter($DataView, 'byteOffset', '_o');
-    $mix($DataView.prototype, {
+    redefineAll($DataView.prototype, {
       getInt8: function getInt8(byteOffset){
         return get(this, 1, byteOffset, unpackI8);
       },

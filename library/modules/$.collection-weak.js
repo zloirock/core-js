@@ -1,6 +1,6 @@
 'use strict';
 var hide         = require('./$.hide')
-  , mix          = require('./$.mix')
+  , redefineAll  = require('./$.redefine-all')
   , anObject     = require('./$.an-object')
   , strictNew    = require('./$.strict-new')
   , forOf        = require('./$.for-of')
@@ -55,7 +55,7 @@ module.exports = {
       that._l = undefined; // leak store for frozen objects
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
     });
-    mix(C.prototype, {
+    redefineAll(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function(key){

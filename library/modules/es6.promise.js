@@ -184,7 +184,7 @@ if(!useNative){
       $reject.call(record, err);
     }
   };
-  require('./$.mix')(P.prototype, {
+  require('./$.redefine-all')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
       var react = {

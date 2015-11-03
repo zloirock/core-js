@@ -1,15 +1,15 @@
 'use strict';
-var global         = require('./$.global')
-  , $              = require('./$')
+var $              = require('./$')
+  , global         = require('./$.global')
   , $def           = require('./$.def')
   , fails          = require('./$.fails')
   , hide           = require('./$.hide')
-  , mix            = require('./$.mix')
+  , redefineAll    = require('./$.redefine-all')
   , forOf          = require('./$.for-of')
   , strictNew      = require('./$.strict-new')
   , isObject       = require('./$.is-object')
-  , DESCRIPTORS    = require('./$.descriptors')
-  , setToStringTag = require('./$.set-to-string-tag');
+  , setToStringTag = require('./$.set-to-string-tag')
+  , DESCRIPTORS    = require('./$.descriptors');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = global[NAME]
@@ -22,7 +22,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   }))){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    mix(C.prototype, methods);
+    redefineAll(C.prototype, methods);
   } else {
     C = wrapper(function(target, iterable){
       strictNew(target, C, NAME);
