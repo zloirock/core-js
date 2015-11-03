@@ -62,7 +62,7 @@ var isSymbol = function(it){
   return typeof it == 'symbol';
 };
 
-var $exportineProperty = function defineProperty(it, key, D){
+var $defineProperty = function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
     if(!D.enumerable){
       if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
@@ -73,17 +73,17 @@ var $exportineProperty = function defineProperty(it, key, D){
     } return setSymbolDesc(it, key, D);
   } return setDesc(it, key, D);
 };
-var $exportineProperties = function defineProperties(it, P){
+var $defineProperties = function defineProperties(it, P){
   anObject(it);
   var keys = enumKeys(P = toIObject(P))
     , i    = 0
     , l = keys.length
     , key;
-  while(l > i)$exportineProperty(it, key = keys[i++], P[key]);
+  while(l > i)$defineProperty(it, key = keys[i++], P[key]);
   return it;
 };
 var $create = function create(it, P){
-  return P === undefined ? _create(it) : $exportineProperties(_create(it), P);
+  return P === undefined ? _create(it) : $defineProperties(_create(it), P);
 };
 var $propertyIsEnumerable = function propertyIsEnumerable(key){
   var E = isEnum.call(this, key);
@@ -152,8 +152,8 @@ if(!useNative){
   $.create     = $create;
   $.isEnum     = $propertyIsEnumerable;
   $.getDesc    = $getOwnPropertyDescriptor;
-  $.setDesc    = $exportineProperty;
-  $.setDescs   = $exportineProperties;
+  $.setDesc    = $defineProperty;
+  $.setDescs   = $defineProperties;
   $.getNames   = $names.get = $getOwnPropertyNames;
   $.getSymbols = $getOwnPropertySymbols;
 
@@ -205,9 +205,9 @@ $export($export.S + $export.F * !useNative, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
   create: $create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
-  defineProperty: $exportineProperty,
+  defineProperty: $defineProperty,
   // 19.1.2.3 Object.defineProperties(O, Properties)
-  defineProperties: $exportineProperties,
+  defineProperties: $defineProperties,
   // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
   getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
   // 19.1.2.7 Object.getOwnPropertyNames(O)
