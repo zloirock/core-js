@@ -1,6 +1,6 @@
 // JavaScript 1.6 / Strawman array statics shim
 var $       = require('./$')
-  , $def    = require('./$.def')
+  , $export = require('./$.export')
   , $ctx    = require('./$.ctx')
   , $Array  = require('./$.core').Array || Array
   , statics = {};
@@ -14,4 +14,4 @@ setStatics('pop,reverse,shift,keys,values,entries', 1);
 setStatics('indexOf,every,some,forEach,map,filter,find,findIndex,includes', 3);
 setStatics('join,slice,concat,push,splice,unshift,sort,lastIndexOf,' +
            'reduce,reduceRight,copyWithin,fill');
-$def($def.S, 'Array', statics);
+$export($export.S, 'Array', statics);

@@ -1,7 +1,7 @@
 // 20.1.2.4 Number.isNaN(number)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Number', {
+$export($export.S, 'Number', {
   isNaN: function isNaN(number){
     return number != number;
   }

@@ -1,4 +1,4 @@
-var $def   = require('./$.def')
-  , define = require('./$.object-define');
+var $export = require('./$.export')
+  , define  = require('./$.object-define');
 
-$def($def.S + $def.F, 'Object', {define: define});
+$export($export.S + $export.F, 'Object', {define: define});

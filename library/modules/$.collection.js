@@ -1,7 +1,7 @@
 'use strict';
 var $              = require('./$')
   , global         = require('./$.global')
-  , $def           = require('./$.def')
+  , $export        = require('./$.export')
   , fails          = require('./$.fails')
   , hide           = require('./$.hide')
   , redefineAll    = require('./$.redefine-all')
@@ -47,7 +47,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   setToStringTag(C, NAME);
 
   O[NAME] = C;
-  $def($def.G + $def.W + $def.F, O);
+  $export($export.G + $export.W + $export.F, O);
 
   if(!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
 

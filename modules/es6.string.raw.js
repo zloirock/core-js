@@ -1,8 +1,8 @@
-var $def      = require('./$.def')
+var $export   = require('./$.export')
   , toIObject = require('./$.to-iobject')
   , toLength  = require('./$.to-length');
 
-$def($def.S, 'String', {
+$export($export.S, 'String', {
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   raw: function raw(callSite){
     var tpl   = toIObject(callSite.raw)

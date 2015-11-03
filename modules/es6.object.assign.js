@@ -1,4 +1,4 @@
 // 19.1.3.1 Object.assign(target, source)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S + $def.F, 'Object', {assign: require('./$.object-assign')});
+$export($export.S + $export.F, 'Object', {assign: require('./$.object-assign')});

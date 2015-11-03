@@ -1,7 +1,7 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
 var $          = require('./$')
   , has        = require('./$.has')
-  , $def       = require('./$.def')
+  , $export    = require('./$.export')
   , createDesc = require('./$.property-desc')
   , anObject   = require('./$.an-object')
   , isObject   = require('./$.is-object');
@@ -26,4 +26,4 @@ function set(target, propertyKey, V/*, receiver*/){
   return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);
 }
 
-$def($def.S, 'Reflect', {set: set});
+$export($export.S, 'Reflect', {set: set});

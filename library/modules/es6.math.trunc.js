@@ -1,7 +1,7 @@
 // 20.2.2.34 Math.trunc(x)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Math', {
+$export($export.S, 'Math', {
   trunc: function trunc(it){
     return (it > 0 ? Math.floor : Math.ceil)(it);
   }

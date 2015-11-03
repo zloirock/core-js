@@ -1,6 +1,6 @@
 'use strict';
 // 26.1.5 Reflect.enumerate(target)
-var $def     = require('./$.def')
+var $export  = require('./$.export')
   , anObject = require('./$.an-object');
 var Enumerate = function(iterated){
   this._t = anObject(iterated); // target
@@ -19,7 +19,7 @@ require('./$.iter-create')(Enumerate, 'Object', function(){
   return {value: key, done: false};
 });
 
-$def($def.S, 'Reflect', {
+$export($export.S, 'Reflect', {
   enumerate: function enumerate(target){
     return new Enumerate(target);
   }

@@ -4,7 +4,7 @@ var $          = require('./$')
   , global     = require('./$.global')
   , ctx        = require('./$.ctx')
   , classof    = require('./$.classof')
-  , $def       = require('./$.def')
+  , $export    = require('./$.export')
   , isObject   = require('./$.is-object')
   , anObject   = require('./$.an-object')
   , aFunction  = require('./$.a-function')
@@ -210,27 +210,26 @@ if(!useNative){
   });
 }
 
-// export
-$def($def.G + $def.W + $def.F * !useNative, {Promise: P});
+$export($export.G + $export.W + $export.F * !useNative, {Promise: P});
 require('./$.set-to-string-tag')(P, PROMISE);
 require('./$.set-species')(PROMISE);
 Wrapper = require('./$.core')[PROMISE];
 
 // statics
-$def($def.S + $def.F * !useNative, PROMISE, {
+$export($export.S + $export.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
     return new this(function(res, rej){ rej(r); });
   }
 });
-$def($def.S + $def.F * (!useNative || testResolve(true)), PROMISE, {
+$export($export.S + $export.F * (!useNative || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
     return isPromise(x) && sameConstructor(x.constructor, this)
       ? x : new this(function(res){ res(x); });
   }
 });
-$def($def.S + $def.F * !(useNative && require('./$.iter-detect')(function(iter){
+$export($export.S + $export.F * !(useNative && require('./$.iter-detect')(function(iter){
   P.all(iter)['catch'](function(){});
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)

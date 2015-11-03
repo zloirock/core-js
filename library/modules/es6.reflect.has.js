@@ -1,7 +1,7 @@
 // 26.1.9 Reflect.has(target, propertyKey)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Reflect', {
+$export($export.S, 'Reflect', {
   has: function has(target, propertyKey){
     return propertyKey in target;
   }

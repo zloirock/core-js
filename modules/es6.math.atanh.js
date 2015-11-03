@@ -1,7 +1,7 @@
 // 20.2.2.7 Math.atanh(x)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Math', {
+$export($export.S, 'Math', {
   atanh: function atanh(x){
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
   }

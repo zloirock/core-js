@@ -1,4 +1,4 @@
 // 20.2.2.20 Math.log1p(x)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Math', {log1p: require('./$.math-log1p')});
+$export($export.S, 'Math', {log1p: require('./$.math-log1p')});

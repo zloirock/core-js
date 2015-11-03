@@ -1,8 +1,8 @@
 // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-var $def = require('./$.def')
-  , abs  = Math.abs;
+var $export = require('./$.export')
+  , abs     = Math.abs;
 
-$def($def.S, 'Math', {
+$export($export.S, 'Math', {
   hypot: function hypot(value1, value2){ // eslint-disable-line no-unused-vars
     var sum   = 0
       , i     = 0

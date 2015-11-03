@@ -1,10 +1,10 @@
-var $def    = require('./$.def')
-  , toIndex = require('./$.to-index')
-  , fromCharCode = String.fromCharCode
+var $export        = require('./$.export')
+  , toIndex        = require('./$.to-index')
+  , fromCharCode   = String.fromCharCode
   , $fromCodePoint = String.fromCodePoint;
 
 // length should be 1, old FF problem
-$def($def.S + $def.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
+$export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   fromCodePoint: function fromCodePoint(x){ // eslint-disable-line no-unused-vars
     var res   = []

@@ -1,9 +1,9 @@
 // 26.1.8 Reflect.getPrototypeOf(target)
-var $def     = require('./$.def')
+var $export  = require('./$.export')
   , getProto = require('./$').getProto
   , anObject = require('./$.an-object');
 
-$def($def.S, 'Reflect', {
+$export($export.S, 'Reflect', {
   getPrototypeOf: function getPrototypeOf(target){
     return getProto(anObject(target));
   }

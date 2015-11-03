@@ -1,6 +1,6 @@
 'use strict';
 var global         = require('./$.global')
-  , $def           = require('./$.def')
+  , $export        = require('./$.export')
   , redefine       = require('./$.redefine')
   , redefineAll    = require('./$.redefine-all')
   , forOf          = require('./$.for-of')
@@ -71,7 +71,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   setToStringTag(C, NAME);
 
   O[NAME] = C;
-  $def($def.G + $def.W + $def.F * (C != Base), O);
+  $export($export.G + $export.W + $export.F * (C != Base), O);
 
   if(!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
 

@@ -1,5 +1,5 @@
 'use strict';
-var $def         = require('./$.def')
+var $export      = require('./$.export')
   , buffer       = require('./$.buffer')
   , toIndex      = require('./$.to-index')
   , toLength     = require('./$.to-length')
@@ -7,20 +7,20 @@ var $def         = require('./$.def')
   , TYPED_ARRAY  = require('./$.wks')('typed_array')
   , $ArrayBuffer = buffer.ArrayBuffer
   , $DataView    = buffer.DataView
-  , FORCED       = $def.F * !buffer.useNative
+  , FORCED       = $export.F * !buffer.useNative
   , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
   , ARRAY_BUFFER = 'ArrayBuffer';
 
-$def($def.G + $def.W + FORCED, {ArrayBuffer: $ArrayBuffer});
+$export($export.G + $export.W + FORCED, {ArrayBuffer: $ArrayBuffer});
 
-$def($def.S + FORCED, ARRAY_BUFFER, {
+$export($export.S + FORCED, ARRAY_BUFFER, {
   // 24.1.3.1 ArrayBuffer.isView(arg)
   isView: function isView(it){
     return isObject(it) && (it instanceof $DataView || TYPED_ARRAY in it);
   }
 });
 
-$def($def.P + (FORCED || require('./$.fails')(function(){
+$export($export.P + (FORCED || require('./$.fails')(function(){
   return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
 })), ARRAY_BUFFER, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)

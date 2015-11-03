@@ -1,7 +1,7 @@
 'use strict';
 var $           = require('./$')
   , ctx         = require('./$.ctx')
-  , $def        = require('./$.def')
+  , $export     = require('./$.export')
   , createDesc  = require('./$.property-desc')
   , assign      = require('./$.object-assign')
   , keyOf       = require('./$.keyof')
@@ -129,9 +129,9 @@ function isDict(it){
   return isObject(it) && $.getProto(it) === Dict.prototype;
 }
 
-$def($def.G + $def.F, {Dict: Dict});
+$export($export.G + $export.F, {Dict: Dict});
 
-$def($def.S, 'Dict', {
+$export($export.S, 'Dict', {
   keys:     createDictIter('keys'),
   values:   createDictIter('values'),
   entries:  createDictIter('entries'),

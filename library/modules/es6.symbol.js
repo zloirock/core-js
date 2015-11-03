@@ -4,7 +4,7 @@ var $              = require('./$')
   , global         = require('./$.global')
   , has            = require('./$.has')
   , DESCRIPTORS    = require('./$.descriptors')
-  , $def           = require('./$.def')
+  , $export        = require('./$.export')
   , redefine       = require('./$.redefine')
   , $fails         = require('./$.fails')
   , shared         = require('./$.shared')
@@ -62,7 +62,7 @@ var isSymbol = function(it){
   return typeof it == 'symbol';
 };
 
-var $defineProperty = function defineProperty(it, key, D){
+var $exportineProperty = function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
     if(!D.enumerable){
       if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
@@ -73,17 +73,17 @@ var $defineProperty = function defineProperty(it, key, D){
     } return setSymbolDesc(it, key, D);
   } return setDesc(it, key, D);
 };
-var $defineProperties = function defineProperties(it, P){
+var $exportineProperties = function defineProperties(it, P){
   anObject(it);
   var keys = enumKeys(P = toIObject(P))
     , i    = 0
     , l = keys.length
     , key;
-  while(l > i)$defineProperty(it, key = keys[i++], P[key]);
+  while(l > i)$exportineProperty(it, key = keys[i++], P[key]);
   return it;
 };
 var $create = function create(it, P){
-  return P === undefined ? _create(it) : $defineProperties(_create(it), P);
+  return P === undefined ? _create(it) : $exportineProperties(_create(it), P);
 };
 var $propertyIsEnumerable = function propertyIsEnumerable(key){
   var E = isEnum.call(this, key);
@@ -152,8 +152,8 @@ if(!useNative){
   $.create     = $create;
   $.isEnum     = $propertyIsEnumerable;
   $.getDesc    = $getOwnPropertyDescriptor;
-  $.setDesc    = $defineProperty;
-  $.setDescs   = $defineProperties;
+  $.setDesc    = $exportineProperty;
+  $.setDescs   = $exportineProperties;
   $.getNames   = $names.get = $getOwnPropertyNames;
   $.getSymbols = $getOwnPropertySymbols;
 
@@ -197,17 +197,17 @@ $.each.call((
 
 setter = true;
 
-$def($def.G + $def.W, {Symbol: $Symbol});
+$export($export.G + $export.W, {Symbol: $Symbol});
 
-$def($def.S, 'Symbol', symbolStatics);
+$export($export.S, 'Symbol', symbolStatics);
 
-$def($def.S + $def.F * !useNative, 'Object', {
+$export($export.S + $export.F * !useNative, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
   create: $create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
-  defineProperty: $defineProperty,
+  defineProperty: $exportineProperty,
   // 19.1.2.3 Object.defineProperties(O, Properties)
-  defineProperties: $defineProperties,
+  defineProperties: $exportineProperties,
   // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
   getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
   // 19.1.2.7 Object.getOwnPropertyNames(O)
@@ -217,7 +217,7 @@ $def($def.S + $def.F * !useNative, 'Object', {
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
-$JSON && $def($def.S + $def.F * (!useNative || buggyJSON), 'JSON', {stringify: $stringify});
+$JSON && $export($export.S + $export.F * (!useNative || buggyJSON), 'JSON', {stringify: $stringify});
 
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
 setToStringTag($Symbol, 'Symbol');

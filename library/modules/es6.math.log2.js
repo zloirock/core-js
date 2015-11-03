@@ -1,7 +1,7 @@
 // 20.2.2.22 Math.log2(x)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Math', {
+$export($export.S, 'Math', {
   log2: function log2(x){
     return Math.log(x) / Math.LN2;
   }

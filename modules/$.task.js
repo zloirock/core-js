@@ -1,4 +1,3 @@
-'use strict';
 var ctx                = require('./$.ctx')
   , invoke             = require('./$.invoke')
   , html               = require('./$.html')

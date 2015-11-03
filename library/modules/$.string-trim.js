@@ -1,4 +1,4 @@
-var $def    = require('./$.def')
+var $export = require('./$.export')
   , defined = require('./$.defined')
   , fails   = require('./$.fails')
   , spaces  = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003' +
@@ -8,10 +8,10 @@ var $def    = require('./$.def')
   , ltrim   = RegExp('^' + space + space + '*')
   , rtrim   = RegExp(space + space + '*$');
 
-var $export = function(KEY, exec){
+var exporter = function(KEY, exec){
   var exp  = {};
   exp[KEY] = exec(trim);
-  $def($def.P + $def.F * fails(function(){
+  $export($export.P + $export.F * fails(function(){
     return !!spaces[KEY]() || non[KEY]() != non;
   }), 'String', exp);
 };
@@ -19,11 +19,11 @@ var $export = function(KEY, exec){
 // 1 -> String#trimLeft
 // 2 -> String#trimRight
 // 3 -> String#trim
-var trim = $export.trim = function(string, TYPE){
+var trim = exporter.trim = function(string, TYPE){
   string = String(defined(string));
   if(TYPE & 1)string = string.replace(ltrim, '');
   if(TYPE & 2)string = string.replace(rtrim, '');
   return string;
 };
 
-module.exports = $export;
+module.exports = exporter;

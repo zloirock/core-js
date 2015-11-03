@@ -1,8 +1,8 @@
-var $def   = require('./$.def')
-  , create = require('./$').create
-  , define = require('./$.object-define');
+var $export = require('./$.export')
+  , define  = require('./$.object-define')
+  , create  = require('./$').create;
 
-$def($def.S + $def.F, 'Object', {
+$export($export.S + $export.F, 'Object', {
   make: function(proto, mixin){
     return define(create(proto), mixin);
   }

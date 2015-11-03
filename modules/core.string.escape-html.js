@@ -1,11 +1,11 @@
 'use strict';
-var $def = require('./$.def')
-  , $re  = require('./$.replacer')(/[&<>"']/g, {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&apos;'
-  });
+var $export = require('./$.export');
+var $re = require('./$.replacer')(/[&<>"']/g, {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&apos;'
+});
 
-$def($def.P + $def.F, 'String', {escapeHTML: function escapeHTML(){ return $re(this); }});
+$export($export.P + $export.F, 'String', {escapeHTML: function escapeHTML(){ return $re(this); }});

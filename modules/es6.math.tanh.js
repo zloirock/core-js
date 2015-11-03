@@ -1,9 +1,9 @@
 // 20.2.2.33 Math.tanh(x)
-var $def  = require('./$.def')
-  , expm1 = require('./$.math-expm1')
-  , exp   = Math.exp;
+var $export = require('./$.export')
+  , expm1   = require('./$.math-expm1')
+  , exp     = Math.exp;
 
-$def($def.S, 'Math', {
+$export($export.S, 'Math', {
   tanh: function tanh(x){
     var a = expm1(x = +x)
       , b = expm1(-x);

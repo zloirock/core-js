@@ -1,6 +1,6 @@
 // ie9- setTimeout & setInterval additional parameters fix
 var global     = require('./$.global')
-  , $def       = require('./$.def')
+  , $export    = require('./$.export')
   , invoke     = require('./$.invoke')
   , partial    = require('./$.partial')
   , navigator  = global.navigator
@@ -14,7 +14,7 @@ var wrap = function(set){
     ), time);
   } : set;
 };
-$def($def.G + $def.B + $def.F * MSIE, {
+$export($export.G + $export.B + $export.F * MSIE, {
   setTimeout:  wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });

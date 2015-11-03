@@ -1,8 +1,7 @@
-'use strict';
-var path = require('./$.path')
-  , $def = require('./$.def');
+var path    = require('./$.path')
+  , $export = require('./$.export');
 
 // Placeholder
 require('./$.core')._ = path._ = path._ || {};
 
-$def($def.P + $def.F, 'Function', {part: require('./$.partial')});
+$export($export.P + $export.F, 'Function', {part: require('./$.partial')});

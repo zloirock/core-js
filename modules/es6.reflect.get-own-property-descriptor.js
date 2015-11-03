@@ -1,9 +1,9 @@
 // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
 var $        = require('./$')
-  , $def     = require('./$.def')
+  , $export  = require('./$.export')
   , anObject = require('./$.an-object');
 
-$def($def.S, 'Reflect', {
+$export($export.S, 'Reflect', {
   getOwnPropertyDescriptor: function getOwnPropertyDescriptor(target, propertyKey){
     return $.getDesc(anObject(target), propertyKey);
   }

@@ -1,6 +1,6 @@
-var $def  = require('./$.def')
-  , $task = require('./$.task');
-$def($def.G + $def.B, {
+var $export = require('./$.export')
+  , $task   = require('./$.task');
+$export($export.G + $export.B, {
   setImmediate:   $task.set,
   clearImmediate: $task.clear
 });

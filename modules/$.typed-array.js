@@ -6,7 +6,7 @@ var DESCRIPTORS        = require('./$.descriptors')
   , LIBRARY            = require('./$.library')
   , $                  = require('./$')
   , fails              = require('./$.fails')
-  , $def               = require('./$.def')
+  , $export            = require('./$.export')
   , $buffer            = require('./$.buffer')
   , ctx                = require('./$.ctx')
   , strictNew          = require('./$.strict-new')
@@ -244,7 +244,7 @@ if(DESCRIPTORS && !ALL_ARRAYS){
   $.setDesc = $setDesc;
 }
 
-$def($def.S + $def.F * (DESCRIPTORS && !ALL_ARRAYS), 'Object', {
+$export($export.S + $export.F * (DESCRIPTORS && !ALL_ARRAYS), 'Object', {
   getOwnPropertyDescriptor: $getDesc,
   defineProperty: $setDesc
 });
@@ -337,19 +337,19 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
 
   O[NAME] = $TypedArray;
 
-  $def($def.G + $def.W + $def.F * ($TypedArray != Base), O);
+  $export($export.G + $export.W + $export.F * ($TypedArray != Base), O);
 
-  $def($def.S + $def.F * ($TypedArray != Base), NAME, {
+  $export($export.S + $export.F * ($TypedArray != Base), NAME, {
     BYTES_PER_ELEMENT: BYTES,
     from: Base.from || $from,
     of: Base.of || $of
   });
 
-  $def($def.P + $def.F * FORCED, NAME, proto);
+  $export($export.P + $export.F * FORCED, NAME, proto);
 
-  $def($def.P + $def.F * ($TypedArrayPrototype.toString != $toString), NAME, {toString: $toString});
+  $export($export.P + $export.F * ($TypedArrayPrototype.toString != $toString), NAME, {toString: $toString});
 
-  $def($def.P + $def.F * fails(function(){
+  $export($export.P + $export.F * fails(function(){
     return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
   }), NAME, {toLocaleString: $toLocaleString});
   

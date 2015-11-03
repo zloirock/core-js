@@ -1,3 +1,3 @@
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S + $def.F, 'Object', {classof: require('./$.classof')});
+$export($export.S + $export.F, 'Object', {classof: require('./$.classof')});

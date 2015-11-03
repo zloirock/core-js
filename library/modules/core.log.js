@@ -1,6 +1,6 @@
 var $       = require('./$')
   , global  = require('./$.global')
-  , $def    = require('./$.def')
+  , $export = require('./$.export')
   , log     = {}
   , enabled = true;
 // Methods from https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
@@ -16,7 +16,7 @@ $.each.call((
     }
   };
 });
-$def($def.G + $def.F, {log: require('./$.object-assign')(log.log, log, {
+$export($export.G + $export.F, {log: require('./$.object-assign')(log.log, log, {
   enable: function(){
     enabled = true;
   },

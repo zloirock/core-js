@@ -1,8 +1,8 @@
 // http://goo.gl/XkBrjD
-var $def    = require('./$.def')
+var $export = require('./$.export')
   , $values = require('./$.object-to-array')(false);
 
-$def($def.S, 'Object', {
+$export($export.S, 'Object', {
   values: function values(it){
     return $values(it);
   }

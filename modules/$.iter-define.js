@@ -1,6 +1,6 @@
 'use strict';
 var LIBRARY         = require('./$.library')
-  , $def            = require('./$.def')
+  , $export         = require('./$.export')
   , redefine        = require('./$.redefine')
   , hide            = require('./$.hide')
   , has             = require('./$.has')
@@ -53,7 +53,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
     };
     if(FORCE)for(key in methods){
       if(!(key in proto))redefine(proto, key, methods[key]);
-    } else $def($def.P + $def.F * BUGGY, NAME, methods);
+    } else $export($export.P + $export.F * BUGGY, NAME, methods);
   }
   return methods;
 };

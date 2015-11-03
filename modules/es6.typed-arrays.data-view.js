@@ -1,4 +1,4 @@
-var $def   = require('./$.def')
-  , buffer = require('./$.buffer');
+var $export = require('./$.export')
+  , buffer  = require('./$.buffer');
 
-$def($def.G + $def.W + $def.F * !buffer.useNative, {DataView: buffer.DataView});
+$export($export.G + $export.W + $export.F * !buffer.useNative, {DataView: buffer.DataView});

@@ -6,7 +6,7 @@ var $                = require('./$')
   , cel              = require('./$.dom-create')
   , has              = require('./$.has')
   , cof              = require('./$.cof')
-  , $def             = require('./$.def')
+  , $export          = require('./$.export')
   , invoke           = require('./$.invoke')
   , arrayMethod      = require('./$.array-methods')
   , IE_PROTO         = require('./$.uid')('__proto__')
@@ -59,7 +59,7 @@ if(!DESCRIPTORS){
     return O;
   };
 }
-$def($def.S + $def.F * !DESCRIPTORS, 'Object', {
+$export($export.S + $export.F * !DESCRIPTORS, 'Object', {
   // 19.1.2.6 / 15.2.3.3 Object.getOwnPropertyDescriptor(O, P)
   getOwnPropertyDescriptor: $.getDesc,
   // 19.1.2.4 / 15.2.3.6 Object.defineProperty(O, P, Attributes)
@@ -110,7 +110,7 @@ var createGetKeys = function(names, length){
   };
 };
 var Empty = function(){};
-$def($def.S, 'Object', {
+$export($export.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
     O = toObject(O);
@@ -146,7 +146,7 @@ var construct = function(F, len, args){
 };
 
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
-$def($def.P, 'Function', {
+$export($export.P, 'Function', {
   bind: function bind(that /*, args... */){
     var fn       = aFunction(this)
       , partArgs = _slice.call(arguments, 1);
@@ -164,7 +164,7 @@ var buggySlice = fails(function(){
   if(html)_slice.call(html);
 });
 
-$def($def.P + $def.F * buggySlice, 'Array', {
+$export($export.P + $export.F * buggySlice, 'Array', {
   slice: function(begin, end){
     var len   = toLength(this.length)
       , klass = cof(this);
@@ -181,14 +181,14 @@ $def($def.P + $def.F * buggySlice, 'Array', {
     return cloned;
   }
 });
-$def($def.P + $def.F * (IObject != Object), 'Array', {
+$export($export.P + $export.F * (IObject != Object), 'Array', {
   join: function(){
     return _join.apply(IObject(this), arguments);
   }
 });
 
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-$def($def.S, 'Array', {isArray: require('./$.is-array')});
+$export($export.S, 'Array', {isArray: require('./$.is-array')});
 
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
@@ -219,7 +219,7 @@ var methodize = function($fn){
     return $fn(this, arg1, arguments[1]);
   };
 };
-$def($def.P, 'Array', {
+$export($export.P, 'Array', {
   // 22.1.3.10 / 15.4.4.18 Array.prototype.forEach(callbackfn [, thisArg])
   forEach: $.each = $.each || methodize(arrayMethod(0)),
   // 22.1.3.15 / 15.4.4.19 Array.prototype.map(callbackfn [, thisArg])
@@ -249,7 +249,7 @@ $def($def.P, 'Array', {
 });
 
 // 20.3.3.1 / 15.9.4.4 Date.now()
-$def($def.S, 'Date', {now: function(){ return +new Date; }});
+$export($export.S, 'Date', {now: function(){ return +new Date; }});
 
 var lz = function(num){
   return num > 9 ? num : '0' + num;
@@ -260,7 +260,7 @@ var lz = function(num){
 var date       = new Date(-5e13 - 1)
   , brokenDate = !(date.toISOString && date.toISOString() == '0385-07-25T07:06:39.999Z'
       && fails(function(){ new Date(NaN).toISOString(); }));
-$def($def.P + $def.F * brokenDate, 'Date', {
+$export($export.P + $export.F * brokenDate, 'Date', {
   toISOString: function toISOString(){
     if(!isFinite(this))throw RangeError('Invalid time value');
     var d = this

@@ -1,4 +1,4 @@
 // 20.2.2.28 Math.sign(x)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Math', {sign: require('./$.math-sign')});
+$export($export.S, 'Math', {sign: require('./$.math-sign')});

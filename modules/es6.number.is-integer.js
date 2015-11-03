@@ -1,4 +1,4 @@
 // 20.1.2.3 Number.isInteger(number)
-var $def = require('./$.def');
+var $export = require('./$.export');
 
-$def($def.S, 'Number', {isInteger: require('./$.is-integer')});
+$export($export.S, 'Number', {isInteger: require('./$.is-integer')});

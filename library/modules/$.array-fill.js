@@ -4,7 +4,7 @@ var toObject = require('./$.to-object')
   , toIndex  = require('./$.to-index')
   , toLength = require('./$.to-length');
 module.exports = [].fill || function fill(value /*, start = 0, end = @length */){
-  var O      = toObject(this, true)
+  var O      = toObject(this)
     , length = toLength(O.length)
     , $$     = arguments
     , $$len  = $$.length

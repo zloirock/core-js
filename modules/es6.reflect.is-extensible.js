@@ -1,9 +1,9 @@
 // 26.1.10 Reflect.isExtensible(target)
-var $def          = require('./$.def')
+var $export       = require('./$.export')
   , anObject      = require('./$.an-object')
   , $isExtensible = Object.isExtensible;
 
-$def($def.S, 'Reflect', {
+$export($export.S, 'Reflect', {
   isExtensible: function isExtensible(target){
     anObject(target);
     return $isExtensible ? $isExtensible(target) : true;

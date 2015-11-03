@@ -1,6 +1,6 @@
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var $         = require('./$')
-  , $def      = require('./$.def')
+  , $export   = require('./$.export')
   , aFunction = require('./$.a-function')
   , anObject  = require('./$.an-object')
   , isObject  = require('./$.is-object')
@@ -8,7 +8,7 @@ var $         = require('./$')
 
 // MS Edge supports only 2 arguments
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
-$def($def.S + $def.F * require('./$.fails')(function(){
+$export($export.S + $export.F * require('./$.fails')(function(){
   function F(){}
   return !(Reflect.construct(function(){}, [], F) instanceof F);
 }), 'Reflect', {

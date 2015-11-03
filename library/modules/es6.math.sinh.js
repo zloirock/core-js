@@ -1,10 +1,10 @@
 // 20.2.2.30 Math.sinh(x)
-var $def  = require('./$.def')
-  , expm1 = require('./$.math-expm1')
-  , exp   = Math.exp;
+var $export = require('./$.export')
+  , expm1   = require('./$.math-expm1')
+  , exp     = Math.exp;
 
 // V8 near Chromium 38 has a problem with very small numbers
-$def($def.S + $def.F * require('./$.fails')(function(){
+$export($export.S + $export.F * require('./$.fails')(function(){
   return !Math.sinh(-2e-17) != -2e-17;
 }), 'Math', {
   sinh: function sinh(x){
