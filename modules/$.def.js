@@ -1,13 +1,15 @@
-var global     = require('./$.global')
-  , core       = require('./$.core')
-  , hide       = require('./$.hide')
-  , $redef     = require('./$.redef')
-  , PROTOTYPE  = 'prototype';
+var global    = require('./$.global')
+  , core      = require('./$.core')
+  , hide      = require('./$.hide')
+  , redefine  = require('./$.redefine')
+  , PROTOTYPE = 'prototype';
+
 var ctx = function(fn, that){
   return function(){
     return fn.apply(that, arguments);
   };
 };
+
 var $def = function(type, name, source){
   var key, own, out, exp
     , isGlobal = type & $def.G
@@ -25,7 +27,7 @@ var $def = function(type, name, source){
     if(type & $def.B && own)exp = ctx(out, global);
     else exp = isProto && typeof out == 'function' ? ctx(Function.call, out) : out;
     // extend global
-    if(target && !own)$redef(target, key, out);
+    if(target && !own)redefine(target, key, out);
     // export
     if(exports[key] != out)hide(exports, key, exp);
     if(isProto)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;

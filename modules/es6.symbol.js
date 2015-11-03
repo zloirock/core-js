@@ -5,7 +5,7 @@ var $              = require('./$')
   , has            = require('./$.has')
   , DESCRIPTORS    = require('./$.descriptors')
   , $def           = require('./$.def')
-  , $redef         = require('./$.redef')
+  , redefine       = require('./$.redefine')
   , $fails         = require('./$.fails')
   , shared         = require('./$.shared')
   , setToStringTag = require('./$.set-to-string-tag')
@@ -141,7 +141,7 @@ if(!useNative){
     if(isSymbol(this))throw TypeError('Symbol is not a constructor');
     return wrap(uid(arguments.length > 0 ? arguments[0] : undefined));
   };
-  $redef($Symbol.prototype, 'toString', function toString(){
+  redefine($Symbol.prototype, 'toString', function toString(){
     return this._k;
   });
 
@@ -158,7 +158,7 @@ if(!useNative){
   $.getSymbols = $getOwnPropertySymbols;
 
   if(DESCRIPTORS && !require('./$.library')){
-    $redef(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
+    redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
   }
 }
 

@@ -62,5 +62,5 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   });
   $Number.prototype = proto;
   proto.constructor = $Number;
-  require('./$.redef')(global, NUMBER, $Number);
+  require('./$.redefine')(global, NUMBER, $Number);
 }

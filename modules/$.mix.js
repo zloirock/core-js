@@ -1,5 +1,5 @@
-var $redef = require('./$.redef');
+var redefine = require('./$.redefine');
 module.exports = function(target, src){
-  for(var key in src)$redef(target, key, src[key]);
+  for(var key in src)redefine(target, key, src[key]);
   return target;
 };

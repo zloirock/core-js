@@ -1,7 +1,7 @@
 'use strict';
 var LIBRARY         = require('./$.library')
   , $def            = require('./$.def')
-  , $redef          = require('./$.redef')
+  , redefine        = require('./$.redefine')
   , hide            = require('./$.hide')
   , has             = require('./$.has')
   , SYMBOL_ITERATOR = require('./$.wks')('iterator')
@@ -13,7 +13,9 @@ var LIBRARY         = require('./$.library')
   , FF_ITERATOR     = '@@iterator'
   , KEYS            = 'keys'
   , VALUES          = 'values';
+
 var returnThis = function(){ return this; };
+
 module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE){
   $iterCreate(Constructor, NAME, next);
   var getMethod = function(kind){
@@ -50,7 +52,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE)
       entries: DEFAULT != VALUES ? _default : getMethod('entries')
     };
     if(FORCE)for(key in methods){
-      if(!(key in proto))$redef(proto, key, methods[key]);
+      if(!(key in proto))redefine(proto, key, methods[key]);
     } else $def($def.P + $def.F * BUGGY, NAME, methods);
   }
   return methods;

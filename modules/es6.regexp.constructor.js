@@ -32,7 +32,7 @@ if(require('./$.descriptors') && (!CORRECT_NEW || require('./$.fails')(function(
   });
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
-  require('./$.redef')(global, 'RegExp', $RegExp);
+  require('./$.redefine')(global, 'RegExp', $RegExp);
 }
 
 require('./$.set-species')('RegExp');

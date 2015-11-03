@@ -1,7 +1,7 @@
 'use strict';
 var global         = require('./$.global')
   , $def           = require('./$.def')
-  , $redef         = require('./$.redef')
+  , redefine       = require('./$.redefine')
   , mix            = require('./$.mix')
   , forOf          = require('./$.for-of')
   , strictNew      = require('./$.strict-new')
@@ -18,7 +18,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     , O     = {};
   var fixMethod = function(KEY){
     var fn = proto[KEY];
-    $redef(proto, KEY,
+    redefine(proto, KEY,
       KEY == 'delete' ? function(a){
         return IS_WEAK && !isObject(a) ? false : fn.call(this, a === 0 ? 0 : a);
       } : KEY == 'has' ? function has(a){
