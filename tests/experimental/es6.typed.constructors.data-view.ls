@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test \DataView, !(assert)~>
+DESCRIPTORS and test \DataView, !(assert)~>
   assert.isFunction DataView
   NATIVE and assert.arity DataView, 3 # 1 in IE11
   assert.name DataView, \DataView
@@ -31,7 +31,7 @@ test \DataView, !(assert)~>
   assert.throws (-> new DataView {}), 'non-ArrayBuffer argument'
   assert.throws (-> new DataView \bogus), TypeError, 'non-ArrayBuffer argument'
 
-test 'DataView accessors', !(assert)~>
+DESCRIPTORS and test 'DataView accessors', !(assert)~>
   u = new Uint8Array 8
   d = new DataView u.buffer
 
@@ -72,7 +72,7 @@ test 'DataView accessors', !(assert)~>
   assert.same d.getFloat32(2), -1.932478247535851e-37
   assert.same d.getFloat64(0), -3.116851295377095e-306
 
-test 'DataView endian', !(assert)~>
+DESCRIPTORS and test 'DataView endian', !(assert)~>
   rawbuf = new Uint8Array([0 1 2 3 4 5 6 7]).buffer
   d = new DataView rawbuf
 
@@ -92,8 +92,9 @@ test 'DataView endian', !(assert)~>
   assert.throws (-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset'
   assert.throws (-> d.setUint8 6, 0), 'bounds for buffer, byteOffset'
 
-  d = new DataView rawbuf, 8
-  assert.same d.byteLength, 0, 'buffer, byteOffset'
+  if NATIVE # IE10 buggy here !!!!!!
+    d = new DataView rawbuf, 8
+    assert.same d.byteLength, 0, 'buffer, byteOffset'
 
   assert.throws (-> new DataView rawbuf, -1), 'invalid byteOffset'
   assert.throws (-> new DataView rawbuf, 9), 'invalid byteOffset'

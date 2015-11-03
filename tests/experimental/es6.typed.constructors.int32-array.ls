@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test \Int32Array, !(assert)~>
+DESCRIPTORS and test \Int32Array, !(assert)~>
   assert.isFunction Int32Array
   assert.arity Int32Array, 3
   assert.name Int32Array, \Int32Array

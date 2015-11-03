@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test '%TypedArray%.from', !(assert)~>
+DESCRIPTORS and test '%TypedArray%.from', !(assert)~>
   # we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]

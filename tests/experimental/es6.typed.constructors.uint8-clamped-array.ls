@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test \Uint8ClampedArray, !(assert)~>
+DESCRIPTORS and test \Uint8ClampedArray, !(assert)~>
   assert.isFunction Uint8ClampedArray
   assert.arity Uint8ClampedArray, 3
   assert.name Uint8ClampedArray, \Uint8ClampedArray

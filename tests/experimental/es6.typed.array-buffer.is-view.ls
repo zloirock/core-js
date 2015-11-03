@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test 'ArrayBuffer.isView', !(assert)~>
+DESCRIPTORS and test 'ArrayBuffer.isView', !(assert)~>
   {isView} = ArrayBuffer
   assert.isFunction isView
   assert.arity isView, 1

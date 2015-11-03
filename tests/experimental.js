@@ -3,7 +3,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('ArrayBuffer.isView', function(assert){
+  DESCRIPTORS && test('ArrayBuffer.isView', function(assert){
     var isView, i$, x$, ref$, len$, y$;
     isView = ArrayBuffer.isView;
     assert.isFunction(isView);
@@ -31,7 +31,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('ArrayBuffer#slice', function(assert){
+  DESCRIPTORS && test('ArrayBuffer#slice', function(assert){
     var array, buffer;
     assert.isFunction(ArrayBuffer.prototype.slice);
     assert.arity(ArrayBuffer.prototype.slice, 2);
@@ -56,7 +56,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('ArrayBuffer', function(assert){
+  DESCRIPTORS && test('ArrayBuffer', function(assert){
     var b;
     assert.isFunction(ArrayBuffer);
     assert.arity(ArrayBuffer, 1);
@@ -83,7 +83,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('DataView', function(assert){
+  DESCRIPTORS && test('DataView', function(assert){
     var d;
     assert.isFunction(DataView);
     NATIVE && assert.arity(DataView, 3);
@@ -105,7 +105,7 @@
       return new DataView('bogus');
     }, TypeError, 'non-ArrayBuffer argument');
   });
-  test('DataView accessors', function(assert){
+  DESCRIPTORS && test('DataView accessors', function(assert){
     var u, d;
     u = new Uint8Array(8);
     d = new DataView(u.buffer);
@@ -136,7 +136,7 @@
     assert.same(d.getFloat32(2), -1.932478247535851e-37);
     assert.same(d.getFloat64(0), -3.116851295377095e-306);
   });
-  test('DataView endian', function(assert){
+  DESCRIPTORS && test('DataView endian', function(assert){
     var rawbuf, d;
     rawbuf = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
     d = new DataView(rawbuf);
@@ -170,8 +170,10 @@
     assert.throws(function(){
       return d.setUint8(6, 0);
     }, 'bounds for buffer, byteOffset');
-    d = new DataView(rawbuf, 8);
-    assert.same(d.byteLength, 0, 'buffer, byteOffset');
+    if (NATIVE) {
+      d = new DataView(rawbuf, 8);
+      assert.same(d.byteLength, 0, 'buffer, byteOffset');
+    }
     assert.throws(function(){
       return new DataView(rawbuf, -1);
     }, 'invalid byteOffset');
@@ -211,7 +213,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Float32Array', function(assert){
+  DESCRIPTORS && test('Float32Array', function(assert){
     var a;
     assert.isFunction(Float32Array);
     assert.arity(Float32Array, 3);
@@ -230,7 +232,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Float64Array', function(assert){
+  DESCRIPTORS && test('Float64Array', function(assert){
     var a;
     assert.isFunction(Float64Array);
     assert.arity(Float64Array, 3);
@@ -249,7 +251,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Int16Array', function(assert){
+  DESCRIPTORS && test('Int16Array', function(assert){
     var a;
     assert.isFunction(Int16Array);
     assert.arity(Int16Array, 3);
@@ -268,7 +270,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Int32Array', function(assert){
+  DESCRIPTORS && test('Int32Array', function(assert){
     var a;
     assert.isFunction(Int32Array);
     assert.arity(Int32Array, 3);
@@ -287,7 +289,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Int8Array', function(assert){
+  DESCRIPTORS && test('Int8Array', function(assert){
     var a;
     assert.isFunction(Int8Array);
     assert.arity(Int8Array, 3);
@@ -306,7 +308,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Uint16Array', function(assert){
+  DESCRIPTORS && test('Uint16Array', function(assert){
     var a;
     assert.isFunction(Uint16Array);
     assert.arity(Uint16Array, 3);
@@ -325,7 +327,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Uint32Array', function(assert){
+  DESCRIPTORS && test('Uint32Array', function(assert){
     var a;
     assert.isFunction(Uint32Array);
     assert.arity(Uint32Array, 3);
@@ -344,7 +346,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Uint8Array', function(assert){
+  DESCRIPTORS && test('Uint8Array', function(assert){
     var a;
     assert.isFunction(Uint8Array);
     assert.arity(Uint8Array, 3);
@@ -363,7 +365,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('Uint8ClampedArray', function(assert){
+  DESCRIPTORS && test('Uint8ClampedArray', function(assert){
     var a, source, expected, array, i$, to$, i;
     assert.isFunction(Uint8ClampedArray);
     assert.arity(Uint8ClampedArray, 3);
@@ -391,7 +393,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.copyWithin', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.copyWithin', function(assert){
     var global, i$, x$, ref$, len$, Typed, a;
     global = Function('return this')();
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -427,7 +429,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.every', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.every', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -493,7 +495,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.fill', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.fill', function(assert){
     var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -521,7 +523,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.filter', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.filter', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -568,7 +570,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.findIndex', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.findIndex', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -617,7 +619,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.find', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.find', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -666,7 +668,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.forEach', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.forEach', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -709,7 +711,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArray%.from', function(assert){
+  DESCRIPTORS && test('%TypedArray%.from', function(assert){
     var i$, x$, ref$, len$, Typed, inst, O;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -773,7 +775,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.indexOf', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.indexOf', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -801,7 +803,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
-  test('%TypedArrayPrototype%.keys', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.keys', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -836,7 +838,7 @@
       Typed.prototype.keys.call([1, 2]);
     }
   });
-  test('%TypedArrayPrototype%.values', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.values', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -871,7 +873,7 @@
       Typed.prototype.values.call([1, 2]);
     }
   });
-  test('%TypedArrayPrototype%.entries', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.entries', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -906,7 +908,7 @@
       Typed.prototype.entries.call([1, 2]);
     }
   });
-  test('%TypedArrayPrototype%.@@iterator', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.@@iterator', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
     for (i$ = 0, len$ = (ref$ = arrays).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -949,7 +951,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.join', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.join', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -973,7 +975,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.lastIndexOf', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.lastIndexOf', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1000,7 +1002,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.map', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.map', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1047,7 +1049,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArray%.of', function(assert){
+  DESCRIPTORS && test('%TypedArray%.of', function(assert){
     var i$, x$, ref$, len$, Typed, inst;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1082,7 +1084,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.reduceRight', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.reduceRight', function(assert){
     var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
     }), fn3$ = curry$(function(x$, y$){
@@ -1148,7 +1150,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.reduce', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.reduce', function(assert){
     var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
     }), fn3$ = curry$(function(x$, y$){
@@ -1214,7 +1216,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.reverse', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.reverse', function(assert){
     var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1239,7 +1241,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.set', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.set', function(assert){
     var i$, x$, ref$, len$, Typed, a, b, y$;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1291,7 +1293,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.slice', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.slice', function(assert){
     var i$, x$, ref$, len$, Typed, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1323,7 +1325,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.some', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.some', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1384,7 +1386,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.subarray', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.subarray', function(assert){
     var i$, x$, ref$, len$, Typed, a, b;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1421,7 +1423,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.toLocaleString', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.toLocaleString', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
@@ -1444,7 +1446,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  test('%TypedArrayPrototype%.toString', function(assert){
+  DESCRIPTORS && test('%TypedArrayPrototype%.toString', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];

@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test \ArrayBuffer, !(assert)~>
+DESCRIPTORS and test \ArrayBuffer, !(assert)~>
   assert.isFunction ArrayBuffer
   assert.arity ArrayBuffer, 1
   assert.name ArrayBuffer, \ArrayBuffer

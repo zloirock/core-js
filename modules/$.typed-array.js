@@ -64,6 +64,10 @@ var DESCRIPTORS        = require('./$.descriptors')
   , DEF_CONSTRUCTOR    = wks('def_constructor')
   , BYTES_PER_ELEMENT  = 'BYTES_PER_ELEMENT';
 
+var LITTLE_ENDIAN = fails(function(){
+  return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+});
+
 var ARRAY_NAMES = ('Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,' +
   'Uint16Array,Int32Array,Uint32Array,Float32Array,Float64Array').split(',');
 
@@ -216,16 +220,20 @@ var proto = {
   }
 };
 
-var isTADesc = function(target, key){
-  return isObject(target) && TYPED_ARRAY in target && isInteger(+key);
+var isTAIndex = function(target, key){
+  return isObject(target)
+    && TYPED_ARRAY in target
+    && typeof key != 'symbol'
+    && key in target
+    && String(+key) == String(key);
 };
 var $getDesc = function getOwnPropertyDescriptor(target, key){
-  return isTADesc(target, key = toPrimitive(key, true))
+  return isTAIndex(target, key = toPrimitive(key, true))
     ? propertyDesc(2, target[key])
     : getDesc(target, key);
 };
 var $setDesc = function defineProperty(target, key, desc){
-  if(isTADesc(target, key = toPrimitive(key, true)) && isObject(desc)){
+  if(isTAIndex(target, key = toPrimitive(key, true)) && isObject(desc)){
     if('value' in desc)target[key] = desc.value;
     return target;
   } else return setDesc(target, key, desc);
@@ -256,12 +264,12 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     setDesc(that, index, {
       get: function(){
         var data = this._d;
-        return data.v[GETTER](index * BYTES + data.o);
+        return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
       },
       set: function(it){
         var data = this._d;
         if(CLAMPED)it = (it = Math.round(it)) < 0 ? 0 : it > 0xff ? 0xff : it & 0xff;
-        data.v[SETTER](index * BYTES + data.o, it);
+        data.v[SETTER](index * BYTES + data.o, it, LITTLE_ENDIAN);
       },
       enumerable: true
     });
