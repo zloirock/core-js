@@ -7,7 +7,7 @@ var $export      = require('./$.export')
   , TYPED_ARRAY  = require('./$.wks')('typed_array')
   , $ArrayBuffer = buffer.ArrayBuffer
   , $DataView    = buffer.DataView
-  , FORCED       = $export.F * !buffer.useNative
+  , FORCED       = $export.F * !buffer.USE_NATIVE
   , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
   , ARRAY_BUFFER = 'ArrayBuffer';
 

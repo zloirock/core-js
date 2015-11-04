@@ -2,28 +2,25 @@
 var DEBUG = false;
 
 if(require('./$.descriptors')){
-  var $               = require('./$')
-    , global          = require('./$.global')
-    , redefineAll     = require('./$.redefine-all')
-    , strictNew       = require('./$.strict-new')
-    , toInteger       = require('./$.to-integer')
-    , toLength        = require('./$.to-length')
-    , $fill           = require('./$.array-fill')
-    , $ArrayBuffer    = global.ArrayBuffer
-    , $DataView       = global.DataView
-    , Math            = global.Math
-    , parseInt        = global.parseInt
-    , BYTE_LENGTH     = 'byteLength'
-    , useNativeBuffer = !!($ArrayBuffer && $DataView);
-
-  if(DEBUG)useNativeBuffer = false;
-
-  var abs   = Math.abs
-    , pow   = Math.pow
-    , min   = Math.min
-    , floor = Math.floor
-    , log   = Math.log
-    , LN2   = Math.LN2;
+  var $            = require('./$')
+    , global       = require('./$.global')
+    , redefineAll  = require('./$.redefine-all')
+    , strictNew    = require('./$.strict-new')
+    , toInteger    = require('./$.to-integer')
+    , toLength     = require('./$.to-length')
+    , arrayFill    = require('./$.array-fill')
+    , $ArrayBuffer = global.ArrayBuffer
+    , $DataView    = global.DataView
+    , Math         = global.Math
+    , parseInt     = global.parseInt
+    , abs          = Math.abs
+    , pow          = Math.pow
+    , min          = Math.min
+    , floor        = Math.floor
+    , log          = Math.log
+    , LN2          = Math.LN2
+    , BYTE_LENGTH  = 'byteLength'
+    , USE_NATIVE   = !DEBUG && !!($ArrayBuffer && $DataView);
 
   // pack / unpack based on
   // https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
@@ -210,13 +207,13 @@ if(require('./$.descriptors')){
     for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
   };
 
-  if(!useNativeBuffer){
+  if(!USE_NATIVE){
     $ArrayBuffer = function ArrayBuffer(length){
       strictNew(this, $ArrayBuffer, 'ArrayBuffer');
       var numberLength = +length
         , byteLength   = toLength(numberLength);
       if(numberLength != byteLength)throw RangeError();
-      this._b = $fill.call(Array(byteLength), 0);
+      this._b = arrayFill.call(Array(byteLength), 0);
       this._l = byteLength;
     };
     addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
@@ -288,7 +285,7 @@ if(require('./$.descriptors')){
     });
   }
   module.exports = {
-    useNative:   useNativeBuffer,
+    USE_NATIVE:  USE_NATIVE,
     ArrayBuffer: $ArrayBuffer,
     DataView:    $DataView
   };

@@ -1,68 +1,69 @@
 'use strict';
 var DEBUG = false;
 
-var DESCRIPTORS        = require('./$.descriptors')
-  , global             = require('./$.global')
-  , LIBRARY            = require('./$.library')
-  , $                  = require('./$')
-  , fails              = require('./$.fails')
-  , $export            = require('./$.export')
-  , $buffer            = require('./$.buffer')
-  , ctx                = require('./$.ctx')
-  , strictNew          = require('./$.strict-new')
-  , propertyDesc       = require('./$.property-desc')
-  , $hide              = require('./$.hide')
-  , isInteger          = require('./$.is-integer')
-  , toInteger          = require('./$.to-integer')
-  , toLength           = require('./$.to-length')
-  , toIndex            = require('./$.to-index')
-  , toPrimitive        = require('./$.to-primitive')
-  , isObject           = require('./$.is-object')
-  , toObject           = require('./$.to-object')
-  , isArrayIter        = require('./$.is-array-iter')
-  , isIterable         = require('./core.is-iterable')
-  , getIterFn          = require('./core.get-iterator-method')
-  , wks                = require('./$.wks')
-  , arrayMethods       = require('./$.array-methods')
-  , arrayIncludes      = require('./$.array-includes')
-  , $fill              = require('./$.array-fill')
-  , $copyWithin        = require('./$.array-copy-within')
-  , speciesConstructor = require('./$.species-constructor')
-  , $iterators         = require('./es6.array.iterator')
-  , Iterators          = require('./$.iterators')
-  , $iterDetect        = require('./$.iter-detect')
-  , setSpecies         = require('./$.set-species')
-  , $ArrayBuffer       = $buffer.ArrayBuffer
-  , $DataView          = $buffer.DataView
-  , setDesc            = $.setDesc
-  , getDesc            = $.getDesc
-  , $forEach           = arrayMethods(0)
-  , $map               = arrayMethods(1)
-  , $filter            = arrayMethods(2)
-  , $some              = arrayMethods(3)
-  , $every             = arrayMethods(4)
-  , $find              = arrayMethods(5)
-  , $findIndex         = arrayMethods(6)
-  , $indexOf           = arrayIncludes(false)
-  , $includes          = arrayIncludes(true)
-  , $values            = $iterators.values
-  , $keys              = $iterators.keys
-  , $entries           = $iterators.entries
-  , $lastIndexOf       = [].lastIndexOf
-  , $reduce            = [].reduce
-  , $reduceRight       = [].reduceRight
-  , $join              = [].join
-  , $reverse           = [].reverse
-  , $sort              = [].sort
-  , $slice             = [].slice
-  , $toString          = [].toString
-  , _toLocaleString    = [].toLocaleString
-  , ITERATOR           = wks('iterator')
-  , TAG                = wks('toStringTag')
-  , TYPED_ARRAY        = wks('typed_array')
-  , TYPED_CONSTRUCTOR  = wks('typed_constructor')
-  , DEF_CONSTRUCTOR    = wks('def_constructor')
-  , BYTES_PER_ELEMENT  = 'BYTES_PER_ELEMENT';
+var DESCRIPTORS         = require('./$.descriptors')
+  , LIBRARY             = require('./$.library')
+  , global              = require('./$.global')
+  , $                   = require('./$')
+  , fails               = require('./$.fails')
+  , $export             = require('./$.export')
+  , $buffer             = require('./$.buffer')
+  , ctx                 = require('./$.ctx')
+  , strictNew           = require('./$.strict-new')
+  , propertyDesc        = require('./$.property-desc')
+  , $hide               = require('./$.hide')
+  , isInteger           = require('./$.is-integer')
+  , toInteger           = require('./$.to-integer')
+  , toLength            = require('./$.to-length')
+  , toIndex             = require('./$.to-index')
+  , toPrimitive         = require('./$.to-primitive')
+  , isObject            = require('./$.is-object')
+  , toObject            = require('./$.to-object')
+  , isArrayIter         = require('./$.is-array-iter')
+  , isIterable          = require('./core.is-iterable')
+  , getIterFn           = require('./core.get-iterator-method')
+  , wks                 = require('./$.wks')
+  , createArrayMethod   = require('./$.array-methods')
+  , createArrayIncludes = require('./$.array-includes')
+  , speciesConstructor  = require('./$.species-constructor')
+  , ArrayIterators      = require('./es6.array.iterator')
+  , Iterators           = require('./$.iterators')
+  , $iterDetect         = require('./$.iter-detect')
+  , setSpecies          = require('./$.set-species')
+  , arrayFill           = require('./$.array-fill')
+  , arrayCopyWithin     = require('./$.array-copy-within')
+  , ArrayProto          = Array.prototype
+  , $ArrayBuffer        = $buffer.ArrayBuffer
+  , $DataView           = $buffer.DataView
+  , setDesc             = $.setDesc
+  , getDesc             = $.getDesc
+  , arrayForEach        = createArrayMethod(0)
+  , arrayMap            = createArrayMethod(1)
+  , arrayFilter         = createArrayMethod(2)
+  , arraySome           = createArrayMethod(3)
+  , arrayEvery          = createArrayMethod(4)
+  , arrayFind           = createArrayMethod(5)
+  , arrayFindIndex      = createArrayMethod(6)
+  , arrayIncludes       = createArrayIncludes(true)
+  , arrayIndexOf        = createArrayIncludes(false)
+  , arrayValues         = ArrayIterators.values
+  , arrayKeys           = ArrayIterators.keys
+  , arrayEntries        = ArrayIterators.entries
+  , arrayLastIndexOf    = ArrayProto.lastIndexOf
+  , arrayReduce         = ArrayProto.reduce
+  , arrayReduceRight    = ArrayProto.reduceRight
+  , arrayJoin           = ArrayProto.join
+  , arrayReverse        = ArrayProto.reverse
+  , arraySort           = ArrayProto.sort
+  , arraySlice          = ArrayProto.slice
+  , arrayToString       = ArrayProto.toString
+  , arrayToLocaleString = ArrayProto.toLocaleString
+  , ITERATOR            = wks('iterator')
+  , TAG                 = wks('toStringTag')
+  , TYPED_ARRAY         = wks('typed_array')
+  , TYPED_CONSTRUCTOR   = wks('typed_constructor')
+  , DEF_CONSTRUCTOR     = wks('def_constructor')
+  , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT';
 
 var LITTLE_ENDIAN = fails(function(){
   return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
@@ -75,7 +76,7 @@ DEBUG && ARRAY_NAMES.forEach(function(it){
   delete global[it];
 });
 
-var ALL_ARRAYS = $every(ARRAY_NAMES, function(key){
+var ALL_ARRAYS = arrayEvery(ARRAY_NAMES, function(key){
   return global[key];
 });
 
@@ -130,54 +131,54 @@ var $of = function of(/*...items*/){
   return result;
 };
 var $toLocaleString = function toLocaleString(){
-  return _toLocaleString.apply(validate(this), arguments);
+  return arrayToLocaleString.apply(validate(this), arguments);
 };
 
 var proto = {
   copyWithin: function copyWithin(target, start /*, end */){
-    return $copyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
+    return arrayCopyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
   },
   every: function every(callbackfn /*, thisArg */){
-    return $every(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
+    return arrayEvery(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
   fill: function fill(value /*, start, end */){ // eslint-disable-line no-unused-vars
-    return $fill.apply(validate(this), arguments);
+    return arrayFill.apply(validate(this), arguments);
   },
   filter: function filter(callbackfn /*, thisArg */){
-    return fromList(this, $filter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
+    return fromList(this, arrayFilter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined));
   },
   find: function find(predicate /*, thisArg */){
-    return $find(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
+    return arrayFind(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
   },
   findIndex: function findIndex(predicate /*, thisArg */){
-    return $findIndex(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
+    return arrayFindIndex(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
   },
   forEach: function forEach(callbackfn /*, thisArg */){
-    $forEach(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
+    arrayForEach(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
   indexOf: function indexOf(searchElement /*, fromIndex */){
-    return $indexOf(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
+    return arrayIndexOf(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
   },
   includes: function includes(searchElement /*, fromIndex */){
-    return $includes(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
+    return arrayIncludes(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
   },
   join: function join(separator){ // eslint-disable-line no-unused-vars
-    return $join.apply(validate(this), arguments);
+    return arrayJoin.apply(validate(this), arguments);
   },
   lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line no-unused-vars
-    return $lastIndexOf.apply(validate(this), arguments);
+    return arrayLastIndexOf.apply(validate(this), arguments);
   },
   map: function map(mapfn /*, thisArg */){
-    return fromList(this, $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
+    return fromList(this, arrayMap(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
   },
   reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
-    return $reduce.apply(validate(this), arguments);
+    return arrayReduce.apply(validate(this), arguments);
   },
   reduceRight: function reduceRight(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
-    return $reduceRight.apply(validate(this), arguments);
+    return arrayReduceRight.apply(validate(this), arguments);
   },
   reverse: function reverse(){
-    return $reverse.call(validate(this));
+    return arrayReverse.call(validate(this));
   },
   set: function set(arrayLike /*, offset */){
     validate(this);
@@ -191,13 +192,13 @@ var proto = {
     while(index < len)this[offset + index] = src[index++];
   },
   slice: function slice(start, end){
-    return fromList(this, $slice.call(validate(this), start, end)); // TODO
+    return fromList(this, arraySlice.call(validate(this), start, end)); // TODO
   },
   some: function some(callbackfn /*, thisArg */){
-    return $some(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
+    return arraySome(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   },
   sort: function sort(comparefn){
-    return $sort.call(validate(this), comparefn);
+    return arraySort.call(validate(this), comparefn);
   },
   subarray: function subarray(begin, end){
     var O      = validate(this)
@@ -210,13 +211,13 @@ var proto = {
     );
   },
   entries: function entries(){
-    return $entries.call(validate(this));
+    return arrayEntries.call(validate(this));
   },
   keys: function keys(){
-    return $keys.call(validate(this));
+    return arrayKeys.call(validate(this));
   },
   values: function values(){
-    return $values.call(validate(this));
+    return arrayValues.call(validate(this));
   }
 };
 
@@ -257,7 +258,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     , SETTER      = 'set' + KEY
     , $TypedArray = global[NAME]
     , Base        = $TypedArray || {}
-    , FORCED      = !$TypedArray || !$buffer.useNative
+    , FORCED      = !$TypedArray || !$buffer.USE_NATIVE
     , $iterator   = proto.values
     , O           = {};
   var addElement = function(that, index){
@@ -347,7 +348,7 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
 
   $export($export.P + $export.F * FORCED, NAME, proto);
 
-  $export($export.P + $export.F * ($TypedArrayPrototype.toString != $toString), NAME, {toString: $toString});
+  $export($export.P + $export.F * ($TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
   $export($export.P + $export.F * fails(function(){
     return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()

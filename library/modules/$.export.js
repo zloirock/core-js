@@ -1,40 +1,39 @@
 var global    = require('./$.global')
   , core      = require('./$.core')
+  , ctx       = require('./$.ctx')
   , PROTOTYPE = 'prototype';
-var ctx = function(fn, that){
-  return function(){
-    return fn.apply(that, arguments);
-  };
-};
+
 var $export = function(type, name, source){
-  var key, own, out, exp
-    , isGlobal = type & $export.G
-    , isProto  = type & $export.P
-    , target   = isGlobal ? global : type & $export.S
-        ? global[name] : (global[name] || {})[PROTOTYPE]
-    , exports  = isGlobal ? core : core[name] || (core[name] = {});
-  if(isGlobal)source = name;
+  var IS_FORCED = type & $export.F
+    , IS_GLOBAL = type & $export.G
+    , IS_STATIC = type & $export.S
+    , IS_PROTO  = type & $export.P
+    , IS_BIND   = type & $export.B
+    , IS_WRAP   = type & $export.W
+    , exports   = IS_GLOBAL ? core : core[name] || (core[name] = {})
+    , target    = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE]
+    , key, own, out;
+  if(IS_GLOBAL)source = name;
   for(key in source){
     // contains in native
-    own = !(type & $export.F) && target && key in target;
+    own = !IS_FORCED && target && key in target;
     if(own && key in exports)continue;
     // export native or passed
     out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
-    if(isGlobal && typeof target[key] != 'function')exp = source[key];
+    exports[key] = IS_GLOBAL && typeof target[key] != 'function' ? source[key]
     // bind timers to global for call from export context
-    else if(type & $export.B && own)exp = ctx(out, global);
+    : IS_BIND && own ? ctx(out, global)
     // wrap global constructors for prevent change them in library
-    else if(type & $export.W && target[key] == out)!function(C){
-      exp = function(param){
+    : IS_WRAP && target[key] == out ? (function(C){
+      var F = function(param){
         return this instanceof C ? new C(param) : C(param);
       };
-      exp[PROTOTYPE] = C[PROTOTYPE];
-    }(out);
-    else exp = isProto && typeof out == 'function' ? ctx(Function.call, out) : out;
-    // export
-    exports[key] = exp;
-    if(isProto)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;
+      F[PROTOTYPE] = C[PROTOTYPE];
+      return F;
+    // make static versions for prototype methods
+    })(out) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
+    if(IS_PROTO)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;
   }
 };
 // type bitmap

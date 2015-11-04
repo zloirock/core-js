@@ -2,35 +2,32 @@ var global    = require('./$.global')
   , core      = require('./$.core')
   , hide      = require('./$.hide')
   , redefine  = require('./$.redefine')
+  , ctx       = require('./$.ctx')
   , PROTOTYPE = 'prototype';
 
-var ctx = function(fn, that){
-  return function(){
-    return fn.apply(that, arguments);
-  };
-};
-
 var $export = function(type, name, source){
-  var key, own, out, exp
-    , isGlobal = type & $export.G
-    , isProto  = type & $export.P
-    , target   = isGlobal ? global : type & $export.S
-        ? global[name] || (global[name] = {}) : (global[name] || {})[PROTOTYPE]
-    , exports  = isGlobal ? core : core[name] || (core[name] = {});
-  if(isGlobal)source = name;
+  var IS_FORCED = type & $export.F
+    , IS_GLOBAL = type & $export.G
+    , IS_STATIC = type & $export.S
+    , IS_PROTO  = type & $export.P
+    , IS_BIND   = type & $export.B
+    , target    = IS_GLOBAL ? global : IS_STATIC ? global[name] || (global[name] = {}) : (global[name] || {})[PROTOTYPE]
+    , exports   = IS_GLOBAL ? core : core[name] || (core[name] = {})
+    , expProto  = exports[PROTOTYPE] || (exports[PROTOTYPE] = {})
+    , key, own, out, exp;
+  if(IS_GLOBAL)source = name;
   for(key in source){
     // contains in native
-    own = !(type & $export.F) && target && key in target;
+    own = !IS_FORCED && target && key in target;
     // export native or passed
     out = (own ? target : source)[key];
     // bind timers to global for call from export context
-    if(type & $export.B && own)exp = ctx(out, global);
-    else exp = isProto && typeof out == 'function' ? ctx(Function.call, out) : out;
+    exp = IS_BIND && own ? ctx(out, global) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // extend global
     if(target && !own)redefine(target, key, out);
     // export
     if(exports[key] != out)hide(exports, key, exp);
-    if(isProto)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;
+    if(IS_PROTO && expProto[key] != out)expProto[key] = out;
   }
 };
 global.core = core;
