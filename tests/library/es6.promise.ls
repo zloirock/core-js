@@ -81,7 +81,7 @@ test 'Promise.race' (assert)!->
   a['@@iterator'] = void
   a[iterator] = ->
     done := on
-    getIteratorMethod([])call @
+    core.getIteratorMethod([])call @
   Promise.race a
   assert.ok done
 

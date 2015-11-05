@@ -2994,7 +2994,7 @@
     a['@@iterator'] = void 8;
     a[iterator] = function(){
       done = true;
-      return getIteratorMethod([]).call(this);
+      return core.getIteratorMethod([]).call(this);
     };
     Promise.race(a);
     assert.ok(done);
