@@ -1,5 +1,5 @@
 'use strict';
-var DEBUG = false;
+var DEBUG = true;
 
 var DESCRIPTORS         = require('./$.descriptors')
   , LIBRARY             = require('./$.library')
@@ -7,11 +7,13 @@ var DESCRIPTORS         = require('./$.descriptors')
   , $                   = require('./$')
   , fails               = require('./$.fails')
   , $export             = require('./$.export')
+  , $typed              = require('./$.typed')
   , $buffer             = require('./$.buffer')
   , ctx                 = require('./$.ctx')
   , strictNew           = require('./$.strict-new')
   , propertyDesc        = require('./$.property-desc')
-  , $hide               = require('./$.hide')
+  , hide                = require('./$.hide')
+  , redefineAll         = require('./$.redefine-all')
   , isInteger           = require('./$.is-integer')
   , toInteger           = require('./$.to-integer')
   , toLength            = require('./$.to-length')
@@ -60,24 +62,15 @@ var DESCRIPTORS         = require('./$.descriptors')
   , arrayToLocaleString = ArrayProto.toLocaleString
   , ITERATOR            = wks('iterator')
   , TAG                 = wks('toStringTag')
-  , TYPED_ARRAY         = wks('typed_array')
   , TYPED_CONSTRUCTOR   = wks('typed_constructor')
   , DEF_CONSTRUCTOR     = wks('def_constructor')
+  , ALL_ARRAYS          = $typed.ARRAYS
+  , TYPED_ARRAY         = $typed.TYPED
+  , VIEW                = $typed.VIEW
   , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT';
 
 var LITTLE_ENDIAN = fails(function(){
   return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
-});
-
-var ARRAY_NAMES = ('Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,' +
-  'Uint16Array,Int32Array,Uint32Array,Float32Array,Float64Array').split(',');
-
-DEBUG && ARRAY_NAMES.forEach(function(it){
-  delete global[it];
-});
-
-var ALL_ARRAYS = arrayEvery(ARRAY_NAMES, function(key){
-  return global[key];
 });
 
 var validate = function(it){
@@ -250,17 +243,24 @@ $export($export.S + $export.F * (DESCRIPTORS && !ALL_ARRAYS), 'Object', {
   defineProperty: $setDesc
 });
 
+var $TypedArrayPrototype$ = redefineAll({}, proto);
+redefineAll($TypedArrayPrototype$, {
+  constructor:    function(){ /* noop */ },
+  toString:       arrayToString,
+  toLocaleString: $toLocaleString
+});
+
 module.exports = function(KEY, BYTES, wrapper, CLAMPED){
   if(!DESCRIPTORS)return;
   CLAMPED = !!CLAMPED;
-  var NAME        = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
-    , GETTER      = 'get' + KEY
-    , SETTER      = 'set' + KEY
-    , $TypedArray = global[NAME]
-    , Base        = $TypedArray || {}
-    , FORCED      = !$TypedArray || !$buffer.USE_NATIVE
-    , $iterator   = proto.values
-    , O           = {};
+  var NAME       = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
+    , GETTER     = 'get' + KEY
+    , SETTER     = 'set' + KEY
+    , TypedArray = global[NAME]
+    , Base       = TypedArray || {}
+    , FORCED     = !TypedArray || !$typed.ABV
+    , $iterator  = proto.values
+    , O          = {};
   var addElement = function(that, index){
     setDesc(that, index, {
       get: function(){
@@ -277,8 +277,8 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
   };
   if(!$ArrayBuffer)return;
   if(FORCED){
-    $TypedArray = wrapper(function(that, data, $offset, $length){
-      strictNew(that, $TypedArray, NAME);
+    TypedArray = wrapper(function(that, data, $offset, $length){
+      strictNew(that, TypedArray, NAME);
       var index  = 0
         , offset = 0
         , buffer, byteLength, length;
@@ -299,9 +299,9 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
           byteLength = toLength($length) * BYTES;
           if(byteLength + offset > $len)throw RangeError();
         }
-      } else return $from.call($TypedArray, data);
+      } else return $from.call(TypedArray, data);
       length = byteLength / BYTES;
-      $hide(that, '_d', {
+      hide(that, '_d', {
         b: buffer,
         o: offset,
         l: byteLength,
@@ -310,37 +310,40 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
       });
       while(index < length)addElement(that, index++);
     });
-    addGetter($TypedArray, 'buffer', 'b');
-    addGetter($TypedArray, 'byteOffset', 'o');
-    addGetter($TypedArray, 'byteLength', 'l');
-    addGetter($TypedArray, 'length', 'e');
-    $hide($TypedArray, BYTES_PER_ELEMENT, BYTES);
-    $hide($TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
+    TypedArray.prototype = $.create($TypedArrayPrototype$);
+    addGetter(TypedArray, 'buffer', 'b');
+    addGetter(TypedArray, 'byteOffset', 'o');
+    addGetter(TypedArray, 'byteLength', 'l');
+    addGetter(TypedArray, 'length', 'e');
+    hide(TypedArray, BYTES_PER_ELEMENT, BYTES);
+    hide(TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
+    hide(TypedArray.prototype, 'constructor', TypedArray);
   } else if(!$iterDetect(function(iter){
-    new $TypedArray(iter); // eslint-disable-line no-new
+    new TypedArray(iter); // eslint-disable-line no-new
   }, true)){
-    $TypedArray = wrapper(function(that, data, $offset, $length){
-      strictNew(that, $TypedArray, NAME);
-      if(isObject(data) && isIterable(data))return $from.call($TypedArray, data);
+    TypedArray = wrapper(function(that, data, $offset, $length){
+      strictNew(that, TypedArray, NAME);
+      if(isObject(data) && isIterable(data))return $from.call(TypedArray, data);
       return $length === undefined ? new Base(data, $offset) : new Base(data, $offset, $length);
     });
-    $TypedArray.prototype = Base.prototype;
-    if(!LIBRARY)$TypedArray.prototype.constructor = $TypedArray;
+    TypedArray.prototype = Base.prototype;
+    if(!LIBRARY)TypedArray.prototype.constructor = TypedArray;
   }
-  var $TypedArrayPrototype = $TypedArray.prototype;
-  var $nativeIterator = $TypedArrayPrototype[ITERATOR];
-  $hide($TypedArray, TYPED_CONSTRUCTOR, true);
-  $hide($TypedArrayPrototype, TYPED_ARRAY, NAME);
-  $hide($TypedArrayPrototype, DEF_CONSTRUCTOR, $TypedArray);
-  TAG in $TypedArrayPrototype || $.setDesc($TypedArrayPrototype, TAG, {
+  var TypedArrayPrototype = TypedArray.prototype;
+  var $nativeIterator = TypedArrayPrototype[ITERATOR];
+  hide(TypedArray, TYPED_CONSTRUCTOR, true);
+  hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
+  hide(TypedArrayPrototype, VIEW, true);
+  hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
+  TAG in TypedArrayPrototype || $.setDesc(TypedArrayPrototype, TAG, {
     get: function(){ return NAME; }
   });
 
-  O[NAME] = $TypedArray;
+  O[NAME] = TypedArray;
 
-  $export($export.G + $export.W + $export.F * ($TypedArray != Base), O);
+  $export($export.G + $export.W + $export.F * (TypedArray != Base), O);
 
-  $export($export.S + $export.F * ($TypedArray != Base), NAME, {
+  $export($export.S + $export.F * (TypedArray != Base), NAME, {
     BYTES_PER_ELEMENT: BYTES,
     from: Base.from || $from,
     of: Base.of || $of
@@ -348,14 +351,14 @@ module.exports = function(KEY, BYTES, wrapper, CLAMPED){
 
   $export($export.P + $export.F * FORCED, NAME, proto);
 
-  $export($export.P + $export.F * ($TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
+  $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
   $export($export.P + $export.F * fails(function(){
     return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
   }), NAME, {toLocaleString: $toLocaleString});
   
   Iterators[NAME] = $nativeIterator || $iterator;
-  LIBRARY || $nativeIterator || $hide($TypedArrayPrototype, ITERATOR, $iterator);
+  LIBRARY || $nativeIterator || hide(TypedArrayPrototype, ITERATOR, $iterator);
   
   setSpecies(NAME);
 };

@@ -1,5 +1,6 @@
 'use strict';
 var $export      = require('./$.export')
+  , $typed       = require('./$.typed')
   , buffer       = require('./$.buffer')
   , toIndex      = require('./$.to-index')
   , toLength     = require('./$.to-length')
@@ -7,22 +8,22 @@ var $export      = require('./$.export')
   , TYPED_ARRAY  = require('./$.wks')('typed_array')
   , $ArrayBuffer = buffer.ArrayBuffer
   , $DataView    = buffer.DataView
-  , FORCED       = $export.F * !buffer.USE_NATIVE
   , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
+  , VIEW         = $typed.VIEW
   , ARRAY_BUFFER = 'ArrayBuffer';
 
-$export($export.G + $export.W + FORCED, {ArrayBuffer: $ArrayBuffer});
+$export($export.G + $export.W + $export.F * !$typed.ABV, {ArrayBuffer: $ArrayBuffer});
 
-$export($export.S + FORCED, ARRAY_BUFFER, {
+$export($export.S + $export.F * !$typed.CONSTR, ARRAY_BUFFER, {
   // 24.1.3.1 ArrayBuffer.isView(arg)
-  isView: function isView(it){
-    return isObject(it) && (it instanceof $DataView || TYPED_ARRAY in it);
+  isView: function isView(it){ // not cross-realm
+    return isObject(it) && VIEW in it;
   }
 });
 
-$export($export.P + (FORCED || require('./$.fails')(function(){
+$export($export.P + $export.F * require('./$.fails')(function(){
   return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
-})), ARRAY_BUFFER, {
+}), ARRAY_BUFFER, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end){
     if($slice !== undefined && end === undefined)return $slice.call(this, start); // FF fix

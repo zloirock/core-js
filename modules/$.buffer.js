@@ -1,9 +1,8 @@
 'use strict';
-var DEBUG = false;
-
 if(require('./$.descriptors')){
   var $            = require('./$')
     , global       = require('./$.global')
+    , $typed       = require('./$.typed')
     , redefineAll  = require('./$.redefine-all')
     , strictNew    = require('./$.strict-new')
     , toInteger    = require('./$.to-integer')
@@ -19,8 +18,7 @@ if(require('./$.descriptors')){
     , floor        = Math.floor
     , log          = Math.log
     , LN2          = Math.LN2
-    , BYTE_LENGTH  = 'byteLength'
-    , USE_NATIVE   = !DEBUG && !!($ArrayBuffer && $DataView);
+    , BYTE_LENGTH  = 'byteLength';
 
   // pack / unpack based on
   // https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
@@ -207,7 +205,7 @@ if(require('./$.descriptors')){
     for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
   };
 
-  if(!USE_NATIVE){
+  if(!$typed.ABV){
     $ArrayBuffer = function ArrayBuffer(length){
       strictNew(this, $ArrayBuffer, 'ArrayBuffer');
       var numberLength = +length
@@ -284,8 +282,8 @@ if(require('./$.descriptors')){
       }
     });
   }
+  require('./$.hide')($DataView.prototype, $typed.VIEW, true);
   module.exports = {
-    USE_NATIVE:  USE_NATIVE,
     ArrayBuffer: $ArrayBuffer,
     DataView:    $DataView
   };
