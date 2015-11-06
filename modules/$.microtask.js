@@ -2,6 +2,7 @@ var global    = require('./$.global')
   , macrotask = require('./$.task').set
   , Observer  = global.MutationObserver || global.WebKitMutationObserver
   , process   = global.process
+  , Promise   = global.Promise
   , isNode    = require('./$.cof')(process) == 'process'
   , head, last, notify;
 
@@ -33,6 +34,11 @@ if(isNode){
   new Observer(flush).observe(node, {characterData: true}); // eslint-disable-line no-new
   notify = function(){
     node.data = toggle = -toggle;
+  };
+// environments with maybe non-completely correct, but existent Promise
+} else if(Promise && Promise.resolve){
+  notify = function(){
+    Promise.resolve().then(flush);
   };
 // for other environments - macrotask based on:
 // - setImmediate
