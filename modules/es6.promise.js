@@ -72,6 +72,22 @@ var isThenable = function(it){
   var then;
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
 };
+var PromiseCapability = function(C){
+  var resolve, reject;
+  this.promise = new C(function($resolve, $reject){
+    resolve = $resolve;
+    reject  = $reject;
+  });
+  this.resolve = aFunction(resolve),
+  this.reject  = aFunction(reject)
+};
+var perform = function(exec){
+  try {
+    exec();
+  } catch(e){
+    return {error: e};
+  }
+};
 var notify = function(record, isReject){
   if(record.n)return;
   record.n = true;
@@ -80,21 +96,23 @@ var notify = function(record, isReject){
     var value = record.v
       , ok    = record.s == 1
       , i     = 0;
-    var run = function(react){
-      var cb = ok ? react.ok : react.fail
-        , ret, then;
+    var run = function(reaction){
+      var handler = ok ? reaction.ok : reaction.fail
+        , resolve = reaction.resolve
+        , reject  = reaction.reject
+        , result, then;
       try {
-        if(cb){
+        if(handler){
           if(!ok)record.h = true;
-          ret = cb === true ? value : cb(value);
-          if(ret === react.P){
-            react.rej(TypeError('Promise-chain cycle'));
-          } else if(then = isThenable(ret)){
-            then.call(ret, react.res, react.rej);
-          } else react.res(ret);
-        } else react.rej(value);
-      } catch(err){
-        react.rej(err);
+          result = handler === true ? value : handler(value);
+          if(result === reaction.promise){
+            reject(TypeError('Promise-chain cycle'));
+          } else if(then = isThenable(result)){
+            then.call(result, resolve, reject);
+          } else resolve(result);
+        } else reject(value);
+      } catch(e){
+        reject(e);
       }
     };
     while(chain.length > i)run(chain[i++]); // variable length - can't use forEach
@@ -119,11 +137,11 @@ var isUnhandled = function(promise){
   var record = promise[RECORD]
     , chain  = record.a || record.c
     , i      = 0
-    , react;
+    , reaction;
   if(record.h)return false;
   while(chain.length > i){
-    react = chain[i++];
-    if(react.fail || !isUnhandled(react.P))return false;
+    reaction = chain[i++];
+    if(reaction.fail || !isUnhandled(reaction.promise))return false;
   } return true;
 };
 var $reject = function(value){
@@ -187,19 +205,13 @@ if(!useNative){
   require('./$.redefine-all')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
-      var react = {
-        ok:   typeof onFulfilled == 'function' ? onFulfilled : true,
-        fail: typeof onRejected == 'function'  ? onRejected  : false
-      };
-      var promise = react.P = new (speciesConstructor(this, P))(function(res, rej){
-        react.res = res;
-        react.rej = rej;
-      });
-      aFunction(react.res);
-      aFunction(react.rej);
-      var record = this[RECORD];
-      record.c.push(react);
-      if(record.a)record.a.push(react);
+      var reaction = new PromiseCapability(speciesConstructor(this, P))
+        , promise  = reaction.promise
+        , record   = this[RECORD];
+      reaction.ok   = typeof onFulfilled == 'function' ? onFulfilled : true;
+      reaction.fail = typeof onRejected == 'function' && onRejected;
+      record.c.push(reaction);
+      if(record.a)record.a.push(reaction);
       if(record.s)notify(record, false);
       return promise;
     },
@@ -219,14 +231,18 @@ Wrapper = require('./$.core')[PROMISE];
 $export($export.S + $export.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
-    return new this(function(res, rej){ rej(r); });
+    var capability = new PromiseCapability(this);
+    capability.reject(r);
+    return capability.promise;
   }
 });
 $export($export.S + $export.F * (!useNative || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
-    return isPromise(x) && sameConstructor(x.constructor, this)
-      ? x : new this(function(res){ res(x); });
+    if(isPromise(x) && sameConstructor(x.constructor, this))return x;
+    var capability = new PromiseCapability(this);
+    capability.resolve(x);
+    return capability.promise;
   }
 });
 $export($export.S + $export.F * !(useNative && require('./$.iter-detect')(function(iter){
@@ -234,28 +250,37 @@ $export($export.S + $export.F * !(useNative && require('./$.iter-detect')(functi
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable){
-    var C      = getConstructor(this)
-      , values = [];
-    return new C(function(res, rej){
+    var C          = getConstructor(this)
+      , capability = new PromiseCapability(C)
+      , resolve    = capability.resolve
+      , reject     = capability.reject
+      , values     = [];
+    var abrupt = perform(function(){
       forOf(iterable, false, values.push, values);
       var remaining = values.length
         , results   = Array(remaining);
       if(remaining)$.each.call(values, function(promise, index){
         C.resolve(promise).then(function(value){
           results[index] = value;
-          --remaining || res(results);
-        }, rej);
+          --remaining || resolve(results);
+        }, reject);
       });
-      else res(results);
+      else resolve(results);
     });
+    if(abrupt)reject(abrupt.error);
+    return capability.promise;
   },
   // 25.4.4.4 Promise.race(iterable)
   race: function race(iterable){
-    var C = getConstructor(this);
-    return new C(function(res, rej){
+    var C          = getConstructor(this)
+      , capability = new PromiseCapability(C)
+      , reject     = capability.reject;
+    var abrupt = perform(function(){
       forOf(iterable, false, function(promise){
-        C.resolve(promise).then(res, rej);
+        C.resolve(promise).then(capability.resolve, reject);
       });
     });
+    if(abrupt)reject(abrupt.error);
+    return capability.promise;
   }
 });
