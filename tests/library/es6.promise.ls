@@ -66,6 +66,7 @@ test 'Promise.all' (assert)!->
     core.getIteratorMethod([])call @
   Promise.all a
   assert.ok done
+  assert.throws (-> Promise.all.call(null, []).catch !->), TypeError, 'throws without context'
 
 test 'Promise.race' (assert)!->
   assert.isFunction Promise.race
@@ -84,12 +85,15 @@ test 'Promise.race' (assert)!->
     core.getIteratorMethod([])call @
   Promise.race a
   assert.ok done
+  assert.throws (-> Promise.race.call(null, []).catch !->), TypeError, 'throws without context'
 
 test 'Promise.resolve' (assert)!->
   assert.isFunction Promise.resolve
+  assert.throws (-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
 
 test 'Promise.reject' (assert)!->
   assert.isFunction Promise.reject
+  assert.throws (-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'
 
 if PROTO
   test 'Promise subclassing' (assert)!->

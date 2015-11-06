@@ -2980,6 +2980,9 @@
     };
     Promise.all(a);
     assert.ok(done);
+    assert.throws(function(){
+      return Promise.all.call(null, [])['catch'](function(){});
+    }, TypeError, 'throws without context');
   });
   test('Promise.race', function(assert){
     var passed, iter, a, done;
@@ -2998,12 +3001,21 @@
     };
     Promise.race(a);
     assert.ok(done);
+    assert.throws(function(){
+      return Promise.race.call(null, [])['catch'](function(){});
+    }, TypeError, 'throws without context');
   });
   test('Promise.resolve', function(assert){
     assert.isFunction(Promise.resolve);
+    assert.throws(function(){
+      return Promise.resolve.call(null, 1)['catch'](function(){});
+    }, TypeError, 'throws without context');
   });
   test('Promise.reject', function(assert){
     assert.isFunction(Promise.reject);
+    assert.throws(function(){
+      return Promise.reject.call(null, 1)['catch'](function(){});
+    }, TypeError, 'throws without context');
   });
   if (PROTO) {
     test('Promise subclassing', function(assert){
