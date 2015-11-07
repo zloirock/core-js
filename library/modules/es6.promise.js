@@ -14,7 +14,6 @@ var $          = require('./$')
   , same       = require('./$.same-value')
   , SPECIES    = require('./$.wks')('species')
   , speciesConstructor = require('./$.species-constructor')
-  , RECORD     = require('./$.uid')('record')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
   , process    = global.process
@@ -28,7 +27,7 @@ var testResolve = function(sub){
   return P.resolve(test) === test;
 };
 
-var useNative = function(){
+var USE_NATIVE = function(){
   var works = false;
   function P2(x){
     var self = new P(x);
@@ -56,9 +55,6 @@ var useNative = function(){
 }();
 
 // helpers
-var isPromise = function(it){
-  return isObject(it) && (useNative ? classof(it) == 'Promise' : RECORD in it);
-};
 var sameConstructor = function(a, b){
   // library wrapper special case
   if(LIBRARY && a === P && b === Wrapper)return true;
@@ -135,7 +131,7 @@ var notify = function(record, isReject){
   });
 };
 var isUnhandled = function(promise){
-  var record = promise[RECORD]
+  var record = promise._d
     , chain  = record.a || record.c
     , i      = 0
     , reaction;
@@ -183,11 +179,11 @@ var $resolve = function(value){
 };
 
 // constructor polyfill
-if(!useNative){
+if(!USE_NATIVE){
   // 25.4.3.1 Promise(executor)
   P = function Promise(executor){
     aFunction(executor);
-    var record = {
+    var record = this._d = {
       p: strictNew(this, P, PROMISE),         // <- promise
       c: [],                                  // <- awaiting reactions
       a: undefined,                           // <- checked in isUnhandled reactions
@@ -197,7 +193,6 @@ if(!useNative){
       h: false,                               // <- handled rejection
       n: false                                // <- notify
     };
-    this[RECORD] = record;
     try {
       executor(ctx($resolve, record, 1), ctx($reject, record, 1));
     } catch(err){
@@ -209,7 +204,7 @@ if(!useNative){
     then: function then(onFulfilled, onRejected){
       var reaction = new PromiseCapability(speciesConstructor(this, P))
         , promise  = reaction.promise
-        , record   = this[RECORD];
+        , record   = this._d;
       reaction.ok   = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
       record.c.push(reaction);
@@ -224,13 +219,13 @@ if(!useNative){
   });
 }
 
-$export($export.G + $export.W + $export.F * !useNative, {Promise: P});
+$export($export.G + $export.W + $export.F * !USE_NATIVE, {Promise: P});
 require('./$.set-to-string-tag')(P, PROMISE);
 require('./$.set-species')(PROMISE);
 Wrapper = require('./$.core')[PROMISE];
 
 // statics
-$export($export.S + $export.F * !useNative, PROMISE, {
+$export($export.S + $export.F * !USE_NATIVE, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
     var capability = new PromiseCapability(this)
@@ -239,17 +234,18 @@ $export($export.S + $export.F * !useNative, PROMISE, {
     return capability.promise;
   }
 });
-$export($export.S + $export.F * (!useNative || testResolve(true)), PROMISE, {
+$export($export.S + $export.F * (!USE_NATIVE || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
-    if(isPromise(x) && sameConstructor(x.constructor, this))return x;
+    // instanceof instead of internal slot check because we should fix it without replacement native Promise core
+    if(x instanceof P && sameConstructor(x.constructor, this))return x;
     var capability = new PromiseCapability(this)
       , $$resolve  = capability.resolve;
     $$resolve(x);
     return capability.promise;
   }
 });
-$export($export.S + $export.F * !(useNative && require('./$.iter-detect')(function(iter){
+$export($export.S + $export.F * !(USE_NATIVE && require('./$.iter-detect')(function(iter){
   P.all(iter)['catch'](function(){});
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
