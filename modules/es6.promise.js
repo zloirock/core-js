@@ -74,10 +74,10 @@ var isThenable = function(it){
 };
 var PromiseCapability = function(C){
   var resolve, reject;
-  this.promise = new C(function($resolve, $reject){
+  this.promise = new C(function($$resolve, $$reject){
     if(resolve !== undefined || reject !== undefined)throw TypeError('Bad Promise constructor');
-    resolve = $resolve;
-    reject  = $reject;
+    resolve = $$resolve;
+    reject  = $$reject;
   });
   this.resolve = aFunction(resolve),
   this.reject  = aFunction(reject)
@@ -162,6 +162,7 @@ var $resolve = function(value){
   record.d = true;
   record = record.r || record; // unwrap
   try {
+    if(record.p === value)throw TypeError("Promise can't be resolved itself");
     if(then = isThenable(value)){
       asap(function(){
         var wrapper = {r: record, d: false}; // wrap
@@ -233,8 +234,8 @@ $export($export.S + $export.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
     var capability = new PromiseCapability(this)
-      , reject     = capability.reject;
-    reject(r);
+      , $$reject   = capability.reject;
+    $$reject(r);
     return capability.promise;
   }
 });
@@ -243,8 +244,8 @@ $export($export.S + $export.F * (!useNative || testResolve(true)), PROMISE, {
   resolve: function resolve(x){
     if(isPromise(x) && sameConstructor(x.constructor, this))return x;
     var capability = new PromiseCapability(this)
-      , resolve    = capability.resolve;
-    resolve(x);
+      , $$resolve  = capability.resolve;
+    $$resolve(x);
     return capability.promise;
   }
 });
