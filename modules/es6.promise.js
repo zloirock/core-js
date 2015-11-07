@@ -264,7 +264,10 @@ $export($export.S + $export.F * !(useNative && require('./$.iter-detect')(functi
       var remaining = values.length
         , results   = Array(remaining);
       if(remaining)$.each.call(values, function(promise, index){
+        var alreadyCalled = false;
         C.resolve(promise).then(function(value){
+          if(alreadyCalled)return;
+          alreadyCalled = true;
           results[index] = value;
           --remaining || resolve(results);
         }, reject);
