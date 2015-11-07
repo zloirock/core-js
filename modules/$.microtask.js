@@ -7,15 +7,16 @@ var global    = require('./$.global')
   , head, last, notify;
 
 var flush = function(){
-  var parent, domain;
+  var parent, domain, fn;
   if(isNode && (parent = process.domain)){
     process.domain = null;
     parent.exit();
   }
   while(head){
     domain = head.domain;
+    fn     = head.fn;
     if(domain)domain.enter();
-    head.fn.call(); // <- currently we use it only for Promise - try / catch not required
+    fn(); // <- currently we use it only for Promise - try / catch not required
     if(domain)domain.exit();
     head = head.next;
   } last = undefined;

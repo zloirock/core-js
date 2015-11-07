@@ -232,8 +232,9 @@ Wrapper = require('./$.core')[PROMISE];
 $export($export.S + $export.F * !useNative, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r){
-    var capability = new PromiseCapability(this);
-    capability.reject(r);
+    var capability = new PromiseCapability(this)
+      , reject     = capability.reject;
+    reject(r);
     return capability.promise;
   }
 });
@@ -241,8 +242,9 @@ $export($export.S + $export.F * (!useNative || testResolve(true)), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
     if(isPromise(x) && sameConstructor(x.constructor, this))return x;
-    var capability = new PromiseCapability(this);
-    capability.resolve(x);
+    var capability = new PromiseCapability(this)
+      , resolve    = capability.resolve;
+    resolve(x);
     return capability.promise;
   }
 });
