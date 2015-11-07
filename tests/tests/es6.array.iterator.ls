@@ -21,7 +21,7 @@ test 'Array#keys' (assert)->
 test 'Array#values' (assert)->
   assert.isFunction Array::values
   assert.arity Array::values, 0
-  NATIVE and assert.name Array::values, \values # fails in V8
+  assert.name Array::values, \values # fails in V8 and FF
   assert.looksNative Array::values
   iter = <[q w e]>values!
   assert.isIterator iter
@@ -55,7 +55,7 @@ test 'Array#entries' (assert)->
 test 'Array#@@iterator' (assert)->
   assert.isIterable Array::
   assert.arity Array::[Symbol?iterator], 0
-  NATIVE and assert.name Array::[Symbol?iterator], \values # fails in V8
+  assert.name Array::[Symbol?iterator], \values # fails in V8 and FF
   assert.looksNative Array::[Symbol?iterator]
   assert.strictEqual Array::[Symbol?iterator], Array::values
   iter = <[q w e]>[Symbol?iterator]!

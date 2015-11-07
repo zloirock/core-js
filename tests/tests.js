@@ -1871,7 +1871,7 @@
     var iter;
     assert.isFunction(Array.prototype.values);
     assert.arity(Array.prototype.values, 0);
-    NATIVE && assert.name(Array.prototype.values, 'values');
+    assert.name(Array.prototype.values, 'values');
     assert.looksNative(Array.prototype.values);
     iter = ['q', 'w', 'e'].values();
     assert.isIterator(iter);
@@ -1943,7 +1943,7 @@
     var iter;
     assert.isIterable(Array.prototype);
     assert.arity(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
-    NATIVE && assert.name(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
+    assert.name(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
     assert.looksNative(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();

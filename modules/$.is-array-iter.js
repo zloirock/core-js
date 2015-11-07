@@ -4,5 +4,5 @@ var Iterators  = require('./$.iterators')
   , ArrayProto = Array.prototype;
 
 module.exports = function(it){
-  return (Iterators.Array || ArrayProto[ITERATOR]) === it;
+  return it !== undefined && (Iterators.Array === it || ArrayProto[ITERATOR] === it);
 };
