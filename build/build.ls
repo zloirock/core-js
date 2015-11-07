@@ -88,17 +88,17 @@ list = <[
   es6.reflect.prevent-extensions
   es6.reflect.set
   es6.reflect.set-prototype-of
-  es6.typed-arrays.array-buffer
-  es6.typed-arrays.data-view
-  es6.typed-arrays.int8-array
-  es6.typed-arrays.uint8-array
-  es6.typed-arrays.uint8-clamped-array
-  es6.typed-arrays.int16-array
-  es6.typed-arrays.uint16-array
-  es6.typed-arrays.int32-array
-  es6.typed-arrays.uint32-array
-  es6.typed-arrays.float32-array
-  es6.typed-arrays.float64-array
+  es6.typed.array-buffer
+  es6.typed.data-view
+  es6.typed.int8-array
+  es6.typed.uint8-array
+  es6.typed.uint8-clamped-array
+  es6.typed.int16-array
+  es6.typed.uint16-array
+  es6.typed.int32-array
+  es6.typed.uint32-array
+  es6.typed.float32-array
+  es6.typed.float64-array
   es7.array.includes
   es7.string.at
   es7.string.pad-left
@@ -132,17 +132,17 @@ list = <[
 ]>
 
 experimental = <[
-  es6.typed-arrays.array-buffer
-  es6.typed-arrays.data-view
-  es6.typed-arrays.int8-array
-  es6.typed-arrays.uint8-array
-  es6.typed-arrays.uint8-clamped-array
-  es6.typed-arrays.int16-array
-  es6.typed-arrays.uint16-array
-  es6.typed-arrays.int32-array
-  es6.typed-arrays.uint32-array
-  es6.typed-arrays.float32-array
-  es6.typed-arrays.float64-array
+  es6.typed.array-buffer
+  es6.typed.data-view
+  es6.typed.int8-array
+  es6.typed.uint8-array
+  es6.typed.uint8-clamped-array
+  es6.typed.int16-array
+  es6.typed.uint16-array
+  es6.typed.int32-array
+  es6.typed.uint32-array
+  es6.typed.float32-array
+  es6.typed.float64-array
 ]>
 
 libraryBlacklist = <[
