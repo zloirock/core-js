@@ -88,6 +88,7 @@ list = <[
   es6.reflect.prevent-extensions
   es6.reflect.set
   es6.reflect.set-prototype-of
+  es6.date.to-string
   es6.typed.array-buffer
   es6.typed.data-view
   es6.typed.int8-array
