@@ -170,6 +170,8 @@ test 'Array#slice' (assert)->
     assert.deepEqual slice.call({length: -1, 0: 1}, 0, 1), [], 'uses ToLength'
 
 test 'Array#join' (assert)->
+  assert.arity Array::join, 1
+  assert.strictEqual Array::join.call([1 2 3] void), '1,2,3'
   assert.strictEqual Array::join.call(\123), '1,2,3'
   assert.strictEqual Array::join.call(\123 \|), '1|2|3'
 

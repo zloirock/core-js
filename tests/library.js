@@ -1135,6 +1135,7 @@
   test('Array#join', function(assert){
     var join;
     join = core.Array.join;
+    assert.strictEqual(join([1, 2, 3], void 8), '1,2,3');
     assert.strictEqual(join('123'), '1,2,3');
     return assert.strictEqual(join('123', '|'), '1|2|3');
   });

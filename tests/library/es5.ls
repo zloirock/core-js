@@ -170,6 +170,7 @@ test 'Array#slice' (assert)->
 
 test 'Array#join' (assert)->
   {join} = core.Array
+  assert.strictEqual join([1 2 3] void), '1,2,3'
   assert.strictEqual join(\123), '1,2,3'
   assert.strictEqual join(\123 \|), '1|2|3'
 

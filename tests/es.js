@@ -264,6 +264,8 @@
     }
   });
   test('Array#join', function(assert){
+    assert.arity(Array.prototype.join, 1);
+    assert.strictEqual(Array.prototype.join.call([1, 2, 3], void 8), '1,2,3');
     assert.strictEqual(Array.prototype.join.call('123'), '1,2,3');
     return assert.strictEqual(Array.prototype.join.call('123', '|'), '1|2|3');
   });

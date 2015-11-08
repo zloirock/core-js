@@ -180,8 +180,8 @@ $export($export.P + $export.F * fails(function(){
   }
 });
 $export($export.P + $export.F * (IObject != Object), 'Array', {
-  join: function(){
-    return arrayJoin.apply(IObject(this), arguments);
+  join: function(separator){
+    return arrayJoin.call(IObject(this), separator === undefined ? ',' : separator);
   }
 });
 
