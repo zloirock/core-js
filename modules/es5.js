@@ -180,7 +180,7 @@ $export($export.P + $export.F * fails(function(){
   }
 });
 $export($export.P + $export.F * (IObject != Object), 'Array', {
-  join: function(separator){
+  join: function join(separator){
     return arrayJoin.call(IObject(this), separator === undefined ? ',' : separator);
   }
 });
