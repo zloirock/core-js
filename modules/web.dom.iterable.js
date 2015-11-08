@@ -8,5 +8,5 @@ var global      = require('./$.global')
   , NLProto     = NL && NL.prototype
   , HTCProto    = HTC && HTC.prototype
   , ArrayValues = Iterators.NodeList = Iterators.HTMLCollection = Iterators.Array;
-if(NL && !(ITERATOR in NLProto))hide(NLProto, ITERATOR, ArrayValues);
-if(HTC && !(ITERATOR in HTCProto))hide(HTCProto, ITERATOR, ArrayValues);
+if(NLProto && !NLProto[ITERATOR])hide(NLProto, ITERATOR, ArrayValues);
+if(HTCProto && !HTCProto[ITERATOR])hide(HTCProto, ITERATOR, ArrayValues);

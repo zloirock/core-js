@@ -46,7 +46,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
     }
   }
   // Define iterator
-  if((!LIBRARY || FORCED) && (BUGGY || VALUES_BUG || !(ITERATOR in proto))){
+  if((!LIBRARY || FORCED) && (BUGGY || VALUES_BUG || !(proto[ITERATOR]))){
     hide(proto, ITERATOR, $default);
   }
   // Plug for library
