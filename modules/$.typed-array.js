@@ -22,6 +22,7 @@ if(require('./$.descriptors')){
     , isArrayIter         = require('./$.is-array-iter')
     , isIterable          = require('./core.is-iterable')
     , getIterFn           = require('./core.get-iterator-method')
+    , uid                 = require('./$.uid')
     , wks                 = require('./$.wks')
     , createArrayMethod   = require('./$.array-methods')
     , createArrayIncludes = require('./$.array-includes')
@@ -38,7 +39,6 @@ if(require('./$.descriptors')){
     , setDesc             = $.setDesc
     , getDesc             = $.getDesc
     , arrayForEach        = createArrayMethod(0)
-    , arrayMap            = createArrayMethod(1)
     , arrayFilter         = createArrayMethod(2)
     , arraySome           = createArrayMethod(3)
     , arrayEvery          = createArrayMethod(4)
@@ -60,12 +60,16 @@ if(require('./$.descriptors')){
     , arrayToLocaleString = ArrayProto.toLocaleString
     , ITERATOR            = wks('iterator')
     , TAG                 = wks('toStringTag')
-    , TYPED_CONSTRUCTOR   = wks('typed_constructor')
-    , DEF_CONSTRUCTOR     = wks('def_constructor')
+    , TYPED_CONSTRUCTOR   = uid('typed_constructor')
+    , DEF_CONSTRUCTOR     = uid('def_constructor')
     , ALL_ARRAYS          = $typed.ARRAYS
     , TYPED_ARRAY         = $typed.TYPED
     , VIEW                = $typed.VIEW
     , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT';
+
+  var $map = createArrayMethod(1, function(O, length){
+    return allocate(speciesConstructor(O, O[DEF_CONSTRUCTOR]), length);
+  });
 
   var LITTLE_ENDIAN = fails(function(){
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
@@ -76,18 +80,22 @@ if(require('./$.descriptors')){
     throw TypeError(it + ' is not a typed array!');
   };
 
-  var fromList = function(O, list){
-    var index  = 0
-      , length = list.length
-      , result = allocate(speciesConstructor(O, O[DEF_CONSTRUCTOR]), length);
-    while(length > index)result[index] = list[index++];
-    return result;
-  };
-
   var allocate = function(C, length){
     if(!(isObject(C) && TYPED_CONSTRUCTOR in C)){
       throw TypeError('It is not a typed array constructor!');
     } return new C(length);
+  };
+
+  var speciesFromList = function(O, list){
+    return fromList(speciesConstructor(O, O[DEF_CONSTRUCTOR]), list);
+  };
+
+  var fromList = function(C, list){
+    var index  = 0
+      , length = list.length
+      , result = allocate(C, length);
+    while(length > index)result[index] = list[index++];
+    return result;
   };
 
   var $from = function from(source /*, mapfn, thisArg */){
@@ -110,8 +118,8 @@ if(require('./$.descriptors')){
     return result;
   };
 
-  var addGetter = function(C, key, internal){
-    setDesc(C.prototype, key, {get: function(){ return this._d[internal]; }});
+  var addGetter = function(it, key, internal){
+    setDesc(it, key, {get: function(){ return this._d[internal]; }});
   };
 
   var $of = function of(/*...items*/){
@@ -136,7 +144,8 @@ if(require('./$.descriptors')){
       return arrayFill.apply(validate(this), arguments);
     },
     filter: function filter(callbackfn /*, thisArg */){
-      return fromList(this, arrayFilter(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined));
+      return speciesFromList(this, arrayFilter(validate(this), callbackfn,
+        arguments.length > 1 ? arguments[1] : undefined));
     },
     find: function find(predicate /*, thisArg */){
       return arrayFind(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
@@ -160,7 +169,7 @@ if(require('./$.descriptors')){
       return arrayLastIndexOf.apply(validate(this), arguments);
     },
     map: function map(mapfn /*, thisArg */){
-      return fromList(this, arrayMap(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined)); // TODO
+      return $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined);
     },
     reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
       return arrayReduce.apply(validate(this), arguments);
@@ -183,7 +192,7 @@ if(require('./$.descriptors')){
       while(index < len)this[offset + index] = src[index++];
     },
     slice: function slice(start, end){
-      return fromList(this, arraySlice.call(validate(this), start, end)); // TODO
+      return speciesFromList(this, arraySlice.call(validate(this), start, end));
     },
     some: function some(callbackfn /*, thisArg */){
       return arraySome(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -247,7 +256,11 @@ if(require('./$.descriptors')){
     toString:       arrayToString,
     toLocaleString: $toLocaleString
   });
-  $.setDesc($TypedArrayPrototype$, TAG, {
+  addGetter($TypedArrayPrototype$, 'buffer', 'b');
+  addGetter($TypedArrayPrototype$, 'byteOffset', 'o');
+  addGetter($TypedArrayPrototype$, 'byteLength', 'l');
+  addGetter($TypedArrayPrototype$, 'length', 'e');
+  setDesc($TypedArrayPrototype$, TAG, {
     get: function(){ return this[TYPED_ARRAY]; }
   });
 
@@ -260,7 +273,8 @@ if(require('./$.descriptors')){
       , Base       = TypedArray || {}
       , FORCED     = !TypedArray || !$typed.ABV
       , $iterator  = proto.values
-      , O          = {};
+      , O          = {}
+      , TypedArrayPrototype = TypedArray && TypedArray.prototype;
     var addElement = function(that, index){
       setDesc(that, index, {
         get: function(){
@@ -275,7 +289,6 @@ if(require('./$.descriptors')){
         enumerable: true
       });
     };
-    if(!$ArrayBuffer)return;
     if(FORCED){
       TypedArray = wrapper(function(that, data, $offset, $length){
         strictNew(that, TypedArray, NAME);
@@ -283,9 +296,11 @@ if(require('./$.descriptors')){
           , offset = 0
           , buffer, byteLength, length;
         if(!isObject(data)){
-          byteLength = toInteger(data) * BYTES;
-          buffer = new $ArrayBuffer(byteLength);
-        // TODO TA case
+          length     = toInteger(data)
+          byteLength = length * BYTES;
+          buffer     = new $ArrayBuffer(byteLength);
+        } else if(TYPED_ARRAY in data){
+          return fromList(TypedArray, data);
         } else if(data instanceof $ArrayBuffer){
           buffer = data;
           offset = toInteger($offset);
@@ -299,8 +314,8 @@ if(require('./$.descriptors')){
             byteLength = toLength($length) * BYTES;
             if(byteLength + offset > $len)throw RangeError();
           }
+          length = byteLength / BYTES;
         } else return $from.call(TypedArray, data);
-        length = byteLength / BYTES;
         hide(that, '_d', {
           b: buffer,
           o: offset,
@@ -310,14 +325,9 @@ if(require('./$.descriptors')){
         });
         while(index < length)addElement(that, index++);
       });
-      TypedArray.prototype = $.create($TypedArrayPrototype$);
-      addGetter(TypedArray, 'buffer', 'b');
-      addGetter(TypedArray, 'byteOffset', 'o');
-      addGetter(TypedArray, 'byteLength', 'l');
-      addGetter(TypedArray, 'length', 'e');
-      hide(TypedArray, BYTES_PER_ELEMENT, BYTES);
-      hide(TypedArray.prototype, BYTES_PER_ELEMENT, BYTES);
-      hide(TypedArray.prototype, 'constructor', TypedArray);
+      TypedArrayPrototype = TypedArray.prototype = $.create($TypedArrayPrototype$);
+      hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
+      hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if(!$iterDetect(function(iter){
       new TypedArray(iter); // eslint-disable-line no-new
     }, true)){
@@ -326,10 +336,9 @@ if(require('./$.descriptors')){
         if(isObject(data) && isIterable(data))return $from.call(TypedArray, data);
         return $length === undefined ? new Base(data, $offset) : new Base(data, $offset, $length);
       });
-      TypedArray.prototype = Base.prototype;
+      TypedArrayPrototype = TypedArray.prototype = Base.prototype;
       if(!LIBRARY)TypedArray.prototype.constructor = TypedArray;
     }
-    var TypedArrayPrototype = TypedArray.prototype;
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
@@ -359,7 +368,7 @@ if(require('./$.descriptors')){
     
     Iterators[NAME] = $nativeIterator || $iterator;
     LIBRARY || $nativeIterator || hide(TypedArrayPrototype, ITERATOR, $iterator);
-    
+
     setSpecies(NAME);
   };
 } else module.exports = function(){ /* empty */};
