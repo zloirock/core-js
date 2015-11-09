@@ -120,7 +120,7 @@ require('core-js/build')({
 ```
 ## Features:
 ### ECMAScript 5
-Module [`es5`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es5.js), nothing new - without examples.
+Module [`es5`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es5.js), nothing new - without examples.
 ```javascript
 Object
   .create(proto | null, descriptors?) -> object
@@ -164,7 +164,7 @@ String
 
 ### ECMAScript 6
 #### ECMAScript 6: Object
-Modules [`es6.object.assign`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.assign.js), [`es6.object.is`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.is.js), [`es6.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.set-prototype-of.js) and [`es6.object.to-string`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.to-string.js).
+Modules [`es6.object.assign`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.assign.js), [`es6.object.is`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.is.js), [`es6.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.set-prototype-of.js) and [`es6.object.to-string`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.to-string.js).
 ```javascript
 Object
   .assign(target, ...src) -> target
@@ -194,7 +194,7 @@ var O = {};
 O[Symbol.toStringTag] = 'Foo';
 '' + O; // => '[object Foo]'
 ```
-In ES6 most `Object` static methods should work with primitives. Modules [`es6.object.freeze`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.freeze.js), [`es6.object.seal`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.seal.js), [`es6.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.prevent-extensions.js), [`es6.object.is-frozen`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.is-frozen.js), [`es6.object.is-sealed`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.is-sealed.js), [`es6.object.is-extensible`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.is-extensible.js), [`es6.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.get-own-property-descriptor.js), [`es6.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.get-prototype-of.js), [`es6.object.keys`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.keys.js), [`es6.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.object.get-own-property-names.js).
+In ES6 most `Object` static methods should work with primitives. Modules [`es6.object.freeze`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.freeze.js), [`es6.object.seal`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.seal.js), [`es6.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.prevent-extensions.js), [`es6.object.is-frozen`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.is-frozen.js), [`es6.object.is-sealed`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.is-sealed.js), [`es6.object.is-extensible`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.is-extensible.js), [`es6.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.get-own-property-descriptor.js), [`es6.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.get-prototype-of.js), [`es6.object.keys`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.keys.js), [`es6.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.object.get-own-property-names.js).
 ```javascript
 Object
   .freeze(var) -> var
@@ -214,7 +214,7 @@ Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
 ```
 #### ECMAScript 6: Function
-Modules [`es6.function.name`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.function.name.js) and [`es6.function.has-instance`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.function.has-instance.js).
+Modules [`es6.function.name`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.function.name.js) and [`es6.function.has-instance`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.function.has-instance.js).
 ```javascript
 Function
   #name -> string (IE9+)
@@ -225,7 +225,7 @@ Function
 (function foo(){}).name // => 'foo'
 ```
 #### ECMAScript 6: Array
-Modules [`es6.array.from`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.from.js), [`es6.array.of`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.of.js), [`es6.array.copy-within`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.copy-within.js), [`es6.array.fill`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.fill.js), [`es6.array.find`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.find.js) and [`es6.array.find-index`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.find-index.js).
+Modules [`es6.array.from`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.from.js), [`es6.array.of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.of.js), [`es6.array.copy-within`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.copy-within.js), [`es6.array.fill`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.fill.js), [`es6.array.find`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find.js) and [`es6.array.find-index`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find-index.js).
 ```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
@@ -261,7 +261,7 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String
-Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.raw.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.trim.js).
+Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.raw.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.trim.js).
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
@@ -292,9 +292,9 @@ String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!' (ES6 template string synta
 String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
 ```
 #### ECMAScript 6: RegExp
-Modules [`es6.regexp.constructor`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.constructor.js) and [`es6.regexp.flags`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.flags.js).
+Modules [`es6.regexp.constructor`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.constructor.js) and [`es6.regexp.flags`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.flags.js).
 
-Support well-known [symbols](#ecmascript-6-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es6.regexp.match`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.match.js), [`es6.regexp.replace`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.replace.js), [`es6.regexp.search`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.search.js) and [`es6.regexp.split`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.regexp.split.js).
+Support well-known [symbols](#ecmascript-6-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es6.regexp.match`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.match.js), [`es6.regexp.replace`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.replace.js), [`es6.regexp.search`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.search.js) and [`es6.regexp.split`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.split.js).
 ```
 String
   #match(tpl) -> var, ES6 fix for support @@match
@@ -321,12 +321,12 @@ RegExp(/./g, 'm'); // => /./m
 'foo'.split({[Symbol.split]: _ => 4});     // => 4
 ```
 #### ECMAScript 6: Number
-Module [`es6.number.constructor`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.constructor.js). `Number` constructor support binary and octal literals, [example](http://goo.gl/jRd6b3):
+Module [`es6.number.constructor`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.constructor.js). `Number` constructor support binary and octal literals, [example](http://goo.gl/jRd6b3):
 ```javascript
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
 ```
-`Number`: modules [`es6.number.epsilon`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.epsilon.js), [`es6.number.is-finite`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.is-finite.js), [`es6.number.is-integer`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.is-integer.js), [`es6.number.is-nan`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.is-nan.js), [`es6.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.is-safe-integer.js), [`es6.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.max-safe-integer.js), [`es6.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.min-safe-integer.js), [`es6.number.parse-float`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.parse-float.js), [`es6.number.parse-int`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.number.parse-int.js).
+`Number`: modules [`es6.number.epsilon`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.epsilon.js), [`es6.number.is-finite`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.is-finite.js), [`es6.number.is-integer`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.is-integer.js), [`es6.number.is-nan`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.is-nan.js), [`es6.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.is-safe-integer.js), [`es6.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.max-safe-integer.js), [`es6.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.min-safe-integer.js), [`es6.number.parse-float`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.parse-float.js), [`es6.number.parse-int`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.number.parse-int.js).
 ```javascript
 [new] Number(var) -> number | number object
   .EPSILON -> num
@@ -340,7 +340,7 @@ Number('0o7654321'); // => 2054353
   .parseInt(str) -> int
 ```
 #### ECMAScript 6: Math
-`Math`: modules [`es6.math.acosh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.acosh.js), [`es6.math.asinh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.asinh.js), [`es6.math.atanh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.atanh.js), [`es6.math.cbrt`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.cbrt.js), [`es6.math.clz32`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.clz32.js), [`es6.math.cosh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.cosh.js), [`es6.math.expm1`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.expm1.js), [`es6.math.fround`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.fround.js), [`es6.math.hypot`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.hypot.js), [`es6.math.imul`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.imul.js), [`es6.math.log10`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.log10.js), [`es6.math.log1p`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.log1p.js), [`es6.math.log2`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.log2.js), [`es6.math.sign`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.sign.js), [`es6.math.sinh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.sinh.js), [`es6.math.tanh`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.tanh.js), [`es6.math.trunc`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.math.trunc.js).
+`Math`: modules [`es6.math.acosh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.acosh.js), [`es6.math.asinh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.asinh.js), [`es6.math.atanh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.atanh.js), [`es6.math.cbrt`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.cbrt.js), [`es6.math.clz32`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.clz32.js), [`es6.math.cosh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.cosh.js), [`es6.math.expm1`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.expm1.js), [`es6.math.fround`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.fround.js), [`es6.math.hypot`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.hypot.js), [`es6.math.imul`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.imul.js), [`es6.math.log10`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.log10.js), [`es6.math.log1p`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.log1p.js), [`es6.math.log2`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.log2.js), [`es6.math.sign`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.sign.js), [`es6.math.sinh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.sinh.js), [`es6.math.tanh`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.tanh.js), [`es6.math.trunc`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.math.trunc.js).
 ```javascript
 Math
   .acosh(num) -> num
@@ -363,7 +363,7 @@ Math
 ```
 
 #### ECMAScript 6: Symbol
-Module [`es6.symbol`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.symbol.js).
+Module [`es6.symbol`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.symbol.js).
 ```javascript
 Symbol(description?) -> symbol
   .hasInstance -> @@hasInstance
@@ -456,7 +456,7 @@ for(var key in o2)log(key); // nothing
 #### ECMAScript 6: Collections
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map
-Module [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.map.js). About iterators from this module [here](#ecmascript-6-iterators).
+Module [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.map.js). About iterators from this module [here](#ecmascript-6-iterators).
 ```javascript
 new Map(iterable (entries) ?) -> map
   #clear() -> void
@@ -488,7 +488,7 @@ log(map.get(a));      // => undefined
 log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
 ```
 #### Set
-Module [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.set.js). About iterators from this module [here](#ecmascript-6-iterators).
+Module [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.set.js). About iterators from this module [here](#ecmascript-6-iterators).
 ```javascript
 new Set(iterable?) -> set
   #add(key) -> @
@@ -513,7 +513,7 @@ log(set.has('b'));    // => false
 log(Array.from(set)); // => ['a', 'c', 'd', 'e']
 ```
 #### WeakMap
-Module [`es6.weak-map`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.weak-map.js).
+Module [`es6.weak-map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.weak-map.js).
 ```javascript
 new WeakMap(iterable (entries) ?) -> weakmap
   #delete(key) -> bool
@@ -552,7 +552,7 @@ log(person.getName());          // => 'Vasya'
 for(var key in person)log(key); // => only 'getName'
 ```
 #### WeakSet
-Module [`es6.weak-set`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.weak-set.js).
+Module [`es6.weak-set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.weak-set.js).
 ```javascript
 new WeakSet(iterable?) -> weakset
   #add(key) -> @
@@ -578,7 +578,7 @@ log(wset.has(b));   // => false
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
 #### ECMAScript 6: Iterators
-Modules [`es6.string.iterator`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.string.iterator.js) and [`es6.array.iterator`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.array.iterator.js):
+Modules [`es6.string.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.iterator.js) and [`es6.array.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.iterator.js):
 ```javascript
 String
   #@@iterator() -> iterator
@@ -590,7 +590,7 @@ Array
 Arguments
   #@@iterator() -> iterator (available only in core-js methods)
 ```
-Modules [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.map.js) and [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.set.js):
+Modules [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.map.js) and [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.set.js):
 ```javascript
 Map
   #values() -> iterator
@@ -603,7 +603,7 @@ Set
   #entries() -> iterator (entries)
   #@@iterator() -> iterator
 ```
-Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/web.dom.iterable.js):
+Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/web.dom.iterable.js):
 ```javascript
 NodeList
   #@@iterator() -> iterator
@@ -651,7 +651,7 @@ for(var x of document.querySelectorAll('*')){
   log(x.id);
 }
 ```
-Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.get-iterator-method.js) - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
+Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator-method.js) - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
 ```javascript
 core
   .isIterable(var) -> bool
@@ -685,7 +685,7 @@ log(iter.next().value); // undefined
 log(core.getIteratorMethod({})); // undefined
 ```
 #### ECMAScript 6: Promise
-Module [`es6.promise`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.promise.js).
+Module [`es6.promise`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.promise.js).
 ```javascript
 new Promise(executor(resolve(var), reject(var))) -> promise
   #then(resolved(var), rejected(var)) -> promise
@@ -795,7 +795,7 @@ Promise.reject(42);
 
 
 #### ECMAScript 6: Reflect
-Modules [`es6.reflect.apply`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.apply.js), [`es6.reflect.construct`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.construct.js), [`es6.reflect.define-property`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.define-property.js), [`es6.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.delete-property.js), [`es6.reflect.enumerate`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.enumerate.js), [`es6.reflect.get`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.get.js), [`es6.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.get-own-property-descriptor.js), [`es6.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.get-prototype-of.js), [`es6.reflect.has`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.has.js), [`es6.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.is-extensible.js), [`es6.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.own-keys.js), [`es6.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.prevent-extensions.js), [`es6.reflect.set`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.set.js), [`es6.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es6.reflect.set-prototype-of.js).
+Modules [`es6.reflect.apply`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.apply.js), [`es6.reflect.construct`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.construct.js), [`es6.reflect.define-property`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.define-property.js), [`es6.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.delete-property.js), [`es6.reflect.enumerate`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.enumerate.js), [`es6.reflect.get`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.get.js), [`es6.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.get-own-property-descriptor.js), [`es6.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.get-prototype-of.js), [`es6.reflect.has`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.has.js), [`es6.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.is-extensible.js), [`es6.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.own-keys.js), [`es6.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.prevent-extensions.js), [`es6.reflect.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.set.js), [`es6.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.reflect.set-prototype-of.js).
 ```javascript
 Reflect
   .apply(target, thisArgument, argumentsList) -> var
@@ -828,14 +828,14 @@ var instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
 ```
 ### ECMAScript 7
-* `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.array.includes.js)
-* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.string.at.js)
-* `String#padLeft`, `String#padRight` [proposal](https://github.com/ljharb/proposal-string-pad-left-right) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.string.pad-right.js)
-* `String#trimLeft`, `String#trimRight` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.string.trim-right.js)
-* `Object.values`, `Object.entries` [proposal](https://github.com/ljharb/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.object.entries.js)
-* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.object.get-own-property-descriptors.js)
-* `RegExp.escape` [proposal](https://github.com/benjamingr/RexExp.escape) - module [`es7.regexp.escape`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.regexp.escape.js)
-* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/es7.set.to-json.js)
+* `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.array.includes.js)
+* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.at.js)
+* `String#padLeft`, `String#padRight` [proposal](https://github.com/ljharb/proposal-string-pad-left-right) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-right.js)
+* `String#trimLeft`, `String#trimRight` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.trim-right.js)
+* `Object.values`, `Object.entries` [proposal](https://github.com/ljharb/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.entries.js)
+* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.get-own-property-descriptors.js)
+* `RegExp.escape` [proposal](https://github.com/benjamingr/RexExp.escape) - module [`es7.regexp.escape`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.regexp.escape.js)
+* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.set.to-json.js)
 
 ```javascript
 Array
@@ -893,7 +893,7 @@ JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
 JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
 ```
 ### Mozilla JavaScript: Array generics
-Module [`js.array.statics`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/js.array.statics.js).
+Module [`js.array.statics`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/js.array.statics.js).
 ```javascript
 Array
   .{...ArrayPrototype methods}
@@ -912,7 +912,7 @@ Array.reduce(form, function(memo, it){
 ```
 ### Web standards
 #### setTimeout / setInterval
-Module [`web.timers`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/web.timers.js). Additional arguments fix for IE9-.
+Module [`web.timers`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/web.timers.js). Additional arguments fix for IE9-.
 ```javascript
 setTimeout(fn(...args), time, ...args) -> id
 setInterval(fn(...args), time, ...args) -> id
@@ -924,7 +924,7 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 #### setImmediate
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
+Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```javascript
 setImmediate(fn(...args), ...args) -> id
 clearImmediate(id) -> void
@@ -941,7 +941,7 @@ clearImmediate(setImmediate(function(){
 ```
 ### Non-standard
 #### Object
-Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.object.is-object.js), [`core.object.classof`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.object.classof.js), [`core.object.define`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.object.define.js), [`core.object.make`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.object.make.js).
+Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.object.is-object.js), [`core.object.classof`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.object.classof.js), [`core.object.define`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.object.define.js), [`core.object.make`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.object.make.js).
 ```javascript
 Object
   .isObject(var) -> bool
@@ -1046,7 +1046,7 @@ log(vector.xy);  // => 15.811388300841896
 log(vector.xyz); // => 25.495097567963924
 ```
 #### Dict
-Module [`core.dict`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
+Module [`core.dict`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```javascript
 [new] Dict(iterable (entries) | object ?) -> dict
   .isDict(var) -> bool
@@ -1187,7 +1187,7 @@ Dict.reduce(dict, function(memo, it){
 }, ''); // => '123'
 ```
 #### Partial application
-Module [`core.function.part`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.function.part.js).
+Module [`core.function.part`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.function.part.js).
 ```javascript
 Function
   #part(...args | _) -> fn(...args)
@@ -1207,7 +1207,7 @@ fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
 ```
 #### Number Iterator
-Modules [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.number.iterator.js).
+Modules [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.number.iterator.js).
 ```javascript
 Number
   #@@iterator() -> iterator
@@ -1225,7 +1225,7 @@ Array.from(10, function(it){
 }, .42); // => [0.42, 1.42, 4.42, 9.42, 16.42, 25.42, 36.42, 49.42, 64.42, 81.42]
 ```
 #### Escaping HTML
-Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.string.unescape-html.js).
+Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.string.unescape-html.js).
 ```javascript
 String
   #escapeHTML() -> str
@@ -1237,7 +1237,7 @@ String
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
 #### delay
-Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
+Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
 ```javascript
 delay(1e3).then(() => log('after 1 sec'));
 
@@ -1249,7 +1249,7 @@ delay(1e3).then(() => log('after 1 sec'));
 })();
 ```
 #### Console
-Module [`core.log`](https://github.com/zloirock/core-js/blob/v1.2.5/modules/core.log.js). Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
+Module [`core.log`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.log.js). Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
 ```javascript
 log ==== log.log
   .{...console API}

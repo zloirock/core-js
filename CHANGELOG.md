@@ -1,4 +1,12 @@
 ## Changelog
+##### 1.2.6 - 2015.11.09
+* reject with `TypeError` on attempt resolve promise itself
+* correct behavior with broken `Promise` subclass constructors / methods
+* added `Promise`-based fallback for microtask
+* fixed V8 and FF `Array#{values, @@iterator}.name`
+* fixed IE7- `[1, 2].join(undefined) -> '1,2'`
+* some other fixes / improvements / optimizations
+
 ##### 1.2.5 - 2015.11.02
 * some more `Number` constructor fixes:
   * fixed V8 ~ Node 0.8 bug: `Number('+0x1')` should be `NaN`
