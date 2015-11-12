@@ -27,20 +27,22 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
   };
   var TAG        = NAME + ' Iterator'
     , DEF_VALUES = DEFAULT == VALUES
+    , IS_ARRAY   = NAME == 'Array'
     , VALUES_BUG = false
     , proto      = Base.prototype
     , $native    = proto[ITERATOR] || proto[FF_ITERATOR] || DEFAULT && proto[DEFAULT]
     , $default   = $native || getMethod(DEFAULT)
+    , $entries   = DEFAULT ? !DEF_VALUES ? $default : getMethod('entries') : undefined
     , methods, key;
   // Fix native
-  if($native){
-    var IteratorPrototype = getProto($default.call(new Base));
+  if(IS_ARRAY ? proto.entries : $native){
+    var IteratorPrototype = getProto((IS_ARRAY ? $entries : $default).call(new Base));
     // Set @@toStringTag to native iterators
     setToStringTag(IteratorPrototype, TAG, true);
-    // FF fix
-    if(!LIBRARY && has(proto, FF_ITERATOR))hide(IteratorPrototype, ITERATOR, returnThis);
+    // fix for some old engines
+    if(!LIBRARY && !has(IteratorPrototype, ITERATOR))hide(IteratorPrototype, ITERATOR, returnThis);
     // fix Array#{values, @@iterator}.name in V8 / FF
-    if(DEF_VALUES && $native.name !== VALUES){
+    if(DEF_VALUES && $native && $native.name !== VALUES){
       VALUES_BUG = true;
       $default = function values(){ return $native.call(this); };
     }
@@ -54,9 +56,9 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
   Iterators[TAG]  = returnThis;
   if(DEFAULT){
     methods = {
-      values:  DEF_VALUES  ? $default : getMethod(VALUES),
-      keys:    IS_SET      ? $default : getMethod(KEYS),
-      entries: !DEF_VALUES ? $default : getMethod('entries')
+      values:  DEF_VALUES ? $default : getMethod(VALUES),
+      keys:    IS_SET     ? $default : getMethod(KEYS),
+      entries: $entries
     };
     if(FORCED)for(key in methods){
       if(!(key in proto))redefine(proto, key, methods[key]);

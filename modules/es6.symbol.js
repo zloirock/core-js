@@ -18,6 +18,7 @@ var $              = require('./$')
   , anObject       = require('./$.an-object')
   , toIObject      = require('./$.to-iobject')
   , createDesc     = require('./$.property-desc')
+  , USE_NATIVE     = require('./$.correct-symbol')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
   , _create        = $.create
@@ -30,7 +31,6 @@ var $              = require('./$')
   , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
-  , useNative      = typeof $Symbol == 'function'
   , ObjectProto    = Object.prototype;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
@@ -127,7 +127,7 @@ var $stringify = function stringify(it){
   args[1] = replacer;
   return _stringify.apply($JSON, args);
 };
-var buggyJSON = $fails(function(){
+var BUGGY_JSON = $fails(function(){
   var S = $Symbol();
   // MS Edge converts symbol values to JSON as {}
   // WebKit converts symbol values to JSON as null
@@ -136,7 +136,7 @@ var buggyJSON = $fails(function(){
 });
 
 // 19.4.1.1 Symbol([description])
-if(!useNative){
+if(!USE_NATIVE){
   $Symbol = function Symbol(){
     if(isSymbol(this))throw TypeError('Symbol is not a constructor');
     return wrap(uid(arguments.length > 0 ? arguments[0] : undefined));
@@ -192,16 +192,16 @@ $.each.call((
   'species,split,toPrimitive,toStringTag,unscopables'
 ).split(','), function(it){
   var sym = wks(it);
-  symbolStatics[it] = useNative ? sym : wrap(sym);
+  symbolStatics[it] = USE_NATIVE ? sym : wrap(sym);
 });
 
 setter = true;
 
-$export($export.G + $export.W, {Symbol: $Symbol});
+$export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
 
-$export($export.S, 'Symbol', symbolStatics);
+$export($export.S + $export.F * !USE_NATIVE, 'Symbol', symbolStatics);
 
-$export($export.S + $export.F * !useNative, 'Object', {
+$export($export.S + $export.F * !USE_NATIVE, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
   create: $create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
@@ -217,7 +217,7 @@ $export($export.S + $export.F * !useNative, 'Object', {
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
-$JSON && $export($export.S + $export.F * (!useNative || buggyJSON), 'JSON', {stringify: $stringify});
+$JSON && $export($export.S + $export.F * (!USE_NATIVE || BUGGY_JSON), 'JSON', {stringify: $stringify});
 
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
 setToStringTag($Symbol, 'Symbol');
