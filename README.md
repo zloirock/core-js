@@ -535,6 +535,10 @@ new Set(iterable?) -> set
   #forEach(fn(el, el, @), that) -> void
   #has(key) -> bool
   #size -> uint
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator (values)
 ```
 [Example](http://goo.gl/bmhLwg):
 ```javascript
