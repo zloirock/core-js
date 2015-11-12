@@ -2,23 +2,23 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](http://npm-stat.com/charts.html?package=core-js&author=&from=2014-11-18&to=2114-11-18) [![Build Status](https://travis-ci.org/zloirock/core-js.png)](https://travis-ci.org/zloirock/core-js) [![devDependency Status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js#info=devDependencies)
 
-Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbol), [collections](#ecmascript-6-collections), [iterators](#ecmascript-6-iterators), [promises](#ecmascript-6-promise), [ECMAScript 7 proposals](#ecmascript-7); [setImmediate](#setimmediate), [array generics](#mozilla-javascript-array-generics). Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only standardized features polyfills, use features without global namespace pollution or create a custom build.
+Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbol), [collections](#ecmascript-6-collections), iterators, [promises](#ecmascript-6-promise), [ECMAScript 7 proposals](#ecmascript-7), [setImmediate](#setimmediate), etc. Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only needed features or use it without global namespace pollution.
 
 [Example](http://goo.gl/mfHYm2):
 ```javascript
-Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
-'*'.repeat(10);                       // => '**********'
-Promise.resolve(32).then(log);        // => 32
-setImmediate(log, 42);                // => 42
+Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
+'*'.repeat(10);                                // => '**********'
+Promise.resolve(32).then(x => console.log(x)); // => 32
+setImmediate(x => console.log(x), 42);         // => 42
 ```
 
 [Without global namespace pollution](http://goo.gl/WBhs43):
 ```javascript
 var core = require('core-js/library'); // With a modular system, otherwise use global `core`
-core.Array.from(new core.Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
-core.String.repeat('*', 10);                    // => '**********'
-core.Promise.resolve(32).then(core.log);        // => 32
-core.setImmediate(core.log, 42);                // => 42
+core.Array.from(new core.Set([1, 2, 3, 2, 1]));     // => [1, 2, 3]
+core.String.repeat('*', 10);                        // => '**********'
+core.Promise.resolve(32).then(x => console.log(x)); // => 32
+core.setImmediate(x => console.log(x), 42);         // => 42
 ```
 
 - [Usage](#usage)
@@ -37,7 +37,6 @@ core.setImmediate(core.log, 42);                // => 42
     - [ECMAScript 6: Math](#ecmascript-6-math)
     - [ECMAScript 6: Symbol](#ecmascript-6-symbol)
     - [ECMAScript 6: Collections](#ecmascript-6-collections)
-    - [ECMAScript 6: Iterators](#ecmascript-6-iterators)
     - [ECMAScript 6: Promise](#ecmascript-6-promise)
     - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
@@ -45,6 +44,7 @@ core.setImmediate(core.log, 42);                // => 42
   - [Web standards](#web-standards)
     - [setTimeout / setInterval](#settimeout--setinterval)
     - [setImmediate](#setimmediate)
+    - [Iterable DOM collections](#iterable-dom-collections)
   - [Non-standard](#non-standard)
     - [Object](#object)
     - [Dict](#dict)
@@ -52,7 +52,7 @@ core.setImmediate(core.log, 42);                // => 42
     - [Number Iterator](#number-iterator)
     - [Escaping HTML](#escaping-html)
     - [delay](#delay)
-    - [console](#console)
+    - [Helpers for iterators](#helpers-for-iterators)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](./CHANGELOG.md)
 
@@ -225,7 +225,7 @@ Function
 (function foo(){}).name // => 'foo'
 ```
 #### ECMAScript 6: Array
-Modules [`es6.array.from`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.from.js), [`es6.array.of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.of.js), [`es6.array.copy-within`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.copy-within.js), [`es6.array.fill`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.fill.js), [`es6.array.find`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find.js) and [`es6.array.find-index`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find-index.js).
+Modules [`es6.array.from`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.from.js), [`es6.array.of`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.of.js), [`es6.array.copy-within`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.copy-within.js), [`es6.array.fill`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.fill.js), [`es6.array.find`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find.js), [`es6.array.find-index`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.find-index.js) and [`es6.array.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.iterator.js).
 ```javascript
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
@@ -235,8 +235,14 @@ Array
   #find(fn(val, index, @), that) -> val
   #findIndex(fn(val, index, @), that) -> index
   #@@unscopables -> object (cap)
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator
+Arguments
+  #@@iterator() -> iterator (available only in core-js methods)
 ```
-[Example](http://goo.gl/nxmJTe):
+[Example](http://goo.gl/oaUFUf):
 ```javascript
 Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
 Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
@@ -247,6 +253,16 @@ Array.from('123', function(it){
 
 Array.of(1);       // => [1]
 Array.of(1, 2, 3); // => [1, 2, 3]
+
+var array = ['a', 'b', 'c'];
+
+for(var val of array)console.log(val);          // => 'a', 'b', 'c'
+for(var val of array.values())console.log(val); // => 'a', 'b', 'c'
+for(var key of array.keys())console.log(key);   // => 0, 1, 2
+for(var [key, val] of array.entries()){
+  console.log(key);                             // => 0, 1, 2
+  console.log(val);                             // => 'a', 'b', 'c'
+}
 
 function isOdd(val){
   return val % 2;
@@ -261,11 +277,12 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
 ```
 #### ECMAScript 6: String
-Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.raw.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.trim.js).
+Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.from-code-point.js), [`es6.string.raw`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.raw.js), [`es6.string.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.iterator.js), [`es6.string.code-point-at`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.code-point-at.js), [`es6.string.ends-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.ends-with.js), [`es6.string.includes`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.includes.js), [`es6.string.repeat`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.repeat.js), [`es6.string.starts-with`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.starts-with.js) and [`es6.string.trim`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.trim.js).
 ```javascript
 String
   .fromCodePoint(...codePoints) -> str
   .raw({raw}, ...substitutions) -> str
+  #@@iterator() -> iterator
   #includes(str, from?) -> bool
   #startsWith(str, from?) -> bool
   #endsWith(str, from?) -> bool
@@ -273,8 +290,12 @@ String
   #codePointAt(pos) -> uint
   #trim() -> str, ES6 fix
 ```
-[Examples](http://goo.gl/RMyFBo):
+[Examples](http://goo.gl/JJPPTZ):
 ```javascript
+for(var val of 'a𠮷b'){
+  console.log(val); // => 'a', '𠮷', 'b'
+}
+
 'foobarbaz'.includes('bar');      // => true
 'foobarbaz'.includes('bar', 4);   // => false
 'foobarbaz'.startsWith('foo');    // => true
@@ -296,17 +317,17 @@ Modules [`es6.regexp.constructor`](https://github.com/zloirock/core-js/blob/v1.2
 
 Support well-known [symbols](#ecmascript-6-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es6.regexp.match`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.match.js), [`es6.regexp.replace`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.replace.js), [`es6.regexp.search`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.search.js) and [`es6.regexp.split`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.regexp.split.js).
 ```
-String
-  #match(tpl) -> var, ES6 fix for support @@match
-  #replace(tpl, replacer) -> var, ES6 fix for support @@replace
-  #search(tpl) -> var, ES6 fix for support @@search
-  #split(tpl, limit) -> var, ES6 fix for support @@split
 [new] RegExp(pattern, flags?) -> regexp, ES6 fix: can alter flags (IE9+)
   #flags -> str (IE9+)
   #@@match(str) -> array | null
   #@@replace(str, replacer) -> string
   #@@search(str) -> index
   #@@split(str, limit) -> array
+String
+  #match(tpl) -> var, ES6 fix for support @@match
+  #replace(tpl, replacer) -> var, ES6 fix for support @@replace
+  #search(tpl) -> var, ES6 fix for support @@search
+  #split(tpl, limit) -> var, ES6 fix for support @@split
 ```
 [Examples](http://goo.gl/vLV603):
 ```javascript
@@ -410,10 +431,10 @@ var Person = (function(){
 })();
 
 var person = new Person('Vasya');
-log(person.getName());          // => 'Vasya'
-log(person['name']);            // => undefined
-log(person[Symbol('name')]);    // => undefined, symbols are uniq
-for(var key in person)log(key); // => only 'getName', symbols are not enumerable
+console.log(person.getName());          // => 'Vasya'
+console.log(person['name']);            // => undefined
+console.log(person[Symbol('name')]);    // => undefined, symbols are uniq
+for(var key in person)console.log(key); // => only 'getName', symbols are not enumerable
 ```
 `Symbol.for` & `Symbol.keyFor` [example](http://goo.gl/0pdJjX):
 ```javascript
@@ -443,20 +464,20 @@ Symbol.useSimple();
 var s1 = Symbol('s1')
   , o1 = {};
 o1[s1] = true;
-for(var key in o1)log(key); // => 'Symbol(s1)_t.qamkg9f3q', w/o native Symbol
+for(var key in o1)console.log(key); // => 'Symbol(s1)_t.qamkg9f3q', w/o native Symbol
 
 Symbol.useSetter();
 var s2 = Symbol('s2')
   , o2 = {};
 o2[s2] = true;
-for(var key in o2)log(key); // nothing
+for(var key in o2)console.log(key); // nothing
 ```
 * Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
 
 #### ECMAScript 6: Collections
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map
-Module [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.map.js). About iterators from this module [here](#ecmascript-6-iterators).
+Module [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.map.js).
 ```javascript
 new Map(iterable (entries) ?) -> map
   #clear() -> void
@@ -466,29 +487,46 @@ new Map(iterable (entries) ?) -> map
   #has(key) -> bool
   #set(key, val) -> @
   #size -> uint
+  #values() -> iterator
+  #keys() -> iterator
+  #entries() -> iterator (entries)
+  #@@iterator() -> iterator (entries)
 ```
-[Example](http://goo.gl/RDbROF):
+[Example](http://goo.gl/GWR7NI):
 ```javascript
 var a = [1];
 
 var map = new Map([['a', 1], [42, 2]]);
 map.set(a, 3).set(true, 4);
 
-log(map.size);        // => 4
-log(map.has(a));      // => true
-log(map.has([1]));    // => false
-log(map.get(a));      // => 3
+console.log(map.size);        // => 4
+console.log(map.has(a));      // => true
+console.log(map.has([1]));    // => false
+console.log(map.get(a));      // => 3
 map.forEach(function(val, key){
-  log(val);           // => 1, 2, 3, 4
-  log(key);           // => 'a', 42, [1], true
+  console.log(val);           // => 1, 2, 3, 4
+  console.log(key);           // => 'a', 42, [1], true
 });
 map.delete(a);
-log(map.size);        // => 3
-log(map.get(a));      // => undefined
-log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
+console.log(map.size);        // => 3
+console.log(map.get(a));      // => undefined
+console.log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
+
+var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
+
+for(var [key, val] of map){
+  console.log(key);                           // => 'a', 'b', 'c'
+  console.log(val);                           // => 1, 2, 3
+}
+for(var val of map.values())console.log(val); // => 1, 2, 3
+for(var key of map.keys())console.log(key);   // => 'a', 'b', 'c'
+for(var [key, val] of map.entries()){
+  console.log(key);                           // => 'a', 'b', 'c'
+  console.log(val);                           // => 1, 2, 3
+}
 ```
 #### Set
-Module [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.set.js). About iterators from this module [here](#ecmascript-6-iterators).
+Module [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.set.js).
 ```javascript
 new Set(iterable?) -> set
   #add(key) -> @
@@ -498,19 +536,29 @@ new Set(iterable?) -> set
   #has(key) -> bool
   #size -> uint
 ```
-[Example](http://goo.gl/7XYya3):
+[Example](http://goo.gl/bmhLwg):
 ```javascript
 var set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
-log(set.size);        // => 5
-log(set.has('b'));    // => true
+console.log(set.size);        // => 5
+console.log(set.has('b'));    // => true
 set.forEach(function(it){
-  log(it);            // => 'a', 'b', 'c', 'd', 'e'
+  console.log(it);            // => 'a', 'b', 'c', 'd', 'e'
 });
 set.delete('b');
-log(set.size);        // => 4
-log(set.has('b'));    // => false
-log(Array.from(set)); // => ['a', 'c', 'd', 'e']
+console.log(set.size);        // => 4
+console.log(set.has('b'));    // => false
+console.log(Array.from(set)); // => ['a', 'c', 'd', 'e']
+
+var set = new Set([1, 2, 3, 2, 1]);
+
+for(var val of set)console.log(val);          // => 1, 2, 3
+for(var val of set.values())console.log(val); // => 1, 2, 3
+for(var key of set.keys())console.log(key);   // => 1, 2, 3
+for(var [key, val] of set.entries()){
+  console.log(key);                           // => 1, 2, 3
+  console.log(val);                           // => 1, 2, 3
+}
 ```
 #### WeakMap
 Module [`es6.weak-map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.weak-map.js).
@@ -529,11 +577,11 @@ var a = [1]
 
 var wmap = new WeakMap([[a, 1], [b, 2]]);
 wmap.set(c, 3).set(b, 4);
-log(wmap.has(a));   // => true
-log(wmap.has([1])); // => false
-log(wmap.get(a));   // => 1
+console.log(wmap.has(a));   // => true
+console.log(wmap.has([1])); // => false
+console.log(wmap.get(a));   // => 1
 wmap.delete(a);
-log(wmap.get(a));   // => undefined
+console.log(wmap.get(a));   // => undefined
 
 // Private properties store:
 var Person = (function(){
@@ -548,8 +596,8 @@ var Person = (function(){
 })();
 
 var person = new Person('Vasya');
-log(person.getName());          // => 'Vasya'
-for(var key in person)log(key); // => only 'getName'
+console.log(person.getName());          // => 'Vasya'
+for(var key in person)console.log(key); // => only 'getName'
 ```
 #### WeakSet
 Module [`es6.weak-set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.weak-set.js).
@@ -567,123 +615,16 @@ var a = [1]
 
 var wset = new WeakSet([a, b, a]);
 wset.add(c).add(b).add(c);
-log(wset.has(b));   // => true
-log(wset.has([2])); // => false
+console.log(wset.has(b));   // => true
+console.log(wset.has([2])); // => false
 wset.delete(b);
-log(wset.has(b));   // => false
+console.log(wset.has(b));   // => false
 ```
 #### Caveats when using collections polyfill:
 
 * Frozen objects as collection keys are supported, but not recomended - it's slow (O(n) instead of O(1)) and, for weak-collections, leak.
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
-#### ECMAScript 6: Iterators
-Modules [`es6.string.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.string.iterator.js) and [`es6.array.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.array.iterator.js):
-```javascript
-String
-  #@@iterator() -> iterator
-Array
-  #values() -> iterator
-  #keys() -> iterator
-  #entries() -> iterator (entries)
-  #@@iterator() -> iterator
-Arguments
-  #@@iterator() -> iterator (available only in core-js methods)
-```
-Modules [`es6.map`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.map.js) and [`es6.set`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.set.js):
-```javascript
-Map
-  #values() -> iterator
-  #keys() -> iterator
-  #entries() -> iterator (entries)
-  #@@iterator() -> iterator (entries)
-Set
-  #values() -> iterator
-  #keys() -> iterator
-  #entries() -> iterator (entries)
-  #@@iterator() -> iterator
-```
-Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/web.dom.iterable.js):
-```javascript
-NodeList
-  #@@iterator() -> iterator
-```
-[Example](http://goo.gl/nzHVQF):
-```javascript
-var string = 'a𠮷b';
-
-for(var val of string)log(val);         // => 'a', '𠮷', 'b'
-
-var array = ['a', 'b', 'c'];
-
-for(var val of array)log(val);          // => 'a', 'b', 'c'
-for(var val of array.values())log(val); // => 'a', 'b', 'c'
-for(var key of array.keys())log(key);   // => 0, 1, 2
-for(var [key, val] of array.entries()){
-  log(key);                             // => 0, 1, 2
-  log(val);                             // => 'a', 'b', 'c'
-}
-
-var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
-
-for(var [key, val] of map){
-  log(key);                             // => 'a', 'b', 'c'
-  log(val);                             // => 1, 2, 3
-}
-for(var val of map.values())log(val);   // => 1, 2, 3
-for(var key of map.keys())log(key);     // => 'a', 'b', 'c'
-for(var [key, val] of map.entries()){
-  log(key);                             // => 'a', 'b', 'c'
-  log(val);                             // => 1, 2, 3
-}
-
-var set = new Set([1, 2, 3, 2, 1]);
-
-for(var val of set)log(val);            // => 1, 2, 3
-for(var val of set.values())log(val);   // => 1, 2, 3
-for(var key of set.keys())log(key);     // => 1, 2, 3
-for(var [key, val] of set.entries()){
-  log(key);                             // => 1, 2, 3
-  log(val);                             // => 1, 2, 3
-}
-
-for(var x of document.querySelectorAll('*')){
-  log(x.id);
-}
-```
-Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator-method.js) - helpers for check iterable / get iterator in `library` version or, for example, for `arguments` object:
-```javascript
-core
-  .isIterable(var) -> bool
-  .getIterator(iterable) -> iterator
-  .getIteratorMethod(var) -> function | undefined
-```
-[Example](http://goo.gl/SXsM6D):
-```js
-var list = (function(){
-  return arguments;
-})(1, 2, 3);
-
-log(core.isIterable(list)); // true;
-
-var iter = core.getIterator(list);
-log(iter.next().value); // 1
-log(iter.next().value); // 2
-log(iter.next().value); // 3
-log(iter.next().value); // undefined
-
-core.getIterator({});   // TypeError: [object Object] is not iterable!
-
-var iterFn = core.getIteratorMethod(list);
-log(typeof iterFn);     // 'function'
-var iter = iterFn.call(list);
-log(iter.next().value); // 1
-log(iter.next().value); // 2
-log(iter.next().value); // 3
-log(iter.next().value); // undefined
-
-log(core.getIteratorMethod({})); // undefined
-```
 #### ECMAScript 6: Promise
 Module [`es6.promise`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es6.promise.js).
 ```javascript
@@ -703,23 +644,23 @@ function sleepRandom(time){
   });
 }
 
-log('Run');                    // => Run
+console.log('Run');                    // => Run
 sleepRandom(5).then(function(result){
-  log(result);                 // => 869, after 5 sec.
+  console.log(result);                 // => 869, after 5 sec.
   return sleepRandom(10);
 }).then(function(result){
-  log(result);                 // => 202, after 10 sec.
+  console.log(result);                 // => 202, after 10 sec.
 }).then(function(){
-  log('immediately after');    // => immediately after
+  console.log('immediately after');    // => immediately after
   throw Error('Irror!');
 }).then(function(){
-  log('will not be displayed');
-}).catch(log);                 // => => Error: Irror!
+  console.log('will not be displayed');
+}).catch(x => console.log(x));         // => => Error: Irror!
 ```
 `Promise.resolve` and `Promise.reject` [example](http://goo.gl/vr8TN3):
 ```javascript
-Promise.resolve(42).then(log); // => 42
-Promise.reject(42).catch(log); // => 42
+Promise.resolve(42).then(x => console.log(x)); // => 42
+Promise.reject(42).catch(x => console.log(x)); // => 42
 
 Promise.resolve($.getJSON('/data.json')); // => ES6 promise
 ```
@@ -729,8 +670,8 @@ Promise.all([
   'foo',
   sleepRandom(5),
   sleepRandom(15),
-  sleepRandom(10)  // after 15 sec:
-]).then(log);      // => ['foo', 956, 85, 382]
+  sleepRandom(10)             // after 15 sec:
+]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
 `Promise.race` [example](http://goo.gl/L8ovkJ):
 ```javascript
@@ -740,8 +681,8 @@ function timeLimit(promise, time){
   })]);
 }
 
-timeLimit(sleepRandom(5), 10).then(log);   // => 853, after 5 sec.
-timeLimit(sleepRandom(15), 10).catch(log); // Error: Await > 10 sec
+timeLimit(sleepRandom(5), 10).then(x => console.log(x));   // => 853, after 5 sec.
+timeLimit(sleepRandom(15), 10).catch(x => console.log(x)); // Error: Await > 10 sec
 ```
 ECMAScript 7 [async functions](https://tc39.github.io/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
 ```javascript
@@ -758,18 +699,18 @@ async function sleepError(time, msg){
 
 (async () => {
   try {
-    log('Run');                // => Run
-    log(await sleepRandom(5)); // => 936, after 5 sec.
+    console.log('Run');                // => Run
+    console.log(await sleepRandom(5)); // => 936, after 5 sec.
     var [a, b, c] = await Promise.all([
       sleepRandom(5),
       sleepRandom(15),
       sleepRandom(10)
     ]);
-    log(a, b, c);              // => 210 445 71, after 15 sec.
+    console.log(a, b, c);              // => 210 445 71, after 15 sec.
     await sleepError(5, 'Irror!');
-    log('Will not be displayed');
+    console.log('Will not be displayed');
   } catch(e){
-    log(e);                    // => Error: 'Irror!', after 5 sec.
+    console.log(e);                    // => Error: 'Irror!', after 5 sec.
   }
 })();
 ```
@@ -787,7 +728,7 @@ Promise.reject(42);
 ```
 In a browser, by default, you will see notify in the console, or you can add a custom handler, [example](http://goo.gl/izTr2I):
 ```js
-window.onunhandledrejection = e => log(e.reason, e.promise);
+window.onunhandledrejection = e => console.log(e.reason, e.promise);
 Promise.reject(42);
 // 42 [object Promise]
 ```
@@ -932,12 +873,26 @@ clearImmediate(id) -> void
 [Example](http://goo.gl/6nXGrx):
 ```javascript
 setImmediate(function(arg1, arg2){
-  log(arg1, arg2); // => Message will be displayed with minimum delay
+  console.log(arg1, arg2); // => Message will be displayed with minimum delay
 }, 'Message will be displayed', 'with minimum delay');
 
 clearImmediate(setImmediate(function(){
-  log('Message will not be displayed');
+  console.log('Message will not be displayed');
 }));
+```
+#### Iterable DOM collections
+Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/web.dom.iterable.js):
+```javascript
+NodeList
+  #@@iterator() -> iterator
+HTMLCollection
+  #@@iterator() -> iterator
+```
+[Example](http://goo.gl/QlTWVr):
+```javascript
+for(var {id} of document.querySelectorAll('*')){
+  if(id)console.log(id);
+}
 ```
 ### Non-standard
 #### Object
@@ -945,7 +900,7 @@ Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v1.2.
 ```javascript
 Object
   .isObject(var) -> bool
-  .classof(var) -> string 
+  .classof(var) -> string
   .define(target, mixin) -> target
   .make(proto | null, mixin?) -> object
 ```
@@ -1039,11 +994,11 @@ Vector3D.prototype = Object.make(Vector2D.prototype, {
 });
 
 var vector = new Vector3D(9, 12, 20);
-log(vector.xy);  // => 15
-log(vector.xyz); // => 25
+console.log(vector.xy);  // => 15
+console.log(vector.xyz); // => 25
 vector.y++;
-log(vector.xy);  // => 15.811388300841896
-log(vector.xyz); // => 25.495097567963924
+console.log(vector.xy);  // => 15.811388300841896
+console.log(vector.xyz); // => 25.495097567963924
 ```
 #### Dict
 Module [`core.dict`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
@@ -1091,13 +1046,13 @@ Dict.isDict(Dict()); // => true
 ```javascript
 var dict = {a: 1, b: 2, c: 3};
 
-for(var key of Dict.keys(dict))log(key); // => 'a', 'b', 'c'
+for(var key of Dict.keys(dict))console.log(key); // => 'a', 'b', 'c'
 
-for(var val of Dict.values(dict))log(val); // => 1, 2, 3
+for(var val of Dict.values(dict))console.log(val); // => 1, 2, 3
 
 for(var [key, val] of Dict.entries(dict)){
-  log(key); // => 'a', 'b', 'c'
-  log(val); // => 1, 2, 3
+  console.log(key); // => 'a', 'b', 'c'
+  console.log(val); // => 1, 2, 3
 }
 
 new Map(Dict.entries(dict)); // => Map {a: 1, b: 2, c: 3}
@@ -1214,7 +1169,7 @@ Number
 ```
 [Examples](http://goo.gl/o45pCN):
 ```javascript
-for(var i of 3)log(i); // => 0, 1, 2
+for(var i of 3)console.log(i); // => 0, 1, 2
 
 [...10]; // => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -1239,43 +1194,48 @@ String
 #### delay
 Module [`core.delay`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function). [Example](http://goo.gl/lbucba):
 ```javascript
-delay(1e3).then(() => log('after 1 sec'));
+delay(1e3).then(() => console.log('after 1 sec'));
 
 (async () => {
   await delay(3e3);
-  log('after 3 sec');
+  console.log('after 3 sec');
   
-  while(await delay(3e3))log('each 3 sec');
+  while(await delay(3e3))console.log('each 3 sec');
 })();
 ```
-#### Console
-Module [`core.log`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.log.js). Console cap for old browsers and some additional functionality. In IE, Node.js / IO.js and Firebug `console` methods not require call from `console` object, but in Chromium and V8 this throws error. For some reason, we can't replace `console` methods by their bound versions. Add `log` object with bound console methods. Some more sugar: `log` is shortcut for `log.log`, we can disable output.
+#### Helpers for iterators
+Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in `library` version or, for example, for `arguments` object:
 ```javascript
-log ==== log.log
-  .{...console API}
-  .enable() -> void
-  .disable() -> void
+core
+  .isIterable(var) -> bool
+  .getIterator(iterable) -> iterator
+  .getIteratorMethod(var) -> function | undefined
 ```
-```javascript
-// Before:
-if(window.console && console.warn)console.warn(42);
-// After:
-log.warn(42);
+[Example](http://goo.gl/SXsM6D):
+```js
+var list = (function(){
+  return arguments;
+})(1, 2, 3);
 
-// Before:
-setTimeout(console.warn.bind(console, 42), 1000);
-[1, 2, 3].forEach(console.warn, console);
-// After:
-setTimeout(log.warn, 1000, 42);
-[1, 2, 3].forEach(log.warn);
+console.log(core.isIterable(list)); // true;
 
-// log is shortcut for log.log
-setImmediate(log, 42); // => 42
+var iter = core.getIterator(list);
+console.log(iter.next().value); // 1
+console.log(iter.next().value); // 2
+console.log(iter.next().value); // 3
+console.log(iter.next().value); // undefined
 
-log.disable();
-log.warn('Console is disabled, you will not see this message.');
-log.enable();
-log.warn('Console is enabled again.');
+core.getIterator({});   // TypeError: [object Object] is not iterable!
+
+var iterFn = core.getIteratorMethod(list);
+console.log(typeof iterFn);     // 'function'
+var iter = iterFn.call(list);
+console.log(iter.next().value); // 1
+console.log(iter.next().value); // 2
+console.log(iter.next().value); // 3
+console.log(iter.next().value); // undefined
+
+console.log(core.getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills
