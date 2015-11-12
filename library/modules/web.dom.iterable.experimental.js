@@ -6,8 +6,8 @@ var global        = require('./$.global')
   , ArrayValues   = Iterators.Array;
 
 require('./$').each.call((
-  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,' +
-  'MediaList,MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList'
+  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
+  'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
 ).split(','), function(NAME){
   var Collection = global[NAME]
     , proto      = Collection && Collection.prototype;

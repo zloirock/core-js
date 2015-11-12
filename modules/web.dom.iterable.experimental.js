@@ -1,5 +1,6 @@
-require('./es6.array.iterator');
-var global        = require('./$.global')
+var $iterators    = require('./es6.array.iterator')
+  , $export       = require('./$.export')
+  , global        = require('./$.global')
   , hide          = require('./$.hide')
   , Iterators     = require('./$.iterators')
   , wks           = require('./$.wks')
@@ -8,12 +9,15 @@ var global        = require('./$.global')
   , ArrayValues   = Iterators.Array;
 
 require('./$').each.call((
-  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,' +
-  'MediaList,MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList'
+  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
+  'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
 ).split(','), function(NAME){
   var Collection = global[NAME]
     , proto      = Collection && Collection.prototype;
-  if(proto && !proto[ITERATOR])hide(proto, ITERATOR, ArrayValues);
-  if(proto && !proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
-  Iterators[NAME] = ArrayValues;
+  if(proto){
+    if(!proto[ITERATOR])hide(proto, ITERATOR, ArrayValues);
+    if(!proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
+    Iterators[NAME] = ArrayValues;
+    $export($export.P, NAME, $iterators);
+  }
 });

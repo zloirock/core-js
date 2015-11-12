@@ -1697,12 +1697,15 @@
   test('Iterable DOM collections', function(assert){
     var absent, i$, x$, ref$, len$, Collection;
     absent = true;
-    for (i$ = 0, len$ = (ref$ = ['CSSRuleList', 'CSSStyleDeclaration', 'DOMStringList', 'DOMTokenList', 'FileList', 'HTMLCollection', 'MediaList', 'MimeTypeArray', 'NamedNodeMap', 'NodeList', 'NodeListOf', 'Plugin', 'PluginArray', 'StyleSheetList']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['CSSRuleList', 'CSSStyleDeclaration', 'DOMStringList', 'DOMTokenList', 'FileList', 'HTMLCollection', 'MediaList', 'MimeTypeArray', 'NamedNodeMap', 'NodeList', 'NodeListOf', 'Plugin', 'PluginArray', 'StyleSheetList', 'TouchList']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Collection = global[x$];
       if (Collection) {
         assert.same(Collection.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], x$, x$ + "::@@toStringTag is '" + x$ + "'");
         assert.isFunction(Collection.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], x$ + "::@@iterator is function");
+        assert.isFunction(Collection.prototype.values, x$ + "::@@values is function");
+        assert.isFunction(Collection.prototype.keys, x$ + "::@@keys is function");
+        assert.isFunction(Collection.prototype.entries, x$ + "::@@entries is function");
         absent = false;
       }
     }
