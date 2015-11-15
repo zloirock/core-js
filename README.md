@@ -4,7 +4,7 @@
 
 Modular compact standard library for JavaScript. Includes polyfills for [ECMAScript 5](#ecmascript-5), [ECMAScript 6](#ecmascript-6): [symbols](#ecmascript-6-symbol), [collections](#ecmascript-6-collections), iterators, [promises](#ecmascript-6-promise), [ECMAScript 7 proposals](#ecmascript-7), [setImmediate](#setimmediate), etc. Some additional features such as [dictionaries](#dict) or [extended partial application](#partial-application). You can require only needed features or use it without global namespace pollution.
 
-[Example](http://goo.gl/mfHYm2):
+[Example](http://goo.gl/a2xexl):
 ```javascript
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 '*'.repeat(10);                                // => '**********'
@@ -12,7 +12,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 setImmediate(x => console.log(x), 42);         // => 42
 ```
 
-[Without global namespace pollution](http://goo.gl/WBhs43):
+[Without global namespace pollution](http://goo.gl/paOHb0):
 ```javascript
 var core = require('core-js/library'); // With a modular system, otherwise use global `core`
 core.Array.from(new core.Set([1, 2, 3, 2, 1]));     // => [1, 2, 3]
@@ -234,13 +234,13 @@ Array
   #fill(val, start = 0, end = @length) -> @
   #find(fn(val, index, @), that) -> val
   #findIndex(fn(val, index, @), that) -> index
-  #@@unscopables -> object (cap)
   #values() -> iterator
   #keys() -> iterator
-  #entries() -> iterator (entries)
-  #@@iterator() -> iterator
+  #entries() -> iterator
+  #@@iterator() -> iterator (values)
+  #@@unscopables -> object (cap)
 Arguments
-  #@@iterator() -> iterator (available only in core-js methods)
+  #@@iterator() -> iterator (values, available only in core-js methods)
 ```
 [Example](http://goo.gl/oaUFUf):
 ```javascript
@@ -282,13 +282,13 @@ Modules [`es6.string.from-code-point`](https://github.com/zloirock/core-js/blob/
 String
   .fromCodePoint(...codePoints) -> str
   .raw({raw}, ...substitutions) -> str
-  #@@iterator() -> iterator
   #includes(str, from?) -> bool
   #startsWith(str, from?) -> bool
   #endsWith(str, from?) -> bool
   #repeat(num) -> str
   #codePointAt(pos) -> uint
   #trim() -> str, ES6 fix
+  #@@iterator() -> iterator (code points)
 ```
 [Examples](http://goo.gl/JJPPTZ):
 ```javascript
@@ -489,7 +489,7 @@ new Map(iterable (entries) ?) -> map
   #size -> uint
   #values() -> iterator
   #keys() -> iterator
-  #entries() -> iterator (entries)
+  #entries() -> iterator
   #@@iterator() -> iterator (entries)
 ```
 [Example](http://goo.gl/GWR7NI):
@@ -537,7 +537,7 @@ new Set(iterable?) -> set
   #size -> uint
   #values() -> iterator
   #keys() -> iterator
-  #entries() -> iterator (entries)
+  #entries() -> iterator
   #@@iterator() -> iterator (values)
 ```
 [Example](http://goo.gl/bmhLwg):
@@ -1166,7 +1166,7 @@ fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
 ```
 #### Number Iterator
-Modules [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.number.iterator.js).
+Module [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/core.number.iterator.js).
 ```javascript
 Number
   #@@iterator() -> iterator
