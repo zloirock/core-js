@@ -2707,60 +2707,70 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object#toString', function(assert){
-    var toString, Class;
+    var toString, i$, x$, ref$, len$, Constructor, Class;
     assert.arity(Object.prototype.toString, 0);
     assert.name(Object.prototype.toString, 'toString');
     assert.looksNative(Object.prototype.toString);
     toString = Object.prototype.toString;
     if (STRICT) {
-      assert.strictEqual(toString.call(null), '[object Null]', 'classof null is `Null`');
-      assert.strictEqual(toString.call(void 8), '[object Undefined]', 'classof void is `Undefined`');
+      assert.strictEqual(toString.call(null), '[object Null]', 'null -> `Null`');
+      assert.strictEqual(toString.call(void 8), '[object Undefined]', 'undefined -> `Undefined`');
     }
-    assert.strictEqual(toString.call(true), '[object Boolean]', 'classof bool is `Boolean`');
-    assert.strictEqual(toString.call('string'), '[object String]', 'classof string is `String`');
-    assert.strictEqual(toString.call(7), '[object Number]', 'classof number is `Number`');
-    (typeof Symbol != 'undefined' && Symbol !== null) && assert.strictEqual(toString.call(Symbol()), '[object Symbol]', 'classof symbol is `Symbol`');
-    assert.strictEqual(toString.call(new Boolean(false)), '[object Boolean]', 'classof new Boolean is `Boolean`');
-    assert.strictEqual(toString.call(new String('')), '[object String]', 'classof new String is `String`');
-    assert.strictEqual(toString.call(new Number(7)), '[object Number]', 'classof new Number is `Number`');
-    assert.strictEqual('' + {}, '[object Object]', 'classof {} is `Object`');
-    assert.strictEqual(toString.call([]), '[object Array]', 'classof array is `Array`');
-    assert.strictEqual(toString.call(function(){}), '[object Function]', 'classof function is `Function`');
-    assert.strictEqual(toString.call(/./), '[object RegExp]', 'classof regexp is `Undefined`');
-    assert.strictEqual(toString.call(TypeError()), '[object Error]', 'classof new TypeError is `RegExp`');
+    assert.strictEqual(toString.call(true), '[object Boolean]', 'bool -> `Boolean`');
+    assert.strictEqual(toString.call('string'), '[object String]', 'string -> `String`');
+    assert.strictEqual(toString.call(7), '[object Number]', 'number -> `Number`');
+    (typeof Symbol != 'undefined' && Symbol !== null) && assert.strictEqual(toString.call(Symbol()), '[object Symbol]', 'symbol -> `Symbol`');
+    assert.strictEqual(toString.call(new Boolean(false)), '[object Boolean]', 'new Boolean -> `Boolean`');
+    assert.strictEqual(toString.call(new String('')), '[object String]', 'new String -> `String`');
+    assert.strictEqual(toString.call(new Number(7)), '[object Number]', 'new Number -> `Number`');
+    assert.strictEqual('' + {}, '[object Object]', '{} -> `Object`');
+    assert.strictEqual(toString.call([]), '[object Array]', ' [] -> `Array`');
+    assert.strictEqual(toString.call(function(){}), '[object Function]', 'function -> `Function`');
+    assert.strictEqual(toString.call(/./), '[object RegExp]', 'regexp -> `RegExp`');
+    assert.strictEqual(toString.call(TypeError()), '[object Error]', 'new TypeError -> `Error`');
     assert.strictEqual(toString.call(function(){
       return arguments;
-    }()), '[object Arguments]', 'classof arguments list is `Arguments`');
+    }()), '[object Arguments]', 'arguments -> `Arguments`');
+    for (i$ = 0, len$ = (ref$ = ['Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array', 'ArrayBuffer']).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      Constructor = global[x$];
+      if (Constructor) {
+        assert.strictEqual(toString.call(new Constructor(1)), "[object " + x$ + "]", "new " + x$ + " -> `" + x$ + "`");
+      }
+    }
+    if (NATIVE && (typeof DataView != 'undefined' && DataView !== null)) {
+      assert.strictEqual('' + new DataView(new ArrayBuffer(1)), '[object DataView]', 'new DataView -> `DataView`');
+    }
     if (typeof Set != 'undefined' && Set !== null) {
-      assert.strictEqual('' + new Set, '[object Set]', 'classof set is `Set`');
+      assert.strictEqual('' + new Set, '[object Set]', 'set -> `Set`');
     }
     if (typeof Map != 'undefined' && Map !== null) {
-      assert.strictEqual('' + new Map, '[object Map]', 'classof map is `Map`');
+      assert.strictEqual('' + new Map, '[object Map]', 'map -> `Map`');
     }
     if (typeof WeakSet != 'undefined' && WeakSet !== null) {
-      assert.strictEqual('' + new WeakSet, '[object WeakSet]', 'classof weakset is `WeakSet`');
+      assert.strictEqual('' + new WeakSet, '[object WeakSet]', 'weakset -> `WeakSet`');
     }
     if (typeof WeakMap != 'undefined' && WeakMap !== null) {
-      assert.strictEqual('' + new WeakMap, '[object WeakMap]', 'classof weakmap is `WeakMap`');
+      assert.strictEqual('' + new WeakMap, '[object WeakMap]', 'weakmap -> `WeakMap`');
     }
     if (typeof Promise != 'undefined' && Promise !== null) {
-      assert.strictEqual('' + new Promise(function(){}), '[object Promise]', 'classof promise is `Promise`');
+      assert.strictEqual('' + new Promise(function(){}), '[object Promise]', 'promise -> `Promise`');
     }
     if (''[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]) {
-      assert.strictEqual('' + ''[Symbol.iterator](), '[object String Iterator]', 'classof String Iterator is `String Iterator`');
+      assert.strictEqual('' + ''[Symbol.iterator](), '[object String Iterator]', 'String Iterator -> `String Iterator`');
     }
     if ([].entries) {
-      assert.strictEqual('' + [].entries(), '[object Array Iterator]', 'classof Array Iterator is `Array Iterator`');
+      assert.strictEqual('' + [].entries(), '[object Array Iterator]', 'Array Iterator -> `Array Iterator`');
     }
     if ((typeof Set != 'undefined' && Set !== null) && Set.entries) {
-      assert.strictEqual('' + new Set().entries(), '[object Set Iterator]', 'classof Set Iterator is `Set Iterator`');
+      assert.strictEqual('' + new Set().entries(), '[object Set Iterator]', 'Set Iterator -> `Set Iterator`');
     }
     if ((typeof Map != 'undefined' && Map !== null) && Map.entries) {
-      assert.strictEqual('' + new Map().entries(), '[object Map Iterator]', 'classof Map Iterator is `Map Iterator`');
+      assert.strictEqual('' + new Map().entries(), '[object Map Iterator]', 'Map Iterator -> `Map Iterator`');
     }
-    assert.strictEqual('' + Math, '[object Math]', 'classof Math is `Math`');
+    assert.strictEqual('' + Math, '[object Math]', 'Math -> `Math`');
     if (typeof JSON != 'undefined' && JSON !== null) {
-      assert.strictEqual(toString.call(JSON), '[object JSON]', 'classof JSON is `JSON`');
+      assert.strictEqual(toString.call(JSON), '[object JSON]', 'JSON -> `JSON`');
     }
     Class = (function(){
       Class.displayName = 'Class';
@@ -2769,7 +2779,7 @@
       function Class(){}
       return Class;
     }());
-    return assert.strictEqual('' + new Class, '[object Class]', 'classof user class is [Symbol.toStringTag]');
+    return assert.strictEqual('' + new Class, '[object Class]', 'user class instance -> [Symbol.toStringTag]');
   });
 }).call(this);
 
