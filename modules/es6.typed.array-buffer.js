@@ -2,7 +2,7 @@
 if(require('./$.descriptors')){
   var $export      = require('./$.export')
     , $typed       = require('./$.typed')
-    , buffer       = require('./$.buffer')
+    , buffer       = require('./$.typed-buffer')
     , toIndex      = require('./$.to-index')
     , toLength     = require('./$.to-length')
     , isObject     = require('./$.is-object')

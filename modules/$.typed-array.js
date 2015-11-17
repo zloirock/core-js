@@ -6,7 +6,7 @@ if(require('./$.descriptors')){
     , fails               = require('./$.fails')
     , $export             = require('./$.export')
     , $typed              = require('./$.typed')
-    , $buffer             = require('./$.buffer')
+    , $buffer             = require('./$.typed-buffer')
     , ctx                 = require('./$.ctx')
     , strictNew           = require('./$.strict-new')
     , propertyDesc        = require('./$.property-desc')
@@ -17,6 +17,7 @@ if(require('./$.descriptors')){
     , toLength            = require('./$.to-length')
     , toIndex             = require('./$.to-index')
     , toPrimitive         = require('./$.to-primitive')
+    , same                = require('./$.same-value')
     , isObject            = require('./$.is-object')
     , toObject            = require('./$.to-object')
     , isArrayIter         = require('./$.is-array-iter')
@@ -33,7 +34,9 @@ if(require('./$.descriptors')){
     , setSpecies          = require('./$.set-species')
     , arrayFill           = require('./$.array-fill')
     , arrayCopyWithin     = require('./$.array-copy-within')
-    , ArrayProto          = Array.prototype
+    , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT'
+    , PROTOTYPE           = 'prototype'
+    , ArrayProto          = Array[PROTOTYPE]
     , $ArrayBuffer        = $buffer.ArrayBuffer
     , $DataView           = $buffer.DataView
     , setDesc             = $.setDesc
@@ -65,7 +68,7 @@ if(require('./$.descriptors')){
     , ALL_ARRAYS          = $typed.ARRAYS
     , TYPED_ARRAY         = $typed.TYPED
     , VIEW                = $typed.VIEW
-    , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT';
+    , WRONG_LENGTH        = 'Wrong length!';
 
   var $map = createArrayMethod(1, function(O, length){
     return allocate(speciesConstructor(O, O[DEF_CONSTRUCTOR]), length);
@@ -74,6 +77,14 @@ if(require('./$.descriptors')){
   var LITTLE_ENDIAN = fails(function(){
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
+
+  var strictToLength = function(it){
+    if(it === undefined)throw TypeError(WRONG_LENGTH);
+    var number = +it
+      , length = toLength(it);
+    if(!same(number, length))throw RangeError(WRONG_LENGTH);
+    return length;
+  };
 
   var validate = function(it){
     if(isObject(it) && TYPED_ARRAY in it)return it;
@@ -274,7 +285,7 @@ if(require('./$.descriptors')){
       , FORCED     = !TypedArray || !$typed.ABV
       , $iterator  = proto.values
       , O          = {}
-      , TypedArrayPrototype = TypedArray && TypedArray.prototype;
+      , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var addElement = function(that, index){
       setDesc(that, index, {
         get: function(){
@@ -296,11 +307,9 @@ if(require('./$.descriptors')){
           , offset = 0
           , buffer, byteLength, length;
         if(!isObject(data)){
-          length     = toInteger(data)
+          length     = strictToLength(data)
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
-        } else if(TYPED_ARRAY in data){
-          return fromList(TypedArray, data);
         } else if(data instanceof $ArrayBuffer){
           buffer = data;
           offset = toInteger($offset);
@@ -315,7 +324,11 @@ if(require('./$.descriptors')){
             if(byteLength + offset > $len)throw RangeError();
           }
           length = byteLength / BYTES;
-        } else return $from.call(TypedArray, data);
+        } else if(TYPED_ARRAY in data){
+          return fromList(TypedArray, data);
+        } else {
+          return $from.call(TypedArray, data);
+        }
         hide(that, '_d', {
           b: buffer,
           o: offset,
@@ -325,19 +338,25 @@ if(require('./$.descriptors')){
         });
         while(index < length)addElement(that, index++);
       });
-      TypedArrayPrototype = TypedArray.prototype = $.create($TypedArrayPrototype$);
+      TypedArrayPrototype = TypedArray[PROTOTYPE] = $.create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if(!$iterDetect(function(iter){
+      // V8 works with iterators, but fails in many other cases
+      new TypedArray(null); // eslint-disable-line no-new
       new TypedArray(iter); // eslint-disable-line no-new
     }, true)){
       TypedArray = wrapper(function(that, data, $offset, $length){
         strictNew(that, TypedArray, NAME);
-        if(isObject(data) && isIterable(data))return $from.call(TypedArray, data);
-        return $length === undefined ? new Base(data, $offset) : new Base(data, $offset, $length);
+        if(!isObject(data))return new Base(strictToLength(data))
+        if(data instanceof $ArrayBuffer)return $length === undefined
+          ? new Base(data, $offset)
+          : new Base(data, $offset, $length);
+        if(TYPED_ARRAY in data)return fromList(TypedArray, data);
+        return $from.call(TypedArray, data);
       });
-      TypedArrayPrototype = TypedArray.prototype = Base.prototype;
-      if(!LIBRARY)TypedArray.prototype.constructor = TypedArray;
+      TypedArrayPrototype = TypedArray[PROTOTYPE] = Base[PROTOTYPE];
+      if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
@@ -371,4 +390,4 @@ if(require('./$.descriptors')){
 
     setSpecies(NAME);
   };
-} else module.exports = function(){ /* empty */};
+} else module.exports = function(){ /* empty */ };
