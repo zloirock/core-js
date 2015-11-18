@@ -125,6 +125,7 @@ list = <[
   es7.object.entries
   es7.map.to-json
   es7.set.to-json
+  es7.system.global
   web.immediate
   web.dom.iterable
   web.dom.iterable.experimental
@@ -172,6 +173,7 @@ experimental = <[
   es6.typed.uint32-array
   es6.typed.float32-array
   es6.typed.float64-array
+  es7.system.global
   web.dom.iterable.experimental
 ]>
 
