@@ -1,23 +1,24 @@
 'use strict';
-var $            = require('./$')
-  , global       = require('./$.global')
-  , $typed       = require('./$.typed')
-  , redefineAll  = require('./$.redefine-all')
-  , strictNew    = require('./$.strict-new')
-  , toInteger    = require('./$.to-integer')
-  , toLength     = require('./$.to-length')
-  , arrayFill    = require('./$.array-fill')
-  , $ArrayBuffer = global.ArrayBuffer
-  , $DataView    = global.DataView
-  , Math         = global.Math
-  , parseInt     = global.parseInt
-  , abs          = Math.abs
-  , pow          = Math.pow
-  , min          = Math.min
-  , floor        = Math.floor
-  , log          = Math.log
-  , LN2          = Math.LN2
-  , BYTE_LENGTH  = 'byteLength';
+var $              = require('./$')
+  , global         = require('./$.global')
+  , $typed         = require('./$.typed')
+  , redefineAll    = require('./$.redefine-all')
+  , strictNew      = require('./$.strict-new')
+  , toInteger      = require('./$.to-integer')
+  , toLength       = require('./$.to-length')
+  , arrayFill      = require('./$.array-fill')
+  , setToStringTag = require('./$.set-to-string-tag')
+  , $ArrayBuffer   = global.ArrayBuffer
+  , $DataView      = global.DataView
+  , Math           = global.Math
+  , parseInt       = global.parseInt
+  , abs            = Math.abs
+  , pow            = Math.pow
+  , min            = Math.min
+  , floor          = Math.floor
+  , log            = Math.log
+  , LN2            = Math.LN2
+  , BYTE_LENGTH    = 'byteLength';
 
 // pack / unpack based on
 // https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
@@ -281,6 +282,8 @@ if(!$typed.ABV){
     }
   });
 }
+setToStringTag($ArrayBuffer, 'ArrayBuffer');
+setToStringTag($DataView, 'DataView');
 require('./$.hide')($DataView.prototype, $typed.VIEW, true);
 module.exports = {
   ArrayBuffer: $ArrayBuffer,
