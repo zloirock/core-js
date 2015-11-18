@@ -1,8 +1,8 @@
 {module, test} = QUnit
 module \ES6
 if DESCRIPTORS
-  for name, bytes of {Float32Array: 4, Float64Array: 8, Int8Array: 1, Int16Array: 2, Int32Array: 4, Uint8Array: 1, Uint16Array: 2, Uint32Array: 4, Uint8ClampedArray: 1}
-    test "#{name} constructor", !(assert)~>
+  for $name, $bytes of {Float32Array: 4, Float64Array: 8, Int8Array: 1, Int16Array: 2, Int32Array: 4, Uint8Array: 1, Uint16Array: 2, Uint32Array: 4, Uint8ClampedArray: 1}
+    let name = $name, bytes = $bytes => test "#{name} constructor", !(assert)~>
       Typed = global[name]
       assert.isFunction Typed
       assert.arity Typed, 3
@@ -12,7 +12,7 @@ if DESCRIPTORS
       assert.same Typed.BYTES_PER_ELEMENT, bytes, "#{name}.BYTES_PER_ELEMENT"
       a = new Typed 4
       assert.same a.BYTES_PER_ELEMENT, bytes, '#BYTES_PER_ELEMENT'
-      assert.same a.byteOffset, 0, '#byteOffset, passed number'
+      assert.same a.byteOffset, 0, name + '#byteOffset, passed number'
       assert.same a.byteLength, 4 * bytes, '#byteLength, passed number'
       assert.arrayEqual a, [0 0 0 0], 'correct values, passed number'
 
@@ -81,41 +81,49 @@ if DESCRIPTORS
       # V8 bug, https://code.google.com/p/v8/issues/detail?id=4552
       assert.arrayEqual a, [1 2 3 4], 'correct values, passed typed array with custom iterator'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8]).buffer
+      a = new Typed new ArrayBuffer(8)
       assert.same a.byteOffset, 0, '#byteOffset, passed buffer'
       assert.same a.byteLength, 8, '#byteLength, passed buffer'
-      assert.arrayEqual a, [1 2 3 4 5 6 7 8], 'correct values, passed buffer'
+      assert.same a.length, 8 / bytes, 'correct length, passed buffer'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]).buffer, 8
+      a = new Typed new ArrayBuffer(16), 8
       assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset'
       assert.same a.byteLength, 8, '#byteLength, passed buffer and byteOffset'
-      assert.arrayEqual a, [9 10 11 12 13 14 15 16], 'correct values, passed buffer and byteOffset'
+      assert.same a.length, 8 / bytes, 'correct length, passed buffer and byteOffset'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24]).buffer, 8, 8
-      assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and byteLength'
-      assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and byteLength'
-      assert.arrayEqual a, [9 10 11 12 13 14 15 16], 'correct values, passed buffer, byteOffset and byteLength'
+      a = new Typed new ArrayBuffer(24), 8, 8 / bytes
+      assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length'
+      assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and length'
+      assert.same a.length, 8 / bytes, 'correct length, passed buffer, byteOffset and length'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8]).buffer, void
+      a = new Typed new ArrayBuffer(8), void
       assert.same a.byteOffset, 0, '#byteOffset, passed buffer and undefined'
       assert.same a.byteLength, 8, '#byteLength, passed buffer and undefined'
-      assert.arrayEqual a, [1 2 3 4 5 6 7 8], 'correct values, passed buffer and undefined'
+      assert.same a.length, 8 / bytes, 'correct length, passed buffer and undefined'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]).buffer, 8, void
+      a = new Typed new ArrayBuffer(16), 8, void
       assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined'
       assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined'
-      assert.arrayEqual a, [9 10 11 12 13 14 15 16], 'correct values, passed buffer, byteOffset and undefined'
+      assert.same a.length, 8 / bytes, 'correct length, passed buffer, byteOffset and undefined'
 
-      a = new Typed new Uint8Array([1 2 3 4 5 6 7 8]).buffer, 8
+      a = new Typed new ArrayBuffer(8), 8
       assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length'
       assert.same a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length'
       assert.arrayEqual a, [], 'correct values, passed buffer and byteOffset with buffer length'
 
-      assert.throws (!-> new Typed new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception'
-      if bytes isnt 1
-        assert.throws (!-> new Typed new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception'
-        assert.throws (!-> new Typed new ArrayBuffer 9), RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception'
-      assert.throws (!-> new Typed new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception'
-      assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
+      if NATIVE
+        assert.throws (!-> new Typed new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception'
+        if bytes isnt 1
+          assert.throws (!-> new Typed new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception'
+          assert.throws (!-> new Typed new ArrayBuffer 9), RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception'
+        assert.throws (!-> new Typed new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception'
+        assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
+      else # FF bug - TypeError instead of RangeError
+        assert.throws (!-> new Typed new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception'
+        if bytes isnt 1
+          assert.throws (!-> new Typed new ArrayBuffer(8), 3), 'If offset modulo elementSize ≠ 0, throw a RangeError exception'
+          assert.throws (!-> new Typed new ArrayBuffer 9), 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception'
+        assert.throws (!-> new Typed new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception'
+        assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
 
       assert.throws (!-> Typed 1), TypeError, 'throws without `new`'
