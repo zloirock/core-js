@@ -115,8 +115,8 @@ list = <[
   es6.typed.float64-array
   es7.array.includes
   es7.string.at
-  es7.string.pad-left
-  es7.string.pad-right
+  es7.string.pad-start
+  es7.string.pad-end
   es7.string.trim-left
   es7.string.trim-right
   es7.regexp.escape

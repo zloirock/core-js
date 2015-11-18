@@ -5027,22 +5027,22 @@
   var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES7');
-  test('String#padLeft', function(assert){
-    var padLeft;
-    padLeft = core.String.padLeft;
-    assert.isFunction(padLeft);
-    assert.strictEqual(padLeft('abc', 5), '  abc');
-    assert.strictEqual(padLeft('abc', 4, 'de'), 'dabc');
-    assert.strictEqual(padLeft('abc'), 'abc');
-    assert.strictEqual(padLeft('abc', 5, '_'), '__abc');
-    assert.strictEqual(padLeft('', 0), '');
-    assert.strictEqual(padLeft('foo', 1), 'foo');
+  test('String#padStart', function(assert){
+    var padStart;
+    padStart = core.String.padStart;
+    assert.isFunction(padStart);
+    assert.strictEqual(padStart('abc', 5), '  abc');
+    assert.strictEqual(padStart('abc', 4, 'de'), 'dabc');
+    assert.strictEqual(padStart('abc'), 'abc');
+    assert.strictEqual(padStart('abc', 5, '_'), '__abc');
+    assert.strictEqual(padStart('', 0), '');
+    assert.strictEqual(padStart('foo', 1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return padLeft(null, 0);
+        return padStart(null, 0);
       }, TypeError);
       return assert.throws(function(){
-        return padLeft(void 8, 0);
+        return padStart(void 8, 0);
       }, TypeError);
     }
   });
@@ -5053,22 +5053,22 @@
   var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES7');
-  test('String#padRight', function(assert){
-    var padRight;
-    padRight = core.String.padRight;
-    assert.isFunction(padRight);
-    assert.strictEqual(padRight('abc', 5), 'abc  ');
-    assert.strictEqual(padRight('abc', 4, 'de'), 'abcd');
-    assert.strictEqual(padRight('abc'), 'abc');
-    assert.strictEqual(padRight('abc', 5, '_'), 'abc__');
-    assert.strictEqual(padRight('', 0), '');
-    assert.strictEqual(padRight('foo', 1), 'foo');
+  test('String#padEnd', function(assert){
+    var padEnd;
+    padEnd = core.String.padEnd;
+    assert.isFunction(padEnd);
+    assert.strictEqual(padEnd('abc', 5), 'abc  ');
+    assert.strictEqual(padEnd('abc', 4, 'de'), 'abcd');
+    assert.strictEqual(padEnd('abc'), 'abc');
+    assert.strictEqual(padEnd('abc', 5, '_'), 'abc__');
+    assert.strictEqual(padEnd('', 0), '');
+    assert.strictEqual(padEnd('foo', 1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return padRight(null, 0);
+        return padEnd(null, 0);
       }, TypeError);
       return assert.throws(function(){
-        return padRight(void 8, 0);
+        return padEnd(void 8, 0);
       }, TypeError);
     }
   });
