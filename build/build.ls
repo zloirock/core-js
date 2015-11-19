@@ -148,7 +148,6 @@ list = <[
 ]>
 
 experimental = <[
-  es6.date.to-string
   es6.typed.array-buffer
   es6.typed.data-view
   es6.typed.int8-array
@@ -174,6 +173,7 @@ libraryBlacklist = <[
   es6.regexp.search
   es6.regexp.split
   es6.number.constructor
+  es6.date.to-string
 ]>
 
 es5SpecialCase = <[
