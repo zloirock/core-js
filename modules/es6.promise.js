@@ -12,7 +12,6 @@ var $          = require('./$')
   , forOf      = require('./$.for-of')
   , setProto   = require('./$.set-proto').set
   , same       = require('./$.same-value')
-  , SPECIES    = require('./$.wks')('species')
   , speciesConstructor = require('./$.species-constructor')
   , asap       = require('./$.microtask')
   , PROMISE    = 'Promise'
@@ -59,10 +58,6 @@ var sameConstructor = function(a, b){
   // library wrapper special case
   if(LIBRARY && a === P && b === Wrapper)return true;
   return same(a, b);
-};
-var getConstructor = function(C){
-  var S = anObject(C)[SPECIES];
-  return S != undefined ? S : C;
 };
 var isThenable = function(it){
   var then;
@@ -250,7 +245,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./$.iter-detect')(funct
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable){
-    var C          = getConstructor(this)
+    var C          = this
       , capability = new PromiseCapability(C)
       , resolve    = capability.resolve
       , reject     = capability.reject
@@ -275,7 +270,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./$.iter-detect')(funct
   },
   // 25.4.4.4 Promise.race(iterable)
   race: function race(iterable){
-    var C          = getConstructor(this)
+    var C          = this
       , capability = new PromiseCapability(C)
       , reject     = capability.reject;
     var abrupt = perform(function(){
