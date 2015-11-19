@@ -137,6 +137,8 @@ for P in <[.. ../library]>
   ok \escape of require("#P/fn/regexp")
   ok require("#P/fn/json").stringify([1]) is '[1]'
   ok require("#P/fn/json/stringify")([1]) is '[1]'
+  ok require("#P/fn/date")
+  ok typeof require("#P/fn/date/to-string")(new Date) is \string
   ok require("#P/fn/symbol/has-instance")
   ok require("#P/fn/symbol/is-concat-spreadable")
   ok require("#P/fn/symbol/iterator")
@@ -185,6 +187,7 @@ for P in <[.. ../library]>
   ok \ownKeys of require("#P/es6/reflect")
   require("#P/es6/regexp")
   ok \raw of require("#P/es6/string")
+  ok require("#P/es6/date")
   ok typeof require("#P/es6/symbol") is \function
   ok \Map of require("#P/es6")
   ok \includes of require("#P/es7/array")

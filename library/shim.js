@@ -65,6 +65,7 @@ require('./modules/es6.string.small');
 require('./modules/es6.string.strike');
 require('./modules/es6.string.sub');
 require('./modules/es6.string.sup');
+require('./modules/es6.date.to-string');
 require('./modules/es6.array.from');
 require('./modules/es6.array.of');
 require('./modules/es6.array.iterator');
