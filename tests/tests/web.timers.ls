@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module 'Timers'
+module 'Web'
 
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 global = Function('return this')!

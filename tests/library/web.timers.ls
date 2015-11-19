@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module 'Timers'
+module 'Web'
 
 {setTimeout, setInterval, Promise} = core
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]

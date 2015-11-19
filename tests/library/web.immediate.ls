@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module 'Immediate'
+module 'Web'
 
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 {setImmediate, clearImmediate, Promise} = core

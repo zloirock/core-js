@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module 'Immediate'
+module 'Web'
 
 isFunction = -> typeof! it  is \Function
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]

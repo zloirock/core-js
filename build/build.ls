@@ -128,7 +128,6 @@ list = <[
   es7.system.global
   web.immediate
   web.dom.iterable
-  web.dom.iterable.experimental
   web.timers
   core.dict
   core.get-iterator-method
@@ -160,7 +159,6 @@ experimental = <[
   es6.typed.float32-array
   es6.typed.float64-array
   es7.system.global
-  web.dom.iterable.experimental
 ]>
 
 libraryBlacklist = <[

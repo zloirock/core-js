@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module 'DOM iterable'
+module 'Web'
 
 test 'Iterable DOM collections' (assert)->
   absent = on;
