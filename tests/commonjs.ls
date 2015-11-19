@@ -174,7 +174,6 @@ for P in <[.. ../library]>
   ok \Map of require("#P/es6")
   ok \includes of require("#P/es7/array")
   ok \values of require("#P/es7/object")
-  ok \escape of require("#P/es7/regexp")
   ok \at of require("#P/es7/string")
   require("#P/es7/set")
   require("#P/es7/map")
@@ -191,6 +190,7 @@ for P in <[.. ../library]>
   ok \part of require("#P/core/function")
   ok typeof require("#P/core/log") is \function
   ok \define of require("#P/core/object")
+  ok \escape of require("#P/core/regexp")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
 console.log 'CommonJS - OK'

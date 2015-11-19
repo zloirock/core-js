@@ -119,7 +119,6 @@ list = <[
   es7.string.pad-end
   es7.string.trim-left
   es7.string.trim-right
-  es7.regexp.escape
   es7.object.get-own-property-descriptors
   es7.object.values
   es7.object.entries
@@ -140,6 +139,7 @@ list = <[
   core.object.define
   core.object.make
   core.number.iterator
+  core.regexp.escape
   core.string.escape-html
   core.string.unescape-html
   core.log
