@@ -1,4 +1,4 @@
-// https://github.com/ljharb/proposal-string-pad-left-right
+// https://github.com/tc39/proposal-string-pad-start-end
 var toLength = require('./$.to-length')
   , repeat   = require('./$.string-repeat')
   , defined  = require('./$.defined');

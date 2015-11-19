@@ -7307,23 +7307,23 @@
   var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES7');
-  test('String#padLeft', function(assert){
-    assert.isFunction(String.prototype.padLeft);
-    assert.arity(String.prototype.padLeft, 1);
-    assert.name(String.prototype.padLeft, 'padLeft');
-    assert.looksNative(String.prototype.padLeft);
-    assert.strictEqual('abc'.padLeft(5), '  abc');
-    assert.strictEqual('abc'.padLeft(4, 'de'), 'dabc');
-    assert.strictEqual('abc'.padLeft(), 'abc');
-    assert.strictEqual('abc'.padLeft(5, '_'), '__abc');
-    assert.strictEqual(''.padLeft(0), '');
-    assert.strictEqual('foo'.padLeft(1), 'foo');
+  test('String#padStart', function(assert){
+    assert.isFunction(String.prototype.padStart);
+    assert.arity(String.prototype.padStart, 1);
+    assert.name(String.prototype.padStart, 'padStart');
+    assert.looksNative(String.prototype.padStart);
+    assert.strictEqual('abc'.padStart(5), '  abc');
+    assert.strictEqual('abc'.padStart(4, 'de'), 'dabc');
+    assert.strictEqual('abc'.padStart(), 'abc');
+    assert.strictEqual('abc'.padStart(5, '_'), '__abc');
+    assert.strictEqual(''.padStart(0), '');
+    assert.strictEqual('foo'.padStart(1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.padLeft.call(null, 0);
+        return String.prototype.padStart.call(null, 0);
       }, TypeError);
       return assert.throws(function(){
-        return String.prototype.padLeft.call(void 8, 0);
+        return String.prototype.padStart.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -7334,23 +7334,23 @@
   var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES7');
-  test('String#padRight', function(assert){
-    assert.isFunction(String.prototype.padRight);
-    assert.arity(String.prototype.padRight, 1);
-    assert.name(String.prototype.padRight, 'padRight');
-    assert.looksNative(String.prototype.padRight);
-    assert.strictEqual('abc'.padRight(5), 'abc  ');
-    assert.strictEqual('abc'.padRight(4, 'de'), 'abcd');
-    assert.strictEqual('abc'.padRight(), 'abc');
-    assert.strictEqual('abc'.padRight(5, '_'), 'abc__');
-    assert.strictEqual(''.padRight(0), '');
-    assert.strictEqual('foo'.padRight(1), 'foo');
+  test('String#padEnd', function(assert){
+    assert.isFunction(String.prototype.padEnd);
+    assert.arity(String.prototype.padEnd, 1);
+    assert.name(String.prototype.padEnd, 'padEnd');
+    assert.looksNative(String.prototype.padEnd);
+    assert.strictEqual('abc'.padEnd(5), 'abc  ');
+    assert.strictEqual('abc'.padEnd(4, 'de'), 'abcd');
+    assert.strictEqual('abc'.padEnd(), 'abc');
+    assert.strictEqual('abc'.padEnd(5, '_'), 'abc__');
+    assert.strictEqual(''.padEnd(0), '');
+    assert.strictEqual('foo'.padEnd(1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.padRight.call(null, 0);
+        return String.prototype.padEnd.call(null, 0);
       }, TypeError);
       return assert.throws(function(){
-        return String.prototype.padRight.call(void 8, 0);
+        return String.prototype.padEnd.call(void 8, 0);
       }, TypeError);
     }
   });
