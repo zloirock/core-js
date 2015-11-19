@@ -113,6 +113,19 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
   ok require("#P/fn/string/repeat")(\q 3) is \qqq
   ok require("#P/fn/string/starts-with") \qwe, \qw
+  ok typeof require("#P/fn/string/anchor") is \function
+  ok typeof require("#P/fn/string/big") is \function
+  ok typeof require("#P/fn/string/blink") is \function
+  ok typeof require("#P/fn/string/bold") is \function
+  ok typeof require("#P/fn/string/fixed") is \function
+  ok typeof require("#P/fn/string/fontcolor") is \function
+  ok typeof require("#P/fn/string/fontsize") is \function
+  ok typeof require("#P/fn/string/italics") is \function
+  ok typeof require("#P/fn/string/link") is \function
+  ok typeof require("#P/fn/string/small") is \function
+  ok typeof require("#P/fn/string/strike") is \function
+  ok typeof require("#P/fn/string/sub") is \function
+  ok typeof require("#P/fn/string/sup") is \function
   ok require("#P/fn/string/at")(\a 0) is \a
   ok require("#P/fn/string/pad-start")(\a 3) is '  a'
   ok require("#P/fn/string/pad-end")(\a 3) is 'a  '
