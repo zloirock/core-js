@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#anchor' (assert)->
+test 'String#anchor' (assert)!->
   assert.isFunction String::anchor
   assert.arity String::anchor, 1
   assert.name String::anchor, \anchor

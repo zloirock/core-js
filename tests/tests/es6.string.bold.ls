@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#bold' (assert)->
+test 'String#bold' (assert)!->
   assert.isFunction String::bold
   assert.arity String::bold, 0
   assert.name String::bold, \bold

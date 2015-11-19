@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#sub' (assert)->
+test 'String#sub' (assert)!->
   assert.isFunction String::sub
   assert.arity String::sub, 0
   assert.name String::sub, \sub

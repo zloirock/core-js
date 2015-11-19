@@ -55,6 +55,19 @@ list = <[
   es6.string.repeat
   es6.string.starts-with
   es6.string.iterator
+  es6.string.anchor
+  es6.string.big
+  es6.string.blink
+  es6.string.bold
+  es6.string.fixed
+  es6.string.fontcolor
+  es6.string.fontsize
+  es6.string.italics
+  es6.string.link
+  es6.string.small
+  es6.string.strike
+  es6.string.sub
+  es6.string.sup
   es6.array.from
   es6.array.of
   es6.array.iterator
@@ -89,19 +102,6 @@ list = <[
   es6.reflect.set
   es6.reflect.set-prototype-of
   es6.date.to-string
-  es6.string.anchor
-  es6.string.big
-  es6.string.blink
-  es6.string.bold
-  es6.string.fixed
-  es6.string.fontcolor
-  es6.string.fontsize
-  es6.string.italics
-  es6.string.link
-  es6.string.small
-  es6.string.strike
-  es6.string.sub
-  es6.string.sup
   es6.typed.array-buffer
   es6.typed.data-view
   es6.typed.int8-array
@@ -149,19 +149,6 @@ list = <[
 
 experimental = <[
   es6.date.to-string
-  es6.string.anchor
-  es6.string.big
-  es6.string.blink
-  es6.string.bold
-  es6.string.fixed
-  es6.string.fontcolor
-  es6.string.fontsize
-  es6.string.italics
-  es6.string.link
-  es6.string.small
-  es6.string.strike
-  es6.string.sub
-  es6.string.sup
   es6.typed.array-buffer
   es6.typed.data-view
   es6.typed.int8-array

@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#fixed' (assert)->
+test 'String#fixed' (assert)!->
   assert.isFunction String::fixed
   assert.arity String::fixed, 0
   assert.name String::fixed, \fixed

@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#blink' (assert)->
+test 'String#blink' (assert)!->
   assert.isFunction String::blink
   assert.arity String::blink, 0
   assert.name String::blink, \blink
