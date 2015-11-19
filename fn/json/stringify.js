@@ -1,4 +1,5 @@
-var core = require('../../modules/$.core');
+var core  = require('../../modules/$.core')
+  , $JSON = core.JSON || (core.JSON = {stringify: JSON.stringify});
 module.exports = function stringify(it){ // eslint-disable-line no-unused-vars
-  return (core.JSON && core.JSON.stringify || JSON.stringify).apply(JSON, arguments);
+  return $JSON.stringify.apply($JSON, arguments);
 };

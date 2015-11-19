@@ -135,6 +135,8 @@ for P in <[.. ../library]>
   ok \raw of require("#P/fn/string")
   ok require("#P/fn/regexp/escape")('...') is '\\.\\.\\.'
   ok \escape of require("#P/fn/regexp")
+  ok require("#P/fn/json").stringify([1]) is '[1]'
+  ok require("#P/fn/json/stringify")([1]) is '[1]'
   ok require("#P/fn/symbol/has-instance")
   ok require("#P/fn/symbol/is-concat-spreadable")
   ok require("#P/fn/symbol/iterator")
