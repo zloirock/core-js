@@ -1,5 +1,5 @@
 var $iterators    = require('./es6.array.iterator')
-  , $export       = require('./$.export')
+  , redefineAll   = require('./$.redefine-all')
   , global        = require('./$.global')
   , hide          = require('./$.hide')
   , Iterators     = require('./$.iterators')
@@ -18,6 +18,6 @@ require('./$').each.call((
     if(!proto[ITERATOR])hide(proto, ITERATOR, ArrayValues);
     if(!proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
     Iterators[NAME] = ArrayValues;
-    $export($export.P, NAME, $iterators);
+    redefineAll(proto, $iterators, true);
   }
 });
