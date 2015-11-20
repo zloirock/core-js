@@ -158,6 +158,8 @@ for P in <[.. ../library]>
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
   ok new (require("#P/fn/weak-set"))([O = {}]).has O
   ok \all of require("#P/fn/promise")
+  ok require("#P/fn/system/global").Math is Math
+  ok require("#P/fn/system").global.Math is Math
   ok typeof require("#P/fn/dom-collections").iterator is \function
   ok typeof require("#P/fn/dom-collections/iterator") is \function
   ok typeof require("#P/fn/set-timeout") is \function
@@ -193,6 +195,7 @@ for P in <[.. ../library]>
   ok \at of require("#P/es7/string")
   require("#P/es7/set")
   require("#P/es7/map")
+  ok require("#P/es7/system").global.Math is Math
   ok \Array of require("#P/es7")
   ok \map of require("#P/js/array")
   ok \Array of require("#P/js")

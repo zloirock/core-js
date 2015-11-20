@@ -110,6 +110,7 @@ require('./modules/es7.object.values');
 require('./modules/es7.object.entries');
 require('./modules/es7.map.to-json');
 require('./modules/es7.set.to-json');
+require('./modules/es7.system.global');
 require('./modules/js.array.statics');
 require('./modules/web.timers');
 require('./modules/web.immediate');

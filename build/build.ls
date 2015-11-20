@@ -158,7 +158,6 @@ experimental = <[
   es6.typed.uint32-array
   es6.typed.float32-array
   es6.typed.float64-array
-  es7.system.global
 ]>
 
 libraryBlacklist = <[
