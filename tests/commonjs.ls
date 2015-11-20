@@ -160,6 +160,8 @@ for P in <[.. ../library]>
   ok \all of require("#P/fn/promise")
   ok require("#P/fn/system/global").Math is Math
   ok require("#P/fn/system").global.Math is Math
+  ok require("#P/fn/error/is-error") new TypeError
+  ok require("#P/fn/error").isError new TypeError
   ok typeof require("#P/fn/dom-collections").iterator is \function
   ok typeof require("#P/fn/dom-collections/iterator") is \function
   ok typeof require("#P/fn/set-timeout") is \function
@@ -196,6 +198,7 @@ for P in <[.. ../library]>
   require("#P/es7/set")
   require("#P/es7/map")
   ok require("#P/es7/system").global.Math is Math
+  ok require("#P/es7/error").isError new TypeError
   ok \Array of require("#P/es7")
   ok \map of require("#P/js/array")
   ok \Array of require("#P/js")

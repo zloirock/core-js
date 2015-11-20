@@ -125,6 +125,7 @@ list = <[
   es7.map.to-json
   es7.set.to-json
   es7.system.global
+  es7.error.is-error
   web.immediate
   web.dom.iterable
   web.timers
