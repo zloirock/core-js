@@ -158,10 +158,8 @@ for P in <[.. ../library]>
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
   ok new (require("#P/fn/weak-set"))([O = {}]).has O
   ok \all of require("#P/fn/promise")
-  require("#P/fn/node-list")
-  ok typeof require("#P/fn/node-list/iterator") is \function
-  require("#P/fn/html-collection")
-  ok typeof require("#P/fn/html-collection/iterator") is \function
+  ok typeof require("#P/fn/dom-collections").iterator is \function
+  ok typeof require("#P/fn/dom-collections/iterator") is \function
   ok typeof require("#P/fn/set-timeout") is \function
   ok typeof require("#P/fn/set-interval") is \function
   ok typeof require("#P/fn/set-immediate") is \function
@@ -200,7 +198,7 @@ for P in <[.. ../library]>
   ok \Array of require("#P/js")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")
-  require("#P/web/dom")
+  require("#P/web/dom-collections")
   ok \setImmediate of require("#P/web")
   ok require("#P/core/_")
   ok typeof require("#P/core/delay") is \function
