@@ -129,6 +129,10 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/at")(\a 0) is \a
   ok require("#P/fn/string/pad-start")(\a 3) is '  a'
   ok require("#P/fn/string/pad-end")(\a 3) is 'a  '
+  ok require("#P/fn/string/trim-start")(' a ') is 'a '
+  ok require("#P/fn/string/trim-end")(' a ') is ' a'
+  ok require("#P/fn/string/trim-left")(' a ') is 'a '
+  ok require("#P/fn/string/trim-right")(' a ') is ' a'
   ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \next of require("#P/fn/string/iterator") \qwe

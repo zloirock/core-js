@@ -6691,10 +6691,28 @@
     assert.strictEqual('\u200b\u0085'.trimLeft(), '\u200b\u0085', "shouldn't remove this symbols");
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.trimLeft.call(null, 0);
+        String.prototype.trimLeft.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.trimLeft.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.trimLeft.call(void 8, 0);
+      }, TypeError);
+    }
+  });
+  test('String#trimStart', function(assert){
+    assert.isFunction(''.trimStart);
+    assert.arity(String.prototype.trimStart, 0);
+    assert.name(String.prototype.trimStart, 'trimLeft');
+    assert.looksNative(String.prototype.trimStart);
+    assert.same(String.prototype.trimStart, String.prototype.trimLeft, 'same #trimLeft');
+    assert.strictEqual(' \n  q w e \n  '.trimStart(), 'q w e \n  ', 'removes whitespaces at left side of string');
+    assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimStart(), '', 'removes all whitespaces');
+    assert.strictEqual('\u200b\u0085'.trimStart(), '\u200b\u0085', "shouldn't remove this symbols");
+    if (STRICT) {
+      assert.throws(function(){
+        String.prototype.trimStart.call(null, 0);
+      }, TypeError);
+      assert.throws(function(){
+        String.prototype.trimStart.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -6715,10 +6733,28 @@
     assert.strictEqual('\u200b\u0085'.trimRight(), '\u200b\u0085', "shouldn't remove this symbols");
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.trimRight.call(null, 0);
+        String.prototype.trimRight.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.trimRight.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.trimRight.call(void 8, 0);
+      }, TypeError);
+    }
+  });
+  test('String#trimEnd', function(assert){
+    assert.isFunction(''.trimEnd);
+    assert.arity(String.prototype.trimEnd, 0);
+    assert.name(String.prototype.trimEnd, 'trimRight');
+    assert.looksNative(String.prototype.trimEnd);
+    assert.same(String.prototype.trimEnd, String.prototype.trimRight, 'same #trimRight');
+    assert.strictEqual(' \n  q w e \n  '.trimEnd(), ' \n  q w e', 'removes whitespaces at right side of string');
+    assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimEnd(), '', 'removes all whitespaces');
+    assert.strictEqual('\u200b\u0085'.trimEnd(), '\u200b\u0085', "shouldn't remove this symbols");
+    if (STRICT) {
+      assert.throws(function(){
+        String.prototype.trimEnd.call(null, 0);
+      }, TypeError);
+      assert.throws(function(){
+        String.prototype.trimEnd.call(void 8, 0);
       }, TypeError);
     }
   });
