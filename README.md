@@ -40,7 +40,6 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [ECMAScript 6: Promise](#ecmascript-6-promise)
     - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7](#ecmascript-7)
-  - [Mozilla JavaScript: Array generics](#mozilla-javascript-array-generics)
   - [Web standards](#web-standards)
     - [setTimeout / setInterval](#settimeout--setinterval)
     - [setImmediate](#setimmediate)
@@ -836,24 +835,6 @@ RegExp.escape('Hello, []{}()*+?.\\^$|!'); // => 'Hello, \[\]\{\}\(\)\*\+\?\.\\\^
 
 JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
 JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
-```
-### Mozilla JavaScript: Array generics
-Module [`js.array.statics`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/js.array.statics.js).
-```javascript
-Array
-  .{...ArrayPrototype methods}
-```
-
-```javascript
-Array.slice(arguments, 1);
-
-Array.join('abcdef', '+'); // => 'a+b+c+d+e+f'
-
-var form = document.getElementsByClassName('form__input');
-Array.reduce(form, function(memo, it){
-  memo[it.name] = it.value;
-  return memo;
-}, {}); // => {name: 'Vasya', age: '42', sex: 'yes, please'}
 ```
 ### Web standards
 #### setTimeout / setInterval
