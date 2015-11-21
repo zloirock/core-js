@@ -12,5 +12,4 @@ require('../modules/core.number.iterator');
 require('../modules/core.regexp.escape');
 require('../modules/core.string.escape-html');
 require('../modules/core.string.unescape-html');
-require('../modules/core.log');
 module.exports = require('../modules/$.core');
