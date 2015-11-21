@@ -112,7 +112,6 @@ require('./modules/es7.map.to-json');
 require('./modules/es7.set.to-json');
 require('./modules/es7.system.global');
 require('./modules/es7.error.is-error');
-require('./modules/js.array.statics');
 require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');

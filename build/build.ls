@@ -143,7 +143,6 @@ list = <[
   core.regexp.escape
   core.string.escape-html
   core.string.unescape-html
-  js.array.statics
 ]>
 
 experimental = <[

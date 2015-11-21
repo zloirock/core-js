@@ -40,27 +40,8 @@ for P in <[.. ../library]>
   ok Array.isArray require("#P/fn/array/of") \q \w \e
   ok \next of require("#P/fn/array/values")([])
   ok require("#P/fn/array/includes")([1 2 3], 2)
-  ok typeof require("#P/fn/array/concat") is \function
-  ok typeof require("#P/fn/array/every") is \function
-  ok typeof require("#P/fn/array/filter") is \function
-  ok typeof require("#P/fn/array/for-each") is \function
-  ok typeof require("#P/fn/array/index-of") is \function
-  ok typeof require("#P/fn/array/join") is \function
-  ok typeof require("#P/fn/array/last-index-of") is \function
-  ok typeof require("#P/fn/array/map") is \function
-  ok typeof require("#P/fn/array/pop") is \function
-  ok typeof require("#P/fn/array/push") is \function
-  ok typeof require("#P/fn/array/reduce") is \function
-  ok typeof require("#P/fn/array/reduce-right") is \function
-  ok typeof require("#P/fn/array/reverse") is \function
-  ok typeof require("#P/fn/array/shift") is \function
-  ok typeof require("#P/fn/array/slice") is \function
-  ok typeof require("#P/fn/array/some") is \function
-  ok typeof require("#P/fn/array/sort") is \function
-  ok typeof require("#P/fn/array/splice") is \function
-  ok typeof require("#P/fn/array/unshift") is \function
   ok \next of require("#P/fn/array/iterator") []
-  ok \unshift of require("#P/fn/array")
+  ok \keys of require("#P/fn/array")
   ok require("#P/fn/math/acosh")(1) is 0
   ok require("#P/fn/math/asinh")(-0) is -0
   ok require("#P/fn/math/atanh")(1) is Infinity
@@ -203,8 +184,6 @@ for P in <[.. ../library]>
   ok require("#P/es7/system").global.Math is Math
   ok require("#P/es7/error").isError new TypeError
   ok \Array of require("#P/es7")
-  ok \map of require("#P/js/array")
-  ok \Array of require("#P/js")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom-collections")
