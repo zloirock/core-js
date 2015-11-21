@@ -21,7 +21,7 @@ require('./$').each.call((
     if(!proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
     Iterators[NAME] = ArrayValues;
     for(key in $iterators){
-      if(!CORRECT_SYM || !proto[key])redefine(proto, key, $iterators[key], true);
+      if(!CORRECT_SYMBOL || !proto[key])redefine(proto, key, $iterators[key], true);
     }
   }
 });
