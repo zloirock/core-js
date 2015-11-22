@@ -6,6 +6,7 @@ var $              = require('./_')
   , DESCRIPTORS    = require('./_descriptors')
   , $export        = require('./_export')
   , redefine       = require('./_redefine')
+  , META           = require('./_meta').KEY
   , $fails         = require('./_fails')
   , shared         = require('./_shared')
   , setToStringTag = require('./_set-to-string-tag')
@@ -100,7 +101,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it){
     , result = []
     , i      = 0
     , key;
-  while(names.length > i)if(!has(AllSymbols, key = names[i++]) && key != HIDDEN)result.push(key);
+  while(names.length > i)if(!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
   return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it){

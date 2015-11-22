@@ -2,6 +2,7 @@
 var $              = require('./_')
   , global         = require('./_global')
   , $export        = require('./_export')
+  , meta           = require('./_meta')
   , fails          = require('./_fails')
   , hide           = require('./_hide')
   , redefineAll    = require('./_redefine-all')
@@ -23,6 +24,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     redefineAll(C.prototype, methods);
+    meta.NEED = true;
   } else {
     C = wrapper(function(target, iterable){
       strictNew(target, C, NAME);

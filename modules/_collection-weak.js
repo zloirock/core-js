@@ -1,40 +1,38 @@
 'use strict';
-var hide              = require('./_hide')
-  , redefineAll       = require('./_redefine-all')
+var redefineAll       = require('./_redefine-all')
+  , getWeak           = require('./_meta').getWeak
   , anObject          = require('./_an-object')
   , isObject          = require('./_is-object')
   , strictNew         = require('./_strict-new')
   , forOf             = require('./_for-of')
   , createArrayMethod = require('./_array-methods')
   , $has              = require('./_has')
-  , WEAK              = require('./_uid')('weak')
-  , isExtensible      = Object.isExtensible || isObject
   , arrayFind         = createArrayMethod(5)
   , arrayFindIndex    = createArrayMethod(6)
   , id                = 0;
 
-// fallback for frozen keys
-var frozenStore = function(that){
+// fallback for uncaught frozen keys
+var uncaughtFrozenStore = function(that){
   return that._l || (that._l = new FrozenStore);
 };
-var FrozenStore = function(){
+var UncaughtFrozenStore = function(){
   this.a = [];
 };
-var findFrozen = function(store, key){
+var findUncaughtFrozen = function(store, key){
   return arrayFind(store.a, function(it){
     return it[0] === key;
   });
 };
-FrozenStore.prototype = {
+UncaughtFrozenStore.prototype = {
   get: function(key){
-    var entry = findFrozen(this, key);
+    var entry = findUncaughtFrozen(this, key);
     if(entry)return entry[1];
   },
   has: function(key){
-    return !!findFrozen(this, key);
+    return !!findUncaughtFrozen(this, key);
   },
   set: function(key, value){
-    var entry = findFrozen(this, key);
+    var entry = findUncaughtFrozen(this, key);
     if(entry)entry[1] = value;
     else this.a.push([key, value]);
   },
@@ -52,7 +50,7 @@ module.exports = {
     var C = wrapper(function(that, iterable){
       strictNew(that, C, NAME);
       that._i = id++;      // collection id
-      that._l = undefined; // leak store for frozen objects
+      that._l = undefined; // leak store for uncaught frozen objects
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
     });
     redefineAll(C.prototype, {
@@ -60,27 +58,26 @@ module.exports = {
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function(key){
         if(!isObject(key))return false;
-        if(!isExtensible(key))return frozenStore(this)['delete'](key);
-        return $has(key, WEAK) && $has(key[WEAK], this._i) && delete key[WEAK][this._i];
+        var data = getWeak(key);
+        if(data === true)return uncaughtFrozenStore(this)['delete'](key);
+        return data && $has(data, this._i) && delete data[this._i];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key){
         if(!isObject(key))return false;
-        if(!isExtensible(key))return frozenStore(this).has(key);
-        return $has(key, WEAK) && $has(key[WEAK], this._i);
+        var data = getWeak(key);
+        if(data === true)return uncaughtFrozenStore(this).has(key);
+        return data && $has(data, this._i);
       }
     });
     return C;
   },
   def: function(that, key, value){
-    if(!isExtensible(anObject(key))){
-      frozenStore(that).set(key, value);
-    } else {
-      $has(key, WEAK) || hide(key, WEAK, {});
-      key[WEAK][that._i] = value;
-    } return that;
+    var data = getWeak(anObject(key), true);
+    if(data === true)uncaughtFrozenStore(that).set(key, value);
+    else data[that._i] = value;
+    return that;
   },
-  frozenStore: frozenStore,
-  WEAK: WEAK
+  ufstore: uncaughtFrozenStore
 };

@@ -8,28 +8,10 @@ var $            = require('./_')
   , forOf        = require('./_for-of')
   , $iterDefine  = require('./_iter-define')
   , step         = require('./_iter-step')
-  , ID           = require('./_uid')('id')
-  , $has         = require('./_has')
-  , isObject     = require('./_is-object')
   , setSpecies   = require('./_set-species')
   , DESCRIPTORS  = require('./_descriptors')
-  , isExtensible = Object.isExtensible || isObject
-  , SIZE         = DESCRIPTORS ? '_s' : 'size'
-  , id           = 0;
-
-var fastKey = function(it, create){
-  // return primitive with prefix
-  if(!isObject(it))return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
-  if(!$has(it, ID)){
-    // can't set id to frozen object
-    if(!isExtensible(it))return 'F';
-    // not necessary to add id
-    if(!create)return 'E';
-    // add missing object id
-    hide(it, ID, ++id);
-  // return object id with prefix
-  } return 'O' + it[ID];
-};
+  , fastKey      = require('./_meta').fastKey
+  , SIZE         = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function(that, key){
   // fast case

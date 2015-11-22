@@ -3,6 +3,7 @@ var global         = require('./_global')
   , $export        = require('./_export')
   , redefine       = require('./_redefine')
   , redefineAll    = require('./_redefine-all')
+  , meta           = require('./_meta')
   , forOf          = require('./_for-of')
   , strictNew      = require('./_strict-new')
   , isObject       = require('./_is-object')
@@ -35,6 +36,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     redefineAll(C.prototype, methods);
+    meta.NEED = true;
   } else {
     var instance             = new C
       // early implementations not supports chaining
