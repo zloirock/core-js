@@ -1,2 +1,2 @@
 require('../../modules/es6.function.has-instance');
-module.exports = Function[require('../../modules/$.wks')('hasInstance')];
+module.exports = Function[require('../../modules/_wks')('hasInstance')];

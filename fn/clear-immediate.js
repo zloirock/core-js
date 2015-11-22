@@ -1,2 +1,2 @@
 require('../modules/web.immediate');
-module.exports = require('../modules/$.core').clearImmediate;
+module.exports = require('../modules/_core').clearImmediate;

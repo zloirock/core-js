@@ -1,2 +1,2 @@
 require('../../modules/es7.string.pad-start');
-module.exports = require('../../modules/$.core').String.padStart;
+module.exports = require('../../modules/_core').String.padStart;

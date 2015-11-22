@@ -1,5 +1,5 @@
 // 20.2.2.17 Math.hypot([value1[, value2[, … ]]])
-var $export = require('./$.export')
+var $export = require('./_export')
   , abs     = Math.abs;
 
 $export($export.S, 'Math', {

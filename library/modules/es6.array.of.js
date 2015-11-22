@@ -1,8 +1,8 @@
 'use strict';
-var $export = require('./$.export');
+var $export = require('./_export');
 
 // WebKit Array.of isn't generic
-$export($export.S + $export.F * require('./$.fails')(function(){
+$export($export.S + $export.F * require('./_fails')(function(){
   function F(){}
   return !(Array.of.call(F) instanceof F);
 }), 'Array', {

@@ -1,5 +1,5 @@
 // 20.2.2.11 Math.clz32(x)
-var $export = require('./$.export');
+var $export = require('./_export');
 
 $export($export.S, 'Math', {
   clz32: function clz32(x){

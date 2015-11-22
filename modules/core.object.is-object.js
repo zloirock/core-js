@@ -1,3 +1,3 @@
-var $export = require('./$.export');
+var $export = require('./_export');
 
-$export($export.S + $export.F, 'Object', {isObject: require('./$.is-object')});
+$export($export.S + $export.F, 'Object', {isObject: require('./_is-object')});

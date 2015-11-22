@@ -1,4 +1,4 @@
 // https://github.com/ljharb/proposal-global
-var $export = require('./$.export');
+var $export = require('./_export');
 
-$export($export.S, 'System', {global: require('./$.global')});
+$export($export.S, 'System', {global: require('./_global')});

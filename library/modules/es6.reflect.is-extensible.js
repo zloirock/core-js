@@ -1,6 +1,6 @@
 // 26.1.10 Reflect.isExtensible(target)
-var $export       = require('./$.export')
-  , anObject      = require('./$.an-object')
+var $export       = require('./_export')
+  , anObject      = require('./_an-object')
   , $isExtensible = Object.isExtensible;
 
 $export($export.S, 'Reflect', {

@@ -1,7 +1,7 @@
-var $        = require('./$')
-  , global   = require('./$.global')
-  , isRegExp = require('./$.is-regexp')
-  , $flags   = require('./$.flags')
+var $        = require('./_')
+  , global   = require('./_global')
+  , isRegExp = require('./_is-regexp')
+  , $flags   = require('./_flags')
   , $RegExp  = global.RegExp
   , Base     = $RegExp
   , proto    = $RegExp.prototype
@@ -10,8 +10,8 @@ var $        = require('./$')
   // "new" creates a new object, old webkit buggy here
   , CORRECT_NEW = new $RegExp(re1) !== re1;
 
-if(require('./$.descriptors') && (!CORRECT_NEW || require('./$.fails')(function(){
-  re2[require('./$.wks')('match')] = false;
+if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
+  re2[require('./_wks')('match')] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';
 }))){
@@ -32,7 +32,7 @@ if(require('./$.descriptors') && (!CORRECT_NEW || require('./$.fails')(function(
   });
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
-  require('./$.redefine')(global, 'RegExp', $RegExp);
+  require('./_redefine')(global, 'RegExp', $RegExp);
 }
 
-require('./$.set-species')('RegExp');
+require('./_set-species')('RegExp');

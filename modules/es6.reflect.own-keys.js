@@ -1,4 +1,4 @@
 // 26.1.11 Reflect.ownKeys(target)
-var $export = require('./$.export');
+var $export = require('./_export');
 
-$export($export.S, 'Reflect', {ownKeys: require('./$.own-keys')});
+$export($export.S, 'Reflect', {ownKeys: require('./_own-keys')});

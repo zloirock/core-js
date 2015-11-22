@@ -1,5 +1,5 @@
 // 20.2.2.7 Math.atanh(x)
-var $export = require('./$.export');
+var $export = require('./_export');
 
 $export($export.S, 'Math', {
   atanh: function atanh(x){

@@ -8,4 +8,4 @@ require('../../modules/es6.array.fill');
 require('../../modules/es6.array.find');
 require('../../modules/es6.array.find-index');
 require('../../modules/es7.array.includes');
-module.exports = require('../../modules/$.core').Array;
+module.exports = require('../../modules/_core').Array;

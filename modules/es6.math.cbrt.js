@@ -1,6 +1,6 @@
 // 20.2.2.9 Math.cbrt(x)
-var $export = require('./$.export')
-  , sign    = require('./$.math-sign');
+var $export = require('./_export')
+  , sign    = require('./_math-sign');
 
 $export($export.S, 'Math', {
   cbrt: function cbrt(x){

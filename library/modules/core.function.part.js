@@ -1,7 +1,7 @@
-var path    = require('./$.path')
-  , $export = require('./$.export');
+var path    = require('./_path')
+  , $export = require('./_export');
 
 // Placeholder
-require('./$.core')._ = path._ = path._ || {};
+require('./_core')._ = path._ = path._ || {};
 
-$export($export.P + $export.F, 'Function', {part: require('./$.partial')});
+$export($export.P + $export.F, 'Function', {part: require('./_partial')});

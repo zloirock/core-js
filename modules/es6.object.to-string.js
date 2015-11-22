@@ -1,10 +1,10 @@
 'use strict';
 // 19.1.3.6 Object.prototype.toString()
-var classof = require('./$.classof')
+var classof = require('./_classof')
   , test    = {};
-test[require('./$.wks')('toStringTag')] = 'z';
+test[require('./_wks')('toStringTag')] = 'z';
 if(test + '' != '[object z]'){
-  require('./$.redefine')(Object.prototype, 'toString', function toString(){
+  require('./_redefine')(Object.prototype, 'toString', function toString(){
     return '[object ' + classof(this) + ']';
   }, true);
 }

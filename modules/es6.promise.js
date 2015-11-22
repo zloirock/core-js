@@ -1,19 +1,19 @@
 'use strict';
-var $          = require('./$')
-  , LIBRARY    = require('./$.library')
-  , global     = require('./$.global')
-  , ctx        = require('./$.ctx')
-  , classof    = require('./$.classof')
-  , $export    = require('./$.export')
-  , isObject   = require('./$.is-object')
-  , anObject   = require('./$.an-object')
-  , aFunction  = require('./$.a-function')
-  , strictNew  = require('./$.strict-new')
-  , forOf      = require('./$.for-of')
-  , setProto   = require('./$.set-proto').set
-  , same       = require('./$.same-value')
-  , speciesConstructor = require('./$.species-constructor')
-  , asap       = require('./$.microtask')
+var $          = require('./_')
+  , LIBRARY    = require('./_library')
+  , global     = require('./_global')
+  , ctx        = require('./_ctx')
+  , classof    = require('./_classof')
+  , $export    = require('./_export')
+  , isObject   = require('./_is-object')
+  , anObject   = require('./_an-object')
+  , aFunction  = require('./_a-function')
+  , strictNew  = require('./_strict-new')
+  , forOf      = require('./_for-of')
+  , setProto   = require('./_set-proto').set
+  , same       = require('./_same-value')
+  , speciesConstructor = require('./_species-constructor')
+  , asap       = require('./_microtask')
   , PROMISE    = 'Promise'
   , process    = global.process
   , isNode     = classof(process) == 'process'
@@ -42,7 +42,7 @@ var USE_NATIVE = function(){
       works = false;
     }
     // actual V8 bug, https://code.google.com/p/v8/issues/detail?id=4162
-    if(works && require('./$.descriptors')){
+    if(works && require('./_descriptors')){
       var thenableThenGotten = false;
       P.resolve($.setDesc({}, 'then', {
         get: function(){ thenableThenGotten = true; }
@@ -194,7 +194,7 @@ if(!USE_NATIVE){
       $reject.call(record, err);
     }
   };
-  require('./$.redefine-all')(P.prototype, {
+  require('./_redefine-all')(P.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
       var reaction = new PromiseCapability(speciesConstructor(this, P))
@@ -215,9 +215,9 @@ if(!USE_NATIVE){
 }
 
 $export($export.G + $export.W + $export.F * !USE_NATIVE, {Promise: P});
-require('./$.set-to-string-tag')(P, PROMISE);
-require('./$.set-species')(PROMISE);
-Wrapper = require('./$.core')[PROMISE];
+require('./_set-to-string-tag')(P, PROMISE);
+require('./_set-species')(PROMISE);
+Wrapper = require('./_core')[PROMISE];
 
 // statics
 $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
@@ -240,7 +240,7 @@ $export($export.S + $export.F * (!USE_NATIVE || testResolve(true)), PROMISE, {
     return capability.promise;
   }
 });
-$export($export.S + $export.F * !(USE_NATIVE && require('./$.iter-detect')(function(iter){
+$export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function(iter){
   P.all(iter)['catch'](function(){});
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)

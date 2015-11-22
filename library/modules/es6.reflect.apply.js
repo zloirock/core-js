@@ -1,5 +1,5 @@
 // 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-var $export = require('./$.export')
+var $export = require('./_export')
   , _apply  = Function.apply;
 
 $export($export.S, 'Reflect', {

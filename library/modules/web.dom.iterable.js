@@ -1,11 +1,11 @@
 require('./es6.array.iterator');
-var global        = require('./$.global')
-  , hide          = require('./$.hide')
-  , Iterators     = require('./$.iterators')
-  , TO_STRING_TAG = require('./$.wks')('toStringTag')
+var global        = require('./_global')
+  , hide          = require('./_hide')
+  , Iterators     = require('./_iterators')
+  , TO_STRING_TAG = require('./_wks')('toStringTag')
   , ArrayValues   = Iterators.Array;
 
-require('./$').each.call((
+require('./_').each.call((
   'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
   'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
 ).split(','), function(NAME){

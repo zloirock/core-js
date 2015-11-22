@@ -1,26 +1,26 @@
 'use strict';
-var $                 = require('./$')
-  , $export           = require('./$.export')
-  , DESCRIPTORS       = require('./$.descriptors')
-  , createDesc        = require('./$.property-desc')
-  , html              = require('./$.html')
-  , cel               = require('./$.dom-create')
-  , has               = require('./$.has')
-  , cof               = require('./$.cof')
-  , invoke            = require('./$.invoke')
-  , fails             = require('./$.fails')
-  , anObject          = require('./$.an-object')
-  , aFunction         = require('./$.a-function')
-  , isObject          = require('./$.is-object')
-  , toObject          = require('./$.to-object')
-  , toIObject         = require('./$.to-iobject')
-  , toInteger         = require('./$.to-integer')
-  , toIndex           = require('./$.to-index')
-  , toLength          = require('./$.to-length')
-  , IObject           = require('./$.iobject')
-  , IE_PROTO          = require('./$.uid')('__proto__')
-  , createArrayMethod = require('./$.array-methods')
-  , arrayIndexOf      = require('./$.array-includes')(false)
+var $                 = require('./_')
+  , $export           = require('./_export')
+  , DESCRIPTORS       = require('./_descriptors')
+  , createDesc        = require('./_property-desc')
+  , html              = require('./_html')
+  , cel               = require('./_dom-create')
+  , has               = require('./_has')
+  , cof               = require('./_cof')
+  , invoke            = require('./_invoke')
+  , fails             = require('./_fails')
+  , anObject          = require('./_an-object')
+  , aFunction         = require('./_a-function')
+  , isObject          = require('./_is-object')
+  , toObject          = require('./_to-object')
+  , toIObject         = require('./_to-iobject')
+  , toInteger         = require('./_to-integer')
+  , toIndex           = require('./_to-index')
+  , toLength          = require('./_to-length')
+  , IObject           = require('./_iobject')
+  , IE_PROTO          = require('./_uid')('__proto__')
+  , createArrayMethod = require('./_array-methods')
+  , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
   , ArrayProto        = Array.prototype
   , arraySlice        = ArrayProto.slice
@@ -186,7 +186,7 @@ $export($export.P + $export.F * (IObject != Object), 'Array', {
 });
 
 // 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-$export($export.S, 'Array', {isArray: require('./$.is-array')});
+$export($export.S, 'Array', {isArray: require('./_is-array')});
 
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){

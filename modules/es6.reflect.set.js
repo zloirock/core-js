@@ -1,10 +1,10 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-var $          = require('./$')
-  , has        = require('./$.has')
-  , $export    = require('./$.export')
-  , createDesc = require('./$.property-desc')
-  , anObject   = require('./$.an-object')
-  , isObject   = require('./$.is-object');
+var $          = require('./_')
+  , has        = require('./_has')
+  , $export    = require('./_export')
+  , createDesc = require('./_property-desc')
+  , anObject   = require('./_an-object')
+  , isObject   = require('./_is-object');
 
 function set(target, propertyKey, V/*, receiver*/){
   var receiver = arguments.length < 4 ? target : arguments[3]

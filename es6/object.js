@@ -14,4 +14,4 @@ require('../modules/es6.object.get-prototype-of');
 require('../modules/es6.object.keys');
 require('../modules/es6.object.get-own-property-names');
 
-module.exports = require('../modules/$.core').Object;
+module.exports = require('../modules/_core').Object;

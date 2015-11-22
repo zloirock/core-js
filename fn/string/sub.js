@@ -1,2 +1,2 @@
 require('../../modules/es6.string.sub');
-module.exports = require('../../modules/$.core').String.sub;
+module.exports = require('../../modules/_core').String.sub;

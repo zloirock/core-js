@@ -1,12 +1,12 @@
 'use strict';
-if(require('./$.descriptors')){
-  var $export      = require('./$.export')
-    , $typed       = require('./$.typed')
-    , buffer       = require('./$.typed-buffer')
-    , toIndex      = require('./$.to-index')
-    , toLength     = require('./$.to-length')
-    , isObject     = require('./$.is-object')
-    , TYPED_ARRAY  = require('./$.wks')('typed_array')
+if(require('./_descriptors')){
+  var $export      = require('./_export')
+    , $typed       = require('./_typed')
+    , buffer       = require('./_typed-buffer')
+    , toIndex      = require('./_to-index')
+    , toLength     = require('./_to-length')
+    , isObject     = require('./_is-object')
+    , TYPED_ARRAY  = require('./_wks')('typed_array')
     , $ArrayBuffer = buffer.ArrayBuffer
     , $DataView    = buffer.DataView
     , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
@@ -22,7 +22,7 @@ if(require('./$.descriptors')){
     }
   });
 
-  $export($export.P + $export.F * require('./$.fails')(function(){
+  $export($export.P + $export.F * require('./_fails')(function(){
     return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
   }), ARRAY_BUFFER, {
     // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)

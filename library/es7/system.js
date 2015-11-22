@@ -1,2 +1,2 @@
 require('../modules/es7.system.global');
-module.exports = require('../modules/$.core').System;
+module.exports = require('../modules/_core').System;

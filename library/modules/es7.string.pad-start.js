@@ -1,6 +1,6 @@
 'use strict';
-var $export = require('./$.export')
-  , $pad    = require('./$.string-pad');
+var $export = require('./_export')
+  , $pad    = require('./_string-pad');
 
 $export($export.P, 'String', {
   padStart: function padStart(maxLength /*, fillString = ' ' */){

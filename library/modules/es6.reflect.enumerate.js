@@ -1,7 +1,7 @@
 'use strict';
 // 26.1.5 Reflect.enumerate(target)
-var $export  = require('./$.export')
-  , anObject = require('./$.an-object');
+var $export  = require('./_export')
+  , anObject = require('./_an-object');
 var Enumerate = function(iterated){
   this._t = anObject(iterated); // target
   this._i = 0;                  // next index
@@ -9,7 +9,7 @@ var Enumerate = function(iterated){
     , key;
   for(key in iterated)keys.push(key);
 };
-require('./$.iter-create')(Enumerate, 'Object', function(){
+require('./_iter-create')(Enumerate, 'Object', function(){
   var that = this
     , keys = that._k
     , key;

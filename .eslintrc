@@ -12,7 +12,6 @@
     "quote-props": [2, "as-needed", {"keywords": true}],
     "dot-notation": [2, {"allowKeywords": false}],
     "quotes": [2, "single", "avoid-escape"],
-    "no-extra-parens": 2,
     "new-parens": 0,
     "new-cap": [2, {"newIsCap": true, "capIsNew": false}],
     "no-wrap-func": 0,

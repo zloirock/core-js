@@ -1,5 +1,5 @@
 // 20.2.2.12 Math.cosh(x)
-var $export = require('./$.export')
+var $export = require('./_export')
   , exp     = Math.exp;
 
 $export($export.S, 'Math', {

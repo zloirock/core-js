@@ -1,6 +1,6 @@
 // 20.1.2.5 Number.isSafeInteger(number)
-var $export   = require('./$.export')
-  , isInteger = require('./$.is-integer')
+var $export   = require('./_export')
+  , isInteger = require('./_is-integer')
   , abs       = Math.abs;
 
 $export($export.S, 'Number', {

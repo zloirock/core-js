@@ -6,4 +6,4 @@ require('../modules/es6.object.is-frozen');
 require('../modules/es6.object.is-sealed');
 require('../modules/es6.object.is-extensible');
 require('../modules/es6.string.trim');
-module.exports = require('../modules/$.core');
+module.exports = require('../modules/_core');

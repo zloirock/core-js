@@ -1,2 +1,2 @@
 require('../../modules/es6.number.is-nan');
-module.exports = require('../../modules/$.core').Number.isNaN;
+module.exports = require('../../modules/_core').Number.isNaN;

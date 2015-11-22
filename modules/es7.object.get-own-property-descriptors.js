@@ -1,9 +1,9 @@
 // https://gist.github.com/WebReflection/9353781
-var $          = require('./$')
-  , $export    = require('./$.export')
-  , ownKeys    = require('./$.own-keys')
-  , toIObject  = require('./$.to-iobject')
-  , createDesc = require('./$.property-desc');
+var $          = require('./_')
+  , $export    = require('./_export')
+  , ownKeys    = require('./_own-keys')
+  , toIObject  = require('./_to-iobject')
+  , createDesc = require('./_property-desc');
 
 $export($export.S, 'Object', {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object){

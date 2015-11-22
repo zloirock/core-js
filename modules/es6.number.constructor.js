@@ -1,11 +1,11 @@
 'use strict';
-var $           = require('./$')
-  , global      = require('./$.global')
-  , has         = require('./$.has')
-  , cof         = require('./$.cof')
-  , toPrimitive = require('./$.to-primitive')
-  , fails       = require('./$.fails')
-  , $trim       = require('./$.string-trim').trim
+var $           = require('./_')
+  , global      = require('./_global')
+  , has         = require('./_has')
+  , cof         = require('./_cof')
+  , toPrimitive = require('./_to-primitive')
+  , fails       = require('./_fails')
+  , $trim       = require('./_string-trim').trim
   , NUMBER      = 'Number'
   , $Number     = global[NUMBER]
   , Base        = $Number
@@ -49,7 +49,7 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
       && (BROKEN_COF ? fails(function(){ proto.valueOf.call(that); }) : cof(that) != NUMBER)
         ? new Base(toNumber(it)) : toNumber(it);
   };
-  $.each.call(require('./$.descriptors') ? $.getNames(Base) : (
+  $.each.call(require('./_descriptors') ? $.getNames(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES6 (in case, if modules with ES6 Number statics required before):
@@ -62,5 +62,5 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
   });
   $Number.prototype = proto;
   proto.constructor = $Number;
-  require('./$.redefine')(global, NUMBER, $Number);
+  require('./_redefine')(global, NUMBER, $Number);
 }

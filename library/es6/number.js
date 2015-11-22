@@ -8,4 +8,4 @@ require('../modules/es6.number.max-safe-integer');
 require('../modules/es6.number.min-safe-integer');
 require('../modules/es6.number.parse-float');
 require('../modules/es6.number.parse-int');
-module.exports = require('../modules/$.core').Number;
+module.exports = require('../modules/_core').Number;

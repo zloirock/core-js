@@ -1,2 +1,2 @@
 require('../../modules/core.object.make');
-module.exports = require('../../modules/$.core').Object.make;
+module.exports = require('../../modules/_core').Object.make;

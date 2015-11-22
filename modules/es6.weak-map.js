@@ -1,16 +1,16 @@
 'use strict';
-var $            = require('./$')
-  , redefine     = require('./$.redefine')
-  , weak         = require('./$.collection-weak')
-  , isObject     = require('./$.is-object')
-  , has          = require('./$.has')
+var $            = require('./_')
+  , redefine     = require('./_redefine')
+  , weak         = require('./_collection-weak')
+  , isObject     = require('./_is-object')
+  , has          = require('./_has')
   , frozenStore  = weak.frozenStore
   , WEAK         = weak.WEAK
   , isExtensible = Object.isExtensible || isObject
   , tmp          = {};
 
 // 23.3 WeakMap Objects
-var $WeakMap = require('./$.collection')('WeakMap', function(get){
+var $WeakMap = require('./_collection')('WeakMap', function(get){
   return function WeakMap(){ return get(this, arguments.length > 0 ? arguments[0] : undefined); };
 }, {
   // 23.3.3.3 WeakMap.prototype.get(key)

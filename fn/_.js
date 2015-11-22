@@ -1,2 +1,2 @@
 require('../modules/core.function.part');
-module.exports = require('../modules/$.core')._;
+module.exports = require('../modules/_core')._;

@@ -1,2 +1,2 @@
 require('../../modules/es6.regexp.split');
-module.exports = require('../../modules/$.wks')('split');
+module.exports = require('../../modules/_wks')('split');

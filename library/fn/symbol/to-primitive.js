@@ -1,1 +1,1 @@
-module.exports = require('../../modules/$.wks')('toPrimitive');
+module.exports = require('../../modules/_wks')('toPrimitive');

@@ -1,2 +1,2 @@
 require('../../modules/js.array.statics');
-module.exports = require('../../modules/$.core').Array.filter;
+module.exports = require('../../modules/_core').Array.filter;

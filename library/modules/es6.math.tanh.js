@@ -1,6 +1,6 @@
 // 20.2.2.33 Math.tanh(x)
-var $export = require('./$.export')
-  , expm1   = require('./$.math-expm1')
+var $export = require('./_export')
+  , expm1   = require('./_math-expm1')
   , exp     = Math.exp;
 
 $export($export.S, 'Math', {

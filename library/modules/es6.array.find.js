@@ -1,7 +1,7 @@
 'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-var $export = require('./$.export')
-  , $find   = require('./$.array-methods')(5)
+var $export = require('./_export')
+  , $find   = require('./_array-methods')(5)
   , KEY     = 'find'
   , forced  = true;
 // Shouldn't skip holes
@@ -11,4 +11,4 @@ $export($export.P + $export.F * forced, 'Array', {
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
-require('./$.add-to-unscopables')(KEY);
+require('./_add-to-unscopables')(KEY);

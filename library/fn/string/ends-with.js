@@ -1,2 +1,2 @@
 require('../../modules/es6.string.ends-with');
-module.exports = require('../../modules/$.core').String.endsWith;
+module.exports = require('../../modules/_core').String.endsWith;

@@ -1,2 +1,2 @@
 require('../modules/core.regexp.escape');
-module.exports = require('../modules/$.core').RegExp;
+module.exports = require('../modules/_core').RegExp;

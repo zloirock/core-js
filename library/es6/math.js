@@ -15,4 +15,4 @@ require('../modules/es6.math.sign');
 require('../modules/es6.math.sinh');
 require('../modules/es6.math.tanh');
 require('../modules/es6.math.trunc');
-module.exports = require('../modules/$.core').Math;
+module.exports = require('../modules/_core').Math;

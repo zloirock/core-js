@@ -50,7 +50,6 @@
     "WeakSet",
     "Promise",
     "Symbol",
-    "Array generics",
     "setImmediate",
     "Dict",
     "partial application"

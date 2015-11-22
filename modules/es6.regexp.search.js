@@ -1,5 +1,5 @@
 // @@search logic
-require('./$.fix-re-wks')('search', 1, function(defined, SEARCH){
+require('./_fix-re-wks')('search', 1, function(defined, SEARCH){
   // 21.1.3.15 String.prototype.search(regexp)
   return function search(regexp){
     'use strict';

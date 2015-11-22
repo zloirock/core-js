@@ -11,4 +11,4 @@ require('../modules/es7.map.to-json');
 require('../modules/es7.set.to-json');
 require('../modules/es7.system.global');
 require('../modules/es7.error.is-error');
-module.exports = require('../modules/$.core');
+module.exports = require('../modules/_core');

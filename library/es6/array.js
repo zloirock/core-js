@@ -7,4 +7,4 @@ require('../modules/es6.array.copy-within');
 require('../modules/es6.array.fill');
 require('../modules/es6.array.find');
 require('../modules/es6.array.find-index');
-module.exports = require('../modules/$.core').Array;
+module.exports = require('../modules/_core').Array;

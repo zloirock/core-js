@@ -3,4 +3,4 @@ require('../modules/es6.string.iterator');
 require('../modules/web.dom.iterable');
 require('../modules/es6.map');
 require('../modules/es7.map.to-json');
-module.exports = require('../modules/$.core').Map;
+module.exports = require('../modules/_core').Map;

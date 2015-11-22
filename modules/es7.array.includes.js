@@ -1,6 +1,6 @@
 'use strict';
-var $export   = require('./$.export')
-  , $includes = require('./$.array-includes')(true);
+var $export   = require('./_export')
+  , $includes = require('./_array-includes')(true);
 
 $export($export.P, 'Array', {
   // https://github.com/domenic/Array.prototype.includes
@@ -9,4 +9,4 @@ $export($export.P, 'Array', {
   }
 });
 
-require('./$.add-to-unscopables')('includes');
+require('./_add-to-unscopables')('includes');

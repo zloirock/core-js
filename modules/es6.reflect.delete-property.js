@@ -1,7 +1,7 @@
 // 26.1.4 Reflect.deleteProperty(target, propertyKey)
-var $export  = require('./$.export')
-  , getDesc  = require('./$').getDesc
-  , anObject = require('./$.an-object');
+var $export  = require('./_export')
+  , getDesc  = require('./_').getDesc
+  , anObject = require('./_an-object');
 
 $export($export.S, 'Reflect', {
   deleteProperty: function deleteProperty(target, propertyKey){

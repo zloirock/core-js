@@ -1,9 +1,9 @@
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
-var $        = require('./$')
-  , has      = require('./$.has')
-  , $export  = require('./$.export')
-  , isObject = require('./$.is-object')
-  , anObject = require('./$.an-object');
+var $        = require('./_')
+  , has      = require('./_has')
+  , $export  = require('./_export')
+  , isObject = require('./_is-object')
+  , anObject = require('./_an-object');
 
 function get(target, propertyKey/*, receiver*/){
   var receiver = arguments.length < 3 ? target : arguments[2]

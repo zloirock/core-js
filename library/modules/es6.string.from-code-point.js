@@ -1,5 +1,5 @@
-var $export        = require('./$.export')
-  , toIndex        = require('./$.to-index')
+var $export        = require('./_export')
+  , toIndex        = require('./_to-index')
   , fromCharCode   = String.fromCharCode
   , $fromCodePoint = String.fromCodePoint;
 

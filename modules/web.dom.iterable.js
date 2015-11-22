@@ -1,15 +1,15 @@
 var $iterators     = require('./es6.array.iterator')
-  , redefine       = require('./$.redefine')
-  , global         = require('./$.global')
-  , hide           = require('./$.hide')
-  , Iterators      = require('./$.iterators')
-  , wks            = require('./$.wks')
-  , CORRECT_SYMBOL = require('./$.correct-symbol')
+  , redefine       = require('./_redefine')
+  , global         = require('./_global')
+  , hide           = require('./_hide')
+  , Iterators      = require('./_iterators')
+  , wks            = require('./_wks')
+  , CORRECT_SYMBOL = require('./_correct-symbol')
   , ITERATOR       = wks('iterator')
   , TO_STRING_TAG  = wks('toStringTag')
   , ArrayValues    = Iterators.Array;
 
-require('./$').each.call((
+require('./_').each.call((
   'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
   'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
 ).split(','), function(NAME){
