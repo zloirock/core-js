@@ -38,6 +38,10 @@ test 'WeakMap' (assert)!->
     [][Symbol?iterator]call @
   new WeakMap a
   assert.ok done
+  o = {}
+  new WeakMap!set o, 1
+  assert.arrayEqual Object.getOwnPropertyNames(o), []
+  assert.arrayEqual Object.getOwnPropertySymbols(o), []
 
 test 'WeakMap#delete' (assert)!->
   assert.isFunction WeakMap::delete

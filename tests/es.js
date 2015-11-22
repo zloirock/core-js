@@ -1179,7 +1179,7 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Map', function(assert){
-    var x$, done, iter, a;
+    var x$, done, iter, a, o;
     assert.isFunction(Map);
     assert.arity(Map, 0);
     assert.name(Map, 'Map');
@@ -1209,7 +1209,11 @@
       return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new Map(a);
-    return assert.ok(done);
+    assert.ok(done);
+    o = {};
+    new Map().set(o, 1);
+    assert.arrayEqual(Object.getOwnPropertyNames(o), []);
+    return assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
   });
   test('Map#clear', function(assert){
     var M, x$, y$, f;
@@ -2712,6 +2716,24 @@
     function fn1$(){
       return Object[method](value);
     }
+  });
+  test('Object.seal', function(assert){
+    var seal;
+    seal = Object.seal;
+    assert.arrayEqual(Object.getOwnPropertyNames(seal({})), []);
+    assert.arrayEqual(Object.getOwnPropertySymbols(seal({})), []);
+  });
+  test('Object.freeze', function(assert){
+    var freeze;
+    freeze = Object.freeze;
+    assert.arrayEqual(Object.getOwnPropertyNames(freeze({})), []);
+    assert.arrayEqual(Object.getOwnPropertySymbols(freeze({})), []);
+  });
+  test('Object.preventExtensions', function(assert){
+    var preventExtensions;
+    preventExtensions = Object.preventExtensions;
+    assert.arrayEqual(Object.getOwnPropertyNames(preventExtensions({})), []);
+    assert.arrayEqual(Object.getOwnPropertySymbols(preventExtensions({})), []);
   });
 }).call(this);
 
@@ -4787,7 +4809,7 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Set', function(assert){
-    var x$, y$, S, r, z$, z1$, done, iter, _add, a;
+    var x$, y$, S, r, z$, z1$, done, iter, _add, a, o;
     assert.isFunction(Set);
     assert.name(Set, 'Set');
     assert.arity(Set, 0);
@@ -4837,7 +4859,11 @@
       return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
     };
     new Set(a);
-    return assert.ok(done);
+    assert.ok(done);
+    o = {};
+    new Set().add(o);
+    assert.arrayEqual(Object.getOwnPropertyNames(o), []);
+    return assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
   });
   test('Set#add', function(assert){
     var a, x$, S, chain, y$, f;
@@ -6083,7 +6109,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakMap', function(assert){
-    var a, x$, f, M, done, iter;
+    var a, x$, f, M, done, iter, o;
     assert.isFunction(WeakMap);
     assert.name(WeakMap, 'WeakMap');
     assert.arity(WeakMap, 0);
@@ -6121,6 +6147,10 @@
     };
     new WeakMap(a);
     assert.ok(done);
+    o = {};
+    new WeakMap().set(o, 1);
+    assert.arrayEqual(Object.getOwnPropertyNames(o), []);
+    assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
   });
   test('WeakMap#delete', function(assert){
     var x$, M, a, b;
@@ -6207,7 +6237,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakSet', function(assert){
-    var a, x$, f, S, done, iter;
+    var a, x$, f, S, done, iter, o;
     assert.isFunction(WeakSet);
     assert.name(WeakSet, 'WeakSet');
     assert.arity(WeakSet, 0);
@@ -6242,6 +6272,10 @@
     };
     new WeakSet(a);
     assert.ok(done);
+    o = {};
+    new WeakSet().add(o);
+    assert.arrayEqual(Object.getOwnPropertyNames(o), []);
+    assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
   });
   test('WeakSet#add', function(assert){
     var a, e, wset;

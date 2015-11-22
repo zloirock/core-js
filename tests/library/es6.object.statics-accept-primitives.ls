@@ -17,3 +17,18 @@ test 'Object static methods accept primitives' (assert)->
     for value in [null void]
       assert.throws (-> core.Object[method] value), TypeError, "Object.#method assert.throws on #value"
   assert.strictEqual core.Object.getPrototypeOf(\foo), String::
+
+test 'Object.seal' (assert)!->
+  {seal} = core.Object
+  assert.arrayEqual core.Object.getOwnPropertyNames(seal {}), []
+  assert.arrayEqual core.Object.getOwnPropertySymbols(seal {}), []
+
+test 'Object.freeze' (assert)!->
+  {freeze} = core.Object
+  assert.arrayEqual core.Object.getOwnPropertyNames(freeze {}), []
+  assert.arrayEqual core.Object.getOwnPropertySymbols(freeze {}), []
+
+test 'Object.preventExtensions' (assert)!->
+  {preventExtensions} = core.Object
+  assert.arrayEqual core.Object.getOwnPropertyNames(preventExtensions {}), []
+  assert.arrayEqual core.Object.getOwnPropertySymbols(preventExtensions {}), []

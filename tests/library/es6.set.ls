@@ -41,6 +41,10 @@ test 'Set' (assert)->
     core.getIteratorMethod([])call @
   new Set a
   assert.ok done
+  o = {}
+  new Set!add o
+  assert.arrayEqual core.Object.getOwnPropertyNames(o), []
+  assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
 
 test 'Set#add' (assert)->
   assert.isFunction Set::add

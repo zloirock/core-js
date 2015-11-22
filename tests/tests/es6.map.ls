@@ -33,6 +33,10 @@ test 'Map' (assert)->
     [][Symbol?iterator]call @
   new Map a
   assert.ok done
+  o = {}
+  new Map!set o, 1
+  assert.arrayEqual Object.getOwnPropertyNames(o), []
+  assert.arrayEqual Object.getOwnPropertySymbols(o), []
 
 test 'Map#clear' (assert)->
   assert.isFunction Map::clear

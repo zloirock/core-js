@@ -1,11 +1,12 @@
 'use strict';
 var each         = require('./_').each
   , redefine     = require('./_redefine')
-  , getWeak      = require('./_meta').getWeak
+  , meta         = require('./_meta')
   , assign       = require('./_object-assign')
   , weak         = require('./_collection-weak')
   , isObject     = require('./_is-object')
   , has          = require('./_has')
+  , getWeak      = meta.getWeak
   , isExtensible = Object.isExtensible
   , uncaughtFrozenStore = weak.ufstore
   , tmp          = {}
@@ -39,6 +40,7 @@ var $WeakMap = require('./_collection')('WeakMap', wrapper, methods, weak, true,
 if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
   InternalMap = weak.getConstructor(wrapper);
   assign(InternalMap.prototype, methods);
+  meta.NEED = true;
   each.call(['delete', 'has', 'get', 'set'], function(key){
     var proto  = $WeakMap.prototype
       , method = proto[key];

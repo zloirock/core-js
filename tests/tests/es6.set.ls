@@ -54,6 +54,10 @@ test 'Set' (assert)->
     [][Symbol?iterator]call @
   new Set a
   assert.ok done
+  o = {}
+  new Set!add o
+  assert.arrayEqual Object.getOwnPropertyNames(o), []
+  assert.arrayEqual Object.getOwnPropertySymbols(o), []
 
 test 'Set#add' (assert)->
   assert.isFunction Set::add

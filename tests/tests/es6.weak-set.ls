@@ -35,6 +35,10 @@ test 'WeakSet' (assert)!->
     [][Symbol?iterator]call @
   new WeakSet a
   assert.ok done
+  o = {}
+  new WeakSet!add o
+  assert.arrayEqual Object.getOwnPropertyNames(o), []
+  assert.arrayEqual Object.getOwnPropertySymbols(o), []
 
 test 'WeakSet#add' (assert)!->
   assert.isFunction WeakSet::add

@@ -31,6 +31,10 @@ test 'Map' (assert)->
     core.getIteratorMethod([])call @
   new Map a
   assert.ok done
+  o = {}
+  new Map!set o, 1
+  assert.arrayEqual core.Object.getOwnPropertyNames(o), []
+  assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
 
 test 'Map#clear' (assert)->
   assert.isFunction Map::clear
