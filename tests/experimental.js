@@ -11,10 +11,10 @@
     assert.looksNative(ArrayBuffer);
     b = new ArrayBuffer(123);
     assert.same(b.byteLength, 123, 'length');
-    assert.throws(function(){
-      new ArrayBuffer(-1);
-    }, RangeError, 'negative length');
     if (NATIVE) {
+      assert.throws(function(){
+        new ArrayBuffer(-1);
+      }, RangeError, 'negative length');
       assert.throws(function(){
         new ArrayBuffer();
       }, RangeError, 'missed length');
