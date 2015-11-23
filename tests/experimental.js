@@ -1534,7 +1534,7 @@
       x$ = ref$[i$];
       Typed = global[x$];
       assert.isFunction(Typed.prototype.subarray, x$ + "::subarray is function");
-      assert.arity(Typed.prototype.subarray, 2, x$ + "::subarray arity is 2");
+      NATIVE && assert.arity(Typed.prototype.subarray, 2, x$ + "::subarray arity is 2");
       assert.name(Typed.prototype.subarray, 'subarray', x$ + "::subarray name is 'subarray'");
       assert.looksNative(Typed.prototype.subarray, x$ + "::subarray looks native");
       a = new Typed([1, 2, 3, 4, 5]);

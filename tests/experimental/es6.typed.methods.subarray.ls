@@ -5,7 +5,7 @@ DESCRIPTORS and test '%TypedArrayPrototype%.subarray', !(assert)~>
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
     assert.isFunction Typed::subarray, "#{..}::subarray is function"
-    assert.arity Typed::subarray, 2, "#{..}::subarray arity is 2"
+    NATIVE and assert.arity Typed::subarray, 2, "#{..}::subarray arity is 2" # Chromium 29- bug
     assert.name Typed::subarray, \subarray, "#{..}::subarray name is 'subarray'"
     assert.looksNative Typed::subarray, "#{..}::subarray looks native"
     a = new Typed [1 2 3 4 5]

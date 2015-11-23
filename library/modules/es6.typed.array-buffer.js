@@ -24,7 +24,7 @@ if(require('./_descriptors')){
     }
   });
 
-  $export($export.P + $export.F * require('./_fails')(function(){
+  $export($export.P + $export.U + $export.F * require('./_fails')(function(){
     return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
   }), ARRAY_BUFFER, {
     // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)

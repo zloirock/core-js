@@ -24,7 +24,7 @@ var $export = function(type, name, source){
     // bind timers to global for call from export context
     exp = IS_BIND && own ? ctx(out, global) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // extend global
-    if(target && !own)redefine(target, key, out);
+    if(target && !own)redefine(target, key, out, type & $export.U);
     // export
     if(exports[key] != out)hide(exports, key, exp);
     if(IS_PROTO && expProto[key] != out)expProto[key] = out;
@@ -38,4 +38,5 @@ $export.S = 4;  // static
 $export.P = 8;  // proto
 $export.B = 16; // bind
 $export.W = 32; // wrap
+$export.U = 64; // safe
 module.exports = $export;
