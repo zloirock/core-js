@@ -1,10 +1,10 @@
 {module, test} = QUnit
 module \ES6
 DESCRIPTORS and test \ArrayBuffer, !(assert)~>
-  assert.isFunction ArrayBuffer
-  assert.arity ArrayBuffer, 1
-  assert.name ArrayBuffer, \ArrayBuffer
-  assert.looksNative ArrayBuffer
+  assert.same ArrayBuffer, Object(ArrayBuffer), 'is object' # in Safari 5 typeof ArrayBuffer is 'object'
+  NATIVE and assert.arity ArrayBuffer, 1 # 0 in V8 ~ Chromium 27-
+  NATIVE and assert.name ArrayBuffer, \ArrayBuffer # Safari 5 bug
+  NATIVE and assert.looksNative ArrayBuffer # Safari 5 bug
   b = new ArrayBuffer 123
   assert.same b.byteLength, 123, \length
   if NATIVE

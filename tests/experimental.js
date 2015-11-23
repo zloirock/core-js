@@ -5,10 +5,10 @@
   module('ES6');
   DESCRIPTORS && test('ArrayBuffer', function(assert){
     var b;
-    assert.isFunction(ArrayBuffer);
-    assert.arity(ArrayBuffer, 1);
-    assert.name(ArrayBuffer, 'ArrayBuffer');
-    assert.looksNative(ArrayBuffer);
+    assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
+    NATIVE && assert.arity(ArrayBuffer, 1);
+    NATIVE && assert.name(ArrayBuffer, 'ArrayBuffer');
+    NATIVE && assert.looksNative(ArrayBuffer);
     b = new ArrayBuffer(123);
     assert.same(b.byteLength, 123, 'length');
     if (NATIVE) {
@@ -107,7 +107,7 @@
       assert.isFunction(Typed);
       assert.arity(Typed, 3);
       assert.name(Typed, name);
-      assert.looksNative(Typed);
+      NATIVE && assert.looksNative(Typed);
       assert.same(Typed.BYTES_PER_ELEMENT, bytes, name + ".BYTES_PER_ELEMENT");
       a = new Typed(4);
       assert.same(a.BYTES_PER_ELEMENT, bytes, '#BYTES_PER_ELEMENT');
@@ -378,10 +378,10 @@
   if (DESCRIPTORS) {
     test('DataView', function(assert){
       var d;
-      assert.isFunction(DataView);
+      assert.same(DataView, Object(DataView), 'is object');
       NATIVE && assert.arity(DataView, 3);
-      assert.name(DataView, 'DataView');
-      assert.looksNative(DataView);
+      NATIVE && assert.name(DataView, 'DataView');
+      NATIVE && assert.looksNative(DataView);
       d = new DataView(new ArrayBuffer(8));
       d.setUint32(0, 0x12345678);
       assert.same(d.getUint32(0), 0x12345678, 'big endian/big endian');

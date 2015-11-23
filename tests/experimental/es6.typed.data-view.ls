@@ -3,10 +3,10 @@ module \ES6
 
 if DESCRIPTORS
   test \DataView, !(assert)~>
-    assert.isFunction DataView
+    assert.same DataView, Object(DataView), 'is object' # in Safari 5 typeof DataView is 'object'
     NATIVE and assert.arity DataView, 3 # 1 in IE11
-    assert.name DataView, \DataView
-    assert.looksNative DataView
+    NATIVE and assert.name DataView, \DataView # Safari 5 bug
+    NATIVE and assert.looksNative DataView # Safari 5 bug
 
     d = new DataView new ArrayBuffer 8
 

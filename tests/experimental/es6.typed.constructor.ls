@@ -7,7 +7,7 @@ if DESCRIPTORS
       assert.isFunction Typed
       assert.arity Typed, 3
       assert.name Typed, name
-      assert.looksNative Typed
+      NATIVE and assert.looksNative Typed # Safari 5 bug
 
       assert.same Typed.BYTES_PER_ELEMENT, bytes, "#{name}.BYTES_PER_ELEMENT"
       a = new Typed 4
