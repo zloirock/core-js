@@ -368,9 +368,12 @@ if(require('./_descriptors')){
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
     hide(TypedArrayPrototype, VIEW, true);
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
-    TAG in TypedArrayPrototype || $.setDesc(TypedArrayPrototype, TAG, {
-      get: function(){ return NAME; }
-    });
+
+    if(CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)){
+      $.setDesc(TypedArrayPrototype, TAG, {
+        get: function(){ return NAME; }
+      });
+    }
 
     O[NAME] = TypedArray;
 
