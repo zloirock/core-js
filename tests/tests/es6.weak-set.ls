@@ -37,8 +37,12 @@ test 'WeakSet' (assert)!->
   assert.ok done
   o = {}
   new WeakSet!add o
+  if DESCRIPTORS
+    assert.arrayEqual [key for key of o], []
+    assert.arrayEqual Object.keys(o), []
   assert.arrayEqual Object.getOwnPropertyNames(o), []
   assert.arrayEqual Object.getOwnPropertySymbols(o), []
+  assert.arrayEqual Reflect.ownKeys(o), []
 
 test 'WeakSet#add' (assert)!->
   assert.isFunction WeakSet::add

@@ -1,6 +1,8 @@
 {module, test} = QUnit
 module \ES6
 
+{seal, freeze, preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
+
 test 'Object static methods accept primitives' (assert)->
   for method in <[freeze seal preventExtensions getOwnPropertyDescriptor getPrototypeOf isExtensible isSealed isFrozen keys getOwnPropertyNames]>
     assert.ok /native code/.test(Object[method]), "Object.#method looks like native"
@@ -20,16 +22,22 @@ test 'Object static methods accept primitives' (assert)->
   assert.strictEqual Object.getPrototypeOf(\foo), String::
 
 test 'Object.seal' (assert)!->
-  {seal} = Object
-  assert.arrayEqual Object.getOwnPropertyNames(seal {}), []
-  assert.arrayEqual Object.getOwnPropertySymbols(seal {}), []
+  assert.arrayEqual [key for key of seal {}], []
+  assert.arrayEqual keys(seal {}), []
+  assert.arrayEqual getOwnPropertyNames(seal {}), []
+  assert.arrayEqual getOwnPropertySymbols(seal {}), []
+  assert.arrayEqual Reflect.ownKeys(seal {}), []
 
 test 'Object.freeze' (assert)!->
-  {freeze} = Object
-  assert.arrayEqual Object.getOwnPropertyNames(freeze {}), []
-  assert.arrayEqual Object.getOwnPropertySymbols(freeze {}), []
+  assert.arrayEqual [key for key of freeze {}], []
+  assert.arrayEqual keys(freeze {}), []
+  assert.arrayEqual getOwnPropertyNames(freeze {}), []
+  assert.arrayEqual getOwnPropertySymbols(freeze {}), []
+  assert.arrayEqual Reflect.ownKeys(freeze {}), []
 
 test 'Object.preventExtensions' (assert)!->
-  {preventExtensions} = Object
-  assert.arrayEqual Object.getOwnPropertyNames(preventExtensions {}), []
-  assert.arrayEqual Object.getOwnPropertySymbols(preventExtensions {}), []
+  assert.arrayEqual [key for key of preventExtensions {}], []
+  assert.arrayEqual keys(preventExtensions {}), []
+  assert.arrayEqual getOwnPropertyNames(preventExtensions {}), []
+  assert.arrayEqual getOwnPropertySymbols(preventExtensions {}), []
+  assert.arrayEqual Reflect.ownKeys(preventExtensions {}), []

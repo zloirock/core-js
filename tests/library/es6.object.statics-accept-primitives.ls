@@ -1,6 +1,9 @@
 {module, test} = QUnit
 module \ES6
 
+{seal, freeze, preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols} = core.Object
+Reflect = core.Reflect
+
 test 'Object static methods accept primitives' (assert)->
   for method in <[freeze seal preventExtensions getOwnPropertyDescriptor getPrototypeOf isExtensible isSealed isFrozen keys getOwnPropertyNames]>
     for value in [42 \foo no]
@@ -19,16 +22,22 @@ test 'Object static methods accept primitives' (assert)->
   assert.strictEqual core.Object.getPrototypeOf(\foo), String::
 
 test 'Object.seal' (assert)!->
-  {seal} = core.Object
-  assert.arrayEqual core.Object.getOwnPropertyNames(seal {}), []
-  assert.arrayEqual core.Object.getOwnPropertySymbols(seal {}), []
+  assert.arrayEqual [key for key of seal {}], []
+  assert.arrayEqual keys(seal {}), []
+  assert.arrayEqual getOwnPropertyNames(seal {}), []
+  assert.arrayEqual getOwnPropertySymbols(seal {}), []
+  assert.arrayEqual Reflect.ownKeys(seal {}), []
 
 test 'Object.freeze' (assert)!->
-  {freeze} = core.Object
-  assert.arrayEqual core.Object.getOwnPropertyNames(freeze {}), []
-  assert.arrayEqual core.Object.getOwnPropertySymbols(freeze {}), []
+  assert.arrayEqual [key for key of freeze {}], []
+  assert.arrayEqual keys(freeze {}), []
+  assert.arrayEqual getOwnPropertyNames(freeze {}), []
+  assert.arrayEqual getOwnPropertySymbols(freeze {}), []
+  assert.arrayEqual Reflect.ownKeys(freeze {}), []
 
 test 'Object.preventExtensions' (assert)!->
-  {preventExtensions} = core.Object
-  assert.arrayEqual core.Object.getOwnPropertyNames(preventExtensions {}), []
-  assert.arrayEqual core.Object.getOwnPropertySymbols(preventExtensions {}), []
+  assert.arrayEqual [key for key of preventExtensions {}], []
+  assert.arrayEqual keys(preventExtensions {}), []
+  assert.arrayEqual getOwnPropertyNames(preventExtensions {}), []
+  assert.arrayEqual getOwnPropertySymbols(preventExtensions {}), []
+  assert.arrayEqual Reflect.ownKeys(preventExtensions {}), []

@@ -33,8 +33,12 @@ test 'Map' (assert)->
   assert.ok done
   o = {}
   new Map!set o, 1
+  if DESCRIPTORS
+    assert.arrayEqual [key for key of o], []
+    assert.arrayEqual core.Object.keys(o), []
   assert.arrayEqual core.Object.getOwnPropertyNames(o), []
   assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
+  assert.arrayEqual core.Reflect.ownKeys(o), []
 
 test 'Map#clear' (assert)->
   assert.isFunction Map::clear

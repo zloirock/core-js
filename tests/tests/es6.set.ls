@@ -56,8 +56,12 @@ test 'Set' (assert)->
   assert.ok done
   o = {}
   new Set!add o
+  if DESCRIPTORS
+    assert.arrayEqual [key for key of o], []
+    assert.arrayEqual Object.keys(o), []
   assert.arrayEqual Object.getOwnPropertyNames(o), []
   assert.arrayEqual Object.getOwnPropertySymbols(o), []
+  assert.arrayEqual Reflect.ownKeys(o), []
 
 test 'Set#add' (assert)->
   assert.isFunction Set::add
