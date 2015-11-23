@@ -3,10 +3,12 @@ if(require('./_descriptors')){
   var $export      = require('./_export')
     , $typed       = require('./_typed')
     , buffer       = require('./_typed-buffer')
+    , anObject     = require('./_an-object')
     , toIndex      = require('./_to-index')
     , toLength     = require('./_to-length')
     , isObject     = require('./_is-object')
     , TYPED_ARRAY  = require('./_wks')('typed_array')
+    , speciesConstructor = require('./_species-constructor')
     , $ArrayBuffer = buffer.ArrayBuffer
     , $DataView    = buffer.DataView
     , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
@@ -27,11 +29,11 @@ if(require('./_descriptors')){
   }), ARRAY_BUFFER, {
     // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
     slice: function slice(start, end){
-      if($slice !== undefined && end === undefined)return $slice.call(this, start); // FF fix
-      var len    = this.byteLength
+      if($slice !== undefined && end === undefined)return $slice.call(anObject(this), start); // FF fix
+      var len    = anObject(this).byteLength
         , first  = toIndex(start, len)
         , final  = toIndex(end === undefined ? len : end, len)
-        , result = new $ArrayBuffer(toLength(final - first))
+        , result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first))
         , viewS  = new $DataView(this)
         , viewT  = new $DataView(result)
         , index  = 0;
