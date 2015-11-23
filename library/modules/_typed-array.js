@@ -220,7 +220,9 @@ if(require('./_descriptors')){
         O.byteOffset + $begin * O.BYTES_PER_ELEMENT,
         toLength((end === undefined ? length : toIndex(end, length)) - $begin)
       );
-    },
+    }
+  };
+  var $iterators = {
     entries: function entries(){
       return arrayEntries.call(validate(this));
     },
@@ -262,6 +264,7 @@ if(require('./_descriptors')){
   });
 
   var $TypedArrayPrototype$ = redefineAll({}, proto);
+  redefineAll($TypedArrayPrototype$, $iterators);
   redefineAll($TypedArrayPrototype$, {
     constructor:    function(){ /* noop */ },
     toString:       arrayToString,
@@ -283,7 +286,6 @@ if(require('./_descriptors')){
       , TypedArray = global[NAME]
       , Base       = TypedArray || {}
       , FORCED     = !TypedArray || !$typed.ABV
-      , $iterator  = proto.values
       , O          = {}
       , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var addElement = function(that, index){
@@ -359,7 +361,9 @@ if(require('./_descriptors')){
       TypedArrayPrototype = TypedArray[PROTOTYPE] = Base[PROTOTYPE];
       if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
-    var $nativeIterator = TypedArrayPrototype[ITERATOR];
+    var $nativeIterator   = TypedArrayPrototype[ITERATOR]
+      , CORRECT_ITER_NAME = !!$nativeIterator && $nativeIterator.name == 'values'
+      , $iterator         = $iterators.values;
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
     hide(TypedArrayPrototype, VIEW, true);
@@ -380,14 +384,16 @@ if(require('./_descriptors')){
 
     $export($export.P + $export.F * FORCED, NAME, proto);
 
+    $export($export.P + $export.F * (FORCED || !CORRECT_ITER_NAME), NAME, $iterators);
+
     $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
     $export($export.P + $export.F * fails(function(){
       return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
     }), NAME, {toLocaleString: $toLocaleString});
     
-    Iterators[NAME] = $nativeIterator || $iterator;
-    LIBRARY || $nativeIterator || hide(TypedArrayPrototype, ITERATOR, $iterator);
+    Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
+    if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
 
     setSpecies(NAME);
   };
