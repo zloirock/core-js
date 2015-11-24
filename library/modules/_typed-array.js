@@ -266,6 +266,12 @@ if(require('./_descriptors')){
     $.setDesc = $setDesc;
   }
 
+  if(fails(function(){ arrayToString.call({}); })){
+    arrayToString = arrayToLocaleString = function toString(){
+      return arrayJoin.call(this);
+    }
+  }
+
   $export($export.S + $export.F * !ALL_ARRAYS, 'Object', {
     getOwnPropertyDescriptor: $getDesc,
     defineProperty: $setDesc
