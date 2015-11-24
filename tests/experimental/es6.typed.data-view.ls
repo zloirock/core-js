@@ -29,8 +29,15 @@ if DESCRIPTORS
     #assert.throws(function () { return new DataView(); }, TypeError, 'no arguments');
 
     # Chrome throws TypeError, Safari iOS5 throws isDOMException(INDEX_SIZE_ERR)
-    assert.throws (-> new DataView {}), 'non-ArrayBuffer argument'
-    assert.throws (-> new DataView \bogus), TypeError, 'non-ArrayBuffer argument'
+    assert.throws (-> new DataView {}), 'non-ArrayBuffer argument';
+
+    # Opera 12 throws `true`
+    assert.ok (->
+      try
+        new DataView \foo
+        void
+      catch => e
+    ), 'non-ArrayBuffer argument'
 
   test 'DataView accessors', !(assert)~>
     u = new Uint8Array 8

@@ -359,9 +359,11 @@ if(require('./_descriptors')){
       TypedArray = wrapper(function(that, data, $offset, $length){
         strictNew(that, TypedArray, NAME);
         if(!isObject(data))return new Base(strictToLength(data))
-        if(data instanceof $ArrayBuffer)return $length === undefined
-          ? new Base(data, $offset)
-          : new Base(data, $offset, $length);
+        if(data instanceof $ArrayBuffer)return $length !== undefined
+          ? new Base(data, $offset, $length)
+          : $offset !== undefined
+            ? new Base(data, $offset)
+            : new Base(data);
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });

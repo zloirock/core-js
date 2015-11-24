@@ -394,9 +394,15 @@
       assert.throws(function(){
         return new DataView({});
       }, 'non-ArrayBuffer argument');
-      assert.throws(function(){
-        return new DataView('bogus');
-      }, TypeError, 'non-ArrayBuffer argument');
+      assert.ok(function(){
+        var e;
+        try {
+          new DataView('foo');
+        } catch (e$) {
+          e = e$;
+          return e;
+        }
+      }, 'non-ArrayBuffer argument');
     });
     test('DataView accessors', function(assert){
       var u, d;
