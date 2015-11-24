@@ -253,9 +253,6 @@
           assert.throws(function(){
             new Typed(new ArrayBuffer(8), 3);
           }, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
-          assert.throws(function(){
-            new Typed(new ArrayBuffer(9));
-          }, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
         }
         assert.throws(function(){
           new Typed(new ArrayBuffer(8), 16);

@@ -77,6 +77,10 @@ if(require('./_descriptors')){
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
 
+  var FORCED_SET = fails(function(){
+    new Uint8Array(1).set({});
+  });
+
   var strictToLength = function(it){
     if(it === undefined)throw TypeError(WRONG_LENGTH);
     var number = +it
@@ -199,17 +203,6 @@ if(require('./_descriptors')){
         that[length]  = value;
       } return that;
     },
-    set: function set(arrayLike /*, offset */){
-      validate(this);
-      var offset = toInteger(arguments.length > 1 ? arguments[1] : undefined);
-      if(offset < 0)throw RangeError();
-      var length = this.length;
-      var src    = toObject(arrayLike);
-      var index  = 0;
-      var len    = toLength(src.length);
-      if(len + offset > length)throw RangeError();
-      while(index < len)this[offset + index] = src[index++];
-    },
     slice: function slice(start, end){
       return speciesFromList(this, arraySlice.call(validate(this), start, end));
     },
@@ -230,6 +223,19 @@ if(require('./_descriptors')){
       );
     }
   };
+
+  var $set = function set(arrayLike /*, offset */){
+    validate(this);
+    var offset = toInteger(arguments.length > 1 ? arguments[1] : undefined);
+    if(offset < 0)throw RangeError();
+    var length = this.length;
+    var src    = toObject(arrayLike);
+    var index  = 0;
+    var len    = toLength(src.length);
+    if(len + offset > length)throw RangeError();
+    while(index < len)this[offset + index] = src[index++];
+  };
+
   var $iterators = {
     entries: function entries(){
       return arrayEntries.call(validate(this));
@@ -266,20 +272,21 @@ if(require('./_descriptors')){
     $.setDesc = $setDesc;
   }
 
+  $export($export.S + $export.F * !ALL_ARRAYS, 'Object', {
+    getOwnPropertyDescriptor: $getDesc,
+    defineProperty: $setDesc
+  });
+
   if(fails(function(){ arrayToString.call({}); })){
     arrayToString = arrayToLocaleString = function toString(){
       return arrayJoin.call(this);
     }
   }
 
-  $export($export.S + $export.F * !ALL_ARRAYS, 'Object', {
-    getOwnPropertyDescriptor: $getDesc,
-    defineProperty: $setDesc
-  });
-
   var $TypedArrayPrototype$ = redefineAll({}, proto);
   redefineAll($TypedArrayPrototype$, $iterators);
   redefineAll($TypedArrayPrototype$, {
+    set:            $set,
     constructor:    function(){ /* noop */ },
     toString:       arrayToString,
     toLocaleString: $toLocaleString
@@ -403,6 +410,8 @@ if(require('./_descriptors')){
     if(!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
     $export($export.P + $export.F * FORCED, NAME, proto);
+
+    $export($export.P + $export.F * FORCED_SET, NAME, {set: $set});
 
     $export($export.P + $export.F * (FORCED || !CORRECT_ITER_NAME), NAME, $iterators);
 
