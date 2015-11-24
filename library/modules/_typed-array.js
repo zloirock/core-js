@@ -56,7 +56,6 @@ if(require('./_descriptors')){
     , arrayReduce         = ArrayProto.reduce
     , arrayReduceRight    = ArrayProto.reduceRight
     , arrayJoin           = ArrayProto.join
-    , arrayReverse        = ArrayProto.reverse
     , arraySort           = ArrayProto.sort
     , arraySlice          = ArrayProto.slice
     , arrayToString       = ArrayProto.toString
@@ -189,7 +188,16 @@ if(require('./_descriptors')){
       return arrayReduceRight.apply(validate(this), arguments);
     },
     reverse: function reverse(){
-      return arrayReverse.call(validate(this));
+      var that   = this
+        , length = validate(that).length
+        , middle = Math.floor(length / 2)
+        , index  = 0
+        , value;
+      while(index < middle){
+        value         = that[index];
+        that[index++] = that[--length];
+        that[length]  = value;
+      } return that;
     },
     set: function set(arrayLike /*, offset */){
       validate(this);
