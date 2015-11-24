@@ -70,7 +70,11 @@ var core = require('core-js/library');
 // Shim only
 require('core-js/shim');
 ```
-If you need complete build for browser, use builds from `core-js/client` path:  [default](https://raw.githack.com/zloirock/core-js/v1.2.6/client/core.min.js), [without global namespace pollution](https://raw.githack.com/zloirock/core-js/v1.2.6/client/library.min.js), [shim only](https://raw.githack.com/zloirock/core-js/v1.2.6/client/shim.min.js).
+If you need complete build for browser, use builds from `core-js/client` path:  
+
+* [default](https://raw.githack.com/zloirock/core-js/v1.2.6/client/core.min.js): Includes all features, standard and non-standard.
+* [as a library](https://raw.githack.com/zloirock/core-js/v1.2.6/client/library.min.js): Like "default", but does not pollute the global namespace (see [2nd example at the top](#core-js)).
+* [shim only](https://raw.githack.com/zloirock/core-js/v1.2.6/client/shim.min.js): Only includes the standard methods.
 
 Warning: if you uses `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise maybe conflicts.
 
@@ -98,7 +102,7 @@ Available entry points for methods / constructors, as above examples, excluding 
 
 Available namespaces: for example, `core-js/es6/array` (`core-js/library/es6/array`) contains all [ES6 `Array` features](#ecmascript-6-array), `core-js/es6` (`core-js/library/es6`) contains all ES6 features.
 
-### Custom build
+### Custom build (from the command-line)
 ```
 npm i core-js && cd node_modules/core-js && npm i
 npm run grunt build:core.dict,es6 -- --blacklist=es6.promise,es6.math --library=on --path=custom uglify
@@ -107,7 +111,10 @@ Where `core.dict` and `es6` are modules (namespaces) names, which will be added 
 
 Available namespaces: for example, `es6.array` contains [ES6 `Array` features](#ecmascript-6-array), `es6` contains all modules whose names start with `es6`.
 
-Available custom build from js code (required `webpack`):
+### Custom build (automatic with [Webpack](http://webpack.github.io/))
+
+`core-js/build` exports a function that takes the same parameters as the `build` target from the previous section. This will conditionally include or exclude certain parts of `core-js`:
+
 ```js
 require('core-js/build')({
   modules: ['es6', 'core.dict'], // modules / namespaces
