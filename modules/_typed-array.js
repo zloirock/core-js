@@ -349,7 +349,6 @@ if(require('./_descriptors')){
         while(index < length)addElement(that, index++);
       });
       TypedArrayPrototype = TypedArray[PROTOTYPE] = $.create($TypedArrayPrototype$);
-      hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if(!$iterDetect(function(iter){
       // V8 works with iterators, but fails in many other cases
@@ -392,6 +391,8 @@ if(require('./_descriptors')){
       from: Base.from || $from,
       of: Base.of || $of
     });
+
+    if(!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
     $export($export.P + $export.F * FORCED, NAME, proto);
 
