@@ -34,6 +34,8 @@ if(require('./_descriptors')){
     , setSpecies          = require('./_set-species')
     , arrayFill           = require('./_array-fill')
     , arrayCopyWithin     = require('./_array-copy-within')
+    , RangeError          = global.RangeError
+    , TypeError           = global.TypeError
     , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT'
     , PROTOTYPE           = 'prototype'
     , ArrayProto          = Array[PROTOTYPE]
@@ -89,7 +91,7 @@ if(require('./_descriptors')){
     return length;
   };
 
-  var strictToOffset = function(it, BYTES){
+  var toOffset = function(it, BYTES){
     var offset = toInteger(it);
     if(offset < 0 || offset % BYTES)throw RangeError('Wrong offset!');
     return offset;
@@ -232,13 +234,12 @@ if(require('./_descriptors')){
 
   var $set = function set(arrayLike /*, offset */){
     validate(this);
-    var offset = toInteger(arguments.length > 1 ? arguments[1] : undefined);
-    if(offset < 0)throw RangeError();
-    var length = this.length;
-    var src    = toObject(arrayLike);
-    var index  = 0;
-    var len    = toLength(src.length);
-    if(len + offset > length)throw RangeError();
+    var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1)
+      , length = this.length
+      , src    = toObject(arrayLike)
+      , len    = toLength(src.length)
+      , index  = 0;
+    if(len + offset > length)throw RangeError(WRONG_LENGTH);
     while(index < len)this[offset + index] = src[index++];
   };
 
@@ -341,15 +342,15 @@ if(require('./_descriptors')){
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer){
           buffer = data;
-          offset = strictToOffset($offset, BYTES);
+          offset = toOffset($offset, BYTES);
           var $len = data.byteLength;
           if($length === undefined){
-            if($len % BYTES)throw RangeError();
+            if($len % BYTES)throw RangeError(WRONG_LENGTH);
             byteLength = $len - offset;
-            if(byteLength < 0)throw RangeError();
+            if(byteLength < 0)throw RangeError(WRONG_LENGTH);
           } else {
             byteLength = toLength($length) * BYTES;
-            if(byteLength + offset > $len)throw RangeError();
+            if(byteLength + offset > $len)throw RangeError(WRONG_LENGTH);
           }
           length = byteLength / BYTES;
         } else if(TYPED_ARRAY in data){
@@ -378,8 +379,10 @@ if(require('./_descriptors')){
         strictNew(that, TypedArray, NAME);
         if(!isObject(data))return new Base(strictToLength(data))
         if(data instanceof $ArrayBuffer)return $length !== undefined
-          ? new Base(data, strictToOffset($offset, BYTES), $length)
-          : new Base(data, strictToOffset($offset, BYTES));
+          ? new Base(data, toOffset($offset, BYTES), $length)
+          : $offset !== undefined
+            ? new Base(data, toOffset($offset, BYTES))
+            : new Base(data);
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
