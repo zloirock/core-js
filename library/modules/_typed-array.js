@@ -89,6 +89,12 @@ if(require('./_descriptors')){
     return length;
   };
 
+  var strictToOffset = function(it, BYTES){
+    var offset = toInteger(it);
+    if(offset < 0 || offset % BYTES)throw RangeError('Wrong offset!');
+    return offset;
+  };
+
   var validate = function(it){
     if(isObject(it) && TYPED_ARRAY in it)return it;
     throw TypeError(it + ' is not a typed array!');
@@ -335,8 +341,7 @@ if(require('./_descriptors')){
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer){
           buffer = data;
-          offset = toInteger($offset);
-          if(offset < 0 || offset % BYTES)throw RangeError();
+          offset = strictToOffset($offset, BYTES);
           var $len = data.byteLength;
           if($length === undefined){
             if($len % BYTES)throw RangeError();
@@ -373,10 +378,8 @@ if(require('./_descriptors')){
         strictNew(that, TypedArray, NAME);
         if(!isObject(data))return new Base(strictToLength(data))
         if(data instanceof $ArrayBuffer)return $length !== undefined
-          ? new Base(data, $offset, $length)
-          : $offset !== undefined
-            ? new Base(data, $offset)
-            : new Base(data);
+          ? new Base(data, strictToOffset($offset, BYTES), $length)
+          : new Base(data, strictToOffset($offset, BYTES));
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });

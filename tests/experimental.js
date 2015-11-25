@@ -227,14 +227,16 @@
       assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
       assert.same(a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
       assert.arrayEqual(a, [], 'correct values, passed buffer and byteOffset with buffer length');
-      if (NATIVE) {
+      assert.throws(function(){
+        new Typed(new ArrayBuffer(8), -1);
+      }, RangeError, 'If offset < 0, throw a RangeError exception');
+      if (bytes !== 1) {
         assert.throws(function(){
-          new Typed(new ArrayBuffer(8), -1);
-        }, RangeError, 'If offset < 0, throw a RangeError exception');
+          new Typed(new ArrayBuffer(8), 3);
+        }, RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
+      }
+      if (NATIVE) {
         if (bytes !== 1) {
-          assert.throws(function(){
-            new Typed(new ArrayBuffer(8), 3);
-          }, RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
           assert.throws(function(){
             new Typed(new ArrayBuffer(9));
           }, RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
@@ -246,14 +248,6 @@
           new Typed(new ArrayBuffer(24), 8, 24);
         }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       } else {
-        assert.throws(function(){
-          new Typed(new ArrayBuffer(8), -1);
-        }, 'If offset < 0, throw a RangeError exception');
-        if (bytes !== 1) {
-          assert.throws(function(){
-            new Typed(new ArrayBuffer(8), 3);
-          }, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
-        }
         assert.throws(function(){
           new Typed(new ArrayBuffer(8), 16);
         }, 'If newByteLength < 0, throw a RangeError exception');

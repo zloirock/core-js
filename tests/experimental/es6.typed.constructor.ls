@@ -111,17 +111,17 @@ if DESCRIPTORS
       assert.same a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length'
       assert.arrayEqual a, [], 'correct values, passed buffer and byteOffset with buffer length'
 
+      assert.throws (!-> new Typed new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception' # FF bug - TypeError instead of RangeError
+      if bytes isnt 1
+        assert.throws (!-> new Typed new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception' # FF bug - TypeError instead of RangeError
+
       if NATIVE
-        assert.throws (!-> new Typed new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception'
         if bytes isnt 1
-          assert.throws (!-> new Typed new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception'
           assert.throws (!-> new Typed new ArrayBuffer 9), RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception'
         assert.throws (!-> new Typed new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception'
         assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
       else # FF bug - TypeError instead of RangeError
-        assert.throws (!-> new Typed new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception'
-        if bytes isnt 1
-          assert.throws (!-> new Typed new ArrayBuffer(8), 3), 'If offset modulo elementSize ≠ 0, throw a RangeError exception'
+        # if bytes isnt 1
           # assert.throws (!-> new Typed new ArrayBuffer 9), 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception' # fails in Opera 12
         assert.throws (!-> new Typed new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception'
         assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
