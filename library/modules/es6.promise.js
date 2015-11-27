@@ -14,6 +14,7 @@ var $          = require('./_')
   , speciesConstructor = require('./_species-constructor')
   , asap       = require('./_microtask')
   , PROMISE    = 'Promise'
+  , TypeError  = global.TypeError
   , process    = global.process
   , $Promise   = global[PROMISE]
   , isNode     = classof(process) == 'process'
@@ -113,7 +114,7 @@ var notify = function(promise, isReject){
     while(chain.length > i)run(chain[i++]); // variable length - can't use forEach
     chain.length = 0;
     promise._n = false;
-    if(isReject)setTimeout(function(){
+    if(isReject && !promise._h)setTimeout(function(){
       var handler, console;
       if(isUnhandled(promise)){
         if(isNode){
@@ -141,7 +142,7 @@ var $reject = function(value){
   var promise = this;
   if(promise._d)return;
   promise._d = true;
-  promise = promise.p || promise; // unwrap
+  promise = promise._w || promise; // unwrap
   promise._v = value;
   promise._s = 2;
   promise._a = promise._c.slice();
@@ -152,12 +153,12 @@ var $resolve = function(value){
     , then;
   if(promise._d)return;
   promise._d = true;
-  promise = promise.p || promise; // unwrap
+  promise = promise._w || promise; // unwrap
   try {
     if(promise === value)throw TypeError("Promise can't be resolved itself");
     if(then = isThenable(value)){
       asap(function(){
-        var wrapper = {p: promise, _d: false}; // wrap
+        var wrapper = {_w: promise, _d: false}; // wrap
         try {
           then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
         } catch(e){
@@ -170,7 +171,7 @@ var $resolve = function(value){
       notify(promise, false);
     }
   } catch(e){
-    $reject.call({p: promise, _d: false}, e); // wrap
+    $reject.call({_w: promise, _d: false}, e); // wrap
   }
 };
 
