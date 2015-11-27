@@ -40,7 +40,7 @@ var USE_NATIVE = function(){
     if(!(SubPromise.resolve(5).then(function(){}) instanceof SubPromise)){
       works = false;
     }
-    // actual V8 bug, https://code.google.com/p/v8/issues/detail?id=4162
+    // V8 4.8- bug, https://code.google.com/p/v8/issues/detail?id=4162
     if(works && require('./_descriptors')){
       var thenableThenGotten = false;
       $Promise.resolve($.setDesc({}, 'then', {
@@ -180,12 +180,12 @@ if(!USE_NATIVE){
   $Promise = function Promise(executor){
     strictNew(this, $Promise, PROMISE);
     aFunction(executor);
-    var promise = new Internal;
+    Internal.call(this);
     try {
-      executor(ctx($resolve, promise, 1), ctx($reject, promise, 1));
+      executor(ctx($resolve, this, 1), ctx($reject, this, 1));
     } catch(err){
-      $reject.call(promise, err);
-    } return promise;
+      $reject.call(this, err);
+    }
   };
   Internal = function Promise(executor){
     this._c = [];             // <- awaiting reactions
@@ -199,14 +199,13 @@ if(!USE_NATIVE){
   Internal.prototype = require('./_redefine-all')($Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
-      var reaction = newPromiseCapability(speciesConstructor(this, $Promise))
-        , promise  = reaction.promise;
+      var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
       reaction.ok   = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
       this._c.push(reaction);
       if(this._a)this._a.push(reaction);
       if(this._s)notify(this, false);
-      return promise;
+      return reaction.promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
     'catch': function(onRejected){
