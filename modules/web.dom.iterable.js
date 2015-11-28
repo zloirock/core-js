@@ -9,10 +9,7 @@ var $iterators     = require('./es6.array.iterator')
   , TO_STRING_TAG  = wks('toStringTag')
   , ArrayValues    = Iterators.Array;
 
-require('./_').each.call((
-  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
-  'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
-).split(','), function(NAME){
+require('./_').each.call(['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList', 'CSSRuleList'], function(NAME){
   var Collection = global[NAME]
     , proto      = Collection && Collection.prototype
     , key;

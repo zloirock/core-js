@@ -5377,7 +5377,7 @@
   test('Iterable DOM collections', function(assert){
     var absent, i$, x$, ref$, len$, Collection;
     absent = true;
-    for (i$ = 0, len$ = (ref$ = ['CSSRuleList', 'CSSStyleDeclaration', 'DOMStringList', 'DOMTokenList', 'FileList', 'HTMLCollection', 'MediaList', 'MimeTypeArray', 'NamedNodeMap', 'NodeList', 'NodeListOf', 'Plugin', 'PluginArray', 'StyleSheetList', 'TouchList']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList', 'CSSRuleList']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Collection = global[x$];
       if (Collection) {
@@ -5388,9 +5388,6 @@
     }
     if ((typeof NodeList != 'undefined' && NodeList !== null) && ((typeof document != 'undefined' && document !== null) && document.querySelectorAll) && document.querySelectorAll('div') instanceof NodeList) {
       assert.isFunction(core.getIteratorMethod(document.querySelectorAll('div')), 'works with document.querySelectorAll');
-    }
-    if ((typeof HTMLCollection != 'undefined' && HTMLCollection !== null) && ((typeof document != 'undefined' && document !== null) && document.getElementsByTagName) && document.getElementsByTagName('div') instanceof HTMLCollection) {
-      assert.isFunction(core.getIteratorMethod(document.getElementsByTagName('div')), 'works with document.getElementsByTagName');
     }
     if (absent) {
       return assert.ok(true, 'DOM collections are absent');

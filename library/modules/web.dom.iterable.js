@@ -5,10 +5,7 @@ var global        = require('./_global')
   , TO_STRING_TAG = require('./_wks')('toStringTag')
   , ArrayValues   = Iterators.Array;
 
-require('./_').each.call((
-  'CSSRuleList,CSSStyleDeclaration,DOMStringList,DOMTokenList,FileList,HTMLCollection,MediaList,' +
-  'MimeTypeArray,NamedNodeMap,NodeList,NodeListOf,Plugin,PluginArray,StyleSheetList,TouchList'
-).split(','), function(NAME){
+require('./_').each.call(['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList', 'CSSRuleList'], function(NAME){
   var Collection = global[NAME]
     , proto      = Collection && Collection.prototype;
   if(proto && !proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
