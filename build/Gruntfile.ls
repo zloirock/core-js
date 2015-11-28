@@ -55,16 +55,17 @@ module.exports = (grunt)->
         files: library-tests
   grunt.registerTask \build (options)->
     done = @async!
-    err, it <- build {
+    build {
       modules: (options || 'es5,es6,es7,js,web,core')split \,
       blacklist: (grunt.option(\blacklist) || '')split \,
       library: !!grunt.option \library
     }
-    if err
-      console.error err
+    .then !->
+      grunt.option(\path) || grunt.option(\path, './custom')
+      fs.writeFile grunt.option(\path) + '.js', it, done
+    .catch !->
+      console.error it
       process.exit 1
-    grunt.option(\path) || grunt.option(\path, './custom')
-    fs.writeFile grunt.option(\path) + '.js', it, done
   grunt.registerTask \client ->
     grunt.option \library ''
     grunt.option \path './client/core'

@@ -1,4 +1,4 @@
-require! {'./config': {banner}, fs: {readFile, writeFile, unlink}, path: {join}, webpack, temp}
+require! {'../fn/promise', './config': {banner}, fs: {readFile, writeFile, unlink}, path: {join}, webpack, temp}
 
 list = <[
   es5
@@ -182,13 +182,9 @@ es5SpecialCase = <[
   es6.string.trim
 ]>
 
-module.exports = ({modules = [], blacklist = [], library = no}, next)!->
+module.exports = ({modules = [], blacklist = [], library = no})->
+  resolve, reject <~! new Promise _
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
-    check = (err)->
-      if err
-        next err, ''
-        on
-
     if @exp => for experimental => @[..] = on
     if @es5 => for es5SpecialCase => @[..] = on
     for ns of @
@@ -212,15 +208,15 @@ module.exports = ({modules = [], blacklist = [], library = no}, next)!->
       output:
         path: ''
         filename: TARGET
-    if check err => return
+    if err => return reject err
 
     err, script <~! readFile TARGET
-    if check err => return
+    if err => return reject err
 
     err <~! unlink TARGET
-    if check err => return
+    if err => return reject err
 
-    next null """
+    resolve """
       #banner
       !function(__e, __g, undefined){
       'use strict';
