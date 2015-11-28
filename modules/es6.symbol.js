@@ -19,7 +19,6 @@ var $              = require('./_')
   , anObject       = require('./_an-object')
   , toIObject      = require('./_to-iobject')
   , createDesc     = require('./_property-desc')
-  , USE_NATIVE     = require('./_correct-symbol')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
   , _create        = $.create
@@ -32,7 +31,8 @@ var $              = require('./_')
   , isEnum         = $.isEnum
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
-  , ObjectProto    = Object.prototype;
+  , ObjectProto    = Object.prototype
+  , USE_NATIVE     = typeof $Symbol == 'function';
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDesc = DESCRIPTORS && $fails(function(){
