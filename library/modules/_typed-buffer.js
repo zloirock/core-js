@@ -1,17 +1,23 @@
 'use strict';
 var $              = require('./_')
   , global         = require('./_global')
+  , LIBRARY        = require('./_library')
   , $typed         = require('./_typed')
+  , hide           = require('./_hide')
   , redefineAll    = require('./_redefine-all')
+  , fails          = require('./_fails')
   , strictNew      = require('./_strict-new')
   , toInteger      = require('./_to-integer')
   , toLength       = require('./_to-length')
   , arrayFill      = require('./_array-fill')
   , setToStringTag = require('./_set-to-string-tag')
+  , each           = $.each
+  , getNames       = $.getNames
   , $ArrayBuffer   = global.ArrayBuffer
   , $DataView      = global.DataView
   , Math           = global.Math
   , parseInt       = global.parseInt
+  , BaseBuffer     = $ArrayBuffer
   , abs            = Math.abs
   , pow            = Math.pow
   , min            = Math.min
@@ -239,22 +245,22 @@ if(!$typed.ABV){
       return get(this, 1, byteOffset, unpackU8);
     },
     getInt16: function getInt16(byteOffset /*, littleEndian */){
-      return get(this, 2, byteOffset, unpackI16, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 2, byteOffset, unpackI16, arguments.length > 1 ? arguments[1] : false);
     },
     getUint16: function getUint16(byteOffset /*, littleEndian */){
-      return get(this, 2, byteOffset, unpackU16, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 2, byteOffset, unpackU16, arguments.length > 1 ? arguments[1] : false);
     },
     getInt32: function getInt32(byteOffset /*, littleEndian */){
-      return get(this, 4, byteOffset, unpackI32, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 4, byteOffset, unpackI32, arguments.length > 1 ? arguments[1] : false);
     },
     getUint32: function getUint32(byteOffset /*, littleEndian */){
-      return get(this, 4, byteOffset, unpackU32, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 4, byteOffset, unpackU32, arguments.length > 1 ? arguments[1] : false);
     },
     getFloat32: function getFloat32(byteOffset /*, littleEndian */){
-      return get(this, 4, byteOffset, unpackF32, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 4, byteOffset, unpackF32, arguments.length > 1 ? arguments[1] : false);
     },
     getFloat64: function getFloat64(byteOffset /*, littleEndian */){
-      return get(this, 8, byteOffset, unpackF64, arguments.length > 1 ? arguments[1] : undefined);
+      return get(this, 8, byteOffset, unpackF64, arguments.length > 1 ? arguments[1] : false);
     },
     setInt8: function setInt8(byteOffset, value){
       return set(this, 1, byteOffset, packI8, value);
@@ -263,28 +269,47 @@ if(!$typed.ABV){
       return set(this, 1, byteOffset, packU8, value);
     },
     setInt16: function setInt16(byteOffset, value /*, littleEndian */){
-      return set(this, 2, byteOffset, packI16, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 2, byteOffset, packI16, value, arguments.length > 2 ? arguments[2] : false);
     },
     setUint16: function setUint16(byteOffset, value /*, littleEndian */){
-      return set(this, 2, byteOffset, packU16, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 2, byteOffset, packU16, value, arguments.length > 2 ? arguments[2] : false);
     },
     setInt32: function setInt32(byteOffset, value /*, littleEndian */){
-      return set(this, 4, byteOffset, packI32, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 4, byteOffset, packI32, value, arguments.length > 2 ? arguments[2] : false);
     },
     setUint32: function setUint32(byteOffset, value /*, littleEndian */){
-      return set(this, 4, byteOffset, packU32, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 4, byteOffset, packU32, value, arguments.length > 2 ? arguments[2] : false);
     },
     setFloat32: function setFloat32(byteOffset, value /*, littleEndian */){
-      return set(this, 4, byteOffset, packF32, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 4, byteOffset, packF32, value, arguments.length > 2 ? arguments[2] : false);
     },
     setFloat64: function setFloat64(byteOffset, value /*, littleEndian */){
-      return set(this, 8, byteOffset, packF64, value, arguments.length > 2 ? arguments[2] : undefined);
+      return set(this, 8, byteOffset, packF64, value, arguments.length > 2 ? arguments[2] : false);
     }
   });
+} else {
+  if(!fails(function(){
+    new $ArrayBuffer;     // eslint-disable-line no-new
+  }) || !fails(function(){
+    new $ArrayBuffer(.5); // eslint-disable-line no-new
+  })){
+    $ArrayBuffer = function ArrayBuffer(length){
+      strictNew(this, $ArrayBuffer, 'ArrayBuffer');
+      var numberLength = +length
+        , byteLength   = toLength(numberLength);
+      if(numberLength != byteLength)throw RangeError();
+      return new BaseBuffer(byteLength);
+    };
+    each.call(getNames(BaseBuffer), function(key){
+      if(!(key in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
+    });
+    var ArrayBufferProto = $ArrayBuffer.prototype = BaseBuffer.prototype;
+    if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
+  }
 }
 setToStringTag($ArrayBuffer, 'ArrayBuffer');
 setToStringTag($DataView, 'DataView');
-require('./_hide')($DataView.prototype, $typed.VIEW, true);
+hide($DataView.prototype, $typed.VIEW, true);
 module.exports = {
   ArrayBuffer: $ArrayBuffer,
   DataView:    $DataView

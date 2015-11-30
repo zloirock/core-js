@@ -8,6 +8,7 @@ if(require('./_descriptors')){
     , toLength     = require('./_to-length')
     , isObject     = require('./_is-object')
     , TYPED_ARRAY  = require('./_wks')('typed_array')
+    , ArrayBuffer  = require('./_global').ArrayBuffer
     , speciesConstructor = require('./_species-constructor')
     , $ArrayBuffer = buffer.ArrayBuffer
     , $DataView    = buffer.DataView
@@ -15,7 +16,7 @@ if(require('./_descriptors')){
     , VIEW         = $typed.VIEW
     , ARRAY_BUFFER = 'ArrayBuffer';
 
-  $export($export.G + $export.W + $export.F * !$typed.ABV, {ArrayBuffer: $ArrayBuffer});
+  $export($export.G + $export.W + $export.F * (ArrayBuffer !== $ArrayBuffer), {ArrayBuffer: $ArrayBuffer});
 
   $export($export.S + $export.F * !$typed.CONSTR, ARRAY_BUFFER, {
     // 24.1.3.1 ArrayBuffer.isView(arg)

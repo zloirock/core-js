@@ -386,7 +386,7 @@ if(require('./_descriptors')){
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
-      TypedArrayPrototype = TypedArray[PROTOTYPE] = Base[PROTOTYPE];
+      TypedArray[PROTOTYPE] = TypedArrayPrototype;
       if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator   = TypedArrayPrototype[ITERATOR]
@@ -398,7 +398,7 @@ if(require('./_descriptors')){
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
 
     if(CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)){
-      $.setDesc(TypedArrayPrototype, TAG, {
+      setDesc(TypedArrayPrototype, TAG, {
         get: function(){ return NAME; }
       });
     }
@@ -426,7 +426,7 @@ if(require('./_descriptors')){
     $export($export.P + $export.F * fails(function(){
       return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
     }), NAME, {toLocaleString: $toLocaleString});
-    
+
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
 

@@ -6,22 +6,23 @@
   DESCRIPTORS && test('ArrayBuffer', function(assert){
     var b;
     assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
-    NATIVE && assert.arity(ArrayBuffer, 1);
-    NATIVE && assert.name(ArrayBuffer, 'ArrayBuffer');
+    assert.arity(ArrayBuffer, 1);
+    assert.name(ArrayBuffer, 'ArrayBuffer');
     NATIVE && assert.looksNative(ArrayBuffer);
     b = new ArrayBuffer(123);
     assert.same(b.byteLength, 123, 'length');
-    if (NATIVE) {
-      assert.throws(function(){
-        new ArrayBuffer(-1);
-      }, RangeError, 'negative length');
-      assert.throws(function(){
-        new ArrayBuffer();
-      }, RangeError, 'missed length');
-      assert.throws(function(){
-        new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
-      }, RangeError, 'absurd length');
-    }
+    assert.throws(function(){
+      new ArrayBuffer(-1);
+    }, RangeError, 'negative length');
+    assert.throws(function(){
+      new ArrayBuffer(0.5);
+    }, RangeError, 'fractional length');
+    assert.throws(function(){
+      new ArrayBuffer();
+    }, RangeError, 'missed length');
+    assert.throws(function(){
+      new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
+    }, RangeError, 'absurd length');
   });
 }).call(this);
 
