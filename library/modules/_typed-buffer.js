@@ -17,6 +17,7 @@ var $              = require('./_')
   , $DataView      = global.DataView
   , Math           = global.Math
   , parseInt       = global.parseInt
+  , RangeError     = global.RangeError
   , BaseBuffer     = $ArrayBuffer
   , abs            = Math.abs
   , pow            = Math.pow
@@ -24,7 +25,9 @@ var $              = require('./_')
   , floor          = Math.floor
   , log            = Math.log
   , LN2            = Math.LN2
-  , BYTE_LENGTH    = 'byteLength';
+  , BYTE_LENGTH    = 'byteLength'
+  , WRONG_LENGTH   = 'Wrong length!'
+  , WRONG_INDEX    = 'Wrong index!';
 
 // pack / unpack based on
 // https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
@@ -193,7 +196,7 @@ var addGetter = function(C, key, internal){
 var get = function(view, bytes, index, conversion, isLittleEndian){
   var numIndex = +index
     , intIndex = toInteger(numIndex);
-  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError();
+  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError(WRONG_INDEX);
   var store = view._b._b
     , start = intIndex + view._o
     , pack  = store.slice(start, start + bytes);
@@ -203,7 +206,7 @@ var get = function(view, bytes, index, conversion, isLittleEndian){
 var set = function(view, bytes, index, conversion, value, isLittleEndian){
   var numIndex = +index
     , intIndex = toInteger(numIndex);
-  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError();
+  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError(WRONG_INDEX);
   var store = view._b._b
     , start = intIndex + view._o
     , pack  = conversion(+value);
@@ -211,12 +214,17 @@ var set = function(view, bytes, index, conversion, value, isLittleEndian){
   for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
 };
 
+var validateArrayBufferArguments = function(that, length){
+  strictNew(that, $ArrayBuffer, 'ArrayBuffer');
+  var numberLength = +length
+    , byteLength   = toLength(numberLength);
+  if(numberLength != byteLength)throw RangeError(WRONG_LENGTH);
+  return byteLength;
+};
+
 if(!$typed.ABV){
   $ArrayBuffer = function ArrayBuffer(length){
-    strictNew(this, $ArrayBuffer, 'ArrayBuffer');
-    var numberLength = +length
-      , byteLength   = toLength(numberLength);
-    if(numberLength != byteLength)throw RangeError();
+    var byteLength = validateArrayBufferArguments(this, length);
     this._b = arrayFill.call(Array(byteLength), 0);
     this._l = byteLength;
   };
@@ -224,12 +232,12 @@ if(!$typed.ABV){
 
   $DataView = function DataView(buffer, byteOffset, byteLength){
     strictNew(this, $DataView, 'DataView');
-    if(!(buffer instanceof $ArrayBuffer))throw TypeError();
+    strictNew(buffer, $ArrayBuffer, 'ArrayBuffer');
     var bufferLength = buffer._l
       , offset       = toInteger(byteOffset);
-    if(offset < 0 || offset > bufferLength)throw RangeError();
+    if(offset < 0 || offset > bufferLength)throw RangeError('Wrong offset!');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
-    if(offset + byteLength > bufferLength)throw RangeError();
+    if(offset + byteLength > bufferLength)throw RangeError(WRONG_LENGTH);
     this._b = buffer;
     this._o = offset;
     this._l = byteLength;
@@ -294,11 +302,7 @@ if(!$typed.ABV){
     new $ArrayBuffer(.5); // eslint-disable-line no-new
   })){
     $ArrayBuffer = function ArrayBuffer(length){
-      strictNew(this, $ArrayBuffer, 'ArrayBuffer');
-      var numberLength = +length
-        , byteLength   = toLength(numberLength);
-      if(numberLength != byteLength)throw RangeError();
-      return new BaseBuffer(byteLength);
+      return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
     each.call(getNames(BaseBuffer), function(key){
       if(!(key in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
