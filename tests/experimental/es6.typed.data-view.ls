@@ -8,6 +8,43 @@ if DESCRIPTORS
     NATIVE and assert.name DataView, \DataView # Safari 5 bug
     NATIVE and assert.looksNative DataView # Safari 5 bug
 
+    a = new DataView new ArrayBuffer(8)
+    assert.same a.byteOffset, 0, '#byteOffset, passed buffer'
+    assert.same a.byteLength, 8, '#byteLength, passed buffer'
+
+    a = new DataView new ArrayBuffer(16), 8
+    assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset'
+    assert.same a.byteLength, 8, '#byteLength, passed buffer and byteOffset'
+
+    a = new DataView new ArrayBuffer(24), 8, 8
+    assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length'
+    assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and length'
+
+    if NATIVE # fails in IE / MS Edge
+      a = new DataView new ArrayBuffer(8), void
+      assert.same a.byteOffset, 0, '#byteOffset, passed buffer and undefined'
+      assert.same a.byteLength, 8, '#byteLength, passed buffer and undefined'
+
+    if NATIVE # fails in IE / MS Edge
+      a = new DataView new ArrayBuffer(16), 8, void
+      assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined'
+      assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined'
+
+    a = new DataView new ArrayBuffer(8), 8
+    assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length'
+    assert.same a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length'
+
+    if NATIVE # TypeError in IE
+      assert.throws (!-> new DataView new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception' # FF bug - TypeError instead of RangeError
+      assert.throws (!-> new DataView new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception'
+      assert.throws (!-> new DataView new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
+    else
+      assert.throws (!-> new DataView new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception' # FF bug - TypeError instead of RangeError
+      assert.throws (!-> new DataView new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception'
+      assert.throws (!-> new DataView new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
+
+    assert.throws (!-> DataView 1), TypeError, 'throws without `new`'
+
     d = new DataView new ArrayBuffer 8
 
     d.setUint32 0, 0x12345678

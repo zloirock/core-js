@@ -145,19 +145,7 @@ list = <[
   core.string.unescape-html
 ]>
 
-experimental = <[
-  es6.typed.array-buffer
-  es6.typed.data-view
-  es6.typed.int8-array
-  es6.typed.uint8-array
-  es6.typed.uint8-clamped-array
-  es6.typed.int16-array
-  es6.typed.uint16-array
-  es6.typed.int32-array
-  es6.typed.uint32-array
-  es6.typed.float32-array
-  es6.typed.float64-array
-]>
+experimental = <[ ]>
 
 libraryBlacklist = <[
   es6.object.to-string

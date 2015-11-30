@@ -368,11 +368,57 @@
   module('ES6');
   if (DESCRIPTORS) {
     test('DataView', function(assert){
-      var d;
+      var a, d;
       assert.same(DataView, Object(DataView), 'is object');
       NATIVE && assert.arity(DataView, 3);
       NATIVE && assert.name(DataView, 'DataView');
       NATIVE && assert.looksNative(DataView);
+      a = new DataView(new ArrayBuffer(8));
+      assert.same(a.byteOffset, 0, '#byteOffset, passed buffer');
+      assert.same(a.byteLength, 8, '#byteLength, passed buffer');
+      a = new DataView(new ArrayBuffer(16), 8);
+      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset');
+      assert.same(a.byteLength, 8, '#byteLength, passed buffer and byteOffset');
+      a = new DataView(new ArrayBuffer(24), 8, 8);
+      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length');
+      assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and length');
+      if (NATIVE) {
+        a = new DataView(new ArrayBuffer(8), void 8);
+        assert.same(a.byteOffset, 0, '#byteOffset, passed buffer and undefined');
+        assert.same(a.byteLength, 8, '#byteLength, passed buffer and undefined');
+      }
+      if (NATIVE) {
+        a = new DataView(new ArrayBuffer(16), 8, void 8);
+        assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined');
+        assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined');
+      }
+      a = new DataView(new ArrayBuffer(8), 8);
+      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
+      assert.same(a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
+      if (NATIVE) {
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(8), -1);
+        }, RangeError, 'If offset < 0, throw a RangeError exception');
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(8), 16);
+        }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(24), 8, 24);
+        }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+      } else {
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(8), -1);
+        }, 'If offset < 0, throw a RangeError exception');
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(8), 16);
+        }, 'If newByteLength < 0, throw a RangeError exception');
+        assert.throws(function(){
+          new DataView(new ArrayBuffer(24), 8, 24);
+        }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+      }
+      assert.throws(function(){
+        DataView(1);
+      }, TypeError, 'throws without `new`');
       d = new DataView(new ArrayBuffer(8));
       d.setUint32(0, 0x12345678);
       assert.same(d.getUint32(0), 0x12345678, 'big endian/big endian');
