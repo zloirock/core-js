@@ -1429,7 +1429,7 @@
     }
   });
   test('Map & -0', function(assert){
-    var map, x$;
+    var map, x$, y$;
     map = new Map;
     map.set(-0, 1);
     assert.strictEqual(map.size, 1);
@@ -1444,9 +1444,16 @@
     assert.strictEqual(map.size, 0);
     x$ = map = new Map();
     x$.set(-0, 1);
-    return map.forEach(function(val, key){
+    map.forEach(function(val, key){
       return assert.ok(!same(key, -0));
     });
+    y$ = map = new Map();
+    y$.set(4, 4);
+    y$.set(3, 3);
+    y$.set(2, 2);
+    y$.set(1, 1);
+    y$.set(0, 0);
+    return assert.ok(map.has(-0));
   });
   test('Map#@@toStringTag', function(assert){
     return assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
@@ -5084,7 +5091,7 @@
     }
   });
   test('Set & -0', function(assert){
-    var set, x$;
+    var set, x$, y$;
     set = new Set;
     set.add(-0);
     assert.strictEqual(set.size, 1);
@@ -5097,9 +5104,16 @@
     assert.strictEqual(set.size, 0);
     x$ = set = new Set();
     x$.add(-0);
-    return set.forEach(function(key){
+    set.forEach(function(key){
       return assert.ok(!same(key, -0));
     });
+    y$ = set = new Set();
+    y$.add(4);
+    y$.add(3);
+    y$.add(2);
+    y$.add(1);
+    y$.add(0);
+    return assert.ok(set.has(-0));
   });
   test('Set#@@toStringTag', function(assert){
     return assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');

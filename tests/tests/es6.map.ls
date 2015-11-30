@@ -244,6 +244,13 @@ test 'Map & -0' (assert)->
     ..set -0 1
   map.forEach (val, key)->
     assert.ok !same key, -0
+  map = new Map!
+    ..set 4, 4
+    ..set 3, 3
+    ..set 2, 2
+    ..set 1, 1
+    ..set 0, 0
+  assert.ok map.has -0
 
 test 'Map#@@toStringTag' (assert)->
   assert.strictEqual Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'

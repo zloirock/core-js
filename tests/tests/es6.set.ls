@@ -235,6 +235,13 @@ test 'Set & -0' (assert)->
     ..add -0
   set.forEach (key)->
     assert.ok !same key, -0
+  set = new Set!
+    ..add 4
+    ..add 3
+    ..add 2
+    ..add 1
+    ..add 0
+  assert.ok set.has -0
 
 test 'Set#@@toStringTag' (assert)->
   assert.strictEqual Set::[Symbol?toStringTag], \Set, 'Set::@@toStringTag is `Set`'
