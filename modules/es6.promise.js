@@ -12,7 +12,8 @@ var $          = require('./_')
   , forOf      = require('./_for-of')
   , setProto   = require('./_set-proto').set
   , speciesConstructor = require('./_species-constructor')
-  , asap       = require('./_microtask')
+  , task       = require('./_task').set
+  , microtask  = require('./_microtask')
   , PROMISE    = 'Promise'
   , TypeError  = global.TypeError
   , process    = global.process
@@ -88,7 +89,7 @@ var notify = function(promise, isReject){
   if(promise._n)return;
   promise._n = true;
   var chain = promise._c;
-  asap(function(){
+  microtask(function(){
     var value = promise._v
       , ok    = promise._s == 1
       , i     = 0;
@@ -99,7 +100,10 @@ var notify = function(promise, isReject){
         , result, then;
       try {
         if(handler){
-          if(!ok)promise._h = true;
+          if(!ok){
+            if(promise._h == 2)onHandleUnhandled(promise);
+            promise._h = 1;
+          }
           result = handler === true ? value : handler(value);
           if(result === reaction.promise){
             reject(TypeError('Promise-chain cycle'));
@@ -112,31 +116,45 @@ var notify = function(promise, isReject){
       }
     };
     while(chain.length > i)run(chain[i++]); // variable length - can't use forEach
-    chain.length = 0;
+    promise._c = [];
     promise._n = false;
-    if(isReject && !promise._h)setTimeout(function(){
-      var handler, console;
-      if(isUnhandled(promise)){
-        if(isNode){
-          process.emit('unhandledRejection', value, promise);
-        } else if(handler = global.onunhandledrejection){
-          handler({promise: promise, reason: value});
-        } else if((console = global.console) && console.error){
-          console.error('Unhandled promise rejection', value);
-        }
-      } promise._a = undefined;
-    }, 1);
+    if(isReject && !promise._h)onUnhandled(promise);
+  });
+};
+var onUnhandled = function(promise){
+  task.call(global, function(){
+    if(isUnhandled(promise)){
+      var value = promise._v
+        , handler, console;
+      if(isNode){
+        process.emit('unhandledRejection', value, promise);
+      } else if(handler = global.onunhandledrejection){
+        handler({promise: promise, reason: value});
+      } else if((console = global.console) && console.error){
+        console.error('Unhandled promise rejection', value);
+      } promise._h = 2;
+    } promise._a = undefined;
   });
 };
 var isUnhandled = function(promise){
   var chain = promise._a || promise._c
     , i     = 0
     , reaction;
-  if(promise._h)return false;
+  if(promise._h == 1)return false;
   while(chain.length > i){
     reaction = chain[i++];
     if(reaction.fail || !isUnhandled(reaction.promise))return false;
   } return true;
+};
+var onHandleUnhandled = function(promise){
+  task.call(global, function(){
+    var handler;
+    if(isNode){
+      process.emit('rejectionHandled', promise);
+    } else if(handler = global.onrejectionhandled){
+      handler({promise: promise, reason: promise._v});
+    }
+  });
 };
 var $reject = function(value){
   var promise = this;
@@ -145,7 +163,7 @@ var $reject = function(value){
   promise = promise._w || promise; // unwrap
   promise._v = value;
   promise._s = 2;
-  promise._a = promise._c.slice();
+  if(!promise._a)promise._a = promise._c.slice();
   notify(promise, true);
 };
 var $resolve = function(value){
@@ -157,7 +175,7 @@ var $resolve = function(value){
   try {
     if(promise === value)throw TypeError("Promise can't be resolved itself");
     if(then = isThenable(value)){
-      asap(function(){
+      microtask(function(){
         var wrapper = {_w: promise, _d: false}; // wrap
         try {
           then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
@@ -194,7 +212,7 @@ if(!USE_NATIVE){
     this._s = 0;              // <- state
     this._d = false;          // <- done
     this._v = undefined;      // <- value
-    this._h = false;          // <- handled rejection
+    this._h = 0;              // <- rejection state, 0 - default, 1 - handled, 2 - unhandled
     this._n = false;          // <- notify
   };
   Internal.prototype = require('./_redefine-all')($Promise.prototype, {
