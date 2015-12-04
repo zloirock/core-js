@@ -30,9 +30,10 @@ if DESCRIPTORS
       assert.same a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined'
       assert.same a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined'
 
-    a = new DataView new ArrayBuffer(8), 8
-    assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length'
-    assert.same a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length'
+    if NATIVE # fails in IE10
+      a = new DataView new ArrayBuffer(8), 8
+      assert.same a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length'
+      assert.same a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length'
 
     if NATIVE # TypeError in IE
       assert.throws (!-> new DataView new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception' # FF bug - TypeError instead of RangeError
@@ -43,7 +44,10 @@ if DESCRIPTORS
       assert.throws (!-> new DataView new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception'
       assert.throws (!-> new DataView new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
 
-    assert.throws (!-> DataView 1), TypeError, 'throws without `new`'
+    if NATIVE # Android ~ 4.0
+      assert.throws (!-> DataView 1), TypeError, 'throws without `new`'
+    else
+      assert.throws (!-> DataView 1), 'throws without `new`'
 
     d = new DataView new ArrayBuffer 8
 
@@ -136,10 +140,6 @@ if DESCRIPTORS
     assert.throws (-> d.getUint8 6), 'bounds for buffer, byteOffset'
     assert.throws (-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset'
     assert.throws (-> d.setUint8 6, 0), 'bounds for buffer, byteOffset'
-
-    if NATIVE # IE10 buggy here !!!!!!
-      d = new DataView rawbuf, 8
-      assert.same d.byteLength, 0, 'buffer, byteOffset'
 
     assert.throws (-> new DataView rawbuf, -1), 'invalid byteOffset'
     assert.throws (-> new DataView rawbuf, 9), 'invalid byteOffset'
