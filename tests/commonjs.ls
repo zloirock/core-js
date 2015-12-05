@@ -59,6 +59,10 @@ for P in <[.. ../library]>
   ok require("#P/fn/math/sinh")(-0) is -0
   ok require("#P/fn/math/tanh")(Infinity) is 1
   ok require("#P/fn/math/trunc")(1.5) is 1
+  ok require("#P/fn/math/iaddh")(3 2 0xffffffff 4) is 7
+  ok require("#P/fn/math/isubh")(3 4 0xffffffff 2) is 1
+  ok require("#P/fn/math/imulh")(0xffffffff 7) is -1
+  ok require("#P/fn/math/umulh")(0xffffffff 7) is 6
   ok require("#P/fn/number/epsilon") is Math.pow 2 -52
   ok require("#P/fn/number/is-finite") 42.5
   ok require("#P/fn/number/is-integer")(42.5) is no
@@ -183,6 +187,7 @@ for P in <[.. ../library]>
   require("#P/es7/map")
   ok require("#P/es7/system").global.Math is Math
   ok require("#P/es7/error").isError new TypeError
+  ok typeof require("#P/es7/math").isubh is \function
   ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")

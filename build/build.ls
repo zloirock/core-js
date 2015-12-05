@@ -126,6 +126,10 @@ list = <[
   es7.set.to-json
   es7.system.global
   es7.error.is-error
+  es7.math.iaddh
+  es7.math.isubh
+  es7.math.imulh
+  es7.math.umulh
   web.immediate
   web.dom.iterable
   web.timers
