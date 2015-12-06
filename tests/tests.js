@@ -7427,7 +7427,7 @@
       }, 'non-ArrayBuffer argument');
     });
     test('DataView accessors', function(assert){
-      var u, d;
+      var u, d, i$, ref$, len$, i, x;
       u = new Uint8Array(8);
       d = new DataView(u.buffer);
       assert.arrayEqual(u, [0, 0, 0, 0, 0, 0, 0, 0]);
@@ -7447,7 +7447,11 @@
       assert.arrayEqual(u, [0xff, 0x12, 0x7e, 0xb4, 0x8e, 0x52, 0x43, 0x21]);
       d.setFloat64(0, -1.2345678e+301);
       assert.arrayEqual(u, [0xfe, 0x72, 0x6f, 0x51, 0x5f, 0x61, 0x77, 0xe5]);
-      u.set([0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]);
+      for (i$ = 0, len$ = (ref$ = [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]).length; i$ < len$; ++i$) {
+        i = i$;
+        x = ref$[i$];
+        u[i] = x;
+      }
       assert.same(d.getUint8(0), 128);
       assert.same(d.getInt8(1), -127);
       assert.same(d.getUint16(2), 33411);

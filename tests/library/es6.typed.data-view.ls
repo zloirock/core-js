@@ -2,11 +2,9 @@
 module \ES6
 
 if DESCRIPTORS
+  {DataView, ArrayBuffer, Uint8Array} = core
   test \DataView, !(assert)~>
     assert.same DataView, Object(DataView), 'is object' # in Safari 5 typeof DataView is 'object'
-    NATIVE and assert.arity DataView, 3 # 1 in IE11
-    NATIVE and assert.name DataView, \DataView # Safari 5 bug
-    NATIVE and assert.looksNative DataView # Safari 5 bug
 
     a = new DataView new ArrayBuffer(8)
     assert.same a.byteOffset, 0, '#byteOffset, passed buffer'
@@ -162,14 +160,10 @@ if DESCRIPTORS
     let name = .. => test 'DataView#' + name, (assert)!~>
       assert.isFunction DataView::[name]
       NATIVE and assert.arity DataView::[name], 1 # wrong in most engines
-      assert.name DataView::[name], name
-      assert.looksNative DataView::[name]
       assert.same new DataView(new ArrayBuffer 8)[name](0), 0, 'returns element'
 
   for <[setUint8 setInt8 setUint16 setInt16 setUint32 setInt32 setFloat32 setFloat64]>
     let name = .. => test 'DataView#' + name, (assert)!~>
       assert.isFunction DataView::[name]
       NATIVE and assert.arity DataView::[name], 2 # wrong in most engines
-      assert.name DataView::[name], name
-      assert.looksNative DataView::[name]
       assert.same new DataView(new ArrayBuffer 8)[name](0 0), void, 'void'
