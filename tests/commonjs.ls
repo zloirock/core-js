@@ -63,6 +63,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/math/isubh")(3 4 0xffffffff 2) is 1
   ok require("#P/fn/math/imulh")(0xffffffff 7) is -1
   ok require("#P/fn/math/umulh")(0xffffffff 7) is 6
+  ok require("#P/fn/number/constructor")(\5) is 5
   ok require("#P/fn/number/epsilon") is Math.pow 2 -52
   ok require("#P/fn/number/is-finite") 42.5
   ok require("#P/fn/number/is-integer")(42.5) is no
@@ -122,6 +123,12 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \next of require("#P/fn/string/iterator") \qwe
   ok \raw of require("#P/fn/string")
+  ok require("#P/fn/regexp/constructor")(\a \g) + '' is '/a/g'
+  ok require("#P/fn/regexp/flags")(/./g) is \g
+  ok typeof require("#P/fn/regexp/match") is \function
+  ok typeof require("#P/fn/regexp/replace") is \function
+  ok typeof require("#P/fn/regexp/search") is \function
+  ok typeof require("#P/fn/regexp/split") is \function
   ok require("#P/fn/regexp/escape")('...') is '\\.\\.\\.'
   ok \escape of require("#P/fn/regexp")
   ok require("#P/fn/json").stringify([1]) is '[1]'
