@@ -30,7 +30,7 @@
   },
   "scripts": {
     "grunt": "grunt",
-    "lint": "eslint es5 es6 es7 web core fn modules",
+    "lint": "eslint es5 es6 es7 stage web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
     "test": "npm run lint && npm run grunt livescript client karma:continuous library karma:continuous-library && npm run promises-tests && lsc tests/commonjs"
   },

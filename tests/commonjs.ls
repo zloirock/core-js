@@ -208,4 +208,9 @@ for P in <[.. ../library]>
   ok \escape of require("#P/core/regexp")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
+  ok require("#P/stage/4")
+  ok require("#P/stage/3")
+  ok require("#P/stage/2")
+  ok require("#P/stage/1")
+  ok require("#P/stage/0")
 console.log 'CommonJS - OK'
