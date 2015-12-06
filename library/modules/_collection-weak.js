@@ -13,7 +13,7 @@ var redefineAll       = require('./_redefine-all')
 
 // fallback for uncaught frozen keys
 var uncaughtFrozenStore = function(that){
-  return that._l || (that._l = new FrozenStore);
+  return that._l || (that._l = new UncaughtFrozenStore);
 };
 var UncaughtFrozenStore = function(){
   this.a = [];
