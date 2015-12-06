@@ -4,7 +4,6 @@ module \ES7
 test 'Math.iaddh' (assert)->
   {iaddh} = core.Math
   assert.isFunction iaddh
-  assert.name iaddh, \iaddh
   assert.arity iaddh, 4
   assert.same iaddh(0 2 1 0), 2
   assert.same iaddh(0 4 1 1), 5
