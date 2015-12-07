@@ -5924,11 +5924,17 @@
     }
   });
   test('Well-known Symbols', function(assert){
-    var i$, x$, ref$, len$, results$ = [];
+    var i$, x$, ref$, len$, desc, results$ = [];
     for (i$ = 0, len$ = (ref$ = ['hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(x$ in Symbol, "Symbol." + x$ + " available");
-      results$.push(assert.ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol"));
+      assert.ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol");
+      if (DESCRIPTORS) {
+        desc = getOwnPropertyDescriptor(Symbol, x$);
+        assert.ok(!desc.enumerble, 'non-enumerable');
+        assert.ok(!desc.writable, 'non-writable');
+        results$.push(assert.ok(!desc.configurable, 'non-configurable'));
+      }
     }
     return results$;
   });

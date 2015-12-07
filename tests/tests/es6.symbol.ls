@@ -24,6 +24,12 @@ test 'Well-known Symbols' (assert)->
   for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
     assert.ok .. of Symbol, "Symbol.#{..} available"
     assert.ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
+    if DESCRIPTORS
+      desc = getOwnPropertyDescriptor Symbol, ..
+      assert.ok !desc.enumerble, 'non-enumerable'
+      assert.ok !desc.writable, 'non-writable'
+      assert.ok !desc.configurable, 'non-configurable'
+
 
 test 'Global symbol registry' (assert)->
   assert.isFunction Symbol.for, 'Symbol.for is function'

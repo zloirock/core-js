@@ -2,6 +2,7 @@
 // ECMAScript 6 symbols shim
 var $              = require('./_')
   , global         = require('./_global')
+  , core           = require('./_core')
   , has            = require('./_has')
   , DESCRIPTORS    = require('./_descriptors')
   , $export        = require('./_export')
@@ -163,20 +164,8 @@ if(!USE_NATIVE){
   }
 }
 
-var symbolStatics = {
-  // 19.4.2.1 Symbol.for(key)
-  'for': function(key){
-    return has(SymbolRegistry, key += '')
-      ? SymbolRegistry[key]
-      : SymbolRegistry[key] = $Symbol(key);
-  },
-  // 19.4.2.5 Symbol.keyFor(sym)
-  keyFor: function keyFor(key){
-    return keyOf(SymbolRegistry, key);
-  },
-  useSetter: function(){ setter = true; },
-  useSimple: function(){ setter = false; }
-};
+$export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
+
 // 19.4.2.2 Symbol.hasInstance
 // 19.4.2.3 Symbol.isConcatSpreadable
 // 19.4.2.4 Symbol.iterator
@@ -192,15 +181,27 @@ $.each.call((
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
   'species,split,toPrimitive,toStringTag,unscopables'
 ).split(','), function(it){
-  var sym = wks(it);
-  symbolStatics[it] = USE_NATIVE ? sym : wrap(sym);
+  var Wrapper = core.Symbol
+    , sym     = wks(it);
+  if(!(it in Wrapper))setDesc(Wrapper, it, {value: USE_NATIVE ? sym : wrap(sym)});
 });
 
 setter = true;
 
-$export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
-
-$export($export.S + $export.F * !USE_NATIVE, 'Symbol', symbolStatics);
+$export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
+  // 19.4.2.1 Symbol.for(key)
+  'for': function(key){
+    return has(SymbolRegistry, key += '')
+      ? SymbolRegistry[key]
+      : SymbolRegistry[key] = $Symbol(key);
+  },
+  // 19.4.2.5 Symbol.keyFor(sym)
+  keyFor: function keyFor(key){
+    return keyOf(SymbolRegistry, key);
+  },
+  useSetter: function(){ setter = true; },
+  useSimple: function(){ setter = false; }
+});
 
 $export($export.S + $export.F * !USE_NATIVE, 'Object', {
   // 19.1.2.2 Object.create(O [, Properties])
