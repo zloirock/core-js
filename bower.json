@@ -4,18 +4,30 @@
   "version": "2.0.0-alpha",
   "description": "Standard Library",
   "keywords": [
+    "ES3",
+    "ECMAScript 3",
+    "ES5",
+    "ECMAScript 5",
     "ES6",
+    "ES2015",
     "ECMAScript 6",
+    "ECMAScript 2015",
     "ES7",
+    "ES2016",
     "ECMAScript 7",
+    "ECMAScript 2016",
+    "Harmony",
+    "Strawman",
     "Map",
     "Set",
     "WeakMap",
     "WeakSet",
-    "Dict",
     "Promise",
     "Symbol",
-    "console"
+    "setImmediate",
+    "Dict",
+    "polyfill",
+    "shim"
   ],
   "authors": [
     "Denis Pushkarev <zloirock@zloirock.ru> (http://zloirock.ru/)"
