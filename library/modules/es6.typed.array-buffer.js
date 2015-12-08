@@ -12,7 +12,7 @@ if(require('./_descriptors')){
     , speciesConstructor = require('./_species-constructor')
     , $ArrayBuffer = buffer.ArrayBuffer
     , $DataView    = buffer.DataView
-    , $slice       = $ArrayBuffer && $ArrayBuffer.prototype.slice
+    , $slice       = $ArrayBuffer.prototype.slice
     , VIEW         = $typed.VIEW
     , ARRAY_BUFFER = 'ArrayBuffer';
 

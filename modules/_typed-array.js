@@ -17,6 +17,7 @@ if(require('./_descriptors')){
     , toLength            = require('./_to-length')
     , toIndex             = require('./_to-index')
     , toPrimitive         = require('./_to-primitive')
+    , has                 = require('./_has')
     , same                = require('./_same-value')
     , isObject            = require('./_is-object')
     , toObject            = require('./_to-object')
@@ -268,8 +269,17 @@ if(require('./_descriptors')){
       : getDesc(target, key);
   };
   var $setDesc = function defineProperty(target, key, desc){
-    if(isTAIndex(target, key = toPrimitive(key, true)) && isObject(desc)){
-      if('value' in desc)target[key] = desc.value;
+    if(isTAIndex(target, key = toPrimitive(key, true))
+      && isObject(desc)
+      && has(desc, 'value')
+      && !has(desc, 'get')
+      && !has(desc, 'set')
+      // TODO: add validation descriptor w/o calling accessors
+      && !desc.configurable
+      && (!has(desc, 'writable') || desc.writable)
+      && (!has(desc, 'enumerable') || desc.enumerable)
+    ){
+      target[key] = desc.value;
       return target;
     } else return setDesc(target, key, desc);
   };
