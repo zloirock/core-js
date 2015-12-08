@@ -43,4 +43,6 @@ if(require('./_descriptors')){
       } return result;
     }
   });
+  
+  require('./_set-species')(ARRAY_BUFFER);
 }

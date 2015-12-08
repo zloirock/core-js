@@ -4751,7 +4751,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('ArrayBuffer', function(assert){
-    var ArrayBuffer, b;
+    var ArrayBuffer, b, ref$;
     ArrayBuffer = core.ArrayBuffer;
     assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
     b = new ArrayBuffer(123);
@@ -4768,6 +4768,7 @@
     assert.throws(function(){
       new ArrayBuffer(core.Number.MAX_SAFE_INTEGER + 1);
     }, RangeError, 'absurd length');
+    assert.same(ArrayBuffer[(ref$ = core.Symbol) != null ? ref$.species : void 8], ArrayBuffer, '@@species');
   });
 }).call(this);
 
@@ -5001,7 +5002,7 @@
       }, TypeError, 'throws without `new`');
     });
     test(name + " descriptors", function(assert){
-      var typed, key, e;
+      var typed, key, e, ref$;
       typed = new Typed(2);
       NATIVE && assert.arrayEqual((function(){
         var results$ = [];
@@ -5089,6 +5090,7 @@
         e = e$;
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
+      assert.same(Typed[(ref$ = core.Symbol) != null ? ref$.species : void 8], Typed, '@@species');
     });
   }
 }).call(this);

@@ -6194,6 +6194,7 @@
     assert.throws(function(){
       new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
     }, RangeError, 'absurd length');
+    assert.same(ArrayBuffer[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], ArrayBuffer, '@@species');
   });
 }).call(this);
 
@@ -6521,6 +6522,7 @@
         e = e$;
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
+      assert.same(Typed[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], Typed, '@@species');
     });
   }
 }).call(this);

@@ -9,3 +9,4 @@ DESCRIPTORS and test \ArrayBuffer, !(assert)~>
   assert.throws (!~> new ArrayBuffer 0.5), RangeError, 'fractional length' # fails in most engines
   assert.throws (!~> new ArrayBuffer!), RangeError, 'missed length' # fails in all engines, maybe bug in the spec related https://bugs.ecmascript.org/show_bug.cgi?id=4516
   assert.throws (!~> new ArrayBuffer(core.Number.MAX_SAFE_INTEGER + 1)), RangeError, 'absurd length'
+  assert.same ArrayBuffer[core.Symbol?species], ArrayBuffer, '@@species'

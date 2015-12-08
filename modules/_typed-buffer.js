@@ -11,10 +11,16 @@ var $              = require('./_')
   , toLength       = require('./_to-length')
   , arrayFill      = require('./_array-fill')
   , setToStringTag = require('./_set-to-string-tag')
+  , ARRAY_BUFFER   = 'ArrayBuffer'
+  , DATA_VIEW      = 'DataView'
+  , BYTE_LENGTH    = 'byteLength'
+  , PROTOTYPE      = 'prototype'
+  , WRONG_LENGTH   = 'Wrong length!'
+  , WRONG_INDEX    = 'Wrong index!'
   , each           = $.each
   , getNames       = $.getNames
-  , $ArrayBuffer   = global.ArrayBuffer
-  , $DataView      = global.DataView
+  , $ArrayBuffer   = global[ARRAY_BUFFER]
+  , $DataView      = global[DATA_VIEW]
   , Math           = global.Math
   , parseInt       = global.parseInt
   , RangeError     = global.RangeError
@@ -24,10 +30,7 @@ var $              = require('./_')
   , min            = Math.min
   , floor          = Math.floor
   , log            = Math.log
-  , LN2            = Math.LN2
-  , BYTE_LENGTH    = 'byteLength'
-  , WRONG_LENGTH   = 'Wrong length!'
-  , WRONG_INDEX    = 'Wrong index!';
+  , LN2            = Math.LN2;
 
 // pack / unpack based on
 // https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
@@ -190,7 +193,7 @@ var packF32 = function(v){
 };
 
 var addGetter = function(C, key, internal){
-  $.setDesc(C.prototype, key, {get: function(){ return this[internal]; }});
+  $.setDesc(C[PROTOTYPE], key, {get: function(){ return this[internal]; }});
 };
 
 var get = function(view, bytes, index, conversion, isLittleEndian){
@@ -215,7 +218,7 @@ var set = function(view, bytes, index, conversion, value, isLittleEndian){
 };
 
 var validateArrayBufferArguments = function(that, length){
-  strictNew(that, $ArrayBuffer, 'ArrayBuffer');
+  strictNew(that, $ArrayBuffer, ARRAY_BUFFER);
   var numberLength = +length
     , byteLength   = toLength(numberLength);
   if(numberLength != byteLength)throw RangeError(WRONG_LENGTH);
@@ -231,8 +234,8 @@ if(!$typed.ABV){
   addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
 
   $DataView = function DataView(buffer, byteOffset, byteLength){
-    strictNew(this, $DataView, 'DataView');
-    strictNew(buffer, $ArrayBuffer, 'ArrayBuffer');
+    strictNew(this, $DataView, DATA_VIEW);
+    strictNew(buffer, $ArrayBuffer, ARRAY_BUFFER);
     var bufferLength = buffer._l
       , offset       = toInteger(byteOffset);
     if(offset < 0 || offset > bufferLength)throw RangeError('Wrong offset!');
@@ -245,7 +248,7 @@ if(!$typed.ABV){
   addGetter($DataView, 'buffer', '_b');
   addGetter($DataView, BYTE_LENGTH, '_l');
   addGetter($DataView, 'byteOffset', '_o');
-  redefineAll($DataView.prototype, {
+  redefineAll($DataView[PROTOTYPE], {
     getInt8: function getInt8(byteOffset){
       return get(this, 1, byteOffset, unpackI8);
     },
@@ -307,14 +310,12 @@ if(!$typed.ABV){
     each.call(getNames(BaseBuffer), function(key){
       if(!(key in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
     });
-    var ArrayBufferProto = $ArrayBuffer.prototype = BaseBuffer.prototype;
+    var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
   }
 }
-setToStringTag($ArrayBuffer, 'ArrayBuffer');
-setToStringTag($DataView, 'DataView');
-hide($DataView.prototype, $typed.VIEW, true);
-module.exports = {
-  ArrayBuffer: $ArrayBuffer,
-  DataView:    $DataView
-};
+setToStringTag($ArrayBuffer, ARRAY_BUFFER);
+setToStringTag($DataView, DATA_VIEW);
+hide($DataView[PROTOTYPE], $typed.VIEW, true);
+exports[ARRAY_BUFFER] = $ArrayBuffer;
+exports[DATA_VIEW] = $DataView;

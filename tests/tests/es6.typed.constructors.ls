@@ -1,13 +1,15 @@
 {module, test} = QUnit
-{keys, getOwnPropertyDescriptor, defineProperty} = core.Object
+{keys, getOwnPropertyDescriptor, defineProperty} = Object
 module \ES6
 if DESCRIPTORS
-  {ArrayBuffer} = core
   for $name, $bytes of {Float32Array: 4, Float64Array: 8, Int8Array: 1, Int16Array: 2, Int32Array: 4, Uint8Array: 1, Uint16Array: 2, Uint32Array: 4, Uint8ClampedArray: 1}
     let name = $name, bytes = $bytes
-      Typed = core[name]
+      Typed = global[name]
       test "#{name} constructor", !(assert)~>
         assert.isFunction Typed
+        assert.arity Typed, 3
+        assert.name Typed, name
+        NATIVE and assert.looksNative Typed # Safari 5 bug
 
         assert.same Typed.BYTES_PER_ELEMENT, bytes, "#{name}.BYTES_PER_ELEMENT"
         a = new Typed 4
@@ -158,3 +160,4 @@ if DESCRIPTORS
           assert.ok no, 'Object.defineProperty, invalid descriptor #4'
         catch
           assert.ok on, 'Object.defineProperty, invalid descriptor #4'
+        assert.same Typed[Symbol?species], Typed, '@@species'
