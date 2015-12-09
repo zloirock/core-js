@@ -326,16 +326,22 @@ if(require('./_descriptors')){
       , FORCED     = !TypedArray || !$typed.ABV
       , O          = {}
       , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
+    var getter = function(that, index){
+      var data = that._d;
+      return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
+    };
+    var setter = function(that, index, value){
+      var data = that._d;
+      if(CLAMPED)value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
+      data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
+    };
     var addElement = function(that, index){
       setDesc(that, index, {
         get: function(){
-          var data = this._d;
-          return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
+          return getter(this, index);
         },
-        set: function(it){
-          var data = this._d;
-          if(CLAMPED)it = (it = Math.round(it)) < 0 ? 0 : it > 0xff ? 0xff : it & 0xff;
-          data.v[SETTER](index * BYTES + data.o, it, LITTLE_ENDIAN);
+        set: function(value){
+          return setter(this, index, value);
         },
         enumerable: true
       });
