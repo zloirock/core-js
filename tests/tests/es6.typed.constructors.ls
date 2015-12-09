@@ -129,28 +129,35 @@ if DESCRIPTORS
           assert.throws (!-> new Typed new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
 
         assert.throws (!-> Typed 1), TypeError, 'throws without `new`'
+        assert.same Typed[Symbol?species], Typed, '@@species'
+
       test "#{name} descriptors", !(assert)~>
         typed = new Typed 2
+        # V8 ~ Chrome 44- bug - descriptor marked as configurable
+        # WebKit bug - marked as non-writable
+        desc = getOwnPropertyDescriptor typed, 0
+        base = if NATIVE => {writable: on, enumerable: on, configurable: no} else {writable: desc.writable, enumerable: on, configurable: desc.configurable}
         NATIVE and assert.arrayEqual [key for key of typed], <[0 1]>, 'for-in' # fails in old WebKit
         NATIVE and assert.arrayEqual keys(typed), <[0 1]>, 'Object.keys' # fails in old WebKit
-        assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: 0, writable: on, enumerable: on, configurable: no}, 'Object.getOwnPropertyDescriptor'
-        defineProperty typed, 0, {value: 1, writable: on, enumerable: on, configurable: no}
-        typed[0] = typed[1] = 2.5
-        assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: typed[1], writable: on, enumerable: on, configurable: no}, 'Object.defineProperty, valid descriptor #1'
-        defineProperty typed, 0, {value: 1}
-        typed[0] = typed[1] = 3.5
-        assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: typed[1], writable: on, enumerable: on, configurable: no}, 'Object.defineProperty, valid descriptor #2'
-        NATIVE and try # fails in old WebKit
+        assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: 0} <<< base, 'Object.getOwnPropertyDescriptor'
+        if NATIVE # V8 ~ Chrome 44- / WebKit bug
+          defineProperty typed, 0, {value: 1, writable: on, enumerable: on, configurable: no}
+          typed[0] = typed[1] = 2.5
+          assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: typed[1]} <<< base, 'Object.defineProperty, valid descriptor #1'
+          defineProperty typed, 0, {value: 1}
+          typed[0] = typed[1] = 3.5
+          assert.deepEqual getOwnPropertyDescriptor(typed, 0), {value: typed[1]} <<< base, 'Object.defineProperty, valid descriptor #2'
+        NATIVE and try # fails in old WebKit ~ PhantomJS
           defineProperty typed, 0, {value: 2, writable: no, enumerable: on, configurable: no}
           assert.ok no, 'Object.defineProperty, invalid descriptor #1'
         catch
           assert.ok on, 'Object.defineProperty, invalid descriptor #1'
-        try
+        NATIVE and try # fails in old WebKit ~ Android 4.0
           defineProperty typed, 0, {value: 2, writable: on, enumerable: no, configurable: no}
           assert.ok no, 'Object.defineProperty, invalid descriptor #2'
         catch
           assert.ok on, 'Object.defineProperty, invalid descriptor #2'
-        try
+        NATIVE and try # fails in V8 ~ Chrome 44-
           defineProperty typed, 0, {get: -> 2}
           assert.ok no, 'Object.defineProperty, invalid descriptor #3'
         catch
@@ -160,4 +167,3 @@ if DESCRIPTORS
           assert.ok no, 'Object.defineProperty, invalid descriptor #4'
         catch
           assert.ok on, 'Object.defineProperty, invalid descriptor #4'
-        assert.same Typed[Symbol?species], Typed, '@@species'

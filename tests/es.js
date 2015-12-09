@@ -6273,6 +6273,11 @@
       (fn$.call(this, $name, $bytes));
     }
   }
+  function import$(obj, src){
+    var own = {}.hasOwnProperty;
+    for (var key in src) if (own.call(src, key)) obj[key] = src[key];
+    return obj;
+  }
   function fn$(name, bytes){
     var Typed, this$ = this;
     Typed = global[name];
@@ -6432,10 +6437,23 @@
       assert.throws(function(){
         Typed(1);
       }, TypeError, 'throws without `new`');
+      assert.same(Typed[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], Typed, '@@species');
     });
     test(name + " descriptors", function(assert){
-      var typed, key, e;
+      var typed, desc, base, key, e;
       typed = new Typed(2);
+      desc = getOwnPropertyDescriptor(typed, 0);
+      base = NATIVE
+        ? {
+          writable: true,
+          enumerable: true,
+          configurable: false
+        }
+        : {
+          writable: desc.writable,
+          enumerable: true,
+          configurable: desc.configurable
+        };
       NATIVE && assert.arrayEqual((function(){
         var results$ = [];
         for (key in typed) {
@@ -6444,35 +6462,28 @@
         return results$;
       }()), ['0', '1'], 'for-in');
       NATIVE && assert.arrayEqual(keys(typed), ['0', '1'], 'Object.keys');
-      assert.deepEqual(getOwnPropertyDescriptor(typed, 0), {
-        value: 0,
-        writable: true,
-        enumerable: true,
-        configurable: false
-      }, 'Object.getOwnPropertyDescriptor');
-      defineProperty(typed, 0, {
-        value: 1,
-        writable: true,
-        enumerable: true,
-        configurable: false
-      });
-      typed[0] = typed[1] = 2.5;
-      assert.deepEqual(getOwnPropertyDescriptor(typed, 0), {
-        value: typed[1],
-        writable: true,
-        enumerable: true,
-        configurable: false
-      }, 'Object.defineProperty, valid descriptor #1');
-      defineProperty(typed, 0, {
-        value: 1
-      });
-      typed[0] = typed[1] = 3.5;
-      assert.deepEqual(getOwnPropertyDescriptor(typed, 0), {
-        value: typed[1],
-        writable: true,
-        enumerable: true,
-        configurable: false
-      }, 'Object.defineProperty, valid descriptor #2');
+      assert.deepEqual(getOwnPropertyDescriptor(typed, 0), import$({
+        value: 0
+      }, base), 'Object.getOwnPropertyDescriptor');
+      if (NATIVE) {
+        defineProperty(typed, 0, {
+          value: 1,
+          writable: true,
+          enumerable: true,
+          configurable: false
+        });
+        typed[0] = typed[1] = 2.5;
+        assert.deepEqual(getOwnPropertyDescriptor(typed, 0), import$({
+          value: typed[1]
+        }, base), 'Object.defineProperty, valid descriptor #1');
+        defineProperty(typed, 0, {
+          value: 1
+        });
+        typed[0] = typed[1] = 3.5;
+        assert.deepEqual(getOwnPropertyDescriptor(typed, 0), import$({
+          value: typed[1]
+        }, base), 'Object.defineProperty, valid descriptor #2');
+      }
       NATIVE && (function(){
         try {
           defineProperty(typed, 0, {
@@ -6487,29 +6498,33 @@
           return assert.ok(true, 'Object.defineProperty, invalid descriptor #1');
         }
       }());
-      try {
-        defineProperty(typed, 0, {
-          value: 2,
-          writable: true,
-          enumerable: false,
-          configurable: false
-        });
-        assert.ok(false, 'Object.defineProperty, invalid descriptor #2');
-      } catch (e$) {
-        e = e$;
-        assert.ok(true, 'Object.defineProperty, invalid descriptor #2');
-      }
-      try {
-        defineProperty(typed, 0, {
-          get: function(){
-            return 2;
-          }
-        });
-        assert.ok(false, 'Object.defineProperty, invalid descriptor #3');
-      } catch (e$) {
-        e = e$;
-        assert.ok(true, 'Object.defineProperty, invalid descriptor #3');
-      }
+      NATIVE && (function(){
+        try {
+          defineProperty(typed, 0, {
+            value: 2,
+            writable: true,
+            enumerable: false,
+            configurable: false
+          });
+          return assert.ok(false, 'Object.defineProperty, invalid descriptor #2');
+        } catch (e$) {
+          e = e$;
+          return assert.ok(true, 'Object.defineProperty, invalid descriptor #2');
+        }
+      }());
+      NATIVE && (function(){
+        try {
+          defineProperty(typed, 0, {
+            get: function(){
+              return 2;
+            }
+          });
+          return assert.ok(false, 'Object.defineProperty, invalid descriptor #3');
+        } catch (e$) {
+          e = e$;
+          return assert.ok(true, 'Object.defineProperty, invalid descriptor #3');
+        }
+      }());
       try {
         defineProperty(typed, 0, {
           value: 2,
@@ -6522,7 +6537,6 @@
         e = e$;
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
-      assert.same(Typed[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], Typed, '@@species');
     });
   }
 }).call(this);

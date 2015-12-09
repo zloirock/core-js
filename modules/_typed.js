@@ -4,7 +4,7 @@ var global = require('./_global')
   , TYPED  = uid('typed_array')
   , VIEW   = uid('view')
   , ABV    = !!(global.ArrayBuffer && global.DataView)
-  , ARRAYS = true
+  , CONSTR = ABV
   , i = 0, l = 9, Typed;
 
 var TypedArrayConstructors = (
@@ -15,13 +15,12 @@ while(i < l){
   if(Typed = global[TypedArrayConstructors[i++]]){
     hide(Typed.prototype, TYPED, true);
     hide(Typed.prototype, VIEW, true);
-  } else ARRAYS = false;
+  } else CONSTR = false;
 }
 
 module.exports = {
-  ARRAYS: ARRAYS,
   ABV:    ABV,
-  CONSTR: ARRAYS && ABV,
+  CONSTR: CONSTR,
   TYPED:  TYPED,
   VIEW:   VIEW
 };

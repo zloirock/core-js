@@ -68,7 +68,7 @@ if(require('./_descriptors')){
     , TAG                 = wks('toStringTag')
     , TYPED_CONSTRUCTOR   = uid('typed_constructor')
     , DEF_CONSTRUCTOR     = uid('def_constructor')
-    , ALL_ARRAYS          = $typed.ARRAYS
+    , ALL_CONSTRUCTORS    = $typed.CONSTR
     , TYPED_ARRAY         = $typed.TYPED
     , VIEW                = $typed.VIEW
     , WRONG_LENGTH        = 'Wrong length!';
@@ -122,6 +122,10 @@ if(require('./_descriptors')){
     return result;
   };
 
+  var addGetter = function(it, key, internal){
+    setDesc(it, key, {get: function(){ return this._d[internal]; }});
+  };
+
   var $from = function from(source /*, mapfn, thisArg */){
     var O       = toObject(source)
       , $$      = arguments
@@ -140,10 +144,6 @@ if(require('./_descriptors')){
       result[i] = mapping ? mapfn(O[i], i) : O[i];
     }
     return result;
-  };
-
-  var addGetter = function(it, key, internal){
-    setDesc(it, key, {get: function(){ return this._d[internal]; }});
   };
 
   var $of = function of(/*...items*/){
@@ -285,12 +285,12 @@ if(require('./_descriptors')){
     } else return setDesc(target, key, desc);
   };
 
-  if(!ALL_ARRAYS){
+  if(!ALL_CONSTRUCTORS){
     $.getDesc = $getDesc;
     $.setDesc = $setDesc;
   }
 
-  $export($export.S + $export.F * !ALL_ARRAYS, 'Object', {
+  $export($export.S + $export.F * !ALL_CONSTRUCTORS, 'Object', {
     getOwnPropertyDescriptor: $getDesc,
     defineProperty: $setDesc
   });
