@@ -441,9 +441,11 @@ if(require('./_descriptors')){
 
     $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
-    $export($export.P + $export.F * fails(function(){
+    $export($export.P + $export.F * (fails(function(){
       return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
-    }), NAME, {toLocaleString: $toLocaleString});
+    }) || !fails(function(){
+      TypedArrayPrototype.toLocaleString.call([1, 2]);
+    })), NAME, {toLocaleString: $toLocaleString});
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
