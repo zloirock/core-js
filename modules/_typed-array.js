@@ -37,6 +37,7 @@ if(require('./_descriptors')){
     , arrayCopyWithin     = require('./_array-copy-within')
     , RangeError          = global.RangeError
     , TypeError           = global.TypeError
+    , Uint8Array          = global.Uint8Array
     , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT'
     , PROTOTYPE           = 'prototype'
     , ArrayProto          = Array[PROTOTYPE]
@@ -80,7 +81,7 @@ if(require('./_descriptors')){
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
 
-  var FORCED_SET = fails(function(){
+  var FORCED_SET = !!Uint8Array && !!Uint8Array[PROTOTYPE].set && fails(function(){
     new Uint8Array(1).set({});
   });
 
@@ -302,6 +303,7 @@ if(require('./_descriptors')){
 
   var $TypedArrayPrototype$ = redefineAll({}, proto);
   redefineAll($TypedArrayPrototype$, $iterators);
+  hide($TypedArrayPrototype$, ITERATOR, $iterators.values);
   redefineAll($TypedArrayPrototype$, {
     set:            $set,
     constructor:    function(){ /* noop */ },
@@ -406,7 +408,7 @@ if(require('./_descriptors')){
       if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator   = TypedArrayPrototype[ITERATOR]
-      , CORRECT_ITER_NAME = !!$nativeIterator && $nativeIterator.name == 'values'
+      , CORRECT_ITER_NAME = !!$nativeIterator && ($nativeIterator.name == 'values' || $nativeIterator.name == undefined)
       , $iterator         = $iterators.values;
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
@@ -431,16 +433,16 @@ if(require('./_descriptors')){
 
     if(!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
-    $export($export.P + $export.F * FORCED, NAME, proto);
+    $export($export.P, NAME, proto);
 
     $export($export.P + $export.F * FORCED_SET, NAME, {set: $set});
 
-    $export($export.P + $export.F * (FORCED || !CORRECT_ITER_NAME), NAME, $iterators);
+    $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
 
     $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
     $export($export.P + $export.F * fails(function(){
-      return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
+      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
     }), NAME, {toLocaleString: $toLocaleString});
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
