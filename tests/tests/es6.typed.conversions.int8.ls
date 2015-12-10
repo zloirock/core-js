@@ -70,4 +70,4 @@ DESCRIPTORS and test 'Int8 conversions', !(assert)~>
 
     view[SET] 0, value
     assert.arrayEqual uint8, little, "view.#SET(0, #{z value}) -> [#little]"
-    assert.arrayEqual viewFrom(little)[GET](0), value, "view{#little}.#GET(0) -> #value"
+    assert.same viewFrom(little)[GET](0), conversion, "view{#little}.#GET(0) -> #{z conversion}"

@@ -68,13 +68,13 @@ DESCRIPTORS and test 'Float32 conversions', !(assert)~>
 
     view[SET] 0, value
     assert.arrayEqual uint8, big, "view.#SET(0, #{z value}) -> [#big]"
-    assert.arrayEqual viewFrom(big)[GET](0), value, "view{#big}.#GET(0) -> #value"
+    assert.same viewFrom(big)[GET](0), conversion, "view{#big}.#GET(0) -> #{z conversion}"
     view[SET] 0, value, no
     assert.arrayEqual uint8, big, "view.#SET(0, #{z value}, false) -> [#big]"
-    assert.arrayEqual viewFrom(big)[GET](0, no), value, "view{#big}.#GET(0, false) -> #value"
+    assert.same viewFrom(big)[GET](0, no), conversion, "view{#big}.#GET(0, false) -> #{z conversion}"
     view[SET] 0, value, on
     assert.arrayEqual uint8, little, "view.#SET(0, #{z value}, true) -> [#little]"
-    assert.arrayEqual viewFrom(big)[GET](0, on), value, "view{#little}.#GET(0, false) -> #value"
+    assert.same viewFrom(little)[GET](0, on), conversion, "view{#little}.#GET(0, false) -> #{z conversion}"
 
   typed[0] = NaN
   assert.same typed[0], NaN, "NaN -> NaN"

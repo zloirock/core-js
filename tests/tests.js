@@ -7387,13 +7387,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -7435,13 +7435,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -7486,13 +7486,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -7532,13 +7532,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -7579,7 +7579,7 @@
       assert.arrayEqual(uint8, little, ARRAY + " " + z(value) + " -> [" + little + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ") -> [" + little + "]");
-      assert.arrayEqual(viewFrom(little)[GET](0), value, "view{" + little + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(little)[GET](0), conversion, "view{" + little + "}." + GET + "(0) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -7622,13 +7622,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -7668,13 +7668,13 @@
       assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
       view[SET](0, value);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(big)[GET](0), conversion, "view{" + big + "}." + GET + "(0) -> " + z(conversion));
       view[SET](0, value, false);
       assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -7743,7 +7743,7 @@
       assert.arrayEqual(typed, little, ARRAY + " " + z(value) + " -> [" + little + "]");
       view[SET](0, value);
       assert.arrayEqual(typed, little, "view." + SET + "(0, " + z(value) + ") -> [" + little + "]");
-      assert.arrayEqual(viewFrom(little)[GET](0), value, "view{" + little + "}." + GET + "(0) -> " + value);
+      assert.same(viewFrom(little)[GET](0), conversion, "view{" + little + "}." + GET + "(0) -> " + z(conversion));
     }
   });
 }).call(this);
