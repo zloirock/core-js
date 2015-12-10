@@ -55,8 +55,3 @@ DESCRIPTORS and test 'Float32Array conversions', !(assert)~>
 
   typed[0] = NaN
   assert.same typed[0], NaN, "NaN -> NaN"
-  arr = new Uint8Array(typed.buffer)
-  rep = [0 0 192 127]
-  if arr[3] is 255 # IE case
-    assert.arrayEqual arr, [0 0 192 255], "NaN -> 0,0,192,255"
-  else assert.arrayEqual arr, (if LITTLE_ENDIAN => rep else rep.reverse!), "#NaN -> #rep"
