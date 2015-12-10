@@ -33,11 +33,7 @@ DESCRIPTORS and test 'Uint16Array conversions', !(assert)~>
     [-2147483647,1,[1,0]]
     [2147483648,0,[0,0]]
     [-2147483648,0,[0,0]]
-    [2147483649,1,[1,0]]
-    [-2147483649,65535,[255,255]]
-    [4294967295,65535,[255,255]]
     [4294967296,0,[0,0]]
-    [4294967297,1,[1,0]]
     [Infinity,0,[0,0]]
     [-Infinity,0,[0,0]]
     [-1.7976931348623157e+308,0,[0,0]]
@@ -46,6 +42,15 @@ DESCRIPTORS and test 'Uint16Array conversions', !(assert)~>
     [-5e-324,0,[0,0]]
     [NaN,0,[0,0]]
   ]
+
+  # Android 4.3- bug
+  if NATIVE or !/Android [2-4]/.test navigator?userAgent
+    data = data.concat [
+      [2147483649,1,[1,0]]
+      [-2147483649,65535,[255,255]]
+      [4294967295,65535,[255,255]]
+      [4294967297,1,[1,0]]
+    ]
 
   typed = new Uint16Array 1
   z = -> if it is 0 and 1 / it is -Infinity => '-0' else it
