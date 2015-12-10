@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
-{Uint8Array, Int16Array} = core
-DESCRIPTORS and test 'Int16Array conversions', !(assert)~>
+DESCRIPTORS and test 'Int16 conversions', !(assert)~>
+  {Int16Array, Uint8Array, DataView} = core
   data = [
     [0,0,[0,0]]
     [-0,0,[0,0]]
@@ -52,9 +52,25 @@ DESCRIPTORS and test 'Int16Array conversions', !(assert)~>
       [4294967297,1,[1,0]]
     ]
 
+  KEY   = \setInt16
   typed = new Int16Array 1
+  uint8 = new Uint8Array typed.buffer
+  view  = new DataView typed.buffer
+
   z = -> if it is 0 and 1 / it is -Infinity => '-0' else it
-  for it in data
-    typed[0] = it[0]
-    assert.same typed[0], it[1], "#{z it[0]} -> #{z it[1]}"
-    assert.arrayEqual new Uint8Array(typed.buffer), (if LITTLE_ENDIAN => it[2] else it[2]reverse!), "#{z it[0]} -> #{it[2]}"
+  
+  for [value, conversion, little] in data
+    
+    big = little.slice!reverse!
+    rep = if LITTLE_ENDIAN => little else big
+
+    typed[0] = value
+    assert.same typed[0], conversion, "#{z value} -> #{z conversion}"
+    assert.arrayEqual uint8, rep, "#{z value} -> #rep"
+
+    view[KEY] 0, value
+    assert.arrayEqual uint8, big, "view.#KEY(0, #{z value}) -> #big"
+    view[KEY] 0, value, no
+    assert.arrayEqual uint8, big, "view.#KEY(0, #{z value}, false) -> #big"
+    view[KEY] 0, value, on
+    assert.arrayEqual uint8, little, "view.#KEY(0, #{z value}, true) -> #little"
