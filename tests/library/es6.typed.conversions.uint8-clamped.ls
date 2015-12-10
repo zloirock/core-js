@@ -1,7 +1,10 @@
 {module, test} = QUnit
 module \ES6
 DESCRIPTORS and test 'Uint8Clamped conversions', !(assert)~>
-  {Uint8ClampedArray, Uint8Array} = core
+  {Uint8Array, DataView} = core
+  NAME  = \Uint8Clamped
+  ARRAY = NAME + \Array
+  Typed = core[ARRAY]
   data = [
     [0,0,[0]]
     [-0,0,[0]]
@@ -47,10 +50,10 @@ DESCRIPTORS and test 'Uint8Clamped conversions', !(assert)~>
     [NaN,0,[0]]
   ]
 
-  typed = new Uint8ClampedArray 1
+  typed = new Typed 1
   uint8 = new Uint8Array typed.buffer
   z = -> if it is 0 and 1 / it is -Infinity => '-0' else it
   for [value, conversion, little] in data
     typed[0] = value
     assert.same typed[0], conversion, "#{z value} -> #{z conversion}"
-    assert.arrayEqual uint8, little, "#{z value} -> #little"
+    assert.arrayEqual uint8, little, "#{z value} -> [#little]"

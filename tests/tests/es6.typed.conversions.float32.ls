@@ -1,6 +1,11 @@
 {module, test} = QUnit
 module \ES6
 DESCRIPTORS and test 'Float32 conversions', !(assert)~>
+  NAME  = \Float32
+  ARRAY = NAME + \Array
+  Typed = global[ARRAY]
+  SET   = \set + NAME
+  GET   = \get + NAME
   data = [
     [0 0 [0 0 0 0]]
     [-0 -0 [0 0 0 128]]
@@ -45,11 +50,11 @@ DESCRIPTORS and test 'Float32 conversions', !(assert)~>
     [-5e-324 -0 [0 0 0 128]]
   ]
 
-  KEY   = \setFloat32
-  typed = new Float32Array 1
+  typed = new Typed 1
   uint8 = new Uint8Array typed.buffer
   view  = new DataView typed.buffer
 
+  viewFrom = -> new DataView new Uint8Array(it).buffer
   z = -> if it is 0 and 1 / it is -Infinity => '-0' else it
   
   for [value, conversion, little] in data
@@ -58,15 +63,18 @@ DESCRIPTORS and test 'Float32 conversions', !(assert)~>
     rep = if LITTLE_ENDIAN => little else big
 
     typed[0] = value
-    assert.same typed[0], conversion, "#{z value} -> #{z conversion}"
-    assert.arrayEqual uint8, rep, "#{z value} -> #rep"
+    assert.same typed[0], conversion, "#ARRAY #{z value} -> #{z conversion}"
+    assert.arrayEqual uint8, rep, "#ARRAY #{z value} -> [#rep]"
 
-    view[KEY] 0, value
-    assert.arrayEqual uint8, big, "view.#KEY(0, #{z value}) -> #big"
-    view[KEY] 0, value, no
-    assert.arrayEqual uint8, big, "view.#KEY(0, #{z value}, false) -> #big"
-    view[KEY] 0, value, on
-    assert.arrayEqual uint8, little, "view.#KEY(0, #{z value}, true) -> #little"
+    view[SET] 0, value
+    assert.arrayEqual uint8, big, "view.#SET(0, #{z value}) -> [#big]"
+    assert.arrayEqual viewFrom(big)[GET](0), value, "view{#big}.#GET(0) -> #value"
+    view[SET] 0, value, no
+    assert.arrayEqual uint8, big, "view.#SET(0, #{z value}, false) -> [#big]"
+    assert.arrayEqual viewFrom(big)[GET](0, no), value, "view{#big}.#GET(0, false) -> #value"
+    view[SET] 0, value, on
+    assert.arrayEqual uint8, little, "view.#SET(0, #{z value}, true) -> [#little]"
+    assert.arrayEqual viewFrom(big)[GET](0, on), value, "view{#little}.#GET(0, false) -> #value"
 
   typed[0] = NaN
   assert.same typed[0], NaN, "NaN -> NaN"

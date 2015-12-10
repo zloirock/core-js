@@ -1,6 +1,11 @@
 {module, test} = QUnit
 module \ES6
 DESCRIPTORS and test 'Uint8 conversions', !(assert)~>
+  NAME  = \Uint8
+  ARRAY = NAME + \Array
+  Typed = global[ARRAY]
+  SET   = \set + NAME
+  GET   = \get + NAME
   data = [
     [0,0,[0]]
     [-0,0,[0]]
@@ -51,16 +56,17 @@ DESCRIPTORS and test 'Uint8 conversions', !(assert)~>
       [4294967297,1,[1]]
     ]
 
-  KEY   = \setUint8
-  typed = new Uint8Array 1
+  typed = new Typed 1
   view  = new DataView typed.buffer
 
+  viewFrom = -> new DataView new Uint8Array(it).buffer
   z = -> if it is 0 and 1 / it is -Infinity => '-0' else it
   
   for [value, conversion, little] in data
     typed[0] = value
-    assert.same typed[0], conversion, "#{z value} -> #{z conversion}"
-    assert.arrayEqual typed, little, "#{z value} -> #little"
+    assert.same typed[0], conversion, "#ARRAY #{z value} -> #{z conversion}"
+    assert.arrayEqual typed, little, "#ARRAY #{z value} -> [#little]"
 
-    view[KEY] 0, value
-    assert.arrayEqual typed, little, "view.#KEY(0, #{z value}) -> #little"
+    view[SET] 0, value
+    assert.arrayEqual typed, little, "view.#SET(0, #{z value}) -> [#little]"
+    assert.arrayEqual viewFrom(little)[GET](0), value, "view{#little}.#GET(0) -> #value"

@@ -6547,12 +6547,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float32 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Float32';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0, 0, 0]], [-0, -0, [0, 0, 0, 128]], [1, 1, [0, 0, 128, 63]], [-1, -1, [0, 0, 128, 191]], [1.1, 1.100000023841858, [205, 204, 140, 63]], [-1.1, -1.100000023841858, [205, 204, 140, 191]], [1.9, 1.899999976158142, [51, 51, 243, 63]], [-1.9, -1.899999976158142, [51, 51, 243, 191]], [127, 127, [0, 0, 254, 66]], [-127, -127, [0, 0, 254, 194]], [128, 128, [0, 0, 0, 67]], [-128, -128, [0, 0, 0, 195]], [255, 255, [0, 0, 127, 67]], [-255, -255, [0, 0, 127, 195]], [255.1, 255.10000610351562, [154, 25, 127, 67]], [255.9, 255.89999389648438, [102, 230, 127, 67]], [256, 256, [0, 0, 128, 67]], [32767, 32767, [0, 254, 255, 70]], [-32767, -32767, [0, 254, 255, 198]], [32768, 32768, [0, 0, 0, 71]], [-32768, -32768, [0, 0, 0, 199]], [65535, 65535, [0, 255, 127, 71]], [65536, 65536, [0, 0, 128, 71]], [65537, 65537, [128, 0, 128, 71]], [65536.54321, 65536.546875, [70, 0, 128, 71]], [-65536.54321, -65536.546875, [70, 0, 128, 199]], [2147483647, 2147483648, [0, 0, 0, 79]], [-2147483647, -2147483648, [0, 0, 0, 207]], [2147483648, 2147483648, [0, 0, 0, 79]], [-2147483648, -2147483648, [0, 0, 0, 207]], [2147483649, 2147483648, [0, 0, 0, 79]], [-2147483649, -2147483648, [0, 0, 0, 207]], [4294967295, 4294967296, [0, 0, 128, 79]], [4294967296, 4294967296, [0, 0, 128, 79]], [4294967297, 4294967296, [0, 0, 128, 79]], [Infinity, Infinity, [0, 0, 128, 127]], [-Infinity, -Infinity, [0, 0, 128, 255]], [1.7976931348623157e+308, Infinity, [0, 0, 128, 127]], [-1.7976931348623157e+308, -Infinity, [0, 0, 128, 255]], [5e-324, 0, [0, 0, 0, 0]], [-5e-324, -0, [0, 0, 0, 128]]];
-    KEY = 'setFloat32';
-    typed = new Float32Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6565,14 +6572,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -6585,12 +6595,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float64 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Float64';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0, 0, 0, 0, 0, 0, 0]], [-0, -0, [0, 0, 0, 0, 0, 0, 0, 128]], [1, 1, [0, 0, 0, 0, 0, 0, 240, 63]], [-1, -1, [0, 0, 0, 0, 0, 0, 240, 191]], [1.1, 1.1, [154, 153, 153, 153, 153, 153, 241, 63]], [-1.1, -1.1, [154, 153, 153, 153, 153, 153, 241, 191]], [1.9, 1.9, [102, 102, 102, 102, 102, 102, 254, 63]], [-1.9, -1.9, [102, 102, 102, 102, 102, 102, 254, 191]], [127, 127, [0, 0, 0, 0, 0, 192, 95, 64]], [-127, -127, [0, 0, 0, 0, 0, 192, 95, 192]], [128, 128, [0, 0, 0, 0, 0, 0, 96, 64]], [-128, -128, [0, 0, 0, 0, 0, 0, 96, 192]], [255, 255, [0, 0, 0, 0, 0, 224, 111, 64]], [-255, -255, [0, 0, 0, 0, 0, 224, 111, 192]], [255.1, 255.1, [51, 51, 51, 51, 51, 227, 111, 64]], [255.9, 255.9, [205, 204, 204, 204, 204, 252, 111, 64]], [256, 256, [0, 0, 0, 0, 0, 0, 112, 64]], [32767, 32767, [0, 0, 0, 0, 192, 255, 223, 64]], [-32767, -32767, [0, 0, 0, 0, 192, 255, 223, 192]], [32768, 32768, [0, 0, 0, 0, 0, 0, 224, 64]], [-32768, -32768, [0, 0, 0, 0, 0, 0, 224, 192]], [65535, 65535, [0, 0, 0, 0, 224, 255, 239, 64]], [65536, 65536, [0, 0, 0, 0, 0, 0, 240, 64]], [65537, 65537, [0, 0, 0, 0, 16, 0, 240, 64]], [65536.54321, 65536.54321, [14, 248, 252, 176, 8, 0, 240, 64]], [-65536.54321, -65536.54321, [14, 248, 252, 176, 8, 0, 240, 192]], [2147483647, 2147483647, [0, 0, 192, 255, 255, 255, 223, 65]], [-2147483647, -2147483647, [0, 0, 192, 255, 255, 255, 223, 193]], [2147483648, 2147483648, [0, 0, 0, 0, 0, 0, 224, 65]], [-2147483648, -2147483648, [0, 0, 0, 0, 0, 0, 224, 193]], [2147483649, 2147483649, [0, 0, 32, 0, 0, 0, 224, 65]], [-2147483649, -2147483649, [0, 0, 32, 0, 0, 0, 224, 193]], [4294967295, 4294967295, [0, 0, 224, 255, 255, 255, 239, 65]], [4294967296, 4294967296, [0, 0, 0, 0, 0, 0, 240, 65]], [4294967297, 4294967297, [0, 0, 16, 0, 0, 0, 240, 65]], [Infinity, Infinity, [0, 0, 0, 0, 0, 0, 240, 127]], [-Infinity, -Infinity, [0, 0, 0, 0, 0, 0, 240, 255]], [-1.7976931348623157e+308, -1.7976931348623157e+308, [255, 255, 255, 255, 255, 255, 239, 255]], [1.7976931348623157e+308, 1.7976931348623157e+308, [255, 255, 255, 255, 255, 255, 239, 127]], [5e-324, 5e-324, [1, 0, 0, 0, 0, 0, 0, 0]], [-5e-324, -5e-324, [1, 0, 0, 0, 0, 0, 0, 128]]];
-    KEY = 'setFloat64';
-    typed = new Float64Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6603,14 +6620,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -6623,15 +6643,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int16 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Int16';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0]], [-0, 0, [0, 0]], [1, 1, [1, 0]], [-1, -1, [255, 255]], [1.1, 1, [1, 0]], [-1.1, -1, [255, 255]], [1.9, 1, [1, 0]], [-1.9, -1, [255, 255]], [127, 127, [127, 0]], [-127, -127, [129, 255]], [128, 128, [128, 0]], [-128, -128, [128, 255]], [255, 255, [255, 0]], [-255, -255, [1, 255]], [255.1, 255, [255, 0]], [255.9, 255, [255, 0]], [256, 256, [0, 1]], [32767, 32767, [255, 127]], [-32767, -32767, [1, 128]], [32768, -32768, [0, 128]], [-32768, -32768, [0, 128]], [65535, -1, [255, 255]], [65536, 0, [0, 0]], [65537, 1, [1, 0]], [65536.54321, 0, [0, 0]], [-65536.54321, 0, [0, 0]], [2147483647, -1, [255, 255]], [-2147483647, 1, [1, 0]], [2147483648, 0, [0, 0]], [-2147483648, 0, [0, 0]], [4294967296, 0, [0, 0]], [Infinity, 0, [0, 0]], [-Infinity, 0, [0, 0]], [-1.7976931348623157e+308, 0, [0, 0]], [1.7976931348623157e+308, 0, [0, 0]], [5e-324, 0, [0, 0]], [-5e-324, 0, [0, 0]], [NaN, 0, [0, 0]]];
     if (NATIVE || !/Android [2-4]/.test(typeof navigator != 'undefined' && navigator !== null ? navigator.userAgent : void 8)) {
       data = data.concat([[2147483649, 1, [1, 0]], [-2147483649, -1, [255, 255]], [4294967295, -1, [255, 255]], [4294967297, 1, [1, 0]]]);
     }
-    KEY = 'setInt16';
-    typed = new Int16Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6644,14 +6671,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
   });
 }).call(this);
@@ -6662,12 +6692,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int32 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Int32';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0, 0, 0]], [-0, 0, [0, 0, 0, 0]], [1, 1, [1, 0, 0, 0]], [-1, -1, [255, 255, 255, 255]], [1.1, 1, [1, 0, 0, 0]], [-1.1, -1, [255, 255, 255, 255]], [1.9, 1, [1, 0, 0, 0]], [-1.9, -1, [255, 255, 255, 255]], [127, 127, [127, 0, 0, 0]], [-127, -127, [129, 255, 255, 255]], [128, 128, [128, 0, 0, 0]], [-128, -128, [128, 255, 255, 255]], [255, 255, [255, 0, 0, 0]], [-255, -255, [1, 255, 255, 255]], [255.1, 255, [255, 0, 0, 0]], [255.9, 255, [255, 0, 0, 0]], [256, 256, [0, 1, 0, 0]], [32767, 32767, [255, 127, 0, 0]], [-32767, -32767, [1, 128, 255, 255]], [32768, 32768, [0, 128, 0, 0]], [-32768, -32768, [0, 128, 255, 255]], [65535, 65535, [255, 255, 0, 0]], [65536, 65536, [0, 0, 1, 0]], [65537, 65537, [1, 0, 1, 0]], [65536.54321, 65536, [0, 0, 1, 0]], [-65536.54321, -65536, [0, 0, 255, 255]], [2147483647, 2147483647, [255, 255, 255, 127]], [-2147483647, -2147483647, [1, 0, 0, 128]], [2147483648, -2147483648, [0, 0, 0, 128]], [-2147483648, -2147483648, [0, 0, 0, 128]], [2147483649, -2147483647, [1, 0, 0, 128]], [-2147483649, 2147483647, [255, 255, 255, 127]], [4294967295, -1, [255, 255, 255, 255]], [4294967296, 0, [0, 0, 0, 0]], [4294967297, 1, [1, 0, 0, 0]], [Infinity, 0, [0, 0, 0, 0]], [-Infinity, 0, [0, 0, 0, 0]], [-1.7976931348623157e+308, 0, [0, 0, 0, 0]], [1.7976931348623157e+308, 0, [0, 0, 0, 0]], [5e-324, 0, [0, 0, 0, 0]], [-5e-324, 0, [0, 0, 0, 0]], [NaN, 0, [0, 0, 0, 0]]];
-    KEY = 'setInt32';
-    typed = new Int32Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6680,14 +6717,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
   });
 }).call(this);
@@ -6698,15 +6738,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int8 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little;
+    NAME = 'Int8';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0]], [-0, 0, [0]], [1, 1, [1]], [-1, -1, [255]], [1.1, 1, [1]], [-1.1, -1, [255]], [1.9, 1, [1]], [-1.9, -1, [255]], [127, 127, [127]], [-127, -127, [129]], [128, -128, [128]], [-128, -128, [128]], [255, -1, [255]], [-255, 1, [1]], [255.1, -1, [255]], [255.9, -1, [255]], [256, 0, [0]], [32767, -1, [255]], [-32767, 1, [1]], [32768, 0, [0]], [-32768, 0, [0]], [65535, -1, [255]], [65536, 0, [0]], [65537, 1, [1]], [65536.54321, 0, [0]], [-65536.54321, 0, [0]], [2147483647, -1, [255]], [-2147483647, 1, [1]], [2147483648, 0, [0]], [-2147483648, 0, [0]], [4294967296, 0, [0]], [Infinity, 0, [0]], [-Infinity, 0, [0]], [-1.7976931348623157e+308, 0, [0]], [1.7976931348623157e+308, 0, [0]], [5e-324, 0, [0]], [-5e-324, 0, [0]], [NaN, 0, [0]]];
     if (NATIVE || !/Android [2-4]/.test(typeof navigator != 'undefined' && navigator !== null ? navigator.userAgent : void 8)) {
       data = data.concat([[2147483649, 1, [1]], [-2147483649, -1, [255]], [4294967295, -1, [255]], [4294967297, 1, [1]]]);
     }
-    KEY = 'setInt8';
-    typed = new Int8Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6717,10 +6764,11 @@
     for (i$ = 0, len$ = data.length; i$ < len$; ++i$) {
       ref$ = data[i$], value = ref$[0], conversion = ref$[1], little = ref$[2];
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, little, z(value) + " -> " + little);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ") -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, little, ARRAY + " " + z(value) + " -> [" + little + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ") -> [" + little + "]");
+      assert.arrayEqual(viewFrom(little)[GET](0), value, "view{" + little + "}." + GET + "(0) -> " + value);
     }
   });
 }).call(this);
@@ -6731,15 +6779,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint16 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Uint16';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0]], [-0, 0, [0, 0]], [1, 1, [1, 0]], [-1, 65535, [255, 255]], [1.1, 1, [1, 0]], [-1.1, 65535, [255, 255]], [1.9, 1, [1, 0]], [-1.9, 65535, [255, 255]], [127, 127, [127, 0]], [-127, 65409, [129, 255]], [128, 128, [128, 0]], [-128, 65408, [128, 255]], [255, 255, [255, 0]], [-255, 65281, [1, 255]], [255.1, 255, [255, 0]], [255.9, 255, [255, 0]], [256, 256, [0, 1]], [32767, 32767, [255, 127]], [-32767, 32769, [1, 128]], [32768, 32768, [0, 128]], [-32768, 32768, [0, 128]], [65535, 65535, [255, 255]], [65536, 0, [0, 0]], [65537, 1, [1, 0]], [65536.54321, 0, [0, 0]], [-65536.54321, 0, [0, 0]], [2147483647, 65535, [255, 255]], [-2147483647, 1, [1, 0]], [2147483648, 0, [0, 0]], [-2147483648, 0, [0, 0]], [4294967296, 0, [0, 0]], [Infinity, 0, [0, 0]], [-Infinity, 0, [0, 0]], [-1.7976931348623157e+308, 0, [0, 0]], [1.7976931348623157e+308, 0, [0, 0]], [5e-324, 0, [0, 0]], [-5e-324, 0, [0, 0]], [NaN, 0, [0, 0]]];
     if (NATIVE || !/Android [2-4]/.test(typeof navigator != 'undefined' && navigator !== null ? navigator.userAgent : void 8)) {
       data = data.concat([[2147483649, 1, [1, 0]], [-2147483649, 65535, [255, 255]], [4294967295, 65535, [255, 255]], [4294967297, 1, [1, 0]]]);
     }
-    KEY = 'setUint16';
-    typed = new Uint16Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6752,14 +6807,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
   });
 }).call(this);
@@ -6770,12 +6828,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint32 conversions', function(assert){
-    var data, KEY, typed, uint8, view, z, i$, len$, ref$, value, conversion, little, big, rep;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
+    NAME = 'Uint32';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0, 0, 0, 0]], [-0, 0, [0, 0, 0, 0]], [1, 1, [1, 0, 0, 0]], [-1, 4294967295, [255, 255, 255, 255]], [1.1, 1, [1, 0, 0, 0]], [-1.1, 4294967295, [255, 255, 255, 255]], [1.9, 1, [1, 0, 0, 0]], [-1.9, 4294967295, [255, 255, 255, 255]], [127, 127, [127, 0, 0, 0]], [-127, 4294967169, [129, 255, 255, 255]], [128, 128, [128, 0, 0, 0]], [-128, 4294967168, [128, 255, 255, 255]], [255, 255, [255, 0, 0, 0]], [-255, 4294967041, [1, 255, 255, 255]], [255.1, 255, [255, 0, 0, 0]], [255.9, 255, [255, 0, 0, 0]], [256, 256, [0, 1, 0, 0]], [32767, 32767, [255, 127, 0, 0]], [-32767, 4294934529, [1, 128, 255, 255]], [32768, 32768, [0, 128, 0, 0]], [-32768, 4294934528, [0, 128, 255, 255]], [65535, 65535, [255, 255, 0, 0]], [65536, 65536, [0, 0, 1, 0]], [65537, 65537, [1, 0, 1, 0]], [65536.54321, 65536, [0, 0, 1, 0]], [-65536.54321, 4294901760, [0, 0, 255, 255]], [2147483647, 2147483647, [255, 255, 255, 127]], [-2147483647, 2147483649, [1, 0, 0, 128]], [2147483648, 2147483648, [0, 0, 0, 128]], [-2147483648, 2147483648, [0, 0, 0, 128]], [2147483649, 2147483649, [1, 0, 0, 128]], [-2147483649, 2147483647, [255, 255, 255, 127]], [4294967295, 4294967295, [255, 255, 255, 255]], [4294967296, 0, [0, 0, 0, 0]], [4294967297, 1, [1, 0, 0, 0]], [Infinity, 0, [0, 0, 0, 0]], [-Infinity, 0, [0, 0, 0, 0]], [-1.7976931348623157e+308, 0, [0, 0, 0, 0]], [1.7976931348623157e+308, 0, [0, 0, 0, 0]], [5e-324, 0, [0, 0, 0, 0]], [-5e-324, 0, [0, 0, 0, 0]], [NaN, 0, [0, 0, 0, 0]]];
-    KEY = 'setUint32';
-    typed = new Uint32Array(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6788,14 +6853,17 @@
       big = little.slice().reverse();
       rep = LITTLE_ENDIAN ? little : big;
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, rep, z(value) + " -> " + rep);
-      view[KEY](0, value);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ") -> " + big);
-      view[KEY](0, value, false);
-      assert.arrayEqual(uint8, big, "view." + KEY + "(0, " + z(value) + ", false) -> " + big);
-      view[KEY](0, value, true);
-      assert.arrayEqual(uint8, little, "view." + KEY + "(0, " + z(value) + ", true) -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(uint8, rep, ARRAY + " " + z(value) + " -> [" + rep + "]");
+      view[SET](0, value);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ") -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0), value, "view{" + big + "}." + GET + "(0) -> " + value);
+      view[SET](0, value, false);
+      assert.arrayEqual(uint8, big, "view." + SET + "(0, " + z(value) + ", false) -> [" + big + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, false), value, "view{" + big + "}." + GET + "(0, false) -> " + value);
+      view[SET](0, value, true);
+      assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
+      assert.arrayEqual(viewFrom(big)[GET](0, true), value, "view{" + little + "}." + GET + "(0, false) -> " + value);
     }
   });
 }).call(this);
@@ -6806,9 +6874,12 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8Clamped conversions', function(assert){
-    var data, typed, uint8, z, i$, len$, ref$, value, conversion, little;
+    var NAME, ARRAY, Typed, data, typed, uint8, z, i$, len$, ref$, value, conversion, little;
+    NAME = 'Uint8Clamped';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
     data = [[0, 0, [0]], [-0, 0, [0]], [1, 1, [1]], [-1, 0, [0]], [1.1, 1, [1]], [-1.1, 0, [0]], [1.9, 2, [2]], [-1.9, 0, [0]], [127, 127, [127]], [-127, 0, [0]], [128, 128, [128]], [-128, 0, [0]], [255, 255, [255]], [-255, 0, [0]], [255.1, 255, [255]], [255.9, 255, [255]], [256, 255, [255]], [32767, 255, [255]], [-32767, 0, [0]], [32768, 255, [255]], [-32768, 0, [0]], [65535, 255, [255]], [65536, 255, [255]], [65537, 255, [255]], [65536.54321, 255, [255]], [-65536.54321, 0, [0]], [2147483647, 255, [255]], [-2147483647, 0, [0]], [2147483648, 255, [255]], [-2147483648, 0, [0]], [2147483649, 255, [255]], [-2147483649, 0, [0]], [4294967295, 255, [255]], [4294967296, 255, [255]], [4294967297, 255, [255]], [Infinity, 255, [255]], [-Infinity, 0, [0]], [-1.7976931348623157e+308, 0, [0]], [1.7976931348623157e+308, 255, [255]], [5e-324, 0, [0]], [-5e-324, 0, [0]], [NaN, 0, [0]]];
-    typed = new Uint8ClampedArray(1);
+    typed = new Typed(1);
     uint8 = new Uint8Array(typed.buffer);
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
@@ -6821,7 +6892,7 @@
       ref$ = data[i$], value = ref$[0], conversion = ref$[1], little = ref$[2];
       typed[0] = value;
       assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(uint8, little, z(value) + " -> " + little);
+      assert.arrayEqual(uint8, little, z(value) + " -> [" + little + "]");
     }
   });
 }).call(this);
@@ -6832,14 +6903,21 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8 conversions', function(assert){
-    var data, KEY, typed, view, z, i$, len$, ref$, value, conversion, little;
+    var NAME, ARRAY, Typed, SET, GET, data, typed, view, viewFrom, z, i$, len$, ref$, value, conversion, little;
+    NAME = 'Uint8';
+    ARRAY = NAME + 'Array';
+    Typed = global[ARRAY];
+    SET = 'set' + NAME;
+    GET = 'get' + NAME;
     data = [[0, 0, [0]], [-0, 0, [0]], [1, 1, [1]], [-1, 255, [255]], [1.1, 1, [1]], [-1.1, 255, [255]], [1.9, 1, [1]], [-1.9, 255, [255]], [127, 127, [127]], [-127, 129, [129]], [128, 128, [128]], [-128, 128, [128]], [255, 255, [255]], [-255, 1, [1]], [255.1, 255, [255]], [255.9, 255, [255]], [256, 0, [0]], [32767, 255, [255]], [-32767, 1, [1]], [32768, 0, [0]], [-32768, 0, [0]], [65535, 255, [255]], [65536, 0, [0]], [65537, 1, [1]], [65536.54321, 0, [0]], [-65536.54321, 0, [0]], [2147483647, 255, [255]], [-2147483647, 1, [1]], [2147483648, 0, [0]], [-2147483648, 0, [0]], [4294967296, 0, [0]], [Infinity, 0, [0]], [-Infinity, 0, [0]], [-1.7976931348623157e+308, 0, [0]], [1.7976931348623157e+308, 0, [0]], [5e-324, 0, [0]], [-5e-324, 0, [0]], [NaN, 0, [0]]];
     if (NATIVE || !/Android [2-4]/.test(typeof navigator != 'undefined' && navigator !== null ? navigator.userAgent : void 8)) {
       data = data.concat([[2147483649, 1, [1]], [-2147483649, 255, [255]], [4294967295, 255, [255]], [4294967297, 1, [1]]]);
     }
-    KEY = 'setUint8';
-    typed = new Uint8Array(1);
+    typed = new Typed(1);
     view = new DataView(typed.buffer);
+    viewFrom = function(it){
+      return new DataView(new Uint8Array(it).buffer);
+    };
     z = function(it){
       if (it === 0 && 1 / it === -Infinity) {
         return '-0';
@@ -6850,10 +6928,11 @@
     for (i$ = 0, len$ = data.length; i$ < len$; ++i$) {
       ref$ = data[i$], value = ref$[0], conversion = ref$[1], little = ref$[2];
       typed[0] = value;
-      assert.same(typed[0], conversion, z(value) + " -> " + z(conversion));
-      assert.arrayEqual(typed, little, z(value) + " -> " + little);
-      view[KEY](0, value);
-      assert.arrayEqual(typed, little, "view." + KEY + "(0, " + z(value) + ") -> " + little);
+      assert.same(typed[0], conversion, ARRAY + " " + z(value) + " -> " + z(conversion));
+      assert.arrayEqual(typed, little, ARRAY + " " + z(value) + " -> [" + little + "]");
+      view[SET](0, value);
+      assert.arrayEqual(typed, little, "view." + SET + "(0, " + z(value) + ") -> [" + little + "]");
+      assert.arrayEqual(viewFrom(little)[GET](0), value, "view{" + little + "}." + GET + "(0) -> " + value);
     }
   });
 }).call(this);
