@@ -236,7 +236,7 @@ if(require('./_descriptors')){
 
   var $set = function set(arrayLike /*, offset */){
     validate(this);
-    var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1)
+    var offset = toOffset(arguments[1], 1)
       , length = this.length
       , src    = toObject(arrayLike)
       , len    = toLength(src.length)
