@@ -24,6 +24,7 @@ var $              = require('./_')
   , Math           = global.Math
   , parseInt       = global.parseInt
   , RangeError     = global.RangeError
+  , Infinity       = global.Infinity
   , BaseBuffer     = $ArrayBuffer
   , abs            = Math.abs
   , pow            = Math.pow
@@ -32,103 +33,77 @@ var $              = require('./_')
   , log            = Math.log
   , LN2            = Math.LN2;
 
-// IEEE754 conversions based on
-// https://github.com/inexorabletash/polyfill/blob/v0.1.12/typedarray.js#L150-L259
-// TODO: simplify, fix 32 case
-var roundToEven = function(n){
-  var w = floor(n)
-    , f = n - w;
-  return f < .5 ? w : f > .5 ? w + 1 : w % 2 ? w + 1 : w;
-};
-var packIEEE754 = function(v, ebits, fbits) {
-  var bias = (1 << ebits - 1) - 1
-    , s, e, f, i, bits, str, bytes;
-  // Compute sign, exponent, fraction
-  if(v != v){ // NaN
-    e = (1 << ebits) - 1;
-    f = pow(2, fbits - 1);
-    s = 0;
-  } else if(v == Infinity || v == -Infinity){
-    e = (1 << ebits) - 1;
-    f = 0;
-    s = v < 0 ? 1 : 0;
-  } else if(v == 0){
-    e = 0;
-    f = 0;
-    s = 1 / v == -Infinity ? 1 : 0;
+// IEEE754 conversions based on https://github.com/feross/ieee754
+var packIEEE754 = function(value, mLen, nBytes){
+  var buffer = Array(nBytes)
+    , eLen   = nBytes * 8 - mLen - 1
+    , eMax   = (1 << eLen) - 1
+    , eBias  = eMax >> 1
+    , rt     = mLen === 23 ? pow(2, -24) - pow(2, -77) : 0
+    , i      = 0
+    , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
+    , e, m, c;
+  value = abs(value)
+  if(value != value || value === Infinity){
+    m = value != value ? 1 : 0;
+    e = eMax;
   } else {
-    s = v < 0;
-    v = abs(v);
-    if(v >= pow(2, 1 - bias)){
-      e = min(floor(log(v) / LN2), 1023);
-      var significand = v / pow(2, e);
-      if(significand < 1){
-        e -= 1;
-        significand *= 2;
-      }
-      if(significand >= 2){
-        e += 1;
-        significand /= 2;
-      }
-      f = roundToEven(significand * pow(2, fbits));
-      if(f / pow(2, fbits) >= 2){
-        e = e + 1;
-        f = 1;
-      }
-      if(e > bias){ // Overflow
-        e = (1 << ebits) - 1;
-        f = 0;
-      } else { // Normalized
-        e = e + bias;
-        f = f - pow(2, fbits);
-      }
-    } else { // Denormalized
+    e = floor(log(value) / LN2);
+    if(value * (c = pow(2, -e)) < 1){
+      e--;
+      c *= 2;
+    }
+    if(e + eBias >= 1){
+      value += rt / c;
+    } else {
+      value += rt * pow(2, 1 - eBias);
+    }
+    if(value * c >= 2){
+      e++;
+      c /= 2;
+    }
+    if(e + eBias >= eMax){
+      m = 0;
+      e = eMax;
+    } else if(e + eBias >= 1){
+      m = (value * c - 1) * pow(2, mLen);
+      e = e + eBias;
+    } else {
+      m = value * pow(2, eBias - 1) * pow(2, mLen);
       e = 0;
-      f = roundToEven(v / pow(2, 1 - bias - fbits));
     }
   }
-  // Pack sign, exponent, fraction
-  bits = [];
-  for(i = fbits; i; i -= 1){
-    bits.push(f % 2 ? 1 : 0);
-    f = floor(f / 2);
-  }
-  for(i = ebits; i; i -= 1){
-    bits.push(e % 2 ? 1 : 0);
-    e = floor(e / 2);
-  }
-  bits.push(s ? 1 : 0);
-  bits.reverse();
-  str = bits.join('');
-  // Bits to bytes
-  bytes = [];
-  while(str.length){
-    bytes.unshift(parseInt(str.slice(0, 8), 2));
-    str = str.slice(8);
-  }
-  return bytes;
+  for(; mLen >= 8; buffer[i++] = m & 255, m /= 256, mLen -= 8);
+  e = e << mLen | m;
+  eLen += mLen;
+  for(; eLen > 0; buffer[i++] = e & 255, e /= 256, eLen -= 8);
+  buffer[--i] |= s * 128;
+  return buffer;
 };
-var unpackIEEE754 = function(bytes, ebits, fbits){
-  var bits = []
-    , i, j, b, str, bias, s, e, f;
-  for(i = 0; i < bytes.length; ++i)for(b = bytes[i], j = 8; j; --j){
-    bits.push(b % 2 ? 1 : 0);
-    b = b >> 1;
-  }
-  bits.reverse();
-  str = bits.join('');
-  // Unpack sign, exponent, fraction
-  bias = (1 << ebits - 1) - 1;
-  s = parseInt(str.slice(0, 1), 2) ? -1 : 1;
-  e = parseInt(str.slice(1, 1 + ebits), 2);
-  f = parseInt(str.slice(1 + ebits), 2);
-  // Produce number
-  if(e === (1 << ebits) - 1)return f !== 0 ? NaN : s * Infinity;
-  // Normalized
-  else if(e > 0)return s * pow(2, e - bias) * (1 + f / pow(2, fbits));
-  // Denormalized
-  else if(f !== 0)return s * pow(2, -(bias - 1)) * (f / pow(2, fbits));
-  return s < 0 ? -0 : 0;
+var unpackIEEE754 = function(buffer, mLen, nBytes){
+  var eLen  = nBytes * 8 - mLen - 1
+    , eMax  = (1 << eLen) - 1
+    , eBias = eMax >> 1
+    , nBits = -7
+    , i     = nBytes - 1
+    , s     = buffer[i--]
+    , e     = s & 127
+    , m;
+  s >>= 7;
+  nBits += eLen;
+  for(; nBits > 0; e = e * 256 + buffer[i], i--, nBits -= 8);
+  m = e & (1 << -nBits) - 1;
+  e >>= -nBits;
+  nBits += mLen;
+  for(; nBits > 0; m = m * 256 + buffer[i], i--, nBits -= 8);
+  if(e === 0){
+    e = 1 - eBias;
+  } else if(e === eMax){
+    return m ? NaN : s ? -Infinity : Infinity;
+  } else {
+    m = m + pow(2, mLen);
+    e = e - eBias;
+  } return (s ? -1 : 1) * m * pow(2, e - mLen);
 };
 
 var unpackI32 = function(bytes){
@@ -144,10 +119,10 @@ var packI32 = function(it){
   return [it & 0xff, it >> 8 & 0xff, it >> 16 & 0xff, it >> 24 & 0xff];
 };
 var packF64 = function(it){
-  return packIEEE754(it, 11, 52);
+  return packIEEE754(it, 52, 8);
 };
 var packF32 = function(it){
-  return packIEEE754(it, 8, 23);
+  return packIEEE754(it, 23, 4);
 };
 
 var addGetter = function(C, key, internal){
@@ -226,10 +201,10 @@ if(!$typed.ABV){
       return unpackI32(get(this, 4, byteOffset, arguments[1])) >>> 0;
     },
     getFloat32: function getFloat32(byteOffset /*, littleEndian */){
-      return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 8, 23);
+      return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 23, 4);
     },
     getFloat64: function getFloat64(byteOffset /*, littleEndian */){
-      return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 11, 52);
+      return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 52, 8);
     },
     setInt8: function setInt8(byteOffset, value){
       set(this, 1, byteOffset, packI8, value);
