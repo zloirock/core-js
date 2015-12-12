@@ -12,6 +12,7 @@ if(require('./_descriptors')){
     , speciesConstructor = require('./_species-constructor')
     , $ArrayBuffer = buffer.ArrayBuffer
     , $DataView    = buffer.DataView
+    , $isView      = $typed.ABV && ArrayBuffer.isView
     , $slice       = $ArrayBuffer.prototype.slice
     , VIEW         = $typed.VIEW
     , ARRAY_BUFFER = 'ArrayBuffer';
@@ -20,8 +21,8 @@ if(require('./_descriptors')){
 
   $export($export.S + $export.F * !$typed.CONSTR, ARRAY_BUFFER, {
     // 24.1.3.1 ArrayBuffer.isView(arg)
-    isView: function isView(it){ // not cross-realm
-      return isObject(it) && VIEW in it;
+    isView: function isView(it){
+      return $isView && $isView(it) || isObject(it) && VIEW in it;
     }
   });
 
