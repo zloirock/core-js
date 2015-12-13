@@ -197,7 +197,7 @@ var $resolve = function(value){
 if(!USE_NATIVE){
   // 25.4.3.1 Promise(executor)
   $Promise = function Promise(executor){
-    strictNew(this, $Promise, PROMISE);
+    strictNew(this, $Promise, PROMISE, '_h');
     aFunction(executor);
     Internal.call(this);
     try {

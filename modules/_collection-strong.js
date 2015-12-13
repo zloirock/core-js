@@ -26,7 +26,7 @@ var getEntry = function(that, key){
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
-      strictNew(that, C, NAME);
+      strictNew(that, C, NAME, '_i');
       that._i = $.create(null); // index
       that._f = undefined;      // first entry
       that._l = undefined;      // last entry

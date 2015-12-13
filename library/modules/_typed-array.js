@@ -259,7 +259,7 @@ if(require('./_descriptors')){
 
   var isTAIndex = function(target, key){
     return isObject(target)
-      && TYPED_ARRAY in target
+      && target[TYPED_ARRAY]
       && typeof key != 'symbol'
       && key in target
       && String(+key) == String(key);
@@ -350,7 +350,7 @@ if(require('./_descriptors')){
     };
     if(FORCED){
       TypedArray = wrapper(function(that, data, $offset, $length){
-        strictNew(that, TypedArray, NAME);
+        strictNew(that, TypedArray, NAME, '_d');
         var index  = 0
           , offset = 0
           , buffer, byteLength, length;

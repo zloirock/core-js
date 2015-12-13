@@ -27,7 +27,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     meta.NEED = true;
   } else {
     C = wrapper(function(target, iterable){
-      strictNew(target, C, NAME);
+      strictNew(target, C, NAME, '_c');
       target._c = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });

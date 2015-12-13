@@ -84,13 +84,12 @@ var unpackIEEE754 = function(buffer, mLen, nBytes){
   var eLen  = nBytes * 8 - mLen - 1
     , eMax  = (1 << eLen) - 1
     , eBias = eMax >> 1
-    , nBits = -7
+    , nBits = eLen - 7
     , i     = nBytes - 1
     , s     = buffer[i--]
     , e     = s & 127
     , m;
   s >>= 7;
-  nBits += eLen;
   for(; nBits > 0; e = e * 256 + buffer[i], i--, nBits -= 8);
   m = e & (1 << -nBits) - 1;
   e >>= -nBits;
@@ -148,8 +147,8 @@ var set = function(view, bytes, index, conversion, value, isLittleEndian){
   for(var i = 0; i < bytes; i++)store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
 };
 
-var validateArrayBufferArguments = function(that, length){
-  strictNew(that, $ArrayBuffer, ARRAY_BUFFER);
+var validateArrayBufferArguments = function(that, length, field){
+  strictNew(that, $ArrayBuffer, ARRAY_BUFFER, field);
   var numberLength = +length
     , byteLength   = toLength(numberLength);
   if(numberLength != byteLength)throw RangeError(WRONG_LENGTH);
@@ -158,14 +157,14 @@ var validateArrayBufferArguments = function(that, length){
 
 if(!$typed.ABV){
   $ArrayBuffer = function ArrayBuffer(length){
-    var byteLength = validateArrayBufferArguments(this, length);
+    var byteLength = validateArrayBufferArguments(this, length, '_b');
     this._b = arrayFill.call(Array(byteLength), 0);
     this._l = byteLength;
   };
   addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
 
   $DataView = function DataView(buffer, byteOffset, byteLength){
-    strictNew(this, $DataView, DATA_VIEW);
+    strictNew(this, $DataView, DATA_VIEW, '_b');
     strictNew(buffer, $ArrayBuffer, ARRAY_BUFFER);
     var bufferLength = buffer._l
       , offset       = toInteger(byteOffset);
