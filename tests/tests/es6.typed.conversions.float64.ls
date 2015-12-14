@@ -80,7 +80,7 @@ DESCRIPTORS and test 'Float64 conversions', !(assert)~>
     assert.same viewFrom(big)[GET](0, no), conversion, "view{#big}.#GET(0, false) -> #{z conversion}"
     view[SET] 0, value, on
     assert.arrayEqual uint8, little, "view.#SET(0, #{z value}, true) -> [#little]"
-    assert.same viewFrom(little)[GET](0, on), conversion, "view{#little}.#GET(0, false) -> #{z conversion}"
+    assert.same viewFrom(little)[GET](0, on), conversion, "view{#little}.#GET(0, true) -> #{z conversion}"
 
   typed[0] = NaN
   assert.same typed[0], NaN, "NaN -> NaN"

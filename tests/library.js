@@ -4750,7 +4750,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  DESCRIPTORS && test('ArrayBuffer', function(assert){
+  test('ArrayBuffer', function(assert){
     var ArrayBuffer, b, ref$;
     ArrayBuffer = core.ArrayBuffer;
     assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
@@ -4768,7 +4768,7 @@
     assert.throws(function(){
       new ArrayBuffer(core.Number.MAX_SAFE_INTEGER + 1);
     }, RangeError, 'absurd length');
-    assert.same(ArrayBuffer[(ref$ = core.Symbol) != null ? ref$.species : void 8], ArrayBuffer, '@@species');
+    DESCRIPTORS && assert.same(ArrayBuffer[(ref$ = core.Symbol) != null ? ref$.species : void 8], ArrayBuffer, '@@species');
   });
 }).call(this);
 
@@ -4777,7 +4777,7 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  DESCRIPTORS && test('ArrayBuffer.isView', function(assert){
+  test('ArrayBuffer.isView', function(assert){
     var ArrayBuffer, DataView, isView, i$, x$, ref$, len$, y$;
     ArrayBuffer = core.ArrayBuffer, DataView = core.DataView;
     isView = ArrayBuffer.isView;
@@ -4785,7 +4785,9 @@
     assert.arity(isView, 1);
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      assert.same(isView(new core[x$]([1])), true, x$ + " - true");
+      if (core[x$]) {
+        assert.same(isView(new core[x$]([1])), true, x$ + " - true");
+      }
     }
     assert.same(isView(new DataView(new ArrayBuffer(1))), true, "DataView - true");
     assert.same(isView(new ArrayBuffer(1)), false, "ArrayBuffer - false");
@@ -5151,7 +5153,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -5200,7 +5202,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
     typed[0] = NaN;
     assert.same(typed[0], NaN, "NaN -> NaN");
@@ -5252,7 +5254,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -5299,7 +5301,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -5391,7 +5393,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -5438,7 +5440,7 @@
       assert.same(viewFrom(big)[GET](0, false), conversion, "view{" + big + "}." + GET + "(0, false) -> " + z(conversion));
       view[SET](0, value, true);
       assert.arrayEqual(uint8, little, "view." + SET + "(0, " + z(value) + ", true) -> [" + little + "]");
-      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, false) -> " + z(conversion));
+      assert.same(viewFrom(little)[GET](0, true), conversion, "view{" + little + "}." + GET + "(0, true) -> " + z(conversion));
     }
   });
 }).call(this);
@@ -5519,196 +5521,194 @@
   var module, test, DataView, ArrayBuffer, Uint8Array, i$, x$, ref$, len$, y$, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  if (DESCRIPTORS) {
-    DataView = core.DataView, ArrayBuffer = core.ArrayBuffer, Uint8Array = core.Uint8Array;
-    test('DataView', function(assert){
-      var a, d;
-      assert.same(DataView, Object(DataView), 'is object');
-      a = new DataView(new ArrayBuffer(8));
-      assert.same(a.byteOffset, 0, '#byteOffset, passed buffer');
-      assert.same(a.byteLength, 8, '#byteLength, passed buffer');
-      a = new DataView(new ArrayBuffer(16), 8);
-      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset');
-      assert.same(a.byteLength, 8, '#byteLength, passed buffer and byteOffset');
-      a = new DataView(new ArrayBuffer(24), 8, 8);
-      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length');
-      assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and length');
-      if (NATIVE) {
-        a = new DataView(new ArrayBuffer(8), void 8);
-        assert.same(a.byteOffset, 0, '#byteOffset, passed buffer and undefined');
-        assert.same(a.byteLength, 8, '#byteLength, passed buffer and undefined');
-      }
-      if (NATIVE) {
-        a = new DataView(new ArrayBuffer(16), 8, void 8);
-        assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined');
-        assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined');
-      }
-      if (NATIVE) {
-        a = new DataView(new ArrayBuffer(8), 8);
-        assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
-        assert.same(a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
-      }
-      if (NATIVE) {
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(8), -1);
-        }, RangeError, 'If offset < 0, throw a RangeError exception');
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(8), 16);
-        }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(24), 8, 24);
-        }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-      } else {
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(8), -1);
-        }, 'If offset < 0, throw a RangeError exception');
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(8), 16);
-        }, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(function(){
-          new DataView(new ArrayBuffer(24), 8, 24);
-        }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-      }
-      if (NATIVE) {
-        assert.throws(function(){
-          DataView(1);
-        }, TypeError, 'throws without `new`');
-      } else {
-        assert.throws(function(){
-          DataView(1);
-        }, 'throws without `new`');
-      }
-      d = new DataView(new ArrayBuffer(8));
-      d.setUint32(0, 0x12345678);
-      assert.same(d.getUint32(0), 0x12345678, 'big endian/big endian');
-      d.setUint32(0, 0x12345678, true);
-      assert.same(d.getUint32(0, true), 0x12345678, 'little endian/little endian');
-      d.setUint32(0, 0x12345678, true);
-      assert.same(d.getUint32(0), 0x78563412, 'little endian/big endian');
-      d.setUint32(0, 0x12345678);
-      assert.same(d.getUint32(0, true), 0x78563412, 'big endian/little endian');
-      assert.throws(function(){
-        return new DataView({});
-      }, 'non-ArrayBuffer argument');
-      assert.ok(function(){
-        var e;
-        try {
-          new DataView('foo');
-        } catch (e$) {
-          e = e$;
-          return e;
-        }
-      }, 'non-ArrayBuffer argument');
-    });
-    test('DataView accessors', function(assert){
-      var u, d, i$, ref$, len$, i, x;
-      u = new Uint8Array(8);
-      d = new DataView(u.buffer);
-      assert.arrayEqual(u, [0, 0, 0, 0, 0, 0, 0, 0]);
-      d.setUint8(0, 255);
-      assert.arrayEqual(u, [0xff, 0, 0, 0, 0, 0, 0, 0]);
-      d.setInt8(1, -1);
-      assert.arrayEqual(u, [0xff, 0xff, 0, 0, 0, 0, 0, 0]);
-      d.setUint16(2, 0x1234);
-      assert.arrayEqual(u, [0xff, 0xff, 0x12, 0x34, 0, 0, 0, 0]);
-      d.setInt16(4, -1);
-      assert.arrayEqual(u, [0xff, 0xff, 0x12, 0x34, 0xff, 0xff, 0, 0]);
-      d.setUint32(1, 0x12345678);
-      assert.arrayEqual(u, [0xff, 0x12, 0x34, 0x56, 0x78, 0xff, 0, 0]);
-      d.setInt32(4, -2023406815);
-      assert.arrayEqual(u, [0xff, 0x12, 0x34, 0x56, 0x87, 0x65, 0x43, 0x21]);
-      d.setFloat32(2, 1.2e+38);
-      assert.arrayEqual(u, [0xff, 0x12, 0x7e, 0xb4, 0x8e, 0x52, 0x43, 0x21]);
-      d.setFloat64(0, -1.2345678e+301);
-      assert.arrayEqual(u, [0xfe, 0x72, 0x6f, 0x51, 0x5f, 0x61, 0x77, 0xe5]);
-      for (i$ = 0, len$ = (ref$ = [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]).length; i$ < len$; ++i$) {
-        i = i$;
-        x = ref$[i$];
-        u[i] = x;
-      }
-      assert.same(d.getUint8(0), 128);
-      assert.same(d.getInt8(1), -127);
-      assert.same(d.getUint16(2), 33411);
-      assert.same(d.getInt16(3), -31868);
-      assert.same(d.getUint32(4), 2223343239);
-      assert.same(d.getInt32(2), -2105310075);
-      assert.same(d.getFloat32(2), -1.932478247535851e-37);
-      assert.same(d.getFloat64(0), -3.116851295377095e-306);
-    });
-    test('DataView endian', function(assert){
-      var rawbuf, d;
-      rawbuf = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
-      d = new DataView(rawbuf);
-      assert.same(d.byteLength, 8, 'buffer');
-      assert.same(d.byteOffset, 0, 'buffer');
-      assert.throws(function(){
-        return d.getUint8(-2);
-      });
-      assert.throws(function(){
-        return d.getUint8(8);
-      }, 'bounds for buffer');
-      assert.throws(function(){
-        return d.setUint8(-2, 0);
-      }, 'bounds for buffer');
-      assert.throws(function(){
-        return d.setUint8(8, 0);
-      }, 'bounds for buffer');
-      d = new DataView(rawbuf, 2);
-      assert.same(d.byteLength, 6, 'buffer, byteOffset');
-      assert.same(d.byteOffset, 2, 'buffer, byteOffset');
-      assert.same(d.getUint8(5), 7, 'buffer, byteOffset');
-      assert.throws(function(){
-        return d.getUint8(-2);
-      }, 'bounds for buffer, byteOffset');
-      assert.throws(function(){
-        return d.getUint8(6);
-      }, 'bounds for buffer, byteOffset');
-      assert.throws(function(){
-        return d.setUint8(-2, 0);
-      }, 'bounds for buffer, byteOffset');
-      assert.throws(function(){
-        return d.setUint8(6, 0);
-      }, 'bounds for buffer, byteOffset');
-      assert.throws(function(){
-        return new DataView(rawbuf, -1);
-      }, 'invalid byteOffset');
-      assert.throws(function(){
-        return new DataView(rawbuf, 9);
-      }, 'invalid byteOffset');
-      d = new DataView(rawbuf, 2, 4);
-      assert.same(d.byteLength, 4, 'buffer, byteOffset, length');
-      assert.same(d.byteOffset, 2, 'buffer, byteOffset, length');
-      assert.same(d.getUint8(3), 5, 'buffer, byteOffset, length');
-      assert.throws(function(){
-        return d.getUint8(-2);
-      }, 'bounds for buffer, byteOffset, length');
-      assert.throws(function(){
-        return d.getUint8(4);
-      }, 'bounds for buffer, byteOffset, length');
-      assert.throws(function(){
-        return d.setUint8(-2, 0);
-      }, 'bounds for buffer, byteOffset, length');
-      assert.throws(function(){
-        return d.setUint8(4, 0);
-      }, 'bounds for buffer, byteOffset, length');
-      assert.throws(function(){
-        return new DataView(rawbuf, 0, 9);
-      }, 'invalid byteOffset+length');
-      assert.throws(function(){
-        return new DataView(rawbuf, 8, 1);
-      }, 'invalid byteOffset+length');
-      assert.throws(function(){
-        return new DataView(rawbuf, 9, -1);
-      }, 'invalid byteOffset+length');
-    });
-    for (i$ = 0, len$ = (ref$ = ['getUint8', 'getInt8', 'getUint16', 'getInt16', 'getUint32', 'getInt32', 'getFloat32', 'getFloat64']).length; i$ < len$; ++i$) {
-      x$ = ref$[i$];
-      (fn$.call(this, x$));
+  DataView = core.DataView, ArrayBuffer = core.ArrayBuffer, Uint8Array = core.Uint8Array;
+  test('DataView', function(assert){
+    var a, d;
+    assert.same(DataView, Object(DataView), 'is object');
+    a = new DataView(new ArrayBuffer(8));
+    assert.same(a.byteOffset, 0, '#byteOffset, passed buffer');
+    assert.same(a.byteLength, 8, '#byteLength, passed buffer');
+    a = new DataView(new ArrayBuffer(16), 8);
+    assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset');
+    assert.same(a.byteLength, 8, '#byteLength, passed buffer and byteOffset');
+    a = new DataView(new ArrayBuffer(24), 8, 8);
+    assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length');
+    assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and length');
+    if (NATIVE) {
+      a = new DataView(new ArrayBuffer(8), void 8);
+      assert.same(a.byteOffset, 0, '#byteOffset, passed buffer and undefined');
+      assert.same(a.byteLength, 8, '#byteLength, passed buffer and undefined');
     }
-    for (i$ = 0, len$ = (ref$ = ['setUint8', 'setInt8', 'setUint16', 'setInt16', 'setUint32', 'setInt32', 'setFloat32', 'setFloat64']).length; i$ < len$; ++i$) {
-      y$ = ref$[i$];
-      (fn1$.call(this, y$));
+    if (NATIVE) {
+      a = new DataView(new ArrayBuffer(16), 8, void 8);
+      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and undefined');
+      assert.same(a.byteLength, 8, '#byteLength, passed buffer, byteOffset and undefined');
     }
+    if (NATIVE) {
+      a = new DataView(new ArrayBuffer(8), 8);
+      assert.same(a.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
+      assert.same(a.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
+    }
+    if (NATIVE) {
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(8), -1);
+      }, RangeError, 'If offset < 0, throw a RangeError exception');
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(8), 16);
+      }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(24), 8, 24);
+      }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+    } else {
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(8), -1);
+      }, 'If offset < 0, throw a RangeError exception');
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(8), 16);
+      }, 'If newByteLength < 0, throw a RangeError exception');
+      assert.throws(function(){
+        new DataView(new ArrayBuffer(24), 8, 24);
+      }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+    }
+    if (NATIVE) {
+      assert.throws(function(){
+        DataView(1);
+      }, TypeError, 'throws without `new`');
+    } else {
+      assert.throws(function(){
+        DataView(1);
+      }, 'throws without `new`');
+    }
+    d = new DataView(new ArrayBuffer(8));
+    d.setUint32(0, 0x12345678);
+    assert.same(d.getUint32(0), 0x12345678, 'big endian/big endian');
+    d.setUint32(0, 0x12345678, true);
+    assert.same(d.getUint32(0, true), 0x12345678, 'little endian/little endian');
+    d.setUint32(0, 0x12345678, true);
+    assert.same(d.getUint32(0), 0x78563412, 'little endian/big endian');
+    d.setUint32(0, 0x12345678);
+    assert.same(d.getUint32(0, true), 0x78563412, 'big endian/little endian');
+    assert.throws(function(){
+      return new DataView({});
+    }, 'non-ArrayBuffer argument');
+    assert.ok(function(){
+      var e;
+      try {
+        new DataView('foo');
+      } catch (e$) {
+        e = e$;
+        return e;
+      }
+    }, 'non-ArrayBuffer argument');
+  });
+  DESCRIPTORS && test('DataView accessors', function(assert){
+    var u, d, i$, ref$, len$, i, x;
+    u = new Uint8Array(8);
+    d = new DataView(u.buffer);
+    assert.arrayEqual(u, [0, 0, 0, 0, 0, 0, 0, 0]);
+    d.setUint8(0, 255);
+    assert.arrayEqual(u, [0xff, 0, 0, 0, 0, 0, 0, 0]);
+    d.setInt8(1, -1);
+    assert.arrayEqual(u, [0xff, 0xff, 0, 0, 0, 0, 0, 0]);
+    d.setUint16(2, 0x1234);
+    assert.arrayEqual(u, [0xff, 0xff, 0x12, 0x34, 0, 0, 0, 0]);
+    d.setInt16(4, -1);
+    assert.arrayEqual(u, [0xff, 0xff, 0x12, 0x34, 0xff, 0xff, 0, 0]);
+    d.setUint32(1, 0x12345678);
+    assert.arrayEqual(u, [0xff, 0x12, 0x34, 0x56, 0x78, 0xff, 0, 0]);
+    d.setInt32(4, -2023406815);
+    assert.arrayEqual(u, [0xff, 0x12, 0x34, 0x56, 0x87, 0x65, 0x43, 0x21]);
+    d.setFloat32(2, 1.2e+38);
+    assert.arrayEqual(u, [0xff, 0x12, 0x7e, 0xb4, 0x8e, 0x52, 0x43, 0x21]);
+    d.setFloat64(0, -1.2345678e+301);
+    assert.arrayEqual(u, [0xfe, 0x72, 0x6f, 0x51, 0x5f, 0x61, 0x77, 0xe5]);
+    for (i$ = 0, len$ = (ref$ = [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]).length; i$ < len$; ++i$) {
+      i = i$;
+      x = ref$[i$];
+      u[i] = x;
+    }
+    assert.same(d.getUint8(0), 128);
+    assert.same(d.getInt8(1), -127);
+    assert.same(d.getUint16(2), 33411);
+    assert.same(d.getInt16(3), -31868);
+    assert.same(d.getUint32(4), 2223343239);
+    assert.same(d.getInt32(2), -2105310075);
+    assert.same(d.getFloat32(2), -1.932478247535851e-37);
+    assert.same(d.getFloat64(0), -3.116851295377095e-306);
+  });
+  DESCRIPTORS && test('DataView endian', function(assert){
+    var rawbuf, d;
+    rawbuf = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
+    d = new DataView(rawbuf);
+    assert.same(d.byteLength, 8, 'buffer');
+    assert.same(d.byteOffset, 0, 'buffer');
+    assert.throws(function(){
+      return d.getUint8(-2);
+    });
+    assert.throws(function(){
+      return d.getUint8(8);
+    }, 'bounds for buffer');
+    assert.throws(function(){
+      return d.setUint8(-2, 0);
+    }, 'bounds for buffer');
+    assert.throws(function(){
+      return d.setUint8(8, 0);
+    }, 'bounds for buffer');
+    d = new DataView(rawbuf, 2);
+    assert.same(d.byteLength, 6, 'buffer, byteOffset');
+    assert.same(d.byteOffset, 2, 'buffer, byteOffset');
+    assert.same(d.getUint8(5), 7, 'buffer, byteOffset');
+    assert.throws(function(){
+      return d.getUint8(-2);
+    }, 'bounds for buffer, byteOffset');
+    assert.throws(function(){
+      return d.getUint8(6);
+    }, 'bounds for buffer, byteOffset');
+    assert.throws(function(){
+      return d.setUint8(-2, 0);
+    }, 'bounds for buffer, byteOffset');
+    assert.throws(function(){
+      return d.setUint8(6, 0);
+    }, 'bounds for buffer, byteOffset');
+    assert.throws(function(){
+      return new DataView(rawbuf, -1);
+    }, 'invalid byteOffset');
+    assert.throws(function(){
+      return new DataView(rawbuf, 9);
+    }, 'invalid byteOffset');
+    d = new DataView(rawbuf, 2, 4);
+    assert.same(d.byteLength, 4, 'buffer, byteOffset, length');
+    assert.same(d.byteOffset, 2, 'buffer, byteOffset, length');
+    assert.same(d.getUint8(3), 5, 'buffer, byteOffset, length');
+    assert.throws(function(){
+      return d.getUint8(-2);
+    }, 'bounds for buffer, byteOffset, length');
+    assert.throws(function(){
+      return d.getUint8(4);
+    }, 'bounds for buffer, byteOffset, length');
+    assert.throws(function(){
+      return d.setUint8(-2, 0);
+    }, 'bounds for buffer, byteOffset, length');
+    assert.throws(function(){
+      return d.setUint8(4, 0);
+    }, 'bounds for buffer, byteOffset, length');
+    assert.throws(function(){
+      return new DataView(rawbuf, 0, 9);
+    }, 'invalid byteOffset+length');
+    assert.throws(function(){
+      return new DataView(rawbuf, 8, 1);
+    }, 'invalid byteOffset+length');
+    assert.throws(function(){
+      return new DataView(rawbuf, 9, -1);
+    }, 'invalid byteOffset+length');
+  });
+  for (i$ = 0, len$ = (ref$ = ['getUint8', 'getInt8', 'getUint16', 'getInt16', 'getUint32', 'getInt32', 'getFloat32', 'getFloat64']).length; i$ < len$; ++i$) {
+    x$ = ref$[i$];
+    (fn$.call(this, x$));
+  }
+  for (i$ = 0, len$ = (ref$ = ['setUint8', 'setInt8', 'setUint16', 'setInt16', 'setUint32', 'setInt32', 'setFloat32', 'setFloat64']).length; i$ < len$; ++i$) {
+    y$ = ref$[i$];
+    (fn1$.call(this, y$));
   }
   function fn$(name){
     var this$ = this;
