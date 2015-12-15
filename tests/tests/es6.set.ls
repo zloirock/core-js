@@ -186,6 +186,7 @@ test 'Set#forEach' (assert)->
     if s isnt '' => throw '!!!'
     s += it
   assert.strictEqual s, \0
+  assert.throws (!-> Set::forEach.call new Map, !->), 'non-generic'
 
 test 'Set#has' (assert)->
   assert.isFunction Set::has

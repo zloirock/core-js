@@ -2143,7 +2143,10 @@
       }
       return s += it;
     });
-    return assert.strictEqual(s, '1');
+    assert.strictEqual(s, '1');
+    return assert.throws(function(){
+      Map.prototype.forEach.call(new Set, function(){});
+    }, 'non-generic');
   });
   test('Map#get', function(assert){
     var o, f, x$, M;
@@ -5862,7 +5865,10 @@
       }
       return s += it;
     });
-    return assert.strictEqual(s, '0');
+    assert.strictEqual(s, '0');
+    return assert.throws(function(){
+      Set.prototype.forEach.call(new Map, function(){});
+    }, 'non-generic');
   });
   test('Set#has', function(assert){
     var a, f, x$, S;

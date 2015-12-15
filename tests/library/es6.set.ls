@@ -2,7 +2,7 @@
 module \ES6
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
-{Set, Symbol} = core
+{Set, Map, Symbol} = core
 {getOwnPropertyDescriptor, freeze} = core.Object
 {iterator} = core.Symbol
 
@@ -131,6 +131,7 @@ test 'Set#forEach' (assert)->
     if s isnt '' => throw '!!!'
     s += it
   assert.strictEqual s, \0
+  assert.throws (!-> Set::forEach.call new Map, !->), 'non-generic'
 
 test 'Set#has' (assert)->
   assert.isFunction Set::has
