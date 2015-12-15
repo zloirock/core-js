@@ -1,17 +1,17 @@
 'use strict';
-var $            = require('./_')
-  , hide         = require('./_hide')
-  , redefineAll  = require('./_redefine-all')
-  , ctx          = require('./_ctx')
-  , strictNew    = require('./_strict-new')
-  , defined      = require('./_defined')
-  , forOf        = require('./_for-of')
-  , $iterDefine  = require('./_iter-define')
-  , step         = require('./_iter-step')
-  , setSpecies   = require('./_set-species')
-  , DESCRIPTORS  = require('./_descriptors')
-  , fastKey      = require('./_meta').fastKey
-  , SIZE         = DESCRIPTORS ? '_s' : 'size';
+var $           = require('./_')
+  , hide        = require('./_hide')
+  , redefineAll = require('./_redefine-all')
+  , ctx         = require('./_ctx')
+  , anInstance  = require('./_an-instance')
+  , defined     = require('./_defined')
+  , forOf       = require('./_for-of')
+  , $iterDefine = require('./_iter-define')
+  , step        = require('./_iter-step')
+  , setSpecies  = require('./_set-species')
+  , DESCRIPTORS = require('./_descriptors')
+  , fastKey     = require('./_meta').fastKey
+  , SIZE        = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function(that, key){
   // fast case
@@ -26,7 +26,7 @@ var getEntry = function(that, key){
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
-      strictNew(that, C, NAME, '_i');
+      anInstance(that, C, NAME, '_i');
       that._i = $.create(null); // index
       that._f = undefined;      // first entry
       that._l = undefined;      // last entry

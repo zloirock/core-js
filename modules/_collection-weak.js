@@ -3,7 +3,7 @@ var redefineAll       = require('./_redefine-all')
   , getWeak           = require('./_meta').getWeak
   , anObject          = require('./_an-object')
   , isObject          = require('./_is-object')
-  , strictNew         = require('./_strict-new')
+  , anInstance        = require('./_an-instance')
   , forOf             = require('./_for-of')
   , createArrayMethod = require('./_array-methods')
   , $has              = require('./_has')
@@ -48,7 +48,7 @@ UncaughtFrozenStore.prototype = {
 module.exports = {
   getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
     var C = wrapper(function(that, iterable){
-      strictNew(that, C, NAME, '_i');
+      anInstance(that, C, NAME, '_i');
       that._i = id++;      // collection id
       that._l = undefined; // leak store for uncaught frozen objects
       if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);

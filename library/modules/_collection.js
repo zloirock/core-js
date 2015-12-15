@@ -7,7 +7,7 @@ var $              = require('./_')
   , hide           = require('./_hide')
   , redefineAll    = require('./_redefine-all')
   , forOf          = require('./_for-of')
-  , strictNew      = require('./_strict-new')
+  , anInstance     = require('./_an-instance')
   , isObject       = require('./_is-object')
   , setToStringTag = require('./_set-to-string-tag')
   , DESCRIPTORS    = require('./_descriptors');
@@ -27,7 +27,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     meta.NEED = true;
   } else {
     C = wrapper(function(target, iterable){
-      strictNew(target, C, NAME, '_c');
+      anInstance(target, C, NAME, '_c');
       target._c = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });

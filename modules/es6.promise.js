@@ -1,24 +1,24 @@
 'use strict';
-var $          = require('./_')
-  , LIBRARY    = require('./_library')
-  , global     = require('./_global')
-  , ctx        = require('./_ctx')
-  , classof    = require('./_classof')
-  , $export    = require('./_export')
-  , isObject   = require('./_is-object')
-  , anObject   = require('./_an-object')
-  , aFunction  = require('./_a-function')
-  , strictNew  = require('./_strict-new')
-  , forOf      = require('./_for-of')
-  , setProto   = require('./_set-proto').set
+var $                  = require('./_')
+  , LIBRARY            = require('./_library')
+  , global             = require('./_global')
+  , ctx                = require('./_ctx')
+  , classof            = require('./_classof')
+  , $export            = require('./_export')
+  , isObject           = require('./_is-object')
+  , anObject           = require('./_an-object')
+  , aFunction          = require('./_a-function')
+  , anInstance         = require('./_an-instance')
+  , forOf              = require('./_for-of')
+  , setProto           = require('./_set-proto').set
   , speciesConstructor = require('./_species-constructor')
-  , task       = require('./_task').set
-  , microtask  = require('./_microtask')
-  , PROMISE    = 'Promise'
-  , TypeError  = global.TypeError
-  , process    = global.process
-  , $Promise   = global[PROMISE]
-  , isNode     = classof(process) == 'process'
+  , task               = require('./_task').set
+  , microtask          = require('./_microtask')
+  , PROMISE            = 'Promise'
+  , TypeError          = global.TypeError
+  , process            = global.process
+  , $Promise           = global[PROMISE]
+  , isNode             = classof(process) == 'process'
   , Internal, GenericPromiseCapability, Wrapper;
 
 var testResolve = function(sub){
@@ -197,7 +197,7 @@ var $resolve = function(value){
 if(!USE_NATIVE){
   // 25.4.3.1 Promise(executor)
   $Promise = function Promise(executor){
-    strictNew(this, $Promise, PROMISE, '_h');
+    anInstance(this, $Promise, PROMISE, '_h');
     aFunction(executor);
     Internal.call(this);
     try {

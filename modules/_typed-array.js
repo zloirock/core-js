@@ -8,7 +8,7 @@ if(require('./_descriptors')){
     , $typed              = require('./_typed')
     , $buffer             = require('./_typed-buffer')
     , ctx                 = require('./_ctx')
-    , strictNew           = require('./_strict-new')
+    , anInstance          = require('./_an-instance')
     , propertyDesc        = require('./_property-desc')
     , hide                = require('./_hide')
     , redefineAll         = require('./_redefine-all')
@@ -350,7 +350,7 @@ if(require('./_descriptors')){
     };
     if(FORCED){
       TypedArray = wrapper(function(that, data, $offset, $length){
-        strictNew(that, TypedArray, NAME, '_d');
+        anInstance(that, TypedArray, NAME, '_d');
         var index  = 0
           , offset = 0
           , buffer, byteLength, length;
@@ -394,7 +394,7 @@ if(require('./_descriptors')){
       new TypedArray(iter); // eslint-disable-line no-new
     }, true)){
       TypedArray = wrapper(function(that, data, $offset, $length){
-        strictNew(that, TypedArray, NAME);
+        anInstance(that, TypedArray, NAME);
         if(!isObject(data))return new Base(strictToLength(data))
         if(data instanceof $ArrayBuffer)return $length !== undefined
           ? new Base(data, toOffset($offset, BYTES), $length)

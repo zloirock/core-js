@@ -7,7 +7,7 @@ var $              = require('./_')
   , hide           = require('./_hide')
   , redefineAll    = require('./_redefine-all')
   , fails          = require('./_fails')
-  , strictNew      = require('./_strict-new')
+  , anInstance     = require('./_an-instance')
   , toInteger      = require('./_to-integer')
   , toLength       = require('./_to-length')
   , arrayFill      = require('./_array-fill')
@@ -154,7 +154,7 @@ var set = function(view, bytes, index, conversion, value, isLittleEndian){
 };
 
 var validateArrayBufferArguments = function(that, length){
-  strictNew(that, $ArrayBuffer, ARRAY_BUFFER);
+  anInstance(that, $ArrayBuffer, ARRAY_BUFFER);
   var numberLength = +length
     , byteLength   = toLength(numberLength);
   if(numberLength != byteLength)throw RangeError(WRONG_LENGTH);
@@ -169,8 +169,8 @@ if(!$typed.ABV){
   };
 
   $DataView = function DataView(buffer, byteOffset, byteLength){
-    strictNew(this, $DataView, DATA_VIEW);
-    strictNew(buffer, $ArrayBuffer, ARRAY_BUFFER);
+    anInstance(this, $DataView, DATA_VIEW);
+    anInstance(buffer, $ArrayBuffer, DATA_VIEW);
     var bufferLength = buffer[$LENGTH]
       , offset       = toInteger(byteOffset);
     if(offset < 0 || offset > bufferLength)throw RangeError('Wrong offset!');

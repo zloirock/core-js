@@ -5,7 +5,7 @@ var global         = require('./_global')
   , redefineAll    = require('./_redefine-all')
   , meta           = require('./_meta')
   , forOf          = require('./_for-of')
-  , strictNew      = require('./_strict-new')
+  , anInstance     = require('./_an-instance')
   , isObject       = require('./_is-object')
   , fails          = require('./_fails')
   , $iterDetect    = require('./_iter-detect')
@@ -55,7 +55,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       });
     if(!ACCEPT_ITERABLES){ 
       C = wrapper(function(target, iterable){
-        strictNew(target, C, NAME);
+        anInstance(target, C, NAME);
         var that = new Base;
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
