@@ -117,9 +117,8 @@ var $stringify = function stringify(it){
   if(it === undefined || isSymbol(it))return; // IE8 returns string on undefined
   var args = [it]
     , i    = 1
-    , $$   = arguments
     , replacer, $replacer;
-  while($$.length > i)args.push($$[i++]);
+  while(arguments.length > i)args.push(arguments[i++]);
   replacer = args[1];
   if(typeof replacer == 'function')$replacer = replacer;
   if($replacer || !isArray(replacer))replacer = function(key, value){

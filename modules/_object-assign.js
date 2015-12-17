@@ -15,14 +15,13 @@ module.exports = require('./_fails')(function(){
   return a({}, A)[S] != 7 || Object.keys(a({}, B)).join('') != K;
 }) ? function assign(target, source){ // eslint-disable-line no-unused-vars
   var T     = toObject(target)
-    , $$    = arguments
-    , $$len = $$.length
+    , aLen  = arguments.length
     , index = 1
     , getKeys    = $.getKeys
     , getSymbols = $.getSymbols
     , isEnum     = $.isEnum;
-  while($$len > index){
-    var S      = IObject($$[index++])
+  while(aLen > index){
+    var S      = IObject(arguments[index++])
       , keys   = getSymbols ? getKeys(S).concat(getSymbols(S)) : getKeys(S)
       , length = keys.length
       , j      = 0

@@ -9,8 +9,7 @@ module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0,
     , len   = toLength(O.length)
     , to    = toIndex(target, len)
     , from  = toIndex(start, len)
-    , $$    = arguments
-    , end   = $$.length > 2 ? $$[2] : undefined
+    , end   = arguments.length > 2 ? arguments[2] : undefined
     , count = Math.min((end === undefined ? len : toIndex(end, len)) - from, len - to)
     , inc   = 1;
   if(from < to && to < from + count){

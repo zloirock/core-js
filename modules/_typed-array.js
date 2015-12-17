@@ -128,9 +128,8 @@ if(require('./_descriptors')){
 
   var $from = function from(source /*, mapfn, thisArg */){
     var O       = toObject(source)
-      , $$      = arguments
-      , $$len   = $$.length
-      , mapfn   = $$len > 1 ? $$[1] : undefined
+      , aLen    = arguments.length
+      , mapfn   = aLen > 1 ? arguments[1] : undefined
       , mapping = mapfn !== undefined
       , iterFn  = getIterFn(O)
       , i, length, values, result, step, iterator;
@@ -139,7 +138,7 @@ if(require('./_descriptors')){
         values.push(step.value);
       } O = values;
     }
-    if(mapping && $$len > 2)mapfn = ctx(mapfn, $$[2], 2);
+    if(mapping && aLen > 2)mapfn = ctx(mapfn, arguments[2], 2);
     for(i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++){
       result[i] = mapping ? mapfn(O[i], i) : O[i];
     }
