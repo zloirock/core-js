@@ -1,5 +1,5 @@
 /**
- * core-js 2.0.0-beta
+ * core-js 2.0.0-beta.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2015 Denis Pushkarev
@@ -545,7 +545,7 @@
 /* 5 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.0.0-beta'};
+	var core = module.exports = {version: '2.0.0-beta.2'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -965,6 +965,7 @@
 	// ECMAScript 6 symbols shim
 	var $              = __webpack_require__(2)
 	  , global         = __webpack_require__(4)
+	  , core           = __webpack_require__(5)
 	  , has            = __webpack_require__(17)
 	  , DESCRIPTORS    = __webpack_require__(8)
 	  , $export        = __webpack_require__(3)
@@ -1079,9 +1080,8 @@
 	  if(it === undefined || isSymbol(it))return; // IE8 returns string on undefined
 	  var args = [it]
 	    , i    = 1
-	    , $$   = arguments
 	    , replacer, $replacer;
-	  while($$.length > i)args.push($$[i++]);
+	  while(arguments.length > i)args.push(arguments[i++]);
 	  replacer = args[1];
 	  if(typeof replacer == 'function')$replacer = replacer;
 	  if($replacer || !isArray(replacer))replacer = function(key, value){
@@ -1126,20 +1126,8 @@
 	  }
 	}
 
-	var symbolStatics = {
-	  // 19.4.2.1 Symbol.for(key)
-	  'for': function(key){
-	    return has(SymbolRegistry, key += '')
-	      ? SymbolRegistry[key]
-	      : SymbolRegistry[key] = $Symbol(key);
-	  },
-	  // 19.4.2.5 Symbol.keyFor(sym)
-	  keyFor: function keyFor(key){
-	    return keyOf(SymbolRegistry, key);
-	  },
-	  useSetter: function(){ setter = true; },
-	  useSimple: function(){ setter = false; }
-	};
+	$export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
+
 	// 19.4.2.2 Symbol.hasInstance
 	// 19.4.2.3 Symbol.isConcatSpreadable
 	// 19.4.2.4 Symbol.iterator
@@ -1155,15 +1143,27 @@
 	  'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
 	  'species,split,toPrimitive,toStringTag,unscopables'
 	).split(','), function(it){
-	  var sym = wks(it);
-	  symbolStatics[it] = USE_NATIVE ? sym : wrap(sym);
+	  var Wrapper = core.Symbol
+	    , sym     = wks(it);
+	  if(!(it in Wrapper))setDesc(Wrapper, it, {value: USE_NATIVE ? sym : wrap(sym)});
 	});
 
 	setter = true;
 
-	$export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
-
-	$export($export.S + $export.F * !USE_NATIVE, 'Symbol', symbolStatics);
+	$export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
+	  // 19.4.2.1 Symbol.for(key)
+	  'for': function(key){
+	    return has(SymbolRegistry, key += '')
+	      ? SymbolRegistry[key]
+	      : SymbolRegistry[key] = $Symbol(key);
+	  },
+	  // 19.4.2.5 Symbol.keyFor(sym)
+	  keyFor: function keyFor(key){
+	    return keyOf(SymbolRegistry, key);
+	  },
+	  useSetter: function(){ setter = true; },
+	  useSimple: function(){ setter = false; }
+	});
 
 	$export($export.S + $export.F * !USE_NATIVE, 'Object', {
 	  // 19.1.2.2 Object.create(O [, Properties])
@@ -1355,14 +1355,13 @@
 	  return a({}, A)[S] != 7 || Object.keys(a({}, B)).join('') != K;
 	}) ? function assign(target, source){ // eslint-disable-line no-unused-vars
 	  var T     = toObject(target)
-	    , $$    = arguments
-	    , $$len = $$.length
+	    , aLen  = arguments.length
 	    , index = 1
 	    , getKeys    = $.getKeys
 	    , getSymbols = $.getSymbols
 	    , isEnum     = $.isEnum;
-	  while($$len > index){
-	    var S      = IObject($$[index++])
+	  while(aLen > index){
+	    var S      = IObject(arguments[index++])
 	      , keys   = getSymbols ? getKeys(S).concat(getSymbols(S)) : getKeys(S)
 	      , length = keys.length
 	      , j      = 0
@@ -2041,14 +2040,13 @@
 
 	$export($export.S, 'Math', {
 	  hypot: function hypot(value1, value2){ // eslint-disable-line no-unused-vars
-	    var sum   = 0
-	      , i     = 0
-	      , $$    = arguments
-	      , $$len = $$.length
-	      , larg  = 0
+	    var sum  = 0
+	      , i    = 0
+	      , aLen = arguments.length
+	      , larg = 0
 	      , arg, div;
-	    while(i < $$len){
-	      arg = abs($$[i++]);
+	    while(i < aLen){
+	      arg = abs(arguments[i++]);
 	      if(larg < arg){
 	        div  = larg / arg;
 	        sum  = sum * div * div + 1;
@@ -2191,13 +2189,12 @@
 	$export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
 	  // 21.1.2.2 String.fromCodePoint(...codePoints)
 	  fromCodePoint: function fromCodePoint(x){ // eslint-disable-line no-unused-vars
-	    var res   = []
-	      , $$    = arguments
-	      , $$len = $$.length
-	      , i     = 0
+	    var res  = []
+	      , aLen = arguments.length
+	      , i    = 0
 	      , code;
-	    while($$len > i){
-	      code = +$$[i++];
+	    while(aLen > i){
+	      code = +arguments[i++];
 	      if(toIndex(code, 0x10ffff) !== code)throw RangeError(code + ' is not a valid code point');
 	      res.push(code < 0x10000
 	        ? fromCharCode(code)
@@ -2218,15 +2215,14 @@
 	$export($export.S, 'String', {
 	  // 21.1.2.4 String.raw(callSite, ...substitutions)
 	  raw: function raw(callSite){
-	    var tpl   = toIObject(callSite.raw)
-	      , len   = toLength(tpl.length)
-	      , $$    = arguments
-	      , $$len = $$.length
-	      , res   = []
-	      , i     = 0;
+	    var tpl  = toIObject(callSite.raw)
+	      , len  = toLength(tpl.length)
+	      , aLen = arguments.length
+	      , res  = []
+	      , i    = 0;
 	    while(len > i){
 	      res.push(String(tpl[i++]));
-	      if(i < $$len)res.push(String($$[i]));
+	      if(i < aLen)res.push(String(arguments[i]));
 	    } return res.join('');
 	  }
 	});
@@ -2294,8 +2290,7 @@
 	$export($export.P + $export.F * __webpack_require__(103)(ENDS_WITH), 'String', {
 	  endsWith: function endsWith(searchString /*, endPosition = @length */){
 	    var that = context(this, searchString, ENDS_WITH)
-	      , $$   = arguments
-	      , endPosition = $$.length > 1 ? $$[1] : undefined
+	      , endPosition = arguments.length > 1 ? arguments[1] : undefined
 	      , len    = toLength(that.length)
 	      , end    = endPosition === undefined ? len : Math.min(toLength(endPosition), len)
 	      , search = String(searchString);
@@ -2408,8 +2403,7 @@
 	$export($export.P + $export.F * __webpack_require__(103)(STARTS_WITH), 'String', {
 	  startsWith: function startsWith(searchString /*, position = 0 */){
 	    var that   = context(this, searchString, STARTS_WITH)
-	      , $$     = arguments
-	      , index  = toLength(Math.min($$.length > 1 ? $$[1] : undefined, that.length))
+	      , index  = toLength(Math.min(arguments.length > 1 ? arguments[1] : undefined, that.length))
 	      , search = String(searchString);
 	    return $startsWith
 	      ? $startsWith.call(that, search, index)
@@ -2735,14 +2729,13 @@
 	  from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
 	    var O       = toObject(arrayLike)
 	      , C       = typeof this == 'function' ? this : Array
-	      , $$      = arguments
-	      , $$len   = $$.length
-	      , mapfn   = $$len > 1 ? $$[1] : undefined
+	      , aLen    = arguments.length
+	      , mapfn   = aLen > 1 ? arguments[1] : undefined
 	      , mapping = mapfn !== undefined
 	      , index   = 0
 	      , iterFn  = getIterFn(O)
 	      , length, result, step, iterator;
-	    if(mapping)mapfn = ctx(mapfn, $$len > 2 ? $$[2] : undefined, 2);
+	    if(mapping)mapfn = ctx(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
 	    // if object isn't iterable or it's array with default iterator - use simple case
 	    if(iterFn != undefined && !(C == Array && isArrayIter(iterFn))){
 	      for(iterator = iterFn.call(O), result = new C; !(step = iterator.next()).done; index++){
@@ -2844,11 +2837,10 @@
 	  // 22.1.2.3 Array.of( ...items)
 	  of: function of(/* ...args */){
 	    var index  = 0
-	      , $$     = arguments
-	      , $$len  = $$.length
-	      , result = new (typeof this == 'function' ? this : Array)($$len);
-	    while($$len > index)result[index] = $$[index++];
-	    result.length = $$len;
+	      , aLen   = arguments.length
+	      , result = new (typeof this == 'function' ? this : Array)(aLen);
+	    while(aLen > index)result[index] = arguments[index++];
+	    result.length = aLen;
 	    return result;
 	  }
 	});
@@ -2962,8 +2954,7 @@
 	    , len   = toLength(O.length)
 	    , to    = toIndex(target, len)
 	    , from  = toIndex(start, len)
-	    , $$    = arguments
-	    , end   = $$.length > 2 ? $$[2] : undefined
+	    , end   = arguments.length > 2 ? arguments[2] : undefined
 	    , count = Math.min((end === undefined ? len : toIndex(end, len)) - from, len - to)
 	    , inc   = 1;
 	  if(from < to && to < from + count){
@@ -3002,10 +2993,9 @@
 	module.exports = function fill(value /*, start = 0, end = @length */){
 	  var O      = toObject(this)
 	    , length = toLength(O.length)
-	    , $$     = arguments
-	    , $$len  = $$.length
-	    , index  = toIndex($$len > 1 ? $$[1] : undefined, length)
-	    , end    = $$len > 2 ? $$[2] : undefined
+	    , aLen   = arguments.length
+	    , index  = toIndex(aLen > 1 ? arguments[1] : undefined, length)
+	    , end    = aLen > 2 ? arguments[2] : undefined
 	    , endPos = end === undefined ? length : toIndex(end, length);
 	  while(endPos > index)O[index++] = value;
 	  return O;
@@ -3221,26 +3211,26 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
-	var $          = __webpack_require__(2)
-	  , LIBRARY    = __webpack_require__(40)
-	  , global     = __webpack_require__(4)
-	  , ctx        = __webpack_require__(12)
-	  , classof    = __webpack_require__(48)
-	  , $export    = __webpack_require__(3)
-	  , isObject   = __webpack_require__(16)
-	  , anObject   = __webpack_require__(20)
-	  , aFunction  = __webpack_require__(13)
-	  , strictNew  = __webpack_require__(152)
-	  , forOf      = __webpack_require__(153)
-	  , setProto   = __webpack_require__(46).set
+	var $                  = __webpack_require__(2)
+	  , LIBRARY            = __webpack_require__(40)
+	  , global             = __webpack_require__(4)
+	  , ctx                = __webpack_require__(12)
+	  , classof            = __webpack_require__(48)
+	  , $export            = __webpack_require__(3)
+	  , isObject           = __webpack_require__(16)
+	  , anObject           = __webpack_require__(20)
+	  , aFunction          = __webpack_require__(13)
+	  , anInstance         = __webpack_require__(152)
+	  , forOf              = __webpack_require__(153)
+	  , setProto           = __webpack_require__(46).set
 	  , speciesConstructor = __webpack_require__(154)
-	  , task       = __webpack_require__(155).set
-	  , microtask  = __webpack_require__(156)
-	  , PROMISE    = 'Promise'
-	  , TypeError  = global.TypeError
-	  , process    = global.process
-	  , $Promise   = global[PROMISE]
-	  , isNode     = classof(process) == 'process'
+	  , task               = __webpack_require__(155).set
+	  , microtask          = __webpack_require__(156)
+	  , PROMISE            = 'Promise'
+	  , TypeError          = global.TypeError
+	  , process            = global.process
+	  , $Promise           = global[PROMISE]
+	  , isNode             = classof(process) == 'process'
 	  , Internal, GenericPromiseCapability, Wrapper;
 
 	var testResolve = function(sub){
@@ -3419,7 +3409,7 @@
 	if(!USE_NATIVE){
 	  // 25.4.3.1 Promise(executor)
 	  $Promise = function Promise(executor){
-	    strictNew(this, $Promise, PROMISE);
+	    anInstance(this, $Promise, PROMISE, '_h');
 	    aFunction(executor);
 	    Internal.call(this);
 	    try {
@@ -3534,9 +3524,10 @@
 /* 152 */
 /***/ function(module, exports) {
 
-	module.exports = function(it, Constructor, name){
-	  if(!(it instanceof Constructor))throw TypeError(name + ": use the 'new' operator!");
-	  return it;
+	module.exports = function(it, Constructor, name, forbiddenField){
+	  if(!(it instanceof Constructor) || (forbiddenField !== undefined && forbiddenField in it)){
+	    throw TypeError(name + ': incorrect invocation!');
+	  } return it;
 	};
 
 /***/ },
@@ -3762,19 +3753,19 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
-	var $            = __webpack_require__(2)
-	  , hide         = __webpack_require__(6)
-	  , redefineAll  = __webpack_require__(157)
-	  , ctx          = __webpack_require__(12)
-	  , strictNew    = __webpack_require__(152)
-	  , defined      = __webpack_require__(22)
-	  , forOf        = __webpack_require__(153)
-	  , $iterDefine  = __webpack_require__(109)
-	  , step         = __webpack_require__(134)
-	  , setSpecies   = __webpack_require__(136)
-	  , DESCRIPTORS  = __webpack_require__(8)
-	  , fastKey      = __webpack_require__(35).fastKey
-	  , SIZE         = DESCRIPTORS ? '_s' : 'size';
+	var $           = __webpack_require__(2)
+	  , hide        = __webpack_require__(6)
+	  , redefineAll = __webpack_require__(157)
+	  , ctx         = __webpack_require__(12)
+	  , anInstance  = __webpack_require__(152)
+	  , defined     = __webpack_require__(22)
+	  , forOf       = __webpack_require__(153)
+	  , $iterDefine = __webpack_require__(109)
+	  , step        = __webpack_require__(134)
+	  , setSpecies  = __webpack_require__(136)
+	  , DESCRIPTORS = __webpack_require__(8)
+	  , fastKey     = __webpack_require__(35).fastKey
+	  , SIZE        = DESCRIPTORS ? '_s' : 'size';
 
 	var getEntry = function(that, key){
 	  // fast case
@@ -3789,7 +3780,7 @@
 	module.exports = {
 	  getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
 	    var C = wrapper(function(that, iterable){
-	      strictNew(that, C, NAME);
+	      anInstance(that, C, NAME, '_i');
 	      that._i = $.create(null); // index
 	      that._f = undefined;      // first entry
 	      that._l = undefined;      // last entry
@@ -3828,6 +3819,7 @@
 	      // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
 	      // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
 	      forEach: function forEach(callbackfn /*, that = undefined */){
+	        anInstance(this, C, 'forEach');
 	        var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3)
 	          , entry;
 	        while(entry = entry ? entry.n : this._f){
@@ -3914,7 +3906,7 @@
 	  , redefineAll    = __webpack_require__(157)
 	  , meta           = __webpack_require__(35)
 	  , forOf          = __webpack_require__(153)
-	  , strictNew      = __webpack_require__(152)
+	  , anInstance     = __webpack_require__(152)
 	  , isObject       = __webpack_require__(16)
 	  , fails          = __webpack_require__(9)
 	  , $iterDetect    = __webpack_require__(130)
@@ -3964,7 +3956,7 @@
 	      });
 	    if(!ACCEPT_ITERABLES){ 
 	      C = wrapper(function(target, iterable){
-	        strictNew(target, C, NAME);
+	        anInstance(target, C, NAME);
 	        var that = new Base;
 	        if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
 	        return that;
@@ -4080,7 +4072,7 @@
 	  , getWeak           = __webpack_require__(35).getWeak
 	  , anObject          = __webpack_require__(20)
 	  , isObject          = __webpack_require__(16)
-	  , strictNew         = __webpack_require__(152)
+	  , anInstance        = __webpack_require__(152)
 	  , forOf             = __webpack_require__(153)
 	  , createArrayMethod = __webpack_require__(28)
 	  , $has              = __webpack_require__(17)
@@ -4125,7 +4117,7 @@
 	module.exports = {
 	  getConstructor: function(wrapper, NAME, IS_MAP, ADDER){
 	    var C = wrapper(function(that, iterable){
-	      strictNew(that, C, NAME);
+	      anInstance(that, C, NAME, '_i');
 	      that._i = id++;      // collection id
 	      that._l = undefined; // leak store for uncaught frozen objects
 	      if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
@@ -4506,51 +4498,52 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
-	if(__webpack_require__(8)){
-	  var $export      = __webpack_require__(3)
-	    , $typed       = __webpack_require__(182)
-	    , buffer       = __webpack_require__(183)
-	    , anObject     = __webpack_require__(20)
-	    , toIndex      = __webpack_require__(26)
-	    , toLength     = __webpack_require__(27)
-	    , isObject     = __webpack_require__(16)
-	    , TYPED_ARRAY  = __webpack_require__(31)('typed_array')
-	    , ArrayBuffer  = __webpack_require__(4).ArrayBuffer
-	    , speciesConstructor = __webpack_require__(154)
-	    , $ArrayBuffer = buffer.ArrayBuffer
-	    , $DataView    = buffer.DataView
-	    , $slice       = $ArrayBuffer.prototype.slice
-	    , VIEW         = $typed.VIEW
-	    , ARRAY_BUFFER = 'ArrayBuffer';
+	var $export      = __webpack_require__(3)
+	  , $typed       = __webpack_require__(182)
+	  , buffer       = __webpack_require__(183)
+	  , anObject     = __webpack_require__(20)
+	  , toIndex      = __webpack_require__(26)
+	  , toLength     = __webpack_require__(27)
+	  , isObject     = __webpack_require__(16)
+	  , TYPED_ARRAY  = __webpack_require__(31)('typed_array')
+	  , ArrayBuffer  = __webpack_require__(4).ArrayBuffer
+	  , speciesConstructor = __webpack_require__(154)
+	  , $ArrayBuffer = buffer.ArrayBuffer
+	  , $DataView    = buffer.DataView
+	  , $isView      = $typed.ABV && ArrayBuffer.isView
+	  , $slice       = $ArrayBuffer.prototype.slice
+	  , VIEW         = $typed.VIEW
+	  , ARRAY_BUFFER = 'ArrayBuffer';
 
-	  $export($export.G + $export.W + $export.F * (ArrayBuffer !== $ArrayBuffer), {ArrayBuffer: $ArrayBuffer});
+	$export($export.G + $export.W + $export.F * (ArrayBuffer !== $ArrayBuffer), {ArrayBuffer: $ArrayBuffer});
 
-	  $export($export.S + $export.F * !$typed.CONSTR, ARRAY_BUFFER, {
-	    // 24.1.3.1 ArrayBuffer.isView(arg)
-	    isView: function isView(it){ // not cross-realm
-	      return isObject(it) && VIEW in it;
-	    }
-	  });
+	$export($export.S + $export.F * !$typed.CONSTR, ARRAY_BUFFER, {
+	  // 24.1.3.1 ArrayBuffer.isView(arg)
+	  isView: function isView(it){
+	    return $isView && $isView(it) || isObject(it) && VIEW in it;
+	  }
+	});
 
-	  $export($export.P + $export.U + $export.F * __webpack_require__(9)(function(){
-	    return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
-	  }), ARRAY_BUFFER, {
-	    // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
-	    slice: function slice(start, end){
-	      if($slice !== undefined && end === undefined)return $slice.call(anObject(this), start); // FF fix
-	      var len    = anObject(this).byteLength
-	        , first  = toIndex(start, len)
-	        , final  = toIndex(end === undefined ? len : end, len)
-	        , result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first))
-	        , viewS  = new $DataView(this)
-	        , viewT  = new $DataView(result)
-	        , index  = 0;
-	      while(first < final){
-	        viewT.setUint8(index++, viewS.getUint8(first++));
-	      } return result;
-	    }
-	  });
-	}
+	$export($export.P + $export.U + $export.F * __webpack_require__(9)(function(){
+	  return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
+	}), ARRAY_BUFFER, {
+	  // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
+	  slice: function slice(start, end){
+	    if($slice !== undefined && end === undefined)return $slice.call(anObject(this), start); // FF fix
+	    var len    = anObject(this).byteLength
+	      , first  = toIndex(start, len)
+	      , final  = toIndex(end === undefined ? len : end, len)
+	      , result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first))
+	      , viewS  = new $DataView(this)
+	      , viewT  = new $DataView(result)
+	      , index  = 0;
+	    while(first < final){
+	      viewT.setUint8(index++, viewS.getUint8(first++));
+	    } return result;
+	  }
+	});
+
+	__webpack_require__(136)(ARRAY_BUFFER);
 
 /***/ },
 /* 182 */
@@ -4562,7 +4555,7 @@
 	  , TYPED  = uid('typed_array')
 	  , VIEW   = uid('view')
 	  , ABV    = !!(global.ArrayBuffer && global.DataView)
-	  , ARRAYS = true
+	  , CONSTR = ABV
 	  , i = 0, l = 9, Typed;
 
 	var TypedArrayConstructors = (
@@ -4573,13 +4566,12 @@
 	  if(Typed = global[TypedArrayConstructors[i++]]){
 	    hide(Typed.prototype, TYPED, true);
 	    hide(Typed.prototype, VIEW, true);
-	  } else ARRAYS = false;
+	  } else CONSTR = false;
 	}
 
 	module.exports = {
-	  ARRAYS: ARRAYS,
 	  ABV:    ABV,
-	  CONSTR: ARRAYS && ABV,
+	  CONSTR: CONSTR,
 	  TYPED:  TYPED,
 	  VIEW:   VIEW
 	};
@@ -4591,23 +4583,30 @@
 	'use strict';
 	var $              = __webpack_require__(2)
 	  , global         = __webpack_require__(4)
+	  , DESCRIPTORS    = __webpack_require__(8)
 	  , LIBRARY        = __webpack_require__(40)
 	  , $typed         = __webpack_require__(182)
 	  , hide           = __webpack_require__(6)
 	  , redefineAll    = __webpack_require__(157)
 	  , fails          = __webpack_require__(9)
-	  , strictNew      = __webpack_require__(152)
+	  , anInstance     = __webpack_require__(152)
 	  , toInteger      = __webpack_require__(25)
 	  , toLength       = __webpack_require__(27)
 	  , arrayFill      = __webpack_require__(140)
 	  , setToStringTag = __webpack_require__(36)
+	  , ARRAY_BUFFER   = 'ArrayBuffer'
+	  , DATA_VIEW      = 'DataView'
+	  , PROTOTYPE      = 'prototype'
+	  , WRONG_LENGTH   = 'Wrong length!'
+	  , WRONG_INDEX    = 'Wrong index!'
 	  , each           = $.each
 	  , getNames       = $.getNames
-	  , $ArrayBuffer   = global.ArrayBuffer
-	  , $DataView      = global.DataView
+	  , $ArrayBuffer   = global[ARRAY_BUFFER]
+	  , $DataView      = global[DATA_VIEW]
 	  , Math           = global.Math
 	  , parseInt       = global.parseInt
 	  , RangeError     = global.RangeError
+	  , Infinity       = global.Infinity
 	  , BaseBuffer     = $ArrayBuffer
 	  , abs            = Math.abs
 	  , pow            = Math.pow
@@ -4615,197 +4614,129 @@
 	  , floor          = Math.floor
 	  , log            = Math.log
 	  , LN2            = Math.LN2
+	  , BUFFER         = 'buffer'
 	  , BYTE_LENGTH    = 'byteLength'
-	  , WRONG_LENGTH   = 'Wrong length!'
-	  , WRONG_INDEX    = 'Wrong index!';
+	  , BYTE_OFFSET    = 'byteOffset'
+	  , $BUFFER        = DESCRIPTORS ? '_b' : BUFFER
+	  , $LENGTH        = DESCRIPTORS ? '_l' : BYTE_LENGTH
+	  , $OFFSET        = DESCRIPTORS ? '_o' : BYTE_OFFSET;
 
-	// pack / unpack based on
-	// https://github.com/inexorabletash/polyfill/blob/v0.1.11/typedarray.js#L123-L264
-	// TODO: simplify
-	var signed = function(value, bits){
-	  var s = 32 - bits;
-	  return value << s >> s;
-	};
-	var unsigned = function(value, bits){
-	  var s = 32 - bits;
-	  return value << s >>> s;
-	};
-	var roundToEven = function(n){
-	  var w = floor(n)
-	    , f = n - w;
-	  return f < .5 ? w : f > .5 ? w + 1 : w % 2 ? w + 1 : w;
-	};
-	var packI8 = function(n){
-	  return [n & 0xff];
-	};
-	var unpackI8 = function(bytes){
-	  return signed(bytes[0], 8);
-	};
-	var packU8 = function(n){
-	  return [n & 0xff];
-	};
-	var unpackU8 = function(bytes){
-	  return unsigned(bytes[0], 8);
-	};
-	var packI16 = function(n){
-	  return [n & 0xff, n >> 8 & 0xff];
-	};
-	var unpackI16 = function(bytes){
-	  return signed(bytes[1] << 8 | bytes[0], 16);
-	};
-	var packU16 = function(n){
-	  return [n & 0xff, n >> 8 & 0xff];
-	};
-	var unpackU16 = function(bytes){
-	  return unsigned(bytes[1] << 8 | bytes[0], 16);
-	};
-	var packI32 = function(n){
-	  return [n & 0xff, n >> 8 & 0xff, n >> 16 & 0xff, n >> 24 & 0xff];
-	};
-	var unpackI32 = function(bytes){
-	  return signed(bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0], 32);
-	};
-	var packU32 = function(n){
-	  return [n & 0xff, n >> 8 & 0xff, n >> 16 & 0xff, n >> 24 & 0xff];
-	};
-	var unpackU32 = function(bytes){
-	  return unsigned(bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0], 32);
-	};
-	var packIEEE754 = function(v, ebits, fbits) {
-	  var bias = (1 << ebits - 1) - 1
-	    , s, e, f, i, bits, str, bytes;
-	  // Compute sign, exponent, fraction
-	  if (v !== v) {
-	    // NaN
-	    // http://dev.w3.org/2006/webapi/WebIDL/#es-type-mapping
-	    e = (1 << ebits) - 1;
-	    f = pow(2, fbits - 1);
-	    s = 0;
-	  } else if(v === Infinity || v === -Infinity){
-	    e = (1 << ebits) - 1;
-	    f = 0;
-	    s = v < 0 ? 1 : 0;
-	  } else if(v === 0){
-	    e = 0;
-	    f = 0;
-	    s = 1 / v === -Infinity ? 1 : 0;
+	// IEEE754 conversions based on https://github.com/feross/ieee754
+	var packIEEE754 = function(value, mLen, nBytes){
+	  var buffer = Array(nBytes)
+	    , eLen   = nBytes * 8 - mLen - 1
+	    , eMax   = (1 << eLen) - 1
+	    , eBias  = eMax >> 1
+	    , rt     = mLen === 23 ? pow(2, -24) - pow(2, -77) : 0
+	    , i      = 0
+	    , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
+	    , e, m, c;
+	  value = abs(value)
+	  if(value != value || value === Infinity){
+	    m = value != value ? 1 : 0;
+	    e = eMax;
 	  } else {
-	    s = v < 0;
-	    v = abs(v);
-	    if(v >= pow(2, 1 - bias)){
-	      e = min(floor(log(v) / LN2), 1023);
-	      var significand = v / pow(2, e);
-	      if(significand < 1){
-	        e -= 1;
-	        significand *= 2;
-	      }
-	      if(significand >= 2){
-	        e += 1;
-	        significand /= 2;
-	      }
-	      f = roundToEven(significand * pow(2, fbits));
-	      if(f / pow(2, fbits) >= 2){
-	        e = e + 1;
-	        f = 1;
-	      }
-	      if(e > bias){
-	        // Overflow
-	        e = (1 << ebits) - 1;
-	        f = 0;
-	      } else {
-	        // Normalized
-	        e = e + bias;
-	        f = f - pow(2, fbits);
-	      }
+	    e = floor(log(value) / LN2);
+	    if(value * (c = pow(2, -e)) < 1){
+	      e--;
+	      c *= 2;
+	    }
+	    if(e + eBias >= 1){
+	      value += rt / c;
 	    } else {
-	      // Denormalized
+	      value += rt * pow(2, 1 - eBias);
+	    }
+	    if(value * c >= 2){
+	      e++;
+	      c /= 2;
+	    }
+	    if(e + eBias >= eMax){
+	      m = 0;
+	      e = eMax;
+	    } else if(e + eBias >= 1){
+	      m = (value * c - 1) * pow(2, mLen);
+	      e = e + eBias;
+	    } else {
+	      m = value * pow(2, eBias - 1) * pow(2, mLen);
 	      e = 0;
-	      f = roundToEven(v / pow(2, 1 - bias - fbits));
 	    }
 	  }
-	  // Pack sign, exponent, fraction
-	  bits = [];
-	  for(i = fbits; i; i -= 1){
-	    bits.push(f % 2 ? 1 : 0);
-	    f = floor(f / 2);
-	  }
-	  for(i = ebits; i; i -= 1){
-	    bits.push(e % 2 ? 1 : 0);
-	    e = floor(e / 2);
-	  }
-	  bits.push(s ? 1 : 0);
-	  bits.reverse();
-	  str = bits.join('');
-	  // Bits to bytes
-	  bytes = [];
-	  while(str.length){
-	    bytes.unshift(parseInt(str.slice(0, 8), 2));
-	    str = str.slice(8);
-	  }
-	  return bytes;
+	  for(; mLen >= 8; buffer[i++] = m & 255, m /= 256, mLen -= 8);
+	  e = e << mLen | m;
+	  eLen += mLen;
+	  for(; eLen > 0; buffer[i++] = e & 255, e /= 256, eLen -= 8);
+	  buffer[--i] |= s * 128;
+	  return buffer;
 	};
-	var unpackIEEE754 = function(bytes, ebits, fbits){
-	  var bits = []
-	    , i, j, b, str, bias, s, e, f;
-	  for(i = 0; i < bytes.length; ++i)for(b = bytes[i], j = 8; j; --j){
-	    bits.push(b % 2 ? 1 : 0);
-	    b = b >> 1;
-	  }
-	  bits.reverse();
-	  str = bits.join('');
-	  // Unpack sign, exponent, fraction
-	  bias = (1 << ebits - 1) - 1;
-	  s = parseInt(str.slice(0, 1), 2) ? -1 : 1;
-	  e = parseInt(str.slice(1, 1 + ebits), 2);
-	  f = parseInt(str.slice(1 + ebits), 2);
-	  // Produce number
-	  if(e === (1 << ebits) - 1)return f !== 0 ? NaN : s * Infinity;
-	  // Normalized
-	  else if(e > 0)return s * pow(2, e - bias) * (1 + f / pow(2, fbits));
-	  // Denormalized
-	  else if(f !== 0)return s * pow(2, -(bias - 1)) * (f / pow(2, fbits));
-	  return s < 0 ? -0 : 0;
+	var unpackIEEE754 = function(buffer, mLen, nBytes){
+	  var eLen  = nBytes * 8 - mLen - 1
+	    , eMax  = (1 << eLen) - 1
+	    , eBias = eMax >> 1
+	    , nBits = eLen - 7
+	    , i     = nBytes - 1
+	    , s     = buffer[i--]
+	    , e     = s & 127
+	    , m;
+	  s >>= 7;
+	  for(; nBits > 0; e = e * 256 + buffer[i], i--, nBits -= 8);
+	  m = e & (1 << -nBits) - 1;
+	  e >>= -nBits;
+	  nBits += mLen;
+	  for(; nBits > 0; m = m * 256 + buffer[i], i--, nBits -= 8);
+	  if(e === 0){
+	    e = 1 - eBias;
+	  } else if(e === eMax){
+	    return m ? NaN : s ? -Infinity : Infinity;
+	  } else {
+	    m = m + pow(2, mLen);
+	    e = e - eBias;
+	  } return (s ? -1 : 1) * m * pow(2, e - mLen);
 	};
-	var unpackF64 = function(b){
-	  return unpackIEEE754(b, 11, 52);
+
+	var unpackI32 = function(bytes){
+	  return bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0];
 	};
-	var packF64 = function(v){
-	  return packIEEE754(v, 11, 52);
+	var packI8 = function(it){
+	  return [it & 0xff];
 	};
-	var unpackF32 = function(b){
-	  return unpackIEEE754(b, 8, 23);
+	var packI16 = function(it){
+	  return [it & 0xff, it >> 8 & 0xff];
 	};
-	var packF32 = function(v){
-	  return packIEEE754(v, 8, 23);
+	var packI32 = function(it){
+	  return [it & 0xff, it >> 8 & 0xff, it >> 16 & 0xff, it >> 24 & 0xff];
+	};
+	var packF64 = function(it){
+	  return packIEEE754(it, 52, 8);
+	};
+	var packF32 = function(it){
+	  return packIEEE754(it, 23, 4);
 	};
 
 	var addGetter = function(C, key, internal){
-	  $.setDesc(C.prototype, key, {get: function(){ return this[internal]; }});
+	  $.setDesc(C[PROTOTYPE], key, {get: function(){ return this[internal]; }});
 	};
 
-	var get = function(view, bytes, index, conversion, isLittleEndian){
+	var get = function(view, bytes, index, isLittleEndian){
 	  var numIndex = +index
 	    , intIndex = toInteger(numIndex);
-	  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError(WRONG_INDEX);
-	  var store = view._b._b
-	    , start = intIndex + view._o
+	  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH])throw RangeError(WRONG_INDEX);
+	  var store = view[$BUFFER]._b
+	    , start = intIndex + view[$OFFSET]
 	    , pack  = store.slice(start, start + bytes);
-	  isLittleEndian || pack.reverse();
-	  return conversion(pack);
+	  return isLittleEndian ? pack : pack.reverse();
 	};
 	var set = function(view, bytes, index, conversion, value, isLittleEndian){
 	  var numIndex = +index
 	    , intIndex = toInteger(numIndex);
-	  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view._l)throw RangeError(WRONG_INDEX);
-	  var store = view._b._b
-	    , start = intIndex + view._o
+	  if(numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH])throw RangeError(WRONG_INDEX);
+	  var store = view[$BUFFER]._b
+	    , start = intIndex + view[$OFFSET]
 	    , pack  = conversion(+value);
-	  isLittleEndian || pack.reverse();
-	  for(var i = 0; i < bytes; i++)store[start + i] = pack[i];
+	  for(var i = 0; i < bytes; i++)store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
 	};
 
 	var validateArrayBufferArguments = function(that, length){
-	  strictNew(that, $ArrayBuffer, 'ArrayBuffer');
+	  anInstance(that, $ArrayBuffer, ARRAY_BUFFER);
 	  var numberLength = +length
 	    , byteLength   = toLength(numberLength);
 	  if(numberLength != byteLength)throw RangeError(WRONG_LENGTH);
@@ -4815,74 +4746,80 @@
 	if(!$typed.ABV){
 	  $ArrayBuffer = function ArrayBuffer(length){
 	    var byteLength = validateArrayBufferArguments(this, length);
-	    this._b = arrayFill.call(Array(byteLength), 0);
-	    this._l = byteLength;
+	    this._b       = arrayFill.call(Array(byteLength), 0);
+	    this[$LENGTH] = byteLength;
 	  };
-	  addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
 
 	  $DataView = function DataView(buffer, byteOffset, byteLength){
-	    strictNew(this, $DataView, 'DataView');
-	    strictNew(buffer, $ArrayBuffer, 'ArrayBuffer');
-	    var bufferLength = buffer._l
+	    anInstance(this, $DataView, DATA_VIEW);
+	    anInstance(buffer, $ArrayBuffer, DATA_VIEW);
+	    var bufferLength = buffer[$LENGTH]
 	      , offset       = toInteger(byteOffset);
 	    if(offset < 0 || offset > bufferLength)throw RangeError('Wrong offset!');
 	    byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
 	    if(offset + byteLength > bufferLength)throw RangeError(WRONG_LENGTH);
-	    this._b = buffer;
-	    this._o = offset;
-	    this._l = byteLength;
+	    this[$BUFFER] = buffer;
+	    this[$OFFSET] = offset;
+	    this[$LENGTH] = byteLength;
 	  };
-	  addGetter($DataView, 'buffer', '_b');
-	  addGetter($DataView, BYTE_LENGTH, '_l');
-	  addGetter($DataView, 'byteOffset', '_o');
-	  redefineAll($DataView.prototype, {
+
+	  if(DESCRIPTORS){
+	    addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
+	    addGetter($DataView, BUFFER, '_b');
+	    addGetter($DataView, BYTE_LENGTH, '_l');
+	    addGetter($DataView, BYTE_OFFSET, '_o');
+	  }
+
+	  redefineAll($DataView[PROTOTYPE], {
 	    getInt8: function getInt8(byteOffset){
-	      return get(this, 1, byteOffset, unpackI8);
+	      return get(this, 1, byteOffset)[0] << 24 >> 24;
 	    },
 	    getUint8: function getUint8(byteOffset){
-	      return get(this, 1, byteOffset, unpackU8);
+	      return get(this, 1, byteOffset)[0];
 	    },
 	    getInt16: function getInt16(byteOffset /*, littleEndian */){
-	      return get(this, 2, byteOffset, unpackI16, arguments.length > 1 ? arguments[1] : false);
+	      var bytes = get(this, 2, byteOffset, arguments[1]);
+	      return (bytes[1] << 8 | bytes[0]) << 16 >> 16;
 	    },
 	    getUint16: function getUint16(byteOffset /*, littleEndian */){
-	      return get(this, 2, byteOffset, unpackU16, arguments.length > 1 ? arguments[1] : false);
+	      var bytes = get(this, 2, byteOffset, arguments[1]);
+	      return bytes[1] << 8 | bytes[0];
 	    },
 	    getInt32: function getInt32(byteOffset /*, littleEndian */){
-	      return get(this, 4, byteOffset, unpackI32, arguments.length > 1 ? arguments[1] : false);
+	      return unpackI32(get(this, 4, byteOffset, arguments[1]));
 	    },
 	    getUint32: function getUint32(byteOffset /*, littleEndian */){
-	      return get(this, 4, byteOffset, unpackU32, arguments.length > 1 ? arguments[1] : false);
+	      return unpackI32(get(this, 4, byteOffset, arguments[1])) >>> 0;
 	    },
 	    getFloat32: function getFloat32(byteOffset /*, littleEndian */){
-	      return get(this, 4, byteOffset, unpackF32, arguments.length > 1 ? arguments[1] : false);
+	      return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 23, 4);
 	    },
 	    getFloat64: function getFloat64(byteOffset /*, littleEndian */){
-	      return get(this, 8, byteOffset, unpackF64, arguments.length > 1 ? arguments[1] : false);
+	      return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 52, 8);
 	    },
 	    setInt8: function setInt8(byteOffset, value){
-	      return set(this, 1, byteOffset, packI8, value);
+	      set(this, 1, byteOffset, packI8, value);
 	    },
 	    setUint8: function setUint8(byteOffset, value){
-	      return set(this, 1, byteOffset, packU8, value);
+	      set(this, 1, byteOffset, packI8, value);
 	    },
 	    setInt16: function setInt16(byteOffset, value /*, littleEndian */){
-	      return set(this, 2, byteOffset, packI16, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 2, byteOffset, packI16, value, arguments[2]);
 	    },
 	    setUint16: function setUint16(byteOffset, value /*, littleEndian */){
-	      return set(this, 2, byteOffset, packU16, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 2, byteOffset, packI16, value, arguments[2]);
 	    },
 	    setInt32: function setInt32(byteOffset, value /*, littleEndian */){
-	      return set(this, 4, byteOffset, packI32, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 4, byteOffset, packI32, value, arguments[2]);
 	    },
 	    setUint32: function setUint32(byteOffset, value /*, littleEndian */){
-	      return set(this, 4, byteOffset, packU32, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 4, byteOffset, packI32, value, arguments[2]);
 	    },
 	    setFloat32: function setFloat32(byteOffset, value /*, littleEndian */){
-	      return set(this, 4, byteOffset, packF32, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 4, byteOffset, packF32, value, arguments[2]);
 	    },
 	    setFloat64: function setFloat64(byteOffset, value /*, littleEndian */){
-	      return set(this, 8, byteOffset, packF64, value, arguments.length > 2 ? arguments[2] : false);
+	      set(this, 8, byteOffset, packF64, value, arguments[2]);
 	    }
 	  });
 	} else {
@@ -4897,28 +4834,24 @@
 	    each.call(getNames(BaseBuffer), function(key){
 	      if(!(key in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
 	    });
-	    var ArrayBufferProto = $ArrayBuffer.prototype = BaseBuffer.prototype;
+	    var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
 	    if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
 	  }
 	}
-	setToStringTag($ArrayBuffer, 'ArrayBuffer');
-	setToStringTag($DataView, 'DataView');
-	hide($DataView.prototype, $typed.VIEW, true);
-	module.exports = {
-	  ArrayBuffer: $ArrayBuffer,
-	  DataView:    $DataView
-	};
+	setToStringTag($ArrayBuffer, ARRAY_BUFFER);
+	setToStringTag($DataView, DATA_VIEW);
+	hide($DataView[PROTOTYPE], $typed.VIEW, true);
+	exports[ARRAY_BUFFER] = $ArrayBuffer;
+	exports[DATA_VIEW] = $DataView;
 
 /***/ },
 /* 184 */
 /***/ function(module, exports, __webpack_require__) {
 
-	if(__webpack_require__(8)){
-	  var $export = __webpack_require__(3);
-	  $export($export.G + $export.W + $export.F * !__webpack_require__(182).ABV, {
-	    DataView: __webpack_require__(183).DataView
-	  });
-	}
+	var $export = __webpack_require__(3);
+	$export($export.G + $export.W + $export.F * !__webpack_require__(182).ABV, {
+	  DataView: __webpack_require__(183).DataView
+	});
 
 /***/ },
 /* 185 */
@@ -4944,7 +4877,7 @@
 	    , $typed              = __webpack_require__(182)
 	    , $buffer             = __webpack_require__(183)
 	    , ctx                 = __webpack_require__(12)
-	    , strictNew           = __webpack_require__(152)
+	    , anInstance          = __webpack_require__(152)
 	    , propertyDesc        = __webpack_require__(7)
 	    , hide                = __webpack_require__(6)
 	    , redefineAll         = __webpack_require__(157)
@@ -4953,6 +4886,7 @@
 	    , toLength            = __webpack_require__(27)
 	    , toIndex             = __webpack_require__(26)
 	    , toPrimitive         = __webpack_require__(63)
+	    , has                 = __webpack_require__(17)
 	    , same                = __webpack_require__(44)
 	    , isObject            = __webpack_require__(16)
 	    , toObject            = __webpack_require__(21)
@@ -4972,6 +4906,7 @@
 	    , arrayCopyWithin     = __webpack_require__(138)
 	    , RangeError          = global.RangeError
 	    , TypeError           = global.TypeError
+	    , Uint8Array          = global.Uint8Array
 	    , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT'
 	    , PROTOTYPE           = 'prototype'
 	    , ArrayProto          = Array[PROTOTYPE]
@@ -5002,7 +4937,7 @@
 	    , TAG                 = wks('toStringTag')
 	    , TYPED_CONSTRUCTOR   = uid('typed_constructor')
 	    , DEF_CONSTRUCTOR     = uid('def_constructor')
-	    , ALL_ARRAYS          = $typed.ARRAYS
+	    , ALL_CONSTRUCTORS    = $typed.CONSTR
 	    , TYPED_ARRAY         = $typed.TYPED
 	    , VIEW                = $typed.VIEW
 	    , WRONG_LENGTH        = 'Wrong length!';
@@ -5015,7 +4950,7 @@
 	    return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 	  });
 
-	  var FORCED_SET = fails(function(){
+	  var FORCED_SET = !!Uint8Array && !!Uint8Array[PROTOTYPE].set && fails(function(){
 	    new Uint8Array(1).set({});
 	  });
 
@@ -5056,11 +4991,14 @@
 	    return result;
 	  };
 
+	  var addGetter = function(it, key, internal){
+	    setDesc(it, key, {get: function(){ return this._d[internal]; }});
+	  };
+
 	  var $from = function from(source /*, mapfn, thisArg */){
 	    var O       = toObject(source)
-	      , $$      = arguments
-	      , $$len   = $$.length
-	      , mapfn   = $$len > 1 ? $$[1] : undefined
+	      , aLen    = arguments.length
+	      , mapfn   = aLen > 1 ? arguments[1] : undefined
 	      , mapping = mapfn !== undefined
 	      , iterFn  = getIterFn(O)
 	      , i, length, values, result, step, iterator;
@@ -5069,15 +5007,11 @@
 	        values.push(step.value);
 	      } O = values;
 	    }
-	    if(mapping && $$len > 2)mapfn = ctx(mapfn, $$[2], 2);
+	    if(mapping && aLen > 2)mapfn = ctx(mapfn, arguments[2], 2);
 	    for(i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++){
 	      result[i] = mapping ? mapfn(O[i], i) : O[i];
 	    }
 	    return result;
-	  };
-
-	  var addGetter = function(it, key, internal){
-	    setDesc(it, key, {get: function(){ return this._d[internal]; }});
 	  };
 
 	  var $of = function of(/*...items*/){
@@ -5170,7 +5104,7 @@
 
 	  var $set = function set(arrayLike /*, offset */){
 	    validate(this);
-	    var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1)
+	    var offset = toOffset(arguments[1], 1)
 	      , length = this.length
 	      , src    = toObject(arrayLike)
 	      , len    = toLength(src.length)
@@ -5193,7 +5127,7 @@
 
 	  var isTAIndex = function(target, key){
 	    return isObject(target)
-	      && TYPED_ARRAY in target
+	      && target[TYPED_ARRAY]
 	      && typeof key != 'symbol'
 	      && key in target
 	      && String(+key) == String(key);
@@ -5204,18 +5138,27 @@
 	      : getDesc(target, key);
 	  };
 	  var $setDesc = function defineProperty(target, key, desc){
-	    if(isTAIndex(target, key = toPrimitive(key, true)) && isObject(desc)){
-	      if('value' in desc)target[key] = desc.value;
+	    if(isTAIndex(target, key = toPrimitive(key, true))
+	      && isObject(desc)
+	      && has(desc, 'value')
+	      && !has(desc, 'get')
+	      && !has(desc, 'set')
+	      // TODO: add validation descriptor w/o calling accessors
+	      && !desc.configurable
+	      && (!has(desc, 'writable') || desc.writable)
+	      && (!has(desc, 'enumerable') || desc.enumerable)
+	    ){
+	      target[key] = desc.value;
 	      return target;
 	    } else return setDesc(target, key, desc);
 	  };
 
-	  if(!ALL_ARRAYS){
+	  if(!ALL_CONSTRUCTORS){
 	    $.getDesc = $getDesc;
 	    $.setDesc = $setDesc;
 	  }
 
-	  $export($export.S + $export.F * !ALL_ARRAYS, 'Object', {
+	  $export($export.S + $export.F * !ALL_CONSTRUCTORS, 'Object', {
 	    getOwnPropertyDescriptor: $getDesc,
 	    defineProperty: $setDesc
 	  });
@@ -5228,6 +5171,7 @@
 
 	  var $TypedArrayPrototype$ = redefineAll({}, proto);
 	  redefineAll($TypedArrayPrototype$, $iterators);
+	  hide($TypedArrayPrototype$, ITERATOR, $iterators.values);
 	  redefineAll($TypedArrayPrototype$, {
 	    set:            $set,
 	    constructor:    function(){ /* noop */ },
@@ -5252,23 +5196,29 @@
 	      , FORCED     = !TypedArray || !$typed.ABV
 	      , O          = {}
 	      , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
+	    var getter = function(that, index){
+	      var data = that._d;
+	      return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
+	    };
+	    var setter = function(that, index, value){
+	      var data = that._d;
+	      if(CLAMPED)value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
+	      data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
+	    };
 	    var addElement = function(that, index){
 	      setDesc(that, index, {
 	        get: function(){
-	          var data = this._d;
-	          return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
+	          return getter(this, index);
 	        },
-	        set: function(it){
-	          var data = this._d;
-	          if(CLAMPED)it = (it = Math.round(it)) < 0 ? 0 : it > 0xff ? 0xff : it & 0xff;
-	          data.v[SETTER](index * BYTES + data.o, it, LITTLE_ENDIAN);
+	        set: function(value){
+	          return setter(this, index, value);
 	        },
 	        enumerable: true
 	      });
 	    };
 	    if(FORCED){
 	      TypedArray = wrapper(function(that, data, $offset, $length){
-	        strictNew(that, TypedArray, NAME);
+	        anInstance(that, TypedArray, NAME, '_d');
 	        var index  = 0
 	          , offset = 0
 	          , buffer, byteLength, length;
@@ -5312,7 +5262,7 @@
 	      new TypedArray(iter); // eslint-disable-line no-new
 	    }, true)){
 	      TypedArray = wrapper(function(that, data, $offset, $length){
-	        strictNew(that, TypedArray, NAME);
+	        anInstance(that, TypedArray, NAME);
 	        if(!isObject(data))return new Base(strictToLength(data))
 	        if(data instanceof $ArrayBuffer)return $length !== undefined
 	          ? new Base(data, toOffset($offset, BYTES), $length)
@@ -5326,7 +5276,7 @@
 	      if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
 	    }
 	    var $nativeIterator   = TypedArrayPrototype[ITERATOR]
-	      , CORRECT_ITER_NAME = !!$nativeIterator && $nativeIterator.name == 'values'
+	      , CORRECT_ITER_NAME = !!$nativeIterator && ($nativeIterator.name == 'values' || $nativeIterator.name == undefined)
 	      , $iterator         = $iterators.values;
 	    hide(TypedArray, TYPED_CONSTRUCTOR, true);
 	    hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
@@ -5351,17 +5301,19 @@
 
 	    if(!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
-	    $export($export.P + $export.F * FORCED, NAME, proto);
+	    $export($export.P, NAME, proto);
 
 	    $export($export.P + $export.F * FORCED_SET, NAME, {set: $set});
 
-	    $export($export.P + $export.F * (FORCED || !CORRECT_ITER_NAME), NAME, $iterators);
+	    $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
 
 	    $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
 
-	    $export($export.P + $export.F * fails(function(){
-	      return [1, 2].toLocaleString() != new Typed([1, 2]).toLocaleString()
-	    }), NAME, {toLocaleString: $toLocaleString});
+	    $export($export.P + $export.F * (fails(function(){
+	      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
+	    }) || !fails(function(){
+	      TypedArrayPrototype.toLocaleString.call([1, 2]);
+	    })), NAME, {toLocaleString: $toLocaleString});
 
 	    Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
 	    if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
@@ -5858,14 +5810,13 @@
 	    , holder = false;
 	  while(length > i)if((pargs[i] = arguments[i++]) === _)holder = true;
 	  return function(/* ...args */){
-	    var that  = this
-	      , $$    = arguments
-	      , $$len = $$.length
+	    var that = this
+	      , aLen = arguments.length
 	      , j = 0, k = 0, args;
-	    if(!holder && !$$len)return invoke(fn, pargs, that);
+	    if(!holder && !aLen)return invoke(fn, pargs, that);
 	    args = pargs.slice();
-	    if(holder)for(;length > j; j++)if(args[j] === _)args[j] = $$[k++];
-	    while($$len > k)args.push($$[k++]);
+	    if(holder)for(;length > j; j++)if(args[j] === _)args[j] = arguments[k++];
+	    while(aLen > k)args.push(arguments[k++]);
 	    return invoke(fn, args, that);
 	  };
 	};
