@@ -1,17 +1,16 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'ArrayBuffer#slice', !(assert)~>
-  {ArrayBuffer, Uint8Array} = core
-  assert.isFunction ArrayBuffer::slice
-  assert.arity ArrayBuffer::slice, 2
-  array = new Uint8Array [1 2 3 4 5]
-  buffer = array.buffer
+test 'ArrayBuffer#slice', !(assert)~>
+  {ArrayBuffer} = core
+  {slice} = ArrayBuffer
+  assert.isFunction slice
+  buffer = arrayToBuffer [1 2 3 4 5]
   assert.ok buffer instanceof ArrayBuffer, 'correct buffer'
-  assert.ok buffer.slice! isnt buffer, 'returns new buffer'
-  assert.ok buffer.slice! instanceof ArrayBuffer, 'correct instance'
-  assert.arrayEqual new Uint8Array(buffer.slice!), array
-  assert.arrayEqual new Uint8Array(buffer.slice 1 3), [2 3]
-  assert.arrayEqual new Uint8Array(buffer.slice 1 void), [2 3 4 5] # FF buggy here
-  assert.arrayEqual new Uint8Array(buffer.slice 1 -1), [2 3 4]
-  assert.arrayEqual new Uint8Array(buffer.slice -2 -1), [4]
-  assert.arrayEqual new Uint8Array(buffer.slice -2 -3), []
+  assert.ok slice(buffer) isnt buffer, 'returns new buffer'
+  assert.ok slice(buffer) instanceof ArrayBuffer, 'correct instance'
+  assert.arrayEqual bufferToArray(slice buffer), [1 2 3 4 5]
+  assert.arrayEqual bufferToArray(slice buffer, 1 3), [2 3]
+  assert.arrayEqual bufferToArray(slice buffer, 1 void), [2 3 4 5] # FF buggy here
+  assert.arrayEqual bufferToArray(slice buffer, 1 -1), [2 3 4]
+  assert.arrayEqual bufferToArray(slice buffer, -2 -1), [4]
+  assert.arrayEqual bufferToArray(slice buffer, -2 -3), []

@@ -7048,23 +7048,22 @@
   var module, test, this$ = this;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
-  DESCRIPTORS && test('ArrayBuffer#slice', function(assert){
-    var array, buffer;
+  test('ArrayBuffer#slice', function(assert){
+    var buffer;
     assert.isFunction(ArrayBuffer.prototype.slice);
     assert.arity(ArrayBuffer.prototype.slice, 2);
     assert.name(ArrayBuffer.prototype.slice, 'slice');
     assert.looksNative(ArrayBuffer.prototype.slice);
-    array = new Uint8Array([1, 2, 3, 4, 5]);
-    buffer = array.buffer;
+    buffer = arrayToBuffer([1, 2, 3, 4, 5]);
     assert.ok(buffer instanceof ArrayBuffer, 'correct buffer');
     assert.ok(buffer.slice() !== buffer, 'returns new buffer');
     assert.ok(buffer.slice() instanceof ArrayBuffer, 'correct instance');
-    assert.arrayEqual(new Uint8Array(buffer.slice()), array);
-    assert.arrayEqual(new Uint8Array(buffer.slice(1, 3)), [2, 3]);
-    assert.arrayEqual(new Uint8Array(buffer.slice(1, void 8)), [2, 3, 4, 5]);
-    assert.arrayEqual(new Uint8Array(buffer.slice(1, -1)), [2, 3, 4]);
-    assert.arrayEqual(new Uint8Array(buffer.slice(-2, -1)), [4]);
-    assert.arrayEqual(new Uint8Array(buffer.slice(-2, -3)), []);
+    assert.arrayEqual(bufferToArray(buffer.slice()), [1, 2, 3, 4, 5]);
+    assert.arrayEqual(bufferToArray(buffer.slice(1, 3)), [2, 3]);
+    assert.arrayEqual(bufferToArray(buffer.slice(1, void 8)), [2, 3, 4, 5]);
+    assert.arrayEqual(bufferToArray(buffer.slice(1, -1)), [2, 3, 4]);
+    assert.arrayEqual(bufferToArray(buffer.slice(-2, -1)), [4]);
+    assert.arrayEqual(bufferToArray(buffer.slice(-2, -3)), []);
   });
 }).call(this);
 
