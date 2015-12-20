@@ -39,7 +39,8 @@ var $export = function(type, name, source){
       return F;
     // make static versions for prototype methods
     })(out) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
-    if(IS_PROTO)(exports[PROTOTYPE] || (exports[PROTOTYPE] = {}))[key] = out;
+    // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
+    if(IS_PROTO)(exports.methods || (exports.methods = {}))[key] = out;
   }
 };
 // type bitmap
