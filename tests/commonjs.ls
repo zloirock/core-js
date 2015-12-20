@@ -153,6 +153,18 @@ for P in <[.. ../library]>
   ok new (require("#P/fn/set"))([1, 2, 3, 2, 1]).size is 3
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
   ok new (require("#P/fn/weak-set"))([O = {}]).has O
+  ok typeof require("#P/fn/typed/array-buffer") is \function
+  ok typeof require("#P/fn/typed/data-view") is \function
+  ok typeof require("#P/fn/typed/int8-array") is \function
+  ok typeof require("#P/fn/typed/uint8-array") is \function
+  ok typeof require("#P/fn/typed/uint8-clamped-array") is \function
+  ok typeof require("#P/fn/typed/int16-array") is \function
+  ok typeof require("#P/fn/typed/uint16-array") is \function
+  ok typeof require("#P/fn/typed/int32-array") is \function
+  ok typeof require("#P/fn/typed/uint32-array") is \function
+  ok typeof require("#P/fn/typed/float32-array") is \function
+  ok typeof require("#P/fn/typed/float64-array") is \function
+  ok typeof require("#P/fn/typed").Uint32Array is \function
   ok \all of require("#P/fn/promise")
   ok require("#P/fn/system/global").Math is Math
   ok require("#P/fn/system").global.Math is Math
@@ -186,6 +198,7 @@ for P in <[.. ../library]>
   ok \raw of require("#P/es6/string")
   ok require("#P/es6/date")
   ok typeof require("#P/es6/symbol") is \function
+  ok typeof require("#P/es6/typed").Uint32Array is \function
   ok \Map of require("#P/es6")
   ok \includes of require("#P/es7/array")
   ok \values of require("#P/es7/object")
