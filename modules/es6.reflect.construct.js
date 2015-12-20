@@ -4,7 +4,7 @@ var $         = require('./_')
   , aFunction = require('./_a-function')
   , anObject  = require('./_an-object')
   , isObject  = require('./_is-object')
-  , bind      = Function.bind || require('./_core').Function.prototype.bind;
+  , bind      = require('./_bind');
 
 // MS Edge supports only 2 arguments
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it

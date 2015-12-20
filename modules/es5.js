@@ -7,7 +7,6 @@ var $                 = require('./_')
   , cel               = require('./_dom-create')
   , has               = require('./_has')
   , cof               = require('./_cof')
-  , invoke            = require('./_invoke')
   , fails             = require('./_fails')
   , anObject          = require('./_an-object')
   , aFunction         = require('./_a-function')
@@ -22,13 +21,11 @@ var $                 = require('./_')
   , createArrayMethod = require('./_array-methods')
   , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
-  , ArrayProto        = Array.prototype
-  , arraySlice        = ArrayProto.slice
-  , arrayJoin         = ArrayProto.join
+  , arraySlice        = [].slice
+  , arrayJoin         = [].join
   , defineProperty    = $.setDesc
   , getOwnDescriptor  = $.getDesc
   , defineProperties  = $.setDescs
-  , factories         = {}
   , IE8_DOM_DEFINE;
 
 if(!DESCRIPTORS){
@@ -137,27 +134,8 @@ $export($export.S, 'Object', {
   keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false)
 });
 
-var construct = function(F, len, args){
-  if(!(len in factories)){
-    for(var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
-    factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
-  }
-  return factories[len](F, args);
-};
-
 // 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
-$export($export.P, 'Function', {
-  bind: function bind(that /*, args... */){
-    var fn       = aFunction(this)
-      , partArgs = arraySlice.call(arguments, 1);
-    var bound = function(/* args... */){
-      var args = partArgs.concat(arraySlice.call(arguments));
-      return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
-    };
-    if(isObject(fn.prototype))bound.prototype = fn.prototype;
-    return bound;
-  }
-});
+$export($export.P, 'Function', {bind: require('./_bind')});
 
 // fallback for not array-like ES3 strings and DOM objects
 $export($export.P + $export.F * fails(function(){
