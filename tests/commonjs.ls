@@ -30,17 +30,26 @@ for P in <[.. ../library]>
   require("#P/fn/function/has-instance")
   ok Function[require("#P/fn/symbol/has-instance")] ->
   ok \part of require("#P/fn/function")
+  ok Array.isArray require("#P/fn/array/from") 'qwe'
+  ok Array.isArray require("#P/fn/array/of") \q \w \e
   ok require("#P/fn/array/copy-within")([1 2 3 4 5] 0 3).0 is 4
   ok \next of require("#P/fn/array/entries")([])
   ok require("#P/fn/array/fill")(Array(5), 2).0 is 2
   ok require("#P/fn/array/find")([2 3 4], -> it % 2) is 3
   ok require("#P/fn/array/find-index")([2 3 4], -> it % 2) is 1
-  ok Array.isArray require("#P/fn/array/from") 'qwe'
   ok \next of require("#P/fn/array/keys")([])
-  ok Array.isArray require("#P/fn/array/of") \q \w \e
   ok \next of require("#P/fn/array/values")([])
   ok require("#P/fn/array/includes")([1 2 3], 2)
   ok \next of require("#P/fn/array/iterator") []
+  ok require("#P/fn/array/methods/copy-within").call([1 2 3 4 5] 0 3).0 is 4
+  ok \next of require("#P/fn/array/methods/entries").call([])
+  ok require("#P/fn/array/methods/fill").call(Array(5), 2).0 is 2
+  ok require("#P/fn/array/methods/find").call([2 3 4], -> it % 2) is 3
+  ok require("#P/fn/array/methods/find-index").call([2 3 4], -> it % 2) is 1
+  ok \next of require("#P/fn/array/methods/keys").call([])
+  ok \next of require("#P/fn/array/methods/values").call([])
+  ok require("#P/fn/array/methods/includes").call([1 2 3], 2)
+  ok \next of require("#P/fn/array/methods/iterator").call []
   ok \keys of require("#P/fn/array")
   ok require("#P/fn/math/acosh")(1) is 0
   ok require("#P/fn/math/asinh")(-0) is -0
@@ -74,6 +83,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/number/parse-float")('1.5') is 1.5
   ok require("#P/fn/number/parse-int")('2.1') is 2
   ok \next of require("#P/fn/number/iterator") 42
+  ok \next of require("#P/fn/number/methods/iterator").call 42
   ok \isNaN of require("#P/fn/number")
   ok require("#P/fn/reflect/apply")(((a, b)-> a + b), null, [1, 2]) is 3
   ok require("#P/fn/reflect/construct")(-> @a = 2).a is 2
@@ -92,11 +102,11 @@ for P in <[.. ../library]>
   require("#P/fn/reflect/set-prototype-of")(O = {}, [])
   ok O instanceof Array
   ok \enumerate of require("#P/fn/reflect")
+  ok require("#P/fn/string/from-code-point")(97) is \a
+  ok require("#P/fn/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
   ok require("#P/fn/string/code-point-at")(\a 0) is 97
   ok require("#P/fn/string/ends-with") \qwe, \we
-  ok require("#P/fn/string/from-code-point")(97) is \a
   ok require("#P/fn/string/includes") \qwe, \w
-  ok require("#P/fn/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
   ok require("#P/fn/string/repeat")(\q 3) is \qqq
   ok require("#P/fn/string/starts-with") \qwe, \qw
   ok typeof require("#P/fn/string/anchor") is \function
@@ -122,6 +132,34 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \next of require("#P/fn/string/iterator") \qwe
+  ok require("#P/fn/string/methods/code-point-at").call(\a 0) is 97
+  ok require("#P/fn/string/methods/ends-with").call \qwe, \we
+  ok require("#P/fn/string/methods/includes").call \qwe, \w
+  ok require("#P/fn/string/methods/repeat").call(\q 3) is \qqq
+  ok require("#P/fn/string/methods/starts-with").call \qwe, \qw
+  ok typeof require("#P/fn/string/methods/anchor") is \function
+  ok typeof require("#P/fn/string/methods/big") is \function
+  ok typeof require("#P/fn/string/methods/blink") is \function
+  ok typeof require("#P/fn/string/methods/bold") is \function
+  ok typeof require("#P/fn/string/methods/fixed") is \function
+  ok typeof require("#P/fn/string/methods/fontcolor") is \function
+  ok typeof require("#P/fn/string/methods/fontsize") is \function
+  ok typeof require("#P/fn/string/methods/italics") is \function
+  ok typeof require("#P/fn/string/methods/link") is \function
+  ok typeof require("#P/fn/string/methods/small") is \function
+  ok typeof require("#P/fn/string/methods/strike") is \function
+  ok typeof require("#P/fn/string/methods/sub") is \function
+  ok typeof require("#P/fn/string/methods/sup") is \function
+  ok require("#P/fn/string/methods/at").call(\a 0) is \a
+  ok require("#P/fn/string/methods/pad-start").call(\a 3) is '  a'
+  ok require("#P/fn/string/methods/pad-end").call(\a 3) is 'a  '
+  ok require("#P/fn/string/methods/trim-start").call(' a ') is 'a '
+  ok require("#P/fn/string/methods/trim-end").call(' a ') is ' a'
+  ok require("#P/fn/string/methods/trim-left").call(' a ') is 'a '
+  ok require("#P/fn/string/methods/trim-right").call(' a ') is ' a'
+  ok require("#P/fn/string/methods/escape-html").call('<br />') is '&lt;br /&gt;'
+  ok require("#P/fn/string/methods/unescape-html").call('&lt;br /&gt;') is '<br />'
+  ok \next of require("#P/fn/string/methods/iterator").call \qwe
   ok \raw of require("#P/fn/string")
   ok require("#P/fn/regexp/constructor")(\a \g) + '' is '/a/g'
   ok require("#P/fn/regexp/flags")(/./g) is \g
@@ -226,4 +264,6 @@ for P in <[.. ../library]>
   ok require("#P/stage/2")
   ok require("#P/stage/1")
   ok require("#P/stage/0")
+  ok require("#P/stage/pre")
+  ok require("#P/stage")
 console.log 'CommonJS - OK'
