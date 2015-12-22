@@ -42,13 +42,13 @@ if DESCRIPTORS => test 'Promise operations order' !(assert)->
 
 test 'Promise#then' !(assert)->
   assert.isFunction Promise::then
-  assert.arity Promise::then, 2
+  NATIVE and assert.arity Promise::then, 2 # FF - 0
   assert.name Promise::then, \then
   assert.looksNative Promise::then
 
 test 'Promise#catch' !(assert)->
   assert.isFunction Promise::catch
-  assert.arity Promise::catch, 1
+  NATIVE and assert.arity Promise::catch, 1 # FF - 0
   NATIVE and assert.name Promise::catch, \catch # can't be polyfilled in some environments
   assert.looksNative Promise::then
 
@@ -97,14 +97,14 @@ test 'Promise.race' !(assert)->
 
 test 'Promise.resolve' !(assert)->
   assert.isFunction Promise.resolve
-  assert.arity Promise.resolve, 1
+  NATIVE and assert.arity Promise.resolve, 1 # FF - 0
   assert.name Promise.resolve, \resolve
   assert.looksNative Promise.resolve
   assert.throws (-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
 
 test 'Promise.reject' !(assert)->
   assert.isFunction Promise.reject
-  assert.arity Promise.reject, 1
+  NATIVE and assert.arity Promise.reject, 1 # FF - 0
   assert.name Promise.reject, \reject
   assert.looksNative Promise.reject
   assert.throws (-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'

@@ -2937,13 +2937,13 @@
   }
   test('Promise#then', function(assert){
     assert.isFunction(Promise.prototype.then);
-    assert.arity(Promise.prototype.then, 2);
+    NATIVE && assert.arity(Promise.prototype.then, 2);
     assert.name(Promise.prototype.then, 'then');
     assert.looksNative(Promise.prototype.then);
   });
   test('Promise#catch', function(assert){
     assert.isFunction(Promise.prototype['catch']);
-    assert.arity(Promise.prototype['catch'], 1);
+    NATIVE && assert.arity(Promise.prototype['catch'], 1);
     NATIVE && assert.name(Promise.prototype['catch'], 'catch');
     assert.looksNative(Promise.prototype.then);
   });
@@ -2996,7 +2996,7 @@
   });
   test('Promise.resolve', function(assert){
     assert.isFunction(Promise.resolve);
-    assert.arity(Promise.resolve, 1);
+    NATIVE && assert.arity(Promise.resolve, 1);
     assert.name(Promise.resolve, 'resolve');
     assert.looksNative(Promise.resolve);
     assert.throws(function(){
@@ -3005,7 +3005,7 @@
   });
   test('Promise.reject', function(assert){
     assert.isFunction(Promise.reject);
-    assert.arity(Promise.reject, 1);
+    NATIVE && assert.arity(Promise.reject, 1);
     assert.name(Promise.reject, 'reject');
     assert.looksNative(Promise.reject);
     assert.throws(function(){
