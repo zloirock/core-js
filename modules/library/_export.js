@@ -43,7 +43,7 @@ var $export = function(type, name, source){
     })(out) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
     if(IS_PROTO){
-      (exports.methods || (exports.methods = {}))[key] = out;
+      (exports.virtual || (exports.virtual = {}))[key] = out;
       // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
       if(type & $export.R && expProto && !expProto[key])hide(expProto, key, out);
     }
