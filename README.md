@@ -1231,7 +1231,7 @@ console.log(core.getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills
-- ES5 `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers many implementations are available, for example, [json3](https://github.com/bestiejs/json3).
+- ES5 `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers, many implementations are available, for example, [json3](https://github.com/bestiejs/json3).
 - ES6 Typed Arrays can be polyfilled without serious problems, but it will be slow - getter / setter for each element and they are missing completely only in IE9-. You can use [this polyfill](https://github.com/inexorabletash/polyfill/blob/master/typedarray.js). *Possible*, it will be added to `core-js` in the future, completely or only missing methods of existing arrays. 
 - ES6 `String#normalize` is not very usefull feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
 - ES6 `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES6 version.
