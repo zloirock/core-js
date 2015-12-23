@@ -152,8 +152,12 @@ if(require('./_descriptors')){
     while(length > index)result[index] = arguments[index++];
     return result;
   };
+
+  // iOS Safari 6.x fails here
+  var TO_LOCALE_BUG = !!Uint8Array && fails(function(){ arrayToLocaleString.call(new Uint8Array(1)); });
+
   var $toLocaleString = function toLocaleString(){
-    return arrayToLocaleString.apply(validate(this), arguments);
+    return arrayToLocaleString.apply(TO_LOCALE_BUG ? arraySlice.call(validate(this)) : validate(this), arguments);
   };
 
   var proto = {
