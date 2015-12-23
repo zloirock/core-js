@@ -43,6 +43,8 @@ if(require('./_descriptors')){
     , ArrayProto          = Array[PROTOTYPE]
     , $ArrayBuffer        = $buffer.ArrayBuffer
     , $DataView           = $buffer.DataView
+    , getProto            = $.getProto
+    , getNames            = $.getNames
     , setDesc             = $.setDesc
     , getDesc             = $.getDesc
     , arrayForEach        = createArrayMethod(0)
@@ -328,6 +330,7 @@ if(require('./_descriptors')){
       , SETTER     = 'set' + KEY
       , TypedArray = global[NAME]
       , Base       = TypedArray || {}
+      , TAC        = TypedArray && getProto(TypedArray)
       , FORCED     = !TypedArray || !$typed.ABV
       , O          = {}
       , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
@@ -407,6 +410,9 @@ if(require('./_descriptors')){
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
+      arrayForEach(TAC !== Function.prototype ? getNames(Base).concat(getNames(TAC)) : getNames(Base), function(key){
+        if(!(key in TypedArray))hide(TypedArray, key, Base[key]);
+      });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
       if(!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
@@ -428,10 +434,10 @@ if(require('./_descriptors')){
 
     $export($export.G + $export.W + $export.F * (TypedArray != Base), O);
 
-    $export($export.S + $export.F * (TypedArray != Base), NAME, {
+    $export($export.S, NAME, {
       BYTES_PER_ELEMENT: BYTES,
-      from: Base.from || $from,
-      of: Base.of || $of
+      from: $from,
+      of: $of
     });
 
     if(!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
