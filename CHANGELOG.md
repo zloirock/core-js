@@ -1,4 +1,40 @@
 ## Changelog
+##### 2.0.0 - 2015.12.24
+- added implementations and fixes [Typed Arrays](https://github.com/zloirock/core-js#ecmascript-6-typed-arrays)-related features
+  - `ArrayBuffer`, `ArrayBuffer.isView`, `ArrayBuffer#slice`
+  - `DataView` with all getter / setter methods
+  - `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array` and `Float64Array` constructors
+  - `%TypedArray%.{for, of}`, `%TypedArray%#{copyWithin, every, fill, filter, find, findIndex, forEach, indexOf, includes, join, lastIndexOf, map, reduce, reduceRight, reverse, set, slice, some, sort, subarray, values, keys, entries, @@iterator, ...}`
+- added [`System.global`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-19.md#systemglobal-jhd)
+- added [`Error.isError`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/ljharb/proposal-is-error), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-19.md#jhd-erroriserror)
+- added [`Math.{iaddh, isubh, imulh, umulh}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+- `RegExp.escape` moved from the `es7` to the non-standard `core` namespace, [July TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2015-07/july-28.md#62-regexpescape) - too slow, but it's condition of stability, [#116](https://github.com/zloirock/core-js/issues/116)
+- [`Promise`](https://github.com/zloirock/core-js#ecmascript-6-promise)
+  - some performance optimisations
+  - added basic support [`rejectionHandled` event / `onrejectionhandled` handler](https://github.com/zloirock/core-js#unhandled-rejection-tracking) to the polyfill
+  - removed usage `@@species` from `Promise.{all, race}`, [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-18.md#conclusionresolution-2)
+- some improvements [collections polyfills](https://github.com/zloirock/core-js#ecmascript-6-collections)
+  - `O(1)` and preventing possible leaks with frozen keys, [#134](https://github.com/zloirock/core-js/issues/134)
+  - correct observable state object keys
+- renamed `String#{padLeft, padRight}` -> [`String#{padStart, padEnd}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-pad-start-end), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-17.md#conclusionresolution-2) (they want to rename it on each meeting?O_o), [#132](https://github.com/zloirock/core-js/issues/132)
+- added [`String#{trimStart, trimEnd}` as aliases for `String#{trimLeft, trimRight}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-17.md#conclusionresolution-2)
+- added [annex B HTML methods](https://github.com/zloirock/core-js#ecmascript-6-string) - ugly, but also [the part of the spec](http://www.ecma-international.org/ecma-262/6.0/#sec-string.prototype.anchor)
+- added little fix for [`Date#toString`](https://github.com/zloirock/core-js#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](http://www.ecma-international.org/ecma-262/6.0/#sec-todatestring)
+- added [`{keys, values, entries, @@iterator}` methods to DOM collections](https://github.com/zloirock/core-js#iterable-dom-collections) which should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass) - `NodeList`, `DOMTokenList`, `MediaList`, `StyleSheetList`, `CSSRuleList`.
+- removed Mozilla `Array` generics - [deprecated and will be removed from FF](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods), [looks like strawman is dead](http://wiki.ecmascript.org/doku.php?id=strawman:array_statics), available [alternative shim](https://github.com/plusdude/array-generics)
+- removed `core.log` module
+- CommonJS API
+  - added entry points for [virtual methods](https://github.com/zloirock/core-js#commonjs-and-prototype-methods-without-global-namespace-pollution)
+  - added entry points for [stages proposals](https://github.com/zloirock/core-js#ecmascript-7-proposals)
+  - some other minor changes
+- [custom build from external scripts](https://github.com/zloirock/core-js#custom-build-from-external-scripts) moved to the separate package for preventing problems with dependencies
+- changed `$` prefix for internal modules file names because Team Foundation Server does not support it, [#129](https://github.com/zloirock/core-js/issues/129)
+- additional fix for `SameValueZero` in V8 ~ Chromium 39-42 collections
+- additional fix for FF27 `Array` iterator
+- removed usage shortcuts for `arguments` object - old WebKit bug, [#150](https://github.com/zloirock/core-js/issues/150)
+- `{Map, Set}#forEach` non-generic, [#144](https://github.com/zloirock/core-js/issues/144)
+- many other improvements
+
 ##### 1.2.6 - 2015.11.09
 * reject with `TypeError` on attempt resolve promise itself
 * correct behavior with broken `Promise` subclass constructors / methods
@@ -35,9 +71,9 @@
 ##### 1.2.0 - 2015.09.27
 * added browser [`Promise` rejection hook](#unhandled-rejection-tracking), [#106](https://github.com/zloirock/core-js/issues/106)
 * added correct [`IsRegExp`](http://www.ecma-international.org/ecma-262/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
-* updated [`String#leftPad`](https://github.com/zloirock/core-js/#ecmascript-7) [with proposal](https://github.com/ljharb/proposal-string-pad-left-right/issues/6): string filler truncated from the right side
+* updated [`String#leftPad`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) [with proposal](https://github.com/ljharb/proposal-string-pad-left-right/issues/6): string filler truncated from the right side
 * replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/#ecmascript-6-object) - its properties order not only [incorrect](https://github.com/sindresorhus/object-assign/issues/22), it is non-deterministic and it causes some problems
-* fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/#ecmascript-7)`}`, [example](http://goo.gl/iQE01c)
+* fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)`}`, [example](http://goo.gl/iQE01c)
 * fixed [`Math.sinh`](https://github.com/zloirock/core-js/#ecmascript-6-math) with very small numbers in V8 near Chromium 38
 * some other fixes and optimizations
 
@@ -59,10 +95,10 @@
 * added more correct microtask implementation for [`Promise`](#ecmascript-6-promise)
 
 ##### 1.1.0 - 2015.08.17
-* updated [string padding](https://github.com/zloirock/core-js/#ecmascript-7) to [actual proposal](https://github.com/ljharb/proposal-string-pad-left-right) - renamed, minor internal changes:
+* updated [string padding](https://github.com/zloirock/core-js/#ecmascript-7-proposals) to [actual proposal](https://github.com/ljharb/proposal-string-pad-left-right) - renamed, minor internal changes:
   * `String#lpad` -> `String#padLeft`
   * `String#rpad` -> `String#padRight`
-* added [string trim functions](#ecmascript-7) - [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), defacto standard - required only for IE11- and fixed for some old engines:
+* added [string trim functions](#ecmascript-7-proposals) - [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), defacto standard - required only for IE11- and fixed for some old engines:
   * `String#trimLeft`
   * `String#trimRight`
 * [`String#trim`](https://github.com/zloirock/core-js/#ecmascript-6-string) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
@@ -102,9 +138,9 @@
   * [`es6.regexp`](https://github.com/zloirock/core-js/#ecmascript-6-regexp)
   * [`es6.math`](https://github.com/zloirock/core-js/#ecmascript-6-math)
   * [`es6.number`](https://github.com/zloirock/core-js/#ecmascript-6-number)
-  * [`es7.object.to-array`](https://github.com/zloirock/core-js/#ecmascript-7)
+  * [`es7.object.to-array`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
   * [`core.object`](https://github.com/zloirock/core-js/#object)
-  * [`core.string`](https://github.com/zloirock/core-js/#escaping-html)
+  * [`core.string`](https://github.com/zloirock/core-js/#escaping-strings)
   * [`core.iter-helpers`](https://github.com/zloirock/core-js/#ecmascript-6-iterators)
   * internal modules (`$`, `$.iter`, etc)
 * many other optimizations
@@ -120,10 +156,10 @@
 * fixed [#89](https://github.com/zloirock/core-js/issues/89) - behavior `Number` constructor in strange case
 
 ##### 0.9.18 - 2015.06.17
-* removed `/` from [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7) escaped characters
+* removed `/` from [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) escaped characters
 
 ##### 0.9.17 - 2015.06.14
-* updated [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7) to the [latest proposal](https://github.com/benjamingr/RexExp.escape)
+* updated [`RegExp.escape`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) to the [latest proposal](https://github.com/benjamingr/RexExp.escape)
 * fixed conflict with webpack dev server + IE buggy behavior
 
 ##### 0.9.16 - 2015.06.11
@@ -171,7 +207,7 @@
 * added [support DOM collections](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice#Streamlining_cross-browser_behavior) to IE8- `Array#slice`
 
 ##### 0.9.6 - 2015.05.01
-* added [`String#lpad`, `String#rpad`](https://github.com/zloirock/core-js/#ecmascript-7)
+* added [`String#lpad`, `String#rpad`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
 
 ##### 0.9.5 - 2015.04.30
 * added cap for `Function#@@hasInstance`
@@ -193,7 +229,7 @@
 * added correct [symbols](https://github.com/zloirock/core-js/#ecmascript-6-symbol) descriptors
   * fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
   * added [single entry points](https://github.com/zloirock/core-js/#commonjs) for `Object.{create, defineProperty, defineProperties}`
-* added [`Map#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7)
+* added [`Map#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
 * removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](http://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
 * removed non-standard undocumented methods `Symbol.{pure, set}`
 * some fixes and internal changes
@@ -206,7 +242,7 @@
 
 ##### 0.8.2 - 2015.04.13
 * [`Math.fround`](https://github.com/zloirock/core-js/#ecmascript-6-math) now also works in IE9-
-* added [`Set#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7)
+* added [`Set#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
 * some optimizations and fixes
 
 ##### 0.8.1 - 2015.04.03
@@ -236,8 +272,8 @@
 ##### 0.6.0 - 2015.02.23
 * added support safe closing iteration - calling `iterator.return` on abort iteration, if it exists
 * added basic support [`Promise`](https://github.com/zloirock/core-js/#ecmascript-6-promise) unhandled rejection tracking in shim
-* added [`Object.getOwnPropertyDescriptors`](https://github.com/zloirock/core-js/#ecmascript-7)
-* removed `console` cap - creates too many problems - you can use [`core.log`](https://github.com/zloirock/core-js/#console) module as that
+* added [`Object.getOwnPropertyDescriptors`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
+* removed `console` cap - creates too many problems
 * restructuring [namespaces](https://github.com/zloirock/core-js/#custom-build)
 * some fixes
 
@@ -257,7 +293,7 @@
 ##### 0.5.0 - 2015.02.08
 * systematization of modules
 * splitted [`es6` module](https://github.com/zloirock/core-js/#ecmascript-6)
-* splitted [`console` module](https://github.com/zloirock/core-js/#console): `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
+* splitted `console` module: `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
 * added [`delay` method](https://github.com/zloirock/core-js/#delay)
 * some fixes
 
@@ -364,8 +400,8 @@
 * repair converting -0 to +0 in [native collections](https://github.com/zloirock/core-js/#ecmascript-6-collections)
 
 ##### 0.2.0 - 2014.12.06
-* added [`es7.proposals`](https://github.com/zloirock/core-js/#ecmascript-7) and [`es7.abstract-refs`](https://github.com/zenparsing/es-abstract-refs) modules
-* added [`String#at`](https://github.com/zloirock/core-js/#ecmascript-7)
+* added [`es7.proposals`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) and [`es7.abstract-refs`](https://github.com/zenparsing/es-abstract-refs) modules
+* added [`String#at`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
 * added real [`String Iterator`](https://github.com/zloirock/core-js/#ecmascript-6-iterators), older versions used Array Iterator
 * added abstract references support:
   * added `Symbol.referenceGet`
@@ -394,7 +430,7 @@
 * [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
   * [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
     * `String#contains` -> [`String#includes`](https://github.com/zloirock/core-js/#ecmascript-6-string)
-    * `Array#contains` -> [`Array#includes`](https://github.com/zloirock/core-js/#ecmascript-7)
+    * `Array#contains` -> [`Array#includes`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
     * `Dict.contains` -> [`Dict.includes`](https://github.com/zloirock/core-js/#dict)
   * [removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
   * [removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
