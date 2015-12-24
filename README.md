@@ -781,7 +781,7 @@ instance.c; // => 42
 ### ECMAScript 7
 * `Array#includes` [proposal](https://github.com/domenic/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.array.includes.js)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.at.js)
-* `String#padLeft`, `String#padRight` [proposal](https://github.com/ljharb/proposal-string-pad-left-right) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-right.js)
+* `String#padStart`, `String#padEnd` [proposal](https://github.com/ljharb/proposal-string-pad-start-end) - modules [`es7.string.pad-start`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-start.js), [`es7.string.pad-end`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.pad-end.js)
 * `String#trimLeft`, `String#trimRight` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.string.trim-right.js)
 * `Object.values`, `Object.entries` [proposal](https://github.com/ljharb/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.entries.js)
 * `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v1.2.6/modules/es7.object.get-own-property-descriptors.js)
@@ -793,8 +793,8 @@ Array
   #includes(var, from?) -> bool
 String
   #at(index) -> string
-  #padLeft(length, fillStr = ' ') -> string
-  #padRight(length, fillStr = ' ') -> string
+  #padStart(length, fillStr = ' ') -> string
+  #padEnd(length, fillStr = ' ') -> string
   #trimLeft() -> string
   #trimRight() -> string
 Object
@@ -822,10 +822,10 @@ Array(1).includes(undefined); // => true
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 
-'hello'.padLeft(10);          // => '     hello'
-'hello'.padLeft(10, '1234');  // => '41234hello'
-'hello'.padRight(10);         // => 'hello     '
-'hello'.padRight(10, '1234'); // => 'hello12341'
+'hello'.padStart(10);          // => '     hello'
+'hello'.padStart(10, '1234');  // => '41234hello'
+'hello'.padEnd(10);         // => 'hello     '
+'hello'.padEnd(10, '1234'); // => 'hello12341'
 
 '   hello   '.trimLeft();  // => 'hello   '
 '   hello   '.trimRight(); // => '   hello'
