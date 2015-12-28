@@ -1,3 +1,4 @@
+'use strict';
 // 19.1.2.1 Object.assign(target, source, ...)
 var $        = require('./_')
   , toObject = require('./_to-object')
