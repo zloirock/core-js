@@ -130,6 +130,15 @@ list = <[
   es7.math.isubh
   es7.math.imulh
   es7.math.umulh
+  es7.reflect.define-metadata
+  es7.reflect.delete-metadata
+  es7.reflect.get-metadata
+  es7.reflect.get-metadata-keys
+  es7.reflect.get-own-matadata
+  es7.reflect.get-own-metadata-keys
+  es7.reflect.has-metadata
+  es7.reflect.has-own-metadata
+  es7.reflect.metadata
   web.immediate
   web.dom.iterable
   web.timers
@@ -149,7 +158,17 @@ list = <[
   core.string.unescape-html
 ]>
 
-experimental = <[ ]>
+experimental = <[
+  es7.reflect.define-metadata
+  es7.reflect.delete-metadata
+  es7.reflect.get-metadata
+  es7.reflect.get-metadata-keys
+  es7.reflect.get-own-matadata
+  es7.reflect.get-own-metadata-keys
+  es7.reflect.has-metadata
+  es7.reflect.has-own-metadata
+  es7.reflect.metadata
+]>
 
 libraryBlacklist = <[
   es6.object.to-string

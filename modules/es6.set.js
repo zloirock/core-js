@@ -2,7 +2,7 @@
 var strong = require('./_collection-strong');
 
 // 23.2 Set Objects
-require('./_collection')('Set', function(get){
+module.exports = require('./_collection')('Set', function(get){
   return function Set(){ return get(this, arguments.length > 0 ? arguments[0] : undefined); };
 }, {
   // 23.2.3.1 Set.prototype.add(value)
