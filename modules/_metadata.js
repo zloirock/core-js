@@ -1,4 +1,5 @@
 var Map     = require('./es6.map')
+  , from    = require('./_array-from-iterable')
   , $export = require('./_export')
   , shared  = require('./_shared')('metadata')
   , store   = shared.store || (shared.store = new (require('./es6.weak-map')));
@@ -7,14 +8,12 @@ var getOrCreateMetadataMap = function(target, targetKey, create){
   var targetMetadata = store.get(target);
   if(!targetMetadata){
     if(!create)return undefined;
-    targetMetadata = new Map();
-    store.set(target, targetMetadata);
+    store.set(target, targetMetadata = new Map);
   }
   var keyMetadata = targetMetadata.get(targetKey);
   if(!keyMetadata){
     if(!create)return undefined;
-    keyMetadata = new Map();
-    targetMetadata.set(targetKey, keyMetadata);
+    targetMetadata.set(targetKey, keyMetadata = new Map);
   } return keyMetadata;
 };
 var ordinaryHasOwnMetadata = function(MetadataKey, O, P){
@@ -28,13 +27,11 @@ var ordinaryGetOwnMetadata = function(MetadataKey, O, P){
 var ordinaryDefineOwnMetadata = function(MetadataKey, MetadataValue, O, P){
   getOrCreateMetadataMap(O, P, true).set(MetadataKey, MetadataValue);
 };
-var ordinaryOwnMetadataKeys = function(target, targetKey) {
+var ordinaryOwnMetadataKeys = function(target, targetKey){
   var metadataMap = getOrCreateMetadataMap(target, targetKey, false);
-  var keys = [];
-  if(metadataMap)metadataMap.forEach(function(_, key){ keys.push(key); });
-  return keys;
+  return metadataMap ? from(metadataMap.keys(), true) : [];
 };
-var toMetaKey = function(it) {
+var toMetaKey = function(it){
   return it === undefined || typeof it == 'symbol' ? it : String(it);
 };
 var exp = function(O){

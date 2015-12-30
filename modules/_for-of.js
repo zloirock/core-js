@@ -4,8 +4,8 @@ var ctx         = require('./_ctx')
   , anObject    = require('./_an-object')
   , toLength    = require('./_to-length')
   , getIterFn   = require('./core.get-iterator-method');
-module.exports = function(iterable, entries, fn, that){
-  var iterFn = getIterFn(iterable)
+module.exports = function(iterable, entries, fn, that, ITERATOR){
+  var iterFn = ITERATOR ? function(){ return iterable; } : getIterFn(iterable)
     , f      = ctx(fn, that, entries ? 2 : 1)
     , index  = 0
     , length, step, iterator;
