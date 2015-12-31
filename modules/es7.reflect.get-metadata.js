@@ -12,6 +12,6 @@ var ordinaryGetMetadata = function(MetadataKey, O, P){
   return parent !== null ? ordinaryGetMetadata(MetadataKey, parent, P) : undefined;
 };
 
-metadata.exp({getMetadata: function getMetadata(metadataKey, target, targetKey){
-  return ordinaryGetMetadata(metadataKey, anObject(target), toMetaKey(targetKey));
+metadata.exp({getMetadata: function getMetadata(metadataKey, target /*, targetKey */){
+  return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});

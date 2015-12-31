@@ -11,6 +11,6 @@ var ordinaryHasMetadata = function(MetadataKey, O, P){
   return parent !== null ? ordinaryHasMetadata(MetadataKey, parent, P) : false;
 };
 
-metadata.exp({hasMetadata: function hasMetadata(metadataKey, target, targetKey){
-  return ordinaryHasMetadata(metadataKey, anObject(target), toMetaKey(targetKey));
+metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /*, targetKey */){
+  return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
