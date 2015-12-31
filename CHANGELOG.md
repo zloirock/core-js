@@ -1,4 +1,8 @@
 ## Changelog
+##### 2.0.1 - 2015.12.31
+- forced usage `Promise.resolve` polyfill in the `library` version for correct work with wrapper
+- `Object.assign` should be defined in the strict mode -> throw an error on extension non-extensible objects, [#154](https://github.com/zloirock/core-js/issues/154)
+
 ##### 2.0.0 - 2015.12.24
 - added implementations and fixes [Typed Arrays](https://github.com/zloirock/core-js#ecmascript-6-typed-arrays)-related features
   - `ArrayBuffer`, `ArrayBuffer.isView`, `ArrayBuffer#slice`

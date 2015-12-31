@@ -401,7 +401,7 @@ if(require('./_descriptors')){
     }, true)){
       TypedArray = wrapper(function(that, data, $offset, $length){
         anInstance(that, TypedArray, NAME);
-        if(!isObject(data))return new Base(strictToLength(data))
+        if(!isObject(data))return new Base(strictToLength(data));
         if(data instanceof $ArrayBuffer)return $length !== undefined
           ? new Base(data, toOffset($offset, BYTES), $length)
           : $offset !== undefined
