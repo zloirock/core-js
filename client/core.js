@@ -1,8 +1,8 @@
 /**
- * core-js 2.0.1
+ * core-js 2.0.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
- * © 2015 Denis Pushkarev
+ * © 2016 Denis Pushkarev
  */
 !function(__e, __g, undefined){
 'use strict';
@@ -538,7 +538,7 @@
 /* 5 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.0.1'};
+	var core = module.exports = {version: '2.0.2'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -5005,11 +5005,11 @@
 	    new Uint8Array(1).set({});
 	  });
 
-	  var strictToLength = function(it){
+	  var strictToLength = function(it, SAME){
 	    if(it === undefined)throw TypeError(WRONG_LENGTH);
 	    var number = +it
 	      , length = toLength(it);
-	    if(!same(number, length))throw RangeError(WRONG_LENGTH);
+	    if(SAME && !same(number, length))throw RangeError(WRONG_LENGTH);
 	    return length;
 	  };
 
@@ -5244,6 +5244,7 @@
 	  module.exports = function(KEY, BYTES, wrapper, CLAMPED){
 	    CLAMPED = !!CLAMPED;
 	    var NAME       = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
+	      , ISNT_UINT8 = NAME != 'Uint8Array'
 	      , GETTER     = 'get' + KEY
 	      , SETTER     = 'set' + KEY
 	      , TypedArray = global[NAME]
@@ -5279,7 +5280,7 @@
 	          , offset = 0
 	          , buffer, byteLength, length;
 	        if(!isObject(data)){
-	          length     = strictToLength(data)
+	          length     = strictToLength(data, true)
 	          byteLength = length * BYTES;
 	          buffer     = new $ArrayBuffer(byteLength);
 	        } else if(data instanceof $ArrayBuffer){
@@ -5319,7 +5320,9 @@
 	    }, true)){
 	      TypedArray = wrapper(function(that, data, $offset, $length){
 	        anInstance(that, TypedArray, NAME);
-	        if(!isObject(data))return new Base(strictToLength(data));
+	        // `ws` module bug, temporarily remove validation length for Uint8Array
+	        // https://github.com/websockets/ws/pull/645
+	        if(!isObject(data))return new Base(strictToLength(data, ISNT_UINT8));
 	        if(data instanceof $ArrayBuffer)return $length !== undefined
 	          ? new Base(data, toOffset($offset, BYTES), $length)
 	          : $offset !== undefined
