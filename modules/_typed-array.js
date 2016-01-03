@@ -87,11 +87,11 @@ if(require('./_descriptors')){
     new Uint8Array(1).set({});
   });
 
-  var strictToLength = function(it){
+  var strictToLength = function(it, SAME){
     if(it === undefined)throw TypeError(WRONG_LENGTH);
     var number = +it
       , length = toLength(it);
-    if(!same(number, length))throw RangeError(WRONG_LENGTH);
+    if(SAME && !same(number, length))throw RangeError(WRONG_LENGTH);
     return length;
   };
 
@@ -326,6 +326,7 @@ if(require('./_descriptors')){
   module.exports = function(KEY, BYTES, wrapper, CLAMPED){
     CLAMPED = !!CLAMPED;
     var NAME       = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
+      , ISNT_UINT8 = NAME != 'Uint8Array'
       , GETTER     = 'get' + KEY
       , SETTER     = 'set' + KEY
       , TypedArray = global[NAME]
@@ -361,7 +362,7 @@ if(require('./_descriptors')){
           , offset = 0
           , buffer, byteLength, length;
         if(!isObject(data)){
-          length     = strictToLength(data)
+          length     = strictToLength(data, true)
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer){
@@ -401,7 +402,9 @@ if(require('./_descriptors')){
     }, true)){
       TypedArray = wrapper(function(that, data, $offset, $length){
         anInstance(that, TypedArray, NAME);
-        if(!isObject(data))return new Base(strictToLength(data));
+        // `ws` module bug, temporarily remove validation length for Uint8Array
+        // https://github.com/websockets/ws/pull/645
+        if(!isObject(data))return new Base(strictToLength(data, ISNT_UINT8));
         if(data instanceof $ArrayBuffer)return $length !== undefined
           ? new Base(data, toOffset($offset, BYTES), $length)
           : $offset !== undefined

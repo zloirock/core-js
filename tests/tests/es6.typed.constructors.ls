@@ -5,7 +5,8 @@ if DESCRIPTORS
   for $name, $bytes of {Float32Array: 4, Float64Array: 8, Int8Array: 1, Int16Array: 2, Int32Array: 4, Uint8Array: 1, Uint16Array: 2, Uint32Array: 4, Uint8ClampedArray: 1}
     let name = $name, bytes = $bytes
       Typed = global[name]
-      test "#{name} constructor", !(assert)~>
+      NATIVE_OR_ISNT_UINT8 = NATIVE or name isnt \Uint8Array
+      test "#{name} constructor" !(assert)~>
         assert.isFunction Typed
         assert.arity Typed, 3
         assert.name Typed, name
@@ -34,10 +35,10 @@ if DESCRIPTORS
 
         assert.throws (!-> new Typed), TypeError, 'throws without argument'
         assert.throws (!-> new Typed void), TypeError, 'throws on undefined'
-        assert.throws (!-> new Typed 1.5), RangeError, 'throws on 1.5'
-        assert.throws (!-> new Typed -1), RangeError, 'throws on -1'
-        assert.throws (!-> new Typed -0), RangeError, 'throws on -0'
-        assert.throws (!-> new Typed NaN), RangeError, 'throws on NaN'
+        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed 1.5), RangeError, 'throws on 1.5'
+        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed -1), RangeError, 'throws on -1'
+        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed -0), RangeError, 'throws on -0'
+        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed NaN), RangeError, 'throws on NaN'
 
         try
           a = new Typed null # throws in most engines

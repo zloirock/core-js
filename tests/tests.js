@@ -7095,8 +7095,9 @@
     return obj;
   }
   function fn$(name, bytes){
-    var Typed, this$ = this;
+    var Typed, NATIVE_OR_ISNT_UINT8, this$ = this;
     Typed = global[name];
+    NATIVE_OR_ISNT_UINT8 = NATIVE || name !== 'Uint8Array';
     test(name + " constructor", function(assert){
       var a, e, b;
       assert.isFunction(Typed);
@@ -7133,16 +7134,16 @@
       assert.throws(function(){
         new Typed(void 8);
       }, TypeError, 'throws on undefined');
-      assert.throws(function(){
+      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
         new Typed(1.5);
       }, RangeError, 'throws on 1.5');
-      assert.throws(function(){
+      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
         new Typed(-1);
       }, RangeError, 'throws on -1');
-      assert.throws(function(){
+      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
         new Typed(-0);
       }, RangeError, 'throws on -0');
-      assert.throws(function(){
+      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
         new Typed(NaN);
       }, RangeError, 'throws on NaN');
       try {
