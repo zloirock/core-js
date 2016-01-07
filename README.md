@@ -595,7 +595,7 @@ core-js(/library)/fn/math/tanh
 core-js(/library)/fn/math/trunc
 ```
 #### ECMAScript 6: Date
-Currently - only one little fix for `Date#toString`. Module [`es6.date.to-string`](https://github.com/zloirock/core-js/blob/v2.0.2/modules/web.dom.iterable.js):
+Currently - only one little fix for `Date#toString`. Module [`es6.date.to-string`](https://github.com/zloirock/core-js/blob/v2.0.2/modules/es6.date.to-string.js):
 ```js
 Date
   #toString() -> str
