@@ -1,4 +1,10 @@
-require! {'../fn/promise', './config': {list, experimental, libraryBlacklist, es5SpecialCase, banner}, fs: {readFile, writeFile, unlink}, path: {join}, webpack, temp}
+require! {
+  '../library/fn/promise': Promise
+  './config': {list, experimental, libraryBlacklist, es5SpecialCase, banner}
+  fs: {readFile, writeFile, unlink}
+  path: {join}
+  webpack, temp
+}
 
 module.exports = ({modules = [], blacklist = [], library = no})->
   resolve, reject <~! new Promise _
