@@ -3,7 +3,7 @@ var toIObject = require('./_to-iobject')
   , getNames  = require('./_').getNames
   , toString  = {}.toString;
 
-var windowNames = typeof window == 'object' && Object.getOwnPropertyNames
+var windowNames = typeof window == 'object' && window && Object.getOwnPropertyNames
   ? Object.getOwnPropertyNames(window) : [];
 
 var getWindowNames = function(it){
@@ -15,6 +15,5 @@ var getWindowNames = function(it){
 };
 
 module.exports.get = function getOwnPropertyNames(it){
-  if(windowNames && toString.call(it) == '[object Window]')return getWindowNames(it);
-  return getNames(toIObject(it));
+  return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : getNames(toIObject(it));
 };
