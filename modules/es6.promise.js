@@ -23,9 +23,10 @@ var $                  = require('./_')
   , Internal, GenericPromiseCapability, Wrapper;
 
 var testResolve = function(sub){
-  var test = new $Promise(function(){});
+  var test = new $Promise(function(){}), promise;
   if(sub)test.constructor = Object;
-  return $Promise.resolve(test) === test;
+  (promise = $Promise.resolve(test))['catch'](function(){});
+  return promise === test;
 };
 
 var USE_NATIVE = function(){
