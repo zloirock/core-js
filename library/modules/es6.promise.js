@@ -20,12 +20,13 @@ var $                  = require('./_')
   , process            = global.process
   , $Promise           = global[PROMISE]
   , isNode             = classof(process) == 'process'
+  , empty              = function(){ /* empty */ }
   , Internal, GenericPromiseCapability, Wrapper;
 
 var testResolve = function(sub){
-  var test = new $Promise(function(){}), promise;
-  if(sub)test.constructor = Object;
-  (promise = $Promise.resolve(test))['catch'](function(){});
+  var test = new $Promise(empty), promise;
+  if(sub)test.constructor = empty;
+  (promise = $Promise.resolve(test))['catch'](empty);
   return promise === test;
 };
 
@@ -41,7 +42,7 @@ var USE_NATIVE = function(){
     setProto(SubPromise, $Promise);
     SubPromise.prototype = $.create($Promise.prototype, {constructor: {value: SubPromise}});
     // actual Firefox has broken subclass support, test that
-    if(!(SubPromise.resolve(5).then(function(){}) instanceof SubPromise)){
+    if(!(SubPromise.resolve(5).then(empty) instanceof SubPromise)){
       works = false;
     }
     // V8 4.8- bug, https://code.google.com/p/v8/issues/detail?id=4162
@@ -268,7 +269,7 @@ $export($export.S + $export.F * (LIBRARY || !USE_NATIVE || testResolve(true)), P
   }
 });
 $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function(iter){
-  $Promise.all(iter)['catch'](function(){});
+  $Promise.all(iter)['catch'](empty);
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable){
