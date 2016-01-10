@@ -25,7 +25,9 @@ var $                  = require('./_')
 
 var testResolve = function(sub){
   var test = new $Promise(empty), promise;
-  if(sub)test.constructor = empty;
+  if(sub)test.constructor = function(exec){
+    exec(empty, empty);
+  };
   (promise = $Promise.resolve(test))['catch'](empty);
   return promise === test;
 };
