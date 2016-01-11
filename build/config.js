@@ -1,6 +1,7 @@
 module.exports = {
   list: [
     'es5',
+    'es5.array.sort',
     'es6.symbol',
     'es6.object.assign',
     'es6.object.is',
@@ -157,6 +158,7 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
+    'es5.array.sort',
     'es7.reflect.define-metadata',
     'es7.reflect.delete-metadata',
     'es7.reflect.get-metadata',
