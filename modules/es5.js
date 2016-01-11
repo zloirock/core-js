@@ -134,9 +134,6 @@ $export($export.S, 'Object', {
   keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false)
 });
 
-// 19.2.3.2 / 15.3.4.5 Function.prototype.bind(thisArg, args...)
-$export($export.P, 'Function', {bind: require('./_bind')});
-
 // fallback for not array-like ES3 strings and DOM objects
 $export($export.P + $export.F * fails(function(){
   if(html)arraySlice.call(html);
@@ -223,6 +220,7 @@ $export($export.P, 'Array', {
   }
 });
 
+require('./es5.function.bind');
 require('./es5.array.is-array');
 require('./es5.date.now');
 require('./es5.date.to-iso-string');
