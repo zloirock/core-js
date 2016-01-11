@@ -136,13 +136,6 @@ test 'Function#bind' (assert)->
   assert.strictEqual date.getFullYear!, 2015
   assert.strictEqual date.getMonth!, 6
 
-test 'Array.isArray' (assert)->
-  {isArray} = Array
-  assert.isFunction isArray
-  assert.ok not isArray {}
-  assert.ok not isArray do -> &
-  assert.ok isArray []
-
 test 'ES5 Array prototype methods are functions' (assert)->
   for <[indexOf lastIndexOf every some forEach map filter reduce reduceRight]>
     assert.isFunction Array::[..], "Array::#{..} is function"

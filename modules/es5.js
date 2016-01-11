@@ -163,9 +163,6 @@ $export($export.P + $export.F * (IObject != Object), 'Array', {
   }
 });
 
-// 22.1.2.2 / 15.4.3.2 Array.isArray(arg)
-$export($export.S, 'Array', {isArray: require('./_is-array')});
-
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
     aFunction(callbackfn);
@@ -226,5 +223,6 @@ $export($export.P, 'Array', {
   }
 });
 
+require('./es5.array.is-array');
 require('./es5.date.now');
 require('./es5.date.to-iso-string');
