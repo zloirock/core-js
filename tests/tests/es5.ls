@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf every some forEach filter reduce reduceRight]>
+  for <[indexOf every reduce reduceRight]>
     assert.isFunction Array::[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -174,26 +174,6 @@ test 'Array#every' (assert)->
   assert.ok (arr = [1 2 3])every -> &2 is arr
   if NATIVE
     assert.ok (try on is Array::every.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
-
-test 'Array#some' (assert)->
-  (a = [1])some (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.ok [1 \2 3]some -> typeof! it is \Number
-  assert.ok [1 2 3]some (<3)
-  assert.ok not [1 2 3]some (<0)
-  assert.ok not [1 2 3]some -> typeof! it is \String
-  assert.ok not [1 2 3]some (-> +@ isnt 1), 1
-  rez = ''
-  [1 2 3]some -> rez += &1; no
-  assert.ok rez is \012
-  assert.ok not (arr = [1 2 3])some -> &2 isnt arr
-  if NATIVE
-    assert.ok (try no is Array::some.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#filter' (assert)->
   (a = [1])filter (val, key, that)->

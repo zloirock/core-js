@@ -185,8 +185,6 @@ var methodize = function($fn){
 };
 
 $export($export.P, 'Array', {
-  // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
-  some: methodize(createArrayMethod(3)),
   // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
   every: methodize(createArrayMethod(4)),
   // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
@@ -204,7 +202,7 @@ require('./es5.array.join');
 require('./es5.array.for-each');
 require('./es5.array.map');
 require('./es5.array.filter');
-//require('./es5.array.some');
+require('./es5.array.some');
 //require('./es5.array.every');
 //require('./es5.array.reduce');
 //require('./es5.array.reduce-right');
