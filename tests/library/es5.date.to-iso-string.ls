@@ -1,3 +1,6 @@
+{module, test} = QUnit
+module \ES5
+
 test 'Date#toISOString' (assert)->
   {toISOString} = core.Date
   assert.isFunction toISOString

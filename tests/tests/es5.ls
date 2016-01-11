@@ -343,8 +343,3 @@ test 'Array#reduceRight' (assert)->
   assert.same Array::reduceRight.call({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
   if NATIVE
     assert.ok (try Array::reduceRight.call {length: -1, 2147483646: 0, 4294967294: 0}, (!-> throw 42), 1), 'uses ToLength'
-
-test 'Date.now' (assert)->
-  {now} = Date
-  assert.isFunction now
-  assert.ok +new Date - now! < 10, 'Date.now() ~ +new Date'

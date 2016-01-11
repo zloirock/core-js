@@ -226,7 +226,5 @@ $export($export.P, 'Array', {
   }
 });
 
-// 20.3.3.1 / 15.9.4.4 Date.now()
-$export($export.S, 'Date', {now: function(){ return +new Date; }});
-
+require('./es5.date.now');
 require('./es5.date.to-iso-string');

@@ -333,8 +333,3 @@ test 'Array#reduceRight' (assert)->
   assert.same v, \321,'correct order #1'
   assert.same k, \210,'correct order #2'
   assert.same reduceRight({0: 1, 1: 2, length: 2}, (+)), 3, 'generic'
-
-test 'Date.now' (assert)->
-  {now} = core.Date
-  assert.isFunction now
-  assert.ok +new Date - now! < 10, 'Date.now() ~ +new Date'
