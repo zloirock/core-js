@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Function#bind' (assert)->
+test 'Function#bind' (assert)!->
   {bind} = core.Function
   assert.isFunction bind
   obj = a: 42

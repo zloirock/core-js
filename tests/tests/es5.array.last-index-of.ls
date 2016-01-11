@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Array#lastIndexOf' (assert)->
+test 'Array#lastIndexOf' (assert)!->
   assert.isFunction Array::lastIndexOf
   assert.arity Array::lastIndexOf, 1
   assert.name Array::lastIndexOf, \lastIndexOf

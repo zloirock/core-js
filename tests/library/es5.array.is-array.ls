@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Array.isArray' (assert)->
+test 'Array.isArray' (assert)!->
   {isArray} = core.Array
   assert.isFunction isArray
   assert.ok not isArray {}

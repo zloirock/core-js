@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Array#join' (assert)->
+test 'Array#join' (assert)!->
   assert.isFunction Array::join
   assert.arity Array::join, 1
   assert.name Array::join, \join

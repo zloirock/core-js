@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Array#join' (assert)->
+test 'Array#join' (assert)!->
   {join} = core.Array
   assert.isFunction join
   assert.strictEqual join([1 2 3] void), '1,2,3'

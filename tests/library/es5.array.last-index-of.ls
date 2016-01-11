@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES5
 
-test 'Array#lastIndexOf' (assert)->
+test 'Array#lastIndexOf' (assert)!->
   {lastIndexOf} = core.Array
   assert.isFunction lastIndexOf
   assert.strictEqual 2,  lastIndexOf [1 1 1], 1

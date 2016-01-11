@@ -1,7 +1,7 @@
 var fails = require('./_fails');
 
-module.exports = function(method, args){
+module.exports = function(method, arg){
   return fails(function(){
-    method.apply(null, args || []);
+    arg ? method.call(null, arg) : method.call(null);
   });
 };
