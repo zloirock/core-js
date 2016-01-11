@@ -13,7 +13,6 @@ var $                 = require('./_')
   , isObject          = require('./_is-object')
   , toObject          = require('./_to-object')
   , toIObject         = require('./_to-iobject')
-  , toInteger         = require('./_to-integer')
   , toIndex           = require('./_to-index')
   , toLength          = require('./_to-length')
   , IObject           = require('./_iobject')
@@ -207,20 +206,21 @@ $export($export.P, 'Array', {
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
   reduceRight: createArrayReduce(true),
   // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: methodize(arrayIndexOf),
-  // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-  lastIndexOf: function(el, fromIndex /* = @[*-1] */){
-    var O      = toIObject(this)
-      , length = toLength(O.length)
-      , index  = length - 1;
-    if(arguments.length > 1)index = Math.min(index, toInteger(fromIndex));
-    if(index < 0)index = toLength(length + index);
-    for(;index >= 0; index--)if(index in O)if(O[index] === el)return index;
-    return -1;
-  }
+  indexOf: methodize(arrayIndexOf)
 });
 
 require('./es5.function.bind');
 require('./es5.array.is-array');
+//require('./es5.array.slice');
+//require('./es5.array.join');
+//require('./es5.array.for-each');
+//require('./es5.array.map');
+//require('./es5.array.filter');
+//require('./es5.array.some');
+//require('./es5.array.every');
+//require('./es5.array.reduce');
+//require('./es5.array.reduce-right');
+//require('./es5.array.index-of');
+require('./es5.array.last-index-of');
 require('./es5.date.now');
 require('./es5.date.to-iso-string');

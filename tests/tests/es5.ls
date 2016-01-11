@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf lastIndexOf every some forEach map filter reduce reduceRight]>
+  for <[indexOf every some forEach map filter reduce reduceRight]>
     assert.isFunction Array::[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -160,17 +160,6 @@ test 'Array#indexOf' (assert)->
   assert.ok -1 is Array(1)indexOf void
   if NATIVE and DESCRIPTORS
     assert.ok (try -1 is Array::indexOf.call Object.defineProperty({length: -1}, 0, get: -> throw Error!), 1), 'uses ToLength'
-
-test 'Array#lastIndexOf' (assert)->
-  assert.strictEqual 2,  [1 1 1]lastIndexOf 1
-  assert.strictEqual -1, [1 2 3]lastIndexOf 3 1
-  assert.strictEqual 1,  [1 2 3]lastIndexOf 2 1
-  assert.strictEqual -1, [1 2 3]lastIndexOf 2 -3
-  assert.strictEqual 1,  [1 2 3]lastIndexOf 2 -2
-  assert.strictEqual -1, [NaN]lastIndexOf NaN
-  assert.strictEqual 1,  [1 2 3]concat(Array 2)lastIndexOf 2
-  if NATIVE and DESCRIPTORS
-    assert.ok (try -1 is Array::lastIndexOf.call Object.defineProperties({length: -1}, {2147483646: {get: -> throw Error!}, 4294967294: {get: -> throw Error!}}), 1), 'uses ToLength'
 
 test 'Array#every' (assert)->
   (a = [1])every (val, key, that)->
