@@ -141,12 +141,6 @@ test 'Array#slice' (assert)->
     try assert.strictEqual typeof! slice(list), \Array
     catch => assert.ok no
 
-test 'Array#join' (assert)->
-  {join} = core.Array
-  assert.strictEqual join([1 2 3] void), '1,2,3'
-  assert.strictEqual join(\123), '1,2,3'
-  assert.strictEqual join(\123 \|), '1|2|3'
-
 test 'Array#indexOf' (assert)->
   {indexOf} = core.Array
   assert.ok 0  is indexOf [1 1 1], 1

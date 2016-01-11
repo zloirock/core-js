@@ -143,12 +143,6 @@ test 'Array#slice' (assert)->
   if NATIVE
     assert.deepEqual slice.call({length: -1, 0: 1}, 0, 1), [], 'uses ToLength'
 
-test 'Array#join' (assert)->
-  assert.arity Array::join, 1
-  assert.strictEqual Array::join.call([1 2 3] void), '1,2,3'
-  assert.strictEqual Array::join.call(\123), '1,2,3'
-  assert.strictEqual Array::join.call(\123 \|), '1|2|3'
-
 test 'Array#indexOf' (assert)->
   assert.ok 0  is [1 1 1]indexOf 1
   assert.ok -1 is [1 2 3]indexOf 1 1

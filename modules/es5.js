@@ -21,7 +21,6 @@ var $                 = require('./_')
   , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
   , arraySlice        = [].slice
-  , arrayJoin         = [].join
   , defineProperty    = $.setDesc
   , getOwnDescriptor  = $.getDesc
   , defineProperties  = $.setDescs
@@ -153,11 +152,6 @@ $export($export.P + $export.F * fails(function(){
     return cloned;
   }
 });
-$export($export.P + $export.F * (IObject != Object), 'Array', {
-  join: function join(separator){
-    return arrayJoin.call(IObject(this), separator === undefined ? ',' : separator);
-  }
-});
 
 var createArrayReduce = function(isRight){
   return function(callbackfn, memo){
@@ -212,7 +206,7 @@ $export($export.P, 'Array', {
 require('./es5.function.bind');
 require('./es5.array.is-array');
 //require('./es5.array.slice');
-//require('./es5.array.join');
+require('./es5.array.join');
 //require('./es5.array.for-each');
 //require('./es5.array.map');
 //require('./es5.array.filter');

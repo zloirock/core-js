@@ -4,9 +4,7 @@ var $export   = require('./_export')
   , toInteger = require('./_to-integer')
   , toLength  = require('./_to-length');
 
-$export($export.P + $export.F * !require('./_fails')(function(){
-  [].lastIndexOf.call(null); // old WebKit
-}), 'Array', {
+$export($export.P + $export.F * !require('./_strict-method')([].lastIndexOf), 'Array', {
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
   lastIndexOf: function lastIndexOf(el /*, fromIndex = @[*-1] */){
     var O      = toIObject(this)
