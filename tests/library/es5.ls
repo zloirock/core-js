@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf every some map filter reduce reduceRight]>
+  for <[indexOf every some filter reduce reduceRight]>
     assert.isFunction core.Array[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -189,19 +189,6 @@ test 'Array#some' (assert)->
   some [1 2 3], -> rez += &1; no
   assert.ok rez is \012
   assert.ok not some (arr = [1 2 3]), -> &2 isnt arr
-
-test 'Array#map' (assert)->
-  {map} = core.Array
-  map (a = [1]), (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.deepEqual [2 3 4] map [1 2 3], (+ 1)
-  assert.deepEqual [1 3 5] map [1 2 3], ( + )
-  assert.deepEqual [2 2 2] map [1 2 3], (-> +@), 2
 
 test 'Array#filter' (assert)->
   {filter} = core.Array
