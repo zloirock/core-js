@@ -1,5 +1,5 @@
 /**
- * core-js 2.0.2
+ * core-js 2.0.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -546,7 +546,7 @@
 /* 5 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.0.2'};
+	var core = module.exports = {version: '2.0.3'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -1283,7 +1283,7 @@
 	  , getNames  = __webpack_require__(2).getNames
 	  , toString  = {}.toString;
 
-	var windowNames = typeof window == 'object' && Object.getOwnPropertyNames
+	var windowNames = typeof window == 'object' && window && Object.getOwnPropertyNames
 	  ? Object.getOwnPropertyNames(window) : [];
 
 	var getWindowNames = function(it){
@@ -1295,8 +1295,7 @@
 	};
 
 	module.exports.get = function getOwnPropertyNames(it){
-	  if(windowNames && toString.call(it) == '[object Window]')return getWindowNames(it);
-	  return getNames(toIObject(it));
+	  return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : getNames(toIObject(it));
 	};
 
 /***/ },
@@ -2935,12 +2934,16 @@
 	  , process            = global.process
 	  , $Promise           = global[PROMISE]
 	  , isNode             = classof(process) == 'process'
+	  , empty              = function(){ /* empty */ }
 	  , Internal, GenericPromiseCapability, Wrapper;
 
 	var testResolve = function(sub){
-	  var test = new $Promise(function(){});
-	  if(sub)test.constructor = Object;
-	  return $Promise.resolve(test) === test;
+	  var test = new $Promise(empty), promise;
+	  if(sub)test.constructor = function(exec){
+	    exec(empty, empty);
+	  };
+	  (promise = $Promise.resolve(test))['catch'](empty);
+	  return promise === test;
 	};
 
 	var USE_NATIVE = function(){
@@ -2955,7 +2958,7 @@
 	    setProto(SubPromise, $Promise);
 	    SubPromise.prototype = $.create($Promise.prototype, {constructor: {value: SubPromise}});
 	    // actual Firefox has broken subclass support, test that
-	    if(!(SubPromise.resolve(5).then(function(){}) instanceof SubPromise)){
+	    if(!(SubPromise.resolve(5).then(empty) instanceof SubPromise)){
 	      works = false;
 	    }
 	    // V8 4.8- bug, https://code.google.com/p/v8/issues/detail?id=4162
@@ -3182,7 +3185,7 @@
 	  }
 	});
 	$export($export.S + $export.F * !(USE_NATIVE && __webpack_require__(127)(function(iter){
-	  $Promise.all(iter)['catch'](function(){});
+	  $Promise.all(iter)['catch'](empty);
 	})), PROMISE, {
 	  // 25.4.4.1 Promise.all(iterable)
 	  all: function all(iterable){
