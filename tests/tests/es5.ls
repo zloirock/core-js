@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf reduce reduceRight]>
+  for <[reduce reduceRight]>
     assert.isFunction Array::[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -142,18 +142,6 @@ test 'Array#slice' (assert)->
     catch => assert.ok no
   if NATIVE
     assert.deepEqual slice.call({length: -1, 0: 1}, 0, 1), [], 'uses ToLength'
-
-test 'Array#indexOf' (assert)->
-  assert.ok 0  is [1 1 1]indexOf 1
-  assert.ok -1 is [1 2 3]indexOf 1 1
-  assert.ok 1  is [1 2 3]indexOf 2 1
-  assert.ok -1 is [1 2 3]indexOf 2 -1
-  assert.ok 1  is [1 2 3]indexOf 2 -2
-  assert.ok -1 is [NaN]indexOf NaN
-  assert.ok 3  is Array(2)concat([1 2 3])indexOf 2
-  assert.ok -1 is Array(1)indexOf void
-  if NATIVE and DESCRIPTORS
-    assert.ok (try -1 is Array::indexOf.call Object.defineProperty({length: -1}, 0, get: -> throw Error!), 1), 'uses ToLength'
 
 test 'Array#reduce' (assert)->
   (a = [1])reduce (memo, val, key, that)->

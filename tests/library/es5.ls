@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf reduce reduceRight]>
+  for <[reduce reduceRight]>
     assert.isFunction core.Array[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -140,17 +140,6 @@ test 'Array#slice' (assert)->
   if list = document?body?childNodes
     try assert.strictEqual typeof! slice(list), \Array
     catch => assert.ok no
-
-test 'Array#indexOf' (assert)->
-  {indexOf} = core.Array
-  assert.ok 0  is indexOf [1 1 1], 1
-  assert.ok -1 is indexOf [1 2 3], 1 1
-  assert.ok 1  is indexOf [1 2 3], 2 1
-  assert.ok -1 is indexOf [1 2 3], 2 -1
-  assert.ok 1  is indexOf [1 2 3], 2 -2
-  assert.ok -1 is indexOf [NaN], NaN
-  assert.ok 3  is indexOf Array(2)concat([1 2 3]), 2
-  assert.ok -1 is indexOf Array(1), void
 
 test 'Array#reduce' (assert)->
   {reduce} = core.Array

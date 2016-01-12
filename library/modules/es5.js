@@ -177,19 +177,11 @@ var createArrayReduce = function(isRight){
   };
 };
 
-var methodize = function($fn){
-  return function(arg1/*, arg2 = undefined */){
-    return $fn(this, arg1, arguments[1]);
-  };
-};
-
 $export($export.P, 'Array', {
   // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
   reduce: createArrayReduce(false),
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
-  reduceRight: createArrayReduce(true),
-  // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: methodize(arrayIndexOf)
+  reduceRight: createArrayReduce(true)
 });
 
 require('./es5.function.bind');
@@ -203,7 +195,7 @@ require('./es5.array.some');
 require('./es5.array.every');
 //require('./es5.array.reduce');
 //require('./es5.array.reduce-right');
-//require('./es5.array.index-of');
+require('./es5.array.index-of');
 require('./es5.array.last-index-of');
 require('./es5.date.now');
 require('./es5.date.to-iso-string');
