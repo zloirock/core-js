@@ -86,33 +86,3 @@ test 'Object.keys' (assert)->
   assert.deepEqual keys(new fn1 1), <[w]>
   assert.deepEqual keys(new fn2 1), <[toString]>
   assert.ok \push not in keys Array::
-
-test 'Object.seal' (assert)->
-  {seal} = core.Object
-  assert.isFunction seal
-  assert.strictEqual seal(a = {}), a
-
-test 'Object.freeze' (assert)->
-  {freeze} = core.Object
-  assert.isFunction freeze
-  assert.strictEqual freeze(a = {}), a
-
-test 'Object.preventExtensions' (assert)->
-  {preventExtensions} = core.Object
-  assert.isFunction preventExtensions
-  assert.strictEqual preventExtensions(a = {}), a
-
-test 'Object.isSealed' (assert)->
-  {isSealed} = core.Object
-  assert.isFunction isSealed
-  assert.strictEqual isSealed({}), no
-
-test 'Object.isFrozen' (assert)->
-  {isFrozen} = core.Object
-  assert.isFunction isFrozen
-  assert.strictEqual isFrozen({}), no
-
-test 'Object.isExtensible' (assert)->
-  {isExtensible} = core.Object
-  assert.isFunction isExtensible
-  assert.strictEqual isExtensible({}), on
