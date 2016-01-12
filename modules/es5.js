@@ -17,7 +17,6 @@ var $                 = require('./_')
   , toLength          = require('./_to-length')
   , IObject           = require('./_iobject')
   , IE_PROTO          = require('./_uid')('__proto__')
-  , createArrayMethod = require('./_array-methods')
   , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
   , arraySlice        = [].slice
@@ -185,8 +184,6 @@ var methodize = function($fn){
 };
 
 $export($export.P, 'Array', {
-  // 22.1.3.5 / 15.4.4.16 Array.prototype.every(callbackfn [, thisArg])
-  every: methodize(createArrayMethod(4)),
   // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
   reduce: createArrayReduce(false),
   // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
@@ -203,7 +200,7 @@ require('./es5.array.for-each');
 require('./es5.array.map');
 require('./es5.array.filter');
 require('./es5.array.some');
-//require('./es5.array.every');
+require('./es5.array.every');
 //require('./es5.array.reduce');
 //require('./es5.array.reduce-right');
 //require('./es5.array.index-of');

@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf every reduce reduceRight]>
+  for <[indexOf reduce reduceRight]>
     assert.isFunction Array::[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -154,38 +154,6 @@ test 'Array#indexOf' (assert)->
   assert.ok -1 is Array(1)indexOf void
   if NATIVE and DESCRIPTORS
     assert.ok (try -1 is Array::indexOf.call Object.defineProperty({length: -1}, 0, get: -> throw Error!), 1), 'uses ToLength'
-
-test 'Array#every' (assert)->
-  (a = [1])every (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.ok [1 2 3]every -> typeof! it is \Number
-  assert.ok [1 2 3]every (<4)
-  assert.ok not [1 2 3]every (<3)
-  assert.ok not [1 2 3]every -> typeof! it is \String
-  assert.ok [1 2 3]every (-> +@ is 1 ), 1
-  rez = ''
-  [1 2 3]every -> rez += &1
-  assert.ok rez is \012
-  assert.ok (arr = [1 2 3])every -> &2 is arr
-  if NATIVE
-    assert.ok (try on is Array::every.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
-
-test 'Array#filter' (assert)->
-  (a = [1])filter (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.deepEqual [1 2 3 4 5] [1 2 3 \q {} 4 on 5]filter -> typeof it is \number
-  if NATIVE
-    assert.ok (try Array::map.call {length: -1, 0: 1}, !-> throw 42), 'uses ToLength'
 
 test 'Array#reduce' (assert)->
   (a = [1])reduce (memo, val, key, that)->

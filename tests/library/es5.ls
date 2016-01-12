@@ -118,7 +118,7 @@ test 'Object.isExtensible' (assert)->
   assert.strictEqual isExtensible({}), on
 
 test 'ES5 Array prototype methods are functions' (assert)->
-  for <[indexOf every reduce reduceRight]>
+  for <[indexOf reduce reduceRight]>
     assert.isFunction core.Array[..], "Array::#{..} is function"
 
 test 'Array#slice' (assert)->
@@ -151,36 +151,6 @@ test 'Array#indexOf' (assert)->
   assert.ok -1 is indexOf [NaN], NaN
   assert.ok 3  is indexOf Array(2)concat([1 2 3]), 2
   assert.ok -1 is indexOf Array(1), void
-
-test 'Array#every' (assert)->
-  {every} = core.Array
-  every (a = [1]), (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.ok every [1 2 3], -> typeof! it is \Number
-  assert.ok every [1 2 3], (<4)
-  assert.ok not every [1 2 3], (<3)
-  assert.ok not every [1 2 3], -> typeof! it is \String
-  assert.ok every [1 2 3], (-> +@ is 1 ), 1
-  rez = ''
-  every [1 2 3], -> rez += &1
-  assert.ok rez is \012
-  assert.ok every (arr = [1 2 3]), -> &2 is arr
-
-test 'Array#filter' (assert)->
-  {filter} = core.Array
-  filter (a = [1]), (val, key, that)->
-    assert.same &length, 3, 'correct number of callback arguments'
-    assert.same val, 1, 'correct value in callback'
-    assert.same key, 0, 'correct index in callback'
-    assert.same that, a, 'correct link to array in callback'
-    assert.same @, ctx, 'correct callback context'
-  , ctx = {}
-  assert.deepEqual [1 2 3 4 5] filter [1 2 3 \q {} 4 on 5], -> typeof it is \number
 
 test 'Array#reduce' (assert)->
   {reduce} = core.Array
