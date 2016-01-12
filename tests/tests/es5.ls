@@ -116,25 +116,3 @@ test 'Object.isExtensible' (assert)->
   {isExtensible} = Object
   assert.isFunction isExtensible
   assert.strictEqual isExtensible({}), on
-
-test 'Array#slice' (assert)->
-  {slice} = Array::
-  arr = <[1 2 3 4 5]>
-  assert.deepEqual arr.slice!, arr
-  assert.deepEqual arr.slice(1 3), <[2 3]>
-  assert.deepEqual arr.slice(1 void), <[2 3 4 5]>
-  assert.deepEqual arr.slice(1 -1), <[2 3 4]>
-  assert.deepEqual arr.slice(-2 -1), <[4]>
-  assert.deepEqual arr.slice(-2 -3), []
-  str = \12345
-  assert.deepEqual slice.call(str), arr
-  assert.deepEqual slice.call(str, 1 3), <[2 3]>
-  assert.deepEqual slice.call(str, 1 void), <[2 3 4 5]>
-  assert.deepEqual slice.call(str, 1 -1), <[2 3 4]>
-  assert.deepEqual slice.call(str, -2 -1), <[4]>
-  assert.deepEqual slice.call(str, -2 -3), []
-  if list = document?body?childNodes
-    try assert.strictEqual typeof! slice.call(list), \Array
-    catch => assert.ok no
-  if NATIVE
-    assert.deepEqual slice.call({length: -1, 0: 1}, 0, 1), [], 'uses ToLength'

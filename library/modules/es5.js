@@ -3,21 +3,16 @@ var $                 = require('./_')
   , $export           = require('./_export')
   , DESCRIPTORS       = require('./_descriptors')
   , createDesc        = require('./_property-desc')
-  , html              = require('./_html')
   , cel               = require('./_dom-create')
   , has               = require('./_has')
-  , cof               = require('./_cof')
   , fails             = require('./_fails')
   , anObject          = require('./_an-object')
   , isObject          = require('./_is-object')
   , toObject          = require('./_to-object')
   , toIObject         = require('./_to-iobject')
-  , toIndex           = require('./_to-index')
-  , toLength          = require('./_to-length')
   , IE_PROTO          = require('./_uid')('__proto__')
   , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
-  , arraySlice        = [].slice
   , defineProperty    = $.setDesc
   , getOwnDescriptor  = $.getDesc
   , defineProperties  = $.setDescs
@@ -75,7 +70,7 @@ var createDict = function(){
     , gt     = '>'
     , iframeDocument;
   iframe.style.display = 'none';
-  html.appendChild(iframe);
+  require('./_html').appendChild(iframe);
   iframe.src = 'javascript:'; // eslint-disable-line no-script-url
   // createDict = iframe.contentWindow.Object;
   // html.removeChild(iframe);
@@ -129,30 +124,9 @@ $export($export.S, 'Object', {
   keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false)
 });
 
-// fallback for not array-like ES3 strings and DOM objects
-$export($export.P + $export.F * fails(function(){
-  if(html)arraySlice.call(html);
-}), 'Array', {
-  slice: function(begin, end){
-    var len   = toLength(this.length)
-      , klass = cof(this);
-    end = end === undefined ? len : end;
-    if(klass == 'Array')return arraySlice.call(this, begin, end);
-    var start  = toIndex(begin, len)
-      , upTo   = toIndex(end, len)
-      , size   = toLength(upTo - start)
-      , cloned = Array(size)
-      , i      = 0;
-    for(; i < size; i++)cloned[i] = klass == 'String'
-      ? this.charAt(start + i)
-      : this[start + i];
-    return cloned;
-  }
-});
-
 require('./es5.function.bind');
 require('./es5.array.is-array');
-//require('./es5.array.slice');
+require('./es5.array.slice');
 require('./es5.array.join');
 require('./es5.array.for-each');
 require('./es5.array.map');
