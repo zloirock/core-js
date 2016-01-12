@@ -9,13 +9,11 @@ var $                 = require('./_')
   , cof               = require('./_cof')
   , fails             = require('./_fails')
   , anObject          = require('./_an-object')
-  , aFunction         = require('./_a-function')
   , isObject          = require('./_is-object')
   , toObject          = require('./_to-object')
   , toIObject         = require('./_to-iobject')
   , toIndex           = require('./_to-index')
   , toLength          = require('./_to-length')
-  , IObject           = require('./_iobject')
   , IE_PROTO          = require('./_uid')('__proto__')
   , arrayIndexOf      = require('./_array-includes')(false)
   , ObjectProto       = Object.prototype
@@ -152,38 +150,6 @@ $export($export.P + $export.F * fails(function(){
   }
 });
 
-var createArrayReduce = function(isRight){
-  return function(callbackfn, memo){
-    aFunction(callbackfn);
-    var O      = IObject(this)
-      , length = toLength(O.length)
-      , index  = isRight ? length - 1 : 0
-      , i      = isRight ? -1 : 1;
-    if(arguments.length < 2)for(;;){
-      if(index in O){
-        memo = O[index];
-        index += i;
-        break;
-      }
-      index += i;
-      if(isRight ? index < 0 : length <= index){
-        throw TypeError('Reduce of empty array with no initial value');
-      }
-    }
-    for(;isRight ? index >= 0 : length > index; index += i)if(index in O){
-      memo = callbackfn(memo, O[index], index, this);
-    }
-    return memo;
-  };
-};
-
-$export($export.P, 'Array', {
-  // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
-  reduce: createArrayReduce(false),
-  // 22.1.3.19 / 15.4.4.22 Array.prototype.reduceRight(callbackfn [, initialValue])
-  reduceRight: createArrayReduce(true)
-});
-
 require('./es5.function.bind');
 require('./es5.array.is-array');
 //require('./es5.array.slice');
@@ -193,8 +159,8 @@ require('./es5.array.map');
 require('./es5.array.filter');
 require('./es5.array.some');
 require('./es5.array.every');
-//require('./es5.array.reduce');
-//require('./es5.array.reduce-right');
+require('./es5.array.reduce');
+require('./es5.array.reduce-right');
 require('./es5.array.index-of');
 require('./es5.array.last-index-of');
 require('./es5.date.now');
