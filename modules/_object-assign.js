@@ -27,7 +27,11 @@ module.exports = require('./_fails')(function(){
       , length = keys.length
       , j      = 0
       , key;
-    while(length > j)if(isEnum.call(S, key = keys[j++]))T[key] = S[key];
+    while(length > j)if(isEnum.call(S, key = keys[j++])) {
+      var sValue = S[key];
+      if(sValue)
+        T[key] = sValue;
+    }
   }
   return T;
 } : Object.assign;
