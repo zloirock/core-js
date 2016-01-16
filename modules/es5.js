@@ -10,8 +10,8 @@ var $                 = require('./_')
   , isObject          = require('./_is-object')
   , toObject          = require('./_to-object')
   , toIObject         = require('./_to-iobject')
-  , IE_PROTO          = require('./_uid')('__proto__')
   , arrayIndexOf      = require('./_array-includes')(false)
+  , IE_PROTO          = require('./_shared-key')('IE_PROTO')
   , ObjectProto       = Object.prototype
   , defineProperty    = $.setDesc
   , getOwnDescriptor  = $.getDesc
@@ -56,32 +56,10 @@ $export($export.S + $export.F * !DESCRIPTORS, 'Object', {
 });
 
   // IE 8- don't enum bug keys
-var keys1 = ('constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,' +
-            'toLocaleString,toString,valueOf').split(',')
+var keys1 = require('./_enum-bug-keys')
   // Additional keys for getOwnPropertyNames
-  , keys2 = keys1.concat('length', 'prototype')
-  , keysLen1 = keys1.length;
+  , keys2 = keys1.concat('length', 'prototype');
 
-// Create object with `null` prototype: use iframe Object with cleared prototype
-var createDict = function(){
-  // Thrash, waste and sodomy: IE GC bug
-  var iframe = cel('iframe')
-    , i      = keysLen1
-    , gt     = '>'
-    , iframeDocument;
-  iframe.style.display = 'none';
-  require('./_html').appendChild(iframe);
-  iframe.src = 'javascript:'; // eslint-disable-line no-script-url
-  // createDict = iframe.contentWindow.Object;
-  // html.removeChild(iframe);
-  iframeDocument = iframe.contentWindow.document;
-  iframeDocument.open();
-  iframeDocument.write('<script>document.F=Object</script' + gt);
-  iframeDocument.close();
-  createDict = iframeDocument.F;
-  while(i--)delete createDict.prototype[keys1[i]];
-  return createDict();
-};
 var createGetKeys = function(names, length){
   return function(object){
     var O      = toIObject(object)
@@ -96,7 +74,7 @@ var createGetKeys = function(names, length){
     return result;
   };
 };
-var Empty = function(){};
+
 $export($export.S, 'Object', {
   // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
   getPrototypeOf: $.getProto = $.getProto || function(O){
@@ -107,23 +85,18 @@ $export($export.S, 'Object', {
     } return O instanceof Object ? ObjectProto : null;
   },
   // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
-  getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length, true),
-  // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-  create: $.create = $.create || function(O, /*?*/Properties){
-    var result;
-    if(O !== null){
-      Empty.prototype = anObject(O);
-      result = new Empty();
-      Empty.prototype = null;
-      // add "__proto__" for Object.getPrototypeOf shim
-      result[IE_PROTO] = O;
-    } else result = createDict();
-    return Properties === undefined ? result : defineProperties(result, Properties);
-  },
+  getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length),
   // 19.1.2.14 / 15.2.3.14 Object.keys(O)
-  keys: $.getKeys = $.getKeys || createGetKeys(keys1, keysLen1, false)
+  keys: $.getKeys = $.getKeys || createGetKeys(keys1, keys1.length)
 });
 
+//require('./es5.object.define-property');
+//require('./es5.object.define-properties');
+//require('./es5.object.get-own-property-descriptor');
+require('./es5.object.create');
+//require('./es5.object.get-prototype-of');
+//require('./es5.object.keys');
+//require('./es5.object.get-own-property-names');
 require('./es5.function.bind');
 require('./es5.array.is-array');
 require('./es5.array.slice');
