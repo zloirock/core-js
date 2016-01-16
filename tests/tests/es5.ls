@@ -19,22 +19,6 @@ test 'Object.defineProperties' (assert)->
   assert.ok (rez = defineProperties src = {}, q: {value: 42}, w: value: 33) is src
   assert.ok rez.q is 42 and rez.w is 33
 
-test 'Object.getPrototypeOf' (assert)->
-  {create, getPrototypeOf} = Object
-  assert.isFunction getPrototypeOf
-  assert.ok getPrototypeOf({}) is Object::
-  assert.ok getPrototypeOf([]) is Array::
-  assert.ok getPrototypeOf(new class fn) is fn::
-  assert.ok getPrototypeOf(create obj = q:1) is obj
-  assert.ok getPrototypeOf(create null) is null
-  assert.ok getPrototypeOf(getPrototypeOf {}) is null
-  foo = ->
-  foo::foo = \foo
-  bar = ->
-  bar:: = create foo::
-  bar::constructor = bar
-  assert.strictEqual getPrototypeOf(bar::).foo, \foo
-
 test 'Object.getOwnPropertyNames' (assert)->
   {getOwnPropertyNames} = Object
   assert.isFunction getOwnPropertyNames

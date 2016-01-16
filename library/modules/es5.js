@@ -8,11 +8,9 @@ var $                 = require('./_')
   , fails             = require('./_fails')
   , anObject          = require('./_an-object')
   , isObject          = require('./_is-object')
-  , toObject          = require('./_to-object')
   , toIObject         = require('./_to-iobject')
   , arrayIndexOf      = require('./_array-includes')(false)
   , IE_PROTO          = require('./_shared-key')('IE_PROTO')
-  , ObjectProto       = Object.prototype
   , defineProperty    = $.setDesc
   , getOwnDescriptor  = $.getDesc
   , defineProperties  = $.setDescs
@@ -34,7 +32,7 @@ if(!DESCRIPTORS){
     if(IE8_DOM_DEFINE)try {
       return getOwnDescriptor(O, P);
     } catch(e){ /* empty */ }
-    if(has(O, P))return createDesc(!ObjectProto.propertyIsEnumerable.call(O, P), O[P]);
+    if(has(O, P))return createDesc(!Object.prototype.propertyIsEnumerable.call(O, P), O[P]);
   };
   $.setDescs = defineProperties = function(O, Properties){
     anObject(O);
@@ -76,14 +74,6 @@ var createGetKeys = function(names, length){
 };
 
 $export($export.S, 'Object', {
-  // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
-  getPrototypeOf: $.getProto = $.getProto || function(O){
-    O = toObject(O);
-    if(has(O, IE_PROTO))return O[IE_PROTO];
-    if(typeof O.constructor == 'function' && O instanceof O.constructor){
-      return O.constructor.prototype;
-    } return O instanceof Object ? ObjectProto : null;
-  },
   // 19.1.2.7 / 15.2.3.4 Object.getOwnPropertyNames(O)
   getOwnPropertyNames: $.getNames = $.getNames || createGetKeys(keys2, keys2.length),
   // 19.1.2.14 / 15.2.3.14 Object.keys(O)
@@ -94,7 +84,7 @@ $export($export.S, 'Object', {
 //require('./es5.object.define-properties');
 //require('./es5.object.get-own-property-descriptor');
 require('./es5.object.create');
-//require('./es5.object.get-prototype-of');
+require('./es5.object.get-prototype-of');
 //require('./es5.object.keys');
 //require('./es5.object.get-own-property-names');
 require('./es5.function.bind');
