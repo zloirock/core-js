@@ -1440,7 +1440,7 @@
     var defineProperties, rez, src;
     defineProperties = core.Object.defineProperties;
     assert.isFunction(defineProperties);
-    assert.arity(defineProperties(2));
+    assert.arity(defineProperties, 2);
     assert.ok((rez = defineProperties(src = {}, {
       q: {
         value: 42
@@ -1462,7 +1462,7 @@
     var defineProperty, rez, src;
     defineProperty = core.Object.defineProperty;
     assert.isFunction(defineProperty);
-    assert.arity(defineProperty(3));
+    assert.arity(defineProperty, 3);
     assert.ok((rez = defineProperty(src = {}, 'q', {
       value: 42
     })) === src);
