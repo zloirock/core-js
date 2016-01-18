@@ -9,6 +9,7 @@ require('../modules/es5.function.bind');
 require('../modules/es5.array.is-array');
 require('../modules/es5.array.join');
 require('../modules/es5.array.slice');
+require('../modules/es5.array.sort');
 require('../modules/es5.array.for-each');
 require('../modules/es5.array.map');
 require('../modules/es5.array.filter');

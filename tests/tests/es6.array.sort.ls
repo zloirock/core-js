@@ -1,11 +1,10 @@
 {module, test} = QUnit
-module \ES5
+module \ES6
 
 test 'Array#sort' (assert)!->
   assert.isFunction Array::sort
   assert.arity Array::sort, 1
   assert.name Array::sort, \sort
-  assert.looksNative Array::sort
   assert.looksNative Array::sort
   assert.ok !!(try [1 2 3]sort void), 'works with undefined'
   assert.throws (!-> [1 2 3]sort null), 'throws on null'
