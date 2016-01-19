@@ -1,6 +1,6 @@
 var $         = require('./_')
   , toIObject = require('./_to-iobject')
-  , isEnum    = $.isEnum;
+  , isEnum    = require('./_object-pie').f;
 module.exports = function(isEntries){
   return function(it){
     var O      = toIObject(it)

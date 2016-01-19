@@ -2,6 +2,7 @@
 // 19.1.2.1 Object.assign(target, source, ...)
 var $        = require('./_')
   , gOPS     = require('./_object-gops')
+  , pIE      = require('./_object-pie')
   , toObject = require('./_to-object')
   , IObject  = require('./_iobject');
 
@@ -21,7 +22,7 @@ module.exports = require('./_fails')(function(){
     , index = 1
     , getKeys    = $.getKeys
     , getSymbols = gOPS.f
-    , isEnum     = $.isEnum;
+    , isEnum     = pIE.f;
   while(aLen > index){
     var S      = IObject(arguments[index++])
       , keys   = getSymbols ? getKeys(S).concat(getSymbols(S)) : getKeys(S)

@@ -29,7 +29,7 @@ var $              = require('./_')
   , _stringify     = $JSON && $JSON.stringify
   , setter         = false
   , HIDDEN         = wks('_hidden')
-  , isEnum         = $.isEnum
+  , isEnum         = {}.propertyIsEnumerable
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
   , ObjectProto    = Object.prototype
@@ -151,11 +151,11 @@ if(!USE_NATIVE){
   };
 
   $.create   = $create;
-  $.isEnum   = $propertyIsEnumerable;
   $.getDesc  = $getOwnPropertyDescriptor;
   $.setDesc  = $defineProperty;
   $.setDescs = $defineProperties;
   $.getNames = $names.get = $getOwnPropertyNames;
+  require('./_object-pie').f  = $propertyIsEnumerable
   require('./_object-gops').f = $getOwnPropertySymbols;
 
   if(DESCRIPTORS && !require('./_library')){

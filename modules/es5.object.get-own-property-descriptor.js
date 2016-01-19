@@ -1,5 +1,6 @@
 var $           = require('./_')
   , $export     = require('./_export')
+  , pIE         = require('./_object-pie')
   , DESCRIPTORS = require('./_descriptors')
   , createDesc  = require('./_property-desc')
   , has         = require('./_has')
@@ -10,7 +11,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P){
   if(IE8_DOM_DEFINE)try {
     return gOPD(O, P);
   } catch(e){ /* empty */ }
-  if(has(O, P))return createDesc(!$.isEnum.call(O, P), O[P]);
+  if(has(O, P))return createDesc(!pIE.f.call(O, P), O[P]);
 };
 
 if(!DESCRIPTORS){

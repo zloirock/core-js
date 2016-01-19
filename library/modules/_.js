@@ -2,7 +2,6 @@ var $Object = Object;
 module.exports = {
   create:     $Object.create,
   getProto:   $Object.getPrototypeOf,
-  isEnum:     {}.propertyIsEnumerable,
   getDesc:    $Object.getOwnPropertyDescriptor,
   setDesc:    $Object.defineProperty,
   setDescs:   $Object.defineProperties,
