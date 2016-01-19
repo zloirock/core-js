@@ -38,6 +38,9 @@ if(require('./_descriptors')){
     , setSpecies          = require('./_set-species')
     , arrayFill           = require('./_array-fill')
     , arrayCopyWithin     = require('./_array-copy-within')
+    , $GOPD               = require('./_object-gopd')
+    , setDesc             = $.setDesc
+    , gOPD                = $GOPD.f
     , RangeError          = global.RangeError
     , TypeError           = global.TypeError
     , Uint8Array          = global.Uint8Array
@@ -46,8 +49,6 @@ if(require('./_descriptors')){
     , ArrayProto          = Array[PROTOTYPE]
     , $ArrayBuffer        = $buffer.ArrayBuffer
     , $DataView           = $buffer.DataView
-    , setDesc             = $.setDesc
-    , getDesc             = $.getDesc
     , arrayForEach        = createArrayMethod(0)
     , arrayFilter         = createArrayMethod(2)
     , arraySome           = createArrayMethod(3)
@@ -273,7 +274,7 @@ if(require('./_descriptors')){
   var $getDesc = function getOwnPropertyDescriptor(target, key){
     return isTAIndex(target, key = toPrimitive(key, true))
       ? propertyDesc(2, target[key])
-      : getDesc(target, key);
+      : gOPD(target, key);
   };
   var $setDesc = function defineProperty(target, key, desc){
     if(isTAIndex(target, key = toPrimitive(key, true))
@@ -292,7 +293,7 @@ if(require('./_descriptors')){
   };
 
   if(!ALL_CONSTRUCTORS){
-    $.getDesc = $getDesc;
+    $GOPD.f = $getDesc;
     $.setDesc = $setDesc;
   }
 

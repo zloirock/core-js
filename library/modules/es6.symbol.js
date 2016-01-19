@@ -21,8 +21,9 @@ var $              = require('./_')
   , createDesc     = require('./_property-desc')
   , _create        = require('./_object-create')
   , gOPNExt        = require('./_object-gopn-ext')
+  , $GOPD          = require('./_object-gopd')
   , gOPN           = gOPNExt.f
-  , getDesc        = $.getDesc
+  , gOPD           = $GOPD.f
   , setDesc        = $.setDesc
   , $Symbol        = global.Symbol
   , $JSON          = global.JSON
@@ -41,7 +42,7 @@ var setSymbolDesc = DESCRIPTORS && $fails(function(){
     get: function(){ return setDesc(this, 'a', {value: 7}).a; }
   })).a != 7;
 }) ? function(it, key, D){
-  var protoDesc = getDesc(ObjectProto, key);
+  var protoDesc = gOPD(ObjectProto, key);
   if(protoDesc)delete ObjectProto[key];
   setDesc(it, key, D);
   if(protoDesc && it !== ObjectProto)setDesc(ObjectProto, key, protoDesc);
@@ -93,7 +94,7 @@ var $propertyIsEnumerable = function propertyIsEnumerable(key){
     ? E : true;
 };
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key){
-  var D = getDesc(it = toIObject(it), key);
+  var D = gOPD(it = toIObject(it), key);
   if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
   return D;
 };
@@ -150,7 +151,7 @@ if(!USE_NATIVE){
     return it instanceof $Symbol;
   };
 
-  $.getDesc = $getOwnPropertyDescriptor;
+  $GOPD.f = $getOwnPropertyDescriptor;
   $.setDesc = $defineProperty;
   require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
   require('./_object-pie').f  = $propertyIsEnumerable

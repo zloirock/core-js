@@ -1,5 +1,6 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
 var $              = require('./_')
+  , gOPD           = require('./_object-gopd')
   , getPrototypeOf = require('./_object-gpo')
   , has            = require('./_has')
   , $export        = require('./_export')
@@ -9,7 +10,7 @@ var $              = require('./_')
 
 function set(target, propertyKey, V/*, receiver*/){
   var receiver = arguments.length < 4 ? target : arguments[3]
-    , ownDesc  = $.getDesc(anObject(target), propertyKey)
+    , ownDesc  = gOPD.f(anObject(target), propertyKey)
     , existingDescriptor, proto;
   if(!ownDesc){
     if(isObject(proto = getPrototypeOf(target))){
@@ -19,7 +20,7 @@ function set(target, propertyKey, V/*, receiver*/){
   }
   if(has(ownDesc, 'value')){
     if(ownDesc.writable === false || !isObject(receiver))return false;
-    existingDescriptor = $.getDesc(receiver, propertyKey) || createDesc(0);
+    existingDescriptor = gOPD.f(receiver, propertyKey) || createDesc(0);
     existingDescriptor.value = V;
     $.setDesc(receiver, propertyKey, existingDescriptor);
     return true;

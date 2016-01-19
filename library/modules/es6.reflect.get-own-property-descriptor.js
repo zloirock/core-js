@@ -1,10 +1,10 @@
 // 26.1.7 Reflect.getOwnPropertyDescriptor(target, propertyKey)
-var $        = require('./_')
+var gOPD     = require('./_object-gopd')
   , $export  = require('./_export')
   , anObject = require('./_an-object');
 
 $export($export.S, 'Reflect', {
   getOwnPropertyDescriptor: function getOwnPropertyDescriptor(target, propertyKey){
-    return $.getDesc(anObject(target), propertyKey);
+    return gOPD.f(anObject(target), propertyKey);
   }
 });

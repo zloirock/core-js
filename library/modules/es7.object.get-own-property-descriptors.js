@@ -3,13 +3,14 @@ var $          = require('./_')
   , $export    = require('./_export')
   , ownKeys    = require('./_own-keys')
   , toIObject  = require('./_to-iobject')
-  , createDesc = require('./_property-desc');
+  , createDesc = require('./_property-desc')
+  , gOPD       = require('./_object-gopd');
 
 $export($export.S, 'Object', {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object){
     var O       = toIObject(object)
       , setDesc = $.setDesc
-      , getDesc = $.getDesc
+      , getDesc = gOPD.f
       , keys    = ownKeys(O)
       , result  = {}
       , i       = 0
