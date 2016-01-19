@@ -14,16 +14,16 @@ var $              = require('./_')
   , uid            = require('./_uid')
   , wks            = require('./_wks')
   , keyOf          = require('./_keyof')
-  , $names         = require('./_get-names')
   , enumKeys       = require('./_enum-keys')
   , isArray        = require('./_is-array')
   , anObject       = require('./_an-object')
   , toIObject      = require('./_to-iobject')
   , createDesc     = require('./_property-desc')
   , _create        = require('./_object-create')
+  , gOPNExt        = require('./_object-gopn-ext')
+  , gOPN           = gOPNExt.f
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
-  , getNames       = $names.get
   , $Symbol        = global.Symbol
   , $JSON          = global.JSON
   , _stringify     = $JSON && $JSON.stringify
@@ -98,7 +98,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key){
   return D;
 };
 var $getOwnPropertyNames = function getOwnPropertyNames(it){
-  var names  = getNames(toIObject(it))
+  var names  = gOPN(toIObject(it))
     , result = []
     , i      = 0
     , key;
@@ -106,7 +106,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it){
   return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
-  var names  = getNames(toIObject(it))
+  var names  = gOPN(toIObject(it))
     , result = []
     , i      = 0
     , key;
@@ -153,7 +153,7 @@ if(!USE_NATIVE){
   $.getDesc  = $getOwnPropertyDescriptor;
   $.setDesc  = $defineProperty;
   $.setDescs = $defineProperties;
-  $.getNames = $names.get = $getOwnPropertyNames;
+  require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
   require('./_object-pie').f  = $propertyIsEnumerable
   require('./_object-gops').f = $getOwnPropertySymbols;
 

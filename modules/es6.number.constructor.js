@@ -5,6 +5,7 @@ var $           = require('./_')
   , cof         = require('./_cof')
   , toPrimitive = require('./_to-primitive')
   , fails       = require('./_fails')
+  , gOPN        = require('./_object-gopn').f
   , $trim       = require('./_string-trim').trim
   , NUMBER      = 'Number'
   , $Number     = global[NUMBER]
@@ -49,7 +50,7 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
       && (BROKEN_COF ? fails(function(){ proto.valueOf.call(that); }) : cof(that) != NUMBER)
         ? new Base(toNumber(it)) : toNumber(it);
   };
-  for(var keys = require('./_descriptors') ? $.getNames(Base) : (
+  for(var keys = require('./_descriptors') ? gOPN(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES6 (in case, if modules with ES6 Number statics required before):

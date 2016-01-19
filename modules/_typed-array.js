@@ -24,6 +24,7 @@ if(require('./_descriptors')){
     , isArrayIter         = require('./_is-array-iter')
     , create              = require('./_object-create')
     , getPrototypeOf      = require('./_object-gpo')
+    , gOPN                = require('./_object-gopn').f
     , isIterable          = require('./core.is-iterable')
     , getIterFn           = require('./core.get-iterator-method')
     , uid                 = require('./_uid')
@@ -45,7 +46,6 @@ if(require('./_descriptors')){
     , ArrayProto          = Array[PROTOTYPE]
     , $ArrayBuffer        = $buffer.ArrayBuffer
     , $DataView           = $buffer.DataView
-    , getNames            = $.getNames
     , setDesc             = $.setDesc
     , getDesc             = $.getDesc
     , arrayForEach        = createArrayMethod(0)
@@ -414,7 +414,7 @@ if(require('./_descriptors')){
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
-      arrayForEach(TAC !== Function.prototype ? getNames(Base).concat(getNames(TAC)) : getNames(Base), function(key){
+      arrayForEach(TAC !== Function.prototype ? gOPN(Base).concat(gOPN(TAC)) : gOPN(Base), function(key){
         if(!(key in TypedArray))hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;

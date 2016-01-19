@@ -10,6 +10,7 @@ var $              = require('./_')
   , anInstance     = require('./_an-instance')
   , toInteger      = require('./_to-integer')
   , toLength       = require('./_to-length')
+  , gOPN           = require('./_object-gopn').f
   , arrayFill      = require('./_array-fill')
   , setToStringTag = require('./_set-to-string-tag')
   , ARRAY_BUFFER   = 'ArrayBuffer'
@@ -17,7 +18,6 @@ var $              = require('./_')
   , PROTOTYPE      = 'prototype'
   , WRONG_LENGTH   = 'Wrong length!'
   , WRONG_INDEX    = 'Wrong index!'
-  , getNames       = $.getNames
   , $ArrayBuffer   = global[ARRAY_BUFFER]
   , $DataView      = global[DATA_VIEW]
   , Math           = global.Math
@@ -249,7 +249,7 @@ if(!$typed.ABV){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for(var keys = getNames(BaseBuffer), j = 0, key; keys.length > j; ){
+    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j; ){
       if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
     };
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;

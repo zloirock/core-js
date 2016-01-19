@@ -1,5 +1,6 @@
 var $        = require('./_')
   , global   = require('./_global')
+  , gOPN     = require('./_object-gopn').f
   , isRegExp = require('./_is-regexp')
   , $flags   = require('./_flags')
   , $RegExp  = global.RegExp
@@ -30,7 +31,7 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
       set: function(it){ Base[key] = it; }
     });
   };
-  for(var keys = $.getNames(Base), i = 0; keys.length > i; )proxy(keys[i++]);
+  for(var keys = gOPN(Base), i = 0; keys.length > i; )proxy(keys[i++]);
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
   require('./_redefine')(global, 'RegExp', $RegExp);
