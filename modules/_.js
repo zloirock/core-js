@@ -1,6 +1,5 @@
 var $Object = Object;
 module.exports = {
-  getProto:   $Object.getPrototypeOf,
   getDesc:    $Object.getOwnPropertyDescriptor,
   setDesc:    $Object.defineProperty,
   setDescs:   $Object.defineProperties,

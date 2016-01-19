@@ -23,6 +23,7 @@ if(require('./_descriptors')){
     , toObject            = require('./_to-object')
     , isArrayIter         = require('./_is-array-iter')
     , create              = require('./_object-create')
+    , getPrototypeOf      = require('./_object-gpo')
     , isIterable          = require('./core.is-iterable')
     , getIterFn           = require('./core.get-iterator-method')
     , uid                 = require('./_uid')
@@ -44,7 +45,6 @@ if(require('./_descriptors')){
     , ArrayProto          = Array[PROTOTYPE]
     , $ArrayBuffer        = $buffer.ArrayBuffer
     , $DataView           = $buffer.DataView
-    , getProto            = $.getProto
     , getNames            = $.getNames
     , setDesc             = $.setDesc
     , getDesc             = $.getDesc
@@ -332,7 +332,7 @@ if(require('./_descriptors')){
       , SETTER     = 'set' + KEY
       , TypedArray = global[NAME]
       , Base       = TypedArray || {}
-      , TAC        = TypedArray && getProto(TypedArray)
+      , TAC        = TypedArray && getPrototypeOf(TypedArray)
       , FORCED     = !TypedArray || !$typed.ABV
       , O          = {}
       , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];

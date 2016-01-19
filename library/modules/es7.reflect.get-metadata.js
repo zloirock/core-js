@@ -1,6 +1,6 @@
 var metadata               = require('./_metadata')
   , anObject               = require('./_an-object')
-  , getPrototypeOf         = require('./_').getProto
+  , getPrototypeOf         = require('./_object-gpo')
   , ordinaryHasOwnMetadata = metadata.has
   , ordinaryGetOwnMetadata = metadata.get
   , toMetaKey              = metadata.key;

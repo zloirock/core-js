@@ -1,21 +1,22 @@
 'use strict';
-var $           = require('./_')
-  , create      = require('./_object-create')
-  , ctx         = require('./_ctx')
-  , $export     = require('./_export')
-  , createDesc  = require('./_property-desc')
-  , assign      = require('./_object-assign')
-  , keyOf       = require('./_keyof')
-  , aFunction   = require('./_a-function')
-  , forOf       = require('./_for-of')
-  , isIterable  = require('./core.is-iterable')
-  , $iterCreate = require('./_iter-create')
-  , step        = require('./_iter-step')
-  , isObject    = require('./_is-object')
-  , toIObject   = require('./_to-iobject')
-  , DESCRIPTORS = require('./_descriptors')
-  , has         = require('./_has')
-  , getKeys     = $.getKeys;
+var $              = require('./_')
+  , ctx            = require('./_ctx')
+  , $export        = require('./_export')
+  , createDesc     = require('./_property-desc')
+  , assign         = require('./_object-assign')
+  , create         = require('./_object-create')
+  , getPrototypeOf = require('./_object-gpo')
+  , keyOf          = require('./_keyof')
+  , aFunction      = require('./_a-function')
+  , forOf          = require('./_for-of')
+  , isIterable     = require('./core.is-iterable')
+  , $iterCreate    = require('./_iter-create')
+  , step           = require('./_iter-step')
+  , isObject       = require('./_is-object')
+  , toIObject      = require('./_to-iobject')
+  , DESCRIPTORS    = require('./_descriptors')
+  , has            = require('./_has')
+  , getKeys        = $.getKeys;
 
 // 0 -> Dict.forEach
 // 1 -> Dict.map
@@ -127,7 +128,7 @@ function set(object, key, value){
 }
 
 function isDict(it){
-  return isObject(it) && $.getProto(it) === Dict.prototype;
+  return isObject(it) && getPrototypeOf(it) === Dict.prototype;
 }
 
 $export($export.G + $export.F, {Dict: Dict});

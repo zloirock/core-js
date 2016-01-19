@@ -2,7 +2,7 @@ var Set                     = require('./es6.set')
   , from                    = require('./_array-from-iterable')
   , metadata                = require('./_metadata')
   , anObject                = require('./_an-object')
-  , getPrototypeOf          = require('./_').getProto
+  , getPrototypeOf          = require('./_object-gpo')
   , ordinaryOwnMetadataKeys = metadata.keys
   , toMetaKey               = metadata.key;
 

@@ -1,4 +1,5 @@
-var $ = require('../../modules/_');
+require('../../modules/es5.object.create');
+var $Object = require('../../modules/_core').Object;
 module.exports = function create(P, D){
-  return $.create(P, D);
+  return $Object.create(P, D);
 };
