@@ -1,5 +1,5 @@
-var $        = require('./_')
-  , global   = require('./_global')
+var global   = require('./_global')
+  , dP       = require('./_object-dp').f
   , gOPN     = require('./_object-gopn').f
   , isRegExp = require('./_is-regexp')
   , $flags   = require('./_flags')
@@ -25,7 +25,7 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
         : Base((piRE = p instanceof $RegExp) ? p.source : p, piRE && fiU ? $flags.call(p) : f);
   };
   var proxy = function(key){
-    key in $RegExp || $.setDesc($RegExp, key, {
+    key in $RegExp || dP($RegExp, key, {
       configurable: true,
       get: function(){ return Base[key]; },
       set: function(it){ Base[key] = it; }

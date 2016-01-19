@@ -1,12 +1,12 @@
 'use strict';
-var $           = require('./_')
-  , global      = require('./_global')
+var global      = require('./_global')
   , has         = require('./_has')
   , cof         = require('./_cof')
   , toPrimitive = require('./_to-primitive')
   , fails       = require('./_fails')
   , gOPN        = require('./_object-gopn').f
   , gOPD        = require('./_object-gopd').f
+  , dP          = require('./_object-dp').f
   , $trim       = require('./_string-trim').trim
   , NUMBER      = 'Number'
   , $Number     = global[NUMBER]
@@ -59,7 +59,7 @@ if(!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')){
     'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
   ).split(','), j = 0, key; keys.length > j; j++){
     if(has(Base, key = keys[j]) && !has($Number, key)){
-      $.setDesc($Number, key, gOPD(Base, key));
+      dP($Number, key, gOPD(Base, key));
     }
   }
   $Number.prototype = proto;

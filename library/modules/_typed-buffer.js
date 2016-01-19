@@ -1,6 +1,5 @@
 'use strict';
-var $              = require('./_')
-  , global         = require('./_global')
+var global         = require('./_global')
   , DESCRIPTORS    = require('./_descriptors')
   , LIBRARY        = require('./_library')
   , $typed         = require('./_typed')
@@ -11,6 +10,7 @@ var $              = require('./_')
   , toInteger      = require('./_to-integer')
   , toLength       = require('./_to-length')
   , gOPN           = require('./_object-gopn').f
+  , dP             = require('./_object-dp').f
   , arrayFill      = require('./_array-fill')
   , setToStringTag = require('./_set-to-string-tag')
   , ARRAY_BUFFER   = 'ArrayBuffer'
@@ -130,7 +130,7 @@ var packF32 = function(it){
 };
 
 var addGetter = function(C, key, internal){
-  $.setDesc(C[PROTOTYPE], key, {get: function(){ return this[internal]; }});
+  dP(C[PROTOTYPE], key, {get: function(){ return this[internal]; }});
 };
 
 var get = function(view, bytes, index, isLittleEndian){

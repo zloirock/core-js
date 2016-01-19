@@ -1,4 +1,4 @@
-var $        = require('./_')
+var dP       = require('./_object-dp')
   , anObject = require('./_an-object')
   , getKeys  = require('./_object-keys');
 
@@ -8,6 +8,6 @@ module.exports = require('./_descriptors') ? Object.defineProperties : function 
     , length = keys.length
     , i = 0
     , P;
-  while(length > i)$.setDesc(O, P = keys[i++], Properties[P]);
+  while(length > i)dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };

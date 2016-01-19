@@ -1,7 +1,7 @@
 var META     = require('./_uid')('meta')
   , isObject = require('./_is-object')
   , has      = require('./_has')
-  , setDesc  = require('./_').setDesc
+  , setDesc  = require('./_object-dp').f
   , id       = 0;
 var isExtensible = Object.isExtensible || function(){
   return true;

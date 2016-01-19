@@ -1,5 +1,5 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-var $              = require('./_')
+var dP             = require('./_object-dp')
   , gOPD           = require('./_object-gopd')
   , getPrototypeOf = require('./_object-gpo')
   , has            = require('./_has')
@@ -22,7 +22,7 @@ function set(target, propertyKey, V/*, receiver*/){
     if(ownDesc.writable === false || !isObject(receiver))return false;
     existingDescriptor = gOPD.f(receiver, propertyKey) || createDesc(0);
     existingDescriptor.value = V;
-    $.setDesc(receiver, propertyKey, existingDescriptor);
+    dP.f(receiver, propertyKey, existingDescriptor);
     return true;
   }
   return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);

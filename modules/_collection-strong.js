@@ -1,5 +1,5 @@
 'use strict';
-var $           = require('./_')
+var dP          = require('./_object-dp').f
   , create      = require('./_object-create')
   , hide        = require('./_hide')
   , redefineAll = require('./_redefine-all')
@@ -81,7 +81,7 @@ module.exports = {
         return !!getEntry(this, key);
       }
     });
-    if(DESCRIPTORS)$.setDesc(C.prototype, 'size', {
+    if(DESCRIPTORS)dP(C.prototype, 'size', {
       get: function(){
         return defined(this[SIZE]);
       }

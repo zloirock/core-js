@@ -1,6 +1,5 @@
 'use strict';
-var $                  = require('./_')
-  , LIBRARY            = require('./_library')
+var LIBRARY            = require('./_library')
   , global             = require('./_global')
   , ctx                = require('./_ctx')
   , classof            = require('./_classof')
@@ -50,7 +49,7 @@ var USE_NATIVE = function(){
     // V8 4.8- bug, https://code.google.com/p/v8/issues/detail?id=4162
     if(works && require('./_descriptors')){
       var thenableThenGotten = false;
-      $Promise.resolve($.setDesc({}, 'then', {
+      $Promise.resolve(require('./_object-dp').f({}, 'then', {
         get: function(){ thenableThenGotten = true; }
       }));
       works = thenableThenGotten;

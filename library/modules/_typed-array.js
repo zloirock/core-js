@@ -2,7 +2,6 @@
 if(require('./_descriptors')){
   var LIBRARY             = require('./_library')
     , global              = require('./_global')
-    , $                   = require('./_')
     , fails               = require('./_fails')
     , $export             = require('./_export')
     , $typed              = require('./_typed')
@@ -38,8 +37,9 @@ if(require('./_descriptors')){
     , setSpecies          = require('./_set-species')
     , arrayFill           = require('./_array-fill')
     , arrayCopyWithin     = require('./_array-copy-within')
+    , $DP                 = require('./_object-dp')
     , $GOPD               = require('./_object-gopd')
-    , setDesc             = $.setDesc
+    , dP                  = $DP.f
     , gOPD                = $GOPD.f
     , RangeError          = global.RangeError
     , TypeError           = global.TypeError
@@ -127,7 +127,7 @@ if(require('./_descriptors')){
   };
 
   var addGetter = function(it, key, internal){
-    setDesc(it, key, {get: function(){ return this._d[internal]; }});
+    dP(it, key, {get: function(){ return this._d[internal]; }});
   };
 
   var $from = function from(source /*, mapfn, thisArg */){
@@ -289,17 +289,17 @@ if(require('./_descriptors')){
     ){
       target[key] = desc.value;
       return target;
-    } else return setDesc(target, key, desc);
+    } else return dP(target, key, desc);
   };
 
   if(!ALL_CONSTRUCTORS){
     $GOPD.f = $getDesc;
-    $.setDesc = $setDesc;
+    $DP.f   = $setDesc;
   }
 
   $export($export.S + $export.F * !ALL_CONSTRUCTORS, 'Object', {
     getOwnPropertyDescriptor: $getDesc,
-    defineProperty: $setDesc
+    defineProperty:           $setDesc
   });
 
   if(fails(function(){ arrayToString.call({}); })){
@@ -321,7 +321,7 @@ if(require('./_descriptors')){
   addGetter($TypedArrayPrototype$, 'byteOffset', 'o');
   addGetter($TypedArrayPrototype$, 'byteLength', 'l');
   addGetter($TypedArrayPrototype$, 'length', 'e');
-  setDesc($TypedArrayPrototype$, TAG, {
+  dP($TypedArrayPrototype$, TAG, {
     get: function(){ return this[TYPED_ARRAY]; }
   });
 
@@ -347,7 +347,7 @@ if(require('./_descriptors')){
       data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
     };
     var addElement = function(that, index){
-      setDesc(that, index, {
+      dP(that, index, {
         get: function(){
           return getter(this, index);
         },
@@ -430,7 +430,7 @@ if(require('./_descriptors')){
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
 
     if(CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)){
-      setDesc(TypedArrayPrototype, TAG, {
+      dP(TypedArrayPrototype, TAG, {
         get: function(){ return NAME; }
       });
     }

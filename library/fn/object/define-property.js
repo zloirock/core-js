@@ -1,4 +1,5 @@
-var $ = require('../../modules/_');
+require('../../modules/es5.object.define-property');
+var $Object = require('../../modules/_core').Object;
 module.exports = function defineProperty(it, key, desc){
-  return $.setDesc(it, key, desc);
+  return $Object.defineProperty(it, key, desc);
 };

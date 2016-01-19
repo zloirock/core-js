@@ -9,7 +9,7 @@ var global         = require('./_global')
   , anInstance     = require('./_an-instance')
   , isObject       = require('./_is-object')
   , setToStringTag = require('./_set-to-string-tag')
-  , setDesc        = require('./_').setDesc
+  , dP             = require('./_object-dp').f
   , each           = require('./_array-methods')(0)
   , DESCRIPTORS    = require('./_descriptors');
 
@@ -41,7 +41,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
         return IS_ADDER ? this : result;
       });
     });
-    if('size' in proto)setDesc(C.prototype, 'size', {
+    if('size' in proto)dP(C.prototype, 'size', {
       get: function(){
         return this._c.size;
       }

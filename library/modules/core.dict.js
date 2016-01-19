@@ -1,12 +1,12 @@
 'use strict';
-var $              = require('./_')
-  , ctx            = require('./_ctx')
+var ctx            = require('./_ctx')
   , $export        = require('./_export')
   , createDesc     = require('./_property-desc')
   , assign         = require('./_object-assign')
   , create         = require('./_object-create')
   , getPrototypeOf = require('./_object-gpo')
   , getKeys        = require('./_object-keys')
+  , dP             = require('./_object-dp')
   , keyOf          = require('./_keyof')
   , aFunction      = require('./_a-function')
   , forOf          = require('./_for-of')
@@ -122,7 +122,7 @@ function get(object, key){
   if(has(object, key))return object[key];
 }
 function set(object, key, value){
-  if(DESCRIPTORS && key in Object)$.setDesc(object, key, createDesc(0, value));
+  if(DESCRIPTORS && key in Object)dP.f(object, key, createDesc(0, value));
   else object[key] = value;
   return object;
 }

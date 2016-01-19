@@ -1,4 +1,4 @@
-var def = require('./_').setDesc
+var def = require('./_object-dp').f
   , has = require('./_has')
   , TAG = require('./_wks')('toStringTag');
 

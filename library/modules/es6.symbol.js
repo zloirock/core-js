@@ -1,7 +1,6 @@
 'use strict';
 // ECMAScript 6 symbols shim
-var $              = require('./_')
-  , global         = require('./_global')
+var global         = require('./_global')
   , core           = require('./_core')
   , has            = require('./_has')
   , DESCRIPTORS    = require('./_descriptors')
@@ -22,9 +21,10 @@ var $              = require('./_')
   , _create        = require('./_object-create')
   , gOPNExt        = require('./_object-gopn-ext')
   , $GOPD          = require('./_object-gopd')
-  , gOPN           = gOPNExt.f
+  , $DP            = require('./_object-dp')
   , gOPD           = $GOPD.f
-  , setDesc        = $.setDesc
+  , dP             = $DP.f
+  , gOPN           = gOPNExt.f
   , $Symbol        = global.Symbol
   , $JSON          = global.JSON
   , _stringify     = $JSON && $JSON.stringify
@@ -38,15 +38,15 @@ var $              = require('./_')
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDesc = DESCRIPTORS && $fails(function(){
-  return _create(setDesc({}, 'a', {
-    get: function(){ return setDesc(this, 'a', {value: 7}).a; }
+  return _create(dP({}, 'a', {
+    get: function(){ return dP(this, 'a', {value: 7}).a; }
   })).a != 7;
 }) ? function(it, key, D){
   var protoDesc = gOPD(ObjectProto, key);
   if(protoDesc)delete ObjectProto[key];
-  setDesc(it, key, D);
-  if(protoDesc && it !== ObjectProto)setDesc(ObjectProto, key, protoDesc);
-} : setDesc;
+  dP(it, key, D);
+  if(protoDesc && it !== ObjectProto)dP(ObjectProto, key, protoDesc);
+} : dP;
 
 var wrap = function(tag){
   var sym = AllSymbols[tag] = _create($Symbol.prototype);
@@ -68,13 +68,13 @@ var isSymbol = function(it){
 var $defineProperty = function defineProperty(it, key, D){
   if(D && has(AllSymbols, key)){
     if(!D.enumerable){
-      if(!has(it, HIDDEN))setDesc(it, HIDDEN, createDesc(1, {}));
+      if(!has(it, HIDDEN))dP(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
       if(has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
       D = _create(D, {enumerable: createDesc(0, false)});
     } return setSymbolDesc(it, key, D);
-  } return setDesc(it, key, D);
+  } return dP(it, key, D);
 };
 var $defineProperties = function defineProperties(it, P){
   anObject(it);
@@ -152,7 +152,7 @@ if(!USE_NATIVE){
   };
 
   $GOPD.f = $getOwnPropertyDescriptor;
-  $.setDesc = $defineProperty;
+  $DP.f   = $defineProperty;
   require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
   require('./_object-pie').f  = $propertyIsEnumerable
   require('./_object-gops').f = $getOwnPropertySymbols;
@@ -181,7 +181,7 @@ for(var symbols = (
   var key     = symbols[i++]
     , Wrapper = core.Symbol
     , sym     = wks(key);
-  if(!(key in Wrapper))setDesc(Wrapper, key, {value: USE_NATIVE ? sym : wrap(sym)});
+  if(!(key in Wrapper))dP(Wrapper, key, {value: USE_NATIVE ? sym : wrap(sym)});
 };
 
 setter = true;
