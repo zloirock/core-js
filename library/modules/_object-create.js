@@ -1,6 +1,6 @@
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-var $           = require('./_')
-  , anObject    = require('./_an-object')
+var anObject    = require('./_an-object')
+  , dPs         = require('./_object-dps')
   , enumBugKeys = require('./_enum-bug-keys')
   , IE_PROTO    = require('./_shared-key')('IE_PROTO')
   , Empty       = function(){ /* empty */ }
@@ -36,5 +36,5 @@ module.exports = Object.create || function create(O, Properties){
     // add "__proto__" for Object.getPrototypeOf polyfill
     result[IE_PROTO] = O;
   } else result = createDict();
-  return Properties === undefined ? result : $.setDescs(result, Properties);
+  return Properties === undefined ? result : dPs(result, Properties);
 };

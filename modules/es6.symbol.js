@@ -150,9 +150,8 @@ if(!USE_NATIVE){
     return it instanceof $Symbol;
   };
 
-  $.getDesc  = $getOwnPropertyDescriptor;
-  $.setDesc  = $defineProperty;
-  $.setDescs = $defineProperties;
+  $.getDesc = $getOwnPropertyDescriptor;
+  $.setDesc = $defineProperty;
   require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
   require('./_object-pie').f  = $propertyIsEnumerable
   require('./_object-gops').f = $getOwnPropertySymbols;
