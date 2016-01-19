@@ -150,13 +150,13 @@ if(!USE_NATIVE){
     return it instanceof $Symbol;
   };
 
-  $.create     = $create;
-  $.isEnum     = $propertyIsEnumerable;
-  $.getDesc    = $getOwnPropertyDescriptor;
-  $.setDesc    = $defineProperty;
-  $.setDescs   = $defineProperties;
-  $.getNames   = $names.get = $getOwnPropertyNames;
-  $.getSymbols = $getOwnPropertySymbols;
+  $.create   = $create;
+  $.isEnum   = $propertyIsEnumerable;
+  $.getDesc  = $getOwnPropertyDescriptor;
+  $.setDesc  = $defineProperty;
+  $.setDescs = $defineProperties;
+  $.getNames = $names.get = $getOwnPropertyNames;
+  require('./_object-gops').f = $getOwnPropertySymbols;
 
   if(DESCRIPTORS && !require('./_library')){
     redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);

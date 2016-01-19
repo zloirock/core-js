@@ -1,8 +1,9 @@
 // all enumerable object keys, includes symbols
-var $ = require('./_');
+var $    = require('./_')
+  , gOPS = require('./_object-gops');
 module.exports = function(it){
   var keys       = $.getKeys(it)
-    , getSymbols = $.getSymbols;
+    , getSymbols = gOPS.f;
   if(getSymbols){
     var symbols = getSymbols(it)
       , isEnum  = $.isEnum

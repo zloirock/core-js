@@ -1,6 +1,7 @@
 'use strict';
 // 19.1.2.1 Object.assign(target, source, ...)
 var $        = require('./_')
+  , gOPS     = require('./_object-gops')
   , toObject = require('./_to-object')
   , IObject  = require('./_iobject');
 
@@ -19,7 +20,7 @@ module.exports = require('./_fails')(function(){
     , aLen  = arguments.length
     , index = 1
     , getKeys    = $.getKeys
-    , getSymbols = $.getSymbols
+    , getSymbols = gOPS.f
     , isEnum     = $.isEnum;
   while(aLen > index){
     var S      = IObject(arguments[index++])
