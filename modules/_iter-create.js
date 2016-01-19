@@ -1,5 +1,5 @@
 'use strict';
-var $              = require('./_')
+var create         = require('./_object-create')
   , descriptor     = require('./_property-desc')
   , setToStringTag = require('./_set-to-string-tag')
   , IteratorPrototype = {};
@@ -8,6 +8,6 @@ var $              = require('./_')
 require('./_hide')(IteratorPrototype, require('./_wks')('iterator'), function(){ return this; });
 
 module.exports = function(Constructor, NAME, next){
-  Constructor.prototype = $.create(IteratorPrototype, {next: descriptor(1, next)});
+  Constructor.prototype = create(IteratorPrototype, {next: descriptor(1, next)});
   setToStringTag(Constructor, NAME + ' Iterator');
 };

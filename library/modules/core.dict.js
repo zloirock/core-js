@@ -1,5 +1,6 @@
 'use strict';
 var $           = require('./_')
+  , create      = require('./_object-create')
   , ctx         = require('./_ctx')
   , $export     = require('./_export')
   , createDesc  = require('./_property-desc')
@@ -81,7 +82,7 @@ $iterCreate(DictIterator, 'Dict', function(){
 });
 
 function Dict(iterable){
-  var dict = $.create(null);
+  var dict = create(null);
   if(iterable != undefined){
     if(isIterable(iterable)){
       forOf(iterable, true, function(key, value){

@@ -1,6 +1,6 @@
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-var $         = require('./_')
-  , $export   = require('./_export')
+var $export   = require('./_export')
+  , create    = require('./_object-create')
   , aFunction = require('./_a-function')
   , anObject  = require('./_an-object')
   , isObject  = require('./_is-object')
@@ -31,7 +31,7 @@ $export($export.S + $export.F * require('./_fails')(function(){
     }
     // with altered newTarget, not support built-in constructors
     var proto    = newTarget.prototype
-      , instance = $.create(isObject(proto) ? proto : Object.prototype)
+      , instance = create(isObject(proto) ? proto : Object.prototype)
       , result   = Function.apply.call(Target, instance, args);
     return isObject(result) ? result : instance;
   }

@@ -11,7 +11,7 @@ var $           = require('./_')
   , Base        = $Number
   , proto       = $Number.prototype
   // Opera ~12 has broken Object#toString
-  , BROKEN_COF  = cof($.create(proto)) == NUMBER
+  , BROKEN_COF  = cof(require('./_object-create')(proto)) == NUMBER
   , TRIM        = 'trim' in String.prototype;
 
 // 7.1.3 ToNumber(argument)

@@ -20,9 +20,9 @@ var $              = require('./_')
   , anObject       = require('./_an-object')
   , toIObject      = require('./_to-iobject')
   , createDesc     = require('./_property-desc')
+  , _create        = require('./_object-create')
   , getDesc        = $.getDesc
   , setDesc        = $.setDesc
-  , _create        = $.create
   , getNames       = $names.get
   , $Symbol        = global.Symbol
   , $JSON          = global.JSON
@@ -150,7 +150,6 @@ if(!USE_NATIVE){
     return it instanceof $Symbol;
   };
 
-  $.create   = $create;
   $.getDesc  = $getOwnPropertyDescriptor;
   $.setDesc  = $defineProperty;
   $.setDescs = $defineProperties;

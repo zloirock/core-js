@@ -42,7 +42,7 @@ var USE_NATIVE = function(){
   try {
     works = $Promise && $Promise.resolve && testResolve();
     setProto(SubPromise, $Promise);
-    SubPromise.prototype = $.create($Promise.prototype, {constructor: {value: SubPromise}});
+    SubPromise.prototype = require('./_object-create')($Promise.prototype, {constructor: {value: SubPromise}});
     // actual Firefox has broken subclass support, test that
     if(!(SubPromise.resolve(5).then(empty) instanceof SubPromise)){
       works = false;

@@ -22,6 +22,7 @@ if(require('./_descriptors')){
     , isObject            = require('./_is-object')
     , toObject            = require('./_to-object')
     , isArrayIter         = require('./_is-array-iter')
+    , create              = require('./_object-create')
     , isIterable          = require('./core.is-iterable')
     , getIterFn           = require('./core.get-iterator-method')
     , uid                 = require('./_uid')
@@ -392,7 +393,7 @@ if(require('./_descriptors')){
         });
         while(index < length)addElement(that, index++);
       });
-      TypedArrayPrototype = TypedArray[PROTOTYPE] = $.create($TypedArrayPrototype$);
+      TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if(!$iterDetect(function(iter){
       // V8 works with iterators, but fails in many other cases
