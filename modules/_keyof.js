@@ -1,8 +1,8 @@
-var $         = require('./_')
+var getKeys   = require('./_object-keys')
   , toIObject = require('./_to-iobject');
 module.exports = function(object, el){
   var O      = toIObject(object)
-    , keys   = $.getKeys(O)
+    , keys   = getKeys(O)
     , length = keys.length
     , index  = 0
     , key;

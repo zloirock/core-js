@@ -6,6 +6,7 @@ var $              = require('./_')
   , assign         = require('./_object-assign')
   , create         = require('./_object-create')
   , getPrototypeOf = require('./_object-gpo')
+  , getKeys        = require('./_object-keys')
   , keyOf          = require('./_keyof')
   , aFunction      = require('./_a-function')
   , forOf          = require('./_for-of')
@@ -15,8 +16,7 @@ var $              = require('./_')
   , isObject       = require('./_is-object')
   , toIObject      = require('./_to-iobject')
   , DESCRIPTORS    = require('./_descriptors')
-  , has            = require('./_has')
-  , getKeys        = $.getKeys;
+  , has            = require('./_has');
 
 // 0 -> Dict.forEach
 // 1 -> Dict.map

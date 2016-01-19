@@ -1,11 +1,12 @@
 var $           = require('./_')
   , $export     = require('./_export')
   , DESCRIPTORS = require('./_descriptors')
-  , anObject    = require('./_an-object');
+  , anObject    = require('./_an-object')
+  , getKeys     = require('./_object-keys');
 
 var $defineProperties = function defineProperties(O, Properties){
   anObject(O);
-  var keys   = $.getKeys(Properties)
+  var keys   = getKeys(Properties)
     , length = keys.length
     , i = 0
     , P;
