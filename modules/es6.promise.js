@@ -283,7 +283,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
       var values    = from(iterable)
         , remaining = values.length
         , results   = Array(remaining);
-      if(remaining)$.each.call(values, function(promise, index){
+      var f = function(promise, index){
         var alreadyCalled = false;
         C.resolve(promise).then(function(value){
           if(alreadyCalled)return;
@@ -291,7 +291,8 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
           results[index] = value;
           --remaining || resolve(results);
         }, reject);
-      });
+      };
+      if(remaining)for(var i = 0, l = values.length; l > i; i++)f(values[i], i);
       else resolve(results);
     });
     if(abrupt)reject(abrupt.error);

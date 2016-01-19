@@ -17,7 +17,6 @@ var $              = require('./_')
   , PROTOTYPE      = 'prototype'
   , WRONG_LENGTH   = 'Wrong length!'
   , WRONG_INDEX    = 'Wrong index!'
-  , each           = $.each
   , getNames       = $.getNames
   , $ArrayBuffer   = global[ARRAY_BUFFER]
   , $DataView      = global[DATA_VIEW]
@@ -249,10 +248,10 @@ if(!$typed.ABV){
     $ArrayBuffer = function ArrayBuffer(length){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
-    each.call(getNames(BaseBuffer), function(key){
-      if(!(key in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
-    });
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
+    for(var keys = getNames(BaseBuffer), j = 0, key; keys.length > j; ){
+      if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
+    };
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug

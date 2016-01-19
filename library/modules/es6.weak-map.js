@@ -1,5 +1,5 @@
 'use strict';
-var each         = require('./_').each
+var each         = require('./_array-methods')(0)
   , redefine     = require('./_redefine')
   , meta         = require('./_meta')
   , assign       = require('./_object-assign')
@@ -41,7 +41,7 @@ if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
   InternalMap = weak.getConstructor(wrapper);
   assign(InternalMap.prototype, methods);
   meta.NEED = true;
-  each.call(['delete', 'has', 'get', 'set'], function(key){
+  each(['delete', 'has', 'get', 'set'], function(key){
     var proto  = $WeakMap.prototype
       , method = proto[key];
     redefine(proto, key, function(a, b){

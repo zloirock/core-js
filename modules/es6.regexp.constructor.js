@@ -23,13 +23,14 @@ if(require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function(){
         ? new Base(piRE && !fiU ? p.source : p, f)
         : Base((piRE = p instanceof $RegExp) ? p.source : p, piRE && fiU ? $flags.call(p) : f);
   };
-  $.each.call($.getNames(Base), function(key){
+  var proxy = function(key){
     key in $RegExp || $.setDesc($RegExp, key, {
       configurable: true,
       get: function(){ return Base[key]; },
       set: function(it){ Base[key] = it; }
     });
-  });
+  };
+  for(var keys = $.getNames(Base), i = 0; keys.length > i; )proxy(keys[i++]);
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
   require('./_redefine')(global, 'RegExp', $RegExp);

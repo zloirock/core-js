@@ -176,14 +176,14 @@ $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
 // 19.4.2.12 Symbol.toPrimitive
 // 19.4.2.13 Symbol.toStringTag
 // 19.4.2.14 Symbol.unscopables
-$.each.call((
-  'hasInstance,isConcatSpreadable,iterator,match,replace,search,' +
-  'species,split,toPrimitive,toStringTag,unscopables'
-).split(','), function(it){
-  var Wrapper = core.Symbol
-    , sym     = wks(it);
-  if(!(it in Wrapper))setDesc(Wrapper, it, {value: USE_NATIVE ? sym : wrap(sym)});
-});
+for(var symbols = (
+  'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
+).split(','), i = 0; symbols.length > i; ){
+  var key     = symbols[i++]
+    , Wrapper = core.Symbol
+    , sym     = wks(key);
+  if(!(key in Wrapper))setDesc(Wrapper, key, {value: USE_NATIVE ? sym : wrap(sym)});
+};
 
 setter = true;
 

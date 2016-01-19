@@ -8,6 +8,5 @@ module.exports = {
   setDescs:   $Object.defineProperties,
   getKeys:    $Object.keys,
   getNames:   $Object.getOwnPropertyNames,
-  getSymbols: $Object.getOwnPropertySymbols,
-  each:       [].forEach
+  getSymbols: $Object.getOwnPropertySymbols
 };

@@ -1,6 +1,5 @@
 'use strict';
-var $              = require('./_')
-  , global         = require('./_global')
+var global         = require('./_global')
   , $export        = require('./_export')
   , meta           = require('./_meta')
   , fails          = require('./_fails')
@@ -10,6 +9,8 @@ var $              = require('./_')
   , anInstance     = require('./_an-instance')
   , isObject       = require('./_is-object')
   , setToStringTag = require('./_set-to-string-tag')
+  , setDesc        = require('./_').setDesc
+  , each           = require('./_array-methods')(0)
   , DESCRIPTORS    = require('./_descriptors');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
@@ -31,7 +32,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       target._c = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });
-    $.each.call('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','),function(KEY){
+    each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','),function(KEY){
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if(KEY in proto && !(IS_WEAK && KEY == 'clear'))hide(C.prototype, KEY, function(a, b){
         anInstance(this, C, KEY);
@@ -40,7 +41,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
         return IS_ADDER ? this : result;
       });
     });
-    if('size' in proto)$.setDesc(C.prototype, 'size', {
+    if('size' in proto)setDesc(C.prototype, 'size', {
       get: function(){
         return this._c.size;
       }
