@@ -1,3 +1,15 @@
+require('../../../modules/es5.array.join');
+require('../../../modules/es5.array.slice');
+require('../../../modules/es5.array.sort');
+require('../../../modules/es5.array.for-each');
+require('../../../modules/es5.array.map');
+require('../../../modules/es5.array.filter');
+require('../../../modules/es5.array.some');
+require('../../../modules/es5.array.every');
+require('../../../modules/es5.array.reduce');
+require('../../../modules/es5.array.reduce-right');
+require('../../../modules/es5.array.index-of');
+require('../../../modules/es5.array.last-index-of');
 require('../../../modules/es6.string.iterator');
 require('../../../modules/es6.array.iterator');
 require('../../../modules/es6.array.copy-within');

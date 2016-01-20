@@ -25,15 +25,30 @@ for P in <[.. ../library]>
   ok require("#P/fn/object/define")({}, {q: 42}).q is 42
   ok require("#P/fn/object/make")([], {}) instanceof Array
   ok \isObject of require("#P/fn/object")
+  ok require("#P/fn/function/bind")(((a, b)-> @ + a + b), 1 2)(3) is 6
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
+  ok require("#P/fn/function/virtual/bind").call(((a, b)-> @ + a + b), 1 2)(3) is 6
   ok require("#P/fn/function/virtual/part").call(((a, b, c)-> a + b + c), 2 3)(4) is 9
   ok require("#P/fn/function/virtual").part.call(((a, b, c)-> a + b + c), 2 3)(4) is 9
   require("#P/fn/function/name")
   require("#P/fn/function/has-instance")
   ok Function[require("#P/fn/symbol/has-instance")] ->
   ok \part of require("#P/fn/function")
+  ok require("#P/fn/array/is-array") []
   ok Array.isArray require("#P/fn/array/from") 'qwe'
   ok Array.isArray require("#P/fn/array/of") \q \w \e
+  ok require("#P/fn/array/join")(\qwe 1) is \q1w1e
+  ok require("#P/fn/array/slice")(\qwe 1).1 is \e
+  ok require("#P/fn/array/sort")([1 3 2]).1 is 2
+  ok typeof require("#P/fn/array/for-each") is \function
+  ok typeof require("#P/fn/array/map") is \function
+  ok typeof require("#P/fn/array/filter") is \function
+  ok typeof require("#P/fn/array/some") is \function
+  ok typeof require("#P/fn/array/every") is \function
+  ok typeof require("#P/fn/array/reduce") is \function
+  ok typeof require("#P/fn/array/reduce-right") is \function
+  ok typeof require("#P/fn/array/index-of") is \function
+  ok typeof require("#P/fn/array/last-index-of") is \function
   ok require("#P/fn/array/copy-within")([1 2 3 4 5] 0 3).0 is 4
   ok \next of require("#P/fn/array/entries")([])
   ok require("#P/fn/array/fill")(Array(5), 2).0 is 2
@@ -43,6 +58,18 @@ for P in <[.. ../library]>
   ok \next of require("#P/fn/array/values")([])
   ok require("#P/fn/array/includes")([1 2 3], 2)
   ok \next of require("#P/fn/array/iterator") []
+  ok require("#P/fn/array/virtual/join").call(\qwe 1) is \q1w1e
+  ok require("#P/fn/array/virtual/slice").call(\qwe 1).1 is \e
+  ok require("#P/fn/array/virtual/sort").call([1 3 2]).1 is 2
+  ok typeof require("#P/fn/array/virtual/for-each") is \function
+  ok typeof require("#P/fn/array/virtual/map") is \function
+  ok typeof require("#P/fn/array/virtual/filter") is \function
+  ok typeof require("#P/fn/array/virtual/some") is \function
+  ok typeof require("#P/fn/array/virtual/every") is \function
+  ok typeof require("#P/fn/array/virtual/reduce") is \function
+  ok typeof require("#P/fn/array/virtual/reduce-right") is \function
+  ok typeof require("#P/fn/array/virtual/index-of") is \function
+  ok typeof require("#P/fn/array/virtual/last-index-of") is \function
   ok require("#P/fn/array/virtual/copy-within").call([1 2 3 4 5] 0 3).0 is 4
   ok \next of require("#P/fn/array/virtual/entries").call([])
   ok require("#P/fn/array/virtual/fill").call(Array(5), 2).0 is 2
@@ -176,8 +203,10 @@ for P in <[.. ../library]>
   ok \escape of require("#P/fn/regexp")
   ok require("#P/fn/json").stringify([1]) is '[1]'
   ok require("#P/fn/json/stringify")([1]) is '[1]'
-  ok require("#P/fn/date")
+  ok typeof require("#P/fn/date/now")(new Date) is \number
+  ok typeof require("#P/fn/date/to-iso-string")(new Date) is \string
   ok typeof require("#P/fn/date/to-string")(new Date) is \string
+  ok require("#P/fn/date")
   ok require("#P/fn/symbol/has-instance")
   ok require("#P/fn/symbol/is-concat-spreadable")
   ok require("#P/fn/symbol/iterator")
