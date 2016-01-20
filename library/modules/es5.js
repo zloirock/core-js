@@ -1,11 +1,11 @@
 // This file still here for a legacy code and will be removed in a near time
 require('./es5.object.define-property');
 require('./es5.object.define-properties');
-require('./es5.object.get-own-property-descriptor');
+require('./es6.object.get-own-property-descriptor');
 require('./es5.object.create');
-require('./es5.object.get-prototype-of');
-require('./es5.object.keys');
-require('./es5.object.get-own-property-names');
+require('./es6.object.get-prototype-of');
+require('./es6.object.keys');
+require('./es6.object.get-own-property-names');
 require('./es5.function.bind');
 require('./es5.array.is-array');
 require('./es5.array.join');

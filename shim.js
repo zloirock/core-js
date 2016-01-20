@@ -1,10 +1,6 @@
 require('./modules/es5.object.define-property');
 require('./modules/es5.object.define-properties');
-require('./modules/es5.object.get-own-property-descriptor');
 require('./modules/es5.object.create');
-require('./modules/es5.object.get-prototype-of');
-require('./modules/es5.object.keys');
-require('./modules/es5.object.get-own-property-names');
 require('./modules/es5.function.bind');
 require('./modules/es5.array.is-array');
 require('./modules/es5.array.join');

@@ -2,11 +2,7 @@ module.exports = {
   list: [
     'es5.object.define-property',
     'es5.object.define-properties',
-    'es5.object.get-own-property-descriptor',
     'es5.object.create',
-    'es5.object.get-prototype-of',
-    'es5.object.keys',
-    'es5.object.get-own-property-names',
     'es5.function.bind',
     'es5.array.is-array',
     'es5.array.join',
@@ -202,6 +198,10 @@ module.exports = {
     'es6.date.to-string'
   ],
   es5SpecialCase: [
+    'es6.object.get-own-property-descriptor',
+    'es6.object.get-prototype-of',
+    'es6.object.keys',
+    'es6.object.get-own-property-names',
     'es6.object.freeze',
     'es6.object.seal',
     'es6.object.prevent-extensions',
