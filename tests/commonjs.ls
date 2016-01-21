@@ -112,6 +112,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/number/min-safe-integer") is -0x1fffffffffffff
   ok require("#P/fn/number/parse-float")('1.5') is 1.5
   ok require("#P/fn/number/parse-int")('2.1') is 2
+  ok require("#P/fn/parse-int")('2.1') is 2
   ok \next of require("#P/fn/number/iterator") 42
   ok \next of require("#P/fn/number/virtual/iterator").call 42
   ok \next of require("#P/fn/number/virtual").iterator.call 42

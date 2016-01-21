@@ -1,8 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.parseInt' (assert)->
-  {parseInt} = Number
+test 'parseInt' (assert)->
   assert.isFunction parseInt
   assert.name parseInt, \parseInt
   assert.arity parseInt, 2

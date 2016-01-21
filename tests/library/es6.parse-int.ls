@@ -1,12 +1,10 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.parseInt' (assert)->
-  {parseInt} = Number
+test 'parseInt' (assert)->
+  {parseInt} = core
   assert.isFunction parseInt
-  assert.name parseInt, \parseInt
   assert.arity parseInt, 2
-  assert.looksNative parseInt
   for r from 2 to 36
     assert.same parseInt(\10 r), r, "radix #r"
   for <[01 08 10 42]>
