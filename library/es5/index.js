@@ -18,6 +18,7 @@ require('../modules/es5.array.last-index-of');
 require('../modules/es5.date.now');
 require('../modules/es5.date.to-iso-string');
 require('../modules/es5.parse-int');
+require('../modules/es5.parse-float');
 require('../modules/es6.object.get-own-property-descriptor');
 require('../modules/es6.object.get-prototype-of');
 require('../modules/es6.object.keys');

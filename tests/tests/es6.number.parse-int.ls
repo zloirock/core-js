@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.parseInt' (assert)->
+test 'Number.parseInt' (assert)!->
   {parseInt} = Number
   assert.isFunction parseInt
   assert.name parseInt, \parseInt
@@ -24,6 +24,5 @@ test 'Number.parseInt' (assert)->
   assert.same parseInt('-0xF'), -15, 'signed hex #1'
   assert.same parseInt('-0xF', 16), -15, 'signed hex #2'
   assert.same parseInt('+0xF'), 15, 'signed hex #3'
-  assert.same parseInt('+0xF' 16), 15, 'signed hex #4'
   assert.same parseInt('+0xF' 16), 15, 'signed hex #4'
   assert.same parseInt('10', -4294967294), 2, 'radix uses ToUint32'

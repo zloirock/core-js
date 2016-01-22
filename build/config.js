@@ -20,6 +20,7 @@ module.exports = {
     'es5.date.now',
     'es5.date.to-iso-string',
     'es5.parse-int',
+    'es5.parse-float',
     'es6.symbol',
     'es6.object.assign',
     'es6.object.is',
