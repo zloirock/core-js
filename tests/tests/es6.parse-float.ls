@@ -12,3 +12,5 @@ test 'parseFloat' (assert)!->
   assert.same parseFloat(' +0'), 0
   assert.same parseFloat('-0'), -0
   assert.same parseFloat(' -0'), -0
+  assert.same parseFloat(null), NaN
+  assert.same parseFloat(void), NaN

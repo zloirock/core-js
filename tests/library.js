@@ -2712,6 +2712,8 @@
     assert.same(parseFloat(' +0'), 0);
     assert.same(parseFloat('-0'), -0);
     assert.same(parseFloat(' -0'), -0);
+    assert.same(parseFloat(null), NaN);
+    assert.same(parseFloat(void 8), NaN);
   });
 }).call(this);
 
@@ -2752,6 +2754,8 @@
     assert.same(parseInt('+0xF'), 15, 'signed hex #3');
     assert.same(parseInt('+0xF', 16), 15, 'signed hex #4');
     assert.same(parseInt('10', -4294967294), 2, 'radix uses ToUint32');
+    assert.same(parseInt(null), NaN);
+    assert.same(parseInt(void 8), NaN);
   });
 }).call(this);
 
@@ -3369,6 +3373,8 @@
     assert.same(parseFloat(' +0'), 0);
     assert.same(parseFloat('-0'), -0);
     assert.same(parseFloat(' -0'), -0);
+    assert.same(parseFloat(null), NaN);
+    assert.same(parseFloat(void 8), NaN);
   });
 }).call(this);
 
@@ -3409,6 +3415,8 @@
     assert.same(parseInt('+0xF'), 15, 'signed hex #3');
     assert.same(parseInt('+0xF', 16), 15, 'signed hex #4');
     assert.same(parseInt('10', -4294967294), 2, 'radix uses ToUint32');
+    assert.same(parseInt(null), NaN);
+    assert.same(parseInt(void 8), NaN);
   });
 }).call(this);
 
