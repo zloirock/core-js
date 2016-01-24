@@ -3691,8 +3691,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object.defineProperty', function(assert){
-    var defineProperty, rez, src;
-    defineProperty = Object.defineProperty;
+    var defineProperty, create, rez, src;
+    defineProperty = Object.defineProperty, create = Object.create;
     assert.isFunction(defineProperty);
     assert.arity(defineProperty, 3);
     assert.name(defineProperty, 'defineProperty');
@@ -3700,7 +3700,16 @@
     assert.ok((rez = defineProperty(src = {}, 'q', {
       value: 42
     })) === src);
-    return assert.ok(rez.q === 42);
+    assert.ok(rez.q === 42);
+    assert.throws(function(){
+      defineProperty(42, 1, {});
+    });
+    assert.throws(function(){
+      defineProperty({}, create(null), {});
+    });
+    return assert.throws(function(){
+      defineProperty({}, 1, 1);
+    });
   });
 }).call(this);
 
@@ -4564,8 +4573,9 @@
   module('ES6');
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Reflect.defineProperty', function(assert){
-    var defineProperty, O;
+    var defineProperty, create, O;
     defineProperty = Reflect.defineProperty;
+    create = Reflect.create;
     assert.isFunction(defineProperty);
     assert.arity(defineProperty, 3);
     assert.name(defineProperty, 'defineProperty');
@@ -4591,11 +4601,20 @@
         value: 42
       }), false);
     }
-    return assert.throws(function(){
-      return defineProperty(42, 'foo', {
+    assert.throws(function(){
+      defineProperty(42, 'foo', {
         value: 42
       });
     }, TypeError, 'throws on primitive');
+    assert.throws(function(){
+      defineProperty(42, 1, {});
+    });
+    assert.throws(function(){
+      defineProperty({}, create(null), {});
+    });
+    return assert.throws(function(){
+      defineProperty({}, 1, 1);
+    });
   });
 }).call(this);
 

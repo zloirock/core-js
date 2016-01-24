@@ -5,6 +5,7 @@ module \ES6
 
 test 'Reflect.defineProperty' (assert)->
   {defineProperty} = core.Reflect
+  {create} = core.Object
   assert.isFunction defineProperty
   assert.arity defineProperty, 3
   if \name of defineProperty
@@ -17,4 +18,7 @@ test 'Reflect.defineProperty' (assert)->
     defineProperty O, \foo, {value: 123, enumerable: on}
     assert.deepEqual getOwnPropertyDescriptor(O, \foo), {value: 123, enumerable: on, configurable: no, writable: no}
     assert.strictEqual defineProperty(O, \foo, {value: 42}), no
-  assert.throws (-> defineProperty 42, \foo, {value: 42}), TypeError, 'throws on primitive'
+  assert.throws (!-> defineProperty 42, \foo, {value: 42}), TypeError, 'throws on primitive'
+  assert.throws (!-> defineProperty 42 1 {})
+  assert.throws (!-> defineProperty {} create(null), {})
+  assert.throws (!-> defineProperty {} 1 1)
