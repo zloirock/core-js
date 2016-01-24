@@ -841,6 +841,7 @@ o2[s2] = true;
 for(var key in o2)console.log(key); // nothing
 ```
 * Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+* Some problems possible with environment exotic objects (for example, IE `localStorage`).
 
 #### ECMAScript 6: Collections
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
