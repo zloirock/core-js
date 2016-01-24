@@ -95,6 +95,7 @@ require('./modules/es6.array.fill');
 require('./modules/es6.array.find');
 require('./modules/es6.array.find-index');
 require('./modules/es6.regexp.constructor');
+require('./modules/es6.regexp.to-string');
 require('./modules/es6.regexp.flags');
 require('./modules/es6.regexp.match');
 require('./modules/es6.regexp.replace');

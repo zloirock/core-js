@@ -196,6 +196,7 @@ for P in <[.. ../library]>
   ok \next of require("#P/fn/string/virtual/iterator").call \qwe
   ok \raw of require("#P/fn/string")
   ok require("#P/fn/regexp/constructor")(\a \g) + '' is '/a/g'
+  ok require("#P/fn/regexp/to-string")(/./g) is '/./g'
   ok require("#P/fn/regexp/flags")(/./g) is \g
   ok typeof require("#P/fn/regexp/match") is \function
   ok typeof require("#P/fn/regexp/replace") is \function

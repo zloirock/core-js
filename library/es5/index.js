@@ -30,4 +30,5 @@ require('../modules/es6.object.is-frozen');
 require('../modules/es6.object.is-sealed');
 require('../modules/es6.object.is-extensible');
 require('../modules/es6.string.trim');
+require('../modules/es6.regexp.to-string');
 module.exports = require('../modules/_core');

@@ -96,6 +96,7 @@ module.exports = {
     'es6.array.find',
     'es6.array.find-index',
     'es6.regexp.constructor',
+    'es6.regexp.to-string',
     'es6.regexp.flags',
     'es6.regexp.match',
     'es6.regexp.replace',
@@ -210,7 +211,8 @@ module.exports = {
     'es6.object.is-frozen',
     'es6.object.is-sealed',
     'es6.object.is-extensible',
-    'es6.string.trim'
+    'es6.string.trim',
+    'es6.regexp.to-string'
   ],
   banner: '/**\n' +
           ' * core-js ' + require('../package').version + '\n' +
