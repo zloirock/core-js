@@ -124,3 +124,14 @@ if DESCRIPTORS
     assert.strictEqual O.b, void, \b
     assert.strictEqual O[c], \c, \c
     assert.strictEqual O[d], void, \d
+
+  for $key in <[Map Set Promise]> 
+    let key = $key => test "#key@@species" (assert)!->
+      assert.strictEqual core[key][core.Symbol.species], core[key], "#key@@species === #key"
+      C = core.Object.create core[key]
+      assert.strictEqual C[core.Symbol.species], C, "#key sub"
+
+  test "Array@@species" (assert)!->
+    assert.strictEqual Array[core.Symbol.species], Array, "Array@@species === Array"
+    C = core.Object.create Array
+    assert.strictEqual C[core.Symbol.species], C, "Array sub"

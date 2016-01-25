@@ -153,8 +153,8 @@ if DESCRIPTORS
     assert.strictEqual O[c], \c, \c
     assert.strictEqual O[d], void, \d
 
-  for key in <[Array RegExp Map Set WeakMap WeakSet Promise]> 
-    test "#key@@species" (assert)->
+  for $key in <[Array RegExp Map Set Promise]> 
+    let key = $key => test "#key@@species" (assert)!->
       assert.strictEqual global[key][Symbol.species], global[key], "#key@@species === #key"
       C = Object.create global[key]
       assert.strictEqual C[Symbol.species], C, "#key sub"
