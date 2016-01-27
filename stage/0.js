@@ -1,5 +1,4 @@
 require('../modules/es7.string.at');
-require('../modules/es7.object.get-own-property-descriptors');
 require('../modules/es7.map.to-json');
 require('../modules/es7.set.to-json');
 require('../modules/es7.error.is-error');
