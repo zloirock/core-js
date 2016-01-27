@@ -5,12 +5,32 @@ var cof = require('./_cof')
   , ARG = cof(function(){ return arguments; }()) == 'Arguments';
 
 module.exports = function(it){
-  var O, T, B;
-  return it === undefined ? 'Undefined' : it === null ? 'Null'
-    // @@toStringTag case
-    : typeof (T = (O = Object(it))[TAG]) == 'string' ? T
-    // builtinTag case
-    : ARG ? cof(O)
-    // ES3 arguments fallback
-    : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
+  if (it === undefined) {
+    return 'Undefined';
+  }
+
+  if (it === null) {
+    return 'Null';
+  }
+
+  var O = Object(it);
+
+  // @@toStringTag case
+  if (TAG in O && typeof O[TAG] === 'string') {
+    return O[TAG];
+  }
+
+  var B = cof(O);
+
+  // builtinTag case
+  if (ARG) {
+    return B;
+  }
+
+  // ES3 arguments fallback
+  if (B === 'Object' && typeof O.callee === 'function') {
+    return 'Arguments';
+  }
+
+  return B;
 };
