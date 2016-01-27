@@ -7,6 +7,7 @@ test 'Number.parseInt' (assert)!->
   assert.name parseInt, \parseInt
   assert.arity parseInt, 2
   assert.looksNative parseInt
+  assert.same parseInt, global.parseInt
   for r from 2 to 36
     assert.same parseInt(\10 r), r, "radix #r"
   for <[01 08 10 42]>

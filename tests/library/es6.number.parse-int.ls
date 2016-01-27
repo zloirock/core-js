@@ -5,6 +5,7 @@ test 'Number.parseInt' (assert)!->
   {parseInt} = core.Number
   assert.isFunction parseInt
   assert.arity parseInt, 2
+  assert.same parseInt, core.parseInt
   for r from 2 to 36
     assert.same parseInt(\10 r), r, "radix #r"
   for <[01 08 10 42]>
