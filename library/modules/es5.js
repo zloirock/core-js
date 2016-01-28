@@ -28,6 +28,7 @@ require('./es6.array.index-of');
 require('./es6.array.last-index-of');
 require('./es6.date.now');
 require('./es6.date.to-iso-string');
+require('./es6.date.to-json');
 require('./es6.parse-int');
 require('./es6.parse-float');
 require('./es6.string.trim');

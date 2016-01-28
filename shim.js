@@ -73,6 +73,7 @@ require('./modules/es6.string.sup');
 require('./modules/es6.date.now');
 require('./modules/es6.date.to-string');
 require('./modules/es6.date.to-iso-string');
+require('./modules/es6.date.to-json');
 require('./modules/es6.array.is-array');
 require('./modules/es6.array.from');
 require('./modules/es6.array.of');

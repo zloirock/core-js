@@ -207,8 +207,9 @@ for P in <[.. ../library]>
   ok require("#P/fn/json").stringify([1]) is '[1]'
   ok require("#P/fn/json/stringify")([1]) is '[1]'
   ok typeof require("#P/fn/date/now")(new Date) is \number
-  ok typeof require("#P/fn/date/to-iso-string")(new Date) is \string
   ok typeof require("#P/fn/date/to-string")(new Date) is \string
+  ok typeof require("#P/fn/date/to-iso-string")(new Date) is \string
+  ok require("#P/fn/date/to-json")(Infinity) is null
   ok require("#P/fn/date")
   ok require("#P/fn/symbol/has-instance")
   ok require("#P/fn/symbol/is-concat-spreadable")
