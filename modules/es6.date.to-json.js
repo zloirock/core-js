@@ -4,7 +4,7 @@ var $export     = require('./_export')
   , toPrimitive = require('./_to-primitive');
 
 $export($export.P + $export.F * require('./_fails')(function(){
-  return Date.prototype.toJSON.call({toISOString: function(){ return 1; }}) !== 1;
+  return new Date(NaN).toJSON() !== null || Date.prototype.toJSON.call({toISOString: function(){ return 1; }}) !== 1;
 }), 'Date', {
   toJSON: function toJSON(key){
     var O  = toObject(this)
