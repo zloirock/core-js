@@ -1,2 +1,2 @@
-require('../../../modules/es5.array.reduce');
+require('../../../modules/es6.array.reduce');
 module.exports = require('../../../modules/_entry-virtual')('Array').reduce;

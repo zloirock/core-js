@@ -266,6 +266,8 @@ for P in <[.. ../library]>
   ok typeof require("#P/es6/weak-set") is \function
   ok \hypot of require("#P/es6/math")
   ok \MAX_SAFE_INTEGER of require("#P/es6/number")
+  ok require("#P/es6/parse-float")('1.5') is 1.5
+  ok require("#P/es6/parse-int")('2.1') is 2
   ok \assign of require("#P/es6/object")
   ok typeof require("#P/es6/promise") is \function
   ok \ownKeys of require("#P/es6/reflect")

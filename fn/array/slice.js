@@ -1,2 +1,2 @@
-require('../../modules/es5.array.slice');
+require('../../modules/es6.array.slice');
 module.exports = require('../../modules/_core').Array.slice;
