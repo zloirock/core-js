@@ -134,6 +134,15 @@ for P in <[.. ../library]>
   ok require("#P/fn/reflect/set")({}, \a 42)
   require("#P/fn/reflect/set-prototype-of")(O = {}, [])
   ok O instanceof Array
+  ok typeof require("#P/fn/reflect/define-metadata") is \function
+  ok typeof require("#P/fn/reflect/delete-metadata") is \function
+  ok typeof require("#P/fn/reflect/get-metadata") is \function
+  ok typeof require("#P/fn/reflect/get-metadata-keys") is \function
+  ok typeof require("#P/fn/reflect/get-own-metadata") is \function
+  ok typeof require("#P/fn/reflect/get-own-metadata-keys") is \function
+  ok typeof require("#P/fn/reflect/has-metadata") is \function
+  ok typeof require("#P/fn/reflect/has-own-metadata") is \function
+  ok typeof require("#P/fn/reflect/metadata") is \function
   ok \enumerate of require("#P/fn/reflect")
   ok require("#P/fn/string/from-code-point")(97) is \a
   ok require("#P/fn/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
@@ -286,6 +295,7 @@ for P in <[.. ../library]>
   ok require("#P/es7/system").global.Math is Math
   ok require("#P/es7/error").isError new TypeError
   ok typeof require("#P/es7/math").isubh is \function
+  ok \metadata of require("#P/es7/reflect")
   ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")

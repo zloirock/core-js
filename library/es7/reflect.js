@@ -7,4 +7,4 @@ require('../modules/es7.reflect.get-own-metadata-keys');
 require('../modules/es7.reflect.has-metadata');
 require('../modules/es7.reflect.has-own-metadata');
 require('../modules/es7.reflect.metadata');
-module.exports = require('./0');
+module.exports = require('../modules/_core').Reflect;

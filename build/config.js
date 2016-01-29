@@ -155,7 +155,7 @@ module.exports = {
     'es7.reflect.delete-metadata',
     'es7.reflect.get-metadata',
     'es7.reflect.get-metadata-keys',
-    'es7.reflect.get-own-matadata',
+    'es7.reflect.get-own-metadata',
     'es7.reflect.get-own-metadata-keys',
     'es7.reflect.has-metadata',
     'es7.reflect.has-own-metadata',
@@ -179,15 +179,7 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
-    'es7.reflect.define-metadata',
-    'es7.reflect.delete-metadata',
-    'es7.reflect.get-metadata',
-    'es7.reflect.get-metadata-keys',
-    'es7.reflect.get-own-matadata',
-    'es7.reflect.get-own-metadata-keys',
-    'es7.reflect.has-metadata',
-    'es7.reflect.has-own-metadata',
-    'es7.reflect.metadata'
+
   ],
   libraryBlacklist: [
     'es6.object.to-string',
