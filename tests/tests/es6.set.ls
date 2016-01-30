@@ -60,7 +60,7 @@ test 'Set' (assert)->
     assert.arrayEqual [key for key of o], []
     assert.arrayEqual Object.keys(o), []
   assert.arrayEqual Object.getOwnPropertyNames(o), []
-  assert.arrayEqual Object.getOwnPropertySymbols(o), []
+  Object?getOwnPropertySymbols and assert.arrayEqual Object.getOwnPropertySymbols(o), []
   Reflect?ownKeys and assert.arrayEqual Reflect.ownKeys(o), []
   if nativeSubclass
     C = nativeSubclass Set
