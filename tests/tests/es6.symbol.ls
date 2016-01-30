@@ -116,7 +116,7 @@ if DESCRIPTORS
     assert.strictEqual keys(O).length, 2, 'Object.keys'
     assert.strictEqual getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames'
     assert.strictEqual getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols'
-    assert.strictEqual Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys'
+    Reflect?ownKeys and assert.strictEqual Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys'
     delete O[e]
     O[e] = \e
     assert.deepEqual getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: on, value: \e}, 'redefined non-enum key'

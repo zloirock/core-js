@@ -3,7 +3,6 @@ module \ES6
 
 test 'Object.freeze' (assert)!->
   {freeze, isFrozen, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
-  {ownKeys} = Reflect
   assert.isFunction freeze
   assert.arity freeze, 1
   assert.name freeze, \freeze
@@ -17,4 +16,4 @@ test 'Object.freeze' (assert)!->
   assert.arrayEqual keys(freeze {}), []
   assert.arrayEqual getOwnPropertyNames(freeze {}), []
   assert.arrayEqual getOwnPropertySymbols(freeze {}), []
-  assert.arrayEqual ownKeys(freeze {}), []
+  Reflect?ownKeys and assert.arrayEqual Reflect.ownKeys(freeze {}), []

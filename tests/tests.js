@@ -2170,7 +2170,7 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    assert.arrayEqual(Reflect.ownKeys(o), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(o), []);
     if (nativeSubclass) {
       C = nativeSubclass(Map);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
@@ -3761,9 +3761,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object.freeze', function(assert){
-    var freeze, isFrozen, keys, getOwnPropertyNames, getOwnPropertySymbols, ownKeys, i$, ref$, len$, value, key;
+    var freeze, isFrozen, keys, getOwnPropertyNames, getOwnPropertySymbols, i$, ref$, len$, value, key;
     freeze = Object.freeze, isFrozen = Object.isFrozen, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertySymbols = Object.getOwnPropertySymbols;
-    ownKeys = Reflect.ownKeys;
     assert.isFunction(freeze);
     assert.arity(freeze, 1);
     assert.name(freeze, 'freeze');
@@ -3786,7 +3785,7 @@
     assert.arrayEqual(keys(freeze({})), []);
     assert.arrayEqual(getOwnPropertyNames(freeze({})), []);
     assert.arrayEqual(getOwnPropertySymbols(freeze({})), []);
-    assert.arrayEqual(ownKeys(freeze({})), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(freeze({})), []);
     function fn$(){
       try {
         freeze(value);
@@ -4107,9 +4106,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object.preventExtensions', function(assert){
-    var preventExtensions, isExtensible, keys, getOwnPropertyNames, getOwnPropertySymbols, ownKeys, i$, ref$, len$, value, key;
+    var preventExtensions, isExtensible, keys, getOwnPropertyNames, getOwnPropertySymbols, i$, ref$, len$, value, key;
     preventExtensions = Object.preventExtensions, isExtensible = Object.isExtensible, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertySymbols = Object.getOwnPropertySymbols;
-    ownKeys = Reflect.ownKeys;
     assert.isFunction(preventExtensions);
     assert.arity(preventExtensions, 1);
     assert.name(preventExtensions, 'preventExtensions');
@@ -4132,7 +4130,7 @@
     assert.arrayEqual(keys(preventExtensions({})), []);
     assert.arrayEqual(getOwnPropertyNames(preventExtensions({})), []);
     assert.arrayEqual(getOwnPropertySymbols(preventExtensions({})), []);
-    assert.arrayEqual(ownKeys(preventExtensions({})), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(preventExtensions({})), []);
     function fn$(){
       try {
         preventExtensions(value);
@@ -4148,9 +4146,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object.seal', function(assert){
-    var seal, isSealed, keys, getOwnPropertyNames, getOwnPropertySymbols, ownKeys, i$, ref$, len$, value, key;
+    var seal, isSealed, keys, getOwnPropertyNames, getOwnPropertySymbols, i$, ref$, len$, value, key;
     seal = Object.seal, isSealed = Object.isSealed, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertySymbols = Object.getOwnPropertySymbols;
-    ownKeys = Reflect.ownKeys;
     assert.isFunction(seal);
     assert.arity(seal, 1);
     assert.name(seal, 'seal');
@@ -4173,7 +4170,7 @@
     assert.arrayEqual(keys(seal({})), []);
     assert.arrayEqual(getOwnPropertyNames(seal({})), []);
     assert.arrayEqual(getOwnPropertySymbols(seal({})), []);
-    assert.arrayEqual(ownKeys(seal({})), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(seal({})), []);
     function fn$(){
       try {
         seal(value);
@@ -6541,7 +6538,7 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    assert.arrayEqual(Reflect.ownKeys(o), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(o), []);
     if (nativeSubclass) {
       C = nativeSubclass(Set);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
@@ -7719,7 +7716,7 @@
       assert.strictEqual(keys(O).length, 2, 'Object.keys');
       assert.strictEqual(getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames');
       assert.strictEqual(getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols');
-      assert.strictEqual(Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
+      ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.strictEqual(Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
       delete O[e];
       O[e] = 'e';
       return assert.deepEqual(getOwnPropertyDescriptor(O, e), {
@@ -9922,7 +9919,7 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    assert.arrayEqual(Reflect.ownKeys(o), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(o), []);
     if (nativeSubclass) {
       C = nativeSubclass(WeakMap);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
@@ -10064,7 +10061,7 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    assert.arrayEqual(Reflect.ownKeys(o), []);
+    ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.arrayEqual(Reflect.ownKeys(o), []);
     if (nativeSubclass) {
       C = nativeSubclass(WeakSet);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');

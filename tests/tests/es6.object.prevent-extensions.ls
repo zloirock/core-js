@@ -3,7 +3,6 @@ module \ES6
 
 test 'Object.preventExtensions' (assert)!->
   {preventExtensions, isExtensible, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
-  {ownKeys} = Reflect
   assert.isFunction preventExtensions
   assert.arity preventExtensions, 1
   assert.name preventExtensions, \preventExtensions
@@ -17,4 +16,4 @@ test 'Object.preventExtensions' (assert)!->
   assert.arrayEqual keys(preventExtensions {}), []
   assert.arrayEqual getOwnPropertyNames(preventExtensions {}), []
   assert.arrayEqual getOwnPropertySymbols(preventExtensions {}), []
-  assert.arrayEqual ownKeys(preventExtensions {}), []
+  Reflect?ownKeys and assert.arrayEqual Reflect.ownKeys(preventExtensions {}), []

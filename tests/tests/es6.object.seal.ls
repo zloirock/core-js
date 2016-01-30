@@ -3,7 +3,6 @@ module \ES6
 
 test 'Object.seal' (assert)!->
   {seal, isSealed, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
-  {ownKeys} = Reflect
   assert.isFunction seal
   assert.arity seal, 1
   assert.name seal, \seal
@@ -17,4 +16,4 @@ test 'Object.seal' (assert)!->
   assert.arrayEqual keys(seal {}), []
   assert.arrayEqual getOwnPropertyNames(seal {}), []
   assert.arrayEqual getOwnPropertySymbols(seal {}), []
-  assert.arrayEqual ownKeys(seal {}), []
+  Reflect?ownKeys and assert.arrayEqual Reflect.ownKeys(seal {}), []

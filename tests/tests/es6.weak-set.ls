@@ -42,7 +42,7 @@ test 'WeakSet' (assert)!->
     assert.arrayEqual Object.keys(o), []
   assert.arrayEqual Object.getOwnPropertyNames(o), []
   assert.arrayEqual Object.getOwnPropertySymbols(o), []
-  assert.arrayEqual Reflect.ownKeys(o), []
+  Reflect?ownKeys and assert.arrayEqual Reflect.ownKeys(o), []
   if nativeSubclass
     C = nativeSubclass WeakSet
     assert.ok new C instanceof C, 'correct subclassing with native classes #1'
