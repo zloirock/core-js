@@ -88,6 +88,11 @@ test 'Number constructor: regression' (assert)!->
   check "#{ws}0X42", 66
   check "0X42#{ws}", 66
   check "#{ws}0X42#{ws}", 66
+  if nativeSubclass
+    C = nativeSubclass Number
+    assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+    assert.ok new C instanceof Number, 'correct subclassing with native classes #2'
+    assert.same new C(1).toFixed(2), '1.00', 'correct subclassing with native classes #3'
 
 test 'Number constructor: binary' (assert)!->
   check = $check assert

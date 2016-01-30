@@ -1,16 +1,16 @@
 'use strict';
-var global         = require('./_global')
-  , $export        = require('./_export')
-  , redefine       = require('./_redefine')
-  , redefineAll    = require('./_redefine-all')
-  , meta           = require('./_meta')
-  , forOf          = require('./_for-of')
-  , anInstance     = require('./_an-instance')
-  , isObject       = require('./_is-object')
-  , setPrototypeOf = require('./_set-proto').set
-  , fails          = require('./_fails')
-  , $iterDetect    = require('./_iter-detect')
-  , setToStringTag = require('./_set-to-string-tag');
+var global            = require('./_global')
+  , $export           = require('./_export')
+  , redefine          = require('./_redefine')
+  , redefineAll       = require('./_redefine-all')
+  , meta              = require('./_meta')
+  , forOf             = require('./_for-of')
+  , anInstance        = require('./_an-instance')
+  , isObject          = require('./_is-object')
+  , fails             = require('./_fails')
+  , $iterDetect       = require('./_iter-detect')
+  , setToStringTag    = require('./_set-to-string-tag')
+  , inheritIfRequired = require('./_inherit-if-required');
 
 module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   var Base  = global[NAME]
@@ -57,11 +57,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     if(!ACCEPT_ITERABLES){ 
       C = wrapper(function(target, iterable){
         anInstance(target, C, NAME);
-        var that = new Base
-          , P, S = target.constructor;
-        if(S !== C && typeof S == 'function' && (P = S.prototype) !== proto && isObject(P) && setPrototypeOf){
-          setPrototypeOf(that, P);
-        }
+        var that = inheritIfRequired(new Base, target, C);
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       });

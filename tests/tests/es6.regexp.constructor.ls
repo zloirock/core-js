@@ -2,7 +2,7 @@
 module \ES6
 
 if DESCRIPTORS
-  test 'RegExp constructor' (assert)->
+  test 'RegExp constructor' (assert)!->
     assert.isFunction RegExp
     assert.arity RegExp, 2
     assert.name RegExp, \RegExp
@@ -27,3 +27,8 @@ if DESCRIPTORS
     /(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)(m)(n)(o)(p)/.exec \abcdefghijklmnopq
     for val, index in \bcdefghij
       assert.strictEqual RegExp"$#{index + 1}", val, "Updates RegExp globals $#{index + 1}"
+    if nativeSubclass
+      C = nativeSubclass RegExp
+      assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+      assert.ok new C instanceof RegExp, 'correct subclassing with native classes #2'
+      assert.ok new C('^abc$').test(\abc), 'correct subclassing with native classes #3'

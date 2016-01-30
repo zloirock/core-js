@@ -3047,7 +3047,7 @@
     };
   };
   test('Number constructor: regression', function(assert){
-    var check, i$, x$, ref$, len$, i, y$, n;
+    var check, i$, x$, ref$, len$, i, y$, n, C;
     check = $check(assert);
     assert.isFunction(Number);
     assert.arity(Number, 1);
@@ -3217,6 +3217,12 @@
     check(ws + "0X42", 66);
     check("0X42" + ws, 66);
     check(ws + "0X42" + ws, 66);
+    if (nativeSubclass) {
+      C = nativeSubclass(Number);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof Number, 'correct subclassing with native classes #2');
+      assert.same(new C(1).toFixed(2), '1.00', 'correct subclassing with native classes #3');
+    }
   });
   test('Number constructor: binary', function(assert){
     var check;
@@ -5050,7 +5056,7 @@
   module('ES6');
   if (DESCRIPTORS) {
     test('RegExp constructor', function(assert){
-      var re, O, i$, len$, index, val, results$ = [];
+      var re, O, i$, len$, index, val, C;
       assert.isFunction(RegExp);
       assert.arity(RegExp, 2);
       assert.name(RegExp, 'RegExp');
@@ -5075,9 +5081,14 @@
       for (i$ = 0, len$ = 'bcdefghij'.length; i$ < len$; ++i$) {
         index = i$;
         val = 'bcdefghij'[i$];
-        results$.push(assert.strictEqual(RegExp["$" + (index + 1)], val, "Updates RegExp globals $" + (index + 1)));
+        assert.strictEqual(RegExp["$" + (index + 1)], val, "Updates RegExp globals $" + (index + 1));
       }
-      return results$;
+      if (nativeSubclass) {
+        C = nativeSubclass(RegExp);
+        assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+        assert.ok(new C instanceof RegExp, 'correct subclassing with native classes #2');
+        assert.ok(new C('^abc$').test('abc'), 'correct subclassing with native classes #3');
+      }
     });
   }
 }).call(this);
