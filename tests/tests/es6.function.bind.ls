@@ -3,6 +3,9 @@ module \ES6
 
 test 'Function#bind' (assert)->
   assert.isFunction Function::bind
+  assert.arity Function::bind, 1
+  assert.name Function::bind, \bind
+  assert.looksNative Function::bind
   obj = a: 42
   assert.ok 42 is (-> @a)bind(obj)!
   assert.ok void is new ((->)bind obj)!a

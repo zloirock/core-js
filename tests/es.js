@@ -518,6 +518,9 @@
     var isArray;
     isArray = Array.isArray;
     assert.isFunction(isArray);
+    assert.arity(isArray, 1);
+    assert.name(isArray, 'isArray');
+    assert.looksNative(isArray);
     assert.ok(!isArray({}));
     assert.ok(!isArray(function(){
       return arguments;
@@ -1227,6 +1230,9 @@
   test('Function#bind', function(assert){
     var obj, fn, inst, F, date;
     assert.isFunction(Function.prototype.bind);
+    assert.arity(Function.prototype.bind, 1);
+    assert.name(Function.prototype.bind, 'bind');
+    assert.looksNative(Function.prototype.bind);
     obj = {
       a: 42
     };
