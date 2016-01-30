@@ -39,6 +39,11 @@ test 'Map' (assert)->
   assert.arrayEqual core.Object.getOwnPropertyNames(o), []
   assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
   assert.arrayEqual core.Reflect.ownKeys(o), []
+  if nativeSubclass
+    C = nativeSubclass Map
+    assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+    assert.ok new C instanceof Map, 'correct subclassing with native classes #2'
+    assert.same new C!set(1 2).get(1), 2, 'correct subclassing with native classes #3'
 
 test 'Map#clear' (assert)->
   assert.isFunction Map::clear

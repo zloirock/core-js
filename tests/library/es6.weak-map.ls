@@ -44,6 +44,11 @@ test 'WeakMap' (assert)!->
   assert.arrayEqual core.Object.getOwnPropertyNames(o), []
   assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
   assert.arrayEqual core.Reflect.ownKeys(o), []
+  if nativeSubclass
+    C = nativeSubclass WeakMap
+    assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+    assert.ok new C instanceof WeakMap, 'correct subclassing with native classes #2'
+    assert.same new C!set(O = {}, 2).get(O), 2, 'correct subclassing with native classes #3'
 
 test 'WeakMap#delete' (assert)!->
   assert.isFunction WeakMap::delete

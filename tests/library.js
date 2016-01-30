@@ -1794,7 +1794,7 @@
   ref$ = core.Object, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor, freeze = ref$.freeze;
   iterator = core.Symbol.iterator;
   test('Map', function(assert){
-    var done, iter, a, o, key;
+    var done, iter, a, o, key, C;
     assert.isFunction(Map);
     assert.ok('clear' in Map.prototype, 'clear in Map.prototype');
     assert.ok('delete' in Map.prototype, 'delete in Map.prototype');
@@ -1838,7 +1838,13 @@
     }
     assert.arrayEqual(core.Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(core.Object.getOwnPropertySymbols(o), []);
-    return assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(Map);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof Map, 'correct subclassing with native classes #2');
+      return assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
+    }
   });
   test('Map#clear', function(assert){
     var M, f;
@@ -4158,7 +4164,7 @@
   ref$ = core.Object, getOwnPropertyDescriptor = ref$.getOwnPropertyDescriptor, freeze = ref$.freeze;
   iterator = core.Symbol.iterator;
   test('Set', function(assert){
-    var from, S, r, done, iter, _add, a, o, key;
+    var from, S, r, done, iter, _add, a, o, key, C;
     from = core.Array.from;
     assert.isFunction(Set);
     assert.ok('add' in Set.prototype, 'add in Set.prototype');
@@ -4216,7 +4222,13 @@
     }
     assert.arrayEqual(core.Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(core.Object.getOwnPropertySymbols(o), []);
-    return assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(Set);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof Set, 'correct subclassing with native classes #2');
+      return assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
+    }
   });
   test('Set#add', function(assert){
     var a, S, chain, f;
@@ -6349,7 +6361,7 @@
   freeze = core.Object.freeze;
   iterator = core.Symbol.iterator;
   test('WeakMap', function(assert){
-    var a, f, M, done, iter, o, key;
+    var a, f, M, done, iter, o, key, C, O;
     assert.isFunction(WeakMap);
     assert.ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
     assert.ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
@@ -6400,6 +6412,12 @@
     assert.arrayEqual(core.Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(core.Object.getOwnPropertySymbols(o), []);
     assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(WeakMap);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof WeakMap, 'correct subclassing with native classes #2');
+      assert.same(new C().set(O = {}, 2).get(O), 2, 'correct subclassing with native classes #3');
+    }
   });
   test('WeakMap#delete', function(assert){
     var M, a, b;
@@ -6473,7 +6491,7 @@
   freeze = core.Object.freeze;
   iterator = core.Symbol.iterator;
   test('WeakSet', function(assert){
-    var a, f, S, done, iter, o, key;
+    var a, f, S, done, iter, o, key, C, O;
     assert.isFunction(WeakSet);
     assert.ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
     assert.ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
@@ -6521,6 +6539,12 @@
     assert.arrayEqual(core.Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(core.Object.getOwnPropertySymbols(o), []);
     assert.arrayEqual(core.Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(WeakSet);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof WeakSet, 'correct subclassing with native classes #2');
+      assert.ok(new C().add(O = {}).has(O), 'correct subclassing with native classes #3');
+    }
   });
   test('WeakSet#add', function(assert){
     var w, e;

@@ -2125,7 +2125,7 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Map', function(assert){
-    var x$, done, iter, a, o, key;
+    var x$, done, iter, a, o, key, C;
     assert.isFunction(Map);
     assert.arity(Map, 0);
     assert.name(Map, 'Map');
@@ -2170,7 +2170,13 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    return assert.arrayEqual(Reflect.ownKeys(o), []);
+    assert.arrayEqual(Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(Map);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof Map, 'correct subclassing with native classes #2');
+      return assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
+    }
   });
   test('Map#clear', function(assert){
     var M, x$, y$, f;
@@ -6459,7 +6465,7 @@
   };
   getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, freeze = Object.freeze;
   test('Set', function(assert){
-    var x$, y$, S, r, z$, z1$, done, iter, _add, a, o, key;
+    var x$, y$, S, r, z$, z1$, done, iter, _add, a, o, key, C;
     assert.isFunction(Set);
     assert.name(Set, 'Set');
     assert.arity(Set, 0);
@@ -6524,7 +6530,13 @@
     }
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
-    return assert.arrayEqual(Reflect.ownKeys(o), []);
+    assert.arrayEqual(Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(Set);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof Set, 'correct subclassing with native classes #2');
+      return assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
+    }
   });
   test('Set#add', function(assert){
     var a, x$, S, chain, y$, f;
@@ -9847,7 +9859,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakMap', function(assert){
-    var a, x$, f, M, done, iter, o, key;
+    var a, x$, f, M, done, iter, o, key, C, O;
     assert.isFunction(WeakMap);
     assert.name(WeakMap, 'WeakMap');
     assert.arity(WeakMap, 0);
@@ -9900,6 +9912,12 @@
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
     assert.arrayEqual(Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(WeakMap);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof WeakMap, 'correct subclassing with native classes #2');
+      assert.same(new C().set(O = {}, 2).get(O), 2, 'correct subclassing with native classes #3');
+    }
   });
   test('WeakMap#delete', function(assert){
     var x$, M, a, b;
@@ -9986,7 +10004,7 @@
   module('ES6');
   freeze = Object.freeze;
   test('WeakSet', function(assert){
-    var a, x$, f, S, done, iter, o, key;
+    var a, x$, f, S, done, iter, o, key, C, O;
     assert.isFunction(WeakSet);
     assert.name(WeakSet, 'WeakSet');
     assert.arity(WeakSet, 0);
@@ -10036,6 +10054,12 @@
     assert.arrayEqual(Object.getOwnPropertyNames(o), []);
     assert.arrayEqual(Object.getOwnPropertySymbols(o), []);
     assert.arrayEqual(Reflect.ownKeys(o), []);
+    if (nativeSubclass) {
+      C = nativeSubclass(WeakSet);
+      assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
+      assert.ok(new C instanceof WeakSet, 'correct subclassing with native classes #2');
+      assert.ok(new C().add(O = {}).has(O), 'correct subclassing with native classes #3');
+    }
   });
   test('WeakSet#add', function(assert){
     var a, e, wset;

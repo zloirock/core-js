@@ -41,6 +41,11 @@ test 'WeakSet' (assert)!->
   assert.arrayEqual core.Object.getOwnPropertyNames(o), []
   assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
   assert.arrayEqual core.Reflect.ownKeys(o), []
+  if nativeSubclass
+    C = nativeSubclass WeakSet
+    assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+    assert.ok new C instanceof WeakSet, 'correct subclassing with native classes #2'
+    assert.ok new C!add(O = {}).has(O), 'correct subclassing with native classes #3'
 
 test 'WeakSet#add' (assert)!->
   assert.isFunction WeakSet::add

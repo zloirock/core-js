@@ -49,6 +49,11 @@ test 'Set' (assert)->
   assert.arrayEqual core.Object.getOwnPropertyNames(o), []
   assert.arrayEqual core.Object.getOwnPropertySymbols(o), []
   assert.arrayEqual core.Reflect.ownKeys(o), []
+  if nativeSubclass
+    C = nativeSubclass Set
+    assert.ok new C instanceof C, 'correct subclassing with native classes #1'
+    assert.ok new C instanceof Set, 'correct subclassing with native classes #2'
+    assert.ok new C!add(2).has(2), 'correct subclassing with native classes #3'
 
 test 'Set#add' (assert)->
   assert.isFunction Set::add
