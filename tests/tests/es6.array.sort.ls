@@ -12,4 +12,4 @@ test 'Array#sort' (assert)!->
   if STRICT
     assert.throws (-> Array::sort.call null), TypeError, 'ToObject(this)'
     assert.throws (-> Array::sort.call void), TypeError, 'ToObject(this)'
-  if NATIVE => assert.ok !!(try Array::sort.call {0: 1, 1: 3, 2: 2, length: -1}, -> throw 42), 'ToLength(? Get(obj, "length"))'
+  #if NATIVE => assert.ok !!(try Array::sort.call {0: 1, 1: 3, 2: 2, length: -1}, -> throw 42), 'ToLength(? Get(obj, "length"))'

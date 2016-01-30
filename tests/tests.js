@@ -1951,20 +1951,6 @@
         return Array.prototype.sort.call(void 8);
       }, TypeError, 'ToObject(this)');
     }
-    if (NATIVE) {
-      assert.ok(!!(function(){
-        try {
-          return Array.prototype.sort.call({
-            0: 1,
-            1: 3,
-            2: 2,
-            length: -1
-          }, function(){
-            throw 42;
-          });
-        } catch (e$) {}
-      }()), 'ToLength(? Get(obj, "length"))');
-    }
   });
 }).call(this);
 
