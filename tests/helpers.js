@@ -272,7 +272,7 @@
 (function(){
   Function('return this')().nativeSubclass = (function(){
     try {
-      return Function('F', "'use strict';\nclass G extends F {};\nreturn G;");
+      return Function("'use strict';class O extends Object {};return new O instanceof O;")() && Function('F', "'use strict';\nclass G extends F {};\nreturn G;");
     } catch (e$) {}
   }());
 }).call(this);
