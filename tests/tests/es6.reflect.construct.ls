@@ -15,10 +15,10 @@ test 'Reflect.construct' (assert)->
   assert.strictEqual construct(C, <[foo bar baz]>).qux, \foobarbaz, 'works with redefined apply'
   inst = construct((-> @x = 42), [], Array)
   assert.strictEqual inst.x, 42, 'constructor with newTarget'
-  assert.ok inst instanceof Array, 'prototype with newTarget' # still not work in native MS Edge and FF implementations
+  assert.ok inst instanceof Array, 'prototype with newTarget' # not works in native Edge 12 and FF43- implementations
   assert.throws (-> construct 42, []), TypeError, 'throws on primitive'
   f = (->)
   f:: = 42
   assert.ok try getPrototypeOf(construct f, []) is Object::
   catch => no
-  assert.strictEqual construct(Set, [[1, 2, 3, 2, 1]]).size, 3, 'works with native constructors'
+  assert.same typeof (try construct(Date, [])getTime!), \number, 'works with native constructors with 2 arguments'

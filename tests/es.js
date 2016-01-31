@@ -3828,7 +3828,11 @@
         return false;
       }
     }()));
-    return assert.strictEqual(construct(Set, [[1, 2, 3, 2, 1]]).size, 3, 'works with native constructors');
+    return assert.same(typeof (function(){
+      try {
+        return construct(Date, []).getTime();
+      } catch (e$) {}
+    }()), 'number', 'works with native constructors with 2 arguments');
   });
 }).call(this);
 
