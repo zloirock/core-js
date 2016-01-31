@@ -1,5 +1,4 @@
 require('../../../modules/core.number.iterator');
-module.exports = {
-  toPrecision: require('../../../modules/_entry-virtual')('Number').toPrecision,
-  iterator:    require('../../../modules/_iterators').Number
-};
+var $Number = require('../../../modules/_entry-virtual')('Number');
+$Number.iterator = require('../../../modules/_iterators').Number;
+module.exports = $Number;

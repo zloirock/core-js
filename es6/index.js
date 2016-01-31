@@ -22,6 +22,7 @@ require('../modules/es6.function.has-instance');
 require('../modules/es6.parse-int');
 require('../modules/es6.parse-float');
 require('../modules/es6.number.constructor');
+require('../modules/es6.number.to-fixed');
 require('../modules/es6.number.to-precision');
 require('../modules/es6.number.epsilon');
 require('../modules/es6.number.is-finite');

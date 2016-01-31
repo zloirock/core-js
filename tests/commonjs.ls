@@ -112,11 +112,13 @@ for P in <[.. ../library]>
   ok require("#P/fn/number/min-safe-integer") is -0x1fffffffffffff
   ok require("#P/fn/number/parse-float")('1.5') is 1.5
   ok require("#P/fn/number/parse-int")('2.1') is 2
+  ok require("#P/fn/number/to-fixed")(1 1) is '1.0'
   ok require("#P/fn/number/to-precision")(1) is \1
   ok require("#P/fn/parse-float")('1.5') is 1.5
   ok require("#P/fn/parse-int")('2.1') is 2
   ok \next of require("#P/fn/number/iterator") 42
   ok \next of require("#P/fn/number/virtual/iterator").call 42
+  ok require("#P/fn/number/virtual/to-fixed").call(1 1) is '1.0'
   ok require("#P/fn/number/virtual/to-precision").call(1) is \1
   ok \next of require("#P/fn/number/virtual").iterator.call 42
   ok \isNaN of require("#P/fn/number")
