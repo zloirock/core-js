@@ -25,6 +25,7 @@ require('../modules/es6.array.reduce');
 require('../modules/es6.array.reduce-right');
 require('../modules/es6.array.index-of');
 require('../modules/es6.array.last-index-of');
+require('../modules/es6.number.to-precision');
 require('../modules/es6.date.now');
 require('../modules/es6.date.to-iso-string');
 require('../modules/es6.date.to-json');

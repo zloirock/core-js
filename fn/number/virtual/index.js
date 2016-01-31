@@ -1,2 +1,5 @@
 require('../../../modules/core.number.iterator');
-module.exports = {iterator: require('../../../modules/_iterators').Number};
+module.exports = {
+  toPrecision: require('../../../modules/_entry-virtual')('Number').toPrecision,
+  iterator:    require('../../../modules/_iterators').Number
+};
