@@ -60,7 +60,7 @@ test 'Number#toFixed' (assert)!->
   assert.same new Number(1e21).toFixed(NaN), String 1e21
   assert.same new Number(1e21).toFixed('some string'), String 1e21
   assert.same (try new Number(1e21).toFixed -0.1), String 1e21
-  assert.throws (!-> 1.0.toFixed -1), RangeError, 'If f < 0 or f > 20, throw a RangeError exception.'
+  assert.throws (!-> 1.0.toFixed -101), RangeError, 'If f < 0 or f > 20, throw a RangeError exception.'
   assert.throws (!-> 1.0.toFixed 101), RangeError, 'If f < 0 or f > 20, throw a RangeError exception.'
   assert.throws (!-> NaN.toFixed Infinity), RangeError, 'If f < 0 or f > 20, throw a RangeError exception.'
   assert.throws (!-> toFixed.call {}, 1), TypeError, '? thisNumberValue(this value)'

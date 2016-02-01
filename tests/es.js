@@ -2815,7 +2815,7 @@
       } catch (e$) {}
     }()), String(1e21));
     assert.throws(function(){
-      1.0.toFixed(-1);
+      1.0.toFixed(-101);
     }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
     assert.throws(function(){
       1.0.toFixed(101);
