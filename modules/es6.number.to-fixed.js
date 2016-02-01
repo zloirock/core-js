@@ -1,13 +1,14 @@
 'use strict';
-var $export    = require('./_export')
-  , cof        = require('./_cof')
-  , anInstance = require('./_an-instance')
-  , toInteger  = require('./_to-integer')
-  , repeat     = require('./_string-repeat')
-  , floor      = Math.floor
-  , data       = [0, 0, 0, 0, 0, 0]
-  , ERROR      = 'Number.toFixed: incorrect invocation!'
-  , ZERO       = '0';
+var $export      = require('./_export')
+  , anInstance   = require('./_an-instance')
+  , toInteger    = require('./_to-integer')
+  , aNumberValue = require('./_a-number-value')
+  , repeat       = require('./_string-repeat')
+  , $toFixed     = 1..toFixed
+  , floor        = Math.floor
+  , data         = [0, 0, 0, 0, 0, 0]
+  , ERROR        = 'Number.toFixed: incorrect invocation!'
+  , ZERO         = '0';
 
 var multiply = function(n, c){
   var i  = -1
@@ -53,15 +54,17 @@ var log = function(x){
   } return n;
 };
 
-$export($export.P + $export.F * (!!1..toFixed && (
+$export($export.P + $export.F * (!!$toFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
   1000000000000000128..toFixed(0) !== '1000000000000000128'
-)), 'Number', {
+) || !require('./_fails')(function(){
+  // V8 ~ Android 4.3-
+  $toFixed.call({});
+})), 'Number', {
   toFixed: function toFixed(fractionDigits){
-    if(typeof this != 'number' && cof(this) != 'Number')throw TypeError(ERROR);
-    var x = +this
+    var x = aNumberValue(this, ERROR)
       , f = toInteger(fractionDigits)
       , s = ''
       , m = ZERO
