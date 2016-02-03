@@ -16,9 +16,11 @@ module.exports = function(it){
   var O = Object(it);
 
   // @@toStringTag case
-  if (TAG in O && typeof O[TAG] === 'string') {
-    return O[TAG];
-  }
+  try {
+    if (typeof O[TAG] === 'string') {
+      return O[TAG];
+    }
+  } catch (e) {}
 
   var B = cof(O);
 
