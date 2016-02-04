@@ -8,12 +8,12 @@
   webpack = require('webpack');
   temp = require('temp');
   module.exports = function(arg$){
-    var modules, ref$, blacklist, library, this$ = this;
+    var modules, ref$, blacklist, library, exportCore, this$ = this;
     modules = (ref$ = arg$.modules) != null
       ? ref$
       : [], blacklist = (ref$ = arg$.blacklist) != null
       ? ref$
-      : [], library = (ref$ = arg$.library) != null ? ref$ : false;
+      : [], library = (ref$ = arg$.library) != null ? ref$ : false, exportCore = (ref$ = arg$.exportCore) != null ? ref$ : true;
     return new Promise(function(resolve, reject){
       (function(){
         var i$, x$, ref$, len$, y$, ns, name, j$, len1$, TARGET, this$ = this;
@@ -77,10 +77,16 @@
               return reject(err);
             }
             unlink(TARGET, function(err){
+              var exportScript;
               if (err) {
                 return reject(err);
               }
-              resolve("" + banner + "\n!function(__e, __g, undefined){\n'use strict';\n" + script + "\n// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;\n}(1, 1);");
+              if (exportCore) {
+                exportScript = "// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;";
+              } else {
+                exportScript = "";
+              }
+              resolve("" + banner + "\n!function(__e, __g, undefined){\n'use strict';\n" + script + "\n" + exportScript + "\n}(1, 1);");
             });
           });
         });

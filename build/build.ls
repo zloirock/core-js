@@ -6,7 +6,7 @@ require! {
   webpack, temp
 }
 
-module.exports = ({modules = [], blacklist = [], library = no})->
+module.exports = ({modules = [], blacklist = [], library = no, exportCore = on})->
   resolve, reject <~! new Promise _
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
     if @exp => for experimental => @[..] = on
@@ -40,16 +40,23 @@ module.exports = ({modules = [], blacklist = [], library = no})->
     err <~! unlink TARGET
     if err => return reject err
 
+    if exportCore
+      exportScript = """
+        // CommonJS export
+        if(typeof module != 'undefined' && module.exports)module.exports = __e;
+        // RequireJS export
+        else if(typeof define == 'function' && define.amd)define(function(){return __e});
+        // Export to global object
+        else __g.core = __e;
+        """
+    else
+      exportScript = ""
+
     resolve """
       #banner
       !function(__e, __g, undefined){
       'use strict';
       #script
-      // CommonJS export
-      if(typeof module != 'undefined' && module.exports)module.exports = __e;
-      // RequireJS export
-      else if(typeof define == 'function' && define.amd)define(function(){return __e});
-      // Export to global object
-      else __g.core = __e;
+      #exportScript
       }(1, 1);
       """
