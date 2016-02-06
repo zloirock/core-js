@@ -18,6 +18,7 @@ if(require('./_descriptors')){
     , toPrimitive         = require('./_to-primitive')
     , has                 = require('./_has')
     , same                = require('./_same-value')
+    , classof             = require('./_classof')
     , isObject            = require('./_is-object')
     , toObject            = require('./_to-object')
     , isArrayIter         = require('./_is-array-iter')
@@ -44,6 +45,8 @@ if(require('./_descriptors')){
     , RangeError          = global.RangeError
     , TypeError           = global.TypeError
     , Uint8Array          = global.Uint8Array
+    , ARRAY_BUFFER        = 'ArrayBuffer'
+    , SHARED_BUFFER       = 'Shared' + ARRAY_BUFFER
     , BYTES_PER_ELEMENT   = 'BYTES_PER_ELEMENT'
     , PROTOTYPE           = 'prototype'
     , ArrayProto          = Array[PROTOTYPE]
@@ -362,12 +365,12 @@ if(require('./_descriptors')){
         anInstance(that, TypedArray, NAME, '_d');
         var index  = 0
           , offset = 0
-          , buffer, byteLength, length;
+          , buffer, byteLength, length, klass;
         if(!isObject(data)){
           length     = strictToLength(data, true)
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
-        } else if(data instanceof $ArrayBuffer){
+        } else if(data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER){
           buffer = data;
           offset = toOffset($offset, BYTES);
           var $len = data.byteLength;
@@ -404,14 +407,17 @@ if(require('./_descriptors')){
     }, true)){
       TypedArray = wrapper(function(that, data, $offset, $length){
         anInstance(that, TypedArray, NAME);
+        var klass;
         // `ws` module bug, temporarily remove validation length for Uint8Array
         // https://github.com/websockets/ws/pull/645
         if(!isObject(data))return new Base(strictToLength(data, ISNT_UINT8));
-        if(data instanceof $ArrayBuffer)return $length !== undefined
-          ? new Base(data, toOffset($offset, BYTES), $length)
-          : $offset !== undefined
-            ? new Base(data, toOffset($offset, BYTES))
-            : new Base(data);
+        if(data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER){
+          return $length !== undefined
+            ? new Base(data, toOffset($offset, BYTES), $length)
+            : $offset !== undefined
+              ? new Base(data, toOffset($offset, BYTES))
+              : new Base(data);
+        }
         if(TYPED_ARRAY in data)return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
