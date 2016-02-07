@@ -54,9 +54,10 @@ module.exports = (grunt)->
   grunt.registerTask \build (options)->
     done = @async!
     build {
-      modules: (options || 'es5,es6,es7,js,web,core')split \,
+      modules:   (options || 'es5,es6,es7,js,web,core')split \,
       blacklist: (grunt.option(\blacklist) || '')split \,
-      library: !!grunt.option \library
+      library:   !!grunt.option \library
+      umd:       grunt.option(\umd) not in <[no false]>
     }
     .then !->
       grunt.option(\path) || grunt.option(\path, './custom')

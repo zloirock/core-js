@@ -6,7 +6,7 @@ require! {
   webpack, temp
 }
 
-module.exports = ({modules = [], blacklist = [], library = no, exportCore = on})->
+module.exports = ({modules = [], blacklist = [], library = no, umd = on})->
   resolve, reject <~! new Promise _
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
     if @exp => for experimental => @[..] = on
@@ -40,7 +40,7 @@ module.exports = ({modules = [], blacklist = [], library = no, exportCore = on})
     err <~! unlink TARGET
     if err => return reject err
 
-    if exportCore
+    if umd
       exportScript = """
         // CommonJS export
         if(typeof module != 'undefined' && module.exports)module.exports = __e;
