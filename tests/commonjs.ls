@@ -81,6 +81,15 @@ for P in <[.. ../library]>
   ok \next of require("#P/fn/array/virtual/iterator").call []
   ok require("#P/fn/array/virtual").includes.call([1 2 3], 2)
   ok \keys of require("#P/fn/array")
+  # legacy
+  ok require("#P/fn/array/concat")([1 2 3], [4 5 6]).length is 6
+  ok require("#P/fn/array/pop")([1 2 3]) is 3
+  ok require("#P/fn/array/push")([1 2 3], 4) is 4
+  ok require("#P/fn/array/reverse")([1 2 3]).0 is 3
+  ok require("#P/fn/array/shift")([1 2 3]) is 1
+  ok require("#P/fn/array/splice")([1 2 3], 1 2).0 is 2
+  ok require("#P/fn/array/unshift")([1 2 3], 0) is 4
+  # ...
   ok require("#P/fn/math/acosh")(1) is 0
   ok require("#P/fn/math/asinh")(-0) is -0
   ok require("#P/fn/math/atanh")(1) is Infinity
