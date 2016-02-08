@@ -3,7 +3,7 @@
 - **API**:
   - ES5 polyfills are split and logic, used in other polyfills, moved to internal modules
     - **All entry point works in ES3 environment like IE8- without `core-js/(library/)es5`**
-    - **Added all missed singe entry points for ES5 polyfills**
+    - **Added all missed single entry points for ES5 polyfills**
     - Separated ES5 polyfills moved to the ES6 namespace. Why?
       - Mainly, for prevent duplication features in different namespaces - logic of most required ES5 polyfills changed in ES6+:
         - Already added changes for: `Object` statics - should accept primitives, new whitespaces lists in `String#trim`, `parse(Int|float)`, `RegExp#toString` logic, `String#split`, etc
