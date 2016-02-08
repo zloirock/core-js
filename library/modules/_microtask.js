@@ -54,7 +54,7 @@ if(isNode){
   };
 }
 
-module.exports = function asap(fn){
+module.exports = function(fn){
   var task = {fn: fn, next: undefined, domain: isNode && process.domain};
   if(last)last.next = task;
   if(!head){

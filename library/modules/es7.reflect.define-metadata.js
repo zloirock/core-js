@@ -4,5 +4,5 @@ var metadata                  = require('./_metadata')
   , ordinaryDefineOwnMetadata = metadata.set;
 
 metadata.exp({defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey){
-  return ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
+  ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
 }});

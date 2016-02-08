@@ -8773,11 +8773,11 @@
     }
     if (NATIVE) {
       assert.throws(function(){
-        DataView(1);
+        DataView(new ArrayBuffer(8));
       }, TypeError, 'throws without `new`');
     } else {
       assert.throws(function(){
-        DataView(1);
+        DataView(new ArrayBuffer(8));
       }, 'throws without `new`');
     }
     d = new DataView(new ArrayBuffer(8));

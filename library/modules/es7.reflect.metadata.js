@@ -4,7 +4,7 @@ var metadata                  = require('./_metadata')
   , toMetaKey                 = metadata.key
   , ordinaryDefineOwnMetadata = metadata.set;
 
-metadata.exp({metadata: function metadata(metadataKey, metadataValue) {
+metadata.exp({metadata: function metadata(metadataKey, metadataValue){
   return function decorator(target, targetKey){
     ordinaryDefineOwnMetadata(
       metadataKey, metadataValue,

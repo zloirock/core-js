@@ -44,9 +44,9 @@ test \DataView, !(assert)~>
     assert.throws (!-> new DataView new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception'
 
   if NATIVE # Android ~ 4.0
-    assert.throws (!-> DataView 1), TypeError, 'throws without `new`'
+    assert.throws (!-> DataView new ArrayBuffer 8), TypeError, 'throws without `new`'
   else
-    assert.throws (!-> DataView 1), 'throws without `new`'
+    assert.throws (!-> DataView new ArrayBuffer 8), 'throws without `new`'
 
   d = new DataView new ArrayBuffer 8
 

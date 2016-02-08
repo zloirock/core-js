@@ -1,4 +1,47 @@
 ## Changelog
+##### 2.1.0 - 2016.02.09
+- **API**:
+  - ES5 polyfills are split and logic, used in other polyfills, moved to internal modules
+    - **All entry point works in ES3 environment like IE8- without `core-js/(library/)es5`**
+    - **Added all missed singe entry points for ES5 polyfills**
+    - Separated ES5 polyfills moved to the ES6 namespace. Why?
+      - Mainly, for prevent duplication features in different namespaces - logic of most required ES5 polyfills changed in ES6+:
+        - Already added changes for: `Object` statics - should accept primitives, new whitespaces lists in `String#trim`, `parse(Int|float)`, `RegExp#toString` logic, `String#split`, etc
+        - Should be changed in the future: `@@species` and `ToLength` logic in `Array` methods, `Date` parsing, `Function#bind`, etc
+        - Should not be changed only several features like `Array.isArray` and `Date.now`
+      - Some ES5 polyfills required for modern engines
+    - All old entry points should work fine, but in the next major release API can be changed
+  - `Object.getOwnPropertyDescriptors` moved to the stage 3, [January TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-01/2016-01-28.md#objectgetownpropertydescriptors-to-stage-3-jordan-harband-low-priority-but-super-quick)
+  - Added `umd` option for [custom build process](https://github.com/zloirock/core-js#custom-build-from-external-scripts), [#169](https://github.com/zloirock/core-js/issues/169)
+  - Returned entry points for `Array` statics, removed in `2.0`, for compatibility with `babel` `6` and for future fixes
+- **Deprecated**:
+  - `Reflect.enumerate` deprecated and will be removed from the next major release, [January TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-01/2016-01-28.md#5xix-revisit-proxy-enumerate---revisit-decision-to-exhaust-iterator)
+- **New Features**:
+  - Added [`Reflect` metadata API](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) as a pre-strawman feature, [#152](https://github.com/zloirock/core-js/issues/152):
+    - `Reflect.defineMetadata`
+    - `Reflect.deleteMetadata`
+    - `Reflect.getMetadata`
+    - `Reflect.getMetadataKeys`
+    - `Reflect.getOwnMetadata`
+    - `Reflect.getOwnMetadataKeys`
+    - `Reflect.hasMetadata`
+    - `Reflect.hasOwnMetadata`
+    - `Reflect.metadata`
+  - Implementation / fixes `Date#toJSON`
+  - Fixes for `parseInt` and `Number.parseInt`
+  - Fixes for `parseFloat` and `Number.parseFloat`
+  - Fixes for `RegExp#toString`
+  - Fixes for `Array#sort`
+  - Fixes for `Number#toFixed`
+  - Fixes for `Number#toPrecision`
+  - Additional fixes for `String#split` (`RegExp#@@split`)
+- **Improvements**:
+  - Correct subclassing wrapped collections, `Number` and `RegExp` constructors with native class syntax
+  - Correct support `SharedArrayBuffer` and buffers from other realms in typed arrays wrappers 
+  - Additional validations for `Object.{defineProperty, getOwnPropertyDescriptor}` and `Reflect.defineProperty`
+- **Bug Fixes**:
+  - Fixed some cases `Array#lastIndexOf` with negative second argument
+
 ##### 2.0.3 - 2016.01.11
 - Added fallback for V8 ~ Chrome 49 `Promise` subclassing bug causes unhandled rejection on feature detection, [#159](https://github.com/zloirock/core-js/issues/159)
 - Added fix for very specific environments with global `window === null`
