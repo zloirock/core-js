@@ -56,8 +56,8 @@ module.exports = (grunt)->
     build {
       modules:   (options || 'es5,es6,es7,js,web,core')split \,
       blacklist: (grunt.option(\blacklist) || '')split \,
-      library:   !!grunt.option \library
-      umd:       grunt.option(\umd) not in <[no false]>
+      library:   grunt.option(\library) in <[yes on true]>
+      umd:       grunt.option(\umd) not in <[no off false]>
     }
     .then !->
       grunt.option(\path) || grunt.option(\path, './custom')
