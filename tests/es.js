@@ -367,46 +367,51 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array.from', function(assert){
-    var from, al, ctx, done, iter, F, inst, a;
-    from = Array.from;
+    var from, isArray, iterator, type, ref$, col, ctx, i$, x$, len$, y$, done, iter, F, inst, a, array;
+    from = Array.from, isArray = Array.isArray;
+    iterator = typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8;
     assert.isFunction(from);
     assert.arity(from, 1);
     assert.name(from, 'from');
     assert.looksNative(from);
-    assert.deepEqual(from('123'), ['1', '2', '3']);
-    assert.deepEqual(from({
-      length: 3,
-      0: 1,
-      1: 2,
-      2: 3
-    }), [1, 2, 3]);
-    from(al = function(){
-      return arguments;
-    }(1), function(val, key){
-      assert.strictEqual(this, ctx);
-      assert.strictEqual(val, 1);
-      return assert.strictEqual(key, 0);
-    }, ctx = {});
-    from([1], function(val, key){
-      assert.strictEqual(this, ctx);
-      assert.strictEqual(val, 1);
-      return assert.strictEqual(key, 0);
-    }, ctx = {});
-    assert.deepEqual(from({
-      length: 3,
-      0: 1,
-      1: 2,
-      2: 3
-    }, (function(it){
-      return Math.pow(it, 2);
-    })), [1, 4, 9]);
-    assert.deepEqual(from(createIterable([1, 2, 3])), [1, 2, 3], 'Works with iterators');
-    assert.throws(function(){
-      return from(null);
-    }, TypeError);
-    assert.throws(function(){
-      return from(void 8);
-    }, TypeError);
+    for (type in ref$ = {
+      'array-like': {
+        length: '3',
+        0: '1',
+        1: '2',
+        2: '3'
+      },
+      arguments: fn$('1', '2', '3'),
+      array: ['1', '2', '3'],
+      iterable: createIterable(['1', '2', '3']),
+      string: '123'
+    }) {
+      col = ref$[type];
+      assert.arrayEqual(from(col), ['1', '2', '3'], "Works with " + type);
+      assert.arrayEqual(from(col, (fn1$)), [1, 4, 9], "Works with " + type + "  + mapFn");
+    }
+    for (type in ref$ = {
+      'array-like': {
+        length: 1,
+        0: 1
+      },
+      arguments: fn2$(1),
+      array: [1],
+      iterable: createIterable([1]),
+      string: '1'
+    }) {
+      col = ref$[type];
+      assert.arrayEqual(from(col, fn3$, ctx = {}), [42], "Works with " + type + ", correct result");
+    }
+    for (i$ = 0, len$ = (ref$ = [false, true, 0]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      assert.arrayEqual(from(x$), [], "Works with " + x$);
+    }
+    for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
+      y$ = ref$[i$];
+      assert.throws(fn4$, TypeError, "Throws on " + y$);
+    }
+    assert.arrayEqual(from('𠮷𠮷𠮷'), ['𠮷', '𠮷', '𠮷'], 'Uses correct string iterator');
     done = true;
     iter = createIterable([1, 2, 3], {
       'return': function(){
@@ -431,38 +436,71 @@
     assert.ok(done, '.return #throw');
     F = function(){};
     inst = from.call(F, createIterable([1, 2]));
-    assert.ok(inst instanceof F);
-    assert.strictEqual(inst[0], 1);
-    assert.strictEqual(inst[1], 2);
-    assert.strictEqual(inst.length, 2);
+    assert.ok(inst instanceof F, 'generic, iterable case, instanceof');
+    assert.arrayEqual(inst, [1, 2], 'generic, iterable case, elements');
     inst = from.call(F, {
       0: 1,
       1: 2,
       length: 2
     });
-    assert.ok(inst instanceof F);
-    assert.strictEqual(inst[0], 1);
-    assert.strictEqual(inst[1], 2);
-    assert.strictEqual(inst.length, 2);
+    assert.ok(inst instanceof F, 'generic, array-like case, instanceof');
+    assert.arrayEqual(inst, [1, 2], 'generic, array-like case, elements');
     a = [1, 2, 3];
     done = false;
-    a[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8] = function(){
+    a['@@iterator'] = void 8;
+    a[iterator] = function(){
       done = true;
-      return [][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call(this);
+      return [][iterator].call(this);
     };
-    assert.deepEqual(from(a), [1, 2, 3]);
-    assert.ok(done);
-    if (NATIVE) {
-      return assert.ok((function(){
-        try {
-          return Array.from({
-            length: -1,
-            0: 1
-          }, function(){
-            throw 42;
-          });
-        } catch (e$) {}
-      }()), 'uses ToLength');
+    assert.arrayEqual(from(a), [1, 2, 3], 'Array with custom iterator, elements');
+    assert.ok(done, 'call @@iterator in Array with custom iterator');
+    array = [1, 2, 3];
+    delete array[1];
+    assert.arrayEqual(from(array, String), ['1', 'undefined', '3'], 'Ignores holes');
+    assert.ok((function(){
+      try {
+        return from({
+          length: -1,
+          0: 1
+        }, function(){
+          throw 42;
+        });
+      } catch (e$) {}
+    }()), 'Uses ToLength');
+    assert.arrayEqual(from([], undefined), [], "Works with undefined as second argument");
+    assert.throws(function(){
+      from([], null);
+    }, TypeError, "Throws with null as second argument");
+    assert.throws(function(){
+      from([], 0);
+    }, TypeError, "Throws with 0 as second argument");
+    assert.throws(function(){
+      from([], '');
+    }, TypeError, "Throws with '' as second argument");
+    assert.throws(function(){
+      from([], false);
+    }, TypeError, "Throws with false as second argument");
+    return assert.throws(function(){
+      from([], {});
+    }, TypeError, "Throws with {} as second argument");
+    function fn$(){
+      return arguments;
+    }
+    function fn1$(it){
+      return Math.pow(it, 2);
+    }
+    function fn2$(){
+      return arguments;
+    }
+    function fn3$(val, key){
+      assert.same(this, ctx, "Works with " + type + ", correct callback context");
+      assert.same(val, type === 'string' ? '1' : 1, "Works with " + type + ", correct callback key");
+      assert.same(key, 0, "Works with " + type + ", correct callback value");
+      assert.same(arguments.length, 2, "Works with " + type + ", correct callback arguments number");
+      return 42;
+    }
+    function fn4$(){
+      from(y$);
     }
   });
 }).call(this);
