@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns the sign of the x, indicating whether x is positive, negative or zero.
-test 'Math.sign' (assert)->
+test 'Math.sign' (assert)!->
   {sign} = Math
   assert.isFunction sign
   assert.name sign, \sign
   assert.arity sign, 1
   assert.looksNative sign
+  assert.nonEnumerable Math, \sign
   assert.same sign(NaN), NaN
   assert.same sign!, NaN
   assert.same sign(-0), -0

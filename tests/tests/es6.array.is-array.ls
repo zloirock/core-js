@@ -7,6 +7,7 @@ test 'Array.isArray' (assert)!->
   assert.arity isArray, 1
   assert.name isArray, \isArray
   assert.looksNative isArray
+  assert.nonEnumerable Array, \isArray
   assert.ok not isArray {}
   assert.ok not isArray do -> &
   assert.ok isArray []

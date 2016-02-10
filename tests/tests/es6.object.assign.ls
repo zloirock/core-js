@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Object.assign' (assert)->
+test 'Object.assign' (assert)!->
   {assign, keys, defineProperty} = Object
   assert.isFunction assign
   assert.arity assign, 2
   assert.name assign, \assign
   assert.looksNative assign
+  assert.nonEnumerable Object, \assign
   foo = q: 1
   assert.strictEqual foo, assign(foo, bar: 2), 'assign return target'
   assert.strictEqual foo.bar, 2, 'assign define properties'

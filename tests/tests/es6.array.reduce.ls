@@ -6,7 +6,8 @@ test 'Array#reduce' (assert)!->
   assert.arity Array::reduce, 1
   assert.name Array::reduce, \reduce
   assert.looksNative Array::reduce
-  (a = [1])reduce (memo, val, key, that)->
+  assert.nonEnumerable Array::, \reduce
+  (a = [1])reduce (memo, val, key, that)!->
     assert.same &length, 4, 'correct number of callback arguments'
     assert.same memo, accumulator, 'correct callback accumulator'
     assert.same val, 1, 'correct value in callback'
@@ -14,7 +15,7 @@ test 'Array#reduce' (assert)!->
     assert.same that, a, 'correct link to array in callback'
   , accumulator = {}
   assert.same [1 2 3]reduce((+), 1), 7, 'works with initial accumulator'
-  (a = [1 2])reduce (memo, val, key, that)->
+  (a = [1 2])reduce (memo, val, key, that)!->
     assert.same memo, 1, 'correct default accumulator'
     assert.same val, 2, 'correct start value without initial accumulator'
     assert.same key, 1, 'correct start index without initial accumulator'

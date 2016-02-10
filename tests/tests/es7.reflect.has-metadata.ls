@@ -8,6 +8,7 @@ test 'Reflect.hasMetadata' (assert)!->
   assert.arity hasMetadata, 2
   assert.name hasMetadata, \hasMetadata
   assert.looksNative hasMetadata
+  assert.nonEnumerable Reflect, \hasMetadata
   assert.throws (!-> hasMetadata \key void void), TypeError
   assert.same hasMetadata(\key {}, void), no
   obj = {}

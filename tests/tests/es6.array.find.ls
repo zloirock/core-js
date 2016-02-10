@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array#find' (assert)->
+test 'Array#find' (assert)!->
   assert.isFunction Array::find
   assert.arity Array::find, 1
   assert.name Array::find, \find
   assert.looksNative Array::find
-  (a = [1])find (val, key, that)->
+  assert.nonEnumerable Array::, \find
+  (a = [1])find (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

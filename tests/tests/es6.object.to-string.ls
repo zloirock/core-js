@@ -5,6 +5,7 @@ test 'Object#toString' (assert)->
   assert.arity Object::toString, 0
   assert.name Object::toString, \toString
   assert.looksNative Object::toString
+  assert.nonEnumerable Object::, \toString
   {toString} = Object::
   if STRICT
     assert.strictEqual toString.call(null), '[object Null]', 'null -> `Null`'

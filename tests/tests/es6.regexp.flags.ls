@@ -3,6 +3,7 @@ module \ES6
 
 if DESCRIPTORS
   test 'RegExp#flags' (assert)->
+    assert.nonEnumerable RegExp::, \flags
     assert.strictEqual /./g.flags, \g, '/./g.flags is "g"'
     assert.strictEqual /./.flags, '', '/./.flags is ""'
     assert.strictEqual RegExp('.', \gim).flags, \gim, 'RegExp(".", "gim").flags is "gim"'

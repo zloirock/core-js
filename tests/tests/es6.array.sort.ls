@@ -6,6 +6,7 @@ test 'Array#sort' (assert)!->
   assert.arity Array::sort, 1
   assert.name Array::sort, \sort
   assert.looksNative Array::sort
+  assert.nonEnumerable Array::, \sort
   assert.ok !!(try [1 2 3]sort void), 'works with undefined'
   assert.throws (!-> [1 2 3]sort null), 'throws on null'
   assert.throws (!-> [1 2 3]sort {}), 'throws on {}'

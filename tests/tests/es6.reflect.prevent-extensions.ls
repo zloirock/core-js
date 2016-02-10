@@ -9,6 +9,7 @@ test 'Reflect.preventExtensions' (assert)->
   assert.arity preventExtensions, 1
   assert.name preventExtensions, \preventExtensions
   assert.looksNative preventExtensions
+  assert.nonEnumerable Reflect, \preventExtensions
   obj = {}
   assert.ok preventExtensions(obj), on
   if DESCRIPTORS

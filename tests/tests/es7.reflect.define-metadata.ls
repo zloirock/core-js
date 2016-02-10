@@ -7,6 +7,7 @@ test 'Reflect.defineMetadata' (assert)!->
   assert.arity defineMetadata, 4
   assert.name defineMetadata, \defineMetadata
   assert.looksNative defineMetadata
+  assert.nonEnumerable Reflect, \defineMetadata
   assert.throws (!-> defineMetadata \key \value void void), TypeError
   assert.same defineMetadata(\key \value {}, void), void
   assert.same defineMetadata(\key \value {}, \name), void

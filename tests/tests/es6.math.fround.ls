@@ -1,13 +1,14 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Math.fround' (assert)->
+test 'Math.fround' (assert)!->
   # https://github.com/paulmillr/es6-shim/blob/master/test/math.js
   {fround} = Math
   assert.isFunction fround
   assert.name fround, \fround
   assert.arity fround, 1
   assert.looksNative fround
+  assert.nonEnumerable Math, \fround
   assert.same fround(void), NaN
   assert.same fround(NaN), NaN
   assert.same fround(0), 0

@@ -3,7 +3,7 @@ module \core-js
 
 {from} = Array
 
-test 'core.getIterator' (assert)->
+test 'core.getIterator' (assert)!->
   {getIterator} = core
   assert.isFunction getIterator
   assert.isIterator getIterator []

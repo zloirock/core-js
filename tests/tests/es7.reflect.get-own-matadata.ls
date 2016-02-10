@@ -8,6 +8,7 @@ test 'Reflect.getOwnMetadata' (assert)!->
   assert.arity getOwnMetadata, 2
   assert.name getOwnMetadata, \getOwnMetadata
   assert.looksNative getOwnMetadata
+  assert.nonEnumerable Reflect, \getOwnMetadata
   assert.throws (!-> getOwnMetadata \key void void), TypeError
   assert.same getOwnMetadata(\key {}, void), void
   obj = {}

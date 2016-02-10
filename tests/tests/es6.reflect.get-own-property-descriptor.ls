@@ -7,6 +7,7 @@ test 'Reflect.getOwnPropertyDescriptor' (assert)->
   assert.arity getOwnPropertyDescriptor, 2
   assert.name getOwnPropertyDescriptor, \getOwnPropertyDescriptor
   assert.looksNative getOwnPropertyDescriptor
+  assert.nonEnumerable Reflect, \getOwnPropertyDescriptor
   obj = {baz: 789}
   desc = getOwnPropertyDescriptor obj, \baz
   assert.strictEqual desc.value, 789

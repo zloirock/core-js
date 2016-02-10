@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Object.make' (assert)->
+test 'Object.make' (assert)!->
   {make} = Object
   assert.isFunction make
   object = make foo = {q:1}, {w:2}

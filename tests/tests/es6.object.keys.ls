@@ -7,6 +7,7 @@ test 'Object.keys' (assert)!->
   assert.arity keys, 1
   assert.name keys, \keys
   assert.looksNative keys
+  assert.nonEnumerable Object, \keys
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1

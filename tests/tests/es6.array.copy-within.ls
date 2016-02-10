@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array#copyWithin' (assert)->
+test 'Array#copyWithin' (assert)!->
   assert.isFunction Array::copyWithin
   assert.arity Array::copyWithin, 2
   assert.name Array::copyWithin, \copyWithin
   assert.looksNative Array::copyWithin
   assert.strictEqual (a = [1]copyWithin(0)), a
+  assert.nonEnumerable Array::, \copyWithin
   assert.deepEqual [1 2 3 4 5]copyWithin(0 3), [4 5 3 4 5]
   assert.deepEqual [1 2 3 4 5]copyWithin(1 3), [1 4 5 4 5]
   assert.deepEqual [1 2 3 4 5]copyWithin(1 2), [1 3 4 5 5]

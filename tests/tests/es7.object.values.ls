@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES7
 
-test 'Object.values' (assert)->
+test 'Object.values' (assert)!->
   {values, create, assign} = Object
   assert.isFunction values
   assert.arity values, 1
   assert.name values, \values
   assert.looksNative values
+  assert.nonEnumerable Object, \values
   assert.deepEqual values({q:1, w:2, e:3}), [1 2 3]
   assert.deepEqual values(new String \qwe), [\q \w \e]
   assert.deepEqual values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6}), [4 5 6]

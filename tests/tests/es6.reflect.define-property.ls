@@ -3,13 +3,14 @@ module \ES6
 
 {defineProperty, getOwnPropertyDescriptor} = Object
 
-test 'Reflect.defineProperty' (assert)->
+test 'Reflect.defineProperty' (assert)!->
   {defineProperty} = Reflect
   {create} = Reflect
   assert.isFunction defineProperty
   assert.arity defineProperty, 3
   assert.name defineProperty, \defineProperty
   assert.looksNative defineProperty
+  assert.nonEnumerable Reflect, \defineProperty
   O = {}
   assert.strictEqual defineProperty(O, \foo, {value: 123}), on
   assert.strictEqual O.foo, 123

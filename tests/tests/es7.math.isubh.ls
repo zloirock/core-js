@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES7
 
-test 'Math.isubh' (assert)->
+test 'Math.isubh' (assert)!->
   {isubh} = Math
   assert.isFunction isubh
   assert.name isubh, \isubh
   assert.arity isubh, 4
   assert.looksNative isubh
+  assert.nonEnumerable Math, \isubh
   assert.same isubh(0 2 1 0), 1
   assert.same isubh(0 4 1 1), 2
   assert.same isubh(2 4 1 1), 3

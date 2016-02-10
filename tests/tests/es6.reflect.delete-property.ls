@@ -9,6 +9,7 @@ test 'Reflect.deleteProperty' (assert)->
   assert.arity deleteProperty, 2
   assert.name deleteProperty, \deleteProperty
   assert.looksNative deleteProperty
+  assert.nonEnumerable Reflect, \deleteProperty
   O = {bar: 456}
   assert.strictEqual deleteProperty(O, \bar), on
   assert.ok \bar not in O

@@ -57,6 +57,7 @@ test 'WeakMap#delete' (assert)!->
   NATIVE and assert.name WeakMap::delete, \delete # can't be polyfilled in some environments
   NATIVE and assert.arity WeakMap::delete, 1
   assert.looksNative WeakMap::delete
+  assert.nonEnumerable WeakMap::, \delete
   M = new WeakMap!
     ..set a = {}, 42
     ..set b = {}, 21
@@ -70,6 +71,7 @@ test 'WeakMap#get' (assert)!->
   assert.name WeakMap::get, \get
   NATIVE and assert.arity WeakMap::get, 1
   assert.looksNative WeakMap::get
+  assert.nonEnumerable WeakMap::, \get
   M = new WeakMap!
   assert.strictEqual M.get({}), void, 'WeakMap .get() before .set() return undefined'
   M.set a = {}, 42
@@ -83,6 +85,7 @@ test 'WeakMap#has' (assert)!->
   assert.name WeakMap::has, \has
   NATIVE and assert.arity WeakMap::has, 1
   assert.looksNative WeakMap::has
+  assert.nonEnumerable WeakMap::, \has
   M = new WeakMap!
   assert.ok !M.has({}), 'WeakMap .has() before .set() return false'
   M.set a = {}, 42
@@ -96,6 +99,7 @@ test 'WeakMap#set' (assert)!->
   assert.name WeakMap::set, \set
   assert.arity WeakMap::set, 2
   assert.looksNative WeakMap::set
+  assert.nonEnumerable WeakMap::, \set
   assert.same (new WeakMap!
     ..set a = {}, 42
   )get(a), 42, 'works with object as keys'

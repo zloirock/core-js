@@ -6,6 +6,7 @@ test 'String#replace regression' (assert)->
   assert.arity ''replace, 2
   assert.name ''replace, \replace
   assert.looksNative ''replace
+  assert.nonEnumerable String::, \replace
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/replace
   instance = Object true
   instance.replace = String::replace

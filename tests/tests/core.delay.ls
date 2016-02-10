@@ -3,7 +3,7 @@ module \core-js
 
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 
-test 'delay' (assert)->
+test 'delay' (assert)!->
   assert.expect 6
   assert.isFunction delay
   assert.arity delay, 1

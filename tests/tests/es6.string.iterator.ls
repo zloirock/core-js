@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#@@iterator' (assert)->
+test 'String#@@iterator' (assert)!->
   assert.isIterable String::
   iter = 'qwe'[Symbol?iterator]!
   assert.isIterator iter

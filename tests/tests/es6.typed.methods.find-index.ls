@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test '%TypedArrayPrototype%.findIndex', !(assert)~>
+DESCRIPTORS and test '%TypedArrayPrototype%.findIndex' (assert)->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
@@ -8,7 +8,7 @@ DESCRIPTORS and test '%TypedArrayPrototype%.findIndex', !(assert)~>
     assert.arity Typed::findIndex, 1, "#{..}::findIndex arity is 1"
     assert.name Typed::findIndex, \findIndex, "#{..}::findIndex name is 'findIndex'"
     assert.looksNative Typed::findIndex, "#{..}::findIndex looks native"
-    (a = new Typed [1])findIndex (val, key, that)->
+    (a = new Typed [1])findIndex (val, key, that)!->
       assert.same &length, 3, 'correct number of callback arguments'
       assert.same val, 1, 'correct value in callback'
       assert.same key, 0, 'correct index in callback'

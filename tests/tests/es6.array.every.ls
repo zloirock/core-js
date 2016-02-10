@@ -6,7 +6,8 @@ test 'Array#every' (assert)!->
   assert.arity Array::every, 1
   assert.name Array::every, \every
   assert.looksNative Array::every
-  (a = [1])every (val, key, that)->
+  assert.nonEnumerable Array::, \every
+  (a = [1])every (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

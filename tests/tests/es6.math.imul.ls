@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Math.imul' (assert)->
+test 'Math.imul' (assert)!->
   {imul} = Math
   assert.isFunction imul
   assert.name imul, \imul
   assert.arity imul, 2
   assert.looksNative imul
+  assert.nonEnumerable Math, \imul
   assert.same imul(0, 0), 0
   assert.strictEqual imul(123, 456), 56088
   assert.strictEqual imul(-123, 456), -56088

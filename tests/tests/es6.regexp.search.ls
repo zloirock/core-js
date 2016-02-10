@@ -6,6 +6,7 @@ test 'String#search regression' (assert)->
   assert.arity ''search, 1
   assert.name ''search, \search
   assert.looksNative ''search
+  assert.nonEnumerable String::, \search
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/search
   instance = Object on
   instance.search = String::search

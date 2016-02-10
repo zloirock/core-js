@@ -7,6 +7,7 @@ test 'Number#toPrecision' (assert)!->
   assert.name toPrecision, \toPrecision
   assert.arity toPrecision, 1
   assert.looksNative toPrecision
+  assert.nonEnumerable Number::, \toPrecision
   assert.same 0.00008.toPrecision(3), '0.0000800', '0.00008.toPrecision(3)'
   assert.same 1.255.toPrecision(2), '1.3', '1.255.toPrecision(2)'
   assert.same 1843654265.0774949.toPrecision(13), '1843654265.077', '1843654265.0774949.toPrecision(13)'

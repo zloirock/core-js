@@ -2,7 +2,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Promise' !(assert)->
+test 'Promise' (assert)!->
   assert.isFunction Promise
   assert.arity Promise, 1
   assert.name Promise, \Promise
@@ -14,7 +14,7 @@ test 'Promise' !(assert)->
     assert.same @, (-> @)!, 'correct executor context'
 
 # related https://github.com/zloirock/core-js/issues/78
-if DESCRIPTORS => test 'Promise operations order' !(assert)->
+if DESCRIPTORS => test 'Promise operations order' (assert)!->
   assert.expect 1
   expected = \DEHAFGBC
   async = assert.async!
@@ -40,26 +40,30 @@ if DESCRIPTORS => test 'Promise operations order' !(assert)->
   result += \H
   setTimeout (!-> if ~result.indexOf(\C) => assert.same result, expected), 1e3
 
-test 'Promise#then' !(assert)->
+test 'Promise#then' (assert)!->
   assert.isFunction Promise::then
   NATIVE and assert.arity Promise::then, 2 # FF - 0
   assert.name Promise::then, \then
   assert.looksNative Promise::then
+  assert.nonEnumerable Promise::, \then
 
-test 'Promise#catch' !(assert)->
+test 'Promise#catch' (assert)!->
   assert.isFunction Promise::catch
   NATIVE and assert.arity Promise::catch, 1 # FF - 0
   NATIVE and assert.name Promise::catch, \catch # can't be polyfilled in some environments
-  assert.looksNative Promise::then
+  assert.looksNative Promise::catch
+  assert.nonEnumerable Promise::, \catch
 
 test 'Promise#@@toStringTag' !(assert)->
-  assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
+  #assert.nonEnumerable Promise::, Symbol?toStringTag
+  assert.ok Promise::[Symbol?toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
-test 'Promise.all' !(assert)->
+test 'Promise.all' (assert)!->
   assert.isFunction Promise.all
   assert.arity Promise.all, 1
   assert.name Promise.all, \all
   assert.looksNative Promise.all
+  assert.nonEnumerable Promise, \all
   # works with iterables
   iter = createIterable [1 2 3]
   Promise.all iter .catch ->
@@ -73,13 +77,14 @@ test 'Promise.all' !(assert)->
     [][Symbol?iterator]call @
   Promise.all a
   assert.ok done
-  assert.throws (-> Promise.all.call(null, []).catch !->), TypeError, 'throws without context'
+  assert.throws (!-> Promise.all.call(null, []).catch !->), TypeError, 'throws without context'
 
-test 'Promise.race' !(assert)->
+test 'Promise.race' (assert)!->
   assert.isFunction Promise.race
   assert.arity Promise.race, 1
   assert.name Promise.race, \race
   assert.looksNative Promise.race
+  assert.nonEnumerable Promise, \race
   # works with iterables
   iter = createIterable [1 2 3]
   Promise.race iter .catch ->
@@ -93,24 +98,26 @@ test 'Promise.race' !(assert)->
     [][Symbol?iterator]call @
   Promise.race a
   assert.ok done
-  assert.throws (-> Promise.race.call(null, []).catch !->), TypeError, 'throws without context'
+  assert.throws (!-> Promise.race.call(null, []).catch !->), TypeError, 'throws without context'
 
-test 'Promise.resolve' !(assert)->
+test 'Promise.resolve' (assert)!->
   assert.isFunction Promise.resolve
   NATIVE and assert.arity Promise.resolve, 1 # FF - 0
   assert.name Promise.resolve, \resolve
   assert.looksNative Promise.resolve
-  assert.throws (-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
+  assert.nonEnumerable Promise, \resolve
+  assert.throws (!-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
 
-test 'Promise.reject' !(assert)->
+test 'Promise.reject' (assert)!->
   assert.isFunction Promise.reject
   NATIVE and assert.arity Promise.reject, 1 # FF - 0
   assert.name Promise.reject, \reject
   assert.looksNative Promise.reject
-  assert.throws (-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'
+  assert.nonEnumerable Promise, \reject
+  assert.throws (!-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'
 
 if PROTO
-  test 'Promise subclassing' !(assert)->
+  test 'Promise subclassing' (assert)!->
     # this is ES5 syntax to create a valid ES6 subclass
     SubPromise = ->
       self = new Promise it

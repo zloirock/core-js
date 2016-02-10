@@ -8,6 +8,7 @@ test 'Reflect.getMetadataKeys' (assert)!->
   assert.arity getMetadataKeys, 1
   assert.name getMetadataKeys, \getMetadataKeys
   assert.looksNative getMetadataKeys
+  assert.nonEnumerable Reflect, \getMetadataKeys
   assert.throws (!-> getMetadataKeys void void), TypeError
   assert.deepEqual getMetadataKeys({}, void), []
   obj = {}

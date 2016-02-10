@@ -6,6 +6,7 @@ test 'String#split regression' (assert)->
   assert.arity ''split, 2
   assert.name ''split, \split
   assert.looksNative ''split
+  assert.nonEnumerable String::, \split
   # based on https://github.com/es-shims/es5-shim/blob/master/tests/spec/s-string.js
   assert.arrayEqual 'ab'split!, <[ab]>, 'If "separator" is undefined must return Array with one String - "this" string'
   assert.arrayEqual 'ab'split(void), <[ab]>, 'If "separator" is undefined must return Array with one String - "this" string'

@@ -1,11 +1,12 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#codePointAt' (assert)->
+test 'String#codePointAt' (assert)!->
   assert.isFunction String::codePointAt
   assert.arity String::codePointAt, 1
   assert.name String::codePointAt, \codePointAt
   assert.looksNative String::codePointAt
+  assert.nonEnumerable String::, \codePointAt
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
   assert.strictEqual 'abc\uD834\uDF06def'codePointAt(''), 0x61
   assert.strictEqual 'abc\uD834\uDF06def'codePointAt(\_), 0x61
@@ -57,5 +58,5 @@ test 'String#codePointAt' (assert)->
   assert.strictEqual '\uDF06abc'codePointAt(null), 0xDF06
   assert.strictEqual '\uDF06abc'codePointAt(void), 0xDF06
   if STRICT
-    assert.throws (-> String::codePointAt.call null, 0), TypeError
-    assert.throws (-> String::codePointAt.call void, 0), TypeError
+    assert.throws (!-> String::codePointAt.call null, 0), TypeError
+    assert.throws (!-> String::codePointAt.call void, 0), TypeError

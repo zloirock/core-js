@@ -1,11 +1,12 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array#fill' (assert)->
+test 'Array#fill' (assert)!->
   assert.isFunction Array::fill
   assert.arity Array::fill, 1
   assert.name Array::fill, \fill
   assert.looksNative Array::fill
+  assert.nonEnumerable Array::, \fill
   assert.strictEqual (a = Array(5)fill(5)), a
   assert.deepEqual Array(5)fill(5), [5 5 5 5 5]
   assert.deepEqual Array(5)fill(5 1), [void 5 5 5 5]

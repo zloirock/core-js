@@ -6,7 +6,8 @@ test 'Array#some' (assert)!->
   assert.arity Array::some, 1
   assert.name Array::some, \some
   assert.looksNative Array::some
-  (a = [1])some (val, key, that)->
+  assert.nonEnumerable Array::, \some
+  (a = [1])some (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

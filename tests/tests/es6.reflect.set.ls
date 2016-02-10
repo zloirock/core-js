@@ -9,6 +9,7 @@ test 'Reflect.set' (assert)->
   NATIVE and assert.arity set, 3 # fails in MS Edge
   assert.name set, \set
   assert.looksNative set
+  assert.nonEnumerable Reflect, \set
   obj = {}
   assert.ok set(obj, \quux, 654), on
   assert.strictEqual obj.quux, 654

@@ -8,6 +8,7 @@ if PROTO
     NATIVE and assert.arity setPrototypeOf, 2 # fails in MS Edge
     assert.name setPrototypeOf, \setPrototypeOf
     assert.looksNative setPrototypeOf
+    assert.nonEnumerable Reflect, \setPrototypeOf
     obj = {}
     assert.ok setPrototypeOf(obj, Array::), on
     assert.ok obj instanceof Array

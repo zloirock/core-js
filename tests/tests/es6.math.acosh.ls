@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic cosine of x.
-test 'Math.acosh' (assert)->
+test 'Math.acosh' (assert)!->
   {acosh} = Math
   assert.isFunction acosh
   assert.name acosh, \acosh
   assert.arity acosh, 1
   assert.looksNative acosh
+  assert.nonEnumerable Math, \acosh
   assert.same acosh(NaN), NaN
   assert.same acosh(0.5), NaN
   assert.same acosh(-1), NaN

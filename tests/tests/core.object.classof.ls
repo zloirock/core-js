@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Object.classof' (assert)->
+test 'Object.classof' (assert)!->
   {classof} = Object
   assert.isFunction classof
   assert.ok classof(void) is \Undefined, 'classof undefined is `Undefined`'

@@ -6,7 +6,8 @@ test 'Array#map' (assert)!->
   assert.arity Array::map, 1
   assert.name Array::map, \map
   assert.looksNative Array::map
-  (a = [1])map (val, key, that)->
+  assert.nonEnumerable Array::, \map
+  (a = [1])map (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

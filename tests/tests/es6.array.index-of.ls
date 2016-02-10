@@ -6,6 +6,7 @@ test 'Array#indexOf' (assert)!->
   assert.arity Array::indexOf, 1
   assert.name Array::indexOf, \indexOf
   assert.looksNative Array::indexOf
+  assert.nonEnumerable Array::, \indexOf
   assert.ok 0  is [1 1 1]indexOf 1
   assert.ok -1 is [1 2 3]indexOf 1 1
   assert.ok 1  is [1 2 3]indexOf 2 1

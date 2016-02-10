@@ -18,8 +18,9 @@ test 'Number constructor: regression' (assert)!->
   assert.looksNative Number
   assert.same Number::constructor, Number
   assert.same 1.constructor, Number
-  for 'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'split ','
+  for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
     assert.ok .. of Number, "Number.#{..}"
+    assert.nonEnumerable Number, ..
   assert.same Number!, 0
   assert.same new Number!valueOf!, 0
   check 42, 42
@@ -75,8 +76,6 @@ test 'Number constructor: regression' (assert)!->
   assert.throws (-> Number valueOf: 1, toString: 2), TypeError, 'Number assert.throws on object then valueOf and toString are not functions'
   assert.throws (-> new Number Object.create null), TypeError, 'new Number assert.throws on object w/o valueOf and toString'
   assert.throws (-> new Number valueOf: 1, toString: 2), TypeError, 'new Number assert.throws on object then valueOf and toString are not functions'
-  for <[MAX_VALUE MIN_VALUE NaN NEGATIVE_INFINITY POSITIVE_INFINITY]>
-    assert.ok .. of Number, "#{..} in Number"
   n = new Number 42
   assert.strictEqual typeof n@@(n), \number
   check "#{ws}42", 42

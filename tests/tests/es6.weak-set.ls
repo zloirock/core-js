@@ -54,6 +54,7 @@ test 'WeakSet#add' (assert)!->
   assert.name WeakSet::add, \add
   assert.arity WeakSet::add, 1
   assert.looksNative WeakSet::add
+  assert.nonEnumerable WeakSet::, \add
   assert.ok new WeakSet!add(a = {}), 'works with object as keys'
   assert.ok (try new WeakSet!add(42); no; catch => on), 'throws with primitive keys'
   wset = new WeakSet!
@@ -64,6 +65,7 @@ test 'WeakSet#delete' (assert)!->
   NATIVE and #assert.name WeakSet::delete, \delete # can't be polyfilled in some environments
   assert.arity WeakSet::delete, 1
   assert.looksNative WeakSet::delete
+  assert.nonEnumerable WeakSet::, \delete
   S = new WeakSet!
     ..add a = {}
     ..add b = {}
@@ -77,6 +79,7 @@ test 'WeakSet#has' (assert)!->
   assert.name WeakSet::has, \has
   assert.arity WeakSet::has, 1
   assert.looksNative WeakSet::has
+  assert.nonEnumerable WeakSet::, \has
   M = new WeakSet!
   assert.ok not M.has({}), 'WeakSet has`nt value'
   M.add a = {}

@@ -6,6 +6,7 @@ test 'Array#forEach' (assert)!->
   assert.arity Array::forEach, 1
   assert.name Array::forEach, \forEach
   assert.looksNative Array::forEach
+  assert.nonEnumerable Array::, \forEach
   (a = [1])forEach (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'

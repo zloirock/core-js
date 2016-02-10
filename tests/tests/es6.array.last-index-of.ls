@@ -6,6 +6,7 @@ test 'Array#lastIndexOf' (assert)!->
   assert.arity Array::lastIndexOf, 1
   assert.name Array::lastIndexOf, \lastIndexOf
   assert.looksNative Array::lastIndexOf
+  assert.nonEnumerable Array::, \lastIndexOf
   assert.strictEqual 2,  [1 1 1]lastIndexOf 1
   assert.strictEqual -1, [1 2 3]lastIndexOf 3 1
   assert.strictEqual 1,  [1 2 3]lastIndexOf 2 1

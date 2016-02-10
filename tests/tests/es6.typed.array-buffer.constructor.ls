@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test \ArrayBuffer, !(assert)~>
+test \ArrayBuffer (assert)!->
   assert.same ArrayBuffer, Object(ArrayBuffer), 'is object' # in Safari 5 typeof ArrayBuffer is 'object'
   assert.arity ArrayBuffer, 1 # 0 in V8 ~ Chromium 27-
   assert.name ArrayBuffer, \ArrayBuffer # Safari 5 bug

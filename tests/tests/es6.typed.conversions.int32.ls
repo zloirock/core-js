@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Int32 conversions', !(assert)~>
+DESCRIPTORS and test 'Int32 conversions' (assert)!->
   NAME  = \Int32
   ARRAY = NAME + \Array
   Typed = global[ARRAY]

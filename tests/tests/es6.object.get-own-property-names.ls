@@ -7,6 +7,7 @@ test 'Object.getOwnPropertyNames' (assert)!->
   assert.arity getOwnPropertyNames, 1
   assert.name getOwnPropertyNames, \getOwnPropertyNames
   assert.looksNative getOwnPropertyNames
+  assert.nonEnumerable Object, \getOwnPropertyNames
   fn1 = (@w = 2)->
   fn2 = (@toString = 2)->
   fn1::q = fn2::q = 1

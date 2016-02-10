@@ -7,6 +7,7 @@ test 'Object.preventExtensions' (assert)!->
   assert.arity preventExtensions, 1
   assert.name preventExtensions, \preventExtensions
   assert.looksNative preventExtensions
+  assert.nonEnumerable Object, \preventExtensions
   for value in [42 \foo no null void, {}]
     assert.ok (try => preventExtensions value; on), "accept #{typeof! value}"
     assert.same preventExtensions(value), value, "returns target on #{typeof! value}"

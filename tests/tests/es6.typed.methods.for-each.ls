@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test '%TypedArrayPrototype%.forEach', !(assert)~>
+DESCRIPTORS and test '%TypedArrayPrototype%.forEach' (assert)!->
   # we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for <[Float32Array Float64Array Int8Array Int16Array Int32Array Uint8Array Uint16Array Uint32Array Uint8ClampedArray]>
     Typed = global[..]
@@ -9,7 +9,7 @@ DESCRIPTORS and test '%TypedArrayPrototype%.forEach', !(assert)~>
     assert.name Typed::forEach, \forEach, "#{..}::forEach name is 'forEach'"
     assert.looksNative Typed::forEach, "#{..}::forEach looks native"
     assert.same new Typed([1])forEach(!->), void, 'void'
-    (a = new Typed [1])forEach (val, key, that)->
+    (a = new Typed [1])forEach (val, key, that)!->
       assert.same &length, 3, 'correct number of callback arguments'
       assert.same val, 1, 'correct value in callback'
       assert.same key, 0, 'correct index in callback'

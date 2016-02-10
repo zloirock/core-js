@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Uint16 conversions', !(assert)~>
+DESCRIPTORS and test 'Uint16 conversions' (assert)!->
   NAME  = \Uint16
   ARRAY = NAME + \Array
   Typed = global[ARRAY]

@@ -4,7 +4,7 @@ module \ES6
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
 
-test 'Map' (assert)->
+test 'Map' (assert)!->
   assert.isFunction Map
   assert.arity Map, 0
   assert.name Map, \Map
@@ -47,11 +47,12 @@ test 'Map' (assert)->
     assert.ok new C instanceof Map, 'correct subclassing with native classes #2'
     assert.same new C!set(1 2).get(1), 2, 'correct subclassing with native classes #3'
 
-test 'Map#clear' (assert)->
+test 'Map#clear' (assert)!->
   assert.isFunction Map::clear
   assert.arity Map::clear, 0
   assert.name Map::clear, \clear
   assert.looksNative Map::clear
+  assert.nonEnumerable Map::, \clear
   M = new Map
   M.clear!
   assert.strictEqual M.size, 0
@@ -71,11 +72,12 @@ test 'Map#clear' (assert)->
   assert.ok !M.has 1
   assert.ok !M.has f
 
-test 'Map#delete' (assert)->
+test 'Map#delete' (assert)!->
   assert.isFunction Map::delete
   assert.arity Map::delete, 1
   NATIVE and assert.name Map::delete, \delete # can't be polyfilled in some environments
   assert.looksNative Map::delete
+  assert.nonEnumerable Map::, \delete
   a = []
   M = new Map!
     ..set NaN, 1
@@ -98,11 +100,12 @@ test 'Map#delete' (assert)->
   M.delete f
   assert.strictEqual M.size, 3
 
-test 'Map#forEach' (assert)->
+test 'Map#forEach' (assert)!->
   assert.isFunction Map::forEach
   assert.arity Map::forEach, 1
   assert.name Map::forEach, \forEach
   assert.looksNative Map::forEach
+  assert.nonEnumerable Map::, \forEach
   r = {}
   var T
   count = 0
@@ -142,11 +145,12 @@ test 'Map#forEach' (assert)->
   assert.strictEqual s, \1
   assert.throws (!-> Map::forEach.call new Set, !->), 'non-generic'
 
-test 'Map#get' (assert)->
+test 'Map#get' (assert)!->
   assert.isFunction Map::get
   assert.name Map::get, \get
   assert.arity Map::get, 1
   assert.looksNative Map::get
+  assert.nonEnumerable Map::, \get
   o = {}
   f = freeze {}
   M = new Map!
@@ -164,11 +168,12 @@ test 'Map#get' (assert)->
   assert.strictEqual M.get(f), 42
   assert.strictEqual M.get(2), 5
 
-test 'Map#has' (assert)->
+test 'Map#has' (assert)!->
   assert.isFunction Map::has
   assert.name Map::has, \has
   assert.arity Map::has, 1
   assert.looksNative Map::has
+  assert.nonEnumerable Map::, \has
   o = {}
   f = freeze {}
   M = new Map!
@@ -186,11 +191,12 @@ test 'Map#has' (assert)->
   assert.ok not M.has 4
   assert.ok not M.has {}
 
-test 'Map#set' (assert)->
+test 'Map#set' (assert)!->
   assert.isFunction Map::set
   assert.name Map::set, \set
   assert.arity Map::set, 2
   assert.looksNative Map::set
+  assert.nonEnumerable Map::, \set
   o = {}
   M = new Map!
     ..set NaN, 1
@@ -223,7 +229,8 @@ test 'Map#set' (assert)->
   M = new Map!set freeze(f = {}), 42
   assert.strictEqual M.get(f), 42
 
-test 'Map#size' (assert)->
+test 'Map#size' (assert)!->
+  assert.nonEnumerable Map::, \size
   size = (new Map!
     ..set 2 1)size
   assert.strictEqual typeof size, \number, 'size is number'
@@ -234,7 +241,7 @@ test 'Map#size' (assert)->
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'
     assert.throws (-> Map::size), TypeError
 
-test 'Map & -0' (assert)->
+test 'Map & -0' (assert)!->
   map = new Map
   map.set -0, 1
   assert.strictEqual map.size, 1
@@ -258,10 +265,11 @@ test 'Map & -0' (assert)->
     ..set 0, 0
   assert.ok map.has -0
 
-test 'Map#@@toStringTag' (assert)->
+test 'Map#@@toStringTag' (assert)!->
+  #assert.nonEnumerable Map::, Symbol?toStringTag
   assert.strictEqual Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
 
-test 'Map Iterator' (assert)->
+test 'Map Iterator' (assert)!->
   map = new Map!
     ..set \a 1
     ..set \b 2
@@ -269,6 +277,10 @@ test 'Map Iterator' (assert)->
     ..set \d 4
   keys = []
   iterator = map.keys!
+  assert.isIterator iterator
+  assert.isIterable iterator
+  assert.nonEnumerable iterator, \next
+  assert.nonEnumerable iterator, Symbol?iterator
   keys.push iterator.next!value
   assert.ok map.delete \a
   assert.ok map.delete \b
@@ -281,11 +293,12 @@ test 'Map Iterator' (assert)->
   assert.ok iterator.next!done
   assert.deepEqual keys, <[a d e]>
 
-test 'Map#keys' (assert)->
+test 'Map#keys' (assert)!->
   assert.isFunction Map::keys
   assert.name Map::keys, \keys
   assert.arity Map::keys, 0
   assert.looksNative Map::keys
+  assert.nonEnumerable Map::, \keys
   iter = (new Map!
     ..set \a \q
     ..set \s \w
@@ -299,11 +312,12 @@ test 'Map#keys' (assert)->
   assert.deepEqual iter.next!, {value: \d, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#values' (assert)->
+test 'Map#values' (assert)!->
   assert.isFunction Map::values
   assert.name Map::values, \values
   assert.arity Map::values, 0
   assert.looksNative Map::values
+  assert.nonEnumerable Map::, \values
   iter = (new Map!
     ..set \a \q
     ..set \s \w
@@ -317,11 +331,12 @@ test 'Map#values' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#entries' (assert)->
+test 'Map#entries' (assert)!->
   assert.isFunction Map::entries
   assert.name Map::entries, \entries
   assert.arity Map::entries, 0
   assert.looksNative Map::entries
+  assert.nonEnumerable Map::, \entries
   iter = (new Map!
     ..set \a \q
     ..set \s \w
@@ -335,12 +350,13 @@ test 'Map#entries' (assert)->
   assert.deepEqual iter.next!, {value: [\d \e], done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#@@iterator' (assert)->
+test 'Map#@@iterator' (assert)!->
   assert.isIterable Map::
   assert.name Map::entries, \entries
   assert.arity Map::entries, 0
   assert.looksNative Map::[Symbol?iterator]
   assert.strictEqual Map::[Symbol?iterator], Map::entries
+  assert.nonEnumerable Map::, Symbol?iterator
   iter = (new Map!
     ..set \a \q
     ..set \s \w

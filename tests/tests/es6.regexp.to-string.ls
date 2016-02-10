@@ -7,6 +7,7 @@ test 'RegExp#toString' (assert)!->
   assert.arity toString, 0
   assert.name toString, \toString
   assert.looksNative toString
+  assert.nonEnumerable RegExp::, \toString
   assert.same String(/pattern/), '/pattern/'
   assert.same String(/pattern/i), '/pattern/i'
   assert.same String(/pattern/mi), '/pattern/im'

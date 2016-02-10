@@ -7,6 +7,7 @@ test 'Object.getPrototypeOf' (assert)!->
   assert.arity getPrototypeOf, 1
   assert.name getPrototypeOf, \getPrototypeOf
   assert.looksNative getPrototypeOf
+  assert.nonEnumerable Object, \getPrototypeOf
   assert.ok getPrototypeOf({}) is Object::
   assert.ok getPrototypeOf([]) is Array::
   assert.ok getPrototypeOf(new class fn) is fn::

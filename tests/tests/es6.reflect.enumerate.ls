@@ -11,6 +11,7 @@ test 'Reflect.enumerate' (assert)->
   assert.arity enumerate, 1
   assert.name enumerate, \enumerate
   assert.looksNative enumerate
+  assert.nonEnumerable Reflect, \enumerate
   obj = {foo: 1, bar: 2}
   i = enumerate obj
   assert.isIterable i

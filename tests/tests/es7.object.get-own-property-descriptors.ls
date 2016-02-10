@@ -3,12 +3,13 @@ module \ES7
 
 {create} = Object
 
-test 'Object.getOwnPropertyDescriptors' (assert)->
+test 'Object.getOwnPropertyDescriptors' (assert)!->
   {getOwnPropertyDescriptors} = Object
   assert.isFunction getOwnPropertyDescriptors
   assert.arity getOwnPropertyDescriptors, 1
   assert.name getOwnPropertyDescriptors, \getOwnPropertyDescriptors
   assert.looksNative getOwnPropertyDescriptors
+  assert.nonEnumerable Object, \getOwnPropertyDescriptors
   O = create {q: 1}, e: value: 3
   O.w = 2
   s = Symbol \s

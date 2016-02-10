@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Object.define' (assert)->
+test 'Object.define' (assert)!->
   {define, defineProperty} = Object
   assert.isFunction define
   foo = q:1

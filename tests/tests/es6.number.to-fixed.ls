@@ -7,6 +7,7 @@ test 'Number#toFixed' (assert)!->
   assert.name toFixed, \toFixed
   assert.arity toFixed, 1
   assert.looksNative toFixed
+  assert.nonEnumerable Number::, \toFixed
   assert.same 0.00008.toFixed(3), '0.000'
   assert.same 0.9.toFixed(0), '1'
   assert.same 1.255.toFixed(2), '1.25'

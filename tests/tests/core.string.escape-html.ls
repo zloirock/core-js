@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'String#escapeHTML' (assert)->
+test 'String#escapeHTML' (assert)!->
   assert.isFunction String::escapeHTML
   assert.arity String::escapeHTML, 0
   assert.name String::escapeHTML, \escapeHTML

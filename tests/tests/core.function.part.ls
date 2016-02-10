@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Function#part' (assert)->
+test 'Function#part' (assert)!->
   assert.isFunction Function::part
   assert.ok (-> typeof! it is \String)part(\qwe)!
   obj = a: 42

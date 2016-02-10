@@ -6,6 +6,7 @@ test 'String#match regression' (assert)->
   assert.arity ''match, 1
   assert.name ''match, \match
   assert.looksNative ''match
+  assert.nonEnumerable String::, \match
   # based on https://github.com/tc39/test262/tree/master/test/built-ins/String/prototype/match
   instance = Object on
   instance.match = String::match

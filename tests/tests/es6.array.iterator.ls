@@ -1,11 +1,12 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array#keys' (assert)->
+test 'Array#keys' (assert)!->
   assert.isFunction Array::keys
   assert.arity Array::keys, 0
   assert.name Array::keys, \keys
   assert.looksNative Array::keys
+  assert.nonEnumerable Array::, \keys
   iter = <[q w e]>keys!
   assert.isIterator iter
   assert.isIterable iter
@@ -18,11 +19,12 @@ test 'Array#keys' (assert)->
     assert.deepEqual Array::keys.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \keys of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
-test 'Array#values' (assert)->
+test 'Array#values' (assert)!->
   assert.isFunction Array::values
   assert.arity Array::values, 0
   assert.name Array::values, \values # fails in V8 and FF
   assert.looksNative Array::values
+  assert.nonEnumerable Array::, \values
   iter = <[q w e]>values!
   assert.isIterator iter
   assert.isIterable iter
@@ -35,11 +37,12 @@ test 'Array#values' (assert)->
     assert.deepEqual Array::values.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \values of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
-test 'Array#entries' (assert)->
+test 'Array#entries' (assert)!->
   assert.isFunction Array::entries
   assert.arity Array::entries, 0
   assert.name Array::entries, \entries
   assert.looksNative Array::entries
+  assert.nonEnumerable Array::, \entries
   iter = <[q w e]>entries!
   assert.isIterator iter
   assert.isIterable iter
@@ -52,11 +55,12 @@ test 'Array#entries' (assert)->
     assert.deepEqual Array::entries.call({length: -1}).next!, {value: void, done: on}, 'uses ToLength'
   assert.ok \entries of Array::[Symbol?unscopables], 'In Array#@@unscopables'
 
-test 'Array#@@iterator' (assert)->
+test 'Array#@@iterator' (assert)!->
   assert.isIterable Array::
   assert.arity Array::[Symbol?iterator], 0
   assert.name Array::[Symbol?iterator], \values # fails in V8 and FF
   assert.looksNative Array::[Symbol?iterator]
+  assert.nonEnumerable Array::, Symbol?iterator
   assert.strictEqual Array::[Symbol?iterator], Array::values
   iter = <[q w e]>[Symbol?iterator]!
   assert.isIterator iter

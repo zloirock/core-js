@@ -7,6 +7,7 @@ test 'Object.freeze' (assert)!->
   assert.arity freeze, 1
   assert.name freeze, \freeze
   assert.looksNative freeze
+  assert.nonEnumerable Object, \freeze
   for value in [42 \foo no null void, {}]
     assert.ok (try => freeze value; on), "accept #{typeof! value}"
     assert.same freeze(value), value, "returns target on #{typeof! value}"

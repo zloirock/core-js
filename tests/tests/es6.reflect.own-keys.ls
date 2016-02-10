@@ -10,6 +10,7 @@ test 'Reflect.ownKeys' (assert)->
   assert.arity ownKeys, 1
   assert.name ownKeys, \ownKeys
   assert.looksNative ownKeys
+  assert.nonEnumerable Reflect, \ownKeys
   O1 = {a: 1}
   defineProperty O1, \b, value: 2
   O1[sym] = 3

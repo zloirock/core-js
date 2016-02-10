@@ -17,7 +17,7 @@
     assert.name(delay, 'delay');
     assert.looksNative(delay);
     assert.ok(delay(42) instanceof Promise, 'returns promises');
-    return timeLimitedPromise(1e3, function(res){
+    timeLimitedPromise(1e3, function(res){
       delay(10).then(function(it){
         res(it);
       });
@@ -67,7 +67,7 @@
     try {
       Dict(iter);
     } catch (e$) {}
-    return assert.ok(done, '.return #throw');
+    assert.ok(done, '.return #throw');
   });
   test('Dict.every', function(assert){
     var every, obj, ctx;
@@ -79,7 +79,7 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
     assert.ok(every({
       q: 1,
@@ -88,7 +88,7 @@
     }, function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
-    return assert.ok(!every({
+    assert.ok(!every({
       q: 1,
       w: '2',
       e: 3
@@ -106,9 +106,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(filter({
+    assert.deepEqual(filter({
       q: 1,
       w: 2,
       e: 3
@@ -129,9 +129,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.ok(find({
+    assert.ok(find({
       q: 1,
       w: 2,
       e: 3
@@ -151,7 +151,7 @@
       assert.ok(that === obj);
       return assert.ok(this === ctx);
     }, ctx = {});
-    return assert.ok(findKey({
+    assert.ok(findKey({
       q: 1,
       w: 2,
       e: 3
@@ -210,7 +210,7 @@
     forEach('123', function(){
       rez[arguments[1]] = arguments[0];
     });
-    return assert.ok('2' in rez);
+    assert.ok('2' in rez);
   });
   test('Dict.keyOf', function(assert){
     var keyOf;
@@ -226,7 +226,7 @@
       w: 2,
       e: 3
     }, 4) === void 8);
-    return assert.ok(keyOf({
+    assert.ok(keyOf({
       q: 1,
       w: 2,
       e: NaN
@@ -242,9 +242,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(map({
+    assert.deepEqual(map({
       q: 1,
       w: 2,
       e: 3
@@ -266,9 +266,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(mapPairs({
+    assert.deepEqual(mapPairs({
       q: 1,
       w: 2,
       e: 3
@@ -289,7 +289,7 @@
       assert.ok(memo === foo);
       assert.ok(val === 1);
       assert.ok(key === 'a');
-      return assert.ok(that === obj);
+      assert.ok(that === obj);
     }, foo = {});
     reduce({
       a: 1,
@@ -307,7 +307,7 @@
       that[it] = it;
       return that;
     }, memo = {});
-    return assert.deepEqual(memo, {
+    assert.deepEqual(memo, {
       1: 1,
       2: 2,
       3: 3
@@ -323,7 +323,7 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
     assert.ok(!some({
       q: 1,
@@ -332,7 +332,7 @@
     }, function(it){
       return toString$.call(it).slice(8, -1) === 'String';
     }));
-    return assert.ok(some({
+    assert.ok(some({
       q: 1,
       w: '2',
       e: 3
@@ -357,7 +357,7 @@
     assert.ok(includes(dict, o));
     assert.ok(!includes(dict, 4));
     assert.ok(!includes(dict, -0.5));
-    return assert.ok(!includes(dict, {}));
+    assert.ok(!includes(dict, {}));
   });
   test('Dict.has', function(assert){
     var has;
@@ -374,7 +374,7 @@
     assert.ok(!has(clone$({
       q: 1
     }), 'q'));
-    return assert.ok(!has({}, 'toString'));
+    assert.ok(!has({}, 'toString'));
   });
   test('Dict.get', function(assert){
     var get;
@@ -391,7 +391,7 @@
     assert.ok(get(clone$({
       q: 1
     }), 'q') === void 8);
-    return assert.ok(get({}, 'toString') === void 8);
+    assert.ok(get({}, 'toString') === void 8);
   });
   test('Dict.values', function(assert){
     var values, iter;
@@ -407,7 +407,7 @@
       e: 3
     })), [1, 2, 3]);
     assert.deepEqual(from(values(new String('qwe'))), ['q', 'w', 'e']);
-    return assert.deepEqual(from(values(assign(create({
+    assert.deepEqual(from(values(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -431,7 +431,7 @@
       e: 3
     })), ['q', 'w', 'e']);
     assert.deepEqual(from(keys(new String('qwe'))), ['0', '1', '2']);
-    return assert.deepEqual(from(keys(assign(create({
+    assert.deepEqual(from(keys(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -455,7 +455,7 @@
       e: 3
     })), [['q', 1], ['w', 2], ['e', 3]]);
     assert.deepEqual(from(entries(new String('qwe'))), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
-    return assert.deepEqual(from(entries(assign(create({
+    assert.deepEqual(from(entries(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -497,7 +497,7 @@
     assert.isFunction(part, '.part with placeholders return function');
     assert.ok(part('Шла', 'по') === 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders');
     assert.ok(part('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
-    return assert.ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
+    assert.ok(part('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
 }).call(this);
 
@@ -540,7 +540,7 @@
       return arguments;
     }()));
     assert.isIterator(getIterator(createIterable([])));
-    return assert.throws(function(){
+    assert.throws(function(){
       getIterator({});
     }, TypeError);
   });
@@ -628,7 +628,7 @@
       value: 2
     }, 'Infinity #1');
     iter6 = (-Infinity)[iterator]();
-    return assert.deepEqual(iter6.next(), {
+    assert.deepEqual(iter6.next(), {
       done: true,
       value: void 8
     }, '-Infinity');
@@ -681,7 +681,7 @@
       function Class(){}
       return Class;
     }());
-    return assert.ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
+    assert.ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
   });
 }).call(this);
 
@@ -711,7 +711,7 @@
         }
       });
       define(foo, foo2);
-      return assert.ok(foo.w === 2);
+      assert.ok(foo.w === 2);
     }
   });
 }).call(this);
@@ -737,7 +737,7 @@
     assert.ok(isObject([]), 'isObject array return true');
     assert.ok(isObject(/./), 'isObject regexp return true');
     assert.ok(isObject(function(){}), 'isObject function return true');
-    return assert.ok(isObject(new function(){}), 'isObject constructor instance return true');
+    assert.ok(isObject(new function(){}), 'isObject constructor instance return true');
   });
 }).call(this);
 
@@ -756,7 +756,7 @@
       w: 2
     });
     assert.ok(Object.getPrototypeOf(object) === foo);
-    return assert.ok(object.w === 2);
+    assert.ok(object.w === 2);
   });
 }).call(this);
 
@@ -773,7 +773,7 @@
     assert.name(escape, 'escape');
     assert.looksNative(escape);
     assert.strictEqual(escape('qwe asd'), 'qwe asd', "Don't change simple string");
-    return assert.strictEqual(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
+    assert.strictEqual(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
   });
 }).call(this);
 
@@ -789,7 +789,7 @@
     assert.looksNative(String.prototype.escapeHTML);
     assert.strictEqual('qwe, asd'.escapeHTML(), 'qwe, asd');
     assert.strictEqual('<div>qwe</div>'.escapeHTML(), '&lt;div&gt;qwe&lt;/div&gt;');
-    return assert.strictEqual("&<>\"'".escapeHTML(), '&amp;&lt;&gt;&quot;&apos;');
+    assert.strictEqual("&<>\"'".escapeHTML(), '&amp;&lt;&gt;&quot;&apos;');
   });
 }).call(this);
 
@@ -805,7 +805,7 @@
     assert.looksNative(String.prototype.unescapeHTML);
     assert.strictEqual('qwe, asd'.unescapeHTML(), 'qwe, asd');
     assert.strictEqual('&lt;div&gt;qwe&lt;/div&gt;'.unescapeHTML(), '<div>qwe</div>');
-    return assert.strictEqual('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML(), "&<>\"'");
+    assert.strictEqual('&amp;&lt;&gt;&quot;&apos;'.unescapeHTML(), "&<>\"'");
   });
 }).call(this);
 
@@ -821,6 +821,7 @@
     assert.name(Array.prototype.copyWithin, 'copyWithin');
     assert.looksNative(Array.prototype.copyWithin);
     assert.strictEqual(a = [1].copyWithin(0), a);
+    assert.nonEnumerable(Array.prototype, 'copyWithin');
     assert.deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3), [4, 5, 3, 4, 5]);
     assert.deepEqual([1, 2, 3, 4, 5].copyWithin(1, 3), [1, 4, 5, 4, 5]);
     assert.deepEqual([1, 2, 3, 4, 5].copyWithin(1, 2), [1, 3, 4, 5, 5]);
@@ -854,7 +855,7 @@
         length: -1
       }, 'uses ToLength');
     }
-    return assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+    assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -869,12 +870,13 @@
     assert.arity(Array.prototype.every, 1);
     assert.name(Array.prototype.every, 'every');
     assert.looksNative(Array.prototype.every);
+    assert.nonEnumerable(Array.prototype, 'every');
     (a = [1]).every(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok([1, 2, 3].every(function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -933,6 +935,7 @@
     assert.arity(Array.prototype.fill, 1);
     assert.name(Array.prototype.fill, 'fill');
     assert.looksNative(Array.prototype.fill);
+    assert.nonEnumerable(Array.prototype, 'fill');
     assert.strictEqual(a = Array(5).fill(5), a);
     assert.deepEqual(Array(5).fill(5), [5, 5, 5, 5, 5]);
     assert.deepEqual(Array(5).fill(5, 1), [void 8, 5, 5, 5, 5]);
@@ -960,7 +963,7 @@
         } catch (e$) {}
       }()), 'uses ToLength');
     }
-    return assert.ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+    assert.ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -975,12 +978,13 @@
     assert.arity(Array.prototype.filter, 1);
     assert.name(Array.prototype.filter, 'filter');
     assert.looksNative(Array.prototype.filter);
+    assert.nonEnumerable(Array.prototype, 'filter');
     (a = [1]).filter(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function(it){
       return typeof it === 'number';
@@ -1019,12 +1023,13 @@
     assert.arity(Array.prototype.findIndex, 1);
     assert.name(Array.prototype.findIndex, 'findIndex');
     assert.looksNative(Array.prototype.findIndex);
+    assert.nonEnumerable(Array.prototype, 'findIndex');
     (a = [1]).findIndex(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.same([1, 3, NaN, 42, {}].findIndex((function(it){
       return it === 42;
@@ -1052,7 +1057,7 @@
         } catch (e$) {}
       }()), 'uses ToLength');
     }
-    return assert.ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+    assert.ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -1067,12 +1072,13 @@
     assert.arity(Array.prototype.find, 1);
     assert.name(Array.prototype.find, 'find');
     assert.looksNative(Array.prototype.find);
+    assert.nonEnumerable(Array.prototype, 'find');
     (a = [1]).find(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.same([1, 3, NaN, 42, {}].find((function(it){
       return it === 42;
@@ -1100,7 +1106,7 @@
         } catch (e$) {}
       }()), 'uses ToLength');
     }
-    return assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+    assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -1115,6 +1121,7 @@
     assert.arity(Array.prototype.forEach, 1);
     assert.name(Array.prototype.forEach, 'forEach');
     assert.looksNative(Array.prototype.forEach);
+    assert.nonEnumerable(Array.prototype, 'forEach');
     (a = [1]).forEach(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
@@ -1185,6 +1192,7 @@
     assert.arity(from, 1);
     assert.name(from, 'from');
     assert.looksNative(from);
+    assert.nonEnumerable(Array, 'from');
     for (type in ref$ = {
       'array-like': {
         length: '3',
@@ -1291,7 +1299,7 @@
     assert.throws(function(){
       from([], false);
     }, TypeError, "Throws with false as second argument");
-    return assert.throws(function(){
+    assert.throws(function(){
       from([], {});
     }, TypeError, "Throws with {} as second argument");
     function fn$(){
@@ -1326,6 +1334,7 @@
     assert.arity(Array.prototype.indexOf, 1);
     assert.name(Array.prototype.indexOf, 'indexOf');
     assert.looksNative(Array.prototype.indexOf);
+    assert.nonEnumerable(Array.prototype, 'indexOf');
     assert.ok(0 === [1, 1, 1].indexOf(1));
     assert.ok(-1 === [1, 2, 3].indexOf(1, 1));
     assert.ok(1 === [1, 2, 3].indexOf(2, 1));
@@ -1370,6 +1379,7 @@
     assert.arity(isArray, 1);
     assert.name(isArray, 'isArray');
     assert.looksNative(isArray);
+    assert.nonEnumerable(Array, 'isArray');
     assert.ok(!isArray({}));
     assert.ok(!isArray(function(){
       return arguments;
@@ -1389,6 +1399,7 @@
     assert.arity(Array.prototype.keys, 0);
     assert.name(Array.prototype.keys, 'keys');
     assert.looksNative(Array.prototype.keys);
+    assert.nonEnumerable(Array.prototype, 'keys');
     iter = ['q', 'w', 'e'].keys();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -1417,7 +1428,7 @@
         done: true
       }, 'uses ToLength');
     }
-    return assert.ok('keys' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
+    assert.ok('keys' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#values', function(assert){
     var iter;
@@ -1425,6 +1436,7 @@
     assert.arity(Array.prototype.values, 0);
     assert.name(Array.prototype.values, 'values');
     assert.looksNative(Array.prototype.values);
+    assert.nonEnumerable(Array.prototype, 'values');
     iter = ['q', 'w', 'e'].values();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -1453,7 +1465,7 @@
         done: true
       }, 'uses ToLength');
     }
-    return assert.ok('values' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
+    assert.ok('values' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#entries', function(assert){
     var iter;
@@ -1461,6 +1473,7 @@
     assert.arity(Array.prototype.entries, 0);
     assert.name(Array.prototype.entries, 'entries');
     assert.looksNative(Array.prototype.entries);
+    assert.nonEnumerable(Array.prototype, 'entries');
     iter = ['q', 'w', 'e'].entries();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -1489,7 +1502,7 @@
         done: true
       }, 'uses ToLength');
     }
-    return assert.ok('entries' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
+    assert.ok('entries' in Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.unscopables : void 8], 'In Array#@@unscopables');
   });
   test('Array#@@iterator', function(assert){
     var iter;
@@ -1497,6 +1510,7 @@
     assert.arity(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
     assert.name(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 'values');
     assert.looksNative(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
+    assert.nonEnumerable(Array.prototype, typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8);
     assert.strictEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Array.prototype.values);
     iter = ['q', 'w', 'e'][typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
@@ -1519,7 +1533,7 @@
       done: true
     });
     if (NATIVE) {
-      return assert.deepEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call({
+      assert.deepEqual(Array.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8].call({
         length: -1
       }).next(), {
         value: void 8,
@@ -1539,6 +1553,7 @@
     assert.arity(Array.prototype.join, 1);
     assert.name(Array.prototype.join, 'join');
     assert.looksNative(Array.prototype.join);
+    assert.nonEnumerable(Array.prototype, 'join');
     assert.strictEqual(Array.prototype.join.call([1, 2, 3], void 8), '1,2,3');
     assert.strictEqual(Array.prototype.join.call('123'), '1,2,3');
     assert.strictEqual(Array.prototype.join.call('123', '|'), '1|2|3');
@@ -1563,6 +1578,7 @@
     assert.arity(Array.prototype.lastIndexOf, 1);
     assert.name(Array.prototype.lastIndexOf, 'lastIndexOf');
     assert.looksNative(Array.prototype.lastIndexOf);
+    assert.nonEnumerable(Array.prototype, 'lastIndexOf');
     assert.strictEqual(2, [1, 1, 1].lastIndexOf(1));
     assert.strictEqual(-1, [1, 2, 3].lastIndexOf(3, 1));
     assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, 1));
@@ -1613,12 +1629,13 @@
     assert.arity(Array.prototype.map, 1);
     assert.name(Array.prototype.map, 'map');
     assert.looksNative(Array.prototype.map);
+    assert.nonEnumerable(Array.prototype, 'map');
     (a = [1]).map(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.deepEqual([2, 3, 4], [1, 2, 3].map((function(it){
       return it + 1;
@@ -1676,6 +1693,7 @@
     assert.arity(Array.of, 0);
     assert.name(Array.of, 'of');
     assert.looksNative(Array.of);
+    assert.nonEnumerable(Array, 'of');
     assert.deepEqual(Array.of(1), [1]);
     assert.deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
     F = function(){};
@@ -1683,7 +1701,7 @@
     assert.ok(inst instanceof F);
     assert.strictEqual(inst[0], 1);
     assert.strictEqual(inst[1], 2);
-    return assert.strictEqual(inst.length, 2);
+    assert.strictEqual(inst.length, 2);
   });
 }).call(this);
 
@@ -1698,12 +1716,13 @@
     assert.arity(Array.prototype.reduceRight, 1);
     assert.name(Array.prototype.reduceRight, 'reduceRight');
     assert.looksNative(Array.prototype.reduceRight);
+    assert.nonEnumerable(Array.prototype, 'reduceRight');
     (a = [1]).reduceRight(function(memo, val, key, that){
       assert.same(arguments.length, 4, 'correct number of callback arguments');
       assert.same(memo, accumulator, 'correct callback accumulator');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
-      return assert.same(that, a, 'correct link to array in callback');
+      assert.same(that, a, 'correct link to array in callback');
     }, accumulator = {});
     assert.same([1, 2, 3].reduceRight(curry$(function(x$, y$){
       return x$ + y$;
@@ -1711,7 +1730,7 @@
     (a = [1, 2]).reduceRight(function(memo, val, key, that){
       assert.same(memo, 2, 'correct default accumulator');
       assert.same(val, 1, 'correct start value without initial accumulator');
-      return assert.same(key, 0, 'correct start index without initial accumulator');
+      assert.same(key, 0, 'correct start index without initial accumulator');
     });
     assert.same([1, 2, 3].reduceRight(curry$(function(x$, y$){
       return x$ + y$;
@@ -1779,12 +1798,13 @@
     assert.arity(Array.prototype.reduce, 1);
     assert.name(Array.prototype.reduce, 'reduce');
     assert.looksNative(Array.prototype.reduce);
+    assert.nonEnumerable(Array.prototype, 'reduce');
     (a = [1]).reduce(function(memo, val, key, that){
       assert.same(arguments.length, 4, 'correct number of callback arguments');
       assert.same(memo, accumulator, 'correct callback accumulator');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
-      return assert.same(that, a, 'correct link to array in callback');
+      assert.same(that, a, 'correct link to array in callback');
     }, accumulator = {});
     assert.same([1, 2, 3].reduce(curry$(function(x$, y$){
       return x$ + y$;
@@ -1792,7 +1812,7 @@
     (a = [1, 2]).reduce(function(memo, val, key, that){
       assert.same(memo, 1, 'correct default accumulator');
       assert.same(val, 2, 'correct start value without initial accumulator');
-      return assert.same(key, 1, 'correct start index without initial accumulator');
+      assert.same(key, 1, 'correct start index without initial accumulator');
     });
     assert.same([1, 2, 3].reduce(curry$(function(x$, y$){
       return x$ + y$;
@@ -1859,6 +1879,7 @@
     assert.arity(Array.prototype.slice, 2);
     assert.name(Array.prototype.slice, 'slice');
     assert.looksNative(Array.prototype.slice);
+    assert.nonEnumerable(Array.prototype, 'slice');
     arr = ['1', '2', '3', '4', '5'];
     assert.deepEqual(arr.slice(), arr);
     assert.deepEqual(arr.slice(1, 3), ['2', '3']);
@@ -1909,12 +1930,13 @@
     assert.arity(Array.prototype.some, 1);
     assert.name(Array.prototype.some, 'some');
     assert.looksNative(Array.prototype.some);
+    assert.nonEnumerable(Array.prototype, 'some');
     (a = [1]).some(function(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok([1, '2', 3].some(function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -1973,6 +1995,7 @@
     assert.arity(Array.prototype.sort, 1);
     assert.name(Array.prototype.sort, 'sort');
     assert.looksNative(Array.prototype.sort);
+    assert.nonEnumerable(Array.prototype, 'sort');
     assert.ok(!!(function(){
       try {
         return [1, 2, 3].sort(void 8);
@@ -2007,6 +2030,7 @@
     assert.arity(now, 0);
     assert.name(now, 'now');
     assert.looksNative(now);
+    assert.nonEnumerable(Date, 'now');
     assert.ok(+new Date - now() < 10, 'Date.now() ~ +new Date');
   });
 }).call(this);
@@ -2022,6 +2046,7 @@
     assert.arity(Date.prototype.toISOString, 0);
     assert.name(Date.prototype.toISOString, 'toISOString');
     assert.looksNative(Date.prototype.toISOString);
+    assert.nonEnumerable(Date.prototype, 'toISOString');
     assert.strictEqual(new Date(0).toISOString(), '1970-01-01T00:00:00.000Z');
     assert.strictEqual(new Date(1e12 + 1).toISOString(), '2001-09-09T01:46:40.001Z');
     assert.strictEqual(new Date(-5e13 - 1).toISOString(), '0385-07-25T07:06:39.999Z');
@@ -2046,6 +2071,7 @@
     assert.arity(Date.prototype.toJSON, 1);
     assert.name(Date.prototype.toJSON, 'toJSON');
     assert.looksNative(Date.prototype.toJSON);
+    assert.nonEnumerable(Date.prototype, 'toJSON');
     d = new Date();
     assert.same(d.toJSON(), d.toISOString(), 'base');
     assert.same(new Date(NaN).toJSON(), null, 'not finite');
@@ -2067,6 +2093,7 @@
     assert.arity(Date.prototype.toString, 0);
     assert.name(Date.prototype.toString, 'toString');
     assert.looksNative(Date.prototype.toString);
+    assert.nonEnumerable(Date.prototype, 'toString');
     assert.same(String(new Date(NaN)), 'Invalid Date');
   });
 }).call(this);
@@ -2082,6 +2109,7 @@
     assert.arity(Function.prototype.bind, 1);
     assert.name(Function.prototype.bind, 'bind');
     assert.looksNative(Function.prototype.bind);
+    assert.nonEnumerable(Function.prototype, 'bind');
     obj = {
       a: 42
     };
@@ -2106,7 +2134,7 @@
     date = new F(6);
     assert.ok(date instanceof Date);
     assert.strictEqual(date.getFullYear(), 2015);
-    return assert.strictEqual(date.getMonth(), 6);
+    assert.strictEqual(date.getMonth(), 6);
   });
 }).call(this);
 
@@ -2117,8 +2145,9 @@
   module('ES6');
   test('Function#@@hasInstance', function(assert){
     assert.ok(Symbol.hasInstance in Function.prototype);
+    assert.nonEnumerable(Function.prototype, Symbol.hasInstance);
     assert.ok(Function[Symbol.hasInstance](function(){}));
-    return assert.ok(!Function[Symbol.hasInstance]({}));
+    assert.ok(!Function[Symbol.hasInstance]({}));
   });
 }).call(this);
 
@@ -2130,13 +2159,14 @@
     module('ES6');
     test('Function#name', function(assert){
       assert.ok('name' in Function.prototype);
+      assert.nonEnumerable(Function.prototype, 'name');
       assert.strictEqual((function(){
         function foo(it){
           return it;
         }
         return foo;
       }()).name, 'foo');
-      return assert.strictEqual(function(){}.name, '');
+      assert.strictEqual(function(){}.name, '');
     });
   }
 }).call(this);
@@ -2205,7 +2235,7 @@
       C = nativeSubclass(Map);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
       assert.ok(new C instanceof Map, 'correct subclassing with native classes #2');
-      return assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
+      assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
     }
   });
   test('Map#clear', function(assert){
@@ -2214,6 +2244,7 @@
     assert.arity(Map.prototype.clear, 0);
     assert.name(Map.prototype.clear, 'clear');
     assert.looksNative(Map.prototype.clear);
+    assert.nonEnumerable(Map.prototype, 'clear');
     M = new Map;
     M.clear();
     assert.strictEqual(M.size, 0);
@@ -2231,7 +2262,7 @@
     M.clear();
     assert.strictEqual(M.size, 0, 'Support frozen objects');
     assert.ok(!M.has(1));
-    return assert.ok(!M.has(f));
+    assert.ok(!M.has(f));
   });
   test('Map#delete', function(assert){
     var a, x$, M, f;
@@ -2239,6 +2270,7 @@
     assert.arity(Map.prototype['delete'], 1);
     NATIVE && assert.name(Map.prototype['delete'], 'delete');
     assert.looksNative(Map.prototype['delete']);
+    assert.nonEnumerable(Map.prototype, 'delete');
     a = [];
     x$ = M = new Map();
     x$.set(NaN, 1);
@@ -2259,7 +2291,7 @@
     M.set(freeze(f = {}), 42);
     assert.strictEqual(M.size, 4);
     M['delete'](f);
-    return assert.strictEqual(M.size, 3);
+    assert.strictEqual(M.size, 3);
   });
   test('Map#forEach', function(assert){
     var r, T, count, x$, M, a, y$, map, s, z$;
@@ -2267,6 +2299,7 @@
     assert.arity(Map.prototype.forEach, 1);
     assert.name(Map.prototype.forEach, 'forEach');
     assert.looksNative(Map.prototype.forEach);
+    assert.nonEnumerable(Map.prototype, 'forEach');
     r = {};
     count = 0;
     x$ = M = new Map();
@@ -2315,7 +2348,7 @@
       return s += it;
     });
     assert.strictEqual(s, '1');
-    return assert.throws(function(){
+    assert.throws(function(){
       Map.prototype.forEach.call(new Set, function(){});
     }, 'non-generic');
   });
@@ -2325,6 +2358,7 @@
     assert.name(Map.prototype.get, 'get');
     assert.arity(Map.prototype.get, 1);
     assert.looksNative(Map.prototype.get);
+    assert.nonEnumerable(Map.prototype, 'get');
     o = {};
     f = freeze({});
     x$ = M = new Map();
@@ -2340,7 +2374,7 @@
     assert.strictEqual(M.get({}), void 8);
     assert.strictEqual(M.get(o), o);
     assert.strictEqual(M.get(f), 42);
-    return assert.strictEqual(M.get(2), 5);
+    assert.strictEqual(M.get(2), 5);
   });
   test('Map#has', function(assert){
     var o, f, x$, M;
@@ -2348,6 +2382,7 @@
     assert.name(Map.prototype.has, 'has');
     assert.arity(Map.prototype.has, 1);
     assert.looksNative(Map.prototype.has);
+    assert.nonEnumerable(Map.prototype, 'has');
     o = {};
     f = freeze({});
     x$ = M = new Map();
@@ -2363,7 +2398,7 @@
     assert.ok(M.has(2));
     assert.ok(M.has(f));
     assert.ok(!M.has(4));
-    return assert.ok(!M.has({}));
+    assert.ok(!M.has({}));
   });
   test('Map#set', function(assert){
     var o, x$, M, chain, y$, f;
@@ -2371,6 +2406,7 @@
     assert.name(Map.prototype.set, 'set');
     assert.arity(Map.prototype.set, 2);
     assert.looksNative(Map.prototype.set);
+    assert.nonEnumerable(Map.prototype, 'set');
     o = {};
     x$ = M = new Map();
     x$.set(NaN, 1);
@@ -2397,10 +2433,11 @@
     assert.strictEqual(M.get(o), 27);
     assert.strictEqual((y$ = new Map(), y$.set(NaN, 2), y$.set(NaN, 3), y$.set(NaN, 4), y$).size, 1);
     M = new Map().set(freeze(f = {}), 42);
-    return assert.strictEqual(M.get(f), 42);
+    assert.strictEqual(M.get(f), 42);
   });
   test('Map#size', function(assert){
     var size, x$, sizeDesc;
+    assert.nonEnumerable(Map.prototype, 'size');
     size = (x$ = new Map(), x$.set(2, 1), x$).size;
     assert.strictEqual(typeof size, 'number', 'size is number');
     assert.strictEqual(size, 1, 'size is correct');
@@ -2408,7 +2445,7 @@
       sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
       assert.ok(sizeDesc && sizeDesc.get, 'size is getter');
       assert.ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      return assert.throws(function(){
+      assert.throws(function(){
         return Map.prototype.size;
       }, TypeError);
     }
@@ -2438,10 +2475,10 @@
     y$.set(2, 2);
     y$.set(1, 1);
     y$.set(0, 0);
-    return assert.ok(map.has(-0));
+    assert.ok(map.has(-0));
   });
   test('Map#@@toStringTag', function(assert){
-    return assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
+    assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
   });
   test('Map Iterator', function(assert){
     var x$, map, keys, iterator;
@@ -2452,6 +2489,10 @@
     x$.set('d', 4);
     keys = [];
     iterator = map.keys();
+    assert.isIterator(iterator);
+    assert.isIterable(iterator);
+    assert.nonEnumerable(iterator, 'next');
+    assert.nonEnumerable(iterator, typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8);
     keys.push(iterator.next().value);
     assert.ok(map['delete']('a'));
     assert.ok(map['delete']('b'));
@@ -2462,7 +2503,7 @@
     assert.ok(iterator.next().done);
     map.set('f');
     assert.ok(iterator.next().done);
-    return assert.deepEqual(keys, ['a', 'd', 'e']);
+    assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Map#keys', function(assert){
     var iter, x$;
@@ -2470,6 +2511,7 @@
     assert.name(Map.prototype.keys, 'keys');
     assert.arity(Map.prototype.keys, 0);
     assert.looksNative(Map.prototype.keys);
+    assert.nonEnumerable(Map.prototype, 'keys');
     iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).keys();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -2486,7 +2528,7 @@
       value: 'd',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2497,6 +2539,7 @@
     assert.name(Map.prototype.values, 'values');
     assert.arity(Map.prototype.values, 0);
     assert.looksNative(Map.prototype.values);
+    assert.nonEnumerable(Map.prototype, 'values');
     iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).values();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -2513,7 +2556,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2524,6 +2567,7 @@
     assert.name(Map.prototype.entries, 'entries');
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype.entries);
+    assert.nonEnumerable(Map.prototype, 'entries');
     iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$).entries();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -2540,7 +2584,7 @@
       value: ['d', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2552,6 +2596,7 @@
     assert.arity(Map.prototype.entries, 0);
     assert.looksNative(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Map.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Map.prototype.entries);
+    assert.nonEnumerable(Map.prototype, typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8);
     iter = (x$ = new Map(), x$.set('a', 'q'), x$.set('s', 'w'), x$.set('d', 'e'), x$)[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -2568,7 +2613,7 @@
       value: ['d', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2587,6 +2632,7 @@
     assert.name(acosh, 'acosh');
     assert.arity(acosh, 1);
     assert.looksNative(acosh);
+    assert.nonEnumerable(Math, 'acosh');
     assert.same(acosh(NaN), NaN);
     assert.same(acosh(0.5), NaN);
     assert.same(acosh(-1), NaN);
@@ -2597,7 +2643,7 @@
     assert.epsilon(acosh(8.88), 2.8737631531629235);
     assert.epsilon(acosh(1e+160), 369.10676205960726);
     assert.epsilon(acosh(Number.MAX_VALUE), 710.475860073944);
-    return assert.epsilon(acosh(1 + Number.EPSILON), 2.1073424255447017e-8);
+    assert.epsilon(acosh(1 + Number.EPSILON), 2.1073424255447017e-8);
   });
 }).call(this);
 
@@ -2613,6 +2659,7 @@
     assert.name(asinh, 'asinh');
     assert.arity(asinh, 1);
     assert.looksNative(asinh);
+    assert.nonEnumerable(Math, 'asinh');
     assert.same(asinh(NaN), NaN);
     assert.same(asinh(0), 0);
     assert.same(asinh(-0), -0);
@@ -2622,7 +2669,7 @@
     assert.epsilon(asinh(9.99), 2.997227420191335);
     assert.epsilon(asinh(1e150), 346.0809111296668);
     assert.epsilon(asinh(1e7), 16.811242831518268);
-    return assert.epsilon(asinh(-1e7), -16.811242831518268);
+    assert.epsilon(asinh(-1e7), -16.811242831518268);
   });
 }).call(this);
 
@@ -2638,6 +2685,7 @@
     assert.name(atanh, 'atanh');
     assert.arity(atanh, 1);
     assert.looksNative(atanh);
+    assert.nonEnumerable(Math, 'atanh');
     assert.same(atanh(NaN), NaN);
     assert.same(atanh(-2), NaN);
     assert.same(atanh(-1.5), NaN);
@@ -2651,7 +2699,7 @@
     assert.same(atanh(1e300), NaN);
     assert.epsilon(atanh(0.5), 0.5493061443340549);
     assert.epsilon(atanh(-0.5), -0.5493061443340549);
-    return assert.epsilon(atanh(0.444), 0.47720201260109457);
+    assert.epsilon(atanh(0.444), 0.47720201260109457);
   });
 }).call(this);
 
@@ -2667,6 +2715,7 @@
     assert.name(cbrt, 'cbrt');
     assert.arity(cbrt, 1);
     assert.looksNative(cbrt);
+    assert.nonEnumerable(Math, 'cbrt');
     assert.same(cbrt(NaN), NaN);
     assert.same(cbrt(0), 0);
     assert.same(cbrt(-0), -0);
@@ -2675,7 +2724,7 @@
     assert.strictEqual(cbrt(-8), -2);
     assert.strictEqual(cbrt(8), 2);
     assert.epsilon(cbrt(-1000), -10);
-    return assert.epsilon(cbrt(1000), 10);
+    assert.epsilon(cbrt(1000), 10);
   });
 }).call(this);
 
@@ -2691,6 +2740,7 @@
     assert.name(clz32, 'clz32');
     assert.arity(clz32, 1);
     assert.looksNative(clz32);
+    assert.nonEnumerable(Math, 'clz32');
     assert.strictEqual(clz32(0), 32);
     assert.strictEqual(clz32(1), 31);
     assert.same(clz32(-1), 0);
@@ -2712,6 +2762,7 @@
     assert.name(cosh, 'cosh');
     assert.arity(cosh, 1);
     assert.looksNative(cosh);
+    assert.nonEnumerable(Math, 'cosh');
     assert.same(cosh(NaN), NaN);
     assert.strictEqual(cosh(0), 1);
     assert.strictEqual(cosh(-0), 1);
@@ -2720,7 +2771,7 @@
     assert.epsilon(cosh(12), 81377.39571257407, 3e-11);
     assert.epsilon(cosh(22), 1792456423.065795780980053377, 1e-5);
     assert.epsilon(cosh(-10), 11013.23292010332313972137);
-    return assert.epsilon(cosh(-23), 4872401723.1244513000, 1e-5);
+    assert.epsilon(cosh(-23), 4872401723.1244513000, 1e-5);
   });
 }).call(this);
 
@@ -2736,12 +2787,13 @@
     assert.name(expm1, 'expm1');
     assert.arity(expm1, 1);
     assert.looksNative(expm1);
+    assert.nonEnumerable(Math, 'expm1');
     assert.same(expm1(NaN), NaN);
     assert.same(expm1(0), 0);
     assert.same(expm1(-0), -0);
     assert.strictEqual(expm1(Infinity), Infinity);
     assert.strictEqual(expm1(-Infinity), -1);
-    return assert.epsilon(expm1(10), 22025.465794806718, assert.epsilon(expm1(-10), -0.9999546000702375));
+    assert.epsilon(expm1(10), 22025.465794806718, assert.epsilon(expm1(-10), -0.9999546000702375));
   });
 }).call(this);
 
@@ -2757,6 +2809,7 @@
     assert.name(fround, 'fround');
     assert.arity(fround, 1);
     assert.looksNative(fround);
+    assert.nonEnumerable(Math, 'fround');
     assert.same(fround(void 8), NaN);
     assert.same(fround(NaN), NaN);
     assert.same(fround(0), 0);
@@ -2780,7 +2833,7 @@
     assert.same(fround(minFloat32 / 2), 0);
     assert.same(fround(-minFloat32 / 2), -0);
     assert.strictEqual(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
-    return assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
+    assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
   });
 }).call(this);
 
@@ -2796,6 +2849,7 @@
     assert.name(hypot, 'hypot');
     assert.arity(hypot, 2);
     assert.looksNative(hypot);
+    assert.nonEnumerable(Math, 'hypot');
     assert.strictEqual(hypot(), 0);
     assert.strictEqual(hypot(1), 1);
     assert.same(hypot('', 0), 0);
@@ -2830,7 +2884,7 @@
     assert.strictEqual(Math.floor(hypot(1e-300, 1e-300) * 1e308), 141421356);
     assert.strictEqual(hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300);
     assert.strictEqual(hypot(-3, 4), 5);
-    return assert.strictEqual(hypot(3, -4), 5);
+    assert.strictEqual(hypot(3, -4), 5);
   });
 }).call(this);
 
@@ -2846,6 +2900,7 @@
     assert.name(imul, 'imul');
     assert.arity(imul, 2);
     assert.looksNative(imul);
+    assert.nonEnumerable(Math, 'imul');
     assert.same(imul(0, 0), 0);
     assert.strictEqual(imul(123, 456), 56088);
     assert.strictEqual(imul(-123, 456), -56088);
@@ -2880,7 +2935,7 @@
     assert.strictEqual(imul(1.1, 7), 7);
     assert.strictEqual(imul(7, 1.1), 7);
     assert.strictEqual(imul(1.9, 7), 7);
-    return assert.strictEqual(imul(7, 1.9), 7);
+    assert.strictEqual(imul(7, 1.9), 7);
   });
 }).call(this);
 
@@ -2896,6 +2951,7 @@
     assert.name(log10, 'log10');
     assert.arity(log10, 1);
     assert.looksNative(log10);
+    assert.nonEnumerable(Math, 'log10');
     assert.same(log10(''), log10(0));
     assert.same(log10(NaN), NaN);
     assert.same(log10(-1), NaN);
@@ -2907,7 +2963,7 @@
     assert.epsilon(log10(0.5), -0.3010299956639812);
     assert.epsilon(log10(1.5), 0.17609125905568124);
     assert.epsilon(log10(5), 0.6989700043360189);
-    return assert.epsilon(log10(50), 1.6989700043360187);
+    assert.epsilon(log10(50), 1.6989700043360187);
   });
 }).call(this);
 
@@ -2923,6 +2979,7 @@
     assert.name(log1p, 'log1p');
     assert.arity(log1p, 1);
     assert.looksNative(log1p);
+    assert.nonEnumerable(Math, 'log1p');
     assert.same(log1p(''), log1p(0));
     assert.same(log1p(NaN), NaN);
     assert.same(log1p(-2), NaN);
@@ -2931,7 +2988,7 @@
     assert.same(log1p(-0), -0);
     assert.same(log1p(Infinity), Infinity);
     assert.epsilon(log1p(5), 1.791759469228055);
-    return assert.epsilon(log1p(50), 3.9318256327243257);
+    assert.epsilon(log1p(50), 3.9318256327243257);
   });
 }).call(this);
 
@@ -2947,6 +3004,7 @@
     assert.name(log2, 'log2');
     assert.arity(log2, 1);
     assert.looksNative(log2);
+    assert.nonEnumerable(Math, 'log2');
     assert.same(log2(''), log2(0));
     assert.same(log2(NaN), NaN);
     assert.same(log2(-1), NaN);
@@ -2956,7 +3014,7 @@
     assert.same(log2(Infinity), Infinity);
     assert.same(log2(0.5), -1);
     assert.same(log2(32), 5);
-    return assert.epsilon(log2(5), 2.321928094887362);
+    assert.epsilon(log2(5), 2.321928094887362);
   });
 }).call(this);
 
@@ -2972,6 +3030,7 @@
     assert.name(sign, 'sign');
     assert.arity(sign, 1);
     assert.looksNative(sign);
+    assert.nonEnumerable(Math, 'sign');
     assert.same(sign(NaN), NaN);
     assert.same(sign(), NaN);
     assert.same(sign(-0), -0);
@@ -2981,7 +3040,7 @@
     assert.strictEqual(sign(13510798882111488), 1);
     assert.strictEqual(sign(-13510798882111488), -1);
     assert.strictEqual(sign(42.5), 1);
-    return assert.strictEqual(sign(-42.5), -1);
+    assert.strictEqual(sign(-42.5), -1);
   });
 }).call(this);
 
@@ -2997,6 +3056,7 @@
     assert.name(sinh, 'sinh');
     assert.arity(sinh, 1);
     assert.looksNative(sinh);
+    assert.nonEnumerable(Math, 'sinh');
     assert.same(sinh(NaN), NaN);
     assert.same(sinh(0), 0);
     assert.same(sinh(-0), -0);
@@ -3004,7 +3064,7 @@
     assert.strictEqual(sinh(-Infinity), -Infinity);
     assert.epsilon(sinh(-5), -74.20321057778875);
     assert.epsilon(sinh(2), 3.6268604078470186);
-    return assert.strictEqual(sinh(-2e-17), -2e-17);
+    assert.strictEqual(sinh(-2e-17), -2e-17);
   });
 }).call(this);
 
@@ -3020,13 +3080,14 @@
     assert.name(tanh, 'tanh');
     assert.arity(tanh, 1);
     assert.looksNative(tanh);
+    assert.nonEnumerable(Math, 'tanh');
     assert.same(tanh(NaN), NaN);
     assert.same(tanh(0), 0);
     assert.same(tanh(-0), -0);
     assert.strictEqual(tanh(Infinity), 1);
     assert.strictEqual(tanh(90), 1);
     assert.epsilon(tanh(10), 0.9999999958776927);
-    return NATIVE && assert.strictEqual(tanh(710), 1);
+    NATIVE && assert.strictEqual(tanh(710), 1);
   });
 }).call(this);
 
@@ -3042,6 +3103,7 @@
     assert.name(trunc, 'trunc');
     assert.arity(trunc, 1);
     assert.looksNative(trunc);
+    assert.nonEnumerable(Math, 'trunc');
     assert.same(trunc(NaN), NaN, 'NaN -> NaN');
     assert.same(trunc(-0), -0, '-0 -> -0');
     assert.same(trunc(0), 0, '0 -> 0');
@@ -3056,7 +3118,7 @@
     assert.strictEqual(trunc(-1.99), -1, '-1.99 -> -1');
     assert.strictEqual(trunc(-555.555), -555, '-555.555 -> -555');
     assert.strictEqual(trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
-    return assert.strictEqual(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
+    assert.strictEqual(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
   });
 }).call(this);
 
@@ -3077,7 +3139,7 @@
     };
   };
   test('Number constructor: regression', function(assert){
-    var check, i$, x$, ref$, len$, i, y$, n, C;
+    var check, i$, x$, ref$, len$, i, n, C;
     check = $check(assert);
     assert.isFunction(Number);
     assert.arity(Number, 1);
@@ -3085,9 +3147,10 @@
     assert.looksNative(Number);
     assert.same(Number.prototype.constructor, Number);
     assert.same(1 .constructor, Number);
-    for (i$ = 0, len$ = (ref$ = 'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY'.split(',')).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(x$ in Number, "Number." + x$);
+      assert.nonEnumerable(Number, x$);
     }
     assert.same(Number(), 0);
     assert.same(new Number().valueOf(), 0);
@@ -3232,10 +3295,6 @@
         toString: 2
       });
     }, TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
-    for (i$ = 0, len$ = (ref$ = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY']).length; i$ < len$; ++i$) {
-      y$ = ref$[i$];
-      assert.ok(y$ in Number, y$ + " in Number");
-    }
     n = new Number(42);
     assert.strictEqual(typeof n.constructor(n), 'number');
     check(ws + "42", 42);
@@ -3351,9 +3410,10 @@
     var EPSILON;
     EPSILON = Number.EPSILON;
     assert.ok('EPSILON' in Number, 'EPSILON in Number');
+    assert.nonEnumerable(Number, 'EPSILON');
     assert.strictEqual(EPSILON, Math.pow(2, -52), 'Is 2^-52');
     assert.ok(1 !== 1 + EPSILON, '1 isnt 1 + EPSILON');
-    return assert.strictEqual(1, 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
+    assert.strictEqual(1, 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
   });
 }).call(this);
 
@@ -3363,22 +3423,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isFinite', function(assert){
-    var isFinite, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isFinite, create, i$, x$, ref$, len$, y$, e;
     isFinite = Number.isFinite;
     create = Object.create;
     assert.isFunction(isFinite);
     assert.name(isFinite, 'isFinite');
     assert.arity(isFinite, 1);
     assert.looksNative(isFinite);
+    assert.nonEnumerable(Number, 'isFinite');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(isFinite(x$), "isFinite " + typeof x$ + " " + x$);
     }
     for (i$ = 0, len$ = (ref$ = [NaN, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -3397,22 +3457,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isInteger', function(assert){
-    var isInteger, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isInteger, create, i$, x$, ref$, len$, y$, e;
     isInteger = Number.isInteger;
     create = Object.create;
     assert.isFunction(isInteger);
     assert.name(isInteger, 'isInteger');
     assert.arity(isInteger, 1);
     assert.looksNative(isInteger);
+    assert.nonEnumerable(Number, 'isInteger');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(isInteger(x$), "isInteger " + typeof x$ + " " + x$);
     }
     for (i$ = 0, len$ = (ref$ = [NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -3431,19 +3491,19 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isNaN', function(assert){
-    var isNaN, create, i$, x$, ref$, len$, e, results$ = [];
+    var isNaN, create, i$, x$, ref$, len$, e;
     isNaN = Number.isNaN;
     create = Object.create;
     assert.isFunction(isNaN);
     assert.name(isNaN, 'isNaN');
     assert.arity(isNaN, 1);
     assert.looksNative(isNaN);
+    assert.nonEnumerable(Number, 'isNaN');
     assert.ok(isNaN(NaN), 'Number.isNaN NaN');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      results$.push(assert.ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + (fn1$())));
+      assert.ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -3462,22 +3522,22 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isSafeInteger', function(assert){
-    var isSafeInteger, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isSafeInteger, create, i$, x$, ref$, len$, y$, e;
     isSafeInteger = Number.isSafeInteger;
     create = Object.create;
     assert.isFunction(isSafeInteger);
     assert.name(isSafeInteger, 'isSafeInteger');
     assert.arity(isSafeInteger, 1);
     assert.looksNative(isSafeInteger);
+    assert.nonEnumerable(Number, 'isSafeInteger');
     for (i$ = 0, len$ = (ref$ = [1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, 9007199254740991, -9007199254740991]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(isSafeInteger(x$), "isSafeInteger " + typeof x$ + " " + x$);
     }
     for (i$ = 0, len$ = (ref$ = [9007199254740992, -9007199254740992, NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -3496,7 +3556,9 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.MAX_SAFE_INTEGER', function(assert){
-    return assert.strictEqual(Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
+    assert.ok('MAX_SAFE_INTEGER' in Number);
+    assert.nonEnumerable(Number, 'MAX_SAFE_INTEGER');
+    assert.strictEqual(Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
   });
 }).call(this);
 
@@ -3506,7 +3568,9 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.MIN_SAFE_INTEGER', function(assert){
-    return assert.strictEqual(Number.MIN_SAFE_INTEGER, -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
+    assert.ok('MIN_SAFE_INTEGER' in Number);
+    assert.nonEnumerable(Number, 'MIN_SAFE_INTEGER');
+    assert.strictEqual(Number.MIN_SAFE_INTEGER, -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
   });
 }).call(this);
 
@@ -3522,6 +3586,7 @@
     assert.name(parseFloat, 'parseFloat');
     assert.arity(parseFloat, 1);
     assert.looksNative(parseFloat);
+    assert.nonEnumerable(Number, 'parseFloat');
     assert.same(parseFloat, global.parseFloat);
     assert.same(parseFloat('0'), 0);
     assert.same(parseFloat(' 0'), 0);
@@ -3549,6 +3614,7 @@
     assert.name(parseInt, 'parseInt');
     assert.arity(parseInt, 2);
     assert.looksNative(parseInt);
+    assert.nonEnumerable(Number, 'parseInt');
     assert.same(parseInt, global.parseInt);
     for (i$ = 2; i$ <= 36; ++i$) {
       r = i$;
@@ -3594,6 +3660,7 @@
     assert.name(toFixed, 'toFixed');
     assert.arity(toFixed, 1);
     assert.looksNative(toFixed);
+    assert.nonEnumerable(Number.prototype, 'toFixed');
     assert.same(0.00008.toFixed(3), '0.000');
     assert.same(0.9.toFixed(0), '1');
     assert.same(1.255.toFixed(2), '1.25');
@@ -3702,6 +3769,7 @@
     assert.name(toPrecision, 'toPrecision');
     assert.arity(toPrecision, 1);
     assert.looksNative(toPrecision);
+    assert.nonEnumerable(Number.prototype, 'toPrecision');
     assert.same(0.00008.toPrecision(3), '0.0000800', '0.00008.toPrecision(3)');
     assert.same(1.255.toPrecision(2), '1.3', '1.255.toPrecision(2)');
     assert.same(1843654265.0774949.toPrecision(13), '1843654265.077', '1843654265.0774949.toPrecision(13)');
@@ -3744,6 +3812,7 @@
     assert.arity(assign, 2);
     assert.name(assign, 'assign');
     assert.looksNative(assign);
+    assert.nonEnumerable(Object, 'assign');
     foo = {
       q: 1
     };
@@ -3819,7 +3888,7 @@
       x$ = ref$[i$];
       O[x$] = x$;
     }
-    return assert.strictEqual(keys(assign({}, O)).join(''), string);
+    assert.strictEqual(keys(assign({}, O)).join(''), string);
   });
 }).call(this);
 
@@ -3852,6 +3921,7 @@
     assert.arity(create, 2);
     assert.name(create, 'create');
     assert.looksNative(create);
+    assert.nonEnumerable(Object, 'create');
     assert.ok(isPrototype(obj = {
       q: 1
     }, create(obj)));
@@ -3895,6 +3965,7 @@
     assert.arity(defineProperties, 2);
     assert.name(defineProperties, 'defineProperties');
     assert.looksNative(defineProperties);
+    assert.nonEnumerable(Object, 'defineProperties');
     assert.ok((rez = defineProperties(src = {}, {
       q: {
         value: 42
@@ -3919,6 +3990,7 @@
     assert.arity(defineProperty, 3);
     assert.name(defineProperty, 'defineProperty');
     assert.looksNative(defineProperty);
+    assert.nonEnumerable(Object, 'defineProperty');
     assert.ok((rez = defineProperty(src = {}, 'q', {
       value: 42
     })) === src);
@@ -3947,6 +4019,7 @@
     assert.arity(freeze, 1);
     assert.name(freeze, 'freeze');
     assert.looksNative(freeze);
+    assert.nonEnumerable(Object, 'freeze');
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8, {}]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.ok((fn$()), "accept " + toString$.call(value).slice(8, -1));
@@ -3987,6 +4060,7 @@
     assert.arity(getOwnPropertyDescriptor, 2);
     assert.name(getOwnPropertyDescriptor, 'getOwnPropertyDescriptor');
     assert.looksNative(getOwnPropertyDescriptor);
+    assert.nonEnumerable(Object, 'getOwnPropertyDescriptor');
     assert.deepEqual(getOwnPropertyDescriptor({
       q: 42
     }, 'q'), {
@@ -4028,6 +4102,7 @@
     assert.arity(getOwnPropertyNames, 1);
     assert.name(getOwnPropertyNames, 'getOwnPropertyNames');
     assert.looksNative(getOwnPropertyNames);
+    assert.nonEnumerable(Object, 'getOwnPropertyNames');
     fn1 = function(w){
       this.w = w != null ? w : 2;
     };
@@ -4083,6 +4158,7 @@
     assert.arity(getPrototypeOf, 1);
     assert.name(getPrototypeOf, 'getPrototypeOf');
     assert.looksNative(getPrototypeOf);
+    assert.nonEnumerable(Object, 'getPrototypeOf');
     assert.ok(getPrototypeOf({}) === Object.prototype);
     assert.ok(getPrototypeOf([]) === Array.prototype);
     assert.ok(getPrototypeOf(new (fn = (function(){
@@ -4134,6 +4210,7 @@
     assert.isFunction(isExtensible);
     assert.arity(isExtensible, 1);
     assert.name(isExtensible, 'isExtensible');
+    assert.nonEnumerable(Object, 'isExtensible');
     assert.looksNative(isExtensible);
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8]).length; i$ < len$; ++i$) {
       value = ref$[i$];
@@ -4165,6 +4242,7 @@
     assert.arity(isFrozen, 1);
     assert.name(isFrozen, 'isFrozen');
     assert.looksNative(isFrozen);
+    assert.nonEnumerable(Object, 'isFrozen');
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.ok((fn$()), "accept " + toString$.call(value).slice(8, -1));
@@ -4195,6 +4273,7 @@
     assert.arity(isSealed, 1);
     assert.name(isSealed, 'isSealed');
     assert.looksNative(isSealed);
+    assert.nonEnumerable(Object, 'isSealed');
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.ok((fn$()), "accept " + toString$.call(value).slice(8, -1));
@@ -4225,6 +4304,7 @@
     assert.arity(same, 2);
     assert.name(same, 'is');
     assert.looksNative(same);
+    assert.nonEnumerable(Object, 'is');
     assert.ok(same(1, 1), '1 is 1');
     assert.ok(same(NaN, NaN), '1 is 1');
     assert.ok(!same(0, -0), '0 isnt -0');
@@ -4244,6 +4324,7 @@
     assert.arity(keys, 1);
     assert.name(keys, 'keys');
     assert.looksNative(keys);
+    assert.nonEnumerable(Object, 'keys');
     fn1 = function(w){
       this.w = w != null ? w : 2;
     };
@@ -4292,6 +4373,7 @@
     assert.arity(preventExtensions, 1);
     assert.name(preventExtensions, 'preventExtensions');
     assert.looksNative(preventExtensions);
+    assert.nonEnumerable(Object, 'preventExtensions');
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8, {}]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.ok((fn$()), "accept " + toString$.call(value).slice(8, -1));
@@ -4332,6 +4414,7 @@
     assert.arity(seal, 1);
     assert.name(seal, 'seal');
     assert.looksNative(seal);
+    assert.nonEnumerable(Object, 'seal');
     for (i$ = 0, len$ = (ref$ = [42, 'foo', false, null, void 8, {}]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.ok((fn$()), "accept " + toString$.call(value).slice(8, -1));
@@ -4373,6 +4456,7 @@
       assert.arity(setPrototypeOf, 2);
       assert.name(setPrototypeOf, 'setPrototypeOf');
       assert.looksNative(setPrototypeOf);
+      assert.nonEnumerable(Object, 'setPrototypeOf');
       assert.ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
       assert.strictEqual(setPrototypeOf({
         a: 2
@@ -4399,6 +4483,7 @@
     assert.arity(Object.prototype.toString, 0);
     assert.name(Object.prototype.toString, 'toString');
     assert.looksNative(Object.prototype.toString);
+    assert.nonEnumerable(Object.prototype, 'toString');
     toString = Object.prototype.toString;
     if (STRICT) {
       assert.strictEqual(toString.call(null), '[object Null]', 'null -> `Null`');
@@ -4614,15 +4699,17 @@
     NATIVE && assert.arity(Promise.prototype.then, 2);
     assert.name(Promise.prototype.then, 'then');
     assert.looksNative(Promise.prototype.then);
+    assert.nonEnumerable(Promise.prototype, 'then');
   });
   test('Promise#catch', function(assert){
     assert.isFunction(Promise.prototype['catch']);
     NATIVE && assert.arity(Promise.prototype['catch'], 1);
     NATIVE && assert.name(Promise.prototype['catch'], 'catch');
-    assert.looksNative(Promise.prototype.then);
+    assert.looksNative(Promise.prototype['catch']);
+    assert.nonEnumerable(Promise.prototype, 'catch');
   });
   test('Promise#@@toStringTag', function(assert){
-    assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
+    assert.ok(Promise.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('Promise.all', function(assert){
     var iter, a, done;
@@ -4630,6 +4717,7 @@
     assert.arity(Promise.all, 1);
     assert.name(Promise.all, 'all');
     assert.looksNative(Promise.all);
+    assert.nonEnumerable(Promise, 'all');
     iter = createIterable([1, 2, 3]);
     Promise.all(iter)['catch'](function(){});
     assert.ok(iter.received, 'works with iterables: iterator received');
@@ -4643,7 +4731,7 @@
     Promise.all(a);
     assert.ok(done);
     assert.throws(function(){
-      return Promise.all.call(null, [])['catch'](function(){});
+      Promise.all.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.race', function(assert){
@@ -4652,6 +4740,7 @@
     assert.arity(Promise.race, 1);
     assert.name(Promise.race, 'race');
     assert.looksNative(Promise.race);
+    assert.nonEnumerable(Promise, 'race');
     iter = createIterable([1, 2, 3]);
     Promise.race(iter)['catch'](function(){});
     assert.ok(iter.received, 'works with iterables: iterator received');
@@ -4665,7 +4754,7 @@
     Promise.race(a);
     assert.ok(done);
     assert.throws(function(){
-      return Promise.race.call(null, [])['catch'](function(){});
+      Promise.race.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.resolve', function(assert){
@@ -4673,8 +4762,9 @@
     NATIVE && assert.arity(Promise.resolve, 1);
     assert.name(Promise.resolve, 'resolve');
     assert.looksNative(Promise.resolve);
+    assert.nonEnumerable(Promise, 'resolve');
     assert.throws(function(){
-      return Promise.resolve.call(null, 1)['catch'](function(){});
+      Promise.resolve.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.reject', function(assert){
@@ -4682,8 +4772,9 @@
     NATIVE && assert.arity(Promise.reject, 1);
     assert.name(Promise.reject, 'reject');
     assert.looksNative(Promise.reject);
+    assert.nonEnumerable(Promise, 'reject');
     assert.throws(function(){
-      return Promise.reject.call(null, 1)['catch'](function(){});
+      Promise.reject.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   if (PROTO) {
@@ -4736,14 +4827,15 @@
     assert.arity(apply, 3);
     assert.name(apply, 'apply');
     assert.looksNative(apply);
+    assert.nonEnumerable(Reflect, 'apply');
     assert.strictEqual(apply(Array.prototype.push, [1, 2], [3, 4, 5]), 5);
     C = function(a, b, c){
       return a + b + c;
     };
     C.apply = 42;
     assert.strictEqual(apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
-    return assert.throws(function(){
-      return apply(42, null, []);
+    assert.throws(function(){
+      apply(42, null, []);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4761,6 +4853,7 @@
     assert.arity(construct, 2);
     assert.name(construct, 'construct');
     assert.looksNative(construct);
+    assert.nonEnumerable(Reflect, 'construct');
     C = function(a, b, c){
       return this.qux = a + b + c;
     };
@@ -4768,12 +4861,12 @@
     C.apply = 42;
     assert.strictEqual(construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
     inst = construct(function(){
-      return this.x = 42;
+      this.x = 42;
     }, [], Array);
     assert.strictEqual(inst.x, 42, 'constructor with newTarget');
     assert.ok(inst instanceof Array, 'prototype with newTarget');
     assert.throws(function(){
-      return construct(42, []);
+      construct(42, []);
     }, TypeError, 'throws on primitive');
     f = function(){};
     f.prototype = 42;
@@ -4785,7 +4878,7 @@
         return false;
       }
     }()));
-    return assert.same(typeof (function(){
+    assert.same(typeof (function(){
       try {
         return construct(Date, []).getTime();
       } catch (e$) {}
@@ -4807,6 +4900,7 @@
     assert.arity(defineProperty, 3);
     assert.name(defineProperty, 'defineProperty');
     assert.looksNative(defineProperty);
+    assert.nonEnumerable(Reflect, 'defineProperty');
     O = {};
     assert.strictEqual(defineProperty(O, 'foo', {
       value: 123
@@ -4839,7 +4933,7 @@
     assert.throws(function(){
       defineProperty({}, create(null), {});
     });
-    return assert.throws(function(){
+    assert.throws(function(){
       defineProperty({}, 1, 1);
     });
   });
@@ -4858,6 +4952,7 @@
     assert.arity(deleteProperty, 2);
     assert.name(deleteProperty, 'deleteProperty');
     assert.looksNative(deleteProperty);
+    assert.nonEnumerable(Reflect, 'deleteProperty');
     O = {
       bar: 456
     };
@@ -4894,6 +4989,7 @@
     assert.arity(enumerate, 1);
     assert.name(enumerate, 'enumerate');
     assert.looksNative(enumerate);
+    assert.nonEnumerable(Reflect, 'enumerate');
     obj = {
       foo: 1,
       bar: 2
@@ -4937,6 +5033,7 @@
     assert.arity(getOwnPropertyDescriptor, 2);
     assert.name(getOwnPropertyDescriptor, 'getOwnPropertyDescriptor');
     assert.looksNative(getOwnPropertyDescriptor);
+    assert.nonEnumerable(Reflect, 'getOwnPropertyDescriptor');
     obj = {
       baz: 789
     };
@@ -4960,6 +5057,7 @@
     assert.arity(getPrototypeOf, 1);
     assert.name(getPrototypeOf, 'getPrototypeOf');
     assert.looksNative(getPrototypeOf);
+    assert.nonEnumerable(Reflect, 'getPrototypeOf');
     assert.strictEqual(getPrototypeOf([]), Array.prototype);
     return assert.throws(function(){
       return getPrototypeOf(42);
@@ -4980,6 +5078,7 @@
     NATIVE && assert.arity(get, 2);
     assert.name(get, 'get');
     assert.looksNative(get);
+    assert.nonEnumerable(Reflect, 'get');
     assert.strictEqual(get({
       qux: 987
     }, 'qux'), 987);
@@ -5025,6 +5124,7 @@
     assert.arity(has, 2);
     assert.name(has, 'has');
     assert.looksNative(has);
+    assert.nonEnumerable(Reflect, 'has');
     O = {
       qux: 987
     };
@@ -5050,6 +5150,7 @@
     assert.arity(isExtensible, 1);
     assert.name(isExtensible, 'isExtensible');
     assert.looksNative(isExtensible);
+    assert.nonEnumerable(Reflect, 'isExtensible');
     assert.ok(isExtensible({}));
     if (DESCRIPTORS) {
       assert.ok(!isExtensible(preventExtensions({})));
@@ -5074,6 +5175,7 @@
     assert.arity(ownKeys, 1);
     assert.name(ownKeys, 'ownKeys');
     assert.looksNative(ownKeys);
+    assert.nonEnumerable(Reflect, 'ownKeys');
     O1 = {
       a: 1
     };
@@ -5117,6 +5219,7 @@
     assert.arity(preventExtensions, 1);
     assert.name(preventExtensions, 'preventExtensions');
     assert.looksNative(preventExtensions);
+    assert.nonEnumerable(Reflect, 'preventExtensions');
     obj = {};
     assert.ok(preventExtensions(obj), true);
     if (DESCRIPTORS) {
@@ -5141,6 +5244,7 @@
       NATIVE && assert.arity(setPrototypeOf, 2);
       assert.name(setPrototypeOf, 'setPrototypeOf');
       assert.looksNative(setPrototypeOf);
+      assert.nonEnumerable(Reflect, 'setPrototypeOf');
       obj = {};
       assert.ok(setPrototypeOf(obj, Array.prototype), true);
       assert.ok(obj instanceof Array);
@@ -5168,6 +5272,7 @@
     NATIVE && assert.arity(set, 3);
     assert.name(set, 'set');
     assert.looksNative(set);
+    assert.nonEnumerable(Reflect, 'set');
     obj = {};
     assert.ok(set(obj, 'quux', 654), true);
     assert.strictEqual(obj.quux, 654);
@@ -5281,6 +5386,7 @@
   module('ES6');
   if (DESCRIPTORS) {
     test('RegExp#flags', function(assert){
+      assert.nonEnumerable(RegExp.prototype, 'flags');
       assert.strictEqual(/./g.flags, 'g', '/./g.flags is "g"');
       assert.strictEqual(/./.flags, '', '/./.flags is ""');
       assert.strictEqual(RegExp('.', 'gim').flags, 'gim', 'RegExp(".", "gim").flags is "gim"');
@@ -5304,6 +5410,7 @@
     assert.arity(''.match, 1);
     assert.name(''.match, 'match');
     assert.looksNative(''.match);
+    assert.nonEnumerable(String.prototype, 'match');
     instance = Object(true);
     instance.match = String.prototype.match;
     assert.strictEqual(instance.match(true)[0], 'true', 'S15.5.4.10_A1_T1');
@@ -5557,6 +5664,7 @@
     assert.arity(''.replace, 2);
     assert.name(''.replace, 'replace');
     assert.looksNative(''.replace);
+    assert.nonEnumerable(String.prototype, 'replace');
     instance = Object(true);
     instance.replace = String.prototype.replace;
     assert.strictEqual(instance.replace(true, 1), '1', 'S15.5.4.11_A1_T1');
@@ -5736,6 +5844,7 @@
     assert.arity(''.search, 1);
     assert.name(''.search, 'search');
     assert.looksNative(''.search);
+    assert.nonEnumerable(String.prototype, 'search');
     instance = Object(true);
     instance.search = String.prototype.search;
     assert.strictEqual(instance.search(true), 0, 'S15.5.4.12_A1_T1');
@@ -5845,6 +5954,7 @@
     assert.arity(''.split, 2);
     assert.name(''.split, 'split');
     assert.looksNative(''.split);
+    assert.nonEnumerable(String.prototype, 'split');
     assert.arrayEqual('ab'.split(), ['ab'], 'If "separator" is undefined must return Array with one String - "this" string');
     assert.arrayEqual('ab'.split(void 8), ['ab'], 'If "separator" is undefined must return Array with one String - "this" string');
     assert.arrayEqual('ab'.split(void 8, 0), [], 'If "separator" is undefined and "limit" set to 0 must return Array[]');
@@ -6608,6 +6718,7 @@
     assert.arity(toString, 0);
     assert.name(toString, 'toString');
     assert.looksNative(toString);
+    assert.nonEnumerable(RegExp.prototype, 'toString');
     assert.same(String(/pattern/), '/pattern/');
     assert.same(String(/pattern/i), '/pattern/i');
     assert.same(String(/pattern/mi), '/pattern/im');
@@ -6678,7 +6789,7 @@
     assert.strictEqual(S.size, 3);
     r = [];
     S.forEach(function(v){
-      return r.push(v);
+      r.push(v);
     });
     assert.deepEqual(r, [1, 2, 3]);
     assert.strictEqual((z$ = new Set(), z$.add(NaN), z$.add(NaN), z$.add(NaN), z$).size, 1);
@@ -6727,7 +6838,7 @@
       C = nativeSubclass(Set);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
       assert.ok(new C instanceof Set, 'correct subclassing with native classes #2');
-      return assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
+      assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
     }
   });
   test('Set#add', function(assert){
@@ -6736,6 +6847,7 @@
     assert.name(Set.prototype.add, 'add');
     assert.arity(Set.prototype.add, 1);
     assert.looksNative(Set.prototype.add);
+    assert.nonEnumerable(Set.prototype, 'add');
     a = [];
     x$ = S = new Set();
     x$.add(NaN);
@@ -6758,7 +6870,7 @@
     assert.strictEqual(S.size, 7);
     y$ = S = new Set();
     y$.add(freeze(f = {}));
-    return assert.ok(S.has(f));
+    assert.ok(S.has(f));
   });
   test('Set#clear', function(assert){
     var S, x$, y$, f;
@@ -6766,6 +6878,7 @@
     assert.name(Set.prototype.clear, 'clear');
     assert.arity(Set.prototype.clear, 0);
     assert.looksNative(Set.prototype.clear);
+    assert.nonEnumerable(Set.prototype, 'clear');
     S = new Set;
     S.clear();
     assert.strictEqual(S.size, 0);
@@ -6786,7 +6899,7 @@
     S.clear();
     assert.strictEqual(S.size, 0, 'Support frozen objects');
     assert.ok(!S.has(1));
-    return assert.ok(!S.has(f));
+    assert.ok(!S.has(f));
   });
   test('Set#delete', function(assert){
     var a, x$, S, f;
@@ -6794,6 +6907,7 @@
     NATIVE && assert.name(Set.prototype['delete'], 'delete');
     assert.arity(Set.prototype['delete'], 1);
     assert.looksNative(Set.prototype['delete']);
+    assert.nonEnumerable(Set.prototype, 'delete');
     a = [];
     x$ = S = new Set();
     x$.add(NaN);
@@ -6814,7 +6928,7 @@
     S.add(freeze(f = {}));
     assert.strictEqual(S.size, 4);
     S['delete'](f);
-    return assert.strictEqual(S.size, 3);
+    assert.strictEqual(S.size, 3);
   });
   test('Set#forEach', function(assert){
     var r, count, x$, S, y$, set, s, z$;
@@ -6822,6 +6936,7 @@
     assert.name(Set.prototype.forEach, 'forEach');
     assert.arity(Set.prototype.forEach, 1);
     assert.looksNative(Set.prototype.forEach);
+    assert.nonEnumerable(Set.prototype, 'forEach');
     r = [];
     count = 0;
     x$ = S = new Set();
@@ -6863,7 +6978,7 @@
       return s += it;
     });
     assert.strictEqual(s, '0');
-    return assert.throws(function(){
+    assert.throws(function(){
       Set.prototype.forEach.call(new Map, function(){});
     }, 'non-generic');
   });
@@ -6873,6 +6988,7 @@
     assert.name(Set.prototype.has, 'has');
     assert.arity(Set.prototype.has, 1);
     assert.looksNative(Set.prototype.has);
+    assert.nonEnumerable(Set.prototype, 'has');
     a = [];
     f = freeze({});
     x$ = S = new Set();
@@ -6888,10 +7004,11 @@
     assert.ok(S.has(f));
     assert.ok(S.has(2));
     assert.ok(!S.has(4));
-    return assert.ok(!S.has([]));
+    assert.ok(!S.has([]));
   });
   test('Set#size', function(assert){
     var size, x$, sizeDesc;
+    assert.nonEnumerable(Set.prototype, 'size');
     size = (x$ = new Set(), x$.add(1), x$).size;
     assert.strictEqual(typeof size, 'number', 'size is number');
     assert.strictEqual(size, 1, 'size is correct');
@@ -6899,7 +7016,7 @@
       sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
       assert.ok(sizeDesc && sizeDesc.get, 'size is getter');
       assert.ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      return assert.throws(function(){
+      assert.throws(function(){
         return Set.prototype.size;
       }, TypeError);
     }
@@ -6927,10 +7044,10 @@
     y$.add(2);
     y$.add(1);
     y$.add(0);
-    return assert.ok(set.has(-0));
+    assert.ok(set.has(-0));
   });
   test('Set#@@toStringTag', function(assert){
-    return assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');
+    assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');
   });
   test('Set Iterator', function(assert){
     var x$, set, keys, iterator;
@@ -6951,7 +7068,7 @@
     assert.ok(iterator.next().done);
     set.add('f');
     assert.ok(iterator.next().done);
-    return assert.deepEqual(keys, ['a', 'd', 'e']);
+    assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Set#keys', function(assert){
     var iter, x$;
@@ -6960,6 +7077,7 @@
     assert.arity(Set.prototype.keys, 0);
     assert.looksNative(Set.prototype.keys);
     assert.strictEqual(Set.prototype.keys, Set.prototype.values);
+    assert.nonEnumerable(Set.prototype, 'keys');
     iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).keys();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -6976,7 +7094,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -6987,6 +7105,7 @@
     assert.name(Set.prototype.values, 'values');
     assert.arity(Set.prototype.values, 0);
     assert.looksNative(Set.prototype.values);
+    assert.nonEnumerable(Set.prototype, 'values');
     iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).values();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -7003,7 +7122,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -7014,6 +7133,7 @@
     assert.name(Set.prototype.entries, 'entries');
     assert.arity(Set.prototype.entries, 0);
     assert.looksNative(Set.prototype.entries);
+    assert.nonEnumerable(Set.prototype, 'entries');
     iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$).entries();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -7030,7 +7150,7 @@
       value: ['e', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -7042,6 +7162,7 @@
     assert.arity(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], 0);
     assert.looksNative(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]);
     assert.strictEqual(Set.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], Set.prototype.values);
+    assert.nonEnumerable(Set.prototype, 'values');
     iter = (x$ = new Set(), x$.add('q'), x$.add('w'), x$.add('e'), x$)[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8]();
     assert.isIterator(iter);
     assert.isIterable(iter);
@@ -7058,7 +7179,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -7075,6 +7196,7 @@
     assert.arity(String.prototype.anchor, 1);
     assert.name(String.prototype.anchor, 'anchor');
     assert.looksNative(String.prototype.anchor);
+    assert.nonEnumerable(String.prototype, 'anchor');
     assert.same('a'.anchor('b'), '<a name="b">a</a>', 'lower case');
     assert.same('a'.anchor('"'), '<a name="&quot;">a</a>', 'escape quotes');
   });
@@ -7090,6 +7212,7 @@
     assert.arity(String.prototype.big, 0);
     assert.name(String.prototype.big, 'big');
     assert.looksNative(String.prototype.big);
+    assert.nonEnumerable(String.prototype, 'big');
     assert.same('a'.big(), '<big>a</big>', 'lower case');
   });
 }).call(this);
@@ -7104,6 +7227,7 @@
     assert.arity(String.prototype.blink, 0);
     assert.name(String.prototype.blink, 'blink');
     assert.looksNative(String.prototype.blink);
+    assert.nonEnumerable(String.prototype, 'blink');
     assert.same('a'.blink(), '<blink>a</blink>', 'lower case');
   });
 }).call(this);
@@ -7118,6 +7242,7 @@
     assert.arity(String.prototype.bold, 0);
     assert.name(String.prototype.bold, 'bold');
     assert.looksNative(String.prototype.bold);
+    assert.nonEnumerable(String.prototype, 'bold');
     assert.same('a'.bold(), '<b>a</b>', 'lower case');
   });
 }).call(this);
@@ -7132,6 +7257,7 @@
     assert.arity(String.prototype.codePointAt, 1);
     assert.name(String.prototype.codePointAt, 'codePointAt');
     assert.looksNative(String.prototype.codePointAt);
+    assert.nonEnumerable(String.prototype, 'codePointAt');
     assert.strictEqual('abc\uD834\uDF06def'.codePointAt(''), 0x61);
     assert.strictEqual('abc\uD834\uDF06def'.codePointAt('_'), 0x61);
     assert.strictEqual('abc\uD834\uDF06def'.codePointAt(), 0x61);
@@ -7183,10 +7309,10 @@
     assert.strictEqual('\uDF06abc'.codePointAt(void 8), 0xDF06);
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.codePointAt.call(null, 0);
+        String.prototype.codePointAt.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.codePointAt.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.codePointAt.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -7203,6 +7329,7 @@
     assert.arity(String.prototype.endsWith, 1);
     assert.name(String.prototype.endsWith, 'endsWith');
     assert.looksNative(String.prototype.endsWith);
+    assert.nonEnumerable(String.prototype, 'endsWith');
     assert.ok('undefined'.endsWith());
     assert.ok(!'undefined'.endsWith(null));
     assert.ok('abc'.endsWith(''));
@@ -7218,15 +7345,15 @@
     assert.ok(!'abc'.endsWith('a', 'x'));
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.endsWith.call(null, '.');
+        String.prototype.endsWith.call(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return String.prototype.endsWith.call(void 8, '.');
+        String.prototype.endsWith.call(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return '/./'.endsWith(re);
+      '/./'.endsWith(re);
     }, TypeError);
     re[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = false;
     assert.ok((function(){
@@ -7247,8 +7374,8 @@
       }
     }()));
     O[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = true;
-    return assert.throws(function(){
-      return '[object Object]'.endsWith(O);
+    assert.throws(function(){
+      '[object Object]'.endsWith(O);
     }, TypeError);
   });
 }).call(this);
@@ -7263,6 +7390,7 @@
     assert.arity(String.prototype.fixed, 0);
     assert.name(String.prototype.fixed, 'fixed');
     assert.looksNative(String.prototype.fixed);
+    assert.nonEnumerable(String.prototype, 'fixed');
     assert.same('a'.fixed(), '<tt>a</tt>', 'lower case');
   });
 }).call(this);
@@ -7277,6 +7405,7 @@
     assert.arity(String.prototype.fontcolor, 1);
     assert.name(String.prototype.fontcolor, 'fontcolor');
     assert.looksNative(String.prototype.fontcolor);
+    assert.nonEnumerable(String.prototype, 'fontcolor');
     assert.same('a'.fontcolor('b'), '<font color="b">a</font>', 'lower case');
     assert.same('a'.fontcolor('"'), '<font color="&quot;">a</font>', 'escape quotes');
   });
@@ -7292,6 +7421,7 @@
     assert.arity(String.prototype.fontsize, 1);
     assert.name(String.prototype.fontsize, 'fontsize');
     assert.looksNative(String.prototype.fontsize);
+    assert.nonEnumerable(String.prototype, 'fontsize');
     assert.same('a'.fontsize('b'), '<font size="b">a</font>', 'lower case');
     assert.same('a'.fontsize('"'), '<font size="&quot;">a</font>', 'escape quotes');
   });
@@ -7309,6 +7439,7 @@
     assert.arity(fromCodePoint, 1);
     assert.name(fromCodePoint, 'fromCodePoint');
     assert.looksNative(fromCodePoint);
+    assert.nonEnumerable(String, 'fromCodePoint');
     assert.strictEqual(fromCodePoint(''), '\0');
     assert.strictEqual(fromCodePoint(), '');
     assert.strictEqual(fromCodePoint(-0), '\0');
@@ -7319,43 +7450,43 @@
     assert.strictEqual(fromCodePoint(false), '\0');
     assert.strictEqual(fromCodePoint(null), '\0');
     assert.throws(function(){
-      return fromCodePoint('_');
+      fromCodePoint('_');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint('+Infinity');
+      fromCodePoint('+Infinity');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint('-Infinity');
+      fromCodePoint('-Infinity');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(-1);
+      fromCodePoint(-1);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(0x10FFFF + 1);
+      fromCodePoint(0x10FFFF + 1);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(3.14);
+      fromCodePoint(3.14);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(3e-2);
+      fromCodePoint(3e-2);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(-Infinity);
+      fromCodePoint(-Infinity);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(Infinity);
+      fromCodePoint(Infinity);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(NaN);
+      fromCodePoint(NaN);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(void 8);
+      fromCodePoint(void 8);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint({});
+      fromCodePoint({});
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(/./);
+      fromCodePoint(/./);
     }, RangeError);
     tmp = 0x60;
     assert.strictEqual(fromCodePoint({
@@ -7375,7 +7506,7 @@
     while (--counter >= 0) {
       result.push(0xFFFF + 1);
     }
-    return fromCodePoint.apply(null, result);
+    fromCodePoint.apply(null, result);
   });
 }).call(this);
 
@@ -7390,21 +7521,22 @@
     assert.arity(String.prototype.includes, 1);
     assert.name(String.prototype.includes, 'includes');
     assert.looksNative(String.prototype.includes);
+    assert.nonEnumerable(String.prototype, 'includes');
     assert.ok(!'abc'.includes());
     assert.ok('aundefinedb'.includes());
     assert.ok('abcd'.includes('b', 1));
     assert.ok(!'abcd'.includes('b', 2));
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.includes.call(null, '.');
+        String.prototype.includes.call(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return String.prototype.includes.call(void 8, '.');
+        String.prototype.includes.call(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return '/./'.includes(re);
+      '/./'.includes(re);
     }, TypeError);
     re[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = false;
     assert.ok((function(){
@@ -7425,8 +7557,8 @@
       }
     }()));
     O[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = true;
-    return assert.throws(function(){
-      return '[object Object]'.includes(O);
+    assert.throws(function(){
+      '[object Object]'.includes(O);
     }, TypeError);
   });
 }).call(this);
@@ -7441,6 +7573,7 @@
     assert.arity(String.prototype.italics, 0);
     assert.name(String.prototype.italics, 'italics');
     assert.looksNative(String.prototype.italics);
+    assert.nonEnumerable(String.prototype, 'italics');
     assert.same('a'.italics(), '<i>a</i>', 'lower case');
   });
 }).call(this);
@@ -7487,7 +7620,7 @@
       value: '𠮷',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -7504,6 +7637,7 @@
     assert.arity(String.prototype.link, 1);
     assert.name(String.prototype.link, 'link');
     assert.looksNative(String.prototype.link);
+    assert.nonEnumerable(String.prototype, 'link');
     assert.same('a'.link('b'), '<a href="b">a</a>', 'lower case');
     assert.same('a'.link('"'), '<a href="&quot;">a</a>', 'escape quotes');
   });
@@ -7521,6 +7655,7 @@
     assert.arity(raw, 1);
     assert.name(raw, 'raw');
     assert.looksNative(raw);
+    assert.nonEnumerable(String, 'raw');
     assert.strictEqual(raw({
       raw: ['Hi\\n', '!']
     }, 'Bob'), 'Hi\\nBob!', 'raw is array');
@@ -7531,10 +7666,10 @@
       raw: 'test'
     }, 0), 't0est', 'lacks substituting');
     assert.throws(function(){
-      return raw({});
+      raw({});
     }, TypeError);
-    return assert.throws(function(){
-      return raw({
+    assert.throws(function(){
+      raw({
         raw: null
       });
     }, TypeError);
@@ -7551,20 +7686,21 @@
     assert.arity(String.prototype.repeat, 1);
     assert.name(String.prototype.repeat, 'repeat');
     assert.looksNative(String.prototype.repeat);
+    assert.nonEnumerable(String.prototype, 'repeat');
     assert.strictEqual('qwe'.repeat(3), 'qweqweqwe');
     assert.strictEqual('qwe'.repeat(2.5), 'qweqwe');
     assert.throws(function(){
-      return 'qwe'.repeat(-1);
+      'qwe'.repeat(-1);
     }, RangeError);
     assert.throws(function(){
-      return 'qwe'.repeat(Infinity);
+      'qwe'.repeat(Infinity);
     }, RangeError);
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.repeat.call(null, 1);
+        String.prototype.repeat.call(null, 1);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.repeat.call(void 8, 1);
+      assert.throws(function(){
+        String.prototype.repeat.call(void 8, 1);
       }, TypeError);
     }
   });
@@ -7580,6 +7716,7 @@
     assert.arity(String.prototype.small, 0);
     assert.name(String.prototype.small, 'small');
     assert.looksNative(String.prototype.small);
+    assert.nonEnumerable(String.prototype, 'small');
     assert.same('a'.small(), '<small>a</small>', 'lower case');
   });
 }).call(this);
@@ -7595,6 +7732,7 @@
     assert.arity(String.prototype.startsWith, 1);
     assert.name(String.prototype.startsWith, 'startsWith');
     assert.looksNative(String.prototype.startsWith);
+    assert.nonEnumerable(String.prototype, 'startsWith');
     assert.ok('undefined'.startsWith());
     assert.ok(!'undefined'.startsWith(null));
     assert.ok('abc'.startsWith(''));
@@ -7609,15 +7747,15 @@
     assert.ok('abc'.startsWith('a', 'x'));
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.startsWith.call(null, '.');
+        String.prototype.startsWith.call(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return String.prototype.startsWith.call(void 8, '.');
+        String.prototype.startsWith.call(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return '/./'.startsWith(re);
+      '/./'.startsWith(re);
     }, TypeError);
     re[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = false;
     assert.ok((function(){
@@ -7638,8 +7776,8 @@
       }
     }()));
     O[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.match : void 8] = true;
-    return assert.throws(function(){
-      return '[object Object]'.startsWith(O);
+    assert.throws(function(){
+      '[object Object]'.startsWith(O);
     }, TypeError);
   });
 }).call(this);
@@ -7654,6 +7792,7 @@
     assert.arity(String.prototype.strike, 0);
     assert.name(String.prototype.strike, 'strike');
     assert.looksNative(String.prototype.strike);
+    assert.nonEnumerable(String.prototype, 'strike');
     assert.same('a'.strike(), '<strike>a</strike>', 'lower case');
   });
 }).call(this);
@@ -7668,6 +7807,7 @@
     assert.arity(String.prototype.sub, 0);
     assert.name(String.prototype.sub, 'sub');
     assert.looksNative(String.prototype.sub);
+    assert.nonEnumerable(String.prototype, 'sub');
     assert.same('a'.sub(), '<sub>a</sub>', 'lower case');
   });
 }).call(this);
@@ -7682,6 +7822,7 @@
     assert.arity(String.prototype.sup, 0);
     assert.name(String.prototype.sup, 'sup');
     assert.looksNative(String.prototype.sup);
+    assert.nonEnumerable(String.prototype, 'sup');
     assert.same('a'.sup(), '<sup>a</sup>', 'lower case');
   });
 }).call(this);
@@ -7696,15 +7837,16 @@
     assert.arity(String.prototype.trim, 0);
     assert.name(String.prototype.trim, 'trim');
     assert.looksNative(String.prototype.trim);
+    assert.nonEnumerable(String.prototype, 'trim');
     assert.strictEqual(' \n  q w e \n  '.trim(), 'q w e', 'removes whitespaces at left & right side of string');
     assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trim(), '', 'removes all whitespaces');
     assert.strictEqual('\u200b\u0085'.trim(), '\u200b\u0085', "shouldn't remove this symbols");
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.trim.call(null, 0);
+        String.prototype.trim.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.trim.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.trim.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -7734,45 +7876,48 @@
       for (i in O) {
         count++;
       }
-      return assert.ok(count === 0, 'object[Symbol()] is not enumerable');
+      assert.ok(count === 0, 'object[Symbol()] is not enumerable');
     }
   });
   test('Well-known Symbols', function(assert){
-    var i$, x$, ref$, len$, desc, results$ = [];
+    var i$, x$, ref$, len$, desc;
     for (i$ = 0, len$ = (ref$ = ['hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(x$ in Symbol, "Symbol." + x$ + " available");
+      assert.nonEnumerable(Symbol, x$);
       assert.ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol");
       if (DESCRIPTORS) {
         desc = getOwnPropertyDescriptor(Symbol, x$);
         assert.ok(!desc.enumerble, 'non-enumerable');
         assert.ok(!desc.writable, 'non-writable');
-        results$.push(assert.ok(!desc.configurable, 'non-configurable'));
+        assert.ok(!desc.configurable, 'non-configurable');
       }
     }
-    return results$;
   });
   test('Global symbol registry', function(assert){
     var symbol;
     assert.isFunction(Symbol['for'], 'Symbol.for is function');
+    assert.nonEnumerable(Symbol, 'for');
     assert.strictEqual(Symbol['for'].length, 1, 'Symbol.for arity is 1');
     NATIVE && assert.strictEqual(Symbol['for'].name, 'for', 'Symbol.for.name is "for"');
     assert.ok(/native code/.test(Symbol['for']), 'Symbol.for looks like native');
     assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
+    assert.nonEnumerable(Symbol, 'keyFor');
     assert.strictEqual(Symbol.keyFor.length, 1, 'Symbol.keyFor arity is 1');
     assert.strictEqual(Symbol.keyFor.name, 'keyFor', 'Symbol.keyFor.name is "keyFor"');
     assert.ok(/native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native');
     symbol = Symbol['for']('foo');
     assert.strictEqual(Symbol['for']('foo'), symbol);
-    return assert.strictEqual(Symbol.keyFor(symbol), 'foo');
+    assert.strictEqual(Symbol.keyFor(symbol), 'foo');
   });
   test('Symbol#@@toStringTag', function(assert){
-    return assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
+    assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });
   test('Object.getOwnPropertySymbols', function(assert){
     var getOwnPropertySymbols, getOwnPropertyNames, obj, foo, ref$;
     getOwnPropertySymbols = Object.getOwnPropertySymbols, getOwnPropertyNames = Object.getOwnPropertyNames;
     assert.isFunction(getOwnPropertySymbols);
+    assert.nonEnumerable(Object, 'getOwnPropertySymbols');
     assert.strictEqual(getOwnPropertySymbols.length, 1, 'arity is 1');
     assert.name(getOwnPropertySymbols, 'getOwnPropertySymbols');
     assert.looksNative(getOwnPropertySymbols);
@@ -7788,7 +7933,7 @@
     foo = (ref$ = clone$(obj), ref$.a = 1, ref$.s = 2, ref$.d = 3, ref$);
     foo[Symbol()] = 44;
     assert.deepEqual(getOwnPropertyNames(foo).sort(), ['a', 'd', 's']);
-    return assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
+    assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
   });
   if (typeof JSON != 'undefined' && JSON !== null) {
     test('Symbols & JSON.stringify', function(assert){
@@ -7802,7 +7947,7 @@
       }
       assert.strictEqual(JSON.stringify(Symbol('foo')), void 8, 'symbol value');
       if (typeof Symbol() === 'symbol') {
-        return assert.strictEqual(JSON.stringify(Object(Symbol('foo'))), '{}', 'boxed symbol');
+        assert.strictEqual(JSON.stringify(Object(Symbol('foo'))), '{}', 'boxed symbol');
       }
     });
   }
@@ -7903,7 +8048,7 @@
       ((typeof Reflect != 'undefined' && Reflect !== null) && Reflect.ownKeys) && assert.strictEqual(Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
       delete O[e];
       O[e] = 'e';
-      return assert.deepEqual(getOwnPropertyDescriptor(O, e), {
+      assert.deepEqual(getOwnPropertyDescriptor(O, e), {
         configurable: true,
         writable: true,
         enumerable: true,
@@ -7936,7 +8081,7 @@
       assert.strictEqual(O.a, 'a', 'a');
       assert.strictEqual(O.b, void 8, 'b');
       assert.strictEqual(O[c], 'c', 'c');
-      return assert.strictEqual(O[d], void 8, 'd');
+      assert.strictEqual(O[d], void 8, 'd');
     });
     test('Symbols & Object.create', function(assert){
       var defineProperty, create, c, d, D, ref$, O;
@@ -7964,7 +8109,7 @@
       assert.strictEqual(O.a, 'a', 'a');
       assert.strictEqual(O.b, void 8, 'b');
       assert.strictEqual(O[c], 'c', 'c');
-      return assert.strictEqual(O[d], void 8, 'd');
+      assert.strictEqual(O[d], void 8, 'd');
     });
     for (i$ = 0, len$ = (ref$ = ['Array', 'RegExp', 'Map', 'Set', 'Promise']).length; i$ < len$; ++i$) {
       $key = ref$[i$];
@@ -7987,11 +8132,11 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer', function(assert){
-    var b;
+    var b, this$ = this;
     assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
     assert.arity(ArrayBuffer, 1);
     assert.name(ArrayBuffer, 'ArrayBuffer');
@@ -8016,7 +8161,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer.isView', function(assert){
@@ -8044,7 +8189,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer#slice', function(assert){
@@ -8094,7 +8239,7 @@
     return obj;
   }
   function fn$(name, bytes){
-    var Typed, NATIVE_OR_ISNT_UINT8, this$ = this;
+    var Typed, NATIVE_OR_ISNT_UINT8;
     Typed = global[name];
     NATIVE_OR_ISNT_UINT8 = NATIVE || name !== 'Uint8Array';
     test(name + " constructor", function(assert){
@@ -8359,7 +8504,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float32 conversions', function(assert){
@@ -8407,7 +8552,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float64 conversions', function(assert){
@@ -8455,7 +8600,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int16 conversions', function(assert){
@@ -8504,7 +8649,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int32 conversions', function(assert){
@@ -8550,7 +8695,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int8 conversions', function(assert){
@@ -8591,7 +8736,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint16 conversions', function(assert){
@@ -8640,7 +8785,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint32 conversions', function(assert){
@@ -8686,7 +8831,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8Clamped conversions', function(assert){
@@ -8715,7 +8860,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8 conversions', function(assert){
@@ -8755,7 +8900,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, i$, x$, ref$, len$, y$, this$ = this;
+  var module, test, i$, x$, ref$, len$, y$;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('DataView', function(assert){
@@ -8882,63 +9027,63 @@
     assert.same(d.byteLength, 8, 'buffer');
     assert.same(d.byteOffset, 0, 'buffer');
     assert.throws(function(){
-      return d.getUint8(-2);
+      d.getUint8(-2);
     });
     assert.throws(function(){
-      return d.getUint8(8);
+      d.getUint8(8);
     }, 'bounds for buffer');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer');
     assert.throws(function(){
-      return d.setUint8(8, 0);
+      d.setUint8(8, 0);
     }, 'bounds for buffer');
     d = new DataView(rawbuf, 2);
     assert.same(d.byteLength, 6, 'buffer, byteOffset');
     assert.same(d.byteOffset, 2, 'buffer, byteOffset');
     assert.same(d.getUint8(5), 7, 'buffer, byteOffset');
     assert.throws(function(){
-      return d.getUint8(-2);
+      d.getUint8(-2);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.getUint8(6);
+      d.getUint8(6);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.setUint8(6, 0);
+      d.setUint8(6, 0);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return new DataView(rawbuf, -1);
+      new DataView(rawbuf, -1);
     }, 'invalid byteOffset');
     assert.throws(function(){
-      return new DataView(rawbuf, 9);
+      new DataView(rawbuf, 9);
     }, 'invalid byteOffset');
     d = new DataView(rawbuf, 2, 4);
     assert.same(d.byteLength, 4, 'buffer, byteOffset, length');
     assert.same(d.byteOffset, 2, 'buffer, byteOffset, length');
     assert.same(d.getUint8(3), 5, 'buffer, byteOffset, length');
     assert.throws(function(){
-      return d.getUint8(-2);
+      d.getUint8(-2);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.getUint8(4);
+      d.getUint8(4);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.setUint8(4, 0);
+      d.setUint8(4, 0);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return new DataView(rawbuf, 0, 9);
+      new DataView(rawbuf, 0, 9);
     }, 'invalid byteOffset+length');
     assert.throws(function(){
-      return new DataView(rawbuf, 8, 1);
+      new DataView(rawbuf, 8, 1);
     }, 'invalid byteOffset+length');
     assert.throws(function(){
-      return new DataView(rawbuf, 9, -1);
+      new DataView(rawbuf, 9, -1);
     }, 'invalid byteOffset+length');
   });
   for (i$ = 0, len$ = (ref$ = ['getUint8', 'getInt8', 'getUint16', 'getInt16', 'getUint32', 'getInt32', 'getFloat32', 'getFloat64']).length; i$ < len$; ++i$) {
@@ -8950,7 +9095,6 @@
     (fn1$.call(this, y$));
   }
   function fn$(name){
-    var this$ = this;
     test('DataView#' + name, function(assert){
       assert.isFunction(DataView.prototype[name]);
       NATIVE && assert.arity(DataView.prototype[name], 1);
@@ -8960,7 +9104,6 @@
     });
   }
   function fn1$(name){
-    var this$ = this;
     test('DataView#' + name, function(assert){
       assert.isFunction(DataView.prototype[name]);
       NATIVE && assert.arity(DataView.prototype[name], 2);
@@ -8973,7 +9116,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.copyWithin', function(assert){
@@ -9009,7 +9152,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.every', function(assert){
@@ -9040,7 +9183,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }
     function fn1$(it){
       return typeof it === 'number';
@@ -9075,7 +9218,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.fill', function(assert){
@@ -9103,7 +9246,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.filter', function(assert){
@@ -9131,7 +9274,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }
     function fn1$(it){
       return it % 2;
@@ -9150,11 +9293,11 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.findIndex', function(assert){
-    var i$, x$, ref$, len$, Typed, a, ctx, v, k;
+    var i$, x$, ref$, len$, Typed, a, ctx, v, k, results$ = [];
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Typed = global[x$];
@@ -9170,14 +9313,15 @@
       new Typed([1, 2, 3]).findIndex(fn3$);
       assert.same(v, '123');
       assert.same(k, '012');
-      assert.throws(fn4$, "isn't generic");
+      results$.push(assert.throws(fn4$, "isn't generic"));
     }
+    return results$;
     function fn$(val, key, that){
       assert.same(arguments.length, 3, 'correct number of callback arguments');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }
     function fn1$(it){
       return !(it % 2);
@@ -9199,7 +9343,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.find', function(assert){
@@ -9226,7 +9370,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }
     function fn1$(it){
       return !(it % 2);
@@ -9248,7 +9392,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.forEach', function(assert){
@@ -9275,7 +9419,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }
     function fn2$(a, b){
       v += a;
@@ -9291,7 +9435,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArray%.from', function(assert){
@@ -9355,7 +9499,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.indexOf', function(assert){
@@ -9531,7 +9675,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.join', function(assert){
@@ -9555,7 +9699,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.lastIndexOf', function(assert){
@@ -9582,7 +9726,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.map', function(assert){
@@ -9629,7 +9773,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArray%.of', function(assert){
@@ -9664,7 +9808,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.reduceRight', function(assert){
@@ -9730,7 +9874,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.reduce', function(assert){
@@ -9796,7 +9940,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.reverse', function(assert){
@@ -9821,7 +9965,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.set', function(assert){
@@ -9873,7 +10017,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.slice', function(assert){
@@ -9905,7 +10049,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.some', function(assert){
@@ -9966,7 +10110,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.subarray', function(assert){
@@ -10003,7 +10147,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.toLocaleString', function(assert){
@@ -10026,7 +10170,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('%TypedArrayPrototype%.toString', function(assert){
@@ -10117,6 +10261,7 @@
     NATIVE && assert.name(WeakMap.prototype['delete'], 'delete');
     NATIVE && assert.arity(WeakMap.prototype['delete'], 1);
     assert.looksNative(WeakMap.prototype['delete']);
+    assert.nonEnumerable(WeakMap.prototype, 'delete');
     x$ = M = new WeakMap();
     x$.set(a = {}, 42);
     x$.set(b = {}, 21);
@@ -10135,6 +10280,7 @@
     assert.name(WeakMap.prototype.get, 'get');
     NATIVE && assert.arity(WeakMap.prototype.get, 1);
     assert.looksNative(WeakMap.prototype.get);
+    assert.nonEnumerable(WeakMap.prototype, 'get');
     M = new WeakMap();
     assert.strictEqual(M.get({}), void 8, 'WeakMap .get() before .set() return undefined');
     M.set(a = {}, 42);
@@ -10153,6 +10299,7 @@
     assert.name(WeakMap.prototype.has, 'has');
     NATIVE && assert.arity(WeakMap.prototype.has, 1);
     assert.looksNative(WeakMap.prototype.has);
+    assert.nonEnumerable(WeakMap.prototype, 'has');
     M = new WeakMap();
     assert.ok(!M.has({}), 'WeakMap .has() before .set() return false');
     M.set(a = {}, 42);
@@ -10171,6 +10318,7 @@
     assert.name(WeakMap.prototype.set, 'set');
     assert.arity(WeakMap.prototype.set, 2);
     assert.looksNative(WeakMap.prototype.set);
+    assert.nonEnumerable(WeakMap.prototype, 'set');
     assert.same((x$ = new WeakMap(), x$.set(a = {}, 42), x$).get(a), 42, 'works with object as keys');
     assert.ok((function(){
       try {
@@ -10259,6 +10407,7 @@
     assert.name(WeakSet.prototype.add, 'add');
     assert.arity(WeakSet.prototype.add, 1);
     assert.looksNative(WeakSet.prototype.add);
+    assert.nonEnumerable(WeakSet.prototype, 'add');
     assert.ok(new WeakSet().add(a = {}), 'works with object as keys');
     assert.ok((function(){
       try {
@@ -10277,6 +10426,7 @@
     assert.isFunction(WeakSet.prototype['delete']);
     NATIVE && assert.arity(WeakSet.prototype['delete'], 1);
     assert.looksNative(WeakSet.prototype['delete']);
+    assert.nonEnumerable(WeakSet.prototype, 'delete');
     x$ = S = new WeakSet();
     x$.add(a = {});
     x$.add(b = {});
@@ -10295,6 +10445,7 @@
     assert.name(WeakSet.prototype.has, 'has');
     assert.arity(WeakSet.prototype.has, 1);
     assert.looksNative(WeakSet.prototype.has);
+    assert.nonEnumerable(WeakSet.prototype, 'has');
     M = new WeakSet();
     assert.ok(!M.has({}), 'WeakSet has`nt value');
     M.add(a = {});
@@ -10323,6 +10474,7 @@
     assert.name(Array.prototype.includes, 'includes');
     assert.arity(Array.prototype.includes, 1);
     assert.looksNative(Array.prototype.includes);
+    assert.nonEnumerable(Array.prototype, 'includes');
     arr = [1, 2, 3, -0, o = {}];
     assert.ok(arr.includes(1));
     assert.ok(arr.includes(-0));
@@ -10335,10 +10487,10 @@
     assert.ok([NaN].includes(NaN));
     if (STRICT) {
       assert.throws(function(){
-        return Array.prototype.includes.call(null, 0);
+        Array.prototype.includes.call(null, 0);
       }, TypeError);
       assert.throws(function(){
-        return Array.prototype.includes.call(void 8, 0);
+        Array.prototype.includes.call(void 8, 0);
       }, TypeError);
     }
     if (NATIVE && DESCRIPTORS) {
@@ -10354,7 +10506,7 @@
         } catch (e$) {}
       }()), 'uses ToLength');
     }
-    return assert.ok('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+    assert.ok('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
   });
 }).call(this);
 
@@ -10370,9 +10522,10 @@
     assert.arity(isError, 1);
     assert.name(isError, 'isError');
     assert.looksNative(isError);
+    assert.nonEnumerable(Error, 'isError');
     assert.same(isError(new TypeError), true);
     assert.same(isError({}), false);
-    return assert.same(isError(null), false);
+    assert.same(isError(null), false);
   });
 }).call(this);
 
@@ -10386,8 +10539,9 @@
     assert.name(Map.prototype.toJSON, 'toJSON');
     assert.arity(Map.prototype.toJSON, 0);
     assert.looksNative(Map.prototype.toJSON);
+    assert.nonEnumerable(Map.prototype, 'toJSON');
     if (typeof JSON != 'undefined' && JSON !== null) {
-      return assert.strictEqual(JSON.stringify(new Map([['a', 'b'], ['c', 'd']])), '[["a","b"],["c","d"]]', 'Works');
+      assert.strictEqual(JSON.stringify(new Map([['a', 'b'], ['c', 'd']])), '[["a","b"],["c","d"]]', 'Works');
     }
   });
 }).call(this);
@@ -10404,11 +10558,12 @@
     assert.name(iaddh, 'iaddh');
     assert.arity(iaddh, 4);
     assert.looksNative(iaddh);
+    assert.nonEnumerable(Math, 'iaddh');
     assert.same(iaddh(0, 2, 1, 0), 2);
     assert.same(iaddh(0, 4, 1, 1), 5);
     assert.same(iaddh(2, 4, 1, 1), 5);
     assert.same(iaddh(0xffffffff, 4, 1, 1), 6);
-    return assert.same(iaddh(1, 4, 0xffffffff, 1), 6);
+    assert.same(iaddh(1, 4, 0xffffffff, 1), 6);
   });
 }).call(this);
 
@@ -10424,10 +10579,11 @@
     assert.name(imulh, 'imulh');
     assert.arity(imulh, 2);
     assert.looksNative(imulh);
+    assert.nonEnumerable(Math, 'imulh');
     assert.same(imulh(0xffffffff, 7), -1);
     assert.same(imulh(0xfffffff, 77), 4);
     assert.same(imulh(1, 7), 0);
-    return assert.same(imulh(-1, 7), -1);
+    assert.same(imulh(-1, 7), -1);
   });
 }).call(this);
 
@@ -10443,11 +10599,12 @@
     assert.name(isubh, 'isubh');
     assert.arity(isubh, 4);
     assert.looksNative(isubh);
+    assert.nonEnumerable(Math, 'isubh');
     assert.same(isubh(0, 2, 1, 0), 1);
     assert.same(isubh(0, 4, 1, 1), 2);
     assert.same(isubh(2, 4, 1, 1), 3);
     assert.same(isubh(0xffffffff, 4, 1, 1), 3);
-    return assert.same(isubh(1, 4, 0xffffffff, 1), 2);
+    assert.same(isubh(1, 4, 0xffffffff, 1), 2);
   });
 }).call(this);
 
@@ -10463,10 +10620,11 @@
     assert.name(umulh, 'umulh');
     assert.arity(umulh, 2);
     assert.looksNative(umulh);
+    assert.nonEnumerable(Math, 'umulh');
     assert.same(umulh(0xffffffff, 7), 6);
     assert.same(umulh(0xfffffff, 77), 4);
     assert.same(umulh(1, 7), 0);
-    return assert.same(umulh(-1, 7), 6);
+    assert.same(umulh(-1, 7), 6);
   });
 }).call(this);
 
@@ -10482,6 +10640,7 @@
     assert.arity(entries, 1);
     assert.name(entries, 'entries');
     assert.looksNative(entries);
+    assert.nonEnumerable(Object, 'entries');
     assert.deepEqual(entries({
       q: 1,
       w: 2,
@@ -10501,7 +10660,7 @@
       assert.deepEqual(Function('return Object.entries({a: 1, get b(){delete this.c;return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
     try {
-      return assert.deepEqual(Function('return Object.entries({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [['a', 1], ['b', 2]]);
+      assert.deepEqual(Function('return Object.entries({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
   });
 }).call(this);
@@ -10519,6 +10678,7 @@
     assert.arity(getOwnPropertyDescriptors, 1);
     assert.name(getOwnPropertyDescriptors, 'getOwnPropertyDescriptors');
     assert.looksNative(getOwnPropertyDescriptors);
+    assert.nonEnumerable(Object, 'getOwnPropertyDescriptors');
     O = create({
       q: 1
     }, {
@@ -10552,7 +10712,7 @@
         value: 3
       });
     }
-    return assert.strictEqual(descs[s].value, 4);
+    assert.strictEqual(descs[s].value, 4);
   });
 }).call(this);
 
@@ -10568,6 +10728,7 @@
     assert.arity(values, 1);
     assert.name(values, 'values');
     assert.looksNative(values);
+    assert.nonEnumerable(Object, 'values');
     assert.deepEqual(values({
       q: 1,
       w: 2,
@@ -10587,7 +10748,7 @@
       assert.deepEqual(Function('return Object.values({a: 1, get b(){delete this.c;return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
     try {
-      return assert.deepEqual(Function('return Object.values({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [1, 2]);
+      assert.deepEqual(Function('return Object.values({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
   });
 }).call(this);
@@ -10604,6 +10765,7 @@
     assert.arity(defineMetadata, 4);
     assert.name(defineMetadata, 'defineMetadata');
     assert.looksNative(defineMetadata);
+    assert.nonEnumerable(Reflect, 'defineMetadata');
     assert.throws(function(){
       defineMetadata('key', 'value', void 8, void 8);
     }, TypeError);
@@ -10625,6 +10787,7 @@
     assert.arity(deleteMetadata, 2);
     assert.name(deleteMetadata, 'deleteMetadata');
     assert.looksNative(deleteMetadata);
+    assert.nonEnumerable(Reflect, 'deleteMetadata');
     assert.throws(function(){
       deleteMetadata('key', void 8, void 8);
     }, TypeError);
@@ -10655,6 +10818,7 @@
     assert.arity(getMetadataKeys, 1);
     assert.name(getMetadataKeys, 'getMetadataKeys');
     assert.looksNative(getMetadataKeys);
+    assert.nonEnumerable(Reflect, 'getMetadataKeys');
     assert.throws(function(){
       getMetadataKeys(void 8, void 8);
     }, TypeError);
@@ -10717,6 +10881,7 @@
     assert.arity(getMetadata, 2);
     assert.name(getMetadata, 'getMetadata');
     assert.looksNative(getMetadata);
+    assert.nonEnumerable(Reflect, 'getMetadata');
     assert.throws(function(){
       getMetadata('key', void 8, void 8);
     }, TypeError);
@@ -10752,6 +10917,7 @@
     assert.arity(getOwnMetadata, 2);
     assert.name(getOwnMetadata, 'getOwnMetadata');
     assert.looksNative(getOwnMetadata);
+    assert.nonEnumerable(Reflect, 'getOwnMetadata');
     assert.throws(function(){
       getOwnMetadata('key', void 8, void 8);
     }, TypeError);
@@ -10787,6 +10953,7 @@
     assert.arity(getOwnMetadataKeys, 1);
     assert.name(getOwnMetadataKeys, 'getOwnMetadataKeys');
     assert.looksNative(getOwnMetadataKeys);
+    assert.nonEnumerable(Reflect, 'getOwnMetadataKeys');
     assert.throws(function(){
       getOwnMetadataKeys(void 8, void 8);
     }, TypeError);
@@ -10849,6 +11016,7 @@
     assert.arity(hasMetadata, 2);
     assert.name(hasMetadata, 'hasMetadata');
     assert.looksNative(hasMetadata);
+    assert.nonEnumerable(Reflect, 'hasMetadata');
     assert.throws(function(){
       hasMetadata('key', void 8, void 8);
     }, TypeError);
@@ -10884,6 +11052,7 @@
     assert.arity(hasOwnMetadata, 2);
     assert.name(hasOwnMetadata, 'hasOwnMetadata');
     assert.looksNative(hasOwnMetadata);
+    assert.nonEnumerable(Reflect, 'hasOwnMetadata');
     assert.throws(function(){
       hasOwnMetadata('key', void 8, void 8);
     }, TypeError);
@@ -10918,6 +11087,7 @@
     assert.arity(metadata, 2);
     assert.name(metadata, 'metadata');
     assert.looksNative(metadata);
+    assert.nonEnumerable(Reflect, 'metadata');
     assert.isFunction(metadata('key', 'value'));
     decorator = metadata('key', 'value');
     assert.throws(function(){
@@ -10945,8 +11115,9 @@
     assert.name(Set.prototype.toJSON, 'toJSON');
     assert.arity(Set.prototype.toJSON, 0);
     assert.looksNative(Set.prototype.toJSON);
+    assert.nonEnumerable(Set.prototype, 'toJSON');
     if (typeof JSON != 'undefined' && JSON !== null) {
-      return assert.strictEqual(JSON.stringify(new Set([1, 2, 3, 2, 1])), '[1,2,3]', 'Works');
+      assert.strictEqual(JSON.stringify(new Set([1, 2, 3, 2, 1])), '[1,2,3]', 'Works');
     }
   });
 }).call(this);
@@ -10962,6 +11133,7 @@
     assert.arity(String.prototype.at, 1);
     assert.name(String.prototype.at, 'at');
     assert.looksNative(String.prototype.at);
+    assert.nonEnumerable(String.prototype, 'at');
     assert.strictEqual('abc\uD834\uDF06def'.at(-Infinity), '');
     assert.strictEqual('abc\uD834\uDF06def'.at(-1), '');
     assert.strictEqual('abc\uD834\uDF06def'.at(-0), 'a');
@@ -11044,10 +11216,10 @@
     }, 2), 'c');
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.at.call(null, 0);
+        String.prototype.at.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.at.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.at.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -11063,6 +11235,7 @@
     assert.arity(String.prototype.padEnd, 1);
     assert.name(String.prototype.padEnd, 'padEnd');
     assert.looksNative(String.prototype.padEnd);
+    assert.nonEnumerable(String.prototype, 'padEnd');
     assert.strictEqual('abc'.padEnd(5), 'abc  ');
     assert.strictEqual('abc'.padEnd(4, 'de'), 'abcd');
     assert.strictEqual('abc'.padEnd(), 'abc');
@@ -11071,10 +11244,10 @@
     assert.strictEqual('foo'.padEnd(1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.padEnd.call(null, 0);
+        String.prototype.padEnd.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.padEnd.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.padEnd.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -11090,6 +11263,7 @@
     assert.arity(String.prototype.padStart, 1);
     assert.name(String.prototype.padStart, 'padStart');
     assert.looksNative(String.prototype.padStart);
+    assert.nonEnumerable(String.prototype, 'padStart');
     assert.strictEqual('abc'.padStart(5), '  abc');
     assert.strictEqual('abc'.padStart(4, 'de'), 'dabc');
     assert.strictEqual('abc'.padStart(), 'abc');
@@ -11098,10 +11272,10 @@
     assert.strictEqual('foo'.padStart(1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return String.prototype.padStart.call(null, 0);
+        String.prototype.padStart.call(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return String.prototype.padStart.call(void 8, 0);
+      assert.throws(function(){
+        String.prototype.padStart.call(void 8, 0);
       }, TypeError);
     }
   });
@@ -11117,6 +11291,7 @@
     assert.arity(String.prototype.trimLeft, 0);
     assert.name(String.prototype.trimLeft, 'trimLeft');
     assert.looksNative(String.prototype.trimLeft);
+    assert.nonEnumerable(String.prototype, 'trimLeft');
     assert.strictEqual(' \n  q w e \n  '.trimLeft(), 'q w e \n  ', 'removes whitespaces at left side of string');
     assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimLeft(), '', 'removes all whitespaces');
     assert.strictEqual('\u200b\u0085'.trimLeft(), '\u200b\u0085', "shouldn't remove this symbols");
@@ -11134,6 +11309,7 @@
     assert.arity(String.prototype.trimStart, 0);
     assert.name(String.prototype.trimStart, 'trimLeft');
     assert.looksNative(String.prototype.trimStart);
+    assert.nonEnumerable(String.prototype, 'trimStart');
     assert.same(String.prototype.trimStart, String.prototype.trimLeft, 'same #trimLeft');
     assert.strictEqual(' \n  q w e \n  '.trimStart(), 'q w e \n  ', 'removes whitespaces at left side of string');
     assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimStart(), '', 'removes all whitespaces');
@@ -11159,6 +11335,7 @@
     assert.arity(String.prototype.trimRight, 0);
     assert.name(String.prototype.trimRight, 'trimRight');
     assert.looksNative(String.prototype.trimRight);
+    assert.nonEnumerable(String.prototype, 'trimRight');
     assert.strictEqual(' \n  q w e \n  '.trimRight(), ' \n  q w e', 'removes whitespaces at right side of string');
     assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimRight(), '', 'removes all whitespaces');
     assert.strictEqual('\u200b\u0085'.trimRight(), '\u200b\u0085', "shouldn't remove this symbols");
@@ -11176,6 +11353,7 @@
     assert.arity(String.prototype.trimEnd, 0);
     assert.name(String.prototype.trimEnd, 'trimRight');
     assert.looksNative(String.prototype.trimEnd);
+    assert.nonEnumerable(String.prototype, 'trimEnd');
     assert.same(String.prototype.trimEnd, String.prototype.trimRight, 'same #trimRight');
     assert.strictEqual(' \n  q w e \n  '.trimEnd(), ' \n  q w e', 'removes whitespaces at right side of string');
     assert.strictEqual('\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'.trimEnd(), '', 'removes all whitespaces');
@@ -11199,8 +11377,9 @@
   test('System.global', function(assert){
     var global;
     global = typeof System != 'undefined' && System !== null ? System.global : void 8;
+    assert.nonEnumerable(System, 'global');
     assert.same(global, Object(global), 'is object');
-    return assert.same(global.Math, Math, 'contains globals');
+    assert.same(global.Math, Math, 'contains globals');
   });
 }).call(this);
 
@@ -11272,7 +11451,7 @@
   timeLimitedPromise = function(time, fn){
     return Promise.race([
       new Promise(fn), new Promise(function(res, rej){
-        return setTimeout(rej, time);
+        setTimeout(rej, time);
       })
     ]);
   };
@@ -11286,14 +11465,14 @@
     assert.strictEqual(setImmediate.name, 'setImmediate', 'setImmediate.name is "setImmediate"');
     assert.strictEqual(clearImmediate.name, 'clearImmediate', 'clearImmediate.name is "clearImmediate"');
     timeLimitedPromise(1e3, function(res){
-      return setImmediate(function(){
+      setImmediate(function(){
         def = 'a';
-        return res();
+        res();
       });
     }).then(function(){
-      return assert.ok(true, 'setImmediate works');
+      assert.ok(true, 'setImmediate works');
     })['catch'](function(){
-      return assert.ok(false, 'setImmediate works');
+      assert.ok(false, 'setImmediate works');
     }).then(assert.async());
     assert.strictEqual(def, void 8, 'setImmediate is async');
     timeLimitedPromise(1e3, function(res){
@@ -11301,36 +11480,38 @@
         return res(a + b);
       }, 'a', 'b');
     }).then(function(it){
-      return assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
+      assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
     })['catch'](function(){
-      return assert.ok(false, 'setImmediate works with additional args');
+      assert.ok(false, 'setImmediate works with additional args');
     }).then(assert.async());
     return timeLimitedPromise(50, function(res){
       return clearImmediate(setImmediate(res));
     }).then(function(){
-      return assert.ok(false, 'clearImmediate works');
+      assert.ok(false, 'clearImmediate works');
     })['catch'](function(){
-      return assert.ok(true, 'clearImmediate works');
+      assert.ok(true, 'clearImmediate works');
     }).then(assert.async());
   });
   (function(it){
     if (typeof window != 'undefined' && window !== null) {
-      return window.onload = it;
+      window.onload = it;
     } else {
-      return it();
+      it();
     }
   })(function(){
-    return setTimeout(function(){
+    setTimeout(function(){
       var x, now, inc;
       x = 0;
       now = Date.now();
-      return (inc = function(){
-        return setImmediate(function(){
+      (inc = function(){
+        setImmediate(function(){
           x = x + 1;
           if (Date.now() - now < 5e3) {
-            return inc();
+            inc();
           } else {
-            return typeof console != 'undefined' && console !== null ? console.log("setImmediate: " + x / 5 + " per second") : void 8;
+            if (typeof console != 'undefined' && console !== null) {
+              console.log("setImmediate: " + x / 5 + " per second");
+            }
           }
         });
       })();
@@ -11346,7 +11527,7 @@
   timeLimitedPromise = function(time, fn){
     return Promise.race([
       new Promise(fn), new Promise(function(res, rej){
-        return setTimeout(rej, time);
+        setTimeout(rej, time);
       })
     ]);
   };
@@ -11354,29 +11535,29 @@
   test('setTimeout / clearTimeout', function(assert){
     assert.expect(2);
     timeLimitedPromise(1e3, function(res){
-      return global.setTimeout(function(a, b){
-        return res(a + b);
+      global.setTimeout(function(a, b){
+        res(a + b);
       }, 10, 'a', 'b');
     }).then(function(it){
-      return assert.strictEqual(it, 'ab', 'setTimeout works with additional args');
+      assert.strictEqual(it, 'ab', 'setTimeout works with additional args');
     })['catch'](function(){
-      return assert.ok(false, 'setTimeout works with additional args');
+      assert.ok(false, 'setTimeout works with additional args');
     }).then(assert.async());
-    return timeLimitedPromise(50, function(res){
-      return clearTimeout(setTimeout(res, 10));
+    timeLimitedPromise(50, function(res){
+      clearTimeout(setTimeout(res, 10));
     }).then(function(){
-      return assert.ok(false, 'clearImmediate works with wraped setTimeout');
+      assert.ok(false, 'clearImmediate works with wraped setTimeout');
     })['catch'](function(){
-      return assert.ok(true, 'clearImmediate works with wraped setTimeout');
+      assert.ok(true, 'clearImmediate works with wraped setTimeout');
     }).then(assert.async());
   });
   test('setInterval / clearInterval', function(assert){
     var i;
     assert.expect(1);
     i = 0;
-    return timeLimitedPromise(1e4, function(res, rej){
+    timeLimitedPromise(1e4, function(res, rej){
       var interval;
-      return interval = global.setInterval(function(a, b){
+      interval = global.setInterval(function(a, b){
         if (a + b !== 'ab' || i > 2) {
           rej({
             a: a,
@@ -11390,13 +11571,13 @@
         }
       }, 5, 'a', 'b');
     }).then(function(){
-      return assert.ok(true, 'setInterval & clearInterval works with additional args');
+      assert.ok(true, 'setInterval & clearInterval works with additional args');
     })['catch'](function(arg$){
       var ref$, a, b, i;
       ref$ = arg$ != null
         ? arg$
         : {}, a = ref$.a, b = ref$.b, i = ref$.i;
-      return assert.ok(false, "setInterval & clearInterval works with additional args: " + a + ", " + b + ", times: " + i);
+      assert.ok(false, "setInterval & clearInterval works with additional args: " + a + ", " + b + ", times: " + i);
     }).then(assert.async());
   });
 }).call(this);

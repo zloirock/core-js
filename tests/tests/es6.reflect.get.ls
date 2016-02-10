@@ -9,6 +9,7 @@ test 'Reflect.get' (assert)->
   NATIVE and assert.arity get, 2 # fails in MS Edge
   assert.name get, \get
   assert.looksNative get
+  assert.nonEnumerable Reflect, \get
   assert.strictEqual get({qux: 987}, \qux), 987
   if DESCRIPTORS
     target = create defineProperty({z:3}, \w, {get: -> @}), do

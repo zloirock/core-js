@@ -15,6 +15,7 @@ test 'Object.create' (assert)!->
   assert.arity create, 2
   assert.name create, \create
   assert.looksNative create
+  assert.nonEnumerable Object, \create
   assert.ok isPrototype obj = q:1, create(obj)
   assert.ok create(obj)q is 1
   fn = -> @a = 1

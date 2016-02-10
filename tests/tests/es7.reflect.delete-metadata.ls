@@ -8,6 +8,7 @@ test 'Reflect.deleteMetadata' (assert)!->
   assert.arity deleteMetadata, 2
   assert.name deleteMetadata, \deleteMetadata
   assert.looksNative deleteMetadata
+  assert.nonEnumerable Reflect, \deleteMetadata
   assert.throws (!-> deleteMetadata \key void void), TypeError
   assert.same deleteMetadata(\key {}, void), no
   obj = {}

@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = Object
 
-test 'Symbol' (assert)->
+test 'Symbol' (assert)!->
   assert.isFunction Symbol
   NATIVE and assert.strictEqual Symbol.length, 0 'arity is 0' # fails in most engines
   assert.name Symbol, \Symbol
@@ -20,9 +20,10 @@ test 'Symbol' (assert)->
     for i of O => count++
     assert.ok count is 0, 'object[Symbol()] is not enumerable'
 
-test 'Well-known Symbols' (assert)->
+test 'Well-known Symbols' (assert)!->
   for <[hasInstance isConcatSpreadable iterator match replace search species split toPrimitive toStringTag unscopables]>
     assert.ok .. of Symbol, "Symbol.#{..} available"
+    assert.nonEnumerable Symbol, ..
     assert.ok Object(Symbol[..]) instanceof Symbol, "Symbol.#{..} is symbol"
     if DESCRIPTORS
       desc = getOwnPropertyDescriptor Symbol, ..
@@ -31,12 +32,14 @@ test 'Well-known Symbols' (assert)->
       assert.ok !desc.configurable, 'non-configurable'
 
 
-test 'Global symbol registry' (assert)->
+test 'Global symbol registry' (assert)!->
   assert.isFunction Symbol.for, 'Symbol.for is function'
+  assert.nonEnumerable Symbol, \for
   assert.strictEqual Symbol.for.length, 1 'Symbol.for arity is 1'
   NATIVE and assert.strictEqual Symbol.for.name, \for, 'Symbol.for.name is "for"' # can't be polyfilled in some environments
   assert.ok /native code/.test(Symbol.for), 'Symbol.for looks like native'
   assert.isFunction Symbol.keyFor, 'Symbol.keyFor is function'
+  assert.nonEnumerable Symbol, \keyFor
   assert.strictEqual Symbol.keyFor.length, 1 'Symbol.keyFor arity is 1'
   assert.strictEqual Symbol.keyFor.name, \keyFor, 'Symbol.keyFor.name is "keyFor"'
   assert.ok /native code/.test(Symbol.keyFor), 'Symbol.keyFor looks like native'
@@ -44,12 +47,13 @@ test 'Global symbol registry' (assert)->
   assert.strictEqual Symbol.for(\foo), symbol
   assert.strictEqual Symbol.keyFor(symbol), \foo
   
-test 'Symbol#@@toStringTag' (assert)->
+test 'Symbol#@@toStringTag' (assert)!->
   assert.ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
 
-test 'Object.getOwnPropertySymbols' (assert)->
+test 'Object.getOwnPropertySymbols' (assert)!->
   {getOwnPropertySymbols, getOwnPropertyNames} = Object
   assert.isFunction getOwnPropertySymbols
+  assert.nonEnumerable Object, \getOwnPropertySymbols
   assert.strictEqual getOwnPropertySymbols.length, 1 'arity is 1'
   assert.name getOwnPropertySymbols, \getOwnPropertySymbols
   assert.looksNative getOwnPropertySymbols
@@ -64,7 +68,7 @@ test 'Object.getOwnPropertySymbols' (assert)->
   assert.strictEqual getOwnPropertySymbols(foo).length, 1
 
 if JSON?
-  test 'Symbols & JSON.stringify' (assert)->
+  test 'Symbols & JSON.stringify' (assert)!->
     assert.strictEqual JSON.stringify([1, Symbol(\foo), no, Symbol(\bar), {}]), '[1,null,false,null,{}]', 'array value'
     assert.strictEqual JSON.stringify({foo: Symbol \foo}), '{}', 'object value'
     if DESCRIPTORS => assert.strictEqual JSON.stringify({(Symbol(\foo)): 1, bar: 2}), '{"bar":2}', 'object key'
@@ -72,7 +76,7 @@ if JSON?
     if typeof Symbol! is \symbol => assert.strictEqual JSON.stringify(Object Symbol \foo), '{}', 'boxed symbol'
 
 if DESCRIPTORS
-  test 'Symbols & descriptors' (assert)->
+  test 'Symbols & descriptors' (assert)!->
     {create, defineProperty, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols} = Object
     d = Symbol \d
     e = Symbol \e
@@ -121,7 +125,7 @@ if DESCRIPTORS
     O[e] = \e
     assert.deepEqual getOwnPropertyDescriptor(O, e), {configurable: on, writable:on, enumerable: on, value: \e}, 'redefined non-enum key'
 
-  test 'Symbols & Object.defineProperties' (assert)->
+  test 'Symbols & Object.defineProperties' (assert)!->
     {defineProperty, defineProperties} = Object
     c = Symbol \c
     d = Symbol \d
@@ -137,7 +141,7 @@ if DESCRIPTORS
     assert.strictEqual O[c], \c, \c
     assert.strictEqual O[d], void, \d
 
-  test 'Symbols & Object.create' (assert)->
+  test 'Symbols & Object.create' (assert)!->
     {defineProperty, create} = Object
     c = Symbol \c
     d = Symbol \d

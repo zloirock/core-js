@@ -6,7 +6,8 @@ test 'Array#filter' (assert)!->
   assert.arity Array::filter, 1
   assert.name Array::filter, \filter
   assert.looksNative Array::filter
-  (a = [1])filter (val, key, that)->
+  assert.nonEnumerable Array::, \filter
+  (a = [1])filter (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

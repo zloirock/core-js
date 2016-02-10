@@ -6,7 +6,7 @@ if DESCRIPTORS
     let name = $name, bytes = $bytes
       Typed = global[name]
       NATIVE_OR_ISNT_UINT8 = NATIVE or name isnt \Uint8Array
-      test "#{name} constructor" !(assert)~>
+      test "#{name} constructor" (assert)!->
         assert.isFunction Typed
         assert.arity Typed, 3
         assert.name Typed, name
@@ -132,7 +132,7 @@ if DESCRIPTORS
         assert.throws (!-> Typed 1), TypeError, 'throws without `new`'
         assert.same Typed[Symbol?species], Typed, '@@species'
 
-      test "#{name} descriptors", !(assert)~>
+      test "#{name} descriptors" (assert)!->
         typed = new Typed 2
         # V8 ~ Chrome 44- bug - descriptor marked as configurable
         # WebKit bug - marked as non-writable

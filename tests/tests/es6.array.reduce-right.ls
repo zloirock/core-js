@@ -6,7 +6,8 @@ test 'Array#reduceRight' (assert)!->
   assert.arity Array::reduceRight, 1
   assert.name Array::reduceRight, \reduceRight
   assert.looksNative Array::reduceRight
-  (a = [1])reduceRight (memo, val, key, that)->
+  assert.nonEnumerable Array::, \reduceRight
+  (a = [1])reduceRight (memo, val, key, that)!->
     assert.same &length, 4, 'correct number of callback arguments'
     assert.same memo, accumulator, 'correct callback accumulator'
     assert.same val, 1, 'correct value in callback'
@@ -14,7 +15,7 @@ test 'Array#reduceRight' (assert)!->
     assert.same that, a, 'correct link to array in callback'
   , accumulator = {}
   assert.same [1 2 3]reduceRight((+), 1), 7, 'works with initial accumulator'
-  (a = [1 2])reduceRight (memo, val, key, that)->
+  (a = [1 2])reduceRight (memo, val, key, that)!->
     assert.same memo, 2, 'correct default accumulator'
     assert.same val, 1, 'correct start value without initial accumulator'
     assert.same key, 0, 'correct start index without initial accumulator'

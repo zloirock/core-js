@@ -1,13 +1,14 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array.from' (assert)->
+test 'Array.from' (assert)!->
   {from, isArray} = Array
   iterator = Symbol?iterator
   assert.isFunction from
   assert.arity from, 1
   assert.name from, \from
   assert.looksNative from
+  assert.nonEnumerable Array, \from
   for type, col of {'array-like': {length: \3, 0: \1, 1: \2, 2: \3}, arguments: (-> &)(\1 \2 \3), array: <[1 2 3]>, iterable: createIterable(<[1 2 3]>), string: \123}
     assert.arrayEqual from(col), <[1 2 3]>, "Works with #type"
     assert.arrayEqual from(col, (^2)), [1 4 9], "Works with #type  + mapFn"

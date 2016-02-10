@@ -6,6 +6,7 @@ test 'Array#slice' (assert)!->
   assert.arity Array::slice, 2
   assert.name Array::slice, \slice
   assert.looksNative Array::slice
+  assert.nonEnumerable Array::, \slice
   arr = <[1 2 3 4 5]>
   assert.deepEqual arr.slice!, arr
   assert.deepEqual arr.slice(1 3), <[2 3]>

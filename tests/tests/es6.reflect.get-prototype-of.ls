@@ -7,5 +7,6 @@ test 'Reflect.getPrototypeOf' (assert)->
   assert.arity getPrototypeOf, 1
   assert.name getPrototypeOf, \getPrototypeOf
   assert.looksNative getPrototypeOf
+  assert.nonEnumerable Reflect, \getPrototypeOf
   assert.strictEqual getPrototypeOf([]), Array::
   assert.throws (-> getPrototypeOf 42), TypeError, 'throws on primitive'

@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the inverse hyperbolic sine of x.
-test 'Math.asinh' (assert)->
+test 'Math.asinh' (assert)!->
   {asinh} = Math
   assert.isFunction asinh
   assert.name asinh, \asinh
   assert.arity asinh, 1
   assert.looksNative asinh
+  assert.nonEnumerable Math, \asinh
   assert.same asinh(NaN), NaN
   assert.same asinh(0), 0
   assert.same asinh(-0), -0

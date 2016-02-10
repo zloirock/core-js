@@ -1,11 +1,12 @@
 {module, test} = QUnit
 module \ES7
 
-test 'String#at' (assert)->
+test 'String#at' (assert)!->
   assert.isFunction String::at
   assert.arity String::at, 1
   assert.name String::at, \at
   assert.looksNative String::at
+  assert.nonEnumerable String::, \at
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
   # String that starts with a BMP symbol
   assert.strictEqual 'abc\uD834\uDF06def'at(-Infinity), ''
@@ -88,5 +89,5 @@ test 'String#at' (assert)->
   assert.strictEqual at.call(42 1), \2
   assert.strictEqual at.call({toString: -> \abc}, 2), \c
   if STRICT
-    assert.throws (-> String::at.call null, 0), TypeError
-    assert.throws (-> String::at.call void, 0), TypeError
+    assert.throws (!-> String::at.call null, 0), TypeError
+    assert.throws (!-> String::at.call void, 0), TypeError

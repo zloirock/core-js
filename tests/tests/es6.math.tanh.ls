@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
-test 'Math.tanh' (assert)->
+test 'Math.tanh' (assert)!->
   {tanh} = Math
   assert.isFunction tanh
   assert.name tanh, \tanh
   assert.arity tanh, 1
   assert.looksNative tanh
+  assert.nonEnumerable Math, \tanh
   assert.same tanh(NaN), NaN
   assert.same tanh(0), 0
   assert.same tanh(-0), -0

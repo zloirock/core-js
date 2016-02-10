@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
-test 'Math.expm1' (assert)->
+test 'Math.expm1' (assert)!->
   {expm1} = Math
   assert.isFunction expm1
   assert.name expm1, \expm1
   assert.arity expm1, 1
   assert.looksNative expm1
+  assert.nonEnumerable Math, \expm1
   assert.same expm1(NaN), NaN
   assert.same expm1(0), 0
   assert.same expm1(-0), -0

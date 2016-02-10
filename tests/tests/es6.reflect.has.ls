@@ -7,6 +7,7 @@ test 'Reflect.has' (assert)->
   assert.arity has, 2
   assert.name has, \has
   assert.looksNative has
+  assert.nonEnumerable Reflect, \has
   O = {qux: 987}
   assert.strictEqual has(O, \qux), on
   assert.strictEqual has(O, \qwe), no

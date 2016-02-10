@@ -7,6 +7,7 @@ test 'Object.seal' (assert)!->
   assert.arity seal, 1
   assert.name seal, \seal
   assert.looksNative seal
+  assert.nonEnumerable Object, \seal
   for value in [42 \foo no null void, {}]
     assert.ok (try => seal value; on), "accept #{typeof! value}"
     assert.same seal(value), value, "returns target on #{typeof! value}"

@@ -4,7 +4,7 @@ module \ES6
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = Object
 
-test 'Set' (assert)->
+test 'Set' (assert)!->
   assert.isFunction Set
   assert.name Set, \Set
   assert.arity Set, 0
@@ -27,7 +27,7 @@ test 'Set' (assert)->
     ..add 1
   assert.strictEqual S.size, 3
   r = []
-  S.forEach (v)-> r.push v
+  S.forEach (v)!-> r.push v
   assert.deepEqual r, [1 2 3]
   assert.strictEqual (new Set!
     ..add NaN
@@ -68,11 +68,12 @@ test 'Set' (assert)->
     assert.ok new C instanceof Set, 'correct subclassing with native classes #2'
     assert.ok new C!add(2).has(2), 'correct subclassing with native classes #3'
 
-test 'Set#add' (assert)->
+test 'Set#add' (assert)!->
   assert.isFunction Set::add
   assert.name Set::add, \add
   assert.arity Set::add, 1
   assert.looksNative Set::add
+  assert.nonEnumerable Set::, \add
   a = []
   S = new Set!
     ..add NaN
@@ -97,11 +98,12 @@ test 'Set#add' (assert)->
     ..add freeze f = {}
   assert.ok S.has f
 
-test 'Set#clear' (assert)->
+test 'Set#clear' (assert)!->
   assert.isFunction Set::clear
   assert.name Set::clear, \clear
   assert.arity Set::clear, 0
   assert.looksNative Set::clear
+  assert.nonEnumerable Set::, \clear
   S = new Set
   S.clear!
   assert.strictEqual S.size, 0
@@ -124,11 +126,12 @@ test 'Set#clear' (assert)->
   assert.ok !S.has 1
   assert.ok !S.has f
 
-test 'Set#delete' (assert)->
+test 'Set#delete' (assert)!->
   assert.isFunction Set::delete
   NATIVE and assert.name Set::delete, \delete # can't be polyfilled in some environments
   assert.arity Set::delete, 1
   assert.looksNative Set::delete
+  assert.nonEnumerable Set::, \delete
   a = []
   S = new Set!
     ..add NaN
@@ -151,11 +154,12 @@ test 'Set#delete' (assert)->
   S.delete f
   assert.strictEqual S.size, 3
 
-test 'Set#forEach' (assert)->
+test 'Set#forEach' (assert)!->
   assert.isFunction Set::forEach
   assert.name Set::forEach, \forEach
   assert.arity Set::forEach, 1
   assert.looksNative Set::forEach
+  assert.nonEnumerable Set::, \forEach
   r = []
   count = 0
   S = new Set!
@@ -193,11 +197,12 @@ test 'Set#forEach' (assert)->
   assert.strictEqual s, \0
   assert.throws (!-> Set::forEach.call new Map, !->), 'non-generic'
 
-test 'Set#has' (assert)->
+test 'Set#has' (assert)!->
   assert.isFunction Set::has
   assert.name Set::has, \has
   assert.arity Set::has, 1
   assert.looksNative Set::has
+  assert.nonEnumerable Set::, \has
   a = []
   f = freeze {}
   S = new Set!
@@ -215,7 +220,8 @@ test 'Set#has' (assert)->
   assert.ok not S.has 4
   assert.ok not S.has []
 
-test 'Set#size' (assert)->
+test 'Set#size' (assert)!->
+  assert.nonEnumerable Set::, \size
   size = (new Set!
     ..add 1
   )size
@@ -227,7 +233,7 @@ test 'Set#size' (assert)->
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'
     assert.throws (-> Set::size), TypeError
 
-test 'Set & -0' (assert)->
+test 'Set & -0' (assert)!->
   set = new Set
   set.add -0
   assert.strictEqual set.size, 1
@@ -249,10 +255,10 @@ test 'Set & -0' (assert)->
     ..add 0
   assert.ok set.has -0
 
-test 'Set#@@toStringTag' (assert)->
+test 'Set#@@toStringTag' (assert)!->
   assert.strictEqual Set::[Symbol?toStringTag], \Set, 'Set::@@toStringTag is `Set`'
 
-test 'Set Iterator' (assert)->
+test 'Set Iterator' (assert)!->
   set = new Set!
     ..add \a
     ..add \b
@@ -272,12 +278,13 @@ test 'Set Iterator' (assert)->
   assert.ok iterator.next!done
   assert.deepEqual keys, <[a d e]>
 
-test 'Set#keys' (assert)->
+test 'Set#keys' (assert)!->
   assert.ok typeof Set::keys is \function, 'is function'
   assert.name Set::keys, \values
   assert.arity Set::keys, 0
   assert.looksNative Set::keys
   assert.strictEqual Set::keys, Set::values
+  assert.nonEnumerable Set::, \keys
   iter = (new Set!
     ..add \q
     ..add \w
@@ -291,11 +298,12 @@ test 'Set#keys' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#values' (assert)->
+test 'Set#values' (assert)!->
   assert.ok typeof Set::values is \function, 'is function'
   assert.name Set::values, \values
   assert.arity Set::values, 0
   assert.looksNative Set::values
+  assert.nonEnumerable Set::, \values
   iter = (new Set!
     ..add \q
     ..add \w
@@ -309,11 +317,12 @@ test 'Set#values' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#entries' (assert)->
+test 'Set#entries' (assert)!->
   assert.ok typeof Set::entries is \function, 'is function'
   assert.name Set::entries, \entries
   assert.arity Set::entries, 0
   assert.looksNative Set::entries
+  assert.nonEnumerable Set::, \entries
   iter = (new Set!
     ..add \q
     ..add \w
@@ -327,12 +336,13 @@ test 'Set#entries' (assert)->
   assert.deepEqual iter.next!, {value: [\e \e], done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#@@iterator' (assert)->
+test 'Set#@@iterator' (assert)!->
   assert.isIterable Set::
   assert.name Set::[Symbol?iterator], \values
   assert.arity Set::[Symbol?iterator], 0
   assert.looksNative Set::[Symbol?iterator]
   assert.strictEqual Set::[Symbol?iterator], Set::values
+  assert.nonEnumerable Set::, \values
   iter = (new Set!
     ..add \q
     ..add \w

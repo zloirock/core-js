@@ -7,6 +7,7 @@ test 'Reflect.metadata' (assert)!->
   assert.arity metadata, 2
   assert.name metadata, \metadata
   assert.looksNative metadata
+  assert.nonEnumerable Reflect, \metadata
   assert.isFunction metadata \key \value
   decorator = metadata \key \value
   assert.throws (!-> decorator void \name), TypeError

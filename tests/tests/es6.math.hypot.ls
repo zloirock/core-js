@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Math.hypot returns an implementation-dependent approximation of the square root of the sum of squares of its arguments.
-test 'Math.hypot' (assert)->
+test 'Math.hypot' (assert)!->
   {hypot, sqrt} = Math
   assert.isFunction hypot
   assert.name hypot, \hypot
   assert.arity hypot, 2
   assert.looksNative hypot
+  assert.nonEnumerable Math, \hypot
   assert.strictEqual hypot!, 0
   assert.strictEqual hypot(1), 1
   assert.same hypot('', 0), 0

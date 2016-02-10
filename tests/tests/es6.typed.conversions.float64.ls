@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Float64 conversions', !(assert)~>
+DESCRIPTORS and test 'Float64 conversions' (assert)!->
   NAME  = \Float64
   ARRAY = NAME + \Array
   Typed = global[ARRAY]

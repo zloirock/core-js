@@ -6,6 +6,7 @@ test 'Date#toJSON' (assert)!->
   assert.arity Date::toJSON, 1
   assert.name Date::toJSON, \toJSON
   assert.looksNative Date::toJSON
+  assert.nonEnumerable Date::, \toJSON
   d = new Date!
   assert.same d.toJSON!, d.toISOString!, 'base'
   assert.same new Date(NaN)toJSON!, null, 'not finite'

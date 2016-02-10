@@ -6,6 +6,7 @@ test 'Object.isExtensible' (assert)!->
   assert.isFunction isExtensible
   assert.arity isExtensible, 1
   assert.name isExtensible, \isExtensible
+  assert.nonEnumerable Object, \isExtensible
   assert.looksNative isExtensible
   for value in [42 \foo no null void]
     assert.ok (try => isExtensible value; on), "accept #{typeof! value}"

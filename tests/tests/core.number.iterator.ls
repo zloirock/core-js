@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Number#@@iterator' (assert)->
+test 'Number#@@iterator' (assert)!->
   {iterator, toStringTag} = Symbol
   assert.isIterable Number::
   iter1 = 2[iterator]!

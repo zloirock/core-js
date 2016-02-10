@@ -1,12 +1,13 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the base 2 logarithm of x.
-test 'Math.log2' (assert)->
+test 'Math.log2' (assert)!->
   {log2} = Math
   assert.isFunction log2
   assert.name log2, \log2
   assert.arity log2, 1
   assert.looksNative log2
+  assert.nonEnumerable Math, \log2
   assert.same log2(''), log2 0
   assert.same log2(NaN), NaN
   assert.same log2(-1), NaN

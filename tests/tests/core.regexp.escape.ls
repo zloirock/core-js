@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'RegExp.escape' (assert)->
+test 'RegExp.escape' (assert)!->
   {escape} = RegExp
   assert.isFunction escape
   assert.arity escape, 1
