@@ -142,6 +142,7 @@ module.exports = {
     'es7.string.pad-end',
     'es7.string.trim-left',
     'es7.string.trim-right',
+    'es7.string.match-all',
     'es7.object.get-own-property-descriptors',
     'es7.object.values',
     'es7.object.entries',
@@ -181,7 +182,7 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
-
+    'es7.string.match-all'
   ],
   libraryBlacklist: [
     'es6.object.to-string',
