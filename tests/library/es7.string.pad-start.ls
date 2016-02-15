@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES7
 
-test 'String#padStart' (assert)->
+test 'String#padStart' (assert)!->
   {padStart} = core.String
   assert.isFunction padStart
   assert.strictEqual padStart(\abc 5), '  abc'
@@ -11,5 +11,5 @@ test 'String#padStart' (assert)->
   assert.strictEqual padStart('' 0), ''
   assert.strictEqual padStart(\foo 1), \foo
   if STRICT
-    assert.throws (-> padStart null, 0), TypeError
-    assert.throws (-> padStart void, 0), TypeError
+    assert.throws (!-> padStart null, 0), TypeError
+    assert.throws (!-> padStart void, 0), TypeError

@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Reflect.getOwnPropertyDescriptor' (assert)->
+test 'Reflect.getOwnPropertyDescriptor' (assert)!->
   {getOwnPropertyDescriptor} = core.Reflect
   assert.isFunction getOwnPropertyDescriptor
   assert.arity getOwnPropertyDescriptor, 2
@@ -10,4 +10,4 @@ test 'Reflect.getOwnPropertyDescriptor' (assert)->
   obj = {baz: 789}
   desc = getOwnPropertyDescriptor obj, \baz
   assert.strictEqual desc.value, 789
-  assert.throws (-> getOwnPropertyDescriptor 42 \constructor), TypeError, 'throws on primitive'
+  assert.throws (!-> getOwnPropertyDescriptor 42 \constructor), TypeError, 'throws on primitive'

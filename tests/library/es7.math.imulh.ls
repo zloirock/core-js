@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES7
 
-test 'Math.imulh' (assert)->
+test 'Math.imulh' (assert)!->
   {imulh} = core.Math
   assert.isFunction imulh
   assert.arity imulh, 2

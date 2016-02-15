@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES7
 
-test 'Object.entries' (assert)->
+test 'Object.entries' (assert)!->
   {entries, create, assign} = core.Object
   assert.isFunction entries
   assert.arity entries, 1

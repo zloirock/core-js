@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.isSafeInteger' (assert)->
+test 'Number.isSafeInteger' (assert)!->
   {isSafeInteger} = core.Number
   {create} = core.Object
   assert.isFunction isSafeInteger

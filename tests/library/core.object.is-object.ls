@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module 'core-js'
 
-test 'Object.isObject' (assert)->
+test 'Object.isObject' (assert)!->
   {isObject} = core.Object
   assert.isFunction isObject
   assert.ok not isObject(void), 'isObject undefined return false'

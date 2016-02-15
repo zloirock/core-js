@@ -130,7 +130,7 @@ if DESCRIPTORS
         assert.throws (!-> Typed 1), TypeError, 'throws without `new`'
         assert.same Typed[core.Symbol?species], Typed, '@@species'
 
-      test "#{name} descriptors", !(assert)~>
+      test "#{name} descriptors" (assert)!->
         typed = new Typed 2
         # V8 ~ Chrome 44- bug - descriptor marked as configurable
         # WebKit bug - marked as non-writable

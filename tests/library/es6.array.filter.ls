@@ -4,7 +4,7 @@ module \ES6
 test 'Array#filter' (assert)!->
   {filter} = core.Array
   assert.isFunction filter
-  filter (a = [1]), (val, key, that)->
+  filter (a = [1]), (val, key, that)!->
     assert.same &length, 3, 'correct number of callback arguments'
     assert.same val, 1, 'correct value in callback'
     assert.same key, 0, 'correct index in callback'

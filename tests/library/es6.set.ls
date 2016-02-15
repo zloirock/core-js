@@ -6,7 +6,7 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = core.Object
 {iterator} = core.Symbol
 
-test 'Set' (assert)->
+test 'Set' (assert)!->
   {from} = core.Array
   assert.isFunction Set
   assert.ok \add     of Set::, 'add in Set.prototype'
@@ -55,7 +55,7 @@ test 'Set' (assert)->
     assert.ok new C instanceof Set, 'correct subclassing with native classes #2'
     assert.ok new C!add(2).has(2), 'correct subclassing with native classes #3'
 
-test 'Set#add' (assert)->
+test 'Set#add' (assert)!->
   assert.isFunction Set::add
   a = []
   S = new Set [NaN, 2 3 2 1 a]
@@ -74,7 +74,7 @@ test 'Set#add' (assert)->
   S = new Set!add freeze f = {}
   assert.ok S.has f
 
-test 'Set#clear' (assert)->
+test 'Set#clear' (assert)!->
   assert.isFunction Set::clear
   S = new Set
   S.clear!
@@ -91,7 +91,7 @@ test 'Set#clear' (assert)->
   assert.ok !S.has 1
   assert.ok !S.has f
 
-test 'Set#delete' (assert)->
+test 'Set#delete' (assert)!->
   assert.isFunction Set::delete
   a = []
   S = new Set [NaN, 2 3 2 1 a]
@@ -109,7 +109,7 @@ test 'Set#delete' (assert)->
   S.delete f
   assert.strictEqual S.size, 3
 
-test 'Set#forEach' (assert)->
+test 'Set#forEach' (assert)!->
   assert.isFunction Set::forEach
   r = []
   count = 0
@@ -138,7 +138,7 @@ test 'Set#forEach' (assert)->
   assert.strictEqual s, \0
   assert.throws (!-> Set::forEach.call new Map, !->), 'non-generic'
 
-test 'Set#has' (assert)->
+test 'Set#has' (assert)!->
   assert.isFunction Set::has
   a = []
   f = freeze {}
@@ -150,7 +150,7 @@ test 'Set#has' (assert)->
   assert.ok not S.has 4
   assert.ok not S.has []
 
-test 'Set#size' (assert)->
+test 'Set#size' (assert)!->
   size = new Set([1]).size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
@@ -158,9 +158,9 @@ test 'Set#size' (assert)->
     sizeDesc = getOwnPropertyDescriptor Set::, \size
     assert.ok sizeDesc && sizeDesc.get, 'size is getter'
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'
-    assert.throws (-> Set::size), TypeError
+    assert.throws (!-> Set::size), TypeError
 
-test 'Set & -0' (assert)->
+test 'Set & -0' (assert)!->
   set = new Set
   set.add -0
   assert.strictEqual set.size, 1
@@ -181,10 +181,10 @@ test 'Set & -0' (assert)->
     ..add 0
   assert.ok set.has -0
 
-test 'Set#@@toStringTag' (assert)->
+test 'Set#@@toStringTag' (assert)!->
   assert.strictEqual Set::[Symbol?toStringTag], \Set, 'Set::@@toStringTag is `Set`'
 
-test 'Set Iterator' (assert)->
+test 'Set Iterator' (assert)!->
   set = new Set <[a b c d]>
   keys = []
   iterator = set.keys!
@@ -200,7 +200,7 @@ test 'Set Iterator' (assert)->
   assert.ok iterator.next!done
   assert.deepEqual keys, <[a d e]>
 
-test 'Set#keys' (assert)->
+test 'Set#keys' (assert)!->
   assert.isFunction Set::keys
   iter = new Set(<[q w e]>)keys!
   assert.isIterator iter
@@ -211,7 +211,7 @@ test 'Set#keys' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#values' (assert)->
+test 'Set#values' (assert)!->
   assert.isFunction Set::values
   iter = new Set(<[q w e]>)values!
   assert.isIterator iter
@@ -222,7 +222,7 @@ test 'Set#values' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#entries' (assert)->
+test 'Set#entries' (assert)!->
   assert.isFunction Set::entries
   iter = new Set(<[q w e]>)entries!
   assert.isIterator iter
@@ -233,7 +233,7 @@ test 'Set#entries' (assert)->
   assert.deepEqual iter.next!, {value: [\e \e], done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Set#@@iterator' (assert)->
+test 'Set#@@iterator' (assert)!->
   iter = core.getIterator(new Set <[q w e]>)
   assert.isIterator iter
   assert.isIterable iter

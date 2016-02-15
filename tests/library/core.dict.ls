@@ -5,7 +5,7 @@ module 'core-js'
 {keys, create, assign, make} = core.Object
 {from} = core.Array
 
-test 'Dict' (assert)->
+test 'Dict' (assert)!->
   assert.isFunction Dict
   dict1 = Dict!
   assert.ok dict1 not instanceof Object
@@ -22,14 +22,14 @@ test 'Dict' (assert)->
   assert.ok dict3.2 is 2
   # return #throw
   done = no
-  iter = createIterable [null, 1, 2], return: -> done := on
+  iter = createIterable [null, 1, 2], return: !-> done := on
   try => new Dict iter
   assert.ok done, '.return #throw'
 
-test 'Dict.every' (assert)->
+test 'Dict.every' (assert)!->
   {every} = Dict
   assert.isFunction every
-  every obj = {q: 1} (val, key, that)->
+  every obj = {q: 1} (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -38,10 +38,10 @@ test 'Dict.every' (assert)->
   assert.ok every {q:1 w:2 e:3} -> typeof! it is \Number
   assert.ok not every {q:1 w:\2 e:3} -> typeof! it is \Number
 
-test 'Dict.filter' (assert)->
+test 'Dict.filter' (assert)!->
   {filter} = Dict
   assert.isFunction filter
-  filter obj = {q: 1}, (val, key, that)->
+  filter obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -49,10 +49,10 @@ test 'Dict.filter' (assert)->
   , ctx = {}
   assert.deepEqual filter({q:1 w:2 e:3} -> it % 2), Dict q: 1 e: 3
 
-test 'Dict.find' (assert)->
+test 'Dict.find' (assert)!->
   {find} = Dict
   assert.isFunction find
-  find obj = {q: 1}, (val, key, that)->
+  find obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -60,10 +60,10 @@ test 'Dict.find' (assert)->
   , ctx = {}
   assert.ok find({q:1 w:2 e:3} -> !(it % 2)) is 2
 
-test 'Dict.findKey' (assert)->
+test 'Dict.findKey' (assert)!->
   {findKey} = Dict
   assert.isFunction findKey
-  findKey obj = {q: 1}, (val, key, that)->
+  findKey obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -71,7 +71,7 @@ test 'Dict.findKey' (assert)->
   , ctx = {}
   assert.ok findKey({q:1 w:2 e:3} -> it is 2) is \w
 
-test 'Dict.forEach' (assert)->
+test 'Dict.forEach' (assert)!->
   {forEach} = Dict
   assert.isFunction forEach
   forEach obj = {q: 1}, (val, key, that)!->
@@ -96,17 +96,17 @@ test 'Dict.forEach' (assert)->
   forEach \123 !-> rez[&1] = &0
   assert.ok \2 of rez
 
-test 'Dict.keyOf' (assert)->
+test 'Dict.keyOf' (assert)!->
   {keyOf} = Dict
   assert.isFunction keyOf
   assert.ok keyOf({q:1 w:2 e:3} 2)     is \w
   assert.ok keyOf({q:1 w:2 e:3} 4)     is void
   assert.ok keyOf({q:1 w:2 e:NaN} NaN) is void
 
-test 'Dict.map' (assert)->
+test 'Dict.map' (assert)!->
   {map} = Dict
   assert.isFunction map
-  map obj = {q: 1}, (val, key, that)->
+  map obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -114,10 +114,10 @@ test 'Dict.map' (assert)->
   , ctx = {}
   assert.deepEqual map({q:1 w:2 e:3} (^2)), Dict q:1 w:4 e:9
 
-test 'Dict.mapPairs' (assert)->
+test 'Dict.mapPairs' (assert)!->
   {mapPairs} = Dict
   assert.isFunction mapPairs
-  mapPairs obj = {q: 1}, (val, key, that)->
+  mapPairs obj = {q: 1}, (val, key, that)!->
     assert.ok val  is 1
     assert.ok key  is \q
     assert.ok that is obj
@@ -125,16 +125,16 @@ test 'Dict.mapPairs' (assert)->
   , ctx = {}
   assert.deepEqual mapPairs({q:1 w:2 e:3}, (v, k)-> v != 2 && [k + k, v * v]), Dict qq:1 ee:9
 
-test 'Dict.reduce' (assert)->
+test 'Dict.reduce' (assert)!->
   {reduce} = Dict
   assert.isFunction reduce
-  reduce (obj = a:1), (memo, val, key, that)->
+  reduce (obj = a:1), (memo, val, key, that)!->
     assert.ok memo is foo
     assert.ok val  is 1
     assert.ok key  is \a
     assert.ok that is obj
   , foo = {}
-  reduce {a:1 b:2}, (memo, val, key)->
+  reduce {a:1 b:2}, (memo, val, key)!->
     assert.ok memo is 1
     assert.ok val  is 2
     assert.ok key  is \b
@@ -144,10 +144,10 @@ test 'Dict.reduce' (assert)->
   , memo = {}
   assert.deepEqual memo, 1:1 2:2 3:3
 
-test 'Dict.some' (assert)->
+test 'Dict.some' (assert)!->
   {some} = Dict
   assert.isFunction some
-  some obj = {q: 1}, (val, key, that)->
+  some obj = {q: 1}, (val, key, that)!->
     assert.ok val is 1
     assert.ok key is \q
     assert.ok that is obj
@@ -156,7 +156,7 @@ test 'Dict.some' (assert)->
   assert.ok not some {q:1 w:2 e:3} -> typeof! it is \String
   assert.ok some {q:1 w:\2 e:3} -> typeof! it is \String
 
-test 'Dict.includes' (assert)->
+test 'Dict.includes' (assert)!->
   {includes} = Dict
   assert.isFunction includes
   dict = {q:1, w: NaN, e: -0, r: o = {}}
@@ -169,7 +169,7 @@ test 'Dict.includes' (assert)->
   assert.ok !includes dict, -0.5
   assert.ok !includes dict, {}
 
-test 'Dict.has' (assert)->
+test 'Dict.has' (assert)!->
   {has} = Dict
   assert.isFunction has
   assert.ok has q:1, \q
@@ -179,7 +179,7 @@ test 'Dict.has' (assert)->
   assert.ok not has ^^{q:1} \q
   assert.ok not has {} \toString
 
-test 'Dict.get' (assert)->
+test 'Dict.get' (assert)!->
   {get} = Dict
   assert.isFunction get
   assert.ok get(q:1, \q) is 1
@@ -189,7 +189,7 @@ test 'Dict.get' (assert)->
   assert.ok get(^^{q:1} \q) is void
   assert.ok get({} \toString) is void
 
-test 'Dict.values' (assert)->
+test 'Dict.values' (assert)!->
   {values} = Dict
   assert.isFunction values
   iter = values {}
@@ -200,7 +200,7 @@ test 'Dict.values' (assert)->
   assert.deepEqual from(values(new String \qwe)), <[q w e]>
   assert.deepEqual from(values(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), [4 5 6]
 
-test 'Dict.keys' (assert)->
+test 'Dict.keys' (assert)!->
   {keys} = Dict
   assert.isFunction keys
   iter = keys {}
@@ -211,7 +211,7 @@ test 'Dict.keys' (assert)->
   assert.deepEqual from(keys(new String \qwe)), <[0 1 2]>
   assert.deepEqual from(keys(assign create({q:1, w:2, e:3}), {a:4, s:5, d:6})), <[a s d]>
 
-test 'Dict.entries' (assert)->
+test 'Dict.entries' (assert)!->
   {entries} = Dict
   assert.isFunction entries
   iter = entries {}

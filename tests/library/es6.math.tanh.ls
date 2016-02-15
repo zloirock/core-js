@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic tangent of x.
-test 'Math.tanh' (assert)->
+test 'Math.tanh' (assert)!->
   {tanh} = core.Math
   assert.isFunction tanh
   assert.same tanh(NaN), NaN

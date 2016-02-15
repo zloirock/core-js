@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array#slice' (assert)->
+test 'Array#slice' (assert)!->
   {slice} = core.Array
   assert.isFunction slice
   arr = <[1 2 3 4 5]>
@@ -22,5 +22,5 @@ test 'Array#slice' (assert)->
     try assert.strictEqual typeof! slice(list), \Array
     catch => assert.ok no
   if NATIVE and STRICT
-    assert.throws (-> slice null), TypeError
-    assert.throws (-> slice void), TypeError
+    assert.throws (!-> slice null), TypeError
+    assert.throws (!-> slice void), TypeError

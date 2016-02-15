@@ -4,7 +4,7 @@ module \ES6
 test 'Array#reduce' (assert)!->
   {reduce} = core.Array
   assert.isFunction reduce
-  reduce (a = [1]), (memo, val, key, that)->
+  reduce (a = [1]), (memo, val, key, that)!->
     assert.same &length, 4, 'correct number of callback arguments'
     assert.same memo, accumulator, 'correct callback accumulator'
     assert.same val, 1, 'correct value in callback'
@@ -12,7 +12,7 @@ test 'Array#reduce' (assert)!->
     assert.same that, a, 'correct link to array in callback'
   , accumulator = {}
   assert.same reduce([1 2 3] (+), 1), 7, 'works with initial accumulator'
-  reduce (a = [1 2]), (memo, val, key, that)->
+  reduce (a = [1 2]), (memo, val, key, that)!->
     assert.same memo, 1, 'correct default accumulator'
     assert.same val, 2, 'correct start value without initial accumulator'
     assert.same key, 1, 'correct start index without initial accumulator'

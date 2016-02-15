@@ -2,7 +2,7 @@
 module \ES6
 
 {DataView, ArrayBuffer, Uint8Array} = core
-test \DataView, !(assert)~>
+test \DataView (assert)!->
   assert.same DataView, Object(DataView), 'is object' # in Safari 5 typeof DataView is 'object'
 
   a = new DataView new ArrayBuffer(8)
@@ -67,7 +67,7 @@ test \DataView, !(assert)~>
   #assert.throws(function () { return new DataView(); }, TypeError, 'no arguments');
 
   # Chrome throws TypeError, Safari iOS5 throws isDOMException(INDEX_SIZE_ERR)
-  assert.throws (-> new DataView {}), 'non-ArrayBuffer argument';
+  assert.throws (!-> new DataView {}), 'non-ArrayBuffer argument';
 
   # Opera 12 throws `true`
   assert.ok (->
@@ -77,7 +77,7 @@ test \DataView, !(assert)~>
     catch => e
   ), 'non-ArrayBuffer argument'
 
-DESCRIPTORS and test 'DataView accessors', !(assert)~>
+DESCRIPTORS and test 'DataView accessors' (assert)!->
   u = new Uint8Array 8
   d = new DataView u.buffer
 
@@ -119,50 +119,50 @@ DESCRIPTORS and test 'DataView accessors', !(assert)~>
   assert.same d.getFloat32(2), -1.932478247535851e-37
   assert.same d.getFloat64(0), -3.116851295377095e-306
 
-DESCRIPTORS and test 'DataView endian', !(assert)~>
+DESCRIPTORS and test 'DataView endian' (assert)!->
   rawbuf = new Uint8Array([0 1 2 3 4 5 6 7]).buffer
   d = new DataView rawbuf
 
   assert.same d.byteLength, 8, \buffer
   assert.same d.byteOffset, 0, \buffer
   assert.throws -> d.getUint8 -2  # Chrome bug for index -, DOMException, 'bounds for buffer'?
-  assert.throws (-> d.getUint8 8), 'bounds for buffer'
-  assert.throws (-> d.setUint8 -2, 0), 'bounds for buffer'
-  assert.throws (-> d.setUint8 8, 0), 'bounds for buffer'
+  assert.throws (!-> d.getUint8 8), 'bounds for buffer'
+  assert.throws (!-> d.setUint8 -2, 0), 'bounds for buffer'
+  assert.throws (!-> d.setUint8 8, 0), 'bounds for buffer'
 
   d = new DataView rawbuf, 2
   assert.same d.byteLength, 6, 'buffer, byteOffset'
   assert.same d.byteOffset, 2, 'buffer, byteOffset'
   assert.same d.getUint8(5), 7, 'buffer, byteOffset'
-  assert.throws (-> d.getUint8 -2), 'bounds for buffer, byteOffset'
-  assert.throws (-> d.getUint8 6), 'bounds for buffer, byteOffset'
-  assert.throws (-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset'
-  assert.throws (-> d.setUint8 6, 0), 'bounds for buffer, byteOffset'
+  assert.throws (!-> d.getUint8 -2), 'bounds for buffer, byteOffset'
+  assert.throws (!-> d.getUint8 6), 'bounds for buffer, byteOffset'
+  assert.throws (!-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset'
+  assert.throws (!-> d.setUint8 6, 0), 'bounds for buffer, byteOffset'
 
-  assert.throws (-> new DataView rawbuf, -1), 'invalid byteOffset'
-  assert.throws (-> new DataView rawbuf, 9), 'invalid byteOffset'
+  assert.throws (!-> new DataView rawbuf, -1), 'invalid byteOffset'
+  assert.throws (!-> new DataView rawbuf, 9), 'invalid byteOffset'
 
   d = new DataView rawbuf, 2, 4
   assert.same d.byteLength, 4, 'buffer, byteOffset, length'
   assert.same d.byteOffset, 2, 'buffer, byteOffset, length'
   assert.same d.getUint8(3), 5, 'buffer, byteOffset, length'
-  assert.throws (-> d.getUint8 -2), 'bounds for buffer, byteOffset, length'
-  assert.throws (-> d.getUint8 4), 'bounds for buffer, byteOffset, length'
-  assert.throws (-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset, length'
-  assert.throws (-> d.setUint8 4, 0), 'bounds for buffer, byteOffset, length'
+  assert.throws (!-> d.getUint8 -2), 'bounds for buffer, byteOffset, length'
+  assert.throws (!-> d.getUint8 4), 'bounds for buffer, byteOffset, length'
+  assert.throws (!-> d.setUint8 -2, 0), 'bounds for buffer, byteOffset, length'
+  assert.throws (!-> d.setUint8 4, 0), 'bounds for buffer, byteOffset, length'
 
-  assert.throws (-> new DataView rawbuf, 0, 9), 'invalid byteOffset+length'
-  assert.throws (-> new DataView rawbuf, 8, 1), 'invalid byteOffset+length'
-  assert.throws (-> new DataView rawbuf, 9, -1), 'invalid byteOffset+length'
+  assert.throws (!-> new DataView rawbuf, 0, 9), 'invalid byteOffset+length'
+  assert.throws (!-> new DataView rawbuf, 8, 1), 'invalid byteOffset+length'
+  assert.throws (!-> new DataView rawbuf, 9, -1), 'invalid byteOffset+length'
 
 for <[getUint8 getInt8 getUint16 getInt16 getUint32 getInt32 getFloat32 getFloat64]>
-  let name = .. => test 'DataView#' + name, (assert)!~>
+  let name = .. => test 'DataView#' + name, (assert)!->
     assert.isFunction DataView::[name]
     NATIVE and assert.arity DataView::[name], 1 # wrong in most engines
     assert.same new DataView(new ArrayBuffer 8)[name](0), 0, 'returns element'
 
 for <[setUint8 setInt8 setUint16 setInt16 setUint32 setInt32 setFloat32 setFloat64]>
-  let name = .. => test 'DataView#' + name, (assert)!~>
+  let name = .. => test 'DataView#' + name, (assert)!->
     assert.isFunction DataView::[name]
     NATIVE and assert.arity DataView::[name], 2 # wrong in most engines
     assert.same new DataView(new ArrayBuffer 8)[name](0 0), void, 'void'

@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Object.assign' (assert)->
+test 'Object.assign' (assert)!->
   {assign, keys, defineProperty} = core.Object
   assert.isFunction assign
   foo = q: 1
@@ -9,8 +9,8 @@ test 'Object.assign' (assert)->
   assert.strictEqual foo.bar, 2, 'assign define properties'
   assert.deepEqual assign({}, {q: 1}, {w: 2}), {q: 1, w: 2}
   assert.deepEqual assign({}, \qwe), {0: \q, 1: \w, 2: \e}
-  assert.throws (-> assign null {q: 1}), TypeError
-  assert.throws (-> assign void, {q: 1}), TypeError
+  assert.throws (!-> assign null {q: 1}), TypeError
+  assert.throws (!-> assign void, {q: 1}), TypeError
   str = assign(\qwe, {q: 1})
   assert.strictEqual typeof str, \object
   assert.strictEqual String(str), \qwe

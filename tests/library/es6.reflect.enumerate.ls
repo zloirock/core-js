@@ -4,7 +4,7 @@ module \ES6
 {defineProperty} = core.Object
 {from} = core.Array
 
-test 'Reflect.enumerate' (assert)->
+test 'Reflect.enumerate' (assert)!->
   {enumerate} = core.Reflect
   {iterator} = core.Symbol
   assert.isFunction enumerate
@@ -21,4 +21,4 @@ test 'Reflect.enumerate' (assert)->
   assert.deepEqual from(i), <[q e]>, 'ignore holes'
   obj = {q: 1, w: 2, e: 3} with {a: 4, s: 5, d: 6}
   assert.deepEqual from(enumerate obj).sort!, <[a d e q s w]>, 'works with prototype'
-  assert.throws (-> enumerate 42), TypeError, 'throws on primitive'
+  assert.throws (!-> enumerate 42), TypeError, 'throws on primitive'

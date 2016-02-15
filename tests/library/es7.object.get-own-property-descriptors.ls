@@ -3,7 +3,7 @@ module \ES7
 
 {create} = core.Object
 
-test 'Object.getOwnPropertyDescriptors' (assert)->
+test 'Object.getOwnPropertyDescriptors' (assert)!->
   {getOwnPropertyDescriptors} = core.Object
   assert.isFunction getOwnPropertyDescriptors
   O = create {q: 1}, e: value: 3

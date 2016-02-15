@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array.of' (assert)->
+test 'Array.of' (assert)!->
   assert.isFunction core.Array.of
   assert.arity core.Array.of, 0
   assert.deepEqual core.Array.of(1), [1]

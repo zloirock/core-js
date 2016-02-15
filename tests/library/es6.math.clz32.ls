@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Math.clz32' (assert)->
+test 'Math.clz32' (assert)!->
   {clz32} = core.Math
   assert.isFunction clz32
   assert.strictEqual clz32(0), 32

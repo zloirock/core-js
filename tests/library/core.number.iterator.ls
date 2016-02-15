@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'Number#@@iterator' (assert)->
+test 'Number#@@iterator' (assert)!->
   {getIterator} = core
   {toStringTag} = core.Symbol
   iter1 = getIterator 2

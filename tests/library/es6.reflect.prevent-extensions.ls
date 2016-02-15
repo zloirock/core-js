@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty, isExtensible} = core.Object
 
-test 'Reflect.preventExtensions' (assert)->
+test 'Reflect.preventExtensions' (assert)!->
   {preventExtensions} = core.Reflect
   assert.isFunction preventExtensions
   assert.arity preventExtensions, 1
@@ -13,4 +13,4 @@ test 'Reflect.preventExtensions' (assert)->
   assert.ok preventExtensions(obj), on
   if DESCRIPTORS
     assert.ok !isExtensible obj
-  assert.throws (-> preventExtensions 42), TypeError, 'throws on primitive'
+  assert.throws (!-> preventExtensions 42), TypeError, 'throws on primitive'

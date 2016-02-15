@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test 'ArrayBuffer#slice', !(assert)~>
+test 'ArrayBuffer#slice' (assert)!->
   {ArrayBuffer} = core
   {slice} = ArrayBuffer
   assert.isFunction slice

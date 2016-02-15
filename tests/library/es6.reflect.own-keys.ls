@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty} = core.Object
 
-test 'Reflect.ownKeys' (assert)->
+test 'Reflect.ownKeys' (assert)!->
   {ownKeys} = core.Reflect
   sym = core.Symbol \c
   assert.isFunction ownKeys
@@ -21,4 +21,4 @@ test 'Reflect.ownKeys' (assert)->
   O2 = ^^O1
   keys = ownKeys O2
   assert.strictEqual keys.length, 0, 'ownKeys return only own keys'
-  assert.throws (-> ownKeys 42), TypeError, 'throws on primitive'
+  assert.throws (!-> ownKeys 42), TypeError, 'throws on primitive'

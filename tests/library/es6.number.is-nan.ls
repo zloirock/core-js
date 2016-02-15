@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.isNaN' (assert)->
+test 'Number.isNaN' (assert)!->
   {isNaN} = core.Number
   {create} = core.Object
   assert.isFunction isNaN

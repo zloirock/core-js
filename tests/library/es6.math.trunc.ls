@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns the integral part of the number x, removing any fractional digits. If x is already an integer, the result is x.
-test 'Math.trunc' (assert)->
+test 'Math.trunc' (assert)!->
   {trunc} = core.Math
   assert.isFunction trunc
   assert.same trunc(NaN), NaN, 'NaN -> NaN'

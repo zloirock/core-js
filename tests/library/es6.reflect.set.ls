@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty, getOwnPropertyDescriptor, create} = core.Object
 
-test 'Reflect.set' (assert)->
+test 'Reflect.set' (assert)!->
   {set} = core.Reflect
   assert.isFunction set
   #assert.arity set, 3 # fails in MS Edge
@@ -41,4 +41,4 @@ test 'Reflect.set' (assert)->
     assert.strictEqual target.u, 0, 'set u'
     assert.strictEqual set(target, \c, 2, target), no, 'set c'
     assert.strictEqual target.c, 1, 'set c'
-  assert.throws (-> set 42, \q, 42), TypeError, 'throws on primitive'
+  assert.throws (!-> set 42, \q, 42), TypeError, 'throws on primitive'

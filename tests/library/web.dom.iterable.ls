@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module 'Web'
 
-test 'Iterable DOM collections' (assert)->
+test 'Iterable DOM collections' (assert)!->
   absent = on;
   for <[NodeList DOMTokenList MediaList StyleSheetList CSSRuleList]>
     Collection = global[..]

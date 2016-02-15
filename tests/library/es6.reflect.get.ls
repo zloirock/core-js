@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty, create} = core.Object
 
-test 'Reflect.get' (assert)->
+test 'Reflect.get' (assert)!->
   {get} = core.Reflect
   assert.isFunction get
   #assert.arity get, 2 # fails in MS Edge
@@ -21,4 +21,4 @@ test 'Reflect.get' (assert)->
     assert.strictEqual get(target, \z, receiver), 3,        'get z'
     assert.strictEqual get(target, \w, receiver), receiver, 'get w'
     assert.strictEqual get(target, \u, receiver), void,     'get u'
-  assert.throws (-> get 42 \constructor), TypeError, 'throws on primitive'
+  assert.throws (!-> get 42 \constructor), TypeError, 'throws on primitive'

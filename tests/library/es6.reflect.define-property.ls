@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty, getOwnPropertyDescriptor} = core.Object
 
-test 'Reflect.defineProperty' (assert)->
+test 'Reflect.defineProperty' (assert)!->
   {defineProperty} = core.Reflect
   {create} = core.Object
   assert.isFunction defineProperty

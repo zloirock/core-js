@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the base 2 logarithm of x.
-test 'Math.log2' (assert)->
+test 'Math.log2' (assert)!->
   {log2} = core.Math
   assert.isFunction log2
   assert.same log2(''), log2 0

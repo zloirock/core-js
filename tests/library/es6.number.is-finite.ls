@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.isFinite' (assert)->
+test 'Number.isFinite' (assert)!->
   {isFinite} = core.Number
   {create} = core.Object
   assert.isFunction isFinite

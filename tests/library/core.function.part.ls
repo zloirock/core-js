@@ -3,7 +3,7 @@ module 'core-js'
 
 {map, every, reduce} = core.Array
 
-test 'Function#part' (assert)->
+test 'Function#part' (assert)!->
   {part} = core.Function
   $ = core._
   assert.isFunction part

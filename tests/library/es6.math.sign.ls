@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns the sign of the x, indicating whether x is positive, negative or zero.
-test 'Math.sign' (assert)->
+test 'Math.sign' (assert)!->
   {sign} = core.Math
   assert.isFunction sign
   assert.same sign(NaN), NaN

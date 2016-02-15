@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Number.EPSILON' (assert)->
+test 'Number.EPSILON' (assert)!->
   {EPSILON} = core.Number
   assert.ok \EPSILON of core.Number, 'EPSILON in Number'
   assert.strictEqual EPSILON, 2^-52, 'Is 2^-52'

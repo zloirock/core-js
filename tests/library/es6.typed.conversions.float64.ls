@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Float64 conversions', !(assert)~>
+DESCRIPTORS and test 'Float64 conversions' (assert)!->
   {Uint8Array, DataView} = core
   NAME  = \Float64
   ARRAY = NAME + \Array

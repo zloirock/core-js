@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Float32 conversions', !(assert)~>
+DESCRIPTORS and test 'Float32 conversions' (assert)!->
   {Uint8Array, DataView} = core
   NAME  = \Float32
   ARRAY = NAME + \Array

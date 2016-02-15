@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#endsWith' (assert)->
+test 'String#endsWith' (assert)!->
   {endsWith} = core.String
   assert.isFunction endsWith
   assert.ok endsWith 'undefined'
@@ -18,10 +18,10 @@ test 'String#endsWith' (assert)->
   assert.ok not endsWith 'abc' \c \x
   assert.ok not endsWith 'abc' \a \x
   if STRICT
-    assert.throws (-> endsWith null, '.'), TypeError
-    assert.throws (-> endsWith void, '.'), TypeError
+    assert.throws (!-> endsWith null, '.'), TypeError
+    assert.throws (!-> endsWith void, '.'), TypeError
   re = /./
-  assert.throws (-> endsWith '/./' re), TypeError
+  assert.throws (!-> endsWith '/./' re), TypeError
   re[core.Symbol?match] = no
   assert.ok try endsWith '/./' re
   catch e => no
@@ -29,4 +29,4 @@ test 'String#endsWith' (assert)->
   assert.ok try endsWith '[object Object]' O
   catch e => no
   O[core.Symbol?match] = on
-  assert.throws (-> endsWith '[object Object]' O), TypeError
+  assert.throws (!-> endsWith '[object Object]' O), TypeError

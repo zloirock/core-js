@@ -2,7 +2,7 @@ if PROTO
   {module, test} = QUnit
   module \ES6
   
-  test 'Object.setPrototypeOf' (assert)->
+  test 'Object.setPrototypeOf' (assert)!->
     {setPrototypeOf} = core.Object
     assert.isFunction setPrototypeOf
     assert.ok \apply of setPrototypeOf({} Function::), 'Parent properties in target'

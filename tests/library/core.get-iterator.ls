@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \core-js
 
-test 'core.getIterator' (assert)->
+test 'core.getIterator' (assert)!->
   {getIterator} = core
   assert.isFunction getIterator
   assert.isIterator getIterator []

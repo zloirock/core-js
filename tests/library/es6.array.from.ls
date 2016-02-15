@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Array.from' (assert)->
+test 'Array.from' (assert)!->
   {from, isArray} = core.Array
   iterator = core.Symbol.iterator
   assert.isFunction from

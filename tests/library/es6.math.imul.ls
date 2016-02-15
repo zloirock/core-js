@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Math.imul' (assert)->
+test 'Math.imul' (assert)!->
   {imul} = core.Math
   assert.isFunction imul
   assert.same imul(0, 0), 0

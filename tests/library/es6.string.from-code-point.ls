@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String.fromCodePoint' (assert)->
+test 'String.fromCodePoint' (assert)!->
   {fromCodePoint} = core.String
   assert.isFunction fromCodePoint
   assert.arity fromCodePoint, 1
@@ -17,19 +17,19 @@ test 'String.fromCodePoint' (assert)->
   assert.strictEqual fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07'
   assert.strictEqual fromCodePoint(false), '\0'
   assert.strictEqual fromCodePoint(null), '\0'
-  assert.throws (-> fromCodePoint \_), RangeError
-  assert.throws (-> fromCodePoint '+Infinity'), RangeError
-  assert.throws (-> fromCodePoint '-Infinity'), RangeError
-  assert.throws (-> fromCodePoint -1), RangeError
-  assert.throws (-> fromCodePoint 0x10FFFF + 1), RangeError
-  assert.throws (-> fromCodePoint 3.14), RangeError
-  assert.throws (-> fromCodePoint 3e-2), RangeError
-  assert.throws (-> fromCodePoint -Infinity), RangeError
-  assert.throws (-> fromCodePoint Infinity), RangeError
-  assert.throws (-> fromCodePoint NaN), RangeError
-  assert.throws (-> fromCodePoint void), RangeError
-  assert.throws (-> fromCodePoint {}), RangeError
-  assert.throws (-> fromCodePoint /./), RangeError
+  assert.throws (!-> fromCodePoint \_), RangeError
+  assert.throws (!-> fromCodePoint '+Infinity'), RangeError
+  assert.throws (!-> fromCodePoint '-Infinity'), RangeError
+  assert.throws (!-> fromCodePoint -1), RangeError
+  assert.throws (!-> fromCodePoint 0x10FFFF + 1), RangeError
+  assert.throws (!-> fromCodePoint 3.14), RangeError
+  assert.throws (!-> fromCodePoint 3e-2), RangeError
+  assert.throws (!-> fromCodePoint -Infinity), RangeError
+  assert.throws (!-> fromCodePoint Infinity), RangeError
+  assert.throws (!-> fromCodePoint NaN), RangeError
+  assert.throws (!-> fromCodePoint void), RangeError
+  assert.throws (!-> fromCodePoint {}), RangeError
+  assert.throws (!-> fromCodePoint /./), RangeError
   tmp = 0x60;
   assert.strictEqual fromCodePoint({valueOf: -> ++tmp}), \a
   assert.strictEqual tmp, 0x61

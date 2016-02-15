@@ -7,7 +7,7 @@
   timeLimitedPromise = function(time, fn){
     return Promise.race([
       new Promise(fn), new Promise(function(res, rej){
-        return setTimeout(rej, time);
+        setTimeout(rej, time);
       })
     ]);
   };
@@ -15,14 +15,14 @@
     assert.expect(3);
     assert.isFunction(delay);
     assert.ok(delay(42) instanceof Promise, 'returns promises');
-    return timeLimitedPromise(1e3, function(res){
+    timeLimitedPromise(1e3, function(res){
       delay(10).then(function(it){
         res(it);
       });
     }).then(function(it){
-      return assert.ok(it === true, 'resolves as `true`');
+      assert.ok(it === true, 'resolves as `true`');
     })['catch'](function(){
-      return assert.ok(false, 'rejected');
+      assert.ok(false, 'rejected');
     }).then(assert.async());
   });
 }).call(this);
@@ -57,13 +57,13 @@
     done = false;
     iter = createIterable([null, 1, 2], {
       'return': function(){
-        return done = true;
+        done = true;
       }
     });
     try {
       new Dict(iter);
     } catch (e$) {}
-    return assert.ok(done, '.return #throw');
+    assert.ok(done, '.return #throw');
   });
   test('Dict.every', function(assert){
     var every, obj, ctx;
@@ -75,7 +75,7 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
     assert.ok(every({
       q: 1,
@@ -84,7 +84,7 @@
     }, function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
     }));
-    return assert.ok(!every({
+    assert.ok(!every({
       q: 1,
       w: '2',
       e: 3
@@ -102,9 +102,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(filter({
+    assert.deepEqual(filter({
       q: 1,
       w: 2,
       e: 3
@@ -125,9 +125,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.ok(find({
+    assert.ok(find({
       q: 1,
       w: 2,
       e: 3
@@ -145,9 +145,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.ok(findKey({
+    assert.ok(findKey({
       q: 1,
       w: 2,
       e: 3
@@ -206,7 +206,7 @@
     forEach('123', function(){
       rez[arguments[1]] = arguments[0];
     });
-    return assert.ok('2' in rez);
+    assert.ok('2' in rez);
   });
   test('Dict.keyOf', function(assert){
     var keyOf;
@@ -222,7 +222,7 @@
       w: 2,
       e: 3
     }, 4) === void 8);
-    return assert.ok(keyOf({
+    assert.ok(keyOf({
       q: 1,
       w: 2,
       e: NaN
@@ -238,9 +238,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(map({
+    assert.deepEqual(map({
       q: 1,
       w: 2,
       e: 3
@@ -262,9 +262,9 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
-    return assert.deepEqual(mapPairs({
+    assert.deepEqual(mapPairs({
       q: 1,
       w: 2,
       e: 3
@@ -285,7 +285,7 @@
       assert.ok(memo === foo);
       assert.ok(val === 1);
       assert.ok(key === 'a');
-      return assert.ok(that === obj);
+      assert.ok(that === obj);
     }, foo = {});
     reduce({
       a: 1,
@@ -293,7 +293,7 @@
     }, function(memo, val, key){
       assert.ok(memo === 1);
       assert.ok(val === 2);
-      return assert.ok(key === 'b');
+      assert.ok(key === 'b');
     });
     reduce({
       q: 1,
@@ -303,7 +303,7 @@
       that[it] = it;
       return that;
     }, memo = {});
-    return assert.deepEqual(memo, {
+    assert.deepEqual(memo, {
       1: 1,
       2: 2,
       3: 3
@@ -319,7 +319,7 @@
       assert.ok(val === 1);
       assert.ok(key === 'q');
       assert.ok(that === obj);
-      return assert.ok(this === ctx);
+      assert.ok(this === ctx);
     }, ctx = {});
     assert.ok(!some({
       q: 1,
@@ -328,7 +328,7 @@
     }, function(it){
       return toString$.call(it).slice(8, -1) === 'String';
     }));
-    return assert.ok(some({
+    assert.ok(some({
       q: 1,
       w: '2',
       e: 3
@@ -353,7 +353,7 @@
     assert.ok(includes(dict, o));
     assert.ok(!includes(dict, 4));
     assert.ok(!includes(dict, -0.5));
-    return assert.ok(!includes(dict, {}));
+    assert.ok(!includes(dict, {}));
   });
   test('Dict.has', function(assert){
     var has;
@@ -370,7 +370,7 @@
     assert.ok(!has(clone$({
       q: 1
     }), 'q'));
-    return assert.ok(!has({}, 'toString'));
+    assert.ok(!has({}, 'toString'));
   });
   test('Dict.get', function(assert){
     var get;
@@ -387,7 +387,7 @@
     assert.ok(get(clone$({
       q: 1
     }), 'q') === void 8);
-    return assert.ok(get({}, 'toString') === void 8);
+    assert.ok(get({}, 'toString') === void 8);
   });
   test('Dict.values', function(assert){
     var values, iter;
@@ -403,7 +403,7 @@
       e: 3
     })), [1, 2, 3]);
     assert.deepEqual(from(values(new String('qwe'))), ['q', 'w', 'e']);
-    return assert.deepEqual(from(values(assign(create({
+    assert.deepEqual(from(values(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -427,7 +427,7 @@
       e: 3
     })), ['q', 'w', 'e']);
     assert.deepEqual(from(keys(new String('qwe'))), ['0', '1', '2']);
-    return assert.deepEqual(from(keys(assign(create({
+    assert.deepEqual(from(keys(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -451,7 +451,7 @@
       e: 3
     })), [['q', 1], ['w', 2], ['e', 3]]);
     assert.deepEqual(from(entries(new String('qwe'))), [['0', 'q'], ['1', 'w'], ['2', 'e']]);
-    return assert.deepEqual(from(entries(assign(create({
+    assert.deepEqual(from(entries(assign(create({
       q: 1,
       w: 2,
       e: 3
@@ -495,7 +495,7 @@
     assert.isFunction(p, '.part with placeholders return function');
     assert.ok(p('Шла', 'по') === 'Шла Саша по шоссе undefined сосала', '.part with placeholders: args < placeholders');
     assert.ok(p('Шла', 'по', 'и') === 'Шла Саша по шоссе и сосала', '.part with placeholders: args == placeholders');
-    return assert.ok(p('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
+    assert.ok(p('Шла', 'по', 'и', 'сушку') === 'Шла Саша по шоссе и сосала сушку', '.part with placeholders: args > placeholders');
   });
 }).call(this);
 
@@ -535,7 +535,7 @@
       return arguments;
     }()));
     assert.isIterator(getIterator(createIterable([])));
-    return assert.throws(function(){
+    assert.throws(function(){
       getIterator({});
     }, TypeError);
   });
@@ -622,7 +622,7 @@
       value: 2
     }, 'Infinity #1');
     iter6 = getIterator(-Infinity);
-    return assert.deepEqual(iter6.next(), {
+    assert.deepEqual(iter6.next(), {
       done: true,
       value: void 8
     }, '-Infinity');
@@ -675,7 +675,7 @@
       function Class(){}
       return Class;
     }());
-    return assert.ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
+    assert.ok(classof(new Class) === 'Class', 'classof user class is [Symbol.toStringTag]');
   });
 }).call(this);
 
@@ -705,7 +705,7 @@
         }
       });
       define(foo, foo2);
-      return assert.ok(foo.w === 2);
+      assert.ok(foo.w === 2);
     }
   });
 }).call(this);
@@ -731,7 +731,7 @@
     assert.ok(isObject([]), 'isObject array return true');
     assert.ok(isObject(/./), 'isObject regexp return true');
     assert.ok(isObject(function(){}), 'isObject function return true');
-    return assert.ok(isObject(new function(){}), 'isObject constructor instance return true');
+    assert.ok(isObject(new function(){}), 'isObject constructor instance return true');
   });
 }).call(this);
 
@@ -750,7 +750,7 @@
       w: 2
     });
     assert.ok(core.Object.getPrototypeOf(object) === foo);
-    return assert.ok(object.w === 2);
+    assert.ok(object.w === 2);
   });
 }).call(this);
 
@@ -764,7 +764,7 @@
     escape = core.RegExp.escape;
     assert.isFunction(escape);
     assert.strictEqual(escape('qwe asd'), 'qwe asd', "Don't change simple string");
-    return assert.strictEqual(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
+    assert.strictEqual(escape('\\[]{}()*+?.^$|'), '\\\\\\[\\]\\{\\}\\(\\)\\*\\+\\?\\.\\^\\$\\|', 'Escape all RegExp special chars');
   });
 }).call(this);
 
@@ -779,7 +779,7 @@
     assert.isFunction(escapeHTML);
     assert.strictEqual(escapeHTML('qwe, asd'), 'qwe, asd');
     assert.strictEqual(escapeHTML('<div>qwe</div>'), '&lt;div&gt;qwe&lt;/div&gt;');
-    return assert.strictEqual(escapeHTML("&<>\"'"), '&amp;&lt;&gt;&quot;&apos;');
+    assert.strictEqual(escapeHTML("&<>\"'"), '&amp;&lt;&gt;&quot;&apos;');
   });
 }).call(this);
 
@@ -794,7 +794,7 @@
     assert.isFunction(unescapeHTML);
     assert.strictEqual(unescapeHTML('qwe, asd'), 'qwe, asd');
     assert.strictEqual(unescapeHTML('&lt;div&gt;qwe&lt;/div&gt;'), '<div>qwe</div>');
-    return assert.strictEqual(unescapeHTML('&amp;&lt;&gt;&quot;&apos;'), "&<>\"'");
+    assert.strictEqual(unescapeHTML('&amp;&lt;&gt;&quot;&apos;'), "&<>\"'");
   });
 }).call(this);
 
@@ -822,10 +822,10 @@
     assert.deepEqual(copyWithin([1, 2, 3, 4, 5], -4, -3), [1, 3, 4, 5, 5]);
     if (STRICT) {
       assert.throws(function(){
-        return copyWithin(null, 0);
+        copyWithin(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return copyWithin(void 8, 0);
+      assert.throws(function(){
+        copyWithin(void 8, 0);
       }, TypeError);
     }
   });
@@ -845,7 +845,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok(every([1, 2, 3], function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -898,10 +898,10 @@
     assert.deepEqual(fill(Array(5), 5, -3, 4), [void 8, void 8, 5, 5, void 8]);
     if (STRICT) {
       assert.throws(function(){
-        return fill(null, 0);
+        fill(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return fill(void 8, 0);
+      assert.throws(function(){
+        fill(void 8, 0);
       }, TypeError);
     }
   });
@@ -921,7 +921,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.deepEqual([1, 2, 3, 4, 5], filter([1, 2, 3, 'q', {}, 4, true, 5], function(it){
       return typeof it === 'number';
@@ -950,17 +950,17 @@
       assert.strictEqual(this, ctx);
       assert.strictEqual(val, 1);
       assert.strictEqual(key, 0);
-      return assert.strictEqual(that, arr);
+      assert.strictEqual(that, arr);
     }, ctx = {});
     assert.strictEqual(findIndex([1, 3, NaN, 42, {}], (function(it){
       return it === 42;
     })), 3);
     if (STRICT) {
       assert.throws(function(){
-        return findIndex(null, 0);
+        findIndex(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return findIndex(void 8, 0);
+      assert.throws(function(){
+        findIndex(void 8, 0);
       }, TypeError);
     }
   });
@@ -979,7 +979,7 @@
       assert.strictEqual(this, ctx);
       assert.strictEqual(val, 1);
       assert.strictEqual(key, 0);
-      return assert.strictEqual(that, arr);
+      assert.strictEqual(that, arr);
     }, ctx = {});
     assert.strictEqual(find([1, 3, NaN, 42, {}], (function(it){
       return it === 42;
@@ -989,10 +989,10 @@
     })), void 8);
     if (STRICT) {
       assert.throws(function(){
-        return find(null, 0);
+        find(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return find(void 8, 0);
+      assert.throws(function(){
+        find(void 8, 0);
       }, TypeError);
     }
   });
@@ -1169,7 +1169,7 @@
     assert.throws(function(){
       from([], false);
     }, TypeError, "Throws with false as second argument");
-    return assert.throws(function(){
+    assert.throws(function(){
       from([], {});
     }, TypeError, "Throws with {} as second argument");
     function fn$(){
@@ -1265,7 +1265,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -1289,7 +1289,7 @@
       value: 2,
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -1313,7 +1313,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -1337,7 +1337,7 @@
       value: [2, 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -1460,7 +1460,7 @@
     assert.ok(inst instanceof F);
     assert.strictEqual(inst[0], 1);
     assert.strictEqual(inst[1], 2);
-    return assert.strictEqual(inst.length, 2);
+    assert.strictEqual(inst.length, 2);
   });
 }).call(this);
 
@@ -1478,7 +1478,7 @@
       assert.same(memo, accumulator, 'correct callback accumulator');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
-      return assert.same(that, a, 'correct link to array in callback');
+      assert.same(that, a, 'correct link to array in callback');
     }, accumulator = {});
     assert.same(reduceRight([1, 2, 3], curry$(function(x$, y$){
       return x$ + y$;
@@ -1486,7 +1486,7 @@
     reduceRight(a = [1, 2], function(memo, val, key, that){
       assert.same(memo, 2, 'correct default accumulator');
       assert.same(val, 1, 'correct start value without initial accumulator');
-      return assert.same(key, 0, 'correct start index without initial accumulator');
+      assert.same(key, 0, 'correct start index without initial accumulator');
     });
     assert.same(reduceRight([1, 2, 3], curry$(function(x$, y$){
       return x$ + y$;
@@ -1544,7 +1544,7 @@
       assert.same(memo, accumulator, 'correct callback accumulator');
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
-      return assert.same(that, a, 'correct link to array in callback');
+      assert.same(that, a, 'correct link to array in callback');
     }, accumulator = {});
     assert.same(reduce([1, 2, 3], curry$(function(x$, y$){
       return x$ + y$;
@@ -1552,7 +1552,7 @@
     reduce(a = [1, 2], function(memo, val, key, that){
       assert.same(memo, 1, 'correct default accumulator');
       assert.same(val, 2, 'correct start value without initial accumulator');
-      return assert.same(key, 1, 'correct start index without initial accumulator');
+      assert.same(key, 1, 'correct start index without initial accumulator');
     });
     assert.same(reduce([1, 2, 3], curry$(function(x$, y$){
       return x$ + y$;
@@ -1629,10 +1629,10 @@
     }
     if (NATIVE && STRICT) {
       assert.throws(function(){
-        return slice(null);
+        slice(null);
       }, TypeError);
-      return assert.throws(function(){
-        return slice(void 8);
+      assert.throws(function(){
+        slice(void 8);
       }, TypeError);
     }
   });
@@ -1652,7 +1652,7 @@
       assert.same(val, 1, 'correct value in callback');
       assert.same(key, 0, 'correct index in callback');
       assert.same(that, a, 'correct link to array in callback');
-      return assert.same(this, ctx, 'correct callback context');
+      assert.same(this, ctx, 'correct callback context');
     }, ctx = {});
     assert.ok(some([1, '2', 3], function(it){
       return toString$.call(it).slice(8, -1) === 'Number';
@@ -1711,10 +1711,10 @@
     }, 'throws on {}');
     if (STRICT) {
       assert.throws(function(){
-        return sort(null);
+        sort(null);
       }, TypeError, 'ToObject(this)');
       assert.throws(function(){
-        return sort(void 8);
+        sort(void 8);
       }, TypeError, 'ToObject(this)');
     }
   });
@@ -1822,7 +1822,7 @@
   test('Function#@@hasInstance', function(assert){
     assert.ok(core.Symbol.hasInstance in Function.prototype);
     assert.ok(Function[core.Symbol.hasInstance](function(){}));
-    return assert.ok(!Function[core.Symbol.hasInstance]({}));
+    assert.ok(!Function[core.Symbol.hasInstance]({}));
   });
 }).call(this);
 
@@ -1891,7 +1891,7 @@
       C = nativeSubclass(Map);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
       assert.ok(new C instanceof Map, 'correct subclassing with native classes #2');
-      return assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
+      assert.same(new C().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
     }
   });
   test('Map#clear', function(assert){
@@ -1909,7 +1909,7 @@
     M.clear();
     assert.strictEqual(M.size, 0, 'Support frozen objects');
     assert.ok(!M.has(1));
-    return assert.ok(!M.has(f));
+    assert.ok(!M.has(f));
   });
   test('Map#delete', function(assert){
     var a, M, f;
@@ -1928,7 +1928,7 @@
     M.set(freeze(f = {}), 42);
     assert.strictEqual(M.size, 4);
     M['delete'](f);
-    return assert.strictEqual(M.size, 3);
+    assert.strictEqual(M.size, 3);
   });
   test('Map#forEach', function(assert){
     var r, T, count, M, a, map, s;
@@ -1956,7 +1956,7 @@
         map['delete']('2');
         map['delete']('3');
         map['delete']('1');
-        return map.set('4', 9);
+        map.set('4', 9);
       }
     });
     assert.strictEqual(s, '0124');
@@ -1967,10 +1967,10 @@
       if (s !== '') {
         throw '!!!';
       }
-      return s += it;
+      s += it;
     });
     assert.strictEqual(s, '1');
-    return assert.throws(function(){
+    assert.throws(function(){
       Map.prototype.forEach.call(new Set, function(){});
     }, 'non-generic');
   });
@@ -1985,7 +1985,7 @@
     assert.strictEqual(M.get({}), void 8);
     assert.strictEqual(M.get(o), o);
     assert.strictEqual(M.get(f), 42);
-    return assert.strictEqual(M.get(2), 5);
+    assert.strictEqual(M.get(2), 5);
   });
   test('Map#has', function(assert){
     var o, f, M;
@@ -1998,7 +1998,7 @@
     assert.ok(M.has(2));
     assert.ok(M.has(f));
     assert.ok(!M.has(4));
-    return assert.ok(!M.has({}));
+    assert.ok(!M.has({}));
   });
   test('Map#set', function(assert){
     var o, M, chain, f;
@@ -2023,7 +2023,7 @@
     assert.strictEqual(M.get(o), 27);
     assert.strictEqual(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size, 1);
     M = new Map().set(freeze(f = {}), 42);
-    return assert.strictEqual(M.get(f), 42);
+    assert.strictEqual(M.get(f), 42);
   });
   test('Map#size', function(assert){
     var size, sizeDesc;
@@ -2034,8 +2034,8 @@
       sizeDesc = getOwnPropertyDescriptor(Map.prototype, 'size');
       assert.ok(sizeDesc && sizeDesc.get, 'size is getter');
       assert.ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      return assert.throws(function(){
-        return Map.prototype.size;
+      assert.throws(function(){
+        Map.prototype.size;
       }, TypeError);
     }
   });
@@ -2063,10 +2063,10 @@
     x$.set(2, 2);
     x$.set(1, 1);
     x$.set(0, 0);
-    return assert.ok(map.has(-0));
+    assert.ok(map.has(-0));
   });
   test('Map#@@toStringTag', function(assert){
-    return assert.strictEqual(Map.prototype[Symbol != null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
+    assert.strictEqual(Map.prototype[Symbol != null ? Symbol.toStringTag : void 8], 'Map', 'Map::@@toStringTag is `Map`');
   });
   test('Map Iterator', function(assert){
     var map, keys, iterator;
@@ -2083,7 +2083,7 @@
     assert.ok(iterator.next().done);
     map.set('f');
     assert.ok(iterator.next().done);
-    return assert.deepEqual(keys, ['a', 'd', 'e']);
+    assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Map#keys', function(assert){
     var iter;
@@ -2104,7 +2104,7 @@
       value: 'd',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2128,7 +2128,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2152,7 +2152,7 @@
       value: ['d', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2175,7 +2175,7 @@
       value: ['d', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -2201,7 +2201,7 @@
     assert.epsilon(acosh(8.88), 2.8737631531629235);
     assert.epsilon(acosh(1e+160), 369.10676205960726);
     assert.epsilon(acosh(Number.MAX_VALUE), 710.475860073944);
-    return assert.epsilon(acosh(1 + core.Number.EPSILON), 2.1073424255447017e-8);
+    assert.epsilon(acosh(1 + core.Number.EPSILON), 2.1073424255447017e-8);
   });
 }).call(this);
 
@@ -2223,7 +2223,7 @@
     assert.epsilon(asinh(9.99), 2.997227420191335);
     assert.epsilon(asinh(1e150), 346.0809111296668);
     assert.epsilon(asinh(1e7), 16.811242831518268);
-    return assert.epsilon(asinh(-1e7), -16.811242831518268);
+    assert.epsilon(asinh(-1e7), -16.811242831518268);
   });
 }).call(this);
 
@@ -2249,7 +2249,7 @@
     assert.same(atanh(1e300), NaN);
     assert.epsilon(atanh(0.5), 0.5493061443340549);
     assert.epsilon(atanh(-0.5), -0.5493061443340549);
-    return assert.epsilon(atanh(0.444), 0.47720201260109457);
+    assert.epsilon(atanh(0.444), 0.47720201260109457);
   });
 }).call(this);
 
@@ -2270,7 +2270,7 @@
     assert.strictEqual(cbrt(-8), -2);
     assert.strictEqual(cbrt(8), 2);
     assert.epsilon(cbrt(-1000), -10);
-    return assert.epsilon(cbrt(1000), 10);
+    assert.epsilon(cbrt(1000), 10);
   });
 }).call(this);
 
@@ -2288,7 +2288,7 @@
     assert.same(clz32(-1), 0);
     assert.strictEqual(clz32(0.6), 32);
     assert.same(clz32(Math.pow(2, 32) - 1), 0);
-    return assert.strictEqual(clz32(Math.pow(2, 32)), 32);
+    assert.strictEqual(clz32(Math.pow(2, 32)), 32);
   });
 }).call(this);
 
@@ -2309,7 +2309,7 @@
     assert.epsilon(cosh(12), 81377.39571257407, 3e-11);
     assert.epsilon(cosh(22), 1792456423.065795780980053377, 1e-5);
     assert.epsilon(cosh(-10), 11013.23292010332313972137);
-    return assert.epsilon(cosh(-23), 4872401723.1244513000, 1e-5);
+    assert.epsilon(cosh(-23), 4872401723.1244513000, 1e-5);
   });
 }).call(this);
 
@@ -2327,7 +2327,7 @@
     assert.same(expm1(-0), -0);
     assert.strictEqual(expm1(Infinity), Infinity);
     assert.strictEqual(expm1(-Infinity), -1);
-    return assert.epsilon(expm1(10), 22025.465794806718, assert.epsilon(expm1(-10), -0.9999546000702375));
+    assert.epsilon(expm1(10), 22025.465794806718, assert.epsilon(expm1(-10), -0.9999546000702375));
   });
 }).call(this);
 
@@ -2363,7 +2363,7 @@
     assert.same(fround(minFloat32 / 2), 0);
     assert.same(fround(-minFloat32 / 2), -0);
     assert.strictEqual(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
-    return assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
+    assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
   });
 }).call(this);
 
@@ -2411,7 +2411,7 @@
     assert.strictEqual(Math.floor(hypot(1e-300, 1e-300) * 1e308), 141421356);
     assert.strictEqual(hypot(1e+300, 1e+300, 2, 3), 1.4142135623730952e+300);
     assert.strictEqual(hypot(-3, 4), 5);
-    return assert.strictEqual(hypot(3, -4), 5);
+    assert.strictEqual(hypot(3, -4), 5);
   });
 }).call(this);
 
@@ -2458,7 +2458,7 @@
     assert.strictEqual(imul(1.1, 7), 7);
     assert.strictEqual(imul(7, 1.1), 7);
     assert.strictEqual(imul(1.9, 7), 7);
-    return assert.strictEqual(imul(7, 1.9), 7);
+    assert.strictEqual(imul(7, 1.9), 7);
   });
 }).call(this);
 
@@ -2482,7 +2482,7 @@
     assert.epsilon(log10(0.5), -0.3010299956639812);
     assert.epsilon(log10(1.5), 0.17609125905568124);
     assert.epsilon(log10(5), 0.6989700043360189);
-    return assert.epsilon(log10(50), 1.6989700043360187);
+    assert.epsilon(log10(50), 1.6989700043360187);
   });
 }).call(this);
 
@@ -2503,7 +2503,7 @@
     assert.same(log1p(-0), -0);
     assert.same(log1p(Infinity), Infinity);
     assert.epsilon(log1p(5), 1.791759469228055);
-    return assert.epsilon(log1p(50), 3.9318256327243257);
+    assert.epsilon(log1p(50), 3.9318256327243257);
   });
 }).call(this);
 
@@ -2525,7 +2525,7 @@
     assert.same(log2(Infinity), Infinity);
     assert.same(log2(0.5), -1);
     assert.same(log2(32), 5);
-    return assert.epsilon(log2(5), 2.321928094887362);
+    assert.epsilon(log2(5), 2.321928094887362);
   });
 }).call(this);
 
@@ -2547,7 +2547,7 @@
     assert.strictEqual(sign(13510798882111488), 1);
     assert.strictEqual(sign(-13510798882111488), -1);
     assert.strictEqual(sign(42.5), 1);
-    return assert.strictEqual(sign(-42.5), -1);
+    assert.strictEqual(sign(-42.5), -1);
   });
 }).call(this);
 
@@ -2567,7 +2567,7 @@
     assert.strictEqual(sinh(-Infinity), -Infinity);
     assert.epsilon(sinh(-5), -74.20321057778875);
     assert.epsilon(sinh(2), 3.6268604078470186);
-    return assert.strictEqual(sinh(-2e-17), -2e-17);
+    assert.strictEqual(sinh(-2e-17), -2e-17);
   });
 }).call(this);
 
@@ -2585,7 +2585,7 @@
     assert.same(tanh(-0), -0);
     assert.strictEqual(tanh(Infinity), 1);
     assert.strictEqual(tanh(90), 1);
-    return assert.epsilon(tanh(10), 0.9999999958776927);
+    assert.epsilon(tanh(10), 0.9999999958776927);
   });
 }).call(this);
 
@@ -2612,7 +2612,7 @@
     assert.strictEqual(trunc(-1.99), -1, '-1.99 -> -1');
     assert.strictEqual(trunc(-555.555), -555, '-555.555 -> -555');
     assert.strictEqual(trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
-    return assert.strictEqual(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
+    assert.strictEqual(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
   });
 }).call(this);
 
@@ -2627,7 +2627,7 @@
     assert.ok('EPSILON' in core.Number, 'EPSILON in Number');
     assert.strictEqual(EPSILON, Math.pow(2, -52), 'Is 2^-52');
     assert.ok(1 !== 1 + EPSILON, '1 isnt 1 + EPSILON');
-    return assert.strictEqual(1, 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
+    assert.strictEqual(1, 1 + EPSILON / 2, '1 is 1 + EPSILON / 2');
   });
 }).call(this);
 
@@ -2637,7 +2637,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isFinite', function(assert){
-    var isFinite, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isFinite, create, i$, x$, ref$, len$, y$, e;
     isFinite = core.Number.isFinite;
     create = core.Object.create;
     assert.isFunction(isFinite);
@@ -2647,9 +2647,8 @@
     }
     for (i$ = 0, len$ = (ref$ = [NaN, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isFinite(y$), "not isFinite " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -2668,7 +2667,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isInteger', function(assert){
-    var isInteger, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isInteger, create, i$, x$, ref$, len$, y$, e;
     isInteger = core.Number.isInteger;
     create = core.Object.create;
     assert.isFunction(isInteger);
@@ -2678,9 +2677,8 @@
     }
     for (i$ = 0, len$ = (ref$ = [NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isInteger(y$), "not isInteger " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -2699,16 +2697,15 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isNaN', function(assert){
-    var isNaN, create, i$, x$, ref$, len$, e, results$ = [];
+    var isNaN, create, i$, x$, ref$, len$, e;
     isNaN = core.Number.isNaN;
     create = core.Object.create;
     assert.isFunction(isNaN);
     assert.ok(isNaN(NaN), 'Number.isNaN NaN');
     for (i$ = 0, len$ = (ref$ = [1, 0.1, -1, Math.pow(2, 16), Math.pow(2, 16) - 1, Math.pow(2, 31), Math.pow(2, 31) - 1, Math.pow(2, 32), Math.pow(2, 32) - 1, -0, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
-      results$.push(assert.ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + (fn1$())));
+      assert.ok(!isNaN(x$), "not Number.isNaN " + typeof x$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -2727,7 +2724,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.isSafeInteger', function(assert){
-    var isSafeInteger, create, i$, x$, ref$, len$, y$, e, results$ = [];
+    var isSafeInteger, create, i$, x$, ref$, len$, y$, e;
     isSafeInteger = core.Number.isSafeInteger;
     create = core.Object.create;
     assert.isFunction(isSafeInteger);
@@ -2737,9 +2734,8 @@
     }
     for (i$ = 0, len$ = (ref$ = [9007199254740992, -9007199254740992, NaN, 0.1, Infinity, 'NaN', '5', false, new Number(NaN), new Number(Infinity), new Number(5), new Number(0.1), void 8, null, {}, fn$, create(null)]).length; i$ < len$; ++i$) {
       y$ = ref$[i$];
-      results$.push(assert.ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + (fn1$())));
+      assert.ok(!isSafeInteger(y$), "not isSafeInteger " + typeof y$ + " " + (fn1$()));
     }
-    return results$;
     function fn$(){}
     function fn1$(){
       try {
@@ -2758,7 +2754,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.MAX_SAFE_INTEGER', function(assert){
-    return assert.strictEqual(core.Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
+    assert.strictEqual(core.Number.MAX_SAFE_INTEGER, Math.pow(2, 53) - 1, 'Is 2^53 - 1');
   });
 }).call(this);
 
@@ -2768,7 +2764,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Number.MIN_SAFE_INTEGER', function(assert){
-    return assert.strictEqual(core.Number.MIN_SAFE_INTEGER, -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
+    assert.strictEqual(core.Number.MIN_SAFE_INTEGER, -Math.pow(2, 53) + 1, 'Is -2^53 + 1');
   });
 }).call(this);
 
@@ -3014,12 +3010,12 @@
       2: 'e'
     });
     assert.throws(function(){
-      return assign(null, {
+      assign(null, {
         q: 1
       });
     }, TypeError);
     assert.throws(function(){
-      return assign(void 8, {
+      assign(void 8, {
         q: 1
       });
     }, TypeError);
@@ -3068,7 +3064,7 @@
       x$ = ref$[i$];
       O[x$] = x$;
     }
-    return assert.strictEqual(keys(assign({}, O)).join(''), string);
+    assert.strictEqual(keys(assign({}, O)).join(''), string);
   });
 }).call(this);
 
@@ -3443,7 +3439,7 @@
     assert.ok(same(1, 1), '1 is 1');
     assert.ok(same(NaN, NaN), '1 is 1');
     assert.ok(!same(0, -0), '0 isnt -0');
-    return assert.ok(!same({}, {}), '{} isnt {}');
+    assert.ok(!same({}, {}), '{} isnt {}');
   });
 }).call(this);
 
@@ -3586,7 +3582,7 @@
       assert.strictEqual(setPrototypeOf(tmp = {}, {
         a: 1
       }), tmp, 'setPrototypeOf return target');
-      return assert.ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
+      assert.ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
     });
   }
 }).call(this);
@@ -3753,7 +3749,7 @@
     Promise.all(a);
     assert.ok(done);
     assert.throws(function(){
-      return Promise.all.call(null, [])['catch'](function(){});
+      Promise.all.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.race', function(assert){
@@ -3774,19 +3770,19 @@
     Promise.race(a);
     assert.ok(done);
     assert.throws(function(){
-      return Promise.race.call(null, [])['catch'](function(){});
+      Promise.race.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.resolve', function(assert){
     assert.isFunction(Promise.resolve);
     assert.throws(function(){
-      return Promise.resolve.call(null, 1)['catch'](function(){});
+      Promise.resolve.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   test('Promise.reject', function(assert){
     assert.isFunction(Promise.reject);
     assert.throws(function(){
-      return Promise.reject.call(null, 1)['catch'](function(){});
+      Promise.reject.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
   });
   if (PROTO) {
@@ -3846,8 +3842,8 @@
     };
     C.apply = 42;
     assert.strictEqual(apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
-    return assert.throws(function(){
-      return apply(42, null, []);
+    assert.throws(function(){
+      apply(42, null, []);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -3873,12 +3869,12 @@
     C.apply = 42;
     assert.strictEqual(construct(C, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
     inst = construct(function(){
-      return this.x = 42;
+      this.x = 42;
     }, [], Array);
     assert.strictEqual(inst.x, 42, 'constructor with newTarget');
     assert.ok(inst instanceof Array, 'prototype with newTarget');
     assert.throws(function(){
-      return construct(42, []);
+      construct(42, []);
     }, TypeError, 'throws on primitive');
     f = function(){};
     f.prototype = 42;
@@ -3890,7 +3886,7 @@
         return false;
       }
     }()));
-    return assert.same(typeof (function(){
+    assert.same(typeof (function(){
       try {
         return construct(Date, []).getTime();
       } catch (e$) {}
@@ -3945,7 +3941,7 @@
     assert.throws(function(){
       defineProperty({}, create(null), {});
     });
-    return assert.throws(function(){
+    assert.throws(function(){
       defineProperty({}, 1, 1);
     });
   });
@@ -3975,8 +3971,8 @@
         value: 42
       }), 'foo'), false);
     }
-    return assert.throws(function(){
-      return deleteProperty(42, 'foo');
+    assert.throws(function(){
+      deleteProperty(42, 'foo');
     }, TypeError, 'throws on primitive');
   });
   function in$(x, xs){
@@ -4023,8 +4019,8 @@
       e: 3
     }), ref$.a = 4, ref$.s = 5, ref$.d = 6, ref$);
     assert.deepEqual(from(enumerate(obj)).sort(), ['a', 'd', 'e', 'q', 's', 'w'], 'works with prototype');
-    return assert.throws(function(){
-      return enumerate(42);
+    assert.throws(function(){
+      enumerate(42);
     }, TypeError, 'throws on primitive');
   });
   function clone$(it){
@@ -4051,8 +4047,8 @@
     };
     desc = getOwnPropertyDescriptor(obj, 'baz');
     assert.strictEqual(desc.value, 789);
-    return assert.throws(function(){
-      return getOwnPropertyDescriptor(42, 'constructor');
+    assert.throws(function(){
+      getOwnPropertyDescriptor(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4071,8 +4067,8 @@
       assert.name(getPrototypeOf, 'getPrototypeOf');
     }
     assert.strictEqual(getPrototypeOf([]), Array.prototype);
-    return assert.throws(function(){
-      return getPrototypeOf(42);
+    assert.throws(function(){
+      getPrototypeOf(42);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4117,8 +4113,8 @@
       assert.strictEqual(get(target, 'w', receiver), receiver, 'get w');
       assert.strictEqual(get(target, 'u', receiver), void 8, 'get u');
     }
-    return assert.throws(function(){
-      return get(42, 'constructor');
+    assert.throws(function(){
+      get(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4142,8 +4138,8 @@
     assert.strictEqual(has(O, 'qux'), true);
     assert.strictEqual(has(O, 'qwe'), false);
     assert.strictEqual(has(O, 'toString'), true);
-    return assert.throws(function(){
-      return has(42, 'constructor');
+    assert.throws(function(){
+      has(42, 'constructor');
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4166,8 +4162,8 @@
     if (DESCRIPTORS) {
       assert.ok(!isExtensible(preventExtensions({})));
     }
-    return assert.throws(function(){
-      return isExtensible(42);
+    assert.throws(function(){
+      isExtensible(42);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4202,8 +4198,8 @@
     O2 = clone$(O1);
     keys = ownKeys(O2);
     assert.strictEqual(keys.length, 0, 'ownKeys return only own keys');
-    return assert.throws(function(){
-      return ownKeys(42);
+    assert.throws(function(){
+      ownKeys(42);
     }, TypeError, 'throws on primitive');
   });
   function in$(x, xs){
@@ -4236,8 +4232,8 @@
     if (DESCRIPTORS) {
       assert.ok(!isExtensible(obj));
     }
-    return assert.throws(function(){
-      return preventExtensions(42);
+    assert.throws(function(){
+      preventExtensions(42);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4259,12 +4255,12 @@
       assert.ok(setPrototypeOf(obj, Array.prototype), true);
       assert.ok(obj instanceof Array);
       assert.throws(function(){
-        return setPrototypeOf({}, 42);
+        setPrototypeOf({}, 42);
       }, TypeError);
       assert.throws(function(){
-        return setPrototypeOf(42, {});
+        setPrototypeOf(42, {});
       }, TypeError, 'throws on primitive');
-      return assert.ok(setPrototypeOf(o = {}, o) === false, 'false on recursive __proto__');
+      assert.ok(setPrototypeOf(o = {}, o) === false, 'false on recursive __proto__');
     });
   }
 }).call(this);
@@ -4338,8 +4334,8 @@
       assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
       assert.strictEqual(target.c, 1, 'set c');
     }
-    return assert.throws(function(){
-      return set(42, 'q', 42);
+    assert.throws(function(){
+      set(42, 'q', 42);
     }, TypeError, 'throws on primitive');
   });
 }).call(this);
@@ -4423,7 +4419,7 @@
       C = nativeSubclass(Set);
       assert.ok(new C instanceof C, 'correct subclassing with native classes #1');
       assert.ok(new C instanceof Set, 'correct subclassing with native classes #2');
-      return assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
+      assert.ok(new C().add(2).has(2), 'correct subclassing with native classes #3');
     }
   });
   test('Set#add', function(assert){
@@ -4444,7 +4440,7 @@
     S.add(4);
     assert.strictEqual(S.size, 7);
     S = new Set().add(freeze(f = {}));
-    return assert.ok(S.has(f));
+    assert.ok(S.has(f));
   });
   test('Set#clear', function(assert){
     var S, f;
@@ -4462,7 +4458,7 @@
     S.clear();
     assert.strictEqual(S.size, 0, 'Support frozen objects');
     assert.ok(!S.has(1));
-    return assert.ok(!S.has(f));
+    assert.ok(!S.has(f));
   });
   test('Set#delete', function(assert){
     var a, S, f;
@@ -4481,7 +4477,7 @@
     S.add(freeze(f = {}));
     assert.strictEqual(S.size, 4);
     S['delete'](f);
-    return assert.strictEqual(S.size, 3);
+    assert.strictEqual(S.size, 3);
   });
   test('Set#forEach', function(assert){
     var r, count, S, set, s;
@@ -4517,7 +4513,7 @@
       return s += it;
     });
     assert.strictEqual(s, '0');
-    return assert.throws(function(){
+    assert.throws(function(){
       Set.prototype.forEach.call(new Map, function(){});
     }, 'non-generic');
   });
@@ -4532,7 +4528,7 @@
     assert.ok(S.has(f));
     assert.ok(S.has(2));
     assert.ok(!S.has(4));
-    return assert.ok(!S.has([]));
+    assert.ok(!S.has([]));
   });
   test('Set#size', function(assert){
     var size, sizeDesc;
@@ -4543,8 +4539,8 @@
       sizeDesc = getOwnPropertyDescriptor(Set.prototype, 'size');
       assert.ok(sizeDesc && sizeDesc.get, 'size is getter');
       assert.ok(sizeDesc && !sizeDesc.set, 'size isnt setter');
-      return assert.throws(function(){
-        return Set.prototype.size;
+      assert.throws(function(){
+        Set.prototype.size;
       }, TypeError);
     }
   });
@@ -4570,10 +4566,10 @@
     x$.add(2);
     x$.add(1);
     x$.add(0);
-    return assert.ok(set.has(-0));
+    assert.ok(set.has(-0));
   });
   test('Set#@@toStringTag', function(assert){
-    return assert.strictEqual(Set.prototype[Symbol != null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');
+    assert.strictEqual(Set.prototype[Symbol != null ? Symbol.toStringTag : void 8], 'Set', 'Set::@@toStringTag is `Set`');
   });
   test('Set Iterator', function(assert){
     var set, keys, iterator;
@@ -4590,7 +4586,7 @@
     assert.ok(iterator.next().done);
     set.add('f');
     assert.ok(iterator.next().done);
-    return assert.deepEqual(keys, ['a', 'd', 'e']);
+    assert.deepEqual(keys, ['a', 'd', 'e']);
   });
   test('Set#keys', function(assert){
     var iter;
@@ -4611,7 +4607,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -4635,7 +4631,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -4659,7 +4655,7 @@
       value: ['e', 'e'],
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -4682,7 +4678,7 @@
       value: 'e',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -4802,10 +4798,10 @@
     assert.strictEqual(codePointAt('\uDF06abc', void 8), 0xDF06);
     if (STRICT) {
       assert.throws(function(){
-        return codePointAt(null, 0);
+        codePointAt(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return codePointAt(void 8, 0);
+      assert.throws(function(){
+        codePointAt(void 8, 0);
       }, TypeError);
     }
   });
@@ -4835,15 +4831,15 @@
     assert.ok(!endsWith('abc', 'a', 'x'));
     if (STRICT) {
       assert.throws(function(){
-        return endsWith(null, '.');
+        endsWith(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return endsWith(void 8, '.');
+        endsWith(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return endsWith('/./', re);
+      endsWith('/./', re);
     }, TypeError);
     re[(ref$ = core.Symbol) != null ? ref$.match : void 8] = false;
     assert.ok((function(){
@@ -4864,8 +4860,8 @@
       }
     }()));
     O[(ref1$ = core.Symbol) != null ? ref1$.match : void 8] = true;
-    return assert.throws(function(){
-      return endsWith('[object Object]', O);
+    assert.throws(function(){
+      endsWith('[object Object]', O);
     }, TypeError);
   });
 }).call(this);
@@ -4934,43 +4930,43 @@
     assert.strictEqual(fromCodePoint(false), '\0');
     assert.strictEqual(fromCodePoint(null), '\0');
     assert.throws(function(){
-      return fromCodePoint('_');
+      fromCodePoint('_');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint('+Infinity');
+      fromCodePoint('+Infinity');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint('-Infinity');
+      fromCodePoint('-Infinity');
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(-1);
+      fromCodePoint(-1);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(0x10FFFF + 1);
+      fromCodePoint(0x10FFFF + 1);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(3.14);
+      fromCodePoint(3.14);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(3e-2);
+      fromCodePoint(3e-2);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(-Infinity);
+      fromCodePoint(-Infinity);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(Infinity);
+      fromCodePoint(Infinity);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(NaN);
+      fromCodePoint(NaN);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(void 8);
+      fromCodePoint(void 8);
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint({});
+      fromCodePoint({});
     }, RangeError);
     assert.throws(function(){
-      return fromCodePoint(/./);
+      fromCodePoint(/./);
     }, RangeError);
     tmp = 0x60;
     assert.strictEqual(fromCodePoint({
@@ -4990,7 +4986,7 @@
     while (--counter >= 0) {
       result.push(0xFFFF + 1);
     }
-    return fromCodePoint.apply(null, result);
+    fromCodePoint.apply(null, result);
   });
 }).call(this);
 
@@ -5009,15 +5005,15 @@
     assert.ok(!includes('abcd', 'b', 2));
     if (STRICT) {
       assert.throws(function(){
-        return includes(null, '.');
+        includes(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return includes(void 8, '.');
+        includes(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return includes('/./', re);
+      includes('/./', re);
     }, TypeError);
     re[(ref$ = core.Symbol) != null ? ref$.match : void 8] = false;
     assert.ok((function(){
@@ -5038,8 +5034,8 @@
       }
     }()));
     O[(ref1$ = core.Symbol) != null ? ref1$.match : void 8] = true;
-    return assert.throws(function(){
-      return includes('[object Object]', O);
+    assert.throws(function(){
+      includes('[object Object]', O);
     }, TypeError);
   });
 }).call(this);
@@ -5097,7 +5093,7 @@
       value: '𠮷',
       done: false
     });
-    return assert.deepEqual(iter.next(), {
+    assert.deepEqual(iter.next(), {
       value: void 8,
       done: true
     });
@@ -5141,10 +5137,10 @@
       raw: 'test'
     }, 0), 't0est', 'lacks substituting');
     assert.throws(function(){
-      return raw({});
+      raw({});
     }, TypeError);
-    return assert.throws(function(){
-      return raw({
+    assert.throws(function(){
+      raw({
         raw: null
       });
     }, TypeError);
@@ -5163,17 +5159,17 @@
     assert.strictEqual(repeat('qwe', 3), 'qweqweqwe');
     assert.strictEqual(repeat('qwe', 2.5), 'qweqwe');
     assert.throws(function(){
-      return repeat('qwe', -1);
+      repeat('qwe', -1);
     }, RangeError);
     assert.throws(function(){
-      return repeat('qwe', Infinity);
+      repeat('qwe', Infinity);
     }, RangeError);
     if (STRICT) {
       assert.throws(function(){
-        return repeat(null, 1);
+        repeat(null, 1);
       }, TypeError);
-      return assert.throws(function(){
-        return repeat(void 8, 1);
+      assert.throws(function(){
+        repeat(void 8, 1);
       }, TypeError);
     }
   });
@@ -5215,15 +5211,15 @@
     assert.ok(startsWith('abc', 'a', 'x'));
     if (STRICT) {
       assert.throws(function(){
-        return startsWith(null, '.');
+        startsWith(null, '.');
       }, TypeError);
       assert.throws(function(){
-        return startsWith(void 8, '.');
+        startsWith(void 8, '.');
       }, TypeError);
     }
     re = /./;
     assert.throws(function(){
-      return startsWith('/./', re);
+      startsWith('/./', re);
     }, TypeError);
     re[(ref$ = core.Symbol) != null ? ref$.match : void 8] = false;
     assert.ok((function(){
@@ -5244,8 +5240,8 @@
       }
     }()));
     O[(ref1$ = core.Symbol) != null ? ref1$.match : void 8] = true;
-    return assert.throws(function(){
-      return startsWith('[object Object]', O);
+    assert.throws(function(){
+      startsWith('[object Object]', O);
     }, TypeError);
   });
 }).call(this);
@@ -5303,10 +5299,10 @@
     assert.strictEqual(trim('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
     if (STRICT) {
       assert.throws(function(){
-        return trim(null, 0);
+        trim(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return trim(void 8, 0);
+      assert.throws(function(){
+        trim(void 8, 0);
       }, TypeError);
     }
   });
@@ -5334,17 +5330,16 @@
       for (i in O) {
         count++;
       }
-      return assert.ok(count === 0, 'object[Symbol()] is not enumerable');
+      assert.ok(count === 0, 'object[Symbol()] is not enumerable');
     }
   });
   test('Well-known Symbols', function(assert){
-    var i$, x$, ref$, len$, results$ = [];
+    var i$, x$, ref$, len$;
     for (i$ = 0, len$ = (ref$ = ['hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       assert.ok(x$ in Symbol, "Symbol." + x$ + " available");
-      results$.push(assert.ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol"));
+      assert.ok(Object(Symbol[x$]) instanceof Symbol, "Symbol." + x$ + " is symbol");
     }
-    return results$;
   });
   test('Global symbol registry', function(assert){
     var symbol;
@@ -5352,10 +5347,10 @@
     assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
     symbol = Symbol['for']('foo');
     assert.strictEqual(Symbol['for']('foo'), symbol);
-    return assert.strictEqual(Symbol.keyFor(symbol), 'foo');
+    assert.strictEqual(Symbol.keyFor(symbol), 'foo');
   });
   test('Symbol#@@toStringTag', function(assert){
-    return assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
+    assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });
   test('Object.getOwnPropertySymbols', function(assert){
     var ref$, getOwnPropertySymbols, getOwnPropertyNames, obj, foo;
@@ -5373,7 +5368,7 @@
     foo = (ref$ = clone$(obj), ref$.a = 1, ref$.s = 2, ref$.d = 3, ref$);
     foo[Symbol()] = 44;
     assert.deepEqual(getOwnPropertyNames(foo).sort(), ['a', 'd', 's']);
-    return assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
+    assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
   });
   if (JSON != null) {
     test('Symbols & JSON.stringify', function(assert){
@@ -5387,7 +5382,7 @@
       }
       assert.strictEqual(JSON.stringify(Symbol('foo')), void 8, 'symbol value');
       if (typeof Symbol() === 'symbol') {
-        return assert.strictEqual(JSON.stringify(Object(Symbol('foo'))), '{}', 'boxed symbol');
+        assert.strictEqual(JSON.stringify(Object(Symbol('foo'))), '{}', 'boxed symbol');
       }
     });
   }
@@ -5477,7 +5472,7 @@
       assert.strictEqual(core.Reflect.ownKeys(O).length, 6, 'Reflect.ownKeys');
       delete O[e];
       O[e] = 'e';
-      return assert.deepEqual(getOwnPropertyDescriptor(O, e), {
+      assert.deepEqual(getOwnPropertyDescriptor(O, e), {
         configurable: true,
         writable: true,
         enumerable: true,
@@ -5510,7 +5505,7 @@
       assert.strictEqual(O.a, 'a', 'a');
       assert.strictEqual(O.b, void 8, 'b');
       assert.strictEqual(O[c], 'c', 'c');
-      return assert.strictEqual(O[d], void 8, 'd');
+      assert.strictEqual(O[d], void 8, 'd');
     });
     test('Symbols & Object.create', function(assert){
       var ref$, defineProperty, create, c, d, D, O;
@@ -5538,7 +5533,7 @@
       assert.strictEqual(O.a, 'a', 'a');
       assert.strictEqual(O.b, void 8, 'b');
       assert.strictEqual(O[c], 'c', 'c');
-      return assert.strictEqual(O[d], void 8, 'd');
+      assert.strictEqual(O[d], void 8, 'd');
     });
     for (i$ = 0, len$ = (ref$ = ['Map', 'Set', 'Promise']).length; i$ < len$; ++i$) {
       $key = ref$[i$];
@@ -5567,7 +5562,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer', function(assert){
@@ -5594,7 +5589,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer.isView', function(assert){
@@ -5621,7 +5616,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('ArrayBuffer#slice', function(assert){
@@ -5933,7 +5928,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float32 conversions', function(assert){
@@ -5982,7 +5977,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Float64 conversions', function(assert){
@@ -6031,7 +6026,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int16 conversions', function(assert){
@@ -6081,7 +6076,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int32 conversions', function(assert){
@@ -6128,7 +6123,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Int8 conversions', function(assert){
@@ -6170,7 +6165,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint16 conversions', function(assert){
@@ -6220,7 +6215,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint32 conversions', function(assert){
@@ -6267,7 +6262,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8Clamped conversions', function(assert){
@@ -6297,7 +6292,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, this$ = this;
+  var module, test;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DESCRIPTORS && test('Uint8 conversions', function(assert){
@@ -6338,7 +6333,7 @@
 
 // Generated by LiveScript 1.4.0
 (function(){
-  var module, test, DataView, ArrayBuffer, Uint8Array, i$, x$, ref$, len$, y$, this$ = this;
+  var module, test, DataView, ArrayBuffer, Uint8Array, i$, x$, ref$, len$, y$;
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   DataView = core.DataView, ArrayBuffer = core.ArrayBuffer, Uint8Array = core.Uint8Array;
@@ -6409,7 +6404,7 @@
     d.setUint32(0, 0x12345678);
     assert.same(d.getUint32(0, true), 0x78563412, 'big endian/little endian');
     assert.throws(function(){
-      return new DataView({});
+      new DataView({});
     }, 'non-ArrayBuffer argument');
     assert.ok(function(){
       var e;
@@ -6466,60 +6461,60 @@
       return d.getUint8(-2);
     });
     assert.throws(function(){
-      return d.getUint8(8);
+      d.getUint8(8);
     }, 'bounds for buffer');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer');
     assert.throws(function(){
-      return d.setUint8(8, 0);
+      d.setUint8(8, 0);
     }, 'bounds for buffer');
     d = new DataView(rawbuf, 2);
     assert.same(d.byteLength, 6, 'buffer, byteOffset');
     assert.same(d.byteOffset, 2, 'buffer, byteOffset');
     assert.same(d.getUint8(5), 7, 'buffer, byteOffset');
     assert.throws(function(){
-      return d.getUint8(-2);
+      d.getUint8(-2);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.getUint8(6);
+      d.getUint8(6);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return d.setUint8(6, 0);
+      d.setUint8(6, 0);
     }, 'bounds for buffer, byteOffset');
     assert.throws(function(){
-      return new DataView(rawbuf, -1);
+      new DataView(rawbuf, -1);
     }, 'invalid byteOffset');
     assert.throws(function(){
-      return new DataView(rawbuf, 9);
+      new DataView(rawbuf, 9);
     }, 'invalid byteOffset');
     d = new DataView(rawbuf, 2, 4);
     assert.same(d.byteLength, 4, 'buffer, byteOffset, length');
     assert.same(d.byteOffset, 2, 'buffer, byteOffset, length');
     assert.same(d.getUint8(3), 5, 'buffer, byteOffset, length');
     assert.throws(function(){
-      return d.getUint8(-2);
+      d.getUint8(-2);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.getUint8(4);
+      d.getUint8(4);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.setUint8(-2, 0);
+      d.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return d.setUint8(4, 0);
+      d.setUint8(4, 0);
     }, 'bounds for buffer, byteOffset, length');
     assert.throws(function(){
-      return new DataView(rawbuf, 0, 9);
+      new DataView(rawbuf, 0, 9);
     }, 'invalid byteOffset+length');
     assert.throws(function(){
-      return new DataView(rawbuf, 8, 1);
+      new DataView(rawbuf, 8, 1);
     }, 'invalid byteOffset+length');
     assert.throws(function(){
-      return new DataView(rawbuf, 9, -1);
+      new DataView(rawbuf, 9, -1);
     }, 'invalid byteOffset+length');
   });
   for (i$ = 0, len$ = (ref$ = ['getUint8', 'getInt8', 'getUint16', 'getInt16', 'getUint32', 'getInt32', 'getFloat32', 'getFloat64']).length; i$ < len$; ++i$) {
@@ -6531,7 +6526,6 @@
     (fn1$.call(this, y$));
   }
   function fn$(name){
-    var this$ = this;
     test('DataView#' + name, function(assert){
       assert.isFunction(DataView.prototype[name]);
       NATIVE && assert.arity(DataView.prototype[name], 1);
@@ -6539,7 +6533,6 @@
     });
   }
   function fn1$(name){
-    var this$ = this;
     test('DataView#' + name, function(assert){
       assert.isFunction(DataView.prototype[name]);
       NATIVE && assert.arity(DataView.prototype[name], 2);
@@ -6811,10 +6804,10 @@
     assert.ok(includes([NaN], NaN));
     if (STRICT) {
       assert.throws(function(){
-        return includes(null, 0);
+        includes(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return includes(void 8, 0);
+      assert.throws(function(){
+        includes(void 8, 0);
       }, TypeError);
     }
   });
@@ -6831,7 +6824,7 @@
     assert.isFunction(isError);
     assert.same(isError(new TypeError), true);
     assert.same(isError({}), false);
-    return assert.same(isError(null), false);
+    assert.same(isError(null), false);
   });
 }).call(this);
 
@@ -6849,7 +6842,7 @@
     assert.same(iaddh(0, 4, 1, 1), 5);
     assert.same(iaddh(2, 4, 1, 1), 5);
     assert.same(iaddh(0xffffffff, 4, 1, 1), 6);
-    return assert.same(iaddh(1, 4, 0xffffffff, 1), 6);
+    assert.same(iaddh(1, 4, 0xffffffff, 1), 6);
   });
 }).call(this);
 
@@ -6866,7 +6859,7 @@
     assert.same(imulh(0xffffffff, 7), -1);
     assert.same(imulh(0xfffffff, 77), 4);
     assert.same(imulh(1, 7), 0);
-    return assert.same(imulh(-1, 7), -1);
+    assert.same(imulh(-1, 7), -1);
   });
 }).call(this);
 
@@ -6884,7 +6877,7 @@
     assert.same(isubh(0, 4, 1, 1), 2);
     assert.same(isubh(2, 4, 1, 1), 3);
     assert.same(isubh(0xffffffff, 4, 1, 1), 3);
-    return assert.same(isubh(1, 4, 0xffffffff, 1), 2);
+    assert.same(isubh(1, 4, 0xffffffff, 1), 2);
   });
 }).call(this);
 
@@ -6901,7 +6894,7 @@
     assert.same(umulh(0xffffffff, 7), 6);
     assert.same(umulh(0xfffffff, 77), 4);
     assert.same(umulh(1, 7), 0);
-    return assert.same(umulh(-1, 7), 6);
+    assert.same(umulh(-1, 7), 6);
   });
 }).call(this);
 
@@ -6937,7 +6930,7 @@
       assert.deepEqual(Function('return core.Object.entries({a: 1, get b(){delete this.c;return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
     try {
-      return assert.deepEqual(Function('return core.Object.entries({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [['a', 1], ['b', 2]]);
+      assert.deepEqual(Function('return core.Object.entries({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
   });
 }).call(this);
@@ -6985,7 +6978,7 @@
         value: 3
       });
     }
-    return assert.strictEqual(descs[s].value, 4);
+    assert.strictEqual(descs[s].value, 4);
   });
 }).call(this);
 
@@ -7021,7 +7014,7 @@
       assert.deepEqual(Function('return core.Object.values({a: 1, get b(){delete this.c;return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
     try {
-      return assert.deepEqual(Function('return core.Object.values({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [1, 2]);
+      assert.deepEqual(Function('return core.Object.values({a: 1, get b(){Object.defineProperty(this, "c", {value:4,enumerable:false});return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
   });
 }).call(this);
@@ -7441,10 +7434,10 @@
     }, 2), 'c');
     if (STRICT) {
       assert.throws(function(){
-        return at(null, 0);
+        at(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return at(void 8, 0);
+      assert.throws(function(){
+        at(void 8, 0);
       }, TypeError);
     }
   });
@@ -7467,10 +7460,10 @@
     assert.strictEqual(padEnd('foo', 1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return padEnd(null, 0);
+        padEnd(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return padEnd(void 8, 0);
+      assert.throws(function(){
+        padEnd(void 8, 0);
       }, TypeError);
     }
   });
@@ -7493,10 +7486,10 @@
     assert.strictEqual(padStart('foo', 1), 'foo');
     if (STRICT) {
       assert.throws(function(){
-        return padStart(null, 0);
+        padStart(null, 0);
       }, TypeError);
-      return assert.throws(function(){
-        return padStart(void 8, 0);
+      assert.throws(function(){
+        padStart(void 8, 0);
       }, TypeError);
     }
   });
@@ -7589,7 +7582,7 @@
     var global;
     global = core.System.global;
     assert.same(global, Object(global), 'is object');
-    return assert.same(global.Math, Math, 'contains globals');
+    assert.same(global.Math, Math, 'contains globals');
   });
 }).call(this);
 
@@ -7614,7 +7607,7 @@
       assert.isFunction(core.getIteratorMethod(document.querySelectorAll('div')), 'works with document.querySelectorAll');
     }
     if (absent) {
-      return assert.ok(true, 'DOM collections are absent');
+      assert.ok(true, 'DOM collections are absent');
     }
   });
 }).call(this);
@@ -7638,51 +7631,53 @@
     assert.isFunction(setImmediate, 'setImmediate is function');
     assert.isFunction(clearImmediate, 'clearImmediate is function');
     timeLimitedPromise(1e3, function(res){
-      return setImmediate(function(){
+      setImmediate(function(){
         def = 'a';
-        return res();
+        res();
       });
     }).then(function(){
-      return assert.ok(true, 'setImmediate works');
+      assert.ok(true, 'setImmediate works');
     })['catch'](function(){
-      return assert.ok(false, 'setImmediate works');
+      assert.ok(false, 'setImmediate works');
     }).then(assert.async());
     assert.strictEqual(def, void 8, 'setImmediate is async');
     timeLimitedPromise(1e3, function(res){
-      return setImmediate(function(a, b){
-        return res(a + b);
+      setImmediate(function(a, b){
+        res(a + b);
       }, 'a', 'b');
     }).then(function(it){
-      return assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
+      assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
     })['catch'](function(){
-      return assert.ok(false, 'setImmediate works with additional args');
+      assert.ok(false, 'setImmediate works with additional args');
     }).then(assert.async());
-    return timeLimitedPromise(50, function(res){
-      return clearImmediate(setImmediate(res));
+    timeLimitedPromise(50, function(res){
+      clearImmediate(setImmediate(res));
     }).then(function(){
-      return assert.ok(false, 'clearImmediate works');
+      assert.ok(false, 'clearImmediate works');
     })['catch'](function(){
-      return assert.ok(true, 'clearImmediate works');
+      assert.ok(true, 'clearImmediate works');
     }).then(assert.async());
   });
   (function(it){
     if (typeof window != 'undefined' && window !== null) {
-      return window.onload = it;
+      window.onload = it;
     } else {
-      return it();
+      it();
     }
   })(function(){
-    return setTimeout(function(){
+    setTimeout(function(){
       var x, now, inc;
       x = 0;
       now = +new Date;
-      return (inc = function(){
-        return setImmediate(function(){
+      (inc = function(){
+        setImmediate(function(){
           x = x + 1;
           if (+new Date() - now < 5e3) {
-            return inc();
+            inc();
           } else {
-            return typeof console != 'undefined' && console !== null ? console.log("setImmediate: " + x / 5 + " per second") : void 8;
+            if (typeof console != 'undefined' && console !== null) {
+              console.log("setImmediate: " + x / 5 + " per second");
+            }
           }
         });
       })();
@@ -7714,7 +7709,7 @@
     })['catch'](function(){
       return assert.ok(false, 'setTimeout works with additional args');
     }).then(assert.async());
-    return timeLimitedPromise(50, function(res){
+    timeLimitedPromise(50, function(res){
       return clearTimeout(setTimeout(res, 10));
     }).then(function(){
       return assert.ok(false, 'clearImmediate works with wraped setTimeout');
@@ -7726,7 +7721,7 @@
     var i;
     assert.expect(1);
     i = 0;
-    return timeLimitedPromise(1e4, function(res, rej){
+    timeLimitedPromise(1e4, function(res, rej){
       var interval;
       return interval = setInterval(function(a, b){
         if (a + b !== 'ab' || i > 2) {

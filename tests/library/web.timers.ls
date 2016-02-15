@@ -4,7 +4,7 @@ module 'Web'
 {setTimeout, setInterval, Promise} = core
 timeLimitedPromise = (time, fn)-> Promise.race [new Promise(fn), new Promise (res, rej)-> setTimeout rej, time]
 
-test 'setTimeout / clearTimeout' (assert)->
+test 'setTimeout / clearTimeout' (assert)!->
   assert.expect 2
   timeLimitedPromise(1e3, (res)-> setTimeout(((a, b)-> res a +  b), 10 \a \b))
     .then  -> assert.strictEqual it, \ab, 'setTimeout works with additional args'
@@ -15,7 +15,7 @@ test 'setTimeout / clearTimeout' (assert)->
     .catch -> assert.ok on 'clearImmediate works with wraped setTimeout'
     .then assert.async!
 
-test 'setInterval / clearInterval' (assert)->
+test 'setInterval / clearInterval' (assert)!->
   assert.expect 1
   i = 0
   timeLimitedPromise(1e4, (res, rej)-> interval = setInterval(((a, b)->

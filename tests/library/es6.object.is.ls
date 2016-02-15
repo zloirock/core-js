@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Object.is' (assert)->
+test 'Object.is' (assert)!->
   same = core.Object.is
   assert.isFunction same
   assert.ok same(1 1), '1 is 1'

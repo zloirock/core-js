@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-DESCRIPTORS and test 'Int16 conversions', !(assert)~>
+DESCRIPTORS and test 'Int16 conversions' (assert)!->
   {Uint8Array, DataView} = core
   NAME  = \Int16
   ARRAY = NAME + \Array

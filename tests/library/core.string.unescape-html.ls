@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module 'core-js'
 
-test 'String#unescapeHTML' (assert)->
+test 'String#unescapeHTML' (assert)!->
   {unescapeHTML} = core.String
   assert.isFunction unescapeHTML
   assert.strictEqual unescapeHTML('qwe, asd'), 'qwe, asd'

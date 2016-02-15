@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to subtracting 1 from the exponential function of x 
-test 'Math.expm1' (assert)->
+test 'Math.expm1' (assert)!->
   {expm1} = core.Math
   assert.isFunction expm1
   assert.same expm1(NaN), NaN

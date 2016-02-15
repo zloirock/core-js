@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES7
 
-test 'Array#includes' (assert)->
+test 'Array#includes' (assert)!->
   {includes} = core.Array
   assert.isFunction includes
   arr = [1 2 3 -0 o = {}]
@@ -15,5 +15,5 @@ test 'Array#includes' (assert)->
   assert.ok includes Array(1), void
   assert.ok includes [NaN], NaN
   if STRICT
-    assert.throws (-> includes null, 0), TypeError
-    assert.throws (-> includes void, 0), TypeError
+    assert.throws (!-> includes null, 0), TypeError
+    assert.throws (!-> includes void, 0), TypeError

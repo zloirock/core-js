@@ -4,7 +4,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES7');
   test('String#matchAll', function(assert){
-    var matchAll, assign, expected, i$, x$, ref$, len$, iter, j$, y$, len1$, z$, z1$, z2$;
+    var matchAll, assign, i$, x$, ref$, len$, iter, y$, z$;
     matchAll = String.prototype.matchAll;
     assign = Object.assign;
     assert.isFunction(matchAll);
@@ -12,30 +12,6 @@
     assert.name(matchAll, 'matchAll');
     assert.looksNative(matchAll);
     assert.nonEnumerable(String.prototype, 'matchAll');
-    expected = [
-      {
-        value: assign(['a'], {
-          input: 'aabc',
-          index: 0
-        }),
-        done: false
-      }, {
-        value: assign(['a'], {
-          input: 'aabc',
-          index: 1
-        }),
-        done: false
-      }, {
-        value: assign(['c'], {
-          input: 'aabc',
-          index: 3
-        }),
-        done: false
-      }, {
-        value: null,
-        done: true
-      }
-    ];
     for (i$ = 0, len$ = (ref$ = [
       'aabc', {
         toString: fn$
@@ -45,60 +21,78 @@
       iter = matchAll.call(x$, /[ac]/);
       assert.isIterator(iter);
       assert.isIterable(iter);
-      for (j$ = 0, len1$ = expected.length; j$ < len1$; ++j$) {
-        y$ = expected[j$];
-        assert.deepEqual(iter.next(), y$);
-      }
-    }
-    expected = [
-      {
-        value: assign(['1a', '1', 'a'], {
-          input: '1111a2b3cccc',
+      assert.deepEqual(iter.next(), {
+        value: assign(['a'], {
+          input: 'aabc',
+          index: 0
+        }),
+        done: false
+      });
+      assert.deepEqual(iter.next(), {
+        value: assign(['a'], {
+          input: 'aabc',
+          index: 1
+        }),
+        done: false
+      });
+      assert.deepEqual(iter.next(), {
+        value: assign(['c'], {
+          input: 'aabc',
           index: 3
         }),
         done: false
-      }, {
-        value: assign(['2b', '2', 'b'], {
-          input: '1111a2b3cccc',
-          index: 5
-        }),
-        done: false
-      }, {
-        value: assign(['3c', '3', 'c'], {
-          input: '1111a2b3cccc',
-          index: 7
-        }),
-        done: false
-      }, {
+      });
+      assert.deepEqual(iter.next(), {
         value: null,
         done: true
-      }
-    ];
+      });
+    }
     iter = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
     assert.isIterator(iter);
     assert.isIterable(iter);
-    for (i$ = 0, len$ = expected.length; i$ < len$; ++i$) {
-      z$ = expected[i$];
-      assert.deepEqual(iter.next(), z$);
-    }
+    assert.deepEqual(iter.next(), {
+      value: assign(['1a', '1', 'a'], {
+        input: '1111a2b3cccc',
+        index: 3
+      }),
+      done: false
+    });
+    assert.deepEqual(iter.next(), {
+      value: assign(['2b', '2', 'b'], {
+        input: '1111a2b3cccc',
+        index: 5
+      }),
+      done: false
+    });
+    assert.deepEqual(iter.next(), {
+      value: assign(['3c', '3', 'c'], {
+        input: '1111a2b3cccc',
+        index: 7
+      }),
+      done: false
+    });
+    assert.deepEqual(iter.next(), {
+      value: null,
+      done: true
+    });
     for (i$ = 0, len$ = (ref$ = [null, void 8, 'qwe', NaN, 42, new Date(), {}, []]).length; i$ < len$; ++i$) {
-      z1$ = ref$[i$];
-      assert.throws(fn1$, TypeError, "Throws on " + z1$ + " as first arguments");
+      y$ = ref$[i$];
+      assert.throws(fn1$, TypeError, "Throws on " + y$ + " as first arguments");
     }
     if (STRICT) {
       for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
-        z2$ = ref$[i$];
-        assert.throws(fn2$, TypeError, "Throws on " + z2$ + " as `this`");
+        z$ = ref$[i$];
+        assert.throws(fn2$, TypeError, "Throws on " + z$ + " as `this`");
       }
     }
     function fn$(){
       return 'aabc';
     }
     function fn1$(){
-      ''.matchAll(z1$);
+      ''.matchAll(y$);
     }
     function fn2$(){
-      matchAll.call(z2$, /./);
+      matchAll.call(z$, /./);
     }
   });
 }).call(this);

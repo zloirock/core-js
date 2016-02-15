@@ -6,7 +6,7 @@ same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {getOwnPropertyDescriptor, freeze} = core.Object
 {iterator} = core.Symbol
 
-test 'Map' (assert)->
+test 'Map' (assert)!->
   assert.isFunction Map
   assert.ok \clear   of Map::, 'clear in Map.prototype'
   assert.ok \delete  of Map::, 'delete in Map.prototype'
@@ -45,7 +45,7 @@ test 'Map' (assert)->
     assert.ok new C instanceof Map, 'correct subclassing with native classes #2'
     assert.same new C!set(1 2).get(1), 2, 'correct subclassing with native classes #3'
 
-test 'Map#clear' (assert)->
+test 'Map#clear' (assert)!->
   assert.isFunction Map::clear
   M = new Map
   M.clear!
@@ -61,7 +61,7 @@ test 'Map#clear' (assert)->
   assert.ok !M.has 1
   assert.ok !M.has f
 
-test 'Map#delete' (assert)->
+test 'Map#delete' (assert)!->
   assert.isFunction Map::delete
   a = []
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set a, {}
@@ -79,7 +79,7 @@ test 'Map#delete' (assert)->
   M.delete f
   assert.strictEqual M.size, 3
 
-test 'Map#forEach' (assert)->
+test 'Map#forEach' (assert)!->
   assert.isFunction Map::forEach
   r = {}
   var T
@@ -92,7 +92,7 @@ test 'Map#forEach' (assert)->
   assert.deepEqual r, {1: NaN, 7: 3, 5: 2, 4: 1, 9: a}
   map = new Map [[\0 9], [\1 9], [\2 9], [\3 9]]
   s = "";
-  map.forEach (value, key)->
+  map.forEach (value, key)!->
     s += key;
     if key is \2
       map.delete \2
@@ -102,14 +102,14 @@ test 'Map#forEach' (assert)->
   assert.strictEqual s, \0124
   map = new Map [[\0 1]]
   s = "";
-  map.forEach ->
+  map.forEach !->
     map.delete \0
     if s isnt '' => throw '!!!'
     s += it
   assert.strictEqual s, \1
   assert.throws (!-> Map::forEach.call new Set, !->), 'non-generic'
 
-test 'Map#get' (assert)->
+test 'Map#get' (assert)!->
   assert.isFunction Map::get
   o = {}
   f = freeze {}
@@ -121,7 +121,7 @@ test 'Map#get' (assert)->
   assert.strictEqual M.get(f), 42
   assert.strictEqual M.get(2), 5
 
-test 'Map#has' (assert)->
+test 'Map#has' (assert)!->
   assert.isFunction Map::has
   o = {}
   f = freeze {}
@@ -133,7 +133,7 @@ test 'Map#has' (assert)->
   assert.ok not M.has 4
   assert.ok not M.has {}
 
-test 'Map#set' (assert)->
+test 'Map#set' (assert)!->
   assert.isFunction Map::set
   o = {}
   M = new Map!set NaN, 1 .set 2 1 .set 3 1 .set 2 5 .set 1 4 .set o, o
@@ -157,7 +157,7 @@ test 'Map#set' (assert)->
   M = new Map!set freeze(f = {}), 42
   assert.strictEqual M.get(f), 42
 
-test 'Map#size' (assert)->
+test 'Map#size' (assert)!->
   size = new Map!set 2 1 .size
   assert.strictEqual typeof size, \number, 'size is number'
   assert.strictEqual size, 1, 'size is correct'
@@ -165,9 +165,9 @@ test 'Map#size' (assert)->
     sizeDesc = getOwnPropertyDescriptor Map::, \size
     assert.ok sizeDesc && sizeDesc.get, 'size is getter'
     assert.ok sizeDesc && !sizeDesc.set, 'size isnt setter'
-    assert.throws (-> Map::size), TypeError
+    assert.throws (!-> Map::size), TypeError
 
-test 'Map & -0' (assert)->
+test 'Map & -0' (assert)!->
   map = new Map
   map.set -0, 1
   assert.strictEqual map.size, 1
@@ -190,10 +190,10 @@ test 'Map & -0' (assert)->
     ..set 0, 0
   assert.ok map.has -0
 
-test 'Map#@@toStringTag' (assert)->
+test 'Map#@@toStringTag' (assert)!->
   assert.strictEqual Map::[Symbol?toStringTag], \Map, 'Map::@@toStringTag is `Map`'
 
-test 'Map Iterator' (assert)->
+test 'Map Iterator' (assert)!->
   map = new Map [[\a 1], [\b 2], [\c 3], [\d 4]]
   keys = []
   iterator = map.keys!
@@ -209,7 +209,7 @@ test 'Map Iterator' (assert)->
   assert.ok iterator.next!done
   assert.deepEqual keys, <[a d e]>
 
-test 'Map#keys' (assert)->
+test 'Map#keys' (assert)!->
   assert.isFunction Map::keys
   iter = new Map([[\a \q],[\s \w],[\d \e]])keys!
   assert.isIterator iter
@@ -220,7 +220,7 @@ test 'Map#keys' (assert)->
   assert.deepEqual iter.next!, {value: \d, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#values' (assert)->
+test 'Map#values' (assert)!->
   assert.isFunction Map::values
   iter = new Map([[\a \q],[\s \w],[\d \e]])values!
   assert.isIterator iter
@@ -231,7 +231,7 @@ test 'Map#values' (assert)->
   assert.deepEqual iter.next!, {value: \e, done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#entries' (assert)->
+test 'Map#entries' (assert)!->
   assert.isFunction Map::entries
   iter = new Map([[\a \q],[\s \w],[\d \e]])entries!
   assert.isIterator iter
@@ -242,7 +242,7 @@ test 'Map#entries' (assert)->
   assert.deepEqual iter.next!, {value: [\d \e], done: no}
   assert.deepEqual iter.next!, {value: void, done: on}
 
-test 'Map#@@iterator' (assert)->
+test 'Map#@@iterator' (assert)!->
   iter = core.getIterator new Map [[\a \q],[\s \w],[\d \e]]
   assert.isIterator iter
   assert.isIterable iter

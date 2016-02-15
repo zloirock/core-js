@@ -1,6 +1,6 @@
 {module, test} = QUnit
 module \ES6
-test 'ArrayBuffer.isView', !(assert)~>
+test 'ArrayBuffer.isView' (assert)!->
   {ArrayBuffer, DataView} = core
   {isView} = ArrayBuffer
   assert.isFunction isView

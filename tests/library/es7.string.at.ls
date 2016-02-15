@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES7
 
-test 'String#at' (assert)->
+test 'String#at' (assert)!->
   {at} = core.String
   assert.isFunction at
   # Tests from https://github.com/mathiasbynens/String.prototype.at/blob/master/tests/tests.js
@@ -85,5 +85,5 @@ test 'String#at' (assert)->
   assert.strictEqual at(42 1), \2
   assert.strictEqual at({toString: -> \abc}, 2), \c
   if STRICT
-    assert.throws (-> at null, 0), TypeError
-    assert.throws (-> at void, 0), TypeError
+    assert.throws (!-> at null, 0), TypeError
+    assert.throws (!-> at void, 0), TypeError

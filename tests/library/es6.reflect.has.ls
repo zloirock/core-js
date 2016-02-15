@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'Reflect.has' (assert)->
+test 'Reflect.has' (assert)!->
   {has} = core.Reflect
   assert.isFunction has
   assert.arity has, 2
@@ -11,4 +11,4 @@ test 'Reflect.has' (assert)->
   assert.strictEqual has(O, \qux), on
   assert.strictEqual has(O, \qwe), no
   assert.strictEqual has(O, \toString), on
-  assert.throws (-> has 42, \constructor), TypeError, 'throws on primitive'
+  assert.throws (!-> has 42, \constructor), TypeError, 'throws on primitive'

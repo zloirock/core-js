@@ -3,7 +3,7 @@ module \ES6
 
 {defineProperty} = core.Object
 
-test 'Reflect.deleteProperty' (assert)->
+test 'Reflect.deleteProperty' (assert)!->
   {deleteProperty} = core.Reflect
   assert.isFunction deleteProperty
   assert.arity deleteProperty, 2
@@ -14,4 +14,4 @@ test 'Reflect.deleteProperty' (assert)->
   assert.ok \bar not in O
   if DESCRIPTORS
     assert.strictEqual deleteProperty(defineProperty({}, \foo, {value: 42}), \foo), no
-  assert.throws (-> deleteProperty 42, \foo), TypeError, 'throws on primitive'
+  assert.throws (!-> deleteProperty 42, \foo), TypeError, 'throws on primitive'

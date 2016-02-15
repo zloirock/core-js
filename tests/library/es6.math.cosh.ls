@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the hyperbolic cosine of x.
-test 'Math.cosh' (assert)->
+test 'Math.cosh' (assert)!->
   {cosh} = core.Math
   assert.isFunction cosh
   assert.same cosh(NaN), NaN

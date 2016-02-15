@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 # Returns an implementation-dependent approximation to the cube root of x.
-test 'Math.cbrt' (assert)->
+test 'Math.cbrt' (assert)!->
   {cbrt} = core.Math
   assert.isFunction cbrt
   assert.same cbrt(NaN), NaN

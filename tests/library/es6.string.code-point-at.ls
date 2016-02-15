@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#codePointAt' (assert)->
+test 'String#codePointAt' (assert)!->
   {codePointAt} = core.String
   assert.isFunction codePointAt
   # tests from https://github.com/mathiasbynens/String.prototype.codePointAt/blob/master/tests/tests.js
@@ -55,5 +55,5 @@ test 'String#codePointAt' (assert)->
   assert.strictEqual codePointAt('\uDF06abc', null), 0xDF06
   assert.strictEqual codePointAt('\uDF06abc', void), 0xDF06
   if STRICT
-    assert.throws (-> codePointAt null, 0), TypeError
-    assert.throws (-> codePointAt void, 0), TypeError
+    assert.throws (!-> codePointAt null, 0), TypeError
+    assert.throws (!-> codePointAt void, 0), TypeError

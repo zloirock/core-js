@@ -2,7 +2,7 @@
 module \ES6
 # Returns an implementation-dependent approximation to the natural logarithm of 1 + x.
 # The result is computed in a way that is accurate even when the value of x is close to zero.
-test 'Math.log1p' (assert)->
+test 'Math.log1p' (assert)!->
   {log1p} = core.Math
   assert.isFunction log1p
   assert.same log1p(''), log1p 0
