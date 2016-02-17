@@ -22,40 +22,16 @@ var LIBRARY            = require('./_library')
   , empty              = function(){ /* empty */ }
   , Internal, GenericPromiseCapability, Wrapper;
 
-var testResolve = function(sub){
-  var test = new $Promise(empty), promise;
-  if(sub)test.constructor = function(exec){
-    exec(empty, empty);
-  };
-  (promise = $Promise.resolve(test))['catch'](empty);
-  return promise === test;
-};
-
-var USE_NATIVE = function(){
-  var works = false;
-  var SubPromise = function(x){
-    var self = new $Promise(x);
-    setProto(self, SubPromise.prototype);
-    return self;
-  };
+var USE_NATIVE = !!function(){
   try {
-    works = $Promise && $Promise.resolve && testResolve();
-    setProto(SubPromise, $Promise);
-    SubPromise.prototype = require('./_object-create')($Promise.prototype, {constructor: {value: SubPromise}});
-    // actual Firefox has broken subclass support, test that
-    if(!(SubPromise.resolve(5).then(empty) instanceof SubPromise)){
-      works = false;
-    }
-    // V8 4.8- bug, https://code.google.com/p/v8/issues/detail?id=4162
-    if(works && require('./_descriptors')){
-      var thenableThenGotten = false;
-      $Promise.resolve(require('./_object-dp').f({}, 'then', {
-        get: function(){ thenableThenGotten = true; }
-      }));
-      works = thenableThenGotten;
-    }
-  } catch(e){ works = false; }
-  return !!works;
+    // correct subclassing with @@species support
+    var promise      = $Promise.resolve(1)
+      , FakePromise1 = promise.constructor = function(exec){ exec(empty, empty); }
+      , FakePromise2 = function(exec){ exec(empty, empty); };
+    require('./_object-dp')(FakePromise1, require('./_wks')('species'), {value: FakePromise2});
+    // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
+    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise2;
+  } catch(e){ /* empty */ }
 }();
 
 // helpers
@@ -258,7 +234,7 @@ $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
     return capability.promise;
   }
 });
-$export($export.S + $export.F * (LIBRARY || !USE_NATIVE || testResolve(true)), PROMISE, {
+$export($export.S + $export.F * (LIBRARY || !USE_NATIVE), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x){
     // instanceof instead of internal slot check because we should fix it without replacement native Promise core
