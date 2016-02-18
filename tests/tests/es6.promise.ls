@@ -143,3 +143,35 @@ if PROTO
     assert.ok p3 instanceof SubPromise
     # check the async values
     p3.then assert.async!, -> assert.ok it, no
+
+test 'Unhandled rejection tracking' (assert)!->
+  done = no
+  start = assert.async!
+  Promise.reject(43).catch !->
+  $promise = Promise.reject 42
+  if process?
+    assert.expect 3
+    process.on \unhandledRejection, onunhandledrejection = (reason, promise)!->
+      assert.same promise, $promise, 'unhandledRejection, promise'
+      assert.same reason, 42, 'unhandledRejection, reason'
+      $promise.catch !->
+      process.removeListener \unhandledRejection, onunhandledrejection
+    process.on \rejectionHandled, onrejectionhandled = (promise)!->
+      assert.same promise, $promise, 'rejectionHandled, promise'
+      process.removeListener \rejectionHandled, onrejectionhandled
+      done or start!
+      done := on
+  else
+    assert.expect 4
+    global.onunhandledrejection = !->
+      assert.same it.promise, $promise, 'onunhandledrejection, promise'
+      assert.same it.reason, 42, 'onunhandledrejection, reason'
+      global.onunhandledrejection = null
+      $promise.catch !->
+    global.onrejectionhandled = !->
+      assert.same it.promise, $promise, 'onrejectionhandled, promise'
+      assert.same it.reason, 42, 'onrejectionhandled, reason'
+      global.onrejectionhandled = null
+      done or start!
+      done := on
+  setTimeout (!-> done or start!), 1e3
