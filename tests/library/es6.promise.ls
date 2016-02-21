@@ -67,6 +67,14 @@ test 'Promise.all' (assert)!->
   Promise.all a
   assert.ok done
   assert.throws (!-> Promise.all.call(null, []).catch !->), TypeError, 'throws without context'
+  # iteration closing
+  done = no
+  {resolve} = Promise
+  try
+    Promise.resolve = !-> throw 42
+    Promise.all(createIterable [1 2 3], return: !-> done := on)catch !->
+  Promise.resolve = resolve
+  assert.ok done, 'iteration closing'
 
 test 'Promise.race' (assert)!->
   assert.isFunction Promise.race
@@ -86,6 +94,14 @@ test 'Promise.race' (assert)!->
   Promise.race a
   assert.ok done
   assert.throws (!-> Promise.race.call(null, []).catch !->), TypeError, 'throws without context'
+  # iteration closing
+  done = no
+  {resolve} = Promise
+  try
+    Promise.resolve = !-> throw 42
+    Promise.race(createIterable [1 2 3], return: !-> done := on)catch !->
+  Promise.resolve = resolve
+  assert.ok done, 'iteration closing'
 
 test 'Promise.resolve' (assert)!->
   assert.isFunction Promise.resolve

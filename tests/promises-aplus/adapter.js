@@ -1,21 +1,28 @@
-// Adapter for "promises-aplus-tests" test runner
 delete global.Promise;
 
-var Promise = require('../../index.js').Promise;
+var Promise = require('../../shim.js').Promise;
+var assert  = require('assert')
 
-module.exports.deferred = function __deferred__() {
-	var o = {};
-	o.promise = new Promise(function __Promise__(resolve,reject){
-		o.resolve = resolve;
-		o.reject = reject;
-	});
-	return o;
-};
-
-module.exports.resolved = function __resolved__(val) {
-	return Promise.resolve(val);
-};
-
-module.exports.rejected = function __rejected__(reason) {
-	return Promise.reject(reason);
+module.exports = {
+  deferred: function(){
+  	var o = {};
+  	o.promise = new Promise(function(resolve,reject){
+  		o.resolve = resolve;
+  		o.reject  = reject;
+  	});
+  	return o;
+  },
+  resolved: function(val){
+	  return Promise.resolve(val);
+  },
+  rejected: function(reason){
+	 return Promise.reject(reason);
+  },
+  defineGlobalPromise: function(global){
+    global.Promise = Promise;
+    global.assert  = assert;
+  },
+  removeGlobalPromise: function(){
+    delete global.Promise;
+  }
 };

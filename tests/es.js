@@ -3901,7 +3901,7 @@
     assert.ok(Promise.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('Promise.all', function(assert){
-    var iter, a, done;
+    var iter, a, done, resolve;
     assert.isFunction(Promise.all);
     assert.arity(Promise.all, 1);
     assert.name(Promise.all, 'all');
@@ -3922,9 +3922,23 @@
     assert.throws(function(){
       Promise.all.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
+    done = false;
+    resolve = Promise.resolve;
+    try {
+      Promise.resolve = function(){
+        throw 42;
+      };
+      Promise.all(createIterable([1, 2, 3], {
+        'return': function(){
+          done = true;
+        }
+      }))['catch'](function(){});
+    } catch (e$) {}
+    Promise.resolve = resolve;
+    assert.ok(done, 'iteration closing');
   });
   test('Promise.race', function(assert){
-    var iter, a, done;
+    var iter, a, done, resolve;
     assert.isFunction(Promise.race);
     assert.arity(Promise.race, 1);
     assert.name(Promise.race, 'race');
@@ -3945,6 +3959,20 @@
     assert.throws(function(){
       Promise.race.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
+    done = false;
+    resolve = Promise.resolve;
+    try {
+      Promise.resolve = function(){
+        throw 42;
+      };
+      Promise.race(createIterable([1, 2, 3], {
+        'return': function(){
+          done = true;
+        }
+      }))['catch'](function(){});
+    } catch (e$) {}
+    Promise.resolve = resolve;
+    assert.ok(done, 'iteration closing');
   });
   test('Promise.resolve', function(assert){
     assert.isFunction(Promise.resolve);
