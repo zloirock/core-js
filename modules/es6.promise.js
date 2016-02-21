@@ -255,20 +255,22 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
       , resolve    = capability.resolve
       , reject     = capability.reject;
     var abrupt = perform(function(){
-      var values    = from(iterable)
-        , remaining = values.length
-        , results   = Array(remaining);
-      var f = function(promise, index){
-        var alreadyCalled = false;
+      var values    = []
+        , index     = 0
+        , remaining = 1;
+      forOf(iterable, false, function(promise){
+        var $index        = index++
+          , alreadyCalled = false;
+        values.push(undefined);
+        remaining++;
         C.resolve(promise).then(function(value){
           if(alreadyCalled)return;
-          alreadyCalled = true;
-          results[index] = value;
-          --remaining || resolve(results);
+          alreadyCalled  = true;
+          values[$index] = value;
+          --remaining || resolve(values);
         }, reject);
-      };
-      if(remaining)for(var i = 0, l = values.length; l > i; i++)f(values[i], i);
-      else resolve(results);
+      });
+      --remaining || resolve(values);
     });
     if(abrupt)reject(abrupt.error);
     return capability.promise;
