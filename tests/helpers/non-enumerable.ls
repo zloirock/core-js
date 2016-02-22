@@ -1,2 +1,2 @@
 QUnit.assert.nonEnumerable = (O, key, message)!->
-  DESCRIPTORS and @push !O.propertyIsEnumerable(key), no, on, message || "#{String key} is non-enumerable"
+  DESCRIPTORS and @push !O.propertyIsEnumerable(key), no, on, message || "#{if typeof key is 'symbol' => \method else key} is non-enumerable"
