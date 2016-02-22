@@ -1,4 +1,12 @@
 ## Changelog
+##### 2.1.1 - 2016.02.22
+- Some `Promise` improvements:
+  - Feature detection:
+    - **Added detection unhandled rejection tracking support - now it's available everywhere**, [#140](https://github.com/zloirock/core-js/issues/140)
+    - Added detection `@@species` pattern support for completely correct subclassing
+    - Removed usage `Object.setPrototypeOf` from feature detection and noisy console message about it in FF
+  - `Promise.all` fixed for some very specific cases
+
 ##### 2.1.0 - 2016.02.09
 - **API**:
   - ES5 polyfills are split and logic, used in other polyfills, moved to internal modules
