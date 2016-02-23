@@ -24,7 +24,7 @@
     "karma-ie-launcher": "0.2.x",
     "karma-firefox-launcher": "0.1.x",
     "karma-phantomjs-launcher": "1.0.x",
-    "qunitjs": "1.21.x",
+    "qunitjs": "1.22.x",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "2.1.x",
     "eslint": "2.2.x",
