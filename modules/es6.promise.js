@@ -110,7 +110,7 @@ var onUnhandled = function(promise){
       } else if(handler = global.onunhandledrejection){
         handler({promise: promise, reason: value});
       } else if((console = global.console) && console.error){
-        console.error('Unhandled promise rejection', value);
+        console.error('Unhandled promise rejection', isObject(value) && value.stack || value);
       } promise._h = 2;
     } promise._a = undefined;
   });
