@@ -102,24 +102,29 @@ var notify = function(promise, isReject){
 };
 var onUnhandled = function(promise){
   task.call(global, function(){
+    var value = promise._v
+      , abrupt, handler, console;
     if(isUnhandled(promise)){
-      var value = promise._v
-        , handler, console;
-      if(isNode){
-        process.emit('unhandledRejection', value, promise);
-      } else if(handler = global.onunhandledrejection){
-        handler({promise: promise, reason: value});
-      } else if((console = global.console) && console.error){
-        console.error('Unhandled promise rejection', value);
-      } promise._h = 2;
+      abrupt = perform(function(){
+        if(isNode){
+          process.emit('unhandledRejection', value, promise);
+        } else if(handler = global.onunhandledrejection){
+          handler({promise: promise, reason: value});
+        } else if((console = global.console) && console.error){
+          console.error('Unhandled promise rejection', value);
+        }
+      });
+      // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
+      promise._h = isNode || isUnhandled(promise) ? 2 : 1;
     } promise._a = undefined;
+    if(abrupt)throw abrupt.error;
   });
 };
 var isUnhandled = function(promise){
+  if(promise._h == 1)return false;
   var chain = promise._a || promise._c
     , i     = 0
     , reaction;
-  if(promise._h == 1)return false;
   while(chain.length > i){
     reaction = chain[i++];
     if(reaction.fail || !isUnhandled(reaction.promise))return false;
