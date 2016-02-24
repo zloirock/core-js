@@ -3723,16 +3723,52 @@
     });
   }
   test('Promise#then', function(assert){
+    var promise, FakePromise1, FakePromise2;
     assert.isFunction(Promise.prototype.then);
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    assert.ok(promise.then(function(){}) instanceof FakePromise2, 'subclassing, @@species pattern');
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    assert.ok(promise.then(function(){}) instanceof Promise, 'subclassing, incorrect `this` pattern');
   });
   test('Promise#catch', function(assert){
+    var promise, FakePromise1, FakePromise2;
     assert.isFunction(Promise.prototype['catch']);
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    assert.ok(promise['catch'](function(){}) instanceof FakePromise2, 'subclassing, @@species pattern');
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    assert.ok(promise['catch'](function(){}) instanceof Promise, 'subclassing, incorrect `this` pattern');
   });
   test('Promise#@@toStringTag', function(assert){
     assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('Promise.all', function(assert){
-    var passed, iter, a, done, resolve;
+    var passed, iter, a, done, resolve, FakePromise1, FakePromise2;
     assert.isFunction(Promise.all);
     passed = false;
     iter = createIterable([1, 2, 3]);
@@ -3765,9 +3801,18 @@
     } catch (e$) {}
     Promise.resolve = resolve;
     assert.ok(done, 'iteration closing');
+    FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.all = Promise.all;
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.resolve = FakePromise2.resolve = bind$(Promise, 'resolve');
+    assert.ok(FakePromise1.all([1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   });
   test('Promise.race', function(assert){
-    var passed, iter, a, done, resolve;
+    var passed, iter, a, done, resolve, FakePromise1, FakePromise2;
     assert.isFunction(Promise.race);
     passed = false;
     iter = createIterable([1, 2, 3]);
@@ -3800,18 +3845,45 @@
     } catch (e$) {}
     Promise.resolve = resolve;
     assert.ok(done, 'iteration closing');
+    FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.race = Promise.race;
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.resolve = FakePromise2.resolve = bind$(Promise, 'resolve');
+    assert.ok(FakePromise1.race([1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   });
   test('Promise.resolve', function(assert){
+    var FakePromise1, FakePromise2;
     assert.isFunction(Promise.resolve);
     assert.throws(function(){
       Promise.resolve.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
+    FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.resolve = Promise.resolve;
+    assert.ok(FakePromise1.resolve(42) instanceof FakePromise1, 'subclassing, `this` pattern');
   });
   test('Promise.reject', function(assert){
+    var FakePromise1, FakePromise2;
     assert.isFunction(Promise.reject);
     assert.throws(function(){
       Promise.reject.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
+    FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1.reject = Promise.reject;
+    assert.ok(FakePromise1.reject(42) instanceof FakePromise1, 'subclassing, `this` pattern');
   });
   if (PROTO) {
     test('Promise subclassing', function(assert){
@@ -3889,6 +3961,9 @@
       done || start();
     }, 1e3);
   });
+  function bind$(obj, key, target){
+    return function(){ return (target || obj)[key].apply(obj, arguments) };
+  }
 }).call(this);
 
 // Generated by LiveScript 1.4.0

@@ -42,9 +42,27 @@ if DESCRIPTORS => test 'Promise operations order' (assert)!->
 
 test 'Promise#then' (assert)!->
   assert.isFunction Promise::then
+  # subclassing, @@species pattern
+  promise = new Promise !-> it 42
+  promise.constructor = FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  assert.ok promise.then(->) instanceof FakePromise2, 'subclassing, @@species pattern'
+  # subclassing, incorrect `this.constructor` pattern
+  promise = new Promise !-> it 42
+  promise.constructor = FakePromise1 = !-> it ->, ->
+  assert.ok promise.then(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
 
 test 'Promise#catch' (assert)!->
   assert.isFunction Promise::catch
+  # subclassing, @@species pattern
+  promise = new Promise !-> it 42
+  promise.constructor = FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  assert.ok promise.catch(->) instanceof FakePromise2, 'subclassing, @@species pattern'
+  # subclassing, incorrect `this.constructor` pattern
+  promise = new Promise !-> it 42
+  promise.constructor = FakePromise1 = !-> it ->, ->
+  assert.ok promise.catch(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
 
 test 'Promise#@@toStringTag' (assert)!->
   assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
@@ -75,6 +93,12 @@ test 'Promise.all' (assert)!->
     Promise.all(createIterable [1 2 3], return: !-> done := on)catch !->
   Promise.resolve = resolve
   assert.ok done, 'iteration closing'
+  # subclassing, `this` pattern
+  FakePromise1 = !-> it ->, ->
+  FakePromise1.all = Promise.all
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  FakePromise1.resolve = FakePromise2.resolve = Promise~resolve
+  assert.ok FakePromise1.all([1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
 
 test 'Promise.race' (assert)!->
   assert.isFunction Promise.race
@@ -102,14 +126,30 @@ test 'Promise.race' (assert)!->
     Promise.race(createIterable [1 2 3], return: !-> done := on)catch !->
   Promise.resolve = resolve
   assert.ok done, 'iteration closing'
+  # subclassing, `this` pattern
+  FakePromise1 = !-> it ->, ->
+  FakePromise1.race = Promise.race
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  FakePromise1.resolve = FakePromise2.resolve = Promise~resolve
+  assert.ok FakePromise1.race([1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
 
 test 'Promise.resolve' (assert)!->
   assert.isFunction Promise.resolve
   assert.throws (!-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
+  # subclassing, `this` pattern
+  FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  FakePromise1.resolve = Promise.resolve
+  assert.ok FakePromise1.resolve(42) instanceof FakePromise1, 'subclassing, `this` pattern'
 
 test 'Promise.reject' (assert)!->
   assert.isFunction Promise.reject
   assert.throws (!-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'
+  # subclassing, `this` pattern
+  FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
+  FakePromise1.reject = Promise.reject
+  assert.ok FakePromise1.reject(42) instanceof FakePromise1, 'subclassing, `this` pattern'
 
 if PROTO
   test 'Promise subclassing' (assert)!->
