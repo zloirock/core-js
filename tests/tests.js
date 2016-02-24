@@ -4743,6 +4743,11 @@
       it(function(){}, function(){});
     };
     assert.ok(promise['catch'](function(){}) instanceof Promise, 'subclassing, incorrect `this` pattern');
+    assert.same(Promise.prototype['catch'].call({
+      then: function(x, y){
+        return y;
+      }
+    }, 42), 42, 'calling `.then`');
   });
   test('Promise#@@toStringTag', function(assert){
     assert.ok(Promise.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8] === 'Promise', 'Promise::@@toStringTag is `Promise`');
@@ -4914,22 +4919,20 @@
     });
   }
   test('Unhandled rejection tracking', function(assert){
-    var done, start, $promise, onunhandledrejection, onrejectionhandled;
+    var done, start, onunhandledrejection, onrejectionhandled, $promise;
     done = false;
     start = assert.async();
-    Promise.reject(43)['catch'](function(){});
-    $promise = Promise.reject(42);
     if (typeof process != 'undefined' && process !== null) {
       assert.expect(3);
       process.on('unhandledRejection', onunhandledrejection = function(reason, promise){
+        process.removeListener('unhandledRejection', onunhandledrejection);
         assert.same(promise, $promise, 'unhandledRejection, promise');
         assert.same(reason, 42, 'unhandledRejection, reason');
         $promise['catch'](function(){});
-        process.removeListener('unhandledRejection', onunhandledrejection);
       });
       process.on('rejectionHandled', onrejectionhandled = function(promise){
-        assert.same(promise, $promise, 'rejectionHandled, promise');
         process.removeListener('rejectionHandled', onrejectionhandled);
+        assert.same(promise, $promise, 'rejectionHandled, promise');
         done || start();
         done = true;
       });
@@ -4938,8 +4941,10 @@
       global.onunhandledrejection = function(it){
         assert.same(it.promise, $promise, 'onunhandledrejection, promise');
         assert.same(it.reason, 42, 'onunhandledrejection, reason');
+        setTimeout(function(){
+          $promise['catch'](function(){});
+        }, 1);
         global.onunhandledrejection = null;
-        $promise['catch'](function(){});
       };
       global.onrejectionhandled = function(it){
         assert.same(it.promise, $promise, 'onrejectionhandled, promise');
@@ -4949,6 +4954,8 @@
         done = true;
       };
     }
+    Promise.reject(43)['catch'](function(){});
+    $promise = Promise.reject(42);
     setTimeout(function(){
       done || start();
     }, 1e3);

@@ -48,12 +48,12 @@ test 'Promise#then' (assert)!->
   assert.nonEnumerable Promise::, \then
   # subclassing, @@species pattern
   promise = new Promise !-> it 42
-  promise.constructor = FakePromise1 = !-> it ->, ->
+  promise@@ = FakePromise1 = !-> it ->, ->
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
   assert.ok promise.then(->) instanceof FakePromise2, 'subclassing, @@species pattern'
   # subclassing, incorrect `this.constructor` pattern
   promise = new Promise !-> it 42
-  promise.constructor = FakePromise1 = !-> it ->, ->
+  promise@@ = FakePromise1 = !-> it ->, ->
   assert.ok promise.then(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
 
 test 'Promise#catch' (assert)!->
@@ -64,13 +64,15 @@ test 'Promise#catch' (assert)!->
   assert.nonEnumerable Promise::, \catch
   # subclassing, @@species pattern
   promise = new Promise !-> it 42
-  promise.constructor = FakePromise1 = !-> it ->, ->
+  promise@@ = FakePromise1 = !-> it ->, ->
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
   assert.ok promise.catch(->) instanceof FakePromise2, 'subclassing, @@species pattern'
   # subclassing, incorrect `this.constructor` pattern
   promise = new Promise !-> it 42
-  promise.constructor = FakePromise1 = !-> it ->, ->
+  promise@@ = FakePromise1 = !-> it ->, ->
   assert.ok promise.catch(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
+  # calling `.then`
+  assert.same Promise::catch.call({then: (x, y)-> y }, 42), 42, 'calling `.then`'
 
 test 'Promise#@@toStringTag' !(assert)->
   #assert.nonEnumerable Promise::, Symbol?toStringTag
@@ -203,18 +205,16 @@ if PROTO
 test 'Unhandled rejection tracking' (assert)!->
   done = no
   start = assert.async!
-  Promise.reject(43).catch !->
-  $promise = Promise.reject 42
   if process?
     assert.expect 3
     process.on \unhandledRejection, onunhandledrejection = (reason, promise)!->
+      process.removeListener \unhandledRejection, onunhandledrejection
       assert.same promise, $promise, 'unhandledRejection, promise'
       assert.same reason, 42, 'unhandledRejection, reason'
-      $promise.catch !->
-      process.removeListener \unhandledRejection, onunhandledrejection
+      $promise.catch ->
     process.on \rejectionHandled, onrejectionhandled = (promise)!->
-      assert.same promise, $promise, 'rejectionHandled, promise'
       process.removeListener \rejectionHandled, onrejectionhandled
+      assert.same promise, $promise, 'rejectionHandled, promise'
       done or start!
       done := on
   else
@@ -222,12 +222,14 @@ test 'Unhandled rejection tracking' (assert)!->
     global.onunhandledrejection = !->
       assert.same it.promise, $promise, 'onunhandledrejection, promise'
       assert.same it.reason, 42, 'onunhandledrejection, reason'
+      setTimeout (!-> $promise.catch ->), 1
       global.onunhandledrejection = null
-      $promise.catch !->
     global.onrejectionhandled = !->
       assert.same it.promise, $promise, 'onrejectionhandled, promise'
       assert.same it.reason, 42, 'onrejectionhandled, reason'
       global.onrejectionhandled = null
       done or start!
       done := on
+  Promise.reject(43).catch ->
+  $promise = Promise.reject 42
   setTimeout (!-> done or start!), 1e3
