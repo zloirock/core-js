@@ -27,7 +27,7 @@ var USE_NATIVE = !!function(){
     var promise      = $Promise.resolve(1)
       , FakePromise1 = promise.constructor = function(exec){ exec(empty, empty); }
       , FakePromise2 = function(exec){ exec(empty, empty); };
-    require('./_object-dp')(FakePromise1, require('./_wks')('species'), {value: FakePromise2});
+    require('./_object-dp').f(FakePromise1, require('./_wks')('species'), {value: FakePromise2});
     // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
     return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise2;
   } catch(e){ /* empty */ }
