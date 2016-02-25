@@ -3725,6 +3725,7 @@
   test('Promise#then', function(assert){
     var promise, FakePromise1, FakePromise2;
     assert.isFunction(Promise.prototype.then);
+    assert.nonEnumerable(Promise.prototype, 'then');
     promise = new Promise(function(it){
       it(42);
     });
@@ -3742,10 +3743,33 @@
       it(function(){}, function(){});
     };
     assert.ok(promise.then(function(){}) instanceof Promise, 'subclassing, incorrect `this` pattern');
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(){};
+    assert.throws(function(){
+      promise.then(function(){});
+    }, 'NewPromiseCapability validations, #1');
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(it){
+      it(null, function(){});
+    };
+    assert.throws(function(){
+      promise.then(function(){});
+    }, 'NewPromiseCapability validations, #2');
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(it){
+      it(function(){}, null);
+    };
+    assert.throws(function(){
+      promise.then(function(){});
+    }, 'NewPromiseCapability validations, #3');
   });
   test('Promise#catch', function(assert){
     var promise, FakePromise1, FakePromise2;
     assert.isFunction(Promise.prototype['catch']);
+    assert.nonEnumerable(Promise.prototype, 'catch');
     promise = new Promise(function(it){
       it(42);
     });
@@ -3763,6 +3787,28 @@
       it(function(){}, function(){});
     };
     assert.ok(promise['catch'](function(){}) instanceof Promise, 'subclassing, incorrect `this` pattern');
+    promise = new Promise(function(it){
+      it(42);
+    });
+    promise.constructor = FakePromise1 = function(it){
+      it(function(){}, function(){});
+    };
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(){};
+    assert.throws(function(){
+      promise['catch'](function(){});
+    }, 'NewPromiseCapability validations, #1');
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(it){
+      it(null, function(){});
+    };
+    assert.throws(function(){
+      promise['catch'](function(){});
+    }, 'NewPromiseCapability validations, #2');
+    FakePromise1[Symbol != null ? Symbol.species : void 8] = function(it){
+      it(function(){}, null);
+    };
+    assert.throws(function(){
+      promise['catch'](function(){});
+    }, 'NewPromiseCapability validations, #3');
     assert.same(Promise.prototype['catch'].call({
       then: function(x, y){
         return y;
@@ -3770,12 +3816,13 @@
     }, 42), 42, 'calling `.then`');
   });
   test('Promise#@@toStringTag', function(assert){
-    assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
+    assert.ok(Promise.prototype[Symbol != null ? Symbol.toStringTag : void 8] === 'Promise', 'Promise::@@toStringTag is `Promise`');
   });
   test('Promise.all', function(assert){
-    var passed, iter, a, done, resolve, FakePromise1, FakePromise2;
-    assert.isFunction(Promise.all);
-    passed = false;
+    var all, iter, a, done, resolve, FakePromise1, FakePromise2, FakePromise3;
+    all = Promise.all;
+    assert.isFunction(all);
+    assert.arity(all, 1);
     iter = createIterable([1, 2, 3]);
     Promise.all(iter)['catch'](function(){});
     assert.ok(iter.received, 'works with iterables: iterator received');
@@ -3783,14 +3830,14 @@
     a = [];
     done = false;
     a['@@iterator'] = void 8;
-    a[iterator] = function(){
+    a[Symbol != null ? Symbol.iterator : void 8] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
     };
     Promise.all(a);
     assert.ok(done);
     assert.throws(function(){
-      Promise.all.call(null, [])['catch'](function(){});
+      all.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
     done = false;
     resolve = Promise.resolve;
@@ -3809,17 +3856,34 @@
     FakePromise1 = function(it){
       it(function(){}, function(){});
     };
-    FakePromise1.all = Promise.all;
     FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
       it(function(){}, function(){});
     };
     FakePromise1.resolve = FakePromise2.resolve = bind$(Promise, 'resolve');
-    assert.ok(FakePromise1.all([1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.ok(all.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+    FakePromise1 = function(){};
+    FakePromise2 = function(it){
+      it(null, function(){});
+    };
+    FakePromise3 = function(it){
+      it(function(){}, null);
+    };
+    FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind$(Promise, 'resolve');
+    assert.throws(function(){
+      all.call(FakePromise1, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #1');
+    assert.throws(function(){
+      all.call(FakePromise2, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #2');
+    assert.throws(function(){
+      all.call(FakePromise3, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #3');
   });
   test('Promise.race', function(assert){
-    var passed, iter, a, done, resolve, FakePromise1, FakePromise2;
-    assert.isFunction(Promise.race);
-    passed = false;
+    var race, iter, a, done, resolve, FakePromise1, FakePromise2, FakePromise3;
+    race = Promise.race;
+    assert.isFunction(race);
+    assert.arity(race, 1);
     iter = createIterable([1, 2, 3]);
     Promise.race(iter)['catch'](function(){});
     assert.ok(iter.received, 'works with iterables: iterator received');
@@ -3827,14 +3891,14 @@
     a = [];
     done = false;
     a['@@iterator'] = void 8;
-    a[iterator] = function(){
+    a[Symbol != null ? Symbol.iterator : void 8] = function(){
       done = true;
       return core.getIteratorMethod([]).call(this);
     };
     Promise.race(a);
     assert.ok(done);
     assert.throws(function(){
-      Promise.race.call(null, [])['catch'](function(){});
+      race.call(null, [])['catch'](function(){});
     }, TypeError, 'throws without context');
     done = false;
     resolve = Promise.resolve;
@@ -3853,18 +3917,35 @@
     FakePromise1 = function(it){
       it(function(){}, function(){});
     };
-    FakePromise1.race = Promise.race;
     FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
       it(function(){}, function(){});
     };
     FakePromise1.resolve = FakePromise2.resolve = bind$(Promise, 'resolve');
-    assert.ok(FakePromise1.race([1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.ok(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+    FakePromise1 = function(){};
+    FakePromise2 = function(it){
+      it(null, function(){});
+    };
+    FakePromise3 = function(it){
+      it(function(){}, null);
+    };
+    FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind$(Promise, 'resolve');
+    assert.throws(function(){
+      race.call(FakePromise1, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #1');
+    assert.throws(function(){
+      race.call(FakePromise2, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #2');
+    assert.throws(function(){
+      race.call(FakePromise3, [1, 2, 3]);
+    }, 'NewPromiseCapability validations, #3');
   });
   test('Promise.resolve', function(assert){
-    var FakePromise1, FakePromise2;
-    assert.isFunction(Promise.resolve);
+    var resolve, FakePromise1, FakePromise2;
+    resolve = Promise.resolve;
+    assert.isFunction(resolve);
     assert.throws(function(){
-      Promise.resolve.call(null, 1)['catch'](function(){});
+      resolve.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
     FakePromise1 = function(it){
       it(function(){}, function(){});
@@ -3872,14 +3953,27 @@
     FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
       it(function(){}, function(){});
     };
-    FakePromise1.resolve = Promise.resolve;
-    assert.ok(FakePromise1.resolve(42) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.ok(resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.throws(function(){
+      resolve.call(function(){}, 42);
+    }, 'NewPromiseCapability validations, #1');
+    assert.throws(function(){
+      resolve.call(function(it){
+        it(null, function(){});
+      }, 42);
+    }, 'NewPromiseCapability validations, #2');
+    assert.throws(function(){
+      resolve.call(function(it){
+        it(function(){}, null);
+      }, 42);
+    }, 'NewPromiseCapability validations, #3');
   });
   test('Promise.reject', function(assert){
-    var FakePromise1, FakePromise2;
-    assert.isFunction(Promise.reject);
+    var reject, FakePromise1, FakePromise2;
+    reject = Promise.reject;
+    assert.isFunction(reject);
     assert.throws(function(){
-      Promise.reject.call(null, 1)['catch'](function(){});
+      reject.call(null, 1)['catch'](function(){});
     }, TypeError, 'throws without context');
     FakePromise1 = function(it){
       it(function(){}, function(){});
@@ -3887,8 +3981,20 @@
     FakePromise1[Symbol != null ? Symbol.species : void 8] = FakePromise2 = function(it){
       it(function(){}, function(){});
     };
-    FakePromise1.reject = Promise.reject;
-    assert.ok(FakePromise1.reject(42) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.ok(reject.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
+    assert.throws(function(){
+      reject.call(function(){}, 42);
+    }, 'NewPromiseCapability validations, #1');
+    assert.throws(function(){
+      reject.call(function(it){
+        it(null, function(){});
+      }, 42);
+    }, 'NewPromiseCapability validations, #2');
+    assert.throws(function(){
+      reject.call(function(it){
+        it(function(){}, null);
+      }, 42);
+    }, 'NewPromiseCapability validations, #3');
   });
   if (PROTO) {
     test('Promise subclassing', function(assert){

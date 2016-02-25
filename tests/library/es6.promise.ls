@@ -42,6 +42,7 @@ if DESCRIPTORS => test 'Promise operations order' (assert)!->
 
 test 'Promise#then' (assert)!->
   assert.isFunction Promise::then
+  assert.nonEnumerable Promise::, \then
   # subclassing, @@species pattern
   promise = new Promise !-> it 42
   promise@@ = FakePromise1 = !-> it ->, ->
@@ -51,9 +52,20 @@ test 'Promise#then' (assert)!->
   promise = new Promise !-> it 42
   promise@@ = FakePromise1 = !-> it ->, ->
   assert.ok promise.then(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
+  # NewPromiseCapability validations
+  promise = new Promise !-> it 42
+  promise@@ = FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = !->
+  assert.throws (!-> promise.then(->)), 'NewPromiseCapability validations, #1'
+  FakePromise1[Symbol?species] = !-> it null, ->
+  assert.throws (!-> promise.then(->)), 'NewPromiseCapability validations, #2'
+  FakePromise1[Symbol?species] = !-> it ->, null
+  assert.throws (!-> promise.then(->)), 'NewPromiseCapability validations, #3'
+
 
 test 'Promise#catch' (assert)!->
   assert.isFunction Promise::catch
+  assert.nonEnumerable Promise::, \catch
   # subclassing, @@species pattern
   promise = new Promise !-> it 42
   promise@@ = FakePromise1 = !-> it ->, ->
@@ -63,16 +75,27 @@ test 'Promise#catch' (assert)!->
   promise = new Promise !-> it 42
   promise@@ = FakePromise1 = !-> it ->, ->
   assert.ok promise.catch(->) instanceof Promise, 'subclassing, incorrect `this` pattern'
+  # NewPromiseCapability validations
+  promise = new Promise !-> it 42
+  promise@@ = FakePromise1 = !-> it ->, ->
+  FakePromise1[Symbol?species] = !->
+  assert.throws (!-> promise.catch(->)), 'NewPromiseCapability validations, #1'
+  FakePromise1[Symbol?species] = !-> it null, ->
+  assert.throws (!-> promise.catch(->)), 'NewPromiseCapability validations, #2'
+  FakePromise1[Symbol?species] = !-> it ->, null
+  assert.throws (!-> promise.catch(->)), 'NewPromiseCapability validations, #3'
   # calling `.then`
   assert.same Promise::catch.call({then: (x, y)-> y }, 42), 42, 'calling `.then`'
 
-test 'Promise#@@toStringTag' (assert)!->
-  assert.ok Promise::[Symbol.toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
+test 'Promise#@@toStringTag' !(assert)->
+  #assert.nonEnumerable Promise::, Symbol?toStringTag
+  assert.ok Promise::[Symbol?toStringTag] is \Promise, 'Promise::@@toStringTag is `Promise`'
 
 test 'Promise.all' (assert)!->
-  assert.isFunction Promise.all
+  {all} = Promise
+  assert.isFunction all
+  assert.arity all, 1
   # works with iterables
-  passed = no
   iter = createIterable [1 2 3]
   Promise.all iter .catch ->
   assert.ok iter.received, 'works with iterables: iterator received'
@@ -81,12 +104,12 @@ test 'Promise.all' (assert)!->
   a = []
   done = no
   a['@@iterator'] = void
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
     core.getIteratorMethod([])call @
   Promise.all a
   assert.ok done
-  assert.throws (!-> Promise.all.call(null, []).catch !->), TypeError, 'throws without context'
+  assert.throws (!-> all.call(null, []).catch !->), TypeError, 'throws without context'
   # iteration closing
   done = no
   {resolve} = Promise
@@ -97,15 +120,23 @@ test 'Promise.all' (assert)!->
   assert.ok done, 'iteration closing'
   # subclassing, `this` pattern
   FakePromise1 = !-> it ->, ->
-  FakePromise1.all = Promise.all
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
   FakePromise1.resolve = FakePromise2.resolve = Promise~resolve
-  assert.ok FakePromise1.all([1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
+  assert.ok all.call(FakePromise1, [1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
+  # NewPromiseCapability validations
+  FakePromise1 = !->
+  FakePromise2 = !-> it null, ->
+  FakePromise3 = !-> it ->, null
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = Promise~resolve
+  assert.throws (!-> all.call(FakePromise1, [1 2 3])), 'NewPromiseCapability validations, #1'
+  assert.throws (!-> all.call(FakePromise2, [1 2 3])), 'NewPromiseCapability validations, #2'
+  assert.throws (!-> all.call(FakePromise3, [1 2 3])), 'NewPromiseCapability validations, #3'
 
 test 'Promise.race' (assert)!->
-  assert.isFunction Promise.race
+  {race} = Promise
+  assert.isFunction race
+  assert.arity race, 1
   # works with iterables
-  passed = no
   iter = createIterable [1 2 3]
   Promise.race iter .catch ->
   assert.ok iter.received, 'works with iterables: iterator received'
@@ -114,12 +145,12 @@ test 'Promise.race' (assert)!->
   a = []
   done = no
   a['@@iterator'] = void
-  a[iterator] = ->
+  a[Symbol?iterator] = ->
     done := on
     core.getIteratorMethod([])call @
   Promise.race a
   assert.ok done
-  assert.throws (!-> Promise.race.call(null, []).catch !->), TypeError, 'throws without context'
+  assert.throws (!-> race.call(null, []).catch !->), TypeError, 'throws without context'
   # iteration closing
   done = no
   {resolve} = Promise
@@ -130,28 +161,43 @@ test 'Promise.race' (assert)!->
   assert.ok done, 'iteration closing'
   # subclassing, `this` pattern
   FakePromise1 = !-> it ->, ->
-  FakePromise1.race = Promise.race
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
   FakePromise1.resolve = FakePromise2.resolve = Promise~resolve
-  assert.ok FakePromise1.race([1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
+  assert.ok race.call(FakePromise1, [1 2 3]) instanceof FakePromise1, 'subclassing, `this` pattern'
+  # NewPromiseCapability validations
+  FakePromise1 = !->
+  FakePromise2 = !-> it null, ->
+  FakePromise3 = !-> it ->, null
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = Promise~resolve
+  assert.throws (!-> race.call(FakePromise1, [1 2 3])), 'NewPromiseCapability validations, #1'
+  assert.throws (!-> race.call(FakePromise2, [1 2 3])), 'NewPromiseCapability validations, #2'
+  assert.throws (!-> race.call(FakePromise3, [1 2 3])), 'NewPromiseCapability validations, #3'
 
 test 'Promise.resolve' (assert)!->
-  assert.isFunction Promise.resolve
-  assert.throws (!-> Promise.resolve.call(null, 1).catch !->), TypeError, 'throws without context'
+  {resolve} = Promise
+  assert.isFunction resolve
+  assert.throws (!-> resolve.call(null, 1).catch !->), TypeError, 'throws without context'
   # subclassing, `this` pattern
   FakePromise1 = !-> it ->, ->
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
-  FakePromise1.resolve = Promise.resolve
-  assert.ok FakePromise1.resolve(42) instanceof FakePromise1, 'subclassing, `this` pattern'
+  assert.ok resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern'
+  # NewPromiseCapability validations
+  assert.throws (!-> resolve.call(!->, 42)), 'NewPromiseCapability validations, #1'
+  assert.throws (!-> resolve.call((!-> it null, ->), 42)), 'NewPromiseCapability validations, #2'
+  assert.throws (!-> resolve.call((!-> it ->, null), 42)), 'NewPromiseCapability validations, #3'
 
 test 'Promise.reject' (assert)!->
-  assert.isFunction Promise.reject
-  assert.throws (!-> Promise.reject.call(null, 1).catch !->), TypeError, 'throws without context'
+  {reject} = Promise
+  assert.isFunction reject
+  assert.throws (!-> reject.call(null, 1).catch !->), TypeError, 'throws without context'
   # subclassing, `this` pattern
   FakePromise1 = !-> it ->, ->
   FakePromise1[Symbol?species] = FakePromise2 = !-> it ->, ->
-  FakePromise1.reject = Promise.reject
-  assert.ok FakePromise1.reject(42) instanceof FakePromise1, 'subclassing, `this` pattern'
+  assert.ok reject.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern'
+  # NewPromiseCapability validations
+  assert.throws (!-> reject.call(!->, 42)), 'NewPromiseCapability validations, #1'
+  assert.throws (!-> reject.call((!-> it null, ->), 42)), 'NewPromiseCapability validations, #2'
+  assert.throws (!-> reject.call((!-> it ->, null), 42)), 'NewPromiseCapability validations, #3'
 
 if PROTO
   test 'Promise subclassing' (assert)!->
