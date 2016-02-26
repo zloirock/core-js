@@ -54,10 +54,8 @@ var wrap = function(tag){
   sym._k = tag;
   DESCRIPTORS && setter && setSymbolDesc(ObjectProto, tag, {
     configurable: true,
-    set: function(value){
-      if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
-      setSymbolDesc(this, tag, createDesc(1, value));
-    }
+    enumerable: false,
+    writable: true
   });
   return sym;
 };
