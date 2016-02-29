@@ -1,5 +1,8 @@
 ## Changelog
-##### 2.1.2 - 2016.02.28
+##### 2.1.3 - 2016.02.29
+- Added fallback for [`es6-promise` package bug](https://github.com/stefanpenner/es6-promise/issues/169), [#176](https://github.com/zloirock/core-js/issues/176)
+
+##### 2.1.2 - 2016.02.29
 - Some minor `Promise` fixes:
   - Browsers `rejectionhandled` event better HTML spec complaint
   - Errors in unhandled rejection handlers should not cause any problems

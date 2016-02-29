@@ -1,5 +1,5 @@
 /**
- * core-js 2.1.2
+ * core-js 2.1.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -481,7 +481,7 @@
 /* 3 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.1.2'};
+	var core = module.exports = {version: '2.1.3'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -3860,12 +3860,10 @@
 	var USE_NATIVE = !!function(){
 	  try {
 	    // correct subclassing with @@species support
-	    var promise      = $Promise.resolve(1)
-	      , FakePromise1 = promise.constructor = function(exec){ exec(empty, empty); }
-	      , FakePromise2 = function(exec){ exec(empty, empty); };
-	    __webpack_require__(9).f(FakePromise1, __webpack_require__(23)('species'), {value: FakePromise2});
+	    var promise     = $Promise.resolve(1)
+	      , FakePromise = (promise.constructor = {})[__webpack_require__(23)('species')] = function(exec){ exec(empty, empty); };
 	    // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-	    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise2;
+	    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise;
 	  } catch(e){ /* empty */ }
 	}();
 
