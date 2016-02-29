@@ -1,5 +1,5 @@
 /**
- * core-js 2.1.1
+ * core-js 2.1.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -470,7 +470,7 @@
 /* 3 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.1.1'};
+	var core = module.exports = {version: '2.1.2'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -3450,7 +3450,7 @@
 	    var promise      = $Promise.resolve(1)
 	      , FakePromise1 = promise.constructor = function(exec){ exec(empty, empty); }
 	      , FakePromise2 = function(exec){ exec(empty, empty); };
-	    __webpack_require__(11)(FakePromise1, __webpack_require__(23)('species'), {value: FakePromise2});
+	    __webpack_require__(11).f(FakePromise1, __webpack_require__(23)('species'), {value: FakePromise2});
 	    // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
 	    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise2;
 	  } catch(e){ /* empty */ }
@@ -3525,24 +3525,29 @@
 	};
 	var onUnhandled = function(promise){
 	  task.call(global, function(){
+	    var value = promise._v
+	      , abrupt, handler, console;
 	    if(isUnhandled(promise)){
-	      var value = promise._v
-	        , handler, console;
-	      if(isNode){
-	        process.emit('unhandledRejection', value, promise);
-	      } else if(handler = global.onunhandledrejection){
-	        handler({promise: promise, reason: value});
-	      } else if((console = global.console) && console.error){
-	        console.error('Unhandled promise rejection', value);
-	      } promise._h = 2;
+	      abrupt = perform(function(){
+	        if(isNode){
+	          process.emit('unhandledRejection', value, promise);
+	        } else if(handler = global.onunhandledrejection){
+	          handler({promise: promise, reason: value});
+	        } else if((console = global.console) && console.error){
+	          console.error('Unhandled promise rejection', value);
+	        }
+	      });
+	      // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
+	      promise._h = isNode || isUnhandled(promise) ? 2 : 1;
 	    } promise._a = undefined;
+	    if(abrupt)throw abrupt.error;
 	  });
 	};
 	var isUnhandled = function(promise){
+	  if(promise._h == 1)return false;
 	  var chain = promise._a || promise._c
 	    , i     = 0
 	    , reaction;
-	  if(promise._h == 1)return false;
 	  while(chain.length > i){
 	    reaction = chain[i++];
 	    if(reaction.fail || !isUnhandled(reaction.promise))return false;
@@ -3774,7 +3779,7 @@
 	    fn();
 	  }
 	};
-	var listner = function(event){
+	var listener = function(event){
 	  run.call(event.data);
 	};
 	// Node.js 0.9+ & IE10+ has setImmediate, otherwise:
@@ -3800,7 +3805,7 @@
 	  } else if(MessageChannel){
 	    channel = new MessageChannel;
 	    port    = channel.port2;
-	    channel.port1.onmessage = listner;
+	    channel.port1.onmessage = listener;
 	    defer = ctx(port.postMessage, port, 1);
 	  // Browsers with postMessage, skip WebWorkers
 	  // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
@@ -3808,7 +3813,7 @@
 	    defer = function(id){
 	      global.postMessage(id + '', '*');
 	    };
-	    global.addEventListener('message', listner, false);
+	    global.addEventListener('message', listener, false);
 	  // IE8-
 	  } else if(ONREADYSTATECHANGE in cel('script')){
 	    defer = function(id){

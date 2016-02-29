@@ -1,4 +1,10 @@
 ## Changelog
+##### 2.1.2 - 2016.02.28
+- Some minor `Promise` fixes:
+  - Browsers `rejectionhandled` event better HTML spec complaint
+  - Errors in unhandled rejection handlers should not cause any problems
+  - Fixed typo in feature detection
+
 ##### 2.1.1 - 2016.02.22
 - Some `Promise` improvements:
   - Feature detection:
