@@ -24,12 +24,10 @@ var LIBRARY            = require('./_library')
 var USE_NATIVE = !!function(){
   try {
     // correct subclassing with @@species support
-    var promise      = $Promise.resolve(1)
-      , FakePromise1 = promise.constructor = function(exec){ exec(empty, empty); }
-      , FakePromise2 = function(exec){ exec(empty, empty); };
-    require('./_object-dp').f(FakePromise1, require('./_wks')('species'), {value: FakePromise2});
+    var promise     = $Promise.resolve(1)
+      , FakePromise = (promise.constructor = {})[require('./_wks')('species')] = function(exec){ exec(empty, empty); };
     // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise2;
+    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise;
   } catch(e){ /* empty */ }
 }();
 
