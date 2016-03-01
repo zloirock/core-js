@@ -5883,13 +5883,11 @@
     split = instance.split(1, 'boo');
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T36 #1');
     assert.strictEqual(split.length, 0, 'S15.5.4.14_A2_T36 #2');
-    if (NATIVE) {
-      instance = Object(100111122133144155);
-      instance.split = String.prototype.split;
-      split = instance.split(1, -Math.pow(2, 32) + 1);
-      assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T37 #1');
-      assert.strictEqual(split.length, 0, 'S15.5.4.14_A2_T37 #2');
-    }
+    instance = Object(100111122133144155);
+    instance.split = String.prototype.split;
+    split = instance.split(1, -Math.pow(2, 32) + 1);
+    assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T37 #1');
+    assert.arrayEqual(split, [''], 'S15.5.4.14_A2_T37 #2');
     instance = Object(100111122133144155);
     instance.split = String.prototype.split;
     split = instance.split(1, NaN);
