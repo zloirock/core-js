@@ -146,6 +146,10 @@ module.exports = {
     'es7.object.get-own-property-descriptors',
     'es7.object.values',
     'es7.object.entries',
+    'es7.object.define-getter',
+    'es7.object.define-setter',
+    'es7.object.lookup-getter',
+    'es7.object.lookup-setter',
     'es7.map.to-json',
     'es7.set.to-json',
     'es7.system.global',
@@ -182,6 +186,10 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
+    'es7.object.define-getter',
+    'es7.object.define-setter',
+    'es7.object.lookup-getter',
+    'es7.object.lookup-setter',
     'es7.string.match-all'
   ],
   libraryBlacklist: [
