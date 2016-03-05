@@ -16,7 +16,7 @@
     "grunt-contrib-uglify": "1.0.x",
     "grunt-contrib-watch": "0.6.x",
     "grunt-contrib-clean": "1.0.x",
-    "grunt-contrib-copy": "0.8.x",
+    "grunt-contrib-copy": "1.0.x",
     "grunt-karma": "0.12.x",
     "karma": "0.13.x",
     "karma-qunit": "0.1.x",
@@ -27,7 +27,7 @@
     "qunitjs": "1.22.x",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "2.1.x",
-    "eslint": "2.2.x",
+    "eslint": "2.3.x",
     "temp": "0.8.x"
   },
   "scripts": {
