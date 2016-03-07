@@ -35,7 +35,8 @@ var global         = require('./_global')
   , SymbolRegistry = shared('symbol-registry')
   , AllSymbols     = shared('symbols')
   , ObjectProto    = Object.prototype
-  , USE_NATIVE     = typeof $Symbol == 'function';
+  , USE_NATIVE     = typeof $Symbol == 'function'
+  , QObject        = global.QObject;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDesc = DESCRIPTORS && $fails(function(){
@@ -187,7 +188,8 @@ for(var symbols = (
   if(!(key in Wrapper))dP(Wrapper, key, {value: USE_NATIVE ? sym : wrap(sym)});
 };
 
-setter = true;
+// Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
+if(!QObject || !QObject.prototype || !QObject.prototype.findChild)setter = true;
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
