@@ -5,7 +5,7 @@
   module('ES7');
   if (DESCRIPTORS) {
     test('Object#__defineGetter__', function(assert){
-      var __defineGetter__, O;
+      var __defineGetter__, O, i$, x$, ref$, len$;
       __defineGetter__ = Object.prototype.__defineGetter__;
       assert.isFunction(__defineGetter__);
       assert.arity(__defineGetter__, 2);
@@ -22,6 +22,15 @@
       });
       O.key = 44;
       assert.ok(O.key === 42 && O.foo === 43, 'works with setter');
+      if (STRICT) {
+        for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
+          x$ = ref$[i$];
+          assert.throws(fn$, TypeError, "Throws on " + x$ + " as `this`");
+        }
+      }
+      function fn$(){
+        __defineGetter__.call(x$, 1, function(){});
+      }
     });
   }
 }).call(this);
@@ -33,7 +42,7 @@
   module('ES7');
   if (DESCRIPTORS) {
     test('Object#__defineSetter__', function(assert){
-      var __defineSetter__, O;
+      var __defineSetter__, O, i$, x$, ref$, len$;
       __defineSetter__ = Object.prototype.__defineSetter__;
       assert.isFunction(__defineSetter__);
       assert.arity(__defineSetter__, 2);
@@ -55,6 +64,15 @@
       });
       O.key = 44;
       assert.ok(O.key === 42 && O.foo === 43, 'works with getter');
+      if (STRICT) {
+        for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
+          x$ = ref$[i$];
+          assert.throws(fn$, TypeError, "Throws on " + x$ + " as `this`");
+        }
+      }
+      function fn$(){
+        __defineSetter__.call(x$, 1, function(){});
+      }
     });
   }
 }).call(this);
@@ -66,7 +84,7 @@
   module('ES7');
   if (DESCRIPTORS) {
     test('Object#__lookupGetter__', function(assert){
-      var __lookupGetter__, create, O, F;
+      var __lookupGetter__, create, O, F, i$, x$, ref$, len$;
       __lookupGetter__ = Object.prototype.__lookupGetter__;
       create = Object.create;
       assert.isFunction(__lookupGetter__);
@@ -84,6 +102,15 @@
       assert.same(O.__lookupGetter__('key'), F, 'own getter');
       assert.same(create(O).__lookupGetter__('key'), F, 'proto getter');
       assert.same(create(O).__lookupGetter__('foo'), void 8, 'empty proto');
+      if (STRICT) {
+        for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
+          x$ = ref$[i$];
+          assert.throws(fn$, TypeError, "Throws on " + x$ + " as `this`");
+        }
+      }
+      function fn$(){
+        __lookupGetter__.call(x$, 1);
+      }
     });
   }
 }).call(this);
@@ -95,7 +122,7 @@
   module('ES7');
   if (DESCRIPTORS) {
     test('Object#__lookupSetter__', function(assert){
-      var __lookupSetter__, create, O, F;
+      var __lookupSetter__, create, O, F, i$, x$, ref$, len$;
       __lookupSetter__ = Object.prototype.__lookupSetter__;
       create = Object.create;
       assert.isFunction(__lookupSetter__);
@@ -113,6 +140,15 @@
       assert.same(O.__lookupSetter__('key'), F, 'own setter');
       assert.same(create(O).__lookupSetter__('key'), F, 'proto setter');
       assert.same(create(O).__lookupSetter__('foo'), void 8, 'empty proto');
+      if (STRICT) {
+        for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
+          x$ = ref$[i$];
+          assert.throws(fn$, TypeError, "Throws on " + x$ + " as `this`");
+        }
+      }
+      function fn$(){
+        __lookupSetter__.call(x$, 1);
+      }
     });
   }
 }).call(this);

@@ -14,3 +14,5 @@ if DESCRIPTORS => test 'Object#__defineGetter__' (assert)!->
   O.__defineSetter__ \key, !-> @foo = 43
   O.key = 44
   assert.ok (O.key is 42 and O.foo is 43), 'works with setter'
+  if STRICT => for [null void]
+    assert.throws (!-> __defineGetter__.call .., 1 ->), TypeError, "Throws on #{..} as `this`"

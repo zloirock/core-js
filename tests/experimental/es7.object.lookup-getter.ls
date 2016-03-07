@@ -17,3 +17,5 @@ if DESCRIPTORS => test 'Object#__lookupGetter__' (assert)!->
   assert.same O.__lookupGetter__(\key), F, 'own getter'
   assert.same (create O)__lookupGetter__(\key), F, 'proto getter'
   assert.same (create O)__lookupGetter__(\foo), void, 'empty proto'
+  if STRICT => for [null void]
+    assert.throws (!-> __lookupGetter__.call .., 1), TypeError, "Throws on #{..} as `this`"
