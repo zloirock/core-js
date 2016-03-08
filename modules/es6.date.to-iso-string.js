@@ -1,7 +1,8 @@
 'use strict';
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
 var $export = require('./_export')
-  , fails   = require('./_fails');
+  , fails   = require('./_fails')
+  , getTime = Date.prototype.getTime;
 
 var lz = function(num){
   return num > 9 ? num : '0' + num;
@@ -14,7 +15,7 @@ $export($export.P + $export.F * (fails(function(){
   new Date(NaN).toISOString();
 })), 'Date', {
   toISOString: function toISOString(){
-    if(!isFinite(this))throw RangeError('Invalid time value');
+    if(!isFinite(getTime.call(this)))throw RangeError('Invalid time value');
     var d = this
       , y = d.getUTCFullYear()
       , m = d.getUTCMilliseconds()
