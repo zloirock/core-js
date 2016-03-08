@@ -1,4 +1,8 @@
 ## Changelog
+##### 2.1.4 - 2016.03.08
+- Added fallback for `Symbol` polyfill in Qt Script, [#173](https://github.com/zloirock/core-js/issues/173)
+- Added one more fallback for IE11 `Script Access Denied` error with iframes, [#165](https://github.com/zloirock/core-js/issues/165)
+
 ##### 2.1.3 - 2016.02.29
 - Added fallback for [`es6-promise` package bug](https://github.com/stefanpenner/es6-promise/issues/169), [#176](https://github.com/zloirock/core-js/issues/176)
 
