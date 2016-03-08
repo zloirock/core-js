@@ -125,6 +125,7 @@ module.exports = {
     'es6.date.to-string',
     'es6.date.to-iso-string',
     'es6.date.to-json',
+    'es6.date.to-primitive',
     'es6.typed.array-buffer',
     'es6.typed.data-view',
     'es6.typed.int8-array',
@@ -186,6 +187,7 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
+    'es6.date.to-primitive',
     'es7.object.define-getter',
     'es7.object.define-setter',
     'es7.object.lookup-getter',
@@ -203,7 +205,8 @@ module.exports = {
     'es6.regexp.search',
     'es6.regexp.split',
     'es6.number.constructor',
-    'es6.date.to-string'
+    'es6.date.to-string',
+    'es6.date.to-primitive'
   ],
   es5SpecialCase: [
     'es6.object.create',
