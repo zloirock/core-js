@@ -17,6 +17,7 @@ var LIBRARY            = require('./_library')
   , TypeError          = global.TypeError
   , process            = global.process
   , $Promise           = global[PROMISE]
+  , process            = global.process
   , isNode             = classof(process) == 'process'
   , empty              = function(){ /* empty */ }
   , Internal, GenericPromiseCapability, Wrapper;
@@ -74,6 +75,7 @@ var notify = function(promise, isReject){
       var handler = ok ? reaction.ok : reaction.fail
         , resolve = reaction.resolve
         , reject  = reaction.reject
+        , domain  = reaction.domain
         , result, then;
       try {
         if(handler){
@@ -81,7 +83,12 @@ var notify = function(promise, isReject){
             if(promise._h == 2)onHandleUnhandled(promise);
             promise._h = 1;
           }
-          result = handler === true ? value : handler(value);
+          if(handler === true)result = value;
+          else {
+            if(domain)domain.enter();
+            result = handler(value);
+            if(domain)domain.exit();
+          }
           if(result === reaction.promise){
             reject(TypeError('Promise-chain cycle'));
           } else if(then = isThenable(result)){
@@ -200,9 +207,10 @@ if(!USE_NATIVE){
   Internal.prototype = require('./_redefine-all')($Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected){
-      var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
-      reaction.ok   = typeof onFulfilled == 'function' ? onFulfilled : true;
-      reaction.fail = typeof onRejected == 'function' && onRejected;
+      var reaction    = newPromiseCapability(speciesConstructor(this, $Promise));
+      reaction.ok     = typeof onFulfilled == 'function' ? onFulfilled : true;
+      reaction.fail   = typeof onRejected == 'function' && onRejected;
+      reaction.domain = isNode ? process.domain : undefined;
       this._c.push(reaction);
       if(this._a)this._a.push(reaction);
       if(this._s)notify(this, false);

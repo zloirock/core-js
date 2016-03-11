@@ -7,17 +7,11 @@ var global    = require('./_global')
   , head, last, notify;
 
 var flush = function(){
-  var parent, domain, fn;
-  if(isNode && (parent = process.domain)){
-    process.domain = null;
-    parent.exit();
-  }
+  var parent, fn;
+  if(isNode && (parent = process.domain))parent.exit();
   while(head){
-    domain = head.domain;
-    fn     = head.fn;
-    if(domain)domain.enter();
+    fn = head.fn;
     fn(); // <- currently we use it only for Promise - try / catch not required
-    if(domain)domain.exit();
     head = head.next;
   } last = undefined;
   if(parent)parent.enter();
@@ -30,11 +24,11 @@ if(isNode){
   };
 // browsers with MutationObserver
 } else if(Observer){
-  var toggle = 1
+  var toggle = true
     , node   = document.createTextNode('');
   new Observer(flush).observe(node, {characterData: true}); // eslint-disable-line no-new
   notify = function(){
-    node.data = toggle = -toggle;
+    node.data = toggle = !toggle;
   };
 // environments with maybe non-completely correct, but existent Promise
 } else if(Promise && Promise.resolve){
@@ -55,7 +49,7 @@ if(isNode){
 }
 
 module.exports = function(fn){
-  var task = {fn: fn, next: undefined, domain: isNode && process.domain};
+  var task = {fn: fn, next: undefined};
   if(last)last.next = task;
   if(!head){
     head = task;
