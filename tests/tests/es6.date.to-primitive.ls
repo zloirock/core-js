@@ -16,7 +16,5 @@ test 'Date#@@toPrimitive' (assert)!->
   assert.same toPrimitive.call(Object(2), \default), \2, 'generic, hint "default"'
   for [void '' \foo {toString: -> \string}]
     assert.throws (!-> new Date![TO_PRIMITIVE] ..), TypeError, "throws on #{..} as a hint"
-  for [1 no \string]
-    assert.throws (!-> toPrimitive.call .., \string), TypeError, "throws on #{..} as `this`"
-  if STRICT => for [null void]
+  if STRICT => for [1 no \string null void]
     assert.throws (!-> toPrimitive.call .., \string), TypeError, "throws on #{..} as `this`"

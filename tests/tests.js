@@ -2089,7 +2089,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Date#@@toPrimitive', function(assert){
-    var TO_PRIMITIVE, toPrimitive, date, i$, x$, ref$, len$, y$, z$;
+    var TO_PRIMITIVE, toPrimitive, date, i$, x$, ref$, len$, y$;
     TO_PRIMITIVE = Symbol.toPrimitive;
     toPrimitive = Date.prototype[TO_PRIMITIVE];
     assert.isFunction(toPrimitive);
@@ -2110,14 +2110,10 @@
       x$ = ref$[i$];
       assert.throws(fn1$, TypeError, "throws on " + x$ + " as a hint");
     }
-    for (i$ = 0, len$ = (ref$ = [1, false, 'string']).length; i$ < len$; ++i$) {
-      y$ = ref$[i$];
-      assert.throws(fn2$, TypeError, "throws on " + y$ + " as `this`");
-    }
     if (STRICT) {
-      for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
-        z$ = ref$[i$];
-        assert.throws(fn3$, TypeError, "throws on " + z$ + " as `this`");
+      for (i$ = 0, len$ = (ref$ = [1, false, 'string', null, void 8]).length; i$ < len$; ++i$) {
+        y$ = ref$[i$];
+        assert.throws(fn2$, TypeError, "throws on " + y$ + " as `this`");
       }
     }
     function fn$(){
@@ -2128,9 +2124,6 @@
     }
     function fn2$(){
       toPrimitive.call(y$, 'string');
-    }
-    function fn3$(){
-      toPrimitive.call(z$, 'string');
     }
   });
 }).call(this);
