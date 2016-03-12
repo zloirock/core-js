@@ -4251,7 +4251,8 @@
     $promise = Promise.reject(42);
     setTimeout(function(){
       done || start();
-    }, 1e3);
+      done = true;
+    }, 3e3);
   });
   function bind$(obj, key, target){
     return function(){ return (target || obj)[key].apply(obj, arguments) };

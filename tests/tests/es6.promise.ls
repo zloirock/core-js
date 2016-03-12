@@ -275,4 +275,7 @@ test 'Unhandled rejection tracking' (assert)!->
       done := on
   Promise.reject(43).catch ->
   $promise = Promise.reject 42
-  setTimeout (!-> done or start!), 1e3
+  setTimeout (!->
+    done or start!
+    done := on
+  ), 3e3
