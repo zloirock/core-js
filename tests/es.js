@@ -1283,7 +1283,6 @@
     toPrimitive = Date.prototype[TO_PRIMITIVE];
     assert.isFunction(toPrimitive);
     assert.arity(toPrimitive, 1);
-    assert.looksNative(toPrimitive);
     assert.nonEnumerable(Object.prototype, TO_PRIMITIVE);
     date = new Date;
     assert.same(date[TO_PRIMITIVE]('string'), date.toString(), 'generic, hint "string"');
