@@ -26,6 +26,5 @@ test 'String#matchAll' (assert)!->
   assert.deepEqual iter.next!, {value: null, done: on}
   for [null void \qwe NaN, 42 new Date!, {} []]
     assert.throws (!-> ''matchAll ..), TypeError, "Throws on #{..} as first arguments"
-  if STRICT
-    for [null void]
-      assert.throws (!-> matchAll.call .., /./), TypeError, "Throws on #{..} as `this`"
+  if STRICT => for [null void]
+    assert.throws (!-> matchAll.call .., /./), TypeError, "Throws on #{..} as `this`"

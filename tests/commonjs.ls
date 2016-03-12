@@ -184,6 +184,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/trim-end")(' a ') is ' a'
   ok require("#P/fn/string/trim-left")(' a ') is 'a '
   ok require("#P/fn/string/trim-right")(' a ') is ' a'
+  ok \next of require("#P/fn/string/match-all")(\a /./)
   ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \next of require("#P/fn/string/iterator") \qwe
@@ -212,6 +213,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/virtual/trim-end").call(' a ') is ' a'
   ok require("#P/fn/string/virtual/trim-left").call(' a ') is 'a '
   ok require("#P/fn/string/virtual/trim-right").call(' a ') is ' a'
+  ok \next of require("#P/fn/string/virtual/match-all").call(\a /./)
   ok require("#P/fn/string/virtual/escape-html").call('<br />') is '&lt;br /&gt;'
   ok require("#P/fn/string/virtual/unescape-html").call('&lt;br /&gt;') is '<br />'
   ok require("#P/fn/string/virtual").unescapeHTML.call('&lt;br /&gt;') is '<br />'

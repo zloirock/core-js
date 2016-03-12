@@ -191,8 +191,7 @@ module.exports = {
     'es7.object.define-getter',
     'es7.object.define-setter',
     'es7.object.lookup-getter',
-    'es7.object.lookup-setter',
-    'es7.string.match-all'
+    'es7.object.lookup-setter'
   ],
   libraryBlacklist: [
     'es6.object.to-string',
