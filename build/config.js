@@ -187,7 +187,6 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
-    'es6.date.to-primitive'
   ],
   libraryBlacklist: [
     'es6.object.to-string',
