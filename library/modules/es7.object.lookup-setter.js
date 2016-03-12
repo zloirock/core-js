@@ -6,7 +6,7 @@ var $export                  = require('./_export')
   , getOwnPropertyDescriptor = require('./_object-gopd').f;
 
 // B.2.2.5 Object.prototype.__lookupSetter__(P)
-require('./_descriptors') && $export($export.P + require('./_object-ipam'), 'Object', {
+require('./_descriptors') && $export($export.P + require('./_object-forced-pam'), 'Object', {
   __lookupSetter__: function __lookupSetter__(P){
     var O = toObject(this)
       , K = toPrimitive(P, true)

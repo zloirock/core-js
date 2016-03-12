@@ -187,11 +187,7 @@ module.exports = {
     'core.string.unescape-html'
   ],
   experimental: [
-    'es6.date.to-primitive',
-    'es7.object.define-getter',
-    'es7.object.define-setter',
-    'es7.object.lookup-getter',
-    'es7.object.lookup-setter'
+    'es6.date.to-primitive'
   ],
   libraryBlacklist: [
     'es6.object.to-string',

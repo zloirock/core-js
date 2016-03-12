@@ -20,6 +20,10 @@ for P in <[.. ../library]>
   ok require("#P/fn/object/entries")(q: 2).0.0 is \q
   ok require("#P/fn/object/values")(q: 2).0 is 2
   ok require("#P/fn/object/get-own-property-descriptors")(q: 1).q.enumerable
+  ok typeof require("#P/fn/object/define-getter") if \function
+  ok typeof require("#P/fn/object/define-setter") if \function
+  ok typeof require("#P/fn/object/lookup-getter") if \function
+  ok typeof require("#P/fn/object/lookup-setter") if \function
   ok require("#P/fn/object/is-object") {}
   ok require("#P/fn/object/classof")(null) is \Null
   ok require("#P/fn/object/define")({}, {q: 42}).q is 42
