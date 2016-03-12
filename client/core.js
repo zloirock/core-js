@@ -1,5 +1,5 @@
 /**
- * core-js 2.1.4
+ * core-js 2.1.5
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -483,7 +483,7 @@
 /* 3 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.1.4'};
+	var core = module.exports = {version: '2.1.5'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -3861,6 +3861,7 @@
 	  , TypeError          = global.TypeError
 	  , process            = global.process
 	  , $Promise           = global[PROMISE]
+	  , process            = global.process
 	  , isNode             = classof(process) == 'process'
 	  , empty              = function(){ /* empty */ }
 	  , Internal, GenericPromiseCapability, Wrapper;
@@ -3918,6 +3919,7 @@
 	      var handler = ok ? reaction.ok : reaction.fail
 	        , resolve = reaction.resolve
 	        , reject  = reaction.reject
+	        , domain  = reaction.domain
 	        , result, then;
 	      try {
 	        if(handler){
@@ -3925,7 +3927,12 @@
 	            if(promise._h == 2)onHandleUnhandled(promise);
 	            promise._h = 1;
 	          }
-	          result = handler === true ? value : handler(value);
+	          if(handler === true)result = value;
+	          else {
+	            if(domain)domain.enter();
+	            result = handler(value);
+	            if(domain)domain.exit();
+	          }
 	          if(result === reaction.promise){
 	            reject(TypeError('Promise-chain cycle'));
 	          } else if(then = isThenable(result)){
@@ -4044,9 +4051,10 @@
 	  Internal.prototype = __webpack_require__(198)($Promise.prototype, {
 	    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
 	    then: function then(onFulfilled, onRejected){
-	      var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
-	      reaction.ok   = typeof onFulfilled == 'function' ? onFulfilled : true;
-	      reaction.fail = typeof onRejected == 'function' && onRejected;
+	      var reaction    = newPromiseCapability(speciesConstructor(this, $Promise));
+	      reaction.ok     = typeof onFulfilled == 'function' ? onFulfilled : true;
+	      reaction.fail   = typeof onRejected == 'function' && onRejected;
+	      reaction.domain = isNode ? process.domain : undefined;
 	      this._c.push(reaction);
 	      if(this._a)this._a.push(reaction);
 	      if(this._s)notify(this, false);
@@ -4266,17 +4274,11 @@
 	  , head, last, notify;
 
 	var flush = function(){
-	  var parent, domain, fn;
-	  if(isNode && (parent = process.domain)){
-	    process.domain = null;
-	    parent.exit();
-	  }
+	  var parent, fn;
+	  if(isNode && (parent = process.domain))parent.exit();
 	  while(head){
-	    domain = head.domain;
-	    fn     = head.fn;
-	    if(domain)domain.enter();
+	    fn = head.fn;
 	    fn(); // <- currently we use it only for Promise - try / catch not required
-	    if(domain)domain.exit();
 	    head = head.next;
 	  } last = undefined;
 	  if(parent)parent.enter();
@@ -4289,11 +4291,11 @@
 	  };
 	// browsers with MutationObserver
 	} else if(Observer){
-	  var toggle = 1
+	  var toggle = true
 	    , node   = document.createTextNode('');
 	  new Observer(flush).observe(node, {characterData: true}); // eslint-disable-line no-new
 	  notify = function(){
-	    node.data = toggle = -toggle;
+	    node.data = toggle = !toggle;
 	  };
 	// environments with maybe non-completely correct, but existent Promise
 	} else if(Promise && Promise.resolve){
@@ -4314,7 +4316,7 @@
 	}
 
 	module.exports = function(fn){
-	  var task = {fn: fn, next: undefined, domain: isNode && process.domain};
+	  var task = {fn: fn, next: undefined};
 	  if(last)last.next = task;
 	  if(!head){
 	    head = task;
@@ -5100,57 +5102,10 @@
 	// 20.3.3.1 / 15.9.4.4 Date.now()
 	var $export = __webpack_require__(7);
 
-	$export($export.S, 'Date', {now: function(){ return +new Date; }});
+	$export($export.S, 'Date', {now: function(){ return new Date().getTime(); }});
 
 /***/ },
 /* 222 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var DateProto    = Date.prototype
-	  , INVALID_DATE = 'Invalid Date'
-	  , TO_STRING    = 'toString'
-	  , $toString    = DateProto[TO_STRING];
-	if(new Date(NaN) + '' != INVALID_DATE){
-	  __webpack_require__(16)(DateProto, TO_STRING, function toString(){
-	    var value = +this;
-	    return value === value ? $toString.call(this) : INVALID_DATE;
-	  });
-	}
-
-/***/ },
-/* 223 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	// 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
-	var $export = __webpack_require__(7)
-	  , fails   = __webpack_require__(6);
-
-	var lz = function(num){
-	  return num > 9 ? num : '0' + num;
-	};
-
-	// PhantomJS / old WebKit has a broken implementations
-	$export($export.P + $export.F * (fails(function(){
-	  return new Date(-5e13 - 1).toISOString() != '0385-07-25T07:06:39.999Z';
-	}) || !fails(function(){
-	  new Date(NaN).toISOString();
-	})), 'Date', {
-	  toISOString: function toISOString(){
-	    if(!isFinite(this))throw RangeError('Invalid time value');
-	    var d = this
-	      , y = d.getUTCFullYear()
-	      , m = d.getUTCMilliseconds()
-	      , s = y < 0 ? '-' : y > 9999 ? '+' : '';
-	    return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
-	      '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
-	      'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
-	      ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
-	  }
-	});
-
-/***/ },
-/* 224 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5167,6 +5122,55 @@
 	    return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
 	  }
 	});
+
+/***/ },
+/* 223 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	// 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
+	var $export = __webpack_require__(7)
+	  , fails   = __webpack_require__(6)
+	  , getTime = Date.prototype.getTime;
+
+	var lz = function(num){
+	  return num > 9 ? num : '0' + num;
+	};
+
+	// PhantomJS / old WebKit has a broken implementations
+	$export($export.P + $export.F * (fails(function(){
+	  return new Date(-5e13 - 1).toISOString() != '0385-07-25T07:06:39.999Z';
+	}) || !fails(function(){
+	  new Date(NaN).toISOString();
+	})), 'Date', {
+	  toISOString: function toISOString(){
+	    if(!isFinite(getTime.call(this)))throw RangeError('Invalid time value');
+	    var d = this
+	      , y = d.getUTCFullYear()
+	      , m = d.getUTCMilliseconds()
+	      , s = y < 0 ? '-' : y > 9999 ? '+' : '';
+	    return s + ('00000' + Math.abs(y)).slice(s ? -6 : -4) +
+	      '-' + lz(d.getUTCMonth() + 1) + '-' + lz(d.getUTCDate()) +
+	      'T' + lz(d.getUTCHours()) + ':' + lz(d.getUTCMinutes()) +
+	      ':' + lz(d.getUTCSeconds()) + '.' + (m > 99 ? m : '0' + lz(m)) + 'Z';
+	  }
+	});
+
+/***/ },
+/* 224 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var DateProto    = Date.prototype
+	  , INVALID_DATE = 'Invalid Date'
+	  , TO_STRING    = 'toString'
+	  , $toString    = DateProto[TO_STRING]
+	  , getTime      = DateProto.getTime;
+	if(new Date(NaN) + '' != INVALID_DATE){
+	  __webpack_require__(16)(DateProto, TO_STRING, function toString(){
+	    var value = getTime.call(this);
+	    return value === value ? $toString.call(this) : INVALID_DATE;
+	  });
+	}
 
 /***/ },
 /* 225 */
