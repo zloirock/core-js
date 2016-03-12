@@ -8216,6 +8216,12 @@
     assert.strictEqual(Symbol['for']('foo'), symbol);
     assert.strictEqual(Symbol.keyFor(symbol), 'foo');
   });
+  test('Symbol#@@toPrimitive', function(assert){
+    var S;
+    assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
+    S = Symbol();
+    assert.same(S, S[Symbol.toPrimitive](), 'works');
+  });
   test('Symbol#@@toStringTag', function(assert){
     assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });

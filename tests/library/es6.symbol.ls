@@ -29,6 +29,11 @@ test 'Global symbol registry' (assert)!->
   symbol = Symbol.for \foo
   assert.strictEqual Symbol.for(\foo), symbol
   assert.strictEqual Symbol.keyFor(symbol), \foo
+  
+test 'Symbol#@@toPrimitive' (assert)!->
+  assert.isFunction Symbol::[Symbol.toPrimitive]
+  S = Symbol!
+  assert.same S, S[Symbol.toPrimitive]!, \works
 
 test 'Symbol#@@toStringTag' (assert)!->
   assert.ok Symbol::[Symbol.toStringTag] is \Symbol, 'Symbol::@@toStringTag is `Symbol`'
