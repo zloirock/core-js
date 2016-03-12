@@ -223,9 +223,6 @@ if(require('./_descriptors')){
         that[length]  = value;
       } return that;
     },
-    slice: function slice(start, end){
-      return speciesFromList(this, arraySlice.call(validate(this), start, end));
-    },
     some: function some(callbackfn /*, thisArg */){
       return arraySome(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
@@ -242,6 +239,10 @@ if(require('./_descriptors')){
         toLength((end === undefined ? length : toIndex(end, length)) - $begin)
       );
     }
+  };
+
+  var $slice = function slice(start, end){
+    return speciesFromList(this, arraySlice.call(validate(this), start, end));
   };
 
   var $set = function set(arrayLike /*, offset */){
@@ -315,6 +316,7 @@ if(require('./_descriptors')){
   redefineAll($TypedArrayPrototype$, $iterators);
   hide($TypedArrayPrototype$, ITERATOR, $iterators.values);
   redefineAll($TypedArrayPrototype$, {
+    slice:          $slice,
     set:            $set,
     constructor:    function(){ /* noop */ },
     toString:       arrayToString,
@@ -455,11 +457,17 @@ if(require('./_descriptors')){
 
     $export($export.P, NAME, proto);
 
+    setSpecies(NAME);
+
     $export($export.P + $export.F * FORCED_SET, NAME, {set: $set});
 
     $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
 
     $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, {toString: arrayToString});
+
+    $export($export.P + $export.F * fails(function(){
+      new TypedArray(1).slice();
+    }), NAME, {slice: $slice});
 
     $export($export.P + $export.F * (fails(function(){
       return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
@@ -469,7 +477,5 @@ if(require('./_descriptors')){
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
     if(!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
-
-    setSpecies(NAME);
   };
 } else module.exports = function(){ /* empty */ };
