@@ -1302,7 +1302,7 @@ core-js(/library)/fn/array/includes
 
 ##### Stage 3:
 * `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.object.entries.js)
-* `Object.getOwnPropertyDescriptors` [proposal](https://gist.github.com/WebReflection/9353781) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.object.get-own-property-descriptors.js)
+* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.object.get-own-property-descriptors.js)
 * `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v2.1.5/modules/es7.string.pad-right.js)
 
 [*CommonJS entry points:*](#commonjs)

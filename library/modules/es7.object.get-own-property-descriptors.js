@@ -1,4 +1,4 @@
-// https://gist.github.com/WebReflection/9353781
+// https://github.com/tc39/proposal-object-getownpropertydescriptors
 var $export    = require('./_export')
   , ownKeys    = require('./_own-keys')
   , toIObject  = require('./_to-iobject')

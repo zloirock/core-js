@@ -1,4 +1,4 @@
-// http://goo.gl/XkBrjD
+// https://github.com/tc39/proposal-object-values-entries
 var $export  = require('./_export')
   , $entries = require('./_object-to-array')(true);
 
