@@ -7396,6 +7396,9 @@
     symbol = Symbol['for']('foo');
     assert.strictEqual(Symbol['for']('foo'), symbol);
     assert.strictEqual(Symbol.keyFor(symbol), 'foo');
+    assert.throws(function(){
+      Symbol.keyFor('foo');
+    }, 'throws on non-symbol');
   });
   test('Symbol#@@toPrimitive', function(assert){
     var S;

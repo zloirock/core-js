@@ -46,6 +46,7 @@ test 'Global symbol registry' (assert)!->
   symbol = Symbol.for \foo
   assert.strictEqual Symbol.for(\foo), symbol
   assert.strictEqual Symbol.keyFor(symbol), \foo
+  assert.throws (!-> Symbol.keyFor \foo), 'throws on non-symbol'
   
 test 'Symbol#@@toPrimitive' (assert)!->
   assert.isFunction Symbol::[Symbol.toPrimitive]

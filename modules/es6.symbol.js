@@ -146,7 +146,7 @@ var BUGGY_JSON = $fails(function(){
 // 19.4.1.1 Symbol([description])
 if(!USE_NATIVE){
   $Symbol = function Symbol(){
-    if(isSymbol(this))throw TypeError('Symbol is not a constructor');
+    if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor!');
     return wrap(uid(arguments.length > 0 ? arguments[0] : undefined));
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString(){
@@ -154,7 +154,7 @@ if(!USE_NATIVE){
   });
 
   isSymbol = function(it){
-    return it instanceof $Symbol;
+    return has(AllSymbols, it);
   };
 
   $GOPD.f = $getOwnPropertyDescriptor;
@@ -202,7 +202,8 @@ $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   },
   // 19.4.2.5 Symbol.keyFor(sym)
   keyFor: function keyFor(key){
-    return keyOf(SymbolRegistry, key);
+    if(isSymbol(key))return keyOf(SymbolRegistry, key);
+    throw TypeError(key + ' is not a symbol!');
   },
   useSetter: function(){ setter = true; },
   useSimple: function(){ setter = false; }
