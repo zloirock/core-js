@@ -22,7 +22,7 @@ $export($export.P, 'String', {
     defined(this);
     if(!isRegExp(regexp))throw TypeError(regexp + ' is not a regexp!');
     var S     = String(this)
-      , flags = 'flags' in RegExpProto ? regexp.flags : getFlags.call(regexp)
+      , flags = 'flags' in RegExpProto ? String(regexp.flags) : getFlags.call(regexp)
       , rx    = new RegExp(regexp.source, ~flags.indexOf('g') ? flags : 'g' + flags);
     rx.lastIndex = toLength(regexp.lastIndex);
     return new $RegExpStringIterator(rx, S);
