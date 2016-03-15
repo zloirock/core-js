@@ -1,4 +1,11 @@
 ## Changelog
+##### 2.2.0 - 2016.03.15
+- Added `String#matchAll`, [proposal](https://github.com/tc39/String.prototype.matchAll)
+- Added `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381)
+- Added `@@toPrimitive` methods to `Date` and `Symbol`
+- Fixed `%TypedArray%#slice` in Edge ~ 13 (throws with `@@species` and wrapped / inherited constructor)
+- Some other minor fixes
+
 ##### 2.1.5 - 2016.03.12
 - Improved support NodeJS domains in `Promise#then`, [#180](https://github.com/zloirock/core-js/issues/180)
 - Added fallback for `Date#toJSON` bug in Qt Script, [#173](https://github.com/zloirock/core-js/issues/173#issuecomment-193972502)
