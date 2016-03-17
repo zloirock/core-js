@@ -8,7 +8,7 @@ var windowNames = typeof window == 'object' && window && Object.getOwnPropertyNa
 
 var getWindowNames = function(it){
   try {
-    return gOPN.f(it);
+    return gOPN(it);
   } catch(e){
     return windowNames.slice();
   }
