@@ -1,4 +1,7 @@
 ## Changelog
+##### 2.2.1 - 2016.03.19
+- Fixed `Object.getOwnPropertyNames(window)` `2.1+` versions bug, [#181](https://github.com/zloirock/core-js/issues/181)
+
 ##### 2.2.0 - 2016.03.15
 - Added `String#matchAll`, [proposal](https://github.com/tc39/String.prototype.matchAll)
 - Added `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381)

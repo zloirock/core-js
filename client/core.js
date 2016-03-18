@@ -1,5 +1,5 @@
 /**
- * core-js 2.2.0
+ * core-js 2.2.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -492,7 +492,7 @@
 /* 3 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.2.0'};
+	var core = module.exports = {version: '2.2.1'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -1144,7 +1144,7 @@
 
 	var getWindowNames = function(it){
 	  try {
-	    return gOPN.f(it);
+	    return gOPN(it);
 	  } catch(e){
 	    return windowNames.slice();
 	  }
@@ -1153,6 +1153,7 @@
 	module.exports.f = function getOwnPropertyNames(it){
 	  return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIObject(it));
 	};
+
 
 /***/ },
 /* 45 */
