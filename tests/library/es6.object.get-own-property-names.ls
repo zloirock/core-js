@@ -23,3 +23,12 @@ test 'Object.getOwnPropertyNames' (assert)!->
     assert.ok (try => getOwnPropertyNames value; on), "accept #{typeof! value}"
   for value in [null void]
     assert.throws (!-> getOwnPropertyNames value), TypeError, "throws on #value"
+  if document?
+    assert.ok (try 
+      iframe = document.createElement \iframe
+      iframe.src = 'http://example.com'
+      document.documentElement.appendChild iframe
+      w = iframe.contentWindow
+      document.documentElement.removeChild iframe
+      getOwnPropertyNames w
+    ), 'IE11 bug with iframe and window'

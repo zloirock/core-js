@@ -2,7 +2,7 @@
 module \ES6
 
 test 'Object.getOwnPropertyNames' (assert)!->
-  {getOwnPropertyNames} = Object
+  {getOwnPropertyNames, getOwnPropertyNames} = Object
   assert.isFunction getOwnPropertyNames
   assert.arity getOwnPropertyNames, 1
   assert.name getOwnPropertyNames, \getOwnPropertyNames
@@ -26,3 +26,12 @@ test 'Object.getOwnPropertyNames' (assert)!->
     assert.ok (try => getOwnPropertyNames value; on), "accept #{typeof! value}"
   for value in [null void]
     assert.throws (!-> getOwnPropertyNames value), TypeError, "throws on #value"
+  if document?
+    assert.ok (try 
+      iframe = document.createElement \iframe
+      iframe.src = 'http://example.com'
+      document.documentElement.appendChild iframe
+      w = iframe.contentWindow
+      document.documentElement.removeChild iframe
+      getOwnPropertyNames w
+    ), 'IE11 bug with iframe and window'

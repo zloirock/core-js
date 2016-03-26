@@ -3330,8 +3330,8 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Object.getOwnPropertyNames', function(assert){
-    var getOwnPropertyNames, fn1, fn2, names, i$, ref$, len$, value;
-    getOwnPropertyNames = Object.getOwnPropertyNames;
+    var getOwnPropertyNames, fn1, fn2, names, i$, ref$, len$, value, iframe, w;
+    getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertyNames = Object.getOwnPropertyNames;
     assert.isFunction(getOwnPropertyNames);
     assert.arity(getOwnPropertyNames, 1);
     assert.name(getOwnPropertyNames, 'getOwnPropertyNames');
@@ -3362,6 +3362,18 @@
     for (i$ = 0, len$ = (ref$ = [null, void 8]).length; i$ < len$; ++i$) {
       value = ref$[i$];
       assert.throws(fn1$, TypeError, "throws on " + value);
+    }
+    if (typeof document != 'undefined' && document !== null) {
+      assert.ok((function(){
+        try {
+          iframe = document.createElement('iframe');
+          iframe.src = 'http://example.com';
+          document.documentElement.appendChild(iframe);
+          w = iframe.contentWindow;
+          document.documentElement.removeChild(iframe);
+          return getOwnPropertyNames(w);
+        } catch (e$) {}
+      }()), 'IE11 bug with iframe and window');
     }
     function fn$(){
       try {
