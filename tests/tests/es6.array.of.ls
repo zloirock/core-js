@@ -2,6 +2,7 @@
 module \ES6
 
 test 'Array.of' (assert)!->
+  {defineProperty} = Object
   assert.isFunction Array.of
   assert.arity Array.of, 0
   assert.name Array.of, \of
@@ -16,3 +17,9 @@ test 'Array.of' (assert)!->
   assert.strictEqual inst.0, 1
   assert.strictEqual inst.1, 2
   assert.strictEqual inst.length, 2
+  if DESCRIPTORS
+    called = no
+    F = !->
+    defineProperty F::, 0, set: !-> called = on
+    Array.of.call F, 1, 2, 3
+    assert.ok !called, 'Should not call prototype accessors'

@@ -3,6 +3,7 @@ module \ES6
 
 test 'Array.from' (assert)!->
   {from, isArray} = core.Array
+  {defineProperty} = core.Object
   iterator = core.Symbol.iterator
   assert.isFunction from
   assert.arity from, 1
@@ -60,3 +61,9 @@ test 'Array.from' (assert)!->
   assert.throws (!-> from [], ''), TypeError, "Throws with '' as second argument"
   assert.throws (!-> from [], no), TypeError, "Throws with false as second argument"
   assert.throws (!-> from [], {}), TypeError, "Throws with {} as second argument"
+  if DESCRIPTORS
+    called = no
+    F = !->
+    defineProperty F::, 0, set: !-> called = on
+    from.call F, [1 2 3]
+    assert.ok !called, 'Should not call prototype accessors'

@@ -1058,8 +1058,9 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array.from', function(assert){
-    var ref$, from, isArray, iterator, type, col, ctx, i$, x$, len$, y$, done, iter, F, inst, a, array;
+    var ref$, from, isArray, defineProperty, iterator, type, col, ctx, i$, x$, len$, y$, done, iter, F, inst, a, array, called;
     ref$ = core.Array, from = ref$.from, isArray = ref$.isArray;
+    defineProperty = core.Object.defineProperty;
     iterator = core.Symbol.iterator;
     assert.isFunction(from);
     assert.arity(from, 1);
@@ -1172,6 +1173,18 @@
     assert.throws(function(){
       from([], {});
     }, TypeError, "Throws with {} as second argument");
+    if (DESCRIPTORS) {
+      called = false;
+      F = function(){};
+      defineProperty(F.prototype, 0, {
+        set: function(){
+          var called;
+          called = true;
+        }
+      });
+      from.call(F, [1, 2, 3]);
+      assert.ok(!called, 'Should not call prototype accessors');
+    }
     function fn$(){
       return arguments;
     }
@@ -1450,17 +1463,31 @@
   module = QUnit.module, test = QUnit.test;
   module('ES6');
   test('Array.of', function(assert){
-    var F, inst;
-    assert.isFunction(core.Array.of);
-    assert.arity(core.Array.of, 0);
-    assert.deepEqual(core.Array.of(1), [1]);
-    assert.deepEqual(core.Array.of(1, 2, 3), [1, 2, 3]);
+    var Array, defineProperty, F, inst, called;
+    Array = core.Array;
+    defineProperty = core.Object.defineProperty;
+    assert.isFunction(Array.of);
+    assert.arity(Array.of, 0);
+    assert.deepEqual(Array.of(1), [1]);
+    assert.deepEqual(Array.of(1, 2, 3), [1, 2, 3]);
     F = function(){};
-    inst = core.Array.of.call(F, 1, 2);
+    inst = Array.of.call(F, 1, 2);
     assert.ok(inst instanceof F);
     assert.strictEqual(inst[0], 1);
     assert.strictEqual(inst[1], 2);
     assert.strictEqual(inst.length, 2);
+    if (DESCRIPTORS) {
+      called = false;
+      F = function(){};
+      defineProperty(F.prototype, 0, {
+        set: function(){
+          var called;
+          called = true;
+        }
+      });
+      Array.of.call(F, 1, 2, 3);
+      assert.ok(!called, 'Should not call prototype accessors');
+    }
   });
 }).call(this);
 
