@@ -1348,14 +1348,15 @@
     assert.name(Array.prototype.indexOf, 'indexOf');
     assert.looksNative(Array.prototype.indexOf);
     assert.nonEnumerable(Array.prototype, 'indexOf');
-    assert.ok(0 === [1, 1, 1].indexOf(1));
-    assert.ok(-1 === [1, 2, 3].indexOf(1, 1));
-    assert.ok(1 === [1, 2, 3].indexOf(2, 1));
-    assert.ok(-1 === [1, 2, 3].indexOf(2, -1));
-    assert.ok(1 === [1, 2, 3].indexOf(2, -2));
-    assert.ok(-1 === [NaN].indexOf(NaN));
-    assert.ok(3 === Array(2).concat([1, 2, 3]).indexOf(2));
-    assert.ok(-1 === Array(1).indexOf(void 8));
+    assert.same(0, [1, 1, 1].indexOf(1));
+    assert.same(-1, [1, 2, 3].indexOf(1, 1));
+    assert.same(1, [1, 2, 3].indexOf(2, 1));
+    assert.same(-1, [1, 2, 3].indexOf(2, -1));
+    assert.same(1, [1, 2, 3].indexOf(2, -2));
+    assert.same(-1, [NaN].indexOf(NaN));
+    assert.same(3, Array(2).concat([1, 2, 3]).indexOf(2));
+    assert.same(-1, Array(1).indexOf(void 8));
+    assert.same(0, [1].indexOf(1, -0), "shouldn't return negative zero");
     if (STRICT) {
       assert.throws(function(){
         Array.prototype.indexOf.call(null, 0);
@@ -1592,14 +1593,15 @@
     assert.name(Array.prototype.lastIndexOf, 'lastIndexOf');
     assert.looksNative(Array.prototype.lastIndexOf);
     assert.nonEnumerable(Array.prototype, 'lastIndexOf');
-    assert.strictEqual(2, [1, 1, 1].lastIndexOf(1));
-    assert.strictEqual(-1, [1, 2, 3].lastIndexOf(3, 1));
-    assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, 1));
-    assert.strictEqual(-1, [1, 2, 3].lastIndexOf(2, -3));
-    assert.strictEqual(-1, [1, 2, 3].lastIndexOf(1, -4));
-    assert.strictEqual(1, [1, 2, 3].lastIndexOf(2, -2));
-    assert.strictEqual(-1, [NaN].lastIndexOf(NaN));
-    assert.strictEqual(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
+    assert.same(2, [1, 1, 1].lastIndexOf(1));
+    assert.same(-1, [1, 2, 3].lastIndexOf(3, 1));
+    assert.same(1, [1, 2, 3].lastIndexOf(2, 1));
+    assert.same(-1, [1, 2, 3].lastIndexOf(2, -3));
+    assert.same(-1, [1, 2, 3].lastIndexOf(1, -4));
+    assert.same(1, [1, 2, 3].lastIndexOf(2, -2));
+    assert.same(-1, [NaN].lastIndexOf(NaN));
+    assert.same(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
+    assert.same(0, [1].lastIndexOf(1, -0), "shouldn't return negative zero");
     if (STRICT) {
       assert.throws(function(){
         Array.prototype.lastIndexOf.call(null, 0);

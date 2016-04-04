@@ -1216,14 +1216,15 @@
     var indexOf;
     indexOf = core.Array.indexOf;
     assert.isFunction(indexOf);
-    assert.ok(0 === indexOf([1, 1, 1], 1));
-    assert.ok(-1 === indexOf([1, 2, 3], 1, 1));
-    assert.ok(1 === indexOf([1, 2, 3], 2, 1));
-    assert.ok(-1 === indexOf([1, 2, 3], 2, -1));
-    assert.ok(1 === indexOf([1, 2, 3], 2, -2));
-    assert.ok(-1 === indexOf([NaN], NaN));
-    assert.ok(3 === indexOf(Array(2).concat([1, 2, 3]), 2));
-    assert.ok(-1 === indexOf(Array(1), void 8));
+    assert.same(0, indexOf([1, 1, 1], 1));
+    assert.same(-1, indexOf([1, 2, 3], 1, 1));
+    assert.same(1, indexOf([1, 2, 3], 2, 1));
+    assert.same(-1, indexOf([1, 2, 3], 2, -1));
+    assert.same(1, indexOf([1, 2, 3], 2, -2));
+    assert.same(-1, indexOf([NaN], NaN));
+    assert.same(3, indexOf(Array(2).concat([1, 2, 3]), 2));
+    assert.same(-1, indexOf(Array(1), void 8));
+    assert.same(0, indexOf([1], 1, -0), "shouldn't return negative zero");
     if (STRICT) {
       assert.throws(function(){
         indexOf(null, 0);
@@ -1389,14 +1390,15 @@
     var lastIndexOf;
     lastIndexOf = core.Array.lastIndexOf;
     assert.isFunction(lastIndexOf);
-    assert.strictEqual(2, lastIndexOf([1, 1, 1], 1));
-    assert.strictEqual(-1, lastIndexOf([1, 2, 3], 3, 1));
-    assert.strictEqual(1, lastIndexOf([1, 2, 3], 2, 1));
-    assert.strictEqual(-1, lastIndexOf([1, 2, 3], 2, -3));
-    assert.strictEqual(-1, lastIndexOf([1, 2, 3], 1, -4));
-    assert.strictEqual(1, lastIndexOf([1, 2, 3], 2, -2));
-    assert.strictEqual(-1, lastIndexOf([NaN], NaN));
-    assert.strictEqual(1, lastIndexOf([1, 2, 3].concat(Array(2)), 2));
+    assert.same(2, lastIndexOf([1, 1, 1], 1));
+    assert.same(-1, lastIndexOf([1, 2, 3], 3, 1));
+    assert.same(1, lastIndexOf([1, 2, 3], 2, 1));
+    assert.same(-1, lastIndexOf([1, 2, 3], 2, -3));
+    assert.same(-1, lastIndexOf([1, 2, 3], 1, -4));
+    assert.same(1, lastIndexOf([1, 2, 3], 2, -2));
+    assert.same(-1, lastIndexOf([NaN], NaN));
+    assert.same(1, lastIndexOf([1, 2, 3].concat(Array(2)), 2));
+    assert.same(0, lastIndexOf([1], 1, -0), "shouldn't return negative zero");
     if (STRICT) {
       assert.throws(function(){
         lastIndexOf(null, 0);

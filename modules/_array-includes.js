@@ -15,7 +15,7 @@ module.exports = function(IS_INCLUDES){
       if(value != value)return true;
     // Array#toIndex ignores holes, Array#includes - not
     } else for(;length > index; index++)if(IS_INCLUDES || index in O){
-      if(O[index] === el)return IS_INCLUDES || index;
+      if(O[index] === el)return IS_INCLUDES || index || 0;
     } return !IS_INCLUDES && -1;
   };
 };
