@@ -1,4 +1,10 @@
 ## Changelog
+##### 2.2.2 - 2016.04.06
+- Added conversion `-0` to `+0` to `Array#{indexOf, lastIndexOf}`, [ES2016 fix](https://github.com/tc39/ecma262/pull/316)
+- Added fixes for some `Math` methods in Tor Browser
+- `Array.{from, of}` no longer calls prototype setters
+- Added workaround over Chrome DevTools strange behavior, [#186](https://github.com/zloirock/core-js/issues/186)
+
 ##### 2.2.1 - 2016.03.19
 - Fixed `Object.getOwnPropertyNames(window)` `2.1+` versions bug, [#181](https://github.com/zloirock/core-js/issues/181)
 
