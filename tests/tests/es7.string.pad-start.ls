@@ -13,6 +13,7 @@ test 'String#padStart' (assert)!->
   assert.strictEqual 'abc'padStart(5 '_'), '__abc'
   assert.strictEqual ''padStart(0), ''
   assert.strictEqual 'foo'padStart(1), \foo
+  assert.strictEqual 'foo'padStart(5 ''), \foo
   if STRICT
     assert.throws (!-> String::padStart.call null, 0), TypeError
     assert.throws (!-> String::padStart.call void, 0), TypeError

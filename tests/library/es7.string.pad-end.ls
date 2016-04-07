@@ -10,6 +10,7 @@ test 'String#padEnd' (assert)!->
   assert.strictEqual padEnd(\abc 5 '_'), 'abc__'
   assert.strictEqual padEnd('', 0), ''
   assert.strictEqual padEnd(\foo 1), \foo
+  assert.strictEqual padEnd(\foo 5 ''), \foo
   if STRICT
     assert.throws (!-> padEnd null, 0), TypeError
     assert.throws (!-> padEnd void, 0), TypeError

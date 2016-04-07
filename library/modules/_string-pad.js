@@ -8,8 +8,7 @@ module.exports = function(that, maxLength, fillString, left){
     , stringLength = S.length
     , fillStr      = fillString === undefined ? ' ' : String(fillString)
     , intMaxLength = toLength(maxLength);
-  if(intMaxLength <= stringLength)return S;
-  if(fillStr == '')fillStr = ' ';
+  if(intMaxLength <= stringLength || fillStr == '')return S;
   var fillLen = intMaxLength - stringLength
     , stringFiller = repeat.call(fillStr, Math.ceil(fillLen / fillStr.length));
   if(stringFiller.length > fillLen)stringFiller = stringFiller.slice(0, fillLen);

@@ -11843,6 +11843,7 @@
     assert.strictEqual('abc'.padEnd(5, '_'), 'abc__');
     assert.strictEqual(''.padEnd(0), '');
     assert.strictEqual('foo'.padEnd(1), 'foo');
+    assert.strictEqual('foo'.padEnd(5, ''), 'foo');
     if (STRICT) {
       assert.throws(function(){
         String.prototype.padEnd.call(null, 0);
@@ -11871,6 +11872,7 @@
     assert.strictEqual('abc'.padStart(5, '_'), '__abc');
     assert.strictEqual(''.padStart(0), '');
     assert.strictEqual('foo'.padStart(1), 'foo');
+    assert.strictEqual('foo'.padStart(5, ''), 'foo');
     if (STRICT) {
       assert.throws(function(){
         String.prototype.padStart.call(null, 0);

@@ -7999,6 +7999,7 @@
     assert.strictEqual(padEnd('abc', 5, '_'), 'abc__');
     assert.strictEqual(padEnd('', 0), '');
     assert.strictEqual(padEnd('foo', 1), 'foo');
+    assert.strictEqual(padEnd('foo', 5, ''), 'foo');
     if (STRICT) {
       assert.throws(function(){
         padEnd(null, 0);
@@ -8025,6 +8026,7 @@
     assert.strictEqual(padStart('abc', 5, '_'), '__abc');
     assert.strictEqual(padStart('', 0), '');
     assert.strictEqual(padStart('foo', 1), 'foo');
+    assert.strictEqual(padStart('foo', 5, ''), 'foo');
     if (STRICT) {
       assert.throws(function(){
         padStart(null, 0);

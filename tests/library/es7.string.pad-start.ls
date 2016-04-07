@@ -10,6 +10,7 @@ test 'String#padStart' (assert)!->
   assert.strictEqual padStart(\abc 5 '_'), '__abc'
   assert.strictEqual padStart('' 0), ''
   assert.strictEqual padStart(\foo 1), \foo
+  assert.strictEqual padStart(\foo 5 ''), \foo
   if STRICT
     assert.throws (!-> padStart null, 0), TypeError
     assert.throws (!-> padStart void, 0), TypeError
