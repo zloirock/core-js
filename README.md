@@ -1233,7 +1233,7 @@ Reflect
   .construct(target, argumentsList, newTarget?) -> object
   .defineProperty(target, propertyKey, attributes) -> bool
   .deleteProperty(target, propertyKey) -> bool
-  .enumerate(target) -> iterator (deprecated and will be removed from the next major release)
+  .enumerate(target) -> iterator (removed from the spec and will be removed from core-js@3)
   .get(target, propertyKey, receiver?) -> var
   .getOwnPropertyDescriptor(target, propertyKey) -> desc
   .getPrototypeOf(target) -> object | null
@@ -1294,8 +1294,8 @@ core-js(/library)/es7/reflect
 ```
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
 ##### Stage 4:
-* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.entries.js)
 * `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
+* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.entries.js)
 * `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.lookup-getter.js).
 
 [*CommonJS entry points:*](#commonjs)
@@ -1353,8 +1353,8 @@ core-js(/library)/fn/system/global
 
 ##### Stage 0:
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.at.js)
-* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.set.to-json.js)
-* `Error.isError` [proposal](https://github.com/ljharb/proposal-is-error) - module [`es7.error.is-error`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.error.is-error.js)
+* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.set.to-json.js) (rejected and will be removed from `core-js@3`)
+* `Error.isError` [proposal](https://github.com/ljharb/proposal-is-error) - module [`es7.error.is-error`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.error.is-error.js) (withdrawn and will be removed from `core-js@3`)
 * `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`es7.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.math.iaddh.js), [`es7.math.isubh`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.math.isubh.js), [`es7.math.imulh`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.math.imulh.js) and [`es7.math.umulh`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.math.umulh.js).
 
 [*CommonJS entry points:*](#commonjs)
@@ -1409,16 +1409,14 @@ Object
   #__defineGetter__(key, fn) -> void
   #__lookupSetter__(key) -> fn | void
   #__lookupGetter__(key) -> fn | void
-RegExp
-  .escape(str) -> str
 Map
-  #toJSON() -> array
+  #toJSON() -> array (rejected and will be removed from core-js@3)
 Set
-  #toJSON() -> array
+  #toJSON() -> array (rejected and will be removed from core-js@3)
 System
   .global -> object
 Error
-  .isError(it) -> bool
+  .isError(it) -> bool (withdrawn and will be removed from core-js@3)
 Math
   .iaddh(lo0, hi0, lo1, hi1) -> int32
   .isubh(lo0, hi0, lo1, hi1) -> int32
