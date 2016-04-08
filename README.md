@@ -1294,6 +1294,7 @@ core-js(/library)/es7/reflect
 ```
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
 ##### Stage 4:
+* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.entries.js)
 * `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
 * `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.lookup-getter.js).
 
@@ -1308,7 +1309,6 @@ core-js(/library)/fn/object/lookup-setter
 ```
 
 ##### Stage 3:
-* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.entries.js)
 * `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.object.get-own-property-descriptors.js)
 * `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.pad-right.js)
 
@@ -1324,7 +1324,7 @@ core-js(/library)/fn/string/virtual/pad-end
 ```
 
 ##### Stage 2:
-None.
+* `System.global` [proposal](https://github.com/tc39/proposal-global) - module [`es7.system.global`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.system.global.js)
 
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1334,7 +1334,6 @@ core-js(/library)/stage/2
 ##### Stage 1:
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.trim-right.js)
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.string.match-all.js)
-* `System.global` [proposal](https://github.com/tc39/proposal-global) - module [`es7.system.global`](https://github.com/zloirock/core-js/blob/v2.2.2/modules/es7.system.global.js)
 
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1927,7 +1926,7 @@ delay(1e3).then(() => console.log('after 1 sec'));
 (async () => {
   await delay(3e3);
   console.log('after 3 sec');
-  
+
   while(await delay(3e3))console.log('each 3 sec');
 })();
 ```
