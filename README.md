@@ -1302,6 +1302,8 @@ core-js(/library)/es7/reflect
 ```js
 core-js(/library)/stage/4
 core-js(/library)/fn/array/includes
+core-js(/library)/fn/object/values
+core-js(/library)/fn/object/entries
 core-js(/library)/fn/object/define-getter
 core-js(/library)/fn/object/define-setter
 core-js(/library)/fn/object/lookup-getter
@@ -1315,8 +1317,7 @@ core-js(/library)/fn/object/lookup-setter
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/3
-core-js(/library)/fn/object/values
-core-js(/library)/fn/object/entries
+core-js(/library)/fn/object/get-own-property-descriptors
 core-js(/library)/fn/string/pad-start
 core-js(/library)/fn/string/pad-end
 core-js(/library)/fn/string/virtual/pad-start
@@ -1329,6 +1330,7 @@ core-js(/library)/fn/string/virtual/pad-end
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/2
+core-js(/library)/fn/system/global
 ```
 
 ##### Stage 1:
@@ -1348,7 +1350,6 @@ core-js(/library)/fn/string/virtual/trim-end
 core-js(/library)/fn/string/virtual/trim-left
 core-js(/library)/fn/string/virtual/trim-right
 core-js(/library)/fn/string/virtual/match-all
-core-js(/library)/fn/system/global
 ```
 
 ##### Stage 0:
@@ -1362,7 +1363,6 @@ core-js(/library)/fn/system/global
 core-js(/library)/stage/0
 core-js(/library)/fn/string/at
 core-js(/library)/fn/string/virtual/at
-core-js(/library)/fn/object/get-own-property-descriptors
 core-js(/library)/fn/map
 core-js(/library)/fn/set
 core-js(/library)/fn/error/is-error
@@ -1467,12 +1467,7 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 
-JSON.stringify(new Map([['a', 'b'], ['c', 'd']])); // => '[["a","b"],["c","d"]]'
-JSON.stringify(new Set([1, 2, 3, 2, 1]));          // => '[1,2,3]'
-
 System.global.Array === Array; // => true
-
-Error.isError(new TypeError); // => true
 
 var O = {};
 Reflect.defineMetadata('foo', 'bar', O);
