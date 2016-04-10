@@ -281,6 +281,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/set-interval") is \function
   ok typeof require("#P/fn/set-immediate") is \function
   ok typeof require("#P/fn/clear-immediate") is \function
+  ok typeof require("#P/fn/asap") is \function
   ok \mapPairs of require("#P/fn/dict")
   ok \then of require("#P/fn/delay")(1)
   ok require("#P/fn/is-iterable")([])
@@ -316,6 +317,7 @@ for P in <[.. ../library]>
   ok require("#P/es7/error").isError new TypeError
   ok typeof require("#P/es7/math").isubh is \function
   ok \metadata of require("#P/es7/reflect")
+  ok typeof require("#P/es7/asap") is \function
   ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")

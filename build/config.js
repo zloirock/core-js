@@ -168,6 +168,7 @@ module.exports = {
     'es7.reflect.has-metadata',
     'es7.reflect.has-own-metadata',
     'es7.reflect.metadata',
+    'es7.asap',
     'web.immediate',
     'web.dom.iterable',
     'web.timers',
