@@ -22,6 +22,7 @@ core.Promise.resolve(32).then(x => console.log(x)); // => 32
 core.setImmediate(x => console.log(x), 42);         // => 42
 ```
 
+### Index
 - [Usage](#usage)
   - [Basic](#basic)
   - [CommonJS](#commonjs)
