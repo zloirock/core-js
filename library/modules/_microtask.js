@@ -57,7 +57,7 @@ module.exports = function(){
     };
   }
 
-  return function asap(fn){
+  return function(fn){
     var task = {fn: fn, next: undefined};
     if(last)last.next = task;
     if(!head){
