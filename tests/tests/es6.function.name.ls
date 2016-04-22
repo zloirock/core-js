@@ -14,3 +14,6 @@ if DESCRIPTORS
     assert.ok try
       fn.name
       on
+    fn = Object ->
+    fn.toString = -> ''
+    assert.same fn.name, ''

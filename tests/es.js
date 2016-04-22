@@ -1443,6 +1443,11 @@
           return true;
         } catch (e$) {}
       }()));
+      fn = Object(function(){});
+      fn.toString = function(){
+        return '';
+      };
+      assert.same(fn.name, '');
     });
   }
 }).call(this);
