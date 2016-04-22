@@ -2231,15 +2231,29 @@
     module = QUnit.module, test = QUnit.test;
     module('ES6');
     test('Function#name', function(assert){
+      var fn;
       assert.ok('name' in Function.prototype);
       assert.nonEnumerable(Function.prototype, 'name');
-      assert.strictEqual((function(){
+      assert.same((function(){
         function foo(it){
           return it;
         }
         return foo;
       }()).name, 'foo');
-      assert.strictEqual(function(){}.name, '');
+      assert.same(function(){}.name, '');
+      if (Object.freeze) {
+        assert.same(Object.freeze(function(){}).name, '');
+      }
+      fn = function(){};
+      fn.toString = function(){
+        throw 42;
+      };
+      assert.ok((function(){
+        try {
+          fn.name;
+          return true;
+        } catch (e$) {}
+      }()));
     });
   }
 }).call(this);
