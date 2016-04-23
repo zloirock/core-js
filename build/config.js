@@ -144,6 +144,8 @@ module.exports = {
     'es7.string.trim-left',
     'es7.string.trim-right',
     'es7.string.match-all',
+    'es7.symbol.async-iterator',
+    'es7.symbol.observable',
     'es7.object.get-own-property-descriptors',
     'es7.object.values',
     'es7.object.entries',

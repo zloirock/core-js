@@ -1,1 +1,1 @@
-module.exports = require('../../modules/_wks')('isConcatSpreadable');
+module.exports = require('../../modules/_wks-ext').f('isConcatSpreadable');

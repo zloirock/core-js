@@ -251,6 +251,8 @@ for P in <[.. ../library]>
   ok require("#P/fn/symbol/to-primitive")
   ok require("#P/fn/symbol/to-string-tag")
   ok require("#P/fn/symbol/unscopables")
+  ok require("#P/fn/symbol/async-iterator")
+  ok require("#P/fn/symbol/observable")
   ok typeof require("#P/fn/symbol/for") is \function
   ok typeof require("#P/fn/symbol/key-for") is \function
   ok \iterator of require("#P/fn/symbol")
@@ -318,6 +320,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/es7/math").isubh is \function
   ok \metadata of require("#P/es7/reflect")
   ok typeof require("#P/es7/asap") is \function
+  ok \observable of require("#P/es7/symbol")
   ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")
