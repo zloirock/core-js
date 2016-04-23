@@ -10092,7 +10092,7 @@
         assert.ok(false, 'fails');
         async();
       }
-    }, 1e3);
+    }, 3e3);
     return after = true;
   });
 }).call(this);

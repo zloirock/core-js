@@ -7128,10 +7128,9 @@
   test('asap', function(assert){
     var asap, async, done, after;
     asap = core.asap;
-    assert.expect(4);
+    assert.expect(3);
     assert.isFunction(asap);
     assert.arity(asap, 1);
-    assert.name(asap, 'asap');
     async = assert.async();
     done = false;
     asap(function(){
@@ -7149,7 +7148,7 @@
         assert.ok(false, 'fails');
         async();
       }
-    }, 1e3);
+    }, 3e3);
     return after = true;
   });
 }).call(this);

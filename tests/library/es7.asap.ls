@@ -3,10 +3,9 @@ module 'ES6'
 
 test 'asap' (assert)->
   {asap} = core
-  assert.expect 4
+  assert.expect 3
   assert.isFunction asap
   assert.arity asap, 1
-  assert.name asap, \asap
   async = assert.async!
   done = no
   asap !->
@@ -19,5 +18,5 @@ test 'asap' (assert)->
       done = on
       assert.ok no, \fails
       async!
-  ), 1e3
+  ), 3e3
   after = on

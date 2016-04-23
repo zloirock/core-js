@@ -19,5 +19,5 @@ test 'asap' (assert)->
       done := on
       assert.ok no, \fails
       async!
-  ), 1e3
+  ), 3e3
   after = on
