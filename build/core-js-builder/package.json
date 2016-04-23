@@ -1,15 +1,15 @@
 {
   "name": "core-js-builder",
   "description": "core-js builder",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
   "dependencies": {
-    "core-js": "2.2.2",
-    "webpack": "1.12.x",
+    "core-js": "2.3.0",
+    "webpack": "1.13.x",
     "temp": "0.8.x"
   },
   "license": "MIT"
