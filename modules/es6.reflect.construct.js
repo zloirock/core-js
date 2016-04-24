@@ -14,10 +14,11 @@ $export($export.S + $export.F * require('./_fails')(function(){
 }), 'Reflect', {
   construct: function construct(Target, args /*, newTarget*/){
     aFunction(Target);
+    anObject(args);
     var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);
     if(Target == newTarget){
       // w/o altered newTarget, optimization for 0-4 arguments
-      if(args != undefined)switch(anObject(args).length){
+      switch(args.length){
         case 0: return new Target;
         case 1: return new Target(args[0]);
         case 2: return new Target(args[0], args[1]);

@@ -23,3 +23,4 @@ test 'Reflect.construct' (assert)!->
   assert.ok try getPrototypeOf(construct f, []) is Object::
   catch => no
   assert.same typeof (try construct(Date, [])getTime!), \number, 'works with native constructors with 2 arguments'
+  assert.throws (!-> construct !->), 'throws when the second argument is not an object'

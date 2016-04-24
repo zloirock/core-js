@@ -136,7 +136,7 @@ for P in <[.. ../library]>
   ok \next of require("#P/fn/number/virtual").iterator.call 42
   ok \isNaN of require("#P/fn/number")
   ok require("#P/fn/reflect/apply")(((a, b)-> a + b), null, [1, 2]) is 3
-  ok require("#P/fn/reflect/construct")(-> @a = 2).a is 2
+  ok require("#P/fn/reflect/construct")((-> @a = 2), []).a is 2
   require("#P/fn/reflect/define-property")(O = {}, \a {value: 42})
   ok O.a is 42
   ok require("#P/fn/reflect/delete-property") {q: 1}, \q

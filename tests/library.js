@@ -4189,6 +4189,9 @@
         return construct(Date, []).getTime();
       } catch (e$) {}
     }()), 'number', 'works with native constructors with 2 arguments');
+    assert.throws(function(){
+      construct(function(){});
+    }, 'throws when the second argument is not an object');
   });
 }).call(this);
 
