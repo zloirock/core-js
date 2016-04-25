@@ -273,6 +273,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/typed/float64-array") is \function
   ok typeof require("#P/fn/typed").Uint32Array is \function
   ok \all of require("#P/fn/promise")
+  ok \from of require("#P/fn/observable")
   ok require("#P/fn/system/global").Math is Math
   ok require("#P/fn/system").global.Math is Math
   ok require("#P/fn/error/is-error") new TypeError
@@ -321,6 +322,7 @@ for P in <[.. ../library]>
   ok \metadata of require("#P/es7/reflect")
   ok typeof require("#P/es7/asap") is \function
   ok \observable of require("#P/es7/symbol")
+  ok \from of require("#P/es7/observable")
   ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")

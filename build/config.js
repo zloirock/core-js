@@ -171,6 +171,7 @@ module.exports = {
     'es7.reflect.has-own-metadata',
     'es7.reflect.metadata',
     'es7.asap',
+    'es7.observable',
     'web.immediate',
     'web.dom.iterable',
     'web.timers',
@@ -187,9 +188,10 @@ module.exports = {
     'core.number.iterator',
     'core.regexp.escape',
     'core.string.escape-html',
-    'core.string.unescape-html'
+    'core.string.unescape-html',
   ],
   experimental: [
+    'es7.observable',
   ],
   libraryBlacklist: [
     'es6.object.to-string',
@@ -203,7 +205,7 @@ module.exports = {
     'es6.regexp.split',
     'es6.number.constructor',
     'es6.date.to-string',
-    'es6.date.to-primitive'
+    'es6.date.to-primitive',
   ],
   es5SpecialCase: [
     'es6.object.create',
@@ -241,7 +243,7 @@ module.exports = {
     'es6.string.trim',
     'es6.regexp.to-string',
     'es6.parse-int',
-    'es6.parse-float'
+    'es6.parse-float',
   ],
   banner: '/**\n' +
           ' * core-js ' + require('../package').version + '\n' +

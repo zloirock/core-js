@@ -27,6 +27,7 @@
     "qunitjs": "1.23.x",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "2.1.x",
+    "es-observable-tests": "0.2.x",
     "eslint": "2.8.x",
     "temp": "0.8.x"
   },
@@ -34,7 +35,8 @@
     "grunt": "grunt",
     "lint": "eslint es5 es6 es7 stage web core fn modules",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
-    "test": "npm run lint && npm run grunt livescript client karma:default && npm run grunt library karma:library && npm run promises-tests && lsc tests/commonjs"
+    "observables-tests": "node tests/observables/adapter && node tests/observables/adapter-library",
+    "test": "npm run lint && npm run grunt livescript client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && lsc tests/commonjs"
   },
   "license": "MIT",
   "keywords": [
