@@ -12,3 +12,5 @@ test 'Reflect.apply' (assert)!->
   C.apply = 42
   assert.strictEqual apply(C, null, <[foo bar baz]>), \foobarbaz, 'works with redefined apply'
   assert.throws (!-> apply 42, null, []), TypeError, 'throws on primitive'
+  assert.throws (!-> apply (!->), null), TypeError, 'throws without third argument'
+  assert.throws (!-> apply (!->), null, \123), TypeError, 'throws on primitive as third argument'

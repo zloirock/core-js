@@ -4384,7 +4384,13 @@
     assert.strictEqual(apply(C, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
     assert.throws(function(){
       apply(42, null, []);
-    }, TypeError, 'throws on primitive');
+    }, TypeError, 'throws on primitive as first argument');
+    assert.throws(function(){
+      apply(function(){}, null);
+    }, TypeError, 'throws without third argument');
+    assert.throws(function(){
+      apply(function(){}, null, '123');
+    }, TypeError, 'throws on primitive as third argument');
   });
 }).call(this);
 

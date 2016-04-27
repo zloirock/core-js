@@ -4143,6 +4143,12 @@
     assert.throws(function(){
       apply(42, null, []);
     }, TypeError, 'throws on primitive');
+    assert.throws(function(){
+      apply(function(){}, null);
+    }, TypeError, 'throws without third argument');
+    assert.throws(function(){
+      apply(function(){}, null, '123');
+    }, TypeError, 'throws on primitive as third argument');
   });
 }).call(this);
 
