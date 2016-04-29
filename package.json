@@ -28,7 +28,7 @@
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "2.1.x",
     "es-observable-tests": "0.2.x",
-    "eslint": "2.8.x",
+    "eslint": "2.9.x",
     "temp": "0.8.x"
   },
   "scripts": {
