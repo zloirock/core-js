@@ -20,7 +20,7 @@
     "grunt-karma": "0.12.x",
     "karma": "0.13.x",
     "karma-qunit": "0.1.x",
-    "karma-chrome-launcher": "0.2.x",
+    "karma-chrome-launcher": "1.0.x",
     "karma-ie-launcher": "0.2.x",
     "karma-firefox-launcher": "0.1.x",
     "karma-phantomjs-launcher": "1.0.x",
