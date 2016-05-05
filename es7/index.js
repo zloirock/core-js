@@ -32,4 +32,5 @@ require('../modules/es7.reflect.has-metadata');
 require('../modules/es7.reflect.has-own-metadata');
 require('../modules/es7.reflect.metadata');
 require('../modules/es7.asap');
+require('../modules/es7.observable');
 module.exports = require('../modules/_core');

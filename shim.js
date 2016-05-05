@@ -169,6 +169,7 @@ require('./modules/es7.reflect.has-metadata');
 require('./modules/es7.reflect.has-own-metadata');
 require('./modules/es7.reflect.metadata');
 require('./modules/es7.asap');
+require('./modules/es7.observable');
 require('./modules/web.timers');
 require('./modules/web.immediate');
 require('./modules/web.dom.iterable');

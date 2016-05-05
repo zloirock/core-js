@@ -191,7 +191,6 @@ module.exports = {
     'core.string.unescape-html',
   ],
   experimental: [
-    'es7.observable',
   ],
   libraryBlacklist: [
     'es6.object.to-string',
