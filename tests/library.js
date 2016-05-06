@@ -5685,6 +5685,7 @@
     foo[Symbol()] = 44;
     assert.deepEqual(getOwnPropertyNames(foo).sort(), ['a', 'd', 's']);
     assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
+    assert.strictEqual(getOwnPropertySymbols(Object.prototype).length, 0);
   });
   if (JSON != null) {
     test('Symbols & JSON.stringify', function(assert){
@@ -5782,6 +5783,8 @@
       assert.strictEqual(getOwnPropertyDescriptor(O, i), void 8, 'getOwnPropertyDescriptor i');
       assert.strictEqual(getOwnPropertyDescriptor(O, j), void 8, 'getOwnPropertyDescriptor j');
       assert.strictEqual(getOwnPropertyDescriptor(O, 'k'), void 8, 'getOwnPropertyDescriptor k');
+      assert.strictEqual(getOwnPropertyDescriptor(Object.prototype, 'toString').enumerable, false, 'getOwnPropertyDescriptor on Object.prototype');
+      assert.strictEqual(getOwnPropertyDescriptor(Object.prototype, d), void 8, 'getOwnPropertyDescriptor on Object.prototype missed symbol');
       assert.strictEqual(keys(O).length, 2, 'Object.keys');
       assert.strictEqual(getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames');
       assert.strictEqual(getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols');

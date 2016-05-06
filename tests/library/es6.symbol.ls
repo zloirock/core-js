@@ -51,6 +51,7 @@ test 'Object.getOwnPropertySymbols' (assert)!->
   foo[Symbol()] = 44
   assert.deepEqual getOwnPropertyNames(foo)sort!, <[a d s]>
   assert.strictEqual getOwnPropertySymbols(foo).length, 1
+  assert.strictEqual getOwnPropertySymbols(Object::).length, 0
 
 if JSON?
   test 'Symbols & JSON.stringify' (assert)!->
@@ -91,6 +92,8 @@ if DESCRIPTORS
     assert.strictEqual getOwnPropertyDescriptor(O, i), void, 'getOwnPropertyDescriptor i'
     assert.strictEqual getOwnPropertyDescriptor(O, j), void, 'getOwnPropertyDescriptor j'
     assert.strictEqual getOwnPropertyDescriptor(O, \k), void, 'getOwnPropertyDescriptor k'
+    assert.strictEqual getOwnPropertyDescriptor(Object::, \toString).enumerable, no, 'getOwnPropertyDescriptor on Object.prototype'
+    assert.strictEqual getOwnPropertyDescriptor(Object::, d), void, 'getOwnPropertyDescriptor on Object.prototype missed symbol'
     assert.strictEqual keys(O).length, 2, 'Object.keys'
     assert.strictEqual getOwnPropertyNames(O).length, 3, 'Object.getOwnPropertyNames'
     assert.strictEqual getOwnPropertySymbols(O).length, 3, 'Object.getOwnPropertySymbols'
