@@ -42,7 +42,7 @@ var Subscription = function(observer, subscriber){
   this._o = observer;
   observer = new SubscriptionObserver(this);
   try {
-    var cleanup      = subscriber.call(undefined, observer)
+    var cleanup      = subscriber(observer)
       , subscription = cleanup;
     if(cleanup != null){
       if(typeof cleanup.unsubscribe === 'function')cleanup = function(){ subscription.unsubscribe(); };
@@ -140,7 +140,7 @@ redefineAll($Observable.prototype, {
           }
         },
         error: reject,
-        complete: resolve,
+        complete: resolve
       });
     });
   }

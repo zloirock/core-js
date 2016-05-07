@@ -24,7 +24,8 @@ test \Observable (assert)!->
     assert.looksNative next
     assert.looksNative error
     assert.looksNative complete
-    assert.same @, (-> @)!, 'correct executor context'
+    if STRICT
+      assert.same @, (-> @)!, 'correct executor context'
   obsevable.subscribe({})
   assert.ok obsevable instanceof Observable
 

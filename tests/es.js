@@ -10541,9 +10541,11 @@
       assert.looksNative(next);
       assert.looksNative(error);
       assert.looksNative(complete);
-      assert.same(this, function(){
-        return this;
-      }(), 'correct executor context');
+      if (STRICT) {
+        assert.same(this, function(){
+          return this;
+        }(), 'correct executor context');
+      }
     });
     obsevable.subscribe({});
     assert.ok(obsevable instanceof Observable);

@@ -7535,9 +7535,11 @@
       assert.arity(next, 1);
       assert.arity(error, 1);
       assert.arity(complete, 1);
-      assert.same(this, function(){
-        return this;
-      }(), 'correct executor context');
+      if (STRICT) {
+        assert.same(this, function(){
+          return this;
+        }(), 'correct executor context');
+      }
     });
     obsevable.subscribe({});
     assert.ok(obsevable instanceof Observable);
