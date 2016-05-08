@@ -1,5 +1,5 @@
 /**
- * core-js 2.3.0
+ * core-js 2.4.0
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2016 Denis Pushkarev
@@ -225,7 +225,8 @@
 	__webpack_require__(285);
 	__webpack_require__(286);
 	__webpack_require__(287);
-	module.exports = __webpack_require__(288);
+	__webpack_require__(288);
+	module.exports = __webpack_require__(289);
 
 
 /***/ },
@@ -271,6 +272,7 @@
 	  , isEnum         = {}.propertyIsEnumerable
 	  , SymbolRegistry = shared('symbol-registry')
 	  , AllSymbols     = shared('symbols')
+	  , OPSymbols      = shared('op-symbols')
 	  , ObjectProto    = Object[PROTOTYPE]
 	  , USE_NATIVE     = typeof $Symbol == 'function'
 	  , QObject        = global.QObject;
@@ -302,6 +304,7 @@
 	};
 
 	var $defineProperty = function defineProperty(it, key, D){
+	  if(it === ObjectProto)$defineProperty(OPSymbols, key, D);
 	  anObject(it);
 	  key = toPrimitive(key, true);
 	  anObject(D);
@@ -329,10 +332,14 @@
 	};
 	var $propertyIsEnumerable = function propertyIsEnumerable(key){
 	  var E = isEnum.call(this, key = toPrimitive(key, true));
+	  if(this === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key))return false;
 	  return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key] ? E : true;
 	};
 	var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key){
-	  var D = gOPD(it = toIObject(it), key = toPrimitive(key, true));
+	  it  = toIObject(it);
+	  key = toPrimitive(key, true);
+	  if(it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key))return;
+	  var D = gOPD(it, key);
 	  if(D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
 	  return D;
 	};
@@ -341,16 +348,19 @@
 	    , result = []
 	    , i      = 0
 	    , key;
-	  while(names.length > i)if(!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
-	  return result;
+	  while(names.length > i){
+	    if(!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
+	  } return result;
 	};
 	var $getOwnPropertySymbols = function getOwnPropertySymbols(it){
-	  var names  = gOPN(toIObject(it))
+	  var IS_OP  = it === ObjectProto
+	    , names  = gOPN(IS_OP ? OPSymbols : toIObject(it))
 	    , result = []
 	    , i      = 0
 	    , key;
-	  while(names.length > i)if(has(AllSymbols, key = names[i++]))result.push(AllSymbols[key]);
-	  return result;
+	  while(names.length > i){
+	    if(has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true))result.push(AllSymbols[key]);
+	  } return result;
 	};
 
 	// 19.4.1.1 Symbol([description])
@@ -358,13 +368,12 @@
 	  $Symbol = function Symbol(){
 	    if(this instanceof $Symbol)throw TypeError('Symbol is not a constructor!');
 	    var tag = uid(arguments.length > 0 ? arguments[0] : undefined);
-	    DESCRIPTORS && setter && setSymbolDesc(ObjectProto, tag, {
-	      configurable: true,
-	      set: function(value){
-	        if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
-	        setSymbolDesc(this, tag, createDesc(1, value));
-	      }
-	    });
+	    var $set = function(value){
+	      if(this === ObjectProto)$set.call(OPSymbols, value);
+	      if(has(this, HIDDEN) && has(this[HIDDEN], tag))this[HIDDEN][tag] = false;
+	      setSymbolDesc(this, tag, createDesc(1, value));
+	    };
+	    if(DESCRIPTORS && setter)setSymbolDesc(ObjectProto, tag, {configurable: true, set: $set});
 	    return wrap(tag);
 	  };
 	  redefine($Symbol[PROTOTYPE], 'toString', function toString(){
@@ -551,7 +560,7 @@
 /* 7 */
 /***/ function(module, exports) {
 
-	var core = module.exports = {version: '2.3.0'};
+	var core = module.exports = {version: '2.4.0'};
 	if(typeof __e == 'number')__e = core; // eslint-disable-line no-undef
 
 /***/ },
@@ -4227,20 +4236,26 @@
 	  , isArrayIter = __webpack_require__(155)
 	  , anObject    = __webpack_require__(10)
 	  , toLength    = __webpack_require__(35)
-	  , getIterFn   = __webpack_require__(157);
-	module.exports = function(iterable, entries, fn, that, ITERATOR){
+	  , getIterFn   = __webpack_require__(157)
+	  , BREAK       = {}
+	  , RETURN      = {};
+	var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
 	  var iterFn = ITERATOR ? function(){ return iterable; } : getIterFn(iterable)
 	    , f      = ctx(fn, that, entries ? 2 : 1)
 	    , index  = 0
-	    , length, step, iterator;
+	    , length, step, iterator, result;
 	  if(typeof iterFn != 'function')throw TypeError(iterable + ' is not iterable!');
 	  // fast case for arrays with default iterator
 	  if(isArrayIter(iterFn))for(length = toLength(iterable.length); length > index; index++){
-	    entries ? f(anObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
+	    result = entries ? f(anObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
+	    if(result === BREAK || result === RETURN)return result;
 	  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done; ){
-	    call(iterator, f, step.value, entries);
+	    result = call(iterator, f, step.value, entries);
+	    if(result === BREAK || result === RETURN)return result;
 	  }
 	};
+	exports.BREAK  = BREAK;
+	exports.RETURN = RETURN;
 
 /***/ },
 /* 199 */
@@ -4867,12 +4882,14 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	// 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-	var $export = __webpack_require__(6)
-	  , _apply  = Function.apply;
+	var $export   = __webpack_require__(6)
+	  , aFunction = __webpack_require__(19)
+	  , anObject  = __webpack_require__(10)
+	  , _apply    = Function.apply;
 
 	$export($export.S, 'Reflect', {
 	  apply: function apply(target, thisArgument, argumentsList){
-	    return _apply.call(target, thisArgument, argumentsList);
+	    return _apply.call(aFunction(target), thisArgument, anObject(argumentsList));
 	  }
 	});
 
@@ -4896,10 +4913,11 @@
 	}), 'Reflect', {
 	  construct: function construct(Target, args /*, newTarget*/){
 	    aFunction(Target);
+	    anObject(args);
 	    var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);
 	    if(Target == newTarget){
 	      // w/o altered newTarget, optimization for 0-4 arguments
-	      if(args != undefined)switch(anObject(args).length){
+	      switch(args.length){
 	        case 0: return new Target;
 	        case 1: return new Target(args[0]);
 	        case 2: return new Target(args[0], args[1]);
@@ -6941,6 +6959,210 @@
 /* 286 */
 /***/ function(module, exports, __webpack_require__) {
 
+	'use strict';
+	// https://github.com/zenparsing/es-observable
+	var $export     = __webpack_require__(6)
+	  , global      = __webpack_require__(2)
+	  , core        = __webpack_require__(7)
+	  , microtask   = __webpack_require__(201)()
+	  , OBSERVABLE  = __webpack_require__(23)('observable')
+	  , aFunction   = __webpack_require__(19)
+	  , anObject    = __webpack_require__(10)
+	  , anInstance  = __webpack_require__(84)
+	  , redefineAll = __webpack_require__(202)
+	  , hide        = __webpack_require__(8)
+	  , forOf       = __webpack_require__(198)
+	  , RETURN      = forOf.RETURN;
+
+	var getMethod = function(fn){
+	  return fn == null ? undefined : aFunction(fn);
+	};
+
+	var cleanupSubscription = function(subscription){
+	  var cleanup = subscription._c;
+	  if(cleanup){
+	    subscription._c = undefined;
+	    cleanup();
+	  }
+	};
+
+	var subscriptionClosed = function(subscription){
+	  return subscription._o === undefined;
+	};
+
+	var closeSubscription = function(subscription){
+	  if(!subscriptionClosed(subscription)){
+	    subscription._o = undefined;
+	    cleanupSubscription(subscription);
+	  }
+	};
+
+	var Subscription = function(observer, subscriber){
+	  anObject(observer);
+	  this._c = undefined;
+	  this._o = observer;
+	  observer = new SubscriptionObserver(this);
+	  try {
+	    var cleanup      = subscriber(observer)
+	      , subscription = cleanup;
+	    if(cleanup != null){
+	      if(typeof cleanup.unsubscribe === 'function')cleanup = function(){ subscription.unsubscribe(); };
+	      else aFunction(cleanup);
+	      this._c = cleanup;
+	    }
+	  } catch(e){
+	    observer.error(e);
+	    return;
+	  } if(subscriptionClosed(this))cleanupSubscription(this);
+	};
+
+	Subscription.prototype = redefineAll({}, {
+	  unsubscribe: function unsubscribe(){ closeSubscription(this); }
+	});
+
+	var SubscriptionObserver = function(subscription){
+	  this._s = subscription;
+	};
+
+	SubscriptionObserver.prototype = redefineAll({}, {
+	  next: function next(value){
+	    var subscription = this._s;
+	    if(!subscriptionClosed(subscription)){
+	      var observer = subscription._o;
+	      try {
+	        var m = getMethod(observer.next);
+	        if(m)return m.call(observer, value);
+	      } catch(e){
+	        try {
+	          closeSubscription(subscription);
+	        } finally {
+	          throw e;
+	        }
+	      }
+	    }
+	  },
+	  error: function error(value){
+	    var subscription = this._s;
+	    if(subscriptionClosed(subscription))throw value;
+	    var observer = subscription._o;
+	    subscription._o = undefined;
+	    try {
+	      var m = getMethod(observer.error);
+	      if(!m)throw value;
+	      value = m.call(observer, value);
+	    } catch(e){
+	      try {
+	        cleanupSubscription(subscription);
+	      } finally {
+	        throw e;
+	      }
+	    } cleanupSubscription(subscription);
+	    return value;
+	  },
+	  complete: function complete(value){
+	    var subscription = this._s;
+	    if(!subscriptionClosed(subscription)){
+	      var observer = subscription._o;
+	      subscription._o = undefined;
+	      try {
+	        var m = getMethod(observer.complete);
+	        value = m ? m.call(observer, value) : undefined;
+	      } catch(e){
+	        try {
+	          cleanupSubscription(subscription);
+	        } finally {
+	          throw e;
+	        }
+	      } cleanupSubscription(subscription);
+	      return value;
+	    }
+	  }
+	});
+
+	var $Observable = function Observable(subscriber){
+	  anInstance(this, $Observable, 'Observable', '_f')._f = aFunction(subscriber);
+	};
+
+	redefineAll($Observable.prototype, {
+	  subscribe: function subscribe(observer){
+	    return new Subscription(observer, this._f);
+	  },
+	  forEach: function forEach(fn){
+	    var that = this;
+	    return new (core.Promise || global.Promise)(function(resolve, reject){
+	      aFunction(fn);
+	      var subscription = that.subscribe({
+	        next : function(value){
+	          try {
+	            return fn(value);
+	          } catch(e){
+	            reject(e);
+	            subscription.unsubscribe();
+	          }
+	        },
+	        error: reject,
+	        complete: resolve
+	      });
+	    });
+	  }
+	});
+
+	redefineAll($Observable, {
+	  from: function from(x){
+	    var C = typeof this === 'function' ? this : $Observable;
+	    var method = getMethod(anObject(x)[OBSERVABLE]);
+	    if(method){
+	      var observable = anObject(method.call(x));
+	      return observable.constructor === C ? observable : new C(function(observer){
+	        return observable.subscribe(observer);
+	      });
+	    }
+	    return new C(function(observer){
+	      var done = false;
+	      microtask(function(){
+	        if(!done){
+	          try {
+	            if(forOf(x, false, function(it){
+	              observer.next(it);
+	              if(done)return RETURN;
+	            }) === RETURN)return;
+	          } catch(e){
+	            if(done)throw e;
+	            observer.error(e);
+	            return;
+	          } observer.complete();
+	        }
+	      });
+	      return function(){ done = true; };
+	    });
+	  },
+	  of: function of(){
+	    for(var i = 0, l = arguments.length, items = Array(l); i < l;)items[i] = arguments[i++];
+	    return new (typeof this === 'function' ? this : $Observable)(function(observer){
+	      var done = false;
+	      microtask(function(){
+	        if(!done){
+	          for(var i = 0; i < items.length; ++i){
+	            observer.next(items[i]);
+	            if(done)return;
+	          } observer.complete();
+	        }
+	      });
+	      return function(){ done = true; };
+	    });
+	  }
+	});
+
+	hide($Observable.prototype, OBSERVABLE, function(){ return this; });
+
+	$export($export.G, {Observable: $Observable});
+
+	__webpack_require__(187)('Observable');
+
+/***/ },
+/* 287 */
+/***/ function(module, exports, __webpack_require__) {
+
 	var $export = __webpack_require__(6)
 	  , $task   = __webpack_require__(200);
 	$export($export.G + $export.B, {
@@ -6949,7 +7171,7 @@
 	});
 
 /***/ },
-/* 287 */
+/* 288 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var $iterators    = __webpack_require__(184)
@@ -6976,14 +7198,14 @@
 	}
 
 /***/ },
-/* 288 */
+/* 289 */
 /***/ function(module, exports, __webpack_require__) {
 
 	// ie9- setTimeout & setInterval additional parameters fix
 	var global     = __webpack_require__(2)
 	  , $export    = __webpack_require__(6)
 	  , invoke     = __webpack_require__(76)
-	  , partial    = __webpack_require__(289)
+	  , partial    = __webpack_require__(290)
 	  , navigator  = global.navigator
 	  , MSIE       = !!navigator && /MSIE .\./.test(navigator.userAgent); // <- dirty ie9- check
 	var wrap = function(set){
@@ -7001,11 +7223,11 @@
 	});
 
 /***/ },
-/* 289 */
+/* 290 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
-	var path      = __webpack_require__(290)
+	var path      = __webpack_require__(291)
 	  , invoke    = __webpack_require__(76)
 	  , aFunction = __webpack_require__(19);
 	module.exports = function(/* ...pargs */){
@@ -7029,7 +7251,7 @@
 	};
 
 /***/ },
-/* 290 */
+/* 291 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(2);
