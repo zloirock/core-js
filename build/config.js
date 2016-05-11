@@ -149,6 +149,9 @@ module.exports = {
     'es7.object.get-own-property-descriptors',
     'es7.object.values',
     'es7.object.entries',
+    'es7.object.enumerable-keys',
+    'es7.object.enumerable-values',
+    'es7.object.enumerable-entries',
     'es7.object.define-getter',
     'es7.object.define-setter',
     'es7.object.lookup-getter',
@@ -191,6 +194,9 @@ module.exports = {
     'core.string.unescape-html',
   ],
   experimental: [
+    'es7.object.enumerable-keys',
+    'es7.object.enumerable-values',
+    'es7.object.enumerable-entries',
   ],
   libraryBlacklist: [
     'es6.object.to-string',
