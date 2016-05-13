@@ -45,18 +45,24 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [ECMAScript 6: Typed Arrays](#ecmascript-6-typed-arrays)
     - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
   - [ECMAScript 7+ proposals](#ecmascript-7-proposals)
+    - [stage 4 proposals](#stage-4-proposals)
+    - [stage 3 proposals](#stage-3-proposals)
+    - [stage 2 proposals](#stage-2-proposals)
+    - [stage 1 proposals](#stage-1-proposals)
+    - [stage 0 proposals](#stage-0-proposals)
+    - [pre-stage 0 proposals](#pre-stage-0-proposals)
   - [Web standards](#web-standards)
     - [setTimeout / setInterval](#settimeout--setinterval)
     - [setImmediate](#setimmediate)
-    - [Iterable DOM collections](#iterable-dom-collections)
+    - [iterable DOM collections](#iterable-dom-collections)
   - [Non-standard](#non-standard)
     - [Object](#object)
     - [Dict](#dict)
-    - [Partial application](#partial-application)
+    - [partial application](#partial-application)
     - [Number Iterator](#number-iterator)
-    - [Escaping strings](#escaping-strings)
+    - [escaping strings](#escaping-strings)
     - [delay](#delay)
-    - [Helpers for iterators](#helpers-for-iterators)
+    - [helpers for iterators](#helpers-for-iterators)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](./CHANGELOG.md)
 
@@ -1149,7 +1155,6 @@ new DataView(buffer, byteOffset = 0, byteLength = buffer.byteLength - byteOffset
   #findIndex(fn(val, index, @), that) -> index
   #forEach(fn(val, index, @), that) -> void
   #indexOf(var, from?) -> int
-  #includes(var, from?) -> bool
   #join(string = ',') -> string
   #lastIndexOf(var, from?) -> int
   #map(fn(val, index, @), that) -> typed
@@ -1278,6 +1283,7 @@ function C(a, b){
 var instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
 ```
+
 ### ECMAScript 7+ proposals
 [The TC39 process.](https://tc39.github.io/process-document/)
 
@@ -1288,151 +1294,307 @@ core-js(/library)/es7/array
 core-js(/library)/es7/string
 core-js(/library)/es7/map
 core-js(/library)/es7/set
+core-js(/library)/es7/error
 core-js(/library)/es7/math
 core-js(/library)/es7/system
-core-js(/library)/es7/error
+core-js(/library)/es7/symbol
 core-js(/library)/es7/reflect
+core-js(/library)/es7/observable
 ```
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
-##### Stage 4:
-* `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
-* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.entries.js)
-* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.lookup-getter.js).
+#### Stage 4 proposals
 
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/4
+```
+* `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
+```js
+Array
+  #includes(var, from?) -> bool
+{
+  Int8Array,
+  Uint8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array
+}
+  #includes(var, from?) -> bool
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/array/includes
+```
+[*Examples*](http://goo.gl/2Gq4ma):
+```js
+[1, 2, 3].includes(2);        // => true
+[1, 2, 3].includes(4);        // => false
+[1, 2, 3].includes(2, 2);     // => false
+
+[NaN].indexOf(NaN);           // => -1
+[NaN].includes(NaN);          // => true
+Array(1).indexOf(undefined);  // => -1
+Array(1).includes(undefined); // => true
+```
+* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.entries.js)
+```js
+Object
+  .values(object) -> array
+  .entries(object) -> array
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/object/values
 core-js(/library)/fn/object/entries
+```
+[*Examples*](http://goo.gl/6kuGOn):
+```js
+Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
+Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
+
+for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
+  console.log(key);   // => 'a', 'b', 'c'
+  console.log(value); // => 1, 2, 3
+}
+```
+* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.lookup-getter.js).
+```js
+Object
+  #__defineSetter__(key, fn) -> void
+  #__defineGetter__(key, fn) -> void
+  #__lookupSetter__(key) -> fn | void
+  #__lookupGetter__(key) -> fn | void
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/object/define-getter
 core-js(/library)/fn/object/define-setter
 core-js(/library)/fn/object/lookup-getter
 core-js(/library)/fn/object/lookup-setter
 ```
 
-##### Stage 3:
-* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.get-own-property-descriptors.js)
-* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.pad-right.js)
-
+#### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/3
+```
+* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.object.get-own-property-descriptors.js)
+```js
+Object
+  .getOwnPropertyDescriptors(object) -> object
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/object/get-own-property-descriptors
+```
+*Examples*:
+```js
+// Shallow object cloning with prototype and descriptors:
+var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
+// Mixin:
+Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
+```
+* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.pad-right.js)
+```js
+String
+  #padStart(length, fillStr = ' ') -> string
+  #padEnd(length, fillStr = ' ') -> string
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/string/pad-start
 core-js(/library)/fn/string/pad-end
 core-js(/library)/fn/string/virtual/pad-start
 core-js(/library)/fn/string/virtual/pad-end
 ```
+[*Examples*](http://goo.gl/hK5ccv):
+```js
+'hello'.padStart(10);         // => '     hello'
+'hello'.padStart(10, '1234'); // => '12341hello'
+'hello'.padEnd(10);           // => 'hello     '
+'hello'.padEnd(10, '1234');   // => 'hello12341'
+```
 
-##### Stage 2:
-* `System.global` [proposal](https://github.com/tc39/proposal-global) - module [`es7.system.global`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.system.global.js)
-* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.symbol.async-iterator.js)
-
+#### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/2
+```
+* `System.global` [proposal](https://github.com/tc39/proposal-global) - module [`es7.system.global`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.system.global.js)
+```js
+System
+  .global -> object
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/system/global
+```
+[*Examples*](http://goo.gl/gEqMl7):
+```js
+System.global.Array === Array; // => true
+```
+* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.symbol.async-iterator.js)
+```js
+Symbol
+  .asyncIterator -> @@asyncIterator
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/symbol/async-iterator
 ```
 
-##### Stage 1:
-* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.trim-right.js)
-* `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.match-all.js)
-* `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`es7.observable`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.observable.js) and [`es7.symbol.observable`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.symbol.observable.js)
-
+#### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/1
+```
+* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.trim-right.js)
+```js
+String
+  #trimLeft()  -> string
+  #trimRight() -> string
+  #trimStart() -> string
+  #trimEnd()   -> string
+```
+[*CommonJS entry points:*](#commonjs)
+```js
 core-js(/library)/fn/string/trim-start
 core-js(/library)/fn/string/trim-end
 core-js(/library)/fn/string/trim-left
 core-js(/library)/fn/string/trim-right
-core-js(/library)/fn/string/match-all
 core-js(/library)/fn/string/virtual/trim-start
 core-js(/library)/fn/string/virtual/trim-end
 core-js(/library)/fn/string/virtual/trim-left
 core-js(/library)/fn/string/virtual/trim-right
+```
+[*Examples*](http://goo.gl/Er5lMJ):
+```js
+'   hello   '.trimLeft();  // => 'hello   '
+'   hello   '.trimRight(); // => '   hello'
+```
+* `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.match-all.js)
+```js
+String
+  #marchAll(regexp) -> iterator
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/string/match-all
 core-js(/library)/fn/string/virtual/match-all
+```
+[*Examples*](http://goo.gl/6kp9EB):
+```js
+for(let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)){
+  console.log(d, D); // => 1 a, 2 b, 3 c
+}
+```
+* `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`es7.observable`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.observable.js) and [`es7.symbol.observable`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.symbol.observable.js)
+```js
+new Observable(fn)             -> observable
+  #subscribe(observer)         -> subscription
+  #forEach(fn)                 -> promise
+  #@@observable()              -> @
+  .of(...items)                -> observable
+  .from(observable | iterable) -> observable
+  .@@species                   -> @
+Symbol
+  .observable                  -> @@observable
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/observable
 core-js(/library)/fn/symbol/observable
 ```
+[*Examples*](http://goo.gl/1LDywi):
+```js
+new Observable(observer => {
+  observer.next('hello');
+  observer.next('world');
+  observer.complete();
+}).forEach(it => console.log(it))
+  .then(_ => console.log('!'));
+```
 
-##### Stage 0:
-* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.at.js)
-* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.set.to-json.js) (rejected and will be removed from `core-js@3`)
-* `Error.isError` [proposal](https://github.com/ljharb/proposal-is-error) - module [`es7.error.is-error`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.error.is-error.js) (withdrawn and will be removed from `core-js@3`)
-* `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`es7.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.iaddh.js), [`es7.math.isubh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.isubh.js), [`es7.math.imulh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.imulh.js) and [`es7.math.umulh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.umulh.js)
-* `glogal.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`es7.asap`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.asap.js)
-
+#### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/0
-core-js(/library)/fn/string/at
-core-js(/library)/fn/string/virtual/at
-core-js(/library)/fn/map
-core-js(/library)/fn/set
-core-js(/library)/fn/error/is-error
-core-js(/library)/fn/math/iaddh
-core-js(/library)/fn/math/isubh
-core-js(/library)/fn/math/imulh
-core-js(/library)/fn/math/umulh
-core-js(/library)/fn/asap
 ```
-
-##### Pre-stage 0 proposals:
-* `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`es7.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.define-metadata.js), [`es7.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.delete-metadata.js), [`es7.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-metadata.js), [`es7.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-metadata-keys.js), [`es7.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-own-metadata.js), [`es7.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-own-metadata-keys.js), [`es7.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.has-metadata.js), [`es7.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.has-own-metadata.js) and [`es7.reflect.metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.metadata.js).
-
-[*CommonJS entry points:*](#commonjs)
+* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.string.at.js)
 ```js
-core-js(/library)/stage/pre
-core-js(/library)/fn/reflect/define-metadata
-core-js(/library)/fn/reflect/delete-metadata
-core-js(/library)/fn/reflect/get-metadata
-core-js(/library)/fn/reflect/get-metadata-keys
-core-js(/library)/fn/reflect/get-own-metadata
-core-js(/library)/fn/reflect/get-own-metadata-keys
-core-js(/library)/fn/reflect/has-metadata
-core-js(/library)/fn/reflect/has-own-metadata
-core-js(/library)/fn/reflect/metadata
-```
-
-```js
-asap(fn) -> void
-Array
-  #includes(var, from?) -> bool
 String
   #at(index) -> string
-  #padStart(length, fillStr = ' ') -> string
-  #padEnd(length, fillStr = ' ') -> string
-  #trimLeft() -> string
-  #trimRight() -> string
-  #trimStart() -> string
-  #trimEnd() -> string
-  #marchAll(regexp) -> iterator
-Object
-  .values(object) -> array
-  .entries(object) -> array
-  .getOwnPropertyDescriptors(object) -> object
-  #__defineSetter__(key, fn) -> void
-  #__defineGetter__(key, fn) -> void
-  #__lookupSetter__(key) -> fn | void
-  #__lookupGetter__(key) -> fn | void
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/string/at
+core-js(/library)/fn/string/virtual/at
+```
+[*Examples*](http://goo.gl/XluXI8):
+```js
+'a𠮷b'.at(1);        // => '𠮷'
+'a𠮷b'.at(1).length; // => 2
+```
+* `Map#toJSON`, `Set#toJSON` [proposal](https://github.com/DavidBruant/Map-Set.prototype.toJSON) - modules [`es7.map.to-json`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.map.to-json.js), [`es7.set.to-json`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.set.to-json.js) (rejected and will be removed from `core-js@3`)
+```js
 Map
   #toJSON() -> array (rejected and will be removed from core-js@3)
 Set
   #toJSON() -> array (rejected and will be removed from core-js@3)
-System
-  .global -> object
-Symbol
-  .asyncIterator -> @@asyncIterator
-  .observable    -> @@observable
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/map
+core-js(/library)/fn/set
+```
+* `Error.isError` [proposal](https://github.com/ljharb/proposal-is-error) - module [`es7.error.is-error`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.error.is-error.js) (withdrawn and will be removed from `core-js@3`)
+```js
 Error
   .isError(it) -> bool (withdrawn and will be removed from core-js@3)
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/error/is-error
+```
+* `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`es7.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.iaddh.js), [`es7.math.isubh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.isubh.js), [`es7.math.imulh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.imulh.js) and [`es7.math.umulh`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.math.umulh.js)
+```js
 Math
   .iaddh(lo0, hi0, lo1, hi1) -> int32
   .isubh(lo0, hi0, lo1, hi1) -> int32
   .imulh(a, b) -> int32
   .umulh(a, b) -> uint32
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/math/iaddh
+core-js(/library)/fn/math/isubh
+core-js(/library)/fn/math/imulh
+core-js(/library)/fn/math/umulh
+```
+* `glogal.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`es7.asap`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.asap.js)
+```js
+asap(fn) -> void
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/asap
+```
+[*Examples*](http://goo.gl/tx3SRK):
+```js
+asap(() => console.log('called as microtask'));
+```
+
+#### Pre-stage 0 proposals
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/stage/pre
+```
+* `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`es7.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.define-metadata.js), [`es7.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.delete-metadata.js), [`es7.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-metadata.js), [`es7.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-metadata-keys.js), [`es7.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-own-metadata.js), [`es7.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.get-own-metadata-keys.js), [`es7.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.has-metadata.js), [`es7.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.has-own-metadata.js) and [`es7.reflect.metadata`](https://github.com/zloirock/core-js/blob/v2.4.0/modules/es7.reflect.metadata.js).
+```js
 Reflect
   .defineMetadata(metadataKey, metadataValue, target, propertyKey?) -> void
   .getMetadata(metadataKey, target, propertyKey?) -> var
@@ -1443,65 +1605,28 @@ Reflect
   .getMetadataKeys(target, propertyKey?) -> array
   .getOwnMetadataKeys(target, propertyKey?) -> array
   .metadata(metadataKey, metadataValue) -> decorator(target, targetKey?) -> void
-new Observable(fn)             -> observable
-  #subscribe(observer)         -> subscription
-  #forEach(fn)                 -> promise
-  #@@observable()              -> @
-  .of(...items)                -> observable
-  .from(observable | iterable) -> observable
-  .@@species                   -> @
 ```
-[*Examples*](http://goo.gl/JJi3Vn):
+[*CommonJS entry points:*](#commonjs)
 ```js
-asap(() => console.log('called as microtask'));
-
-[1, 2, 3].includes(2);        // => true
-[1, 2, 3].includes(4);        // => false
-[1, 2, 3].includes(2, 2);     // => false
-
-[NaN].indexOf(NaN);           // => -1
-[NaN].includes(NaN);          // => true
-Array(1).indexOf(undefined);  // => -1
-Array(1).includes(undefined); // => true
-
-'a𠮷b'.at(1);        // => '𠮷'
-'a𠮷b'.at(1).length; // => 2
-
-'hello'.padStart(10);         // => '     hello'
-'hello'.padStart(10, '1234'); // => '12341hello'
-'hello'.padEnd(10);           // => 'hello     '
-'hello'.padEnd(10, '1234');   // => 'hello12341'
-
-'   hello   '.trimLeft();  // => 'hello   '
-'   hello   '.trimRight(); // => '   hello'
-
-for(let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)){
-  console.log(d, D); // => 1 a, 2 b, 3 c
-}
-
-Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
-Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
-
-// Shallow object cloning with prototype and descriptors:
-var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
-// Mixin:
-Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-
-System.global.Array === Array; // => true
-
+core-js(/library)/fn/reflect/define-metadata
+core-js(/library)/fn/reflect/delete-metadata
+core-js(/library)/fn/reflect/get-metadata
+core-js(/library)/fn/reflect/get-metadata-keys
+core-js(/library)/fn/reflect/get-own-metadata
+core-js(/library)/fn/reflect/get-own-metadata-keys
+core-js(/library)/fn/reflect/has-metadata
+core-js(/library)/fn/reflect/has-own-metadata
+core-js(/library)/fn/reflect/metadata
+```
+[*Examples*](http://goo.gl/KCo3PS):
+```js
 var O = {};
 Reflect.defineMetadata('foo', 'bar', O);
 Reflect.ownKeys(O);               // => []
 Reflect.getOwnMetadataKeys(O);    // => ['foo']
 Reflect.getOwnMetadata('foo', O); // => 'bar'
-
-new Observable(observer => {
-  observer.next('hello');
-  observer.next('world');
-  observer.complete();
-}).forEach(it => console.log(it))
-  .then(_ => console.log('!'));
 ```
+
 ### Web standards
 [*CommonJS entry points:*](#commonjs)
 ```js
