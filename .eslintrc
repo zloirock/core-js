@@ -29,6 +29,7 @@
     "no-mixed-requires": 0,
     "no-loop-func": 0,
     "no-unused-expressions": 0,
+    "no-unused-vars": [2,  {"args": "none"}],
     "curly": 0,
     "max-nested-callbacks": [2, 4],
     "no-multiple-empty-lines": 2
