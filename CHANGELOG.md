@@ -1,4 +1,7 @@
 ## Changelog
+##### 1.2.7 [LEGACY] - 2016.07.18
+* some fixes for issues like #159, #186, #194, #207
+
 ##### 1.2.6 - 2015.11.09
 * reject with `TypeError` on attempt resolve promise itself
 * correct behavior with broken `Promise` subclass constructors / methods

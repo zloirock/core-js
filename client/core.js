@@ -1,8 +1,8 @@
 /**
- * core-js 1.2.6
+ * core-js 1.2.7
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
- * © 2015 Denis Pushkarev
+ * © 2016 Denis Pushkarev
  */
 !function(__e, __g, undefined){
 'use strict';
@@ -2551,7 +2551,7 @@
 	  try {
 	    var arr  = [7]
 	      , iter = arr[ITERATOR]();
-	    iter.next = function(){ safe = true; };
+	    iter.next = function(){ return {done: safe = true}; };
 	    arr[ITERATOR] = function(){ return iter; };
 	    exec(arr);
 	  } catch(e){ /* empty */ }
@@ -2970,12 +2970,16 @@
 	  , process    = global.process
 	  , isNode     = classof(process) == 'process'
 	  , P          = global[PROMISE]
+	  , empty      = function(){ /* empty */ }
 	  , Wrapper;
 
 	var testResolve = function(sub){
-	  var test = new P(function(){});
-	  if(sub)test.constructor = Object;
-	  return P.resolve(test) === test;
+	  var test = new P(empty), promise;
+	  if(sub)test.constructor = function(exec){
+	    exec(empty, empty);
+	  };
+	  (promise = P.resolve(test))['catch'](empty);
+	  return promise === test;
 	};
 
 	var USE_NATIVE = function(){
@@ -3892,12 +3896,13 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	// 26.1.1 Reflect.apply(target, thisArgument, argumentsList)
-	var $export = __webpack_require__(3)
-	  , _apply  = Function.apply;
+	var $export  = __webpack_require__(3)
+	  , _apply   = Function.apply
+	  , anObject = __webpack_require__(20);
 
 	$export($export.S, 'Reflect', {
 	  apply: function apply(target, thisArgument, argumentsList){
-	    return _apply.call(target, thisArgument, argumentsList);
+	    return _apply.call(target, thisArgument, anObject(argumentsList));
 	  }
 	});
 
@@ -3921,10 +3926,11 @@
 	}), 'Reflect', {
 	  construct: function construct(Target, args /*, newTarget*/){
 	    aFunction(Target);
+	    anObject(args);
 	    var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);
 	    if(Target == newTarget){
 	      // w/o altered newTarget, optimization for 0-4 arguments
-	      if(args != undefined)switch(anObject(args).length){
+	      switch(args.length){
 	        case 0: return new Target;
 	        case 1: return new Target(args[0]);
 	        case 2: return new Target(args[0], args[1]);

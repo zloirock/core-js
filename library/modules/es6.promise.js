@@ -19,12 +19,16 @@ var $          = require('./$')
   , process    = global.process
   , isNode     = classof(process) == 'process'
   , P          = global[PROMISE]
+  , empty      = function(){ /* empty */ }
   , Wrapper;
 
 var testResolve = function(sub){
-  var test = new P(function(){});
-  if(sub)test.constructor = Object;
-  return P.resolve(test) === test;
+  var test = new P(empty), promise;
+  if(sub)test.constructor = function(exec){
+    exec(empty, empty);
+  };
+  (promise = P.resolve(test))['catch'](empty);
+  return promise === test;
 };
 
 var USE_NATIVE = function(){
