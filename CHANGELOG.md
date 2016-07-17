@@ -1,4 +1,12 @@
 ## Changelog
+##### 2.4.1 - 2016.07.18
+- fixed `script` tag for some parsers, [#204](https://github.com/zloirock/core-js/issues/204), [#216](https://github.com/zloirock/core-js/issues/216)
+- removed some unused variables, [#217](https://github.com/zloirock/core-js/issues/217), [#218](https://github.com/zloirock/core-js/issues/218)
+- fixed MS Edge `Reflect.construct` and `Reflect.apply` - they should not allow primitive as `argumentsList` argument
+
+##### 1.2.7 [LEGACY] - 2016.07.18
+- some fixes for issues like [#159](https://github.com/zloirock/core-js/issues/159), [#186](https://github.com/zloirock/core-js/issues/186), [#194](https://github.com/zloirock/core-js/issues/194), [#207](https://github.com/zloirock/core-js/issues/207)
+
 ##### 2.4.0 - 2016.05.08
 - Added `Observable`, [stage 1 proposal](https://github.com/zenparsing/es-observable)
 - Fixed behavior `Object.{getOwnPropertySymbols, getOwnPropertyDescriptor}` and `Object#propertyIsEnumerable` on `Object.prototype`
