@@ -1398,7 +1398,7 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 ```
-* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-left`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.pad-left.js), [`es7.string.pad-right`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.pad-right.js)
+* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-start`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.pad-start.js), [`es7.string.pad-end`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.pad-end.js)
 ```js
 String
   #padStart(length, fillStr = ' ') -> string
