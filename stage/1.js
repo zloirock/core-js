@@ -1,3 +1,10 @@
+require('../modules/es7.math.clamp');
+require('../modules/es7.math.deg-per-rad');
+require('../modules/es7.math.degrees');
+require('../modules/es7.math.fscale');
+require('../modules/es7.math.rad-per-deg');
+require('../modules/es7.math.radians');
+require('../modules/es7.math.scale');
 require('../modules/es7.string.trim-left');
 require('../modules/es7.string.trim-right');
 require('../modules/es7.string.match-all');
