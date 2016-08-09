@@ -12,8 +12,11 @@ $export($export.S, 'Object', {
       , keys    = ownKeys(O)
       , result  = {}
       , i       = 0
-      , key;
-    while(keys.length > i)createProperty(result, key = keys[i++], getDesc(O, key));
+      , key, desc;
+    while(keys.length > i){
+      desc = getDesc(O, key = keys[i++]);
+      if(desc !== undefined)createProperty(result, key, desc);
+    }
     return result;
   }
 });
