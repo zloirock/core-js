@@ -19,7 +19,7 @@
     "grunt-contrib-copy": "1.0.x",
     "grunt-karma": "2.0.x",
     "karma": "1.1.x",
-    "karma-qunit": "1.1.x",
+    "karma-qunit": "1.2.x",
     "karma-chrome-launcher": "1.0.x",
     "karma-ie-launcher": "1.0.x",
     "karma-firefox-launcher": "1.0.x",
