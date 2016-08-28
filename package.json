@@ -18,9 +18,9 @@
     "grunt-contrib-clean": "1.0.x",
     "grunt-contrib-copy": "1.0.x",
     "grunt-karma": "2.0.x",
-    "karma": "1.1.x",
+    "karma": "1.2.x",
     "karma-qunit": "1.2.x",
-    "karma-chrome-launcher": "1.0.x",
+    "karma-chrome-launcher": "2.0.x",
     "karma-ie-launcher": "1.0.x",
     "karma-firefox-launcher": "1.0.x",
     "karma-phantomjs-launcher": "1.0.x",
@@ -28,7 +28,7 @@
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "2.1.x",
     "es-observable-tests": "0.2.x",
-    "eslint": "3.2.x",
+    "eslint": "3.4.x",
     "temp": "0.8.x"
   },
   "scripts": {
