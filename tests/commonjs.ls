@@ -111,9 +111,16 @@ for P in <[.. ../library]>
   ok require("#P/fn/math/sinh")(-0) is -0
   ok require("#P/fn/math/tanh")(Infinity) is 1
   ok require("#P/fn/math/trunc")(1.5) is 1
+  ok require("#P/fn/math/clamp")(6 2 4) is 4
+  ok require("#P/fn/math/deg-per-rad") is Math.PI / 180
+  ok require("#P/fn/math/degrees")(Math.PI) is 180
+  ok require("#P/fn/math/fscale")(3 1 2 1 2) is 3
   ok require("#P/fn/math/iaddh")(3 2 0xffffffff 4) is 7
   ok require("#P/fn/math/isubh")(3 4 0xffffffff 2) is 1
   ok require("#P/fn/math/imulh")(0xffffffff 7) is -1
+  ok require("#P/fn/math/rad-per-deg") is 180 / Math.PI
+  ok require("#P/fn/math/radians")(180) is Math.PI
+  ok require("#P/fn/math/scale")(3 1 2 1 2) is 3
   ok require("#P/fn/math/umulh")(0xffffffff 7) is 6
   ok require("#P/fn/number/constructor")(\5) is 5
   ok require("#P/fn/number/epsilon") is Math.pow 2 -52

@@ -1518,6 +1518,35 @@ new Observable(observer => {
 }).forEach(it => console.log(it))
   .then(_ => console.log('!'));
 ```
+* `Math.{clamp, DEG_PER_RAD, degrees, fscale, rad-per-deg, radians, scale}` 
+  [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules 
+  [`es7.math.clamp`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.clamp.js), 
+  [`es7.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.DEG_PER_RAD.js), 
+  [`es7.math.degrees`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.degrees.js),
+  [`es7.math.fscale`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.fscale.js), 
+  [`es7.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.RAD_PER_DEG.js), 
+  [`es7.math.radians`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.radians.js) and
+  [`es7.math.scale`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.scale.js)
+```js
+Math
+  .clamp(x, lower, upper) -> number
+  .DEG_PER_RAD -> number
+  .degrees(radians) -> number
+  .fscale(x, inLow, inHigh, outLow, outHigh) -> number
+  .RAD_PER_DEG -> number
+  .radians(degrees) -> number
+  .scale(x, inLow, inHigh, outLow, outHigh) -> number
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/math/clamp
+core-js(/library)/fn/math/deg-per-rad
+core-js(/library)/fn/math/degrees
+core-js(/library)/fn/math/fscale
+core-js(/library)/fn/math/rad-per-deg
+core-js(/library)/fn/math/radians
+core-js(/library)/fn/math/scale
+```
 
 #### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
