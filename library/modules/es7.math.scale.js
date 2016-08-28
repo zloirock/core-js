@@ -1,5 +1,4 @@
 // https://rwaldron.github.io/proposal-math-extensions/
-var $export = require('./_export')
-  , scale = require('./_math-scale');
+var $export = require('./_export');
 
-$export($export.S, 'Math', {scale: scale});
+$export($export.S, 'Math', {scale: require('./_math-scale')});

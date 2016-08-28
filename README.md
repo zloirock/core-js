@@ -1529,11 +1529,11 @@ new Observable(observer => {
   [`es7.math.scale`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.scale.js)
 ```js
 Math
-  .clamp(x, lower, upper) -> number
   .DEG_PER_RAD -> number
+  .RAD_PER_DEG -> number
+  .clamp(x, lower, upper) -> number
   .degrees(radians) -> number
   .fscale(x, inLow, inHigh, outLow, outHigh) -> number
-  .RAD_PER_DEG -> number
   .radians(degrees) -> number
   .scale(x, inLow, inHigh, outLow, outHigh) -> number
 ```
