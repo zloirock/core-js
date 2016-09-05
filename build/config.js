@@ -153,6 +153,7 @@ module.exports = {
     'es7.object.define-setter',
     'es7.object.lookup-getter',
     'es7.object.lookup-setter',
+    'es7.promise.finally',
     'es7.map.to-json',
     'es7.set.to-json',
     'es7.system.global',

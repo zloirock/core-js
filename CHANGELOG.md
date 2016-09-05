@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added `Math.{clamp, deg-per-rad, degrees, fscale, rad-per-deg, radians, scale}`, [stage 1 proposal](https://github.com/rwaldron/proposal-math-extensions), [#226](https://github.com/zloirock/core-js/issues/226)
+- Added `Promise#finally` [stage 2 proposal][https://github.com/tc39/proposal-promise-finally], [#225](https://github.com/zloirock/core-js/issues/225)
 
 ##### 2.4.1 - 2016.07.18
 - fixed `script` tag for some parsers, [#204](https://github.com/zloirock/core-js/issues/204), [#216](https://github.com/zloirock/core-js/issues/216)

@@ -151,6 +151,7 @@ require('./modules/es7.object.define-getter');
 require('./modules/es7.object.define-setter');
 require('./modules/es7.object.lookup-getter');
 require('./modules/es7.object.lookup-setter');
+require('./modules/es7.promise.finally');
 require('./modules/es7.map.to-json');
 require('./modules/es7.set.to-json');
 require('./modules/es7.system.global');

@@ -1446,6 +1446,15 @@ Symbol
 ```js
 core-js(/library)/fn/symbol/async-iterator
 ```
+* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`es7.promise.finally`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.promise.finally.js)
+```js
+Promise
+  #finally(onFinally) -> Promise
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/promise/finally
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
