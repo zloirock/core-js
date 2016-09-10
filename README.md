@@ -1361,27 +1361,6 @@ for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
   console.log(value); // => 1, 2, 3
 }
 ```
-* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.lookup-getter.js).
-```js
-Object
-  #__defineSetter__(key, fn) -> void
-  #__defineGetter__(key, fn) -> void
-  #__lookupSetter__(key) -> fn | void
-  #__lookupGetter__(key) -> fn | void
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/object/define-getter
-core-js(/library)/fn/object/define-setter
-core-js(/library)/fn/object/lookup-getter
-core-js(/library)/fn/object/lookup-setter
-```
-
-#### Stage 3 proposals
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/stage/3
-```
 * `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.get-own-property-descriptors.js)
 ```js
 Object
@@ -1418,6 +1397,27 @@ core-js(/library)/fn/string/virtual/pad-end
 'hello'.padEnd(10);           // => 'hello     '
 'hello'.padEnd(10, '1234');   // => 'hello12341'
 ```
+* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.object.lookup-getter.js).
+```js
+Object
+  #__defineSetter__(key, fn) -> void
+  #__defineGetter__(key, fn) -> void
+  #__lookupSetter__(key) -> fn | void
+  #__lookupGetter__(key) -> fn | void
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/object/define-getter
+core-js(/library)/fn/object/define-setter
+core-js(/library)/fn/object/lookup-getter
+core-js(/library)/fn/object/lookup-setter
+```
+
+#### Stage 3 proposals
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/stage/3
+```
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1446,12 +1446,6 @@ Symbol
 ```js
 core-js(/library)/fn/symbol/async-iterator
 ```
-
-#### Stage 1 proposals
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/stage/1
-```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.trim-right.js)
 ```js
 String
@@ -1475,6 +1469,12 @@ core-js(/library)/fn/string/virtual/trim-right
 ```js
 '   hello   '.trimLeft();  // => 'hello   '
 '   hello   '.trimRight(); // => '   hello'
+```
+
+#### Stage 1 proposals
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/stage/1
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.match-all.js)
 ```js
