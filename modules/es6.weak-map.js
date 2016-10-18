@@ -36,21 +36,23 @@ var methods = {
 var $WeakMap = module.exports = require('./_collection')('WeakMap', wrapper, methods, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
-if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
-  InternalMap = weak.getConstructor(wrapper);
-  assign(InternalMap.prototype, methods);
-  meta.NEED = true;
-  each(['delete', 'has', 'get', 'set'], function(key){
-    var proto  = $WeakMap.prototype
-      , method = proto[key];
-    redefine(proto, key, function(a, b){
-      // store frozen objects on internal weakmap shim
-      if(isObject(a) && !isExtensible(a)){
-        if(!this._f)this._f = new InternalMap;
-        var result = this._f[key](a, b);
-        return key == 'set' ? this : result;
-      // store all the rest on native weakmap
-      } return method.call(this, a, b);
+try {
+  if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
+    InternalMap = weak.getConstructor(wrapper);
+    assign(InternalMap.prototype, methods);
+    meta.NEED = true;
+    each(['delete', 'has', 'get', 'set'], function(key){
+      var proto  = $WeakMap.prototype
+        , method = proto[key];
+      redefine(proto, key, function(a, b){
+        // store frozen objects on internal weakmap shim
+        if(isObject(a) && !isExtensible(a)){
+          if(!this._f)this._f = new InternalMap;
+          var result = this._f[key](a, b);
+          return key == 'set' ? this : result;
+        // store all the rest on native weakmap
+        } return method.call(this, a, b);
+      });
     });
-  });
-}
+  }
+} catch (e) {}
