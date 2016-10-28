@@ -8,7 +8,8 @@ var $export = require('./_export')
 if(KEY in [])Array(1)[KEY](function(){ forced = false; });
 $export($export.P + $export.F * forced, 'Array', {
   findIndex: function findIndex(callbackfn/*, that = undefined */){
-    return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : -1);
+    var result = $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
+    return result || -1;
   }
 });
 require('./_add-to-unscopables')(KEY);
