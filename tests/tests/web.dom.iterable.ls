@@ -12,6 +12,22 @@ test 'Iterable DOM collections' (assert)->
       assert.isFunction Collection::keys, "#{..}::@@keys is function"
       assert.isFunction Collection::entries, "#{..}::@@entries is function"
       absent = no
+
+  for <[CSSStyleDeclaration CSSValueList ClientRectList DOMRectList
+    DOMStringList DataTransferItemList FileList HTMLAllCollection
+    HTMLCollection HTMLFormElement HTMLSelectElement
+    MimeTypeArray NamedNodeMap PaintRequestList Plugin PluginArray SVGLengthList
+    SVGNumberList SVGPathSegList SVGPointList SVGStringList SVGTransformList
+    SourceBufferList TextTrackCueList TextTrackList TouchList]>
+    Collection = global[..]
+    if Collection
+      assert.same Collection::[Symbol?toStringTag], .., "#{..}::@@toStringTag is '#{..}'"
+      assert.isFunction Collection::[Symbol?iterator], "#{..}::@@iterator is function"
+      assert.notOk Collection::values, "#{..}::@@values is not function"
+      assert.notOk Collection::keys, "#{..}::@@keys is not function"
+      assert.notOk Collection::entries, "#{..}::@@entries is not function"
+      absent = no
+
   if NodeList? and document?querySelectorAll and document.querySelectorAll(\div) instanceof NodeList
     assert.isFunction document.querySelectorAll(\div)[Symbol.iterator], 'works with document.querySelectorAll'
   if absent => assert.ok on, 'DOM collections are absent'

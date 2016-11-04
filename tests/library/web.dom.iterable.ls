@@ -3,7 +3,12 @@ module 'Web'
 
 test 'Iterable DOM collections' (assert)!->
   absent = on;
-  for <[NodeList DOMTokenList MediaList StyleSheetList CSSRuleList]>
+  for <[CSSRuleList CSSStyleDeclaration CSSValueList ClientRectList DOMRectList
+    DOMStringList DOMTokenList DataTransferItemList FileList HTMLAllCollection
+    HTMLCollection HTMLFormElement HTMLSelectElement MediaList
+    MimeTypeArray NamedNodeMap NodeList PaintRequestList Plugin PluginArray SVGLengthList
+    SVGNumberList SVGPathSegList SVGPointList SVGStringList SVGTransformList
+    SourceBufferList StyleSheetList TextTrackCueList TextTrackList TouchList]>
     Collection = global[..]
     if Collection
       assert.same Collection::[core.Symbol.toStringTag], .., "#{..}::@@toStringTag is '#{..}'"
