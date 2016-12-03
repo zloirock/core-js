@@ -3,12 +3,17 @@ module \ES6
 
 {Symbol} = core
 {keys, values, entries} = core.Array
+{getPrototypeOf} = core.Object
 
 test 'Array#@@iterator' (assert)!->
   assert.isFunction values
   iter = core.getIterator <[q w e]>
   assert.isIterator iter
   assert.isIterable iter
+  assert.strictEqual iter, iter[Symbol?iterator]()
+  assert.notOk iter.hasOwnProperty(Symbol?iterator)
+  assert.notOk getPrototypeOf(iter).hasOwnProperty(Symbol?iterator)
+  assert.ok getPrototypeOf(getPrototypeOf(iter)).hasOwnProperty(Symbol?iterator)
   assert.strictEqual iter[Symbol?toStringTag], 'Array Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

@@ -1,9 +1,16 @@
 {module, test} = QUnit
 module \ES6
 
+{Symbol} = core
+{getPrototypeOf} = core.Object
+
 test 'String#@@iterator' (assert)!->
   iter = core.getIterator 'qwe'
   assert.isIterator iter
+  assert.strictEqual iter, iter[Symbol?iterator]()
+  assert.notOk iter.hasOwnProperty(Symbol?iterator)
+  assert.notOk getPrototypeOf(iter).hasOwnProperty(Symbol?iterator)
+  assert.ok getPrototypeOf(getPrototypeOf(iter)).hasOwnProperty(Symbol?iterator)
   assert.strictEqual iter[core.Symbol?toStringTag], 'String Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}

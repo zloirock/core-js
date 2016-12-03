@@ -41,7 +41,10 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);
       // fix for some old engines
-      if(!LIBRARY && !has(IteratorPrototype, ITERATOR))hide(IteratorPrototype, ITERATOR, returnThis);
+      if(!LIBRARY && !has(getPrototypeOf(IteratorPrototype), ITERATOR)
+        && getPrototypeOf(IteratorPrototype) !== Object.prototype) {
+        hide(getPrototypeOf(IteratorPrototype), ITERATOR, returnThis);
+      }
     }
   }
   // fix Array#{values, @@iterator}.name in V8 / FF
