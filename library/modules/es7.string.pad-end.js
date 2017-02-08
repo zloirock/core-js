@@ -3,7 +3,7 @@
 var $export = require('./_export')
   , $pad    = require('./_string-pad');
 
-$export($export.P, 'String', {
+$export($export.P + $export.F, 'String', {
   padEnd: function padEnd(maxLength /*, fillString = ' ' */){
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
