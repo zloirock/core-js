@@ -1479,7 +1479,7 @@ core-js(/library)/fn/string/virtual/trim-right
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.match-all.js)
 ```js
 String
-  #marchAll(regexp) -> iterator
+  #matchAll(regexp) -> iterator
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
