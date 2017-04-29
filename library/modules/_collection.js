@@ -41,7 +41,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
         return IS_ADDER ? this : result;
       });
     });
-    if('size' in proto)dP(C.prototype, 'size', {
+    IS_WEAK || dP(C.prototype, 'size', {
       get: function(){
         return this._c.size;
       }
