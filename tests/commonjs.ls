@@ -29,6 +29,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/object/define")({}, {q: 42}).q is 42
   ok require("#P/fn/object/make")([], {}) instanceof Array
   ok \isObject of require("#P/fn/object")
+  ok require("#P/fn/promise/finally") if \function
   ok require("#P/fn/function/bind")(((a, b)-> @ + a + b), 1 2)(3) is 6
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
   ok require("#P/fn/function/virtual/bind").call(((a, b)-> @ + a + b), 1 2)(3) is 6
