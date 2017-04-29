@@ -5,4 +5,8 @@ QUnit.assert.arrayEqual = (a, b, message)!->
   else for i til a.length => if !same(a[i], b[i])
     result = no
     break
-  @push result, [...a], [...b], message
+  @pushResult do
+    result: result
+    actual: [...a]
+    expected: [...b]
+    message: message

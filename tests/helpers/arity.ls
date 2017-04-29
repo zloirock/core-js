@@ -1,2 +1,6 @@
 QUnit.assert.arity = (fn, length, message)!->
-  @push (fn.length is length), fn.length, length, message || "arity is #length"
+  @pushResult do
+    result: fn.length is length
+    actual: fn.length
+    expected: length
+    message: message || "arity is #length"

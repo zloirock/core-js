@@ -25,8 +25,10 @@ if DESCRIPTORS
     assert.ok new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof'
     assert.strictEqual new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor'
     /(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)(m)(n)(o)(p)/.exec \abcdefghijklmnopq
+    result = on
     for val, index in \bcdefghij
-      assert.strictEqual RegExp"$#{index + 1}", val, "Updates RegExp globals $#{index + 1}"
+      if RegExp"$#{index + 1}" isnt val => result = no
+    assert.ok result, "Updates RegExp globals"
     if nativeSubclass
       C = nativeSubclass RegExp
       assert.ok new C instanceof C, 'correct subclassing with native classes #1'

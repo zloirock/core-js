@@ -1,2 +1,6 @@
 QUnit.assert.isIterator = (it, message)!->
-  @push (typeof it is \object && typeof it.next is \function), no, on, message || 'is iterator'
+  @pushResult do
+    result: typeof it is \object && typeof it.next is \function
+    actual: no
+    expected: on
+    message: message || 'is iterator'
