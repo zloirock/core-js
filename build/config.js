@@ -155,6 +155,7 @@ module.exports = {
     'es7.object.lookup-setter',
     'es7.map.to-json',
     'es7.set.to-json',
+    'es7.global',
     'es7.system.global',
     'es7.error.is-error',
     'es7.math.clamp',

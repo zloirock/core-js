@@ -281,6 +281,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/typed").Uint32Array is \function
   ok \all of require("#P/fn/promise")
   ok \from of require("#P/fn/observable")
+  ok require("#P/fn/global").Math is Math
   ok require("#P/fn/system/global").Math is Math
   ok require("#P/fn/system").global.Math is Math
   ok require("#P/fn/error/is-error") new TypeError
@@ -323,6 +324,7 @@ for P in <[.. ../library]>
   ok \at of require("#P/es7/string")
   require("#P/es7/set")
   require("#P/es7/map")
+  ok require("#P/es7/global").Math is Math
   ok require("#P/es7/system").global.Math is Math
   ok require("#P/es7/error").isError new TypeError
   ok typeof require("#P/es7/math").isubh is \function

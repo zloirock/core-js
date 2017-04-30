@@ -7,6 +7,7 @@ var ctx                = require('./_ctx')
   , setTask            = global.setImmediate
   , clearTask          = global.clearImmediate
   , MessageChannel     = global.MessageChannel
+  , Dispatch           = global.Dispatch
   , counter            = 0
   , queue              = {}
   , ONREADYSTATECHANGE = 'onreadystatechange'
@@ -40,6 +41,11 @@ if(!setTask || !clearTask){
   if(require('./_cof')(process) == 'process'){
     defer = function(id){
       process.nextTick(ctx(run, id, 1));
+    };
+  // Sphere (JS game engine) Dispatch API
+  } else if(Dispatch && Dispatch.now){
+    defer = function(id){
+      Dispatch.now(ctx(run, id, 1));
     };
   // Browsers with MessageChannel, includes WebWorkers
   } else if(MessageChannel){
