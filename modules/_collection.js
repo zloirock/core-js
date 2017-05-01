@@ -39,7 +39,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     redefineAll(C.prototype, methods);
     meta.NEED = true;
   } else {
-    var instance             = new C
+    var instance             = new C()
       // early implementations not supports chaining
       , HASNT_CHAINING       = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance
       // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
@@ -57,7 +57,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     if(!ACCEPT_ITERABLES){
       C = wrapper(function(target, iterable){
         anInstance(target, C, NAME);
-        var that = inheritIfRequired(new Base, target, C);
+        var that = inheritIfRequired(new Base(), target, C);
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       });

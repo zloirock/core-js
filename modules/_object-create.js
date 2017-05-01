@@ -32,7 +32,7 @@ module.exports = Object.create || function create(O, Properties){
   var result;
   if(O !== null){
     Empty[PROTOTYPE] = anObject(O);
-    result = new Empty;
+    result = new Empty();
     Empty[PROTOTYPE] = null;
     // add "__proto__" for Object.getPrototypeOf polyfill
     result[IE_PROTO] = O;

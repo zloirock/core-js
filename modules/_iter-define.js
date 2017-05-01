@@ -36,7 +36,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
     , methods, key, IteratorPrototype;
   // Fix native
   if($anyNative){
-    IteratorPrototype = getPrototypeOf($anyNative.call(new Base));
+    IteratorPrototype = getPrototypeOf($anyNative.call(new Base()));
     if(IteratorPrototype !== Object.prototype && IteratorPrototype.next){
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);

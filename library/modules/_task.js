@@ -51,7 +51,7 @@ if(!setTask || !clearTask){
     };
   // Browsers with MessageChannel, includes WebWorkers
   } else if(MessageChannel){
-    channel = new MessageChannel;
+    channel = new MessageChannel();
     port    = channel.port2;
     channel.port1.onmessage = listener;
     defer = ctx(port.postMessage, port, 1);

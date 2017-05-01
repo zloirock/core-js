@@ -31,7 +31,7 @@ var $export = function(type, name, source){
       var F = function(a, b, c){
         if(this instanceof C){
           switch(arguments.length){
-            case 0: return new C;
+            case 0: return new C();
             case 1: return new C(a);
             case 2: return new C(a, b);
           } return new C(a, b, c);

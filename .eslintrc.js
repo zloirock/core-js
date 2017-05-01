@@ -197,6 +197,8 @@ module.exports = {
     'max-statements': ['error', 40],
     // require a capital letter for constructors
     'new-cap': ['error', { newIsCap: true, capIsNew: false }],
+    // require parentheses when invoking a constructor with no arguments
+    'new-parens': 'error',
     // disallow if as the only statement in an else block
     'no-lonely-if': 'error',
     // disallow mixed spaces and tabs for indentation

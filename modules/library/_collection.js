@@ -29,7 +29,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
   } else {
     C = wrapper(function(target, iterable){
       anInstance(target, C, NAME, '_c');
-      target._c = new Base;
+      target._c = new Base();
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });
     each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','), function(KEY){

@@ -221,7 +221,7 @@ if(!USE_NATIVE){
     }
   });
   PromiseCapability = function(){
-    var promise  = new Internal;
+    var promise  = new Internal();
     this.promise = promise;
     this.resolve = ctx($resolve, promise, 1);
     this.reject  = ctx($reject, promise, 1);

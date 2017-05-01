@@ -541,18 +541,18 @@ module.exports = function(fn, that, length){
 var Map     = __webpack_require__(85)
   , $export = __webpack_require__(0)
   , shared  = __webpack_require__(57)('metadata')
-  , store   = shared.store || (shared.store = new (__webpack_require__(88)));
+  , store   = shared.store || (shared.store = new (__webpack_require__(88))());
 
 var getOrCreateMetadataMap = function(target, targetKey, create){
   var targetMetadata = store.get(target);
   if(!targetMetadata){
     if(!create)return undefined;
-    store.set(target, targetMetadata = new Map);
+    store.set(target, targetMetadata = new Map());
   }
   var keyMetadata = targetMetadata.get(targetKey);
   if(!keyMetadata){
     if(!create)return undefined;
-    targetMetadata.set(targetKey, keyMetadata = new Map);
+    targetMetadata.set(targetKey, keyMetadata = new Map());
   } return keyMetadata;
 };
 var ordinaryHasOwnMetadata = function(MetadataKey, O, P){
@@ -1243,7 +1243,7 @@ module.exports = Object.create || function create(O, Properties){
   var result;
   if(O !== null){
     Empty[PROTOTYPE] = anObject(O);
-    result = new Empty;
+    result = new Empty();
     Empty[PROTOTYPE] = null;
     // add "__proto__" for Object.getPrototypeOf polyfill
     result[IE_PROTO] = O;
@@ -1541,7 +1541,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     redefineAll(C.prototype, methods);
     meta.NEED = true;
   } else {
-    var instance             = new C
+    var instance             = new C()
       // early implementations not supports chaining
       , HASNT_CHAINING       = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance
       // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
@@ -1559,7 +1559,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
     if(!ACCEPT_ITERABLES){
       C = wrapper(function(target, iterable){
         anInstance(target, C, NAME);
-        var that = inheritIfRequired(new Base, target, C);
+        var that = inheritIfRequired(new Base(), target, C);
         if(iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       });
@@ -2000,7 +2000,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
     , methods, key, IteratorPrototype;
   // Fix native
   if($anyNative){
-    IteratorPrototype = getPrototypeOf($anyNative.call(new Base));
+    IteratorPrototype = getPrototypeOf($anyNative.call(new Base()));
     if(IteratorPrototype !== Object.prototype && IteratorPrototype.next){
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);
@@ -2311,7 +2311,7 @@ if(!setTask || !clearTask){
     };
   // Browsers with MessageChannel, includes WebWorkers
   } else if(MessageChannel){
-    channel = new MessageChannel;
+    channel = new MessageChannel();
     port    = channel.port2;
     channel.port1.onmessage = listener;
     defer = ctx(port.postMessage, port, 1);
@@ -2590,7 +2590,7 @@ if(!$typed.ABV){
   });
 } else {
   if(!fails(function(){
-    new $ArrayBuffer;      // eslint-disable-line no-new
+    new $ArrayBuffer();      // eslint-disable-line no-new
   }) || !fails(function(){
     new $ArrayBuffer(0.5); // eslint-disable-line no-new
   })){
@@ -2761,7 +2761,7 @@ if(fails(function(){ return new $WeakMap().set((Object.freeze || Object)(tmp), 7
     redefine(proto, key, function(a, b){
       // store frozen objects on internal weakmap shim
       if(isObject(a) && !isExtensible(a)){
-        if(!this._f)this._f = new InternalMap;
+        if(!this._f)this._f = new InternalMap();
         var result = this._f[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap
@@ -3078,7 +3078,7 @@ var redefineAll       = __webpack_require__(36)
 
 // fallback for uncaught frozen keys
 var uncaughtFrozenStore = function(that){
-  return that._l || (that._l = new UncaughtFrozenStore);
+  return that._l || (that._l = new UncaughtFrozenStore());
 };
 var UncaughtFrozenStore = function(){
   this.a = [];
@@ -3613,7 +3613,7 @@ $export($export.S + $export.F * !__webpack_require__(54)(function(iter){ Array.f
     if(mapping)mapfn = ctx(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
     // if object isn't iterable or it's array with default iterator - use simple case
     if(iterFn != undefined && !(C == Array && isArrayIter(iterFn))){
-      for(iterator = iterFn.call(O), result = new C; !(step = iterator.next()).done; index++){
+      for(iterator = iterFn.call(O), result = new C(); !(step = iterator.next()).done; index++){
         createProperty(result, index, mapping ? call(iterator, mapfn, [step.value, index], true) : step.value);
       }
     } else {
@@ -5072,7 +5072,7 @@ if(!USE_NATIVE){
     }
   });
   PromiseCapability = function(){
-    var promise  = new Internal;
+    var promise  = new Internal();
     this.promise = promise;
     this.resolve = ctx($resolve, promise, 1);
     this.reject  = ctx($reject, promise, 1);
@@ -5206,7 +5206,7 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
     if(Target == newTarget){
       // w/o altered newTarget, optimization for 0-4 arguments
       switch(args.length){
-        case 0: return new Target;
+        case 0: return new Target();
         case 1: return new Target(args[0]);
         case 2: return new Target(args[0], args[1]);
         case 3: return new Target(args[0], args[1], args[2]);
@@ -5215,7 +5215,7 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
       // w/o altered newTarget, lot of arguments case
       var $args = [null];
       $args.push.apply($args, args);
-      return new (bind.apply(Target, $args));
+      return new (bind.apply(Target, $args))();
     }
     // with altered newTarget, not support built-in constructors
     var proto    = newTarget.prototype

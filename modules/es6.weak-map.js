@@ -47,7 +47,7 @@ if(fails(function(){ return new $WeakMap().set((Object.freeze || Object)(tmp), 7
     redefine(proto, key, function(a, b){
       // store frozen objects on internal weakmap shim
       if(isObject(a) && !isExtensible(a)){
-        if(!this._f)this._f = new InternalMap;
+        if(!this._f)this._f = new InternalMap();
         var result = this._f[key](a, b);
         return key == 'set' ? this : result;
       // store all the rest on native weakmap

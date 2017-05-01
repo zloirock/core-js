@@ -1,18 +1,18 @@
 var Map     = require('./es6.map')
   , $export = require('./_export')
   , shared  = require('./_shared')('metadata')
-  , store   = shared.store || (shared.store = new (require('./es6.weak-map')));
+  , store   = shared.store || (shared.store = new (require('./es6.weak-map'))());
 
 var getOrCreateMetadataMap = function(target, targetKey, create){
   var targetMetadata = store.get(target);
   if(!targetMetadata){
     if(!create)return undefined;
-    store.set(target, targetMetadata = new Map);
+    store.set(target, targetMetadata = new Map());
   }
   var keyMetadata = targetMetadata.get(targetKey);
   if(!keyMetadata){
     if(!create)return undefined;
-    targetMetadata.set(targetKey, keyMetadata = new Map);
+    targetMetadata.set(targetKey, keyMetadata = new Map());
   } return keyMetadata;
 };
 var ordinaryHasOwnMetadata = function(MetadataKey, O, P){

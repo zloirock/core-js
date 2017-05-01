@@ -240,7 +240,7 @@ if(!$typed.ABV){
   });
 } else {
   if(!fails(function(){
-    new $ArrayBuffer;      // eslint-disable-line no-new
+    new $ArrayBuffer();      // eslint-disable-line no-new
   }) || !fails(function(){
     new $ArrayBuffer(0.5); // eslint-disable-line no-new
   })){

@@ -33,7 +33,7 @@ var createDictMethod = function(TYPE){
     var f      = ctx(callbackfn, that, 3)
       , O      = toIObject(object)
       , result = IS_MAP || TYPE == 7 || TYPE == 2
-          ? new (typeof this == 'function' ? this : Dict) : undefined
+          ? new (typeof this == 'function' ? this : Dict)() : undefined
       , key, val, res;
     for(key in O)if(has(O, key)){
       val = O[key];
