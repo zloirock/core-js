@@ -181,6 +181,8 @@ module.exports = {
     'comma-style': ['error', 'last', { exceptions: { VariableDeclaration: true } }],
     // disallow padding inside computed properties
     'computed-property-spacing': ['error', 'never'],
+    // enforce one newline at the end of files
+    'eol-last': ['error', 'always'],
     // disallow space between function identifier and application
     'func-call-spacing': 'error',
     // this option sets a specific tab width for your code
