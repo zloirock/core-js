@@ -83,6 +83,7 @@ if(require('./_descriptors')){
   });
 
   var LITTLE_ENDIAN = fails(function(){
+    // eslint-disable-next-line no-undef
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
 

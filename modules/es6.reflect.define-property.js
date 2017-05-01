@@ -6,6 +6,7 @@ var dP          = require('./_object-dp')
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 $export($export.S + $export.F * require('./_fails')(function(){
+  // eslint-disable-next-line no-undef
   Reflect.defineProperty(dP.f({}, 1, {value: 1}), 1, {value: 2});
 }), 'Reflect', {
   defineProperty: function defineProperty(target, propertyKey, attributes){

@@ -11,6 +11,7 @@ var getKeys  = require('./_object-keys')
 module.exports = !$assign || require('./_fails')(function(){
   var A = {}
     , B = {}
+    // eslint-disable-next-line no-undef
     , S = Symbol()
     , K = 'abcdefghijklmnopqrst';
   A[S] = 7;

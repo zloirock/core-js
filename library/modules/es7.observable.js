@@ -181,7 +181,7 @@ redefineAll($Observable, {
       var done = false;
       microtask(function(){
         if(!done){
-          for(var i = 0; i < items.length; ++i){
+          for(var j = 0; j < items.length; ++j){
             observer.next(items[i]);
             if(done)return;
           } observer.complete();

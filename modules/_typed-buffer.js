@@ -22,6 +22,7 @@ var global         = require('./_global')
   , $DataView      = global[DATA_VIEW]
   , Math           = global.Math
   , RangeError     = global.RangeError
+  // eslint-disable-next-line no-shadow-restricted-names
   , Infinity       = global.Infinity
   , BaseBuffer     = $ArrayBuffer
   , abs            = Math.abs

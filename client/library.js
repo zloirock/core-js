@@ -627,6 +627,7 @@ if(__webpack_require__(7)){
   });
 
   var LITTLE_ENDIAN = fails(function(){
+    // eslint-disable-next-line no-undef
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
 
@@ -1626,6 +1627,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
 module.exports = __webpack_require__(36)|| !__webpack_require__(3)(function(){
   var K = Math.random();
   // In FF throws only define methods
+  // eslint-disable-next-line no-undef
   __defineSetter__.call(null, K, function(){ /* empty */});
   delete __webpack_require__(2)[K];
 });
@@ -1972,6 +1974,7 @@ var getKeys  = __webpack_require__(28)
 module.exports = !$assign || __webpack_require__(3)(function(){
   var A = {}
     , B = {}
+    // eslint-disable-next-line no-undef
     , S = Symbol()
     , K = 'abcdefghijklmnopqrst';
   A[S] = 7;
@@ -2255,6 +2258,7 @@ var global         = __webpack_require__(2)
   , $DataView      = global[DATA_VIEW]
   , Math           = global.Math
   , RangeError     = global.RangeError
+  // eslint-disable-next-line no-shadow-restricted-names
   , Infinity       = global.Infinity
   , BaseBuffer     = $ArrayBuffer
   , abs            = Math.abs
@@ -5214,6 +5218,7 @@ var dP          = __webpack_require__(5)
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 $export($export.S + $export.F * __webpack_require__(3)(function(){
+  // eslint-disable-next-line no-undef
   Reflect.defineProperty(dP.f({}, 1, {value: 1}), 1, {value: 2});
 }), 'Reflect', {
   defineProperty: function defineProperty(target, propertyKey, attributes){
@@ -5970,9 +5975,9 @@ $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
 for(var symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
-).split(','), i = 0; symbols.length > i; )wks(symbols[i++]);
+).split(','), j = 0; symbols.length > j; )wks(symbols[j++]);
 
-for(var symbols = $keys(wks.store), i = 0; symbols.length > i; )wksDefine(symbols[i++]);
+for(var symbols = $keys(wks.store), k = 0; symbols.length > k; )wksDefine(symbols[k++]);
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
@@ -6766,7 +6771,7 @@ redefineAll($Observable, {
       var done = false;
       microtask(function(){
         if(!done){
-          for(var i = 0; i < items.length; ++i){
+          for(var j = 0; j < items.length; ++j){
             observer.next(items[i]);
             if(done)return;
           } observer.complete();
@@ -6928,13 +6933,13 @@ metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /*, ta
 /* 283 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var metadata                  = __webpack_require__(24)
+var $metadata                 = __webpack_require__(24)
   , anObject                  = __webpack_require__(1)
   , aFunction                 = __webpack_require__(11)
-  , toMetaKey                 = metadata.key
-  , ordinaryDefineOwnMetadata = metadata.set;
+  , toMetaKey                 = $metadata.key
+  , ordinaryDefineOwnMetadata = $metadata.set;
 
-metadata.exp({metadata: function metadata(metadataKey, metadataValue){
+$metadata.exp({metadata: function metadata(metadataKey, metadataValue){
   return function decorator(target, targetKey){
     ordinaryDefineOwnMetadata(
       metadataKey, metadataValue,
