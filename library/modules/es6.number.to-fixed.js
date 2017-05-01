@@ -3,7 +3,7 @@ var $export      = require('./_export')
   , toInteger    = require('./_to-integer')
   , aNumberValue = require('./_a-number-value')
   , repeat       = require('./_string-repeat')
-  , $toFixed     = 1..toFixed
+  , $toFixed     = 1.0.toFixed
   , floor        = Math.floor
   , data         = [0, 0, 0, 0, 0, 0]
   , ERROR        = 'Number.toFixed: incorrect invocation!'
@@ -57,7 +57,7 @@ $export($export.P + $export.F * (!!$toFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
-  1000000000000000128..toFixed(0) !== '1000000000000000128'
+  1000000000000000128.0.toFixed(0) !== '1000000000000000128'
 ) || !require('./_fails')(function(){
   // V8 ~ Android 4.3-
   $toFixed.call({});

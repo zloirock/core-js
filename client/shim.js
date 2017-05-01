@@ -138,7 +138,9 @@ module.exports = function(it){
 
 // https://github.com/zloirock/core-js/issues/86#issuecomment-115759028
 var global = module.exports = typeof window != 'undefined' && window.Math == Math
-  ? window : typeof self != 'undefined' && self.Math == Math ? self : Function('return this')();
+  ? window : typeof self != 'undefined' && self.Math == Math ? self
+  // eslint-disable-next-line no-new-func
+  : Function('return this')();
 if(typeof __g == 'number')__g = global; // eslint-disable-line no-undef
 
 /***/ }),
@@ -398,7 +400,7 @@ var fails = __webpack_require__(3);
 
 module.exports = function(method, arg){
   return !!method && fails(function(){
-    arg ? method.call(null, function(){}, 1) : method.call(null);
+    arg ? method.call(null, function(){ /* empty */ }, 1) : method.call(null);
   });
 };
 
@@ -1017,7 +1019,10 @@ if(__webpack_require__(6)){
     $export($export.G + $export.W + $export.F * (TypedArray != Base), O);
 
     $export($export.S, NAME, {
-      BYTES_PER_ELEMENT: BYTES,
+      BYTES_PER_ELEMENT: BYTES
+    });
+
+    $export($export.S + $export.F * fails(function(){ Base.of.call(TypedArray, 1); }), NAME, {
       from: $from,
       of: $of
     });
@@ -1629,6 +1634,7 @@ var ITERATOR     = __webpack_require__(5)('iterator')
 try {
   var riter = [7][ITERATOR]();
   riter['return'] = function(){ SAFE_CLOSING = true; };
+  // eslint-disable-next-line no-throw-literal
   Array.from(riter, function(){ throw 2; });
 } catch(e){ /* empty */ }
 
@@ -2202,6 +2208,7 @@ if(!setTask || !clearTask){
     var args = [], i = 1;
     while(arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function(){
+      // eslint-disable-next-line no-new-func
       invoke(typeof fn == 'function' ? fn : Function(fn), args);
     };
     defer(counter);
@@ -2499,9 +2506,9 @@ if(!$typed.ABV){
   });
 } else {
   if(!fails(function(){
-    new $ArrayBuffer;     // eslint-disable-line no-new
+    new $ArrayBuffer;      // eslint-disable-line no-new
   }) || !fails(function(){
-    new $ArrayBuffer(.5); // eslint-disable-line no-new
+    new $ArrayBuffer(0.5); // eslint-disable-line no-new
   })){
     $ArrayBuffer = function ArrayBuffer(length){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
@@ -2622,6 +2629,7 @@ var each         = __webpack_require__(21)(0)
   , assign       = __webpack_require__(104)
   , weak         = __webpack_require__(96)
   , isObject     = __webpack_require__(4)
+  , fails        = __webpack_require__(3)
   , getWeak      = meta.getWeak
   , isExtensible = Object.isExtensible
   , uncaughtFrozenStore = weak.ufstore
@@ -2653,7 +2661,7 @@ var methods = {
 var $WeakMap = module.exports = __webpack_require__(49)('WeakMap', wrapper, methods, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
-if(new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7){
+if(fails(function(){ return new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7; })){
   InternalMap = weak.getConstructor(wrapper);
   assign(InternalMap.prototype, methods);
   meta.NEED = true;
@@ -2775,6 +2783,7 @@ var aFunction  = __webpack_require__(11)
 var construct = function(F, len, args){
   if(!(len in factories)){
     for(var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
+    // eslint-disable-next-line no-new-func
     factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
   } return factories[len](F, args);
 };
@@ -3300,7 +3309,7 @@ module.exports = 1 / $parseFloat(__webpack_require__(80) + '-0') !== -Infinity ?
 var $parseInt = __webpack_require__(2).parseInt
   , $trim     = __webpack_require__(44).trim
   , ws        = __webpack_require__(80)
-  , hex       = /^[\-+]?0[xX]/;
+  , hex       = /^[-+]?0[xX]/;
 
 module.exports = $parseInt(ws + '08') !== 8 || $parseInt(ws + '0x16') !== 22 ? function parseInt(str, radix){
   var string = $trim(String(str), 3);
@@ -3602,7 +3611,7 @@ var $export        = __webpack_require__(0)
 
 // WebKit Array.of isn't generic
 $export($export.S + $export.F * __webpack_require__(3)(function(){
-  function F(){}
+  function F(){ /* empty */ }
   return !(Array.of.call(F) instanceof F);
 }), 'Array', {
   // 22.1.2.3 Array.of( ...items)
@@ -3768,6 +3777,7 @@ var $export     = __webpack_require__(0)
 $export($export.P + $export.F * __webpack_require__(3)(function(){
   return new Date(NaN).toJSON() !== null || Date.prototype.toJSON.call({toISOString: function(){ return 1; }}) !== 1;
 }), 'Date', {
+  // eslint-disable-next-line no-unused-vars
   toJSON: function toJSON(key){
     var O  = toObject(this)
       , pv = toPrimitive(O);
@@ -4299,7 +4309,7 @@ var $export      = __webpack_require__(0)
   , toInteger    = __webpack_require__(30)
   , aNumberValue = __webpack_require__(89)
   , repeat       = __webpack_require__(79)
-  , $toFixed     = 1..toFixed
+  , $toFixed     = 1.0.toFixed
   , floor        = Math.floor
   , data         = [0, 0, 0, 0, 0, 0]
   , ERROR        = 'Number.toFixed: incorrect invocation!'
@@ -4353,7 +4363,7 @@ $export($export.P + $export.F * (!!$toFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
-  1000000000000000128..toFixed(0) !== '1000000000000000128'
+  1000000000000000128.0.toFixed(0) !== '1000000000000000128'
 ) || !__webpack_require__(3)(function(){
   // V8 ~ Android 4.3-
   $toFixed.call({});
@@ -4417,7 +4427,7 @@ $export($export.P + $export.F * (!!$toFixed && (
 var $export      = __webpack_require__(0)
   , $fails       = __webpack_require__(3)
   , aNumberValue = __webpack_require__(89)
-  , $toPrecision = 1..toPrecision;
+  , $toPrecision = 1.0.toPrecision;
 
 $export($export.P + $export.F * ($fails(function(){
   // IE7-
@@ -4847,6 +4857,7 @@ if(!USE_NATIVE){
       $reject.call(this, err);
     }
   };
+  // eslint-disable-next-line no-unused-vars
   Internal = function Promise(executor){
     this._c = [];             // <- awaiting reactions
     this._a = undefined;      // <- checked in isUnhandled reactions
@@ -4964,7 +4975,7 @@ var $export   = __webpack_require__(0)
   , fApply    = Function.apply;
 // MS Edge argumentsList argument is optional
 $export($export.S + $export.F * !__webpack_require__(3)(function(){
-  rApply(function(){});
+  rApply(function(){ /* empty */ });
 }), 'Reflect', {
   apply: function apply(target, thisArgument, argumentsList){
     var T = aFunction(target)
@@ -4990,11 +5001,11 @@ var $export    = __webpack_require__(0)
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 var NEW_TARGET_BUG = fails(function(){
-  function F(){}
-  return !(rConstruct(function(){}, [], F) instanceof F);
+  function F(){ /* empty */ }
+  return !(rConstruct(function(){ /* empty */ }, [], F) instanceof F);
 });
 var ARGS_BUG = !fails(function(){
-  rConstruct(function(){});
+  rConstruct(function(){ /* empty */ });
 });
 
 $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
@@ -5412,6 +5423,7 @@ __webpack_require__(50)('split', 2, function(defined, SPLIT, $split){
         if(lastIndex > lastLastIndex){
           output.push(string.slice(lastLastIndex, match.index));
           // Fix browsers whose `exec` methods don't consistently return `undefined` for NPCG
+          // eslint-disable-next-line no-loop-func
           if(!NPCG && match[LENGTH] > 1)match[0].replace(separator2, function(){
             for(i = 1; i < arguments[LENGTH] - 2; i++)if(arguments[i] === undefined)match[i] = undefined;
           });
@@ -7198,6 +7210,7 @@ var wrap = function(set){
     return set(invoke(
       partial,
       [].slice.call(arguments, 2),
+      // eslint-disable-next-line no-new-func
       typeof fn == 'function' ? fn : Function(fn)
     ), time);
   } : set;

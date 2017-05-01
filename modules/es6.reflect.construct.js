@@ -11,11 +11,11 @@ var $export    = require('./_export')
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 var NEW_TARGET_BUG = fails(function(){
-  function F(){}
-  return !(rConstruct(function(){}, [], F) instanceof F);
+  function F(){ /* empty */ }
+  return !(rConstruct(function(){ /* empty */ }, [], F) instanceof F);
 });
 var ARGS_BUG = !fails(function(){
-  rConstruct(function(){});
+  rConstruct(function(){ /* empty */ });
 });
 
 $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {

@@ -4,6 +4,7 @@ var ITERATOR     = require('./_wks')('iterator')
 try {
   var riter = [7][ITERATOR]();
   riter['return'] = function(){ SAFE_CLOSING = true; };
+  // eslint-disable-next-line no-throw-literal
   Array.from(riter, function(){ throw 2; });
 } catch(e){ /* empty */ }
 

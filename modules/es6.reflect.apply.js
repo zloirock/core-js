@@ -6,7 +6,7 @@ var $export   = require('./_export')
   , fApply    = Function.apply;
 // MS Edge argumentsList argument is optional
 $export($export.S + $export.F * !require('./_fails')(function(){
-  rApply(function(){});
+  rApply(function(){ /* empty */ });
 }), 'Reflect', {
   apply: function apply(target, thisArgument, argumentsList){
     var T = aFunction(target)

@@ -40,6 +40,7 @@ require('./_fix-re-wks')('split', 2, function(defined, SPLIT, $split){
         if(lastIndex > lastLastIndex){
           output.push(string.slice(lastLastIndex, match.index));
           // Fix browsers whose `exec` methods don't consistently return `undefined` for NPCG
+          // eslint-disable-next-line no-loop-func
           if(!NPCG && match[LENGTH] > 1)match[0].replace(separator2, function(){
             for(i = 1; i < arguments[LENGTH] - 2; i++)if(arguments[i] === undefined)match[i] = undefined;
           });

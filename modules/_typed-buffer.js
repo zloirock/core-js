@@ -239,9 +239,9 @@ if(!$typed.ABV){
   });
 } else {
   if(!fails(function(){
-    new $ArrayBuffer;     // eslint-disable-line no-new
+    new $ArrayBuffer;      // eslint-disable-line no-new
   }) || !fails(function(){
-    new $ArrayBuffer(.5); // eslint-disable-line no-new
+    new $ArrayBuffer(0.5); // eslint-disable-line no-new
   })){
     $ArrayBuffer = function ArrayBuffer(length){
       return new BaseBuffer(validateArrayBufferArguments(this, length));

@@ -4,7 +4,7 @@ var $export        = require('./_export')
 
 // WebKit Array.of isn't generic
 $export($export.S + $export.F * require('./_fails')(function(){
-  function F(){}
+  function F(){ /* empty */ }
   return !(Array.of.call(F) instanceof F);
 }), 'Array', {
   // 22.1.2.3 Array.of( ...items)
