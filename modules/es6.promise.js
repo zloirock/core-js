@@ -193,6 +193,7 @@ if(!USE_NATIVE){
       $reject.call(this, err);
     }
   };
+  // eslint-disable-next-line no-unused-vars
   Internal = function Promise(executor){
     this._c = [];             // <- awaiting reactions
     this._a = undefined;      // <- checked in isUnhandled reactions

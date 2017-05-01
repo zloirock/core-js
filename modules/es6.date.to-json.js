@@ -6,6 +6,7 @@ var $export     = require('./_export')
 $export($export.P + $export.F * require('./_fails')(function(){
   return new Date(NaN).toJSON() !== null || Date.prototype.toJSON.call({toISOString: function(){ return 1; }}) !== 1;
 }), 'Date', {
+  // eslint-disable-next-line no-unused-vars
   toJSON: function toJSON(key){
     var O  = toObject(this)
       , pv = toPrimitive(O);
