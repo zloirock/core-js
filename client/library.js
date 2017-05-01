@@ -836,7 +836,7 @@ if(__webpack_require__(7)){
     ){
       target[key] = desc.value;
       return target;
-    } else return dP(target, key, desc);
+    } return dP(target, key, desc);
   };
 
   if(!ALL_CONSTRUCTORS){
@@ -1355,6 +1355,7 @@ module.exports = __webpack_require__(14).getIteratorMethod = function(it){
 
 // fallback for non-array-like ES3 and non-enumerable old V8 strings
 var cof = __webpack_require__(20);
+// eslint-disable-next-line no-prototype-builtins
 module.exports = Object('z').propertyIsEnumerable(0) ? Object : function(it){
   return cof(it) == 'String' ? it.split('') : Object(it);
 };
@@ -2162,6 +2163,7 @@ var ctx                = __webpack_require__(21)
   , defer, channel, port;
 var run = function(){
   var id = +this;
+  // eslint-disable-next-line no-prototype-builtins
   if(queue.hasOwnProperty(id)){
     var fn = queue[id];
     delete queue[id];
@@ -2486,7 +2488,7 @@ if(!$typed.ABV){
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
     for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j; ){
       if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
-    };
+    }
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
@@ -2534,6 +2536,7 @@ module.exports = __webpack_require__(14).isIterable = function(it){
   var O = Object(it);
   return O[ITERATOR] !== undefined
     || '@@iterator' in O
+    // eslint-disable-next-line no-prototype-builtins
     || Iterators.hasOwnProperty(classof(O));
 };
 

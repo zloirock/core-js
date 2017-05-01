@@ -14,6 +14,7 @@ var ctx                = require('./_ctx')
   , defer, channel, port;
 var run = function(){
   var id = +this;
+  // eslint-disable-next-line no-prototype-builtins
   if(queue.hasOwnProperty(id)){
     var fn = queue[id];
     delete queue[id];

@@ -292,7 +292,7 @@ if(require('./_descriptors')){
     ){
       target[key] = desc.value;
       return target;
-    } else return dP(target, key, desc);
+    } return dP(target, key, desc);
   };
 
   if(!ALL_CONSTRUCTORS){
