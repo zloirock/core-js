@@ -2,7 +2,7 @@
 var $export = require('./_export')
   , scale = require('./_math-scale')
   , fround = require('./_math-fround');
-  
+
 $export($export.S, 'Math', {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {
     return fround(scale(x, inLow, inHigh, outLow, outHigh));

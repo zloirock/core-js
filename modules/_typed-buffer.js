@@ -47,7 +47,7 @@ var packIEEE754 = function(value, mLen, nBytes){
     , i      = 0
     , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
     , e, m, c;
-  value = abs(value)
+  value = abs(value);
   if(value != value || value === Infinity){
     m = value != value ? 1 : 0;
     e = eMax;
@@ -248,7 +248,7 @@ if(!$typed.ABV){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j; ){
+    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;){
       if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
     }
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;

@@ -308,7 +308,7 @@ if(require('./_descriptors')){
   if(fails(function(){ arrayToString.call({}); })){
     arrayToString = arrayToLocaleString = function toString(){
       return arrayJoin.call(this);
-    }
+    };
   }
 
   var $TypedArrayPrototype$ = redefineAll({}, proto);
@@ -368,7 +368,7 @@ if(require('./_descriptors')){
           , offset = 0
           , buffer, byteLength, length, klass;
         if(!isObject(data)){
-          length     = strictToLength(data, true)
+          length     = strictToLength(data, true);
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER){
@@ -472,7 +472,7 @@ if(require('./_descriptors')){
     }), NAME, {slice: $slice});
 
     $export($export.P + $export.F * (fails(function(){
-      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
+      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString();
     }) || !fails(function(){
       TypedArrayPrototype.toLocaleString.call([1, 2]);
     })), NAME, {toLocaleString: $toLocaleString});

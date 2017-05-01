@@ -1,3 +1,4 @@
+/* eslint comma-dangle: ['error', 'always-multiline'] */
 module.exports = {
   parserOptions: {
     ecmaVersion: 3,
@@ -164,23 +165,69 @@ module.exports = {
     'no-unused-vars': ['error', { vars: 'local', args: 'after-used', ignoreRestSiblings: true }],
 
     // stylistic issues:
+    // enforce spacing inside array brackets
+    'array-bracket-spacing': ['error', 'never'],
+    // enforce spacing inside single-line blocks
+    'block-spacing': ['error', 'always'],
     // enforce one true brace style
     'brace-style': ['error', '1tbs', { allowSingleLine: true }],
     // require camel case names
     camelcase: ['error', { properties: 'never' }],
+    // disallow trailing commas in multiline object literals
+    'comma-dangle': ['error', 'never'],
+    // enforce spacing after comma
+    'comma-spacing': 'error',
+    // enforce one true comma style
+    'comma-style': ['error', 'last', { exceptions: { VariableDeclaration: true } }],
+    // disallow padding inside computed properties
+    'computed-property-spacing': ['error', 'never'],
+    // disallow space between function identifier and application
+    'func-call-spacing': 'error',
     // this option sets a specific tab width for your code
     indent: ['error', 2, { VariableDeclarator: 2, SwitchCase: 1 }],
+    // enforce consistent linebreak style
+    'linebreak-style': ['error', 'unix'],
     // specify the maximum length of a line in your program
     'max-len': ['error', 120, 2],
     // enforce a maximum depth that callbacks can be nested
     'max-nested-callbacks': ['error', 4],
+    // specify the maximum number of statement allowed in a function
+    'max-statements': ['error', 40],
     // require a capital letter for constructors
     'new-cap': ['error', { newIsCap: true, capIsNew: false }],
+    // disallow if as the only statement in an else block
+    'no-lonely-if': 'error',
+    // disallow mixed spaces and tabs for indentation
+    'no-mixed-spaces-and-tabs': 'error',
     // disallow multiple empty lines and only one newline at the end
     'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 1 }],
+    // disallow tabs
+    'no-tabs': 'error',
+    // disallow trailing whitespace at the end of lines
+    'no-trailing-spaces': 'error',
+    // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
+    'no-unneeded-ternary': ['error', { defaultAssignment: false }],
+    // disallow whitespace before properties
+    'no-whitespace-before-property': 'error',
+    // enforce the location of single-line statements
+    'nonblock-statement-body-position': ['error', 'beside'],
+    // enforce padding within blocks
+    'padded-blocks': ['error', 'never'],
     // specify whether double or single quotes should be used
     quotes: ['error', 'single', 'avoid-escape'],
     // require or disallow use of quotes around object literal property names
     'quote-props': ['error', 'as-needed', { keywords: true }],
-  }
+    // require or disallow use of semicolons instead of ASI
+    semi: ['error', 'always'],
+    // enforce spacing before and after semicolons
+    'semi-spacing': 'error',
+    // require or disallow spaces inside parentheses
+    'space-in-parens': 'error',
+    // require spaces around operators
+    'space-infix-ops': 'error',
+    // Require or disallow spaces before/after unary operators
+    'space-unary-ops': 'error',
+    // require or disallow the Unicode Byte Order Mark
+    'unicode-bom': ['error', 'never'],
+  },
 };

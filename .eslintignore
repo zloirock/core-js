@@ -2,3 +2,4 @@ node_modules/**
 build/index.js
 client/**
 tests/**
+!**/.eslintrc.js

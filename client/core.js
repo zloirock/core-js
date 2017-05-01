@@ -119,7 +119,7 @@ $export.P = 8;   // proto
 $export.B = 16;  // bind
 $export.W = 32;  // wrap
 $export.U = 64;  // safe
-$export.R = 128; // real proto method for `library` 
+$export.R = 128; // real proto method for `library`
 module.exports = $export;
 
 /***/ }),
@@ -334,14 +334,13 @@ __webpack_require__(19).inspectSource = function(it){
   if(isFunction)has(val, SRC) || hide(val, SRC, O[key] ? '' + O[key] : TPL.join(String(key)));
   if(O === global){
     O[key] = val;
+  } else if(!safe){
+    delete O[key];
+    hide(O, key, val);
+  } else if(O[key]){
+    O[key] = val;
   } else {
-    if(!safe){
-      delete O[key];
-      hide(O, key, val);
-    } else {
-      if(O[key])O[key] = val;
-      else hide(O, key, val);
-    }
+    hide(O, key, val);
   }
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
 })(Function.prototype, TO_STRING, function toString(){
@@ -960,7 +959,7 @@ if(__webpack_require__(7)){
   if(fails(function(){ arrayToString.call({}); })){
     arrayToString = arrayToLocaleString = function toString(){
       return arrayJoin.call(this);
-    }
+    };
   }
 
   var $TypedArrayPrototype$ = redefineAll({}, proto);
@@ -1020,7 +1019,7 @@ if(__webpack_require__(7)){
           , offset = 0
           , buffer, byteLength, length, klass;
         if(!isObject(data)){
-          length     = strictToLength(data, true)
+          length     = strictToLength(data, true);
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER){
@@ -1124,7 +1123,7 @@ if(__webpack_require__(7)){
     }), NAME, {slice: $slice});
 
     $export($export.P + $export.F * (fails(function(){
-      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
+      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString();
     }) || !fails(function(){
       TypedArrayPrototype.toLocaleString.call([1, 2]);
     })), NAME, {toLocaleString: $toLocaleString});
@@ -1263,7 +1262,7 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
   if(isArrayIter(iterFn))for(length = toLength(iterable.length); length > index; index++){
     result = entries ? f(anObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
     if(result === BREAK || result === RETURN)return result;
-  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done; ){
+  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done;){
     result = call(iterator, f, step.value, entries);
     if(result === BREAK || result === RETURN)return result;
   }
@@ -1522,7 +1521,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
         while(index--)$instance[ADDER](index, index);
         return !$instance.has(-0);
       });
-    if(!ACCEPT_ITERABLES){ 
+    if(!ACCEPT_ITERABLES){
       C = wrapper(function(target, iterable){
         anInstance(target, C, NAME);
         var that = inheritIfRequired(new Base, target, C);
@@ -1766,11 +1765,11 @@ module.exports = function(exec, skipClosing){
 /***/ (function(module, exports, __webpack_require__) {
 
 // Forced replacement prototype accessors methods
-module.exports = __webpack_require__(37)|| !__webpack_require__(3)(function(){
+module.exports = __webpack_require__(37) || !__webpack_require__(3)(function(){
   var K = Math.random();
   // In FF throws only define methods
   // eslint-disable-next-line no-undef
-  __defineSetter__.call(null, K, function(){ /* empty */});
+  __defineSetter__.call(null, K, function(){ /* empty */ });
   delete __webpack_require__(2)[K];
 });
 
@@ -1850,7 +1849,7 @@ module.exports = __webpack_require__(56)(Array, 'Array', function(iterated, kind
     this._t = undefined;
     return step(1);
   }
-  if(kind == 'keys'  )return step(0, index);
+  if(kind == 'keys')return step(0, index);
   if(kind == 'values')return step(0, O[index]);
   return step(0, [index, O[index]]);
 }, 'values');
@@ -2436,7 +2435,7 @@ var packIEEE754 = function(value, mLen, nBytes){
     , i      = 0
     , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
     , e, m, c;
-  value = abs(value)
+  value = abs(value);
   if(value != value || value === Infinity){
     m = value != value ? 1 : 0;
     e = eMax;
@@ -2637,7 +2636,7 @@ if(!$typed.ABV){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j; ){
+    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;){
       if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
     }
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
@@ -3062,10 +3061,10 @@ module.exports = {
         return step(1);
       }
       // return step by kind
-      if(kind == 'keys'  )return step(0, entry.k);
+      if(kind == 'keys')return step(0, entry.k);
       if(kind == 'values')return step(0, entry.v);
       return step(0, [entry.k, entry.v]);
-    }, IS_MAP ? 'entries' : 'values' , !IS_MAP, true);
+    }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     setSpecies(NAME);
@@ -3555,7 +3554,7 @@ $iterCreate(DictIterator, 'Dict', function(){
       return step(1);
     }
   } while(!has(O, key = keys[that._i++]));
-  if(kind == 'keys'  )return step(0, key);
+  if(kind == 'keys')return step(0, key);
   if(kind == 'values')return step(0, O[key]);
   return step(0, [key, O[key]]);
 });
@@ -4283,7 +4282,7 @@ var $export = __webpack_require__(0)
 $export($export.S + $export.F * !($acosh
   // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
   && Math.floor($acosh(Number.MAX_VALUE)) == 710
-  // Tor Browser bug: Math.acosh(Infinity) -> NaN 
+  // Tor Browser bug: Math.acosh(Infinity) -> NaN
   && $acosh(Infinity) == Infinity
 ), 'Math', {
   acosh: function acosh(x){
@@ -4305,7 +4304,7 @@ function asinh(x){
   return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : Math.log(x + Math.sqrt(x * x + 1));
 }
 
-// Tor Browser bug: Math.asinh(0) -> -0 
+// Tor Browser bug: Math.asinh(0) -> -0
 $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: asinh});
 
 /***/ }),
@@ -4316,7 +4315,7 @@ $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: 
 var $export = __webpack_require__(0)
   , $atanh  = Math.atanh;
 
-// Tor Browser bug: Math.atanh(-0) -> 0 
+// Tor Browser bug: Math.atanh(-0) -> 0
 $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {
   atanh: function atanh(x){
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
@@ -4840,7 +4839,7 @@ $export($export.P + $export.F * ($fails(function(){
 })), 'Number', {
   toPrecision: function toPrecision(precision){
     var that = aNumberValue(this, 'Number#toPrecision: incorrect invocation!');
-    return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision); 
+    return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision);
   }
 });
 
@@ -4857,7 +4856,7 @@ $export($export.S + $export.F, 'Object', {assign: __webpack_require__(76)});
 /* 191 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var $export = __webpack_require__(0)
+var $export = __webpack_require__(0);
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 $export($export.S, 'Object', {create: __webpack_require__(27)});
 
@@ -5725,7 +5724,7 @@ if(__webpack_require__(7) && (!CORRECT_NEW || __webpack_require__(3)(function(){
       set: function(it){ Base[key] = it; }
     });
   };
-  for(var keys = gOPN(Base), i = 0; keys.length > i; )proxy(keys[i++]);
+  for(var keys = gOPN(Base), i = 0; keys.length > i;)proxy(keys[i++]);
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
   __webpack_require__(16)(global, 'RegExp', $RegExp);
@@ -5897,7 +5896,7 @@ if(__webpack_require__(3)(function(){ return $toString.call({source: 'a', flags:
 __webpack_require__(17)('anchor', function(createHTML){
   return function anchor(name){
     return createHTML(this, 'a', 'name', name);
-  }
+  };
 });
 
 /***/ }),
@@ -5910,7 +5909,7 @@ __webpack_require__(17)('anchor', function(createHTML){
 __webpack_require__(17)('big', function(createHTML){
   return function big(){
     return createHTML(this, 'big', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5923,7 +5922,7 @@ __webpack_require__(17)('big', function(createHTML){
 __webpack_require__(17)('blink', function(createHTML){
   return function blink(){
     return createHTML(this, 'blink', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5936,7 +5935,7 @@ __webpack_require__(17)('blink', function(createHTML){
 __webpack_require__(17)('bold', function(createHTML){
   return function bold(){
     return createHTML(this, 'b', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5990,7 +5989,7 @@ $export($export.P + $export.F * __webpack_require__(67)(ENDS_WITH), 'String', {
 __webpack_require__(17)('fixed', function(createHTML){
   return function fixed(){
     return createHTML(this, 'tt', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6003,7 +6002,7 @@ __webpack_require__(17)('fixed', function(createHTML){
 __webpack_require__(17)('fontcolor', function(createHTML){
   return function fontcolor(color){
     return createHTML(this, 'font', 'color', color);
-  }
+  };
 });
 
 /***/ }),
@@ -6016,7 +6015,7 @@ __webpack_require__(17)('fontcolor', function(createHTML){
 __webpack_require__(17)('fontsize', function(createHTML){
   return function fontsize(size){
     return createHTML(this, 'font', 'size', size);
-  }
+  };
 });
 
 /***/ }),
@@ -6075,7 +6074,7 @@ $export($export.P + $export.F * __webpack_require__(67)(INCLUDES), 'String', {
 __webpack_require__(17)('italics', function(createHTML){
   return function italics(){
     return createHTML(this, 'i', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6111,7 +6110,7 @@ __webpack_require__(56)(String, 'String', function(iterated){
 __webpack_require__(17)('link', function(createHTML){
   return function link(url){
     return createHTML(this, 'a', 'href', url);
-  }
+  };
 });
 
 /***/ }),
@@ -6158,7 +6157,7 @@ $export($export.P, 'String', {
 __webpack_require__(17)('small', function(createHTML){
   return function small(){
     return createHTML(this, 'small', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6195,7 +6194,7 @@ $export($export.P + $export.F * __webpack_require__(67)(STARTS_WITH), 'String', 
 __webpack_require__(17)('strike', function(createHTML){
   return function strike(){
     return createHTML(this, 'strike', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6208,7 +6207,7 @@ __webpack_require__(17)('strike', function(createHTML){
 __webpack_require__(17)('sub', function(createHTML){
   return function sub(){
     return createHTML(this, 'sub', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6221,7 +6220,7 @@ __webpack_require__(17)('sub', function(createHTML){
 __webpack_require__(17)('sup', function(createHTML){
   return function sup(){
     return createHTML(this, 'sup', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -6401,7 +6400,7 @@ if(!USE_NATIVE){
 
   wksExt.f = function(name){
     return wrap(wks(name));
-  }
+  };
 }
 
 $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
@@ -6409,9 +6408,9 @@ $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
 for(var symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
-).split(','), j = 0; symbols.length > j; )wks(symbols[j++]);
+).split(','), j = 0; symbols.length > j;)wks(symbols[j++]);
 
-for(var symbols = $keys(wks.store), k = 0; symbols.length > k; )wksDefine(symbols[k++]);
+for(var symbols = $keys(wks.store), k = 0; symbols.length > k;)wksDefine(symbols[k++]);
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
@@ -6761,7 +6760,7 @@ $export($export.S, 'Math', {
 var $export = __webpack_require__(0)
   , scale = __webpack_require__(109)
   , fround = __webpack_require__(107);
-  
+
 $export($export.S, 'Math', {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {
     return fround(scale(x, inLow, inHigh, outLow, outHigh));

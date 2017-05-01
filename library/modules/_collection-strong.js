@@ -131,10 +131,10 @@ module.exports = {
         return step(1);
       }
       // return step by kind
-      if(kind == 'keys'  )return step(0, entry.k);
+      if(kind == 'keys')return step(0, entry.k);
       if(kind == 'values')return step(0, entry.v);
       return step(0, [entry.k, entry.v]);
-    }, IS_MAP ? 'entries' : 'values' , !IS_MAP, true);
+    }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     setSpecies(NAME);

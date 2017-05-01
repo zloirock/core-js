@@ -77,7 +77,7 @@ $iterCreate(DictIterator, 'Dict', function(){
       return step(1);
     }
   } while(!has(O, key = keys[that._i++]));
-  if(kind == 'keys'  )return step(0, key);
+  if(kind == 'keys')return step(0, key);
   if(kind == 'values')return step(0, O[key]);
   return step(0, [key, O[key]]);
 });

@@ -137,7 +137,7 @@ $export.P = 8;   // proto
 $export.B = 16;  // bind
 $export.W = 32;  // wrap
 $export.U = 64;  // safe
-$export.R = 128; // real proto method for `library` 
+$export.R = 128; // real proto method for `library`
 module.exports = $export;
 
 /***/ }),
@@ -852,7 +852,7 @@ if(__webpack_require__(7)){
   if(fails(function(){ arrayToString.call({}); })){
     arrayToString = arrayToLocaleString = function toString(){
       return arrayJoin.call(this);
-    }
+    };
   }
 
   var $TypedArrayPrototype$ = redefineAll({}, proto);
@@ -912,7 +912,7 @@ if(__webpack_require__(7)){
           , offset = 0
           , buffer, byteLength, length, klass;
         if(!isObject(data)){
-          length     = strictToLength(data, true)
+          length     = strictToLength(data, true);
           byteLength = length * BYTES;
           buffer     = new $ArrayBuffer(byteLength);
         } else if(data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER){
@@ -1016,7 +1016,7 @@ if(__webpack_require__(7)){
     }), NAME, {slice: $slice});
 
     $export($export.P + $export.F * (fails(function(){
-      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString()
+      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString();
     }) || !fails(function(){
       TypedArrayPrototype.toLocaleString.call([1, 2]);
     })), NAME, {toLocaleString: $toLocaleString});
@@ -1244,7 +1244,7 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
   if(isArrayIter(iterFn))for(length = toLength(iterable.length); length > index; index++){
     result = entries ? f(anObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
     if(result === BREAK || result === RETURN)return result;
-  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done; ){
+  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done;){
     result = call(iterator, f, step.value, entries);
     if(result === BREAK || result === RETURN)return result;
   }
@@ -1478,7 +1478,7 @@ module.exports = function(NAME, wrapper, methods, common, IS_MAP, IS_WEAK){
       target._c = new Base;
       if(iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
     });
-    each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','),function(KEY){
+    each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','), function(KEY){
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if(KEY in proto && !(IS_WEAK && KEY == 'clear'))hide(C.prototype, KEY, function(a, b){
         anInstance(this, C, KEY);
@@ -1625,11 +1625,11 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
 /***/ (function(module, exports, __webpack_require__) {
 
 // Forced replacement prototype accessors methods
-module.exports = __webpack_require__(36)|| !__webpack_require__(3)(function(){
+module.exports = __webpack_require__(36) || !__webpack_require__(3)(function(){
   var K = Math.random();
   // In FF throws only define methods
   // eslint-disable-next-line no-undef
-  __defineSetter__.call(null, K, function(){ /* empty */});
+  __defineSetter__.call(null, K, function(){ /* empty */ });
   delete __webpack_require__(2)[K];
 });
 
@@ -1709,7 +1709,7 @@ module.exports = __webpack_require__(52)(Array, 'Array', function(iterated, kind
     this._t = undefined;
     return step(1);
   }
-  if(kind == 'keys'  )return step(0, index);
+  if(kind == 'keys')return step(0, index);
   if(kind == 'values')return step(0, O[index]);
   return step(0, [index, O[index]]);
 }, 'values');
@@ -2285,7 +2285,7 @@ var packIEEE754 = function(value, mLen, nBytes){
     , i      = 0
     , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
     , e, m, c;
-  value = abs(value)
+  value = abs(value);
   if(value != value || value === Infinity){
     m = value != value ? 1 : 0;
     e = eMax;
@@ -2486,7 +2486,7 @@ if(!$typed.ABV){
       return new BaseBuffer(validateArrayBufferArguments(this, length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j; ){
+    for(var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;){
       if(!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
     }
     if(!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
@@ -2901,10 +2901,10 @@ module.exports = {
         return step(1);
       }
       // return step by kind
-      if(kind == 'keys'  )return step(0, entry.k);
+      if(kind == 'keys')return step(0, entry.k);
       if(kind == 'values')return step(0, entry.v);
       return step(0, [entry.k, entry.v]);
-    }, IS_MAP ? 'entries' : 'values' , !IS_MAP, true);
+    }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     setSpecies(NAME);
@@ -3469,7 +3469,7 @@ $iterCreate(DictIterator, 'Dict', function(){
       return step(1);
     }
   } while(!has(O, key = keys[that._i++]));
-  if(kind == 'keys'  )return step(0, key);
+  if(kind == 'keys')return step(0, key);
   if(kind == 'values')return step(0, O[key]);
   return step(0, [key, O[key]]);
 });
@@ -4145,7 +4145,7 @@ var $export = __webpack_require__(0)
 $export($export.S + $export.F * !($acosh
   // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
   && Math.floor($acosh(Number.MAX_VALUE)) == 710
-  // Tor Browser bug: Math.acosh(Infinity) -> NaN 
+  // Tor Browser bug: Math.acosh(Infinity) -> NaN
   && $acosh(Infinity) == Infinity
 ), 'Math', {
   acosh: function acosh(x){
@@ -4167,7 +4167,7 @@ function asinh(x){
   return !isFinite(x = +x) || x == 0 ? x : x < 0 ? -asinh(-x) : Math.log(x + Math.sqrt(x * x + 1));
 }
 
-// Tor Browser bug: Math.asinh(0) -> -0 
+// Tor Browser bug: Math.asinh(0) -> -0
 $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: asinh});
 
 /***/ }),
@@ -4178,7 +4178,7 @@ $export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', {asinh: 
 var $export = __webpack_require__(0)
   , $atanh  = Math.atanh;
 
-// Tor Browser bug: Math.atanh(-0) -> 0 
+// Tor Browser bug: Math.atanh(-0) -> 0
 $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {
   atanh: function atanh(x){
     return (x = +x) == 0 ? x : Math.log((1 + x) / (1 - x)) / 2;
@@ -4627,7 +4627,7 @@ $export($export.P + $export.F * ($fails(function(){
 })), 'Number', {
   toPrecision: function toPrecision(precision){
     var that = aNumberValue(this, 'Number#toPrecision: incorrect invocation!');
-    return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision); 
+    return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision);
   }
 });
 
@@ -4644,7 +4644,7 @@ $export($export.S + $export.F, 'Object', {assign: __webpack_require__(71)});
 /* 184 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var $export = __webpack_require__(0)
+var $export = __webpack_require__(0);
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 $export($export.S, 'Object', {create: __webpack_require__(27)});
 
@@ -5466,7 +5466,7 @@ $export($export.S, 'Reflect', {set: set});
 __webpack_require__(13)('anchor', function(createHTML){
   return function anchor(name){
     return createHTML(this, 'a', 'name', name);
-  }
+  };
 });
 
 /***/ }),
@@ -5479,7 +5479,7 @@ __webpack_require__(13)('anchor', function(createHTML){
 __webpack_require__(13)('big', function(createHTML){
   return function big(){
     return createHTML(this, 'big', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5492,7 +5492,7 @@ __webpack_require__(13)('big', function(createHTML){
 __webpack_require__(13)('blink', function(createHTML){
   return function blink(){
     return createHTML(this, 'blink', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5505,7 +5505,7 @@ __webpack_require__(13)('blink', function(createHTML){
 __webpack_require__(13)('bold', function(createHTML){
   return function bold(){
     return createHTML(this, 'b', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5559,7 +5559,7 @@ $export($export.P + $export.F * __webpack_require__(62)(ENDS_WITH), 'String', {
 __webpack_require__(13)('fixed', function(createHTML){
   return function fixed(){
     return createHTML(this, 'tt', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5572,7 +5572,7 @@ __webpack_require__(13)('fixed', function(createHTML){
 __webpack_require__(13)('fontcolor', function(createHTML){
   return function fontcolor(color){
     return createHTML(this, 'font', 'color', color);
-  }
+  };
 });
 
 /***/ }),
@@ -5585,7 +5585,7 @@ __webpack_require__(13)('fontcolor', function(createHTML){
 __webpack_require__(13)('fontsize', function(createHTML){
   return function fontsize(size){
     return createHTML(this, 'font', 'size', size);
-  }
+  };
 });
 
 /***/ }),
@@ -5644,7 +5644,7 @@ $export($export.P + $export.F * __webpack_require__(62)(INCLUDES), 'String', {
 __webpack_require__(13)('italics', function(createHTML){
   return function italics(){
     return createHTML(this, 'i', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5680,7 +5680,7 @@ __webpack_require__(52)(String, 'String', function(iterated){
 __webpack_require__(13)('link', function(createHTML){
   return function link(url){
     return createHTML(this, 'a', 'href', url);
-  }
+  };
 });
 
 /***/ }),
@@ -5727,7 +5727,7 @@ $export($export.P, 'String', {
 __webpack_require__(13)('small', function(createHTML){
   return function small(){
     return createHTML(this, 'small', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5764,7 +5764,7 @@ $export($export.P + $export.F * __webpack_require__(62)(STARTS_WITH), 'String', 
 __webpack_require__(13)('strike', function(createHTML){
   return function strike(){
     return createHTML(this, 'strike', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5777,7 +5777,7 @@ __webpack_require__(13)('strike', function(createHTML){
 __webpack_require__(13)('sub', function(createHTML){
   return function sub(){
     return createHTML(this, 'sub', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5790,7 +5790,7 @@ __webpack_require__(13)('sub', function(createHTML){
 __webpack_require__(13)('sup', function(createHTML){
   return function sup(){
     return createHTML(this, 'sup', '', '');
-  }
+  };
 });
 
 /***/ }),
@@ -5970,7 +5970,7 @@ if(!USE_NATIVE){
 
   wksExt.f = function(name){
     return wrap(wks(name));
-  }
+  };
 }
 
 $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
@@ -5978,9 +5978,9 @@ $export($export.G + $export.W + $export.F * !USE_NATIVE, {Symbol: $Symbol});
 for(var symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
-).split(','), j = 0; symbols.length > j; )wks(symbols[j++]);
+).split(','), j = 0; symbols.length > j;)wks(symbols[j++]);
 
-for(var symbols = $keys(wks.store), k = 0; symbols.length > k; )wksDefine(symbols[k++]);
+for(var symbols = $keys(wks.store), k = 0; symbols.length > k;)wksDefine(symbols[k++]);
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
@@ -6330,7 +6330,7 @@ $export($export.S, 'Math', {
 var $export = __webpack_require__(0)
   , scale = __webpack_require__(105)
   , fround = __webpack_require__(103);
-  
+
 $export($export.S, 'Math', {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {
     return fround(scale(x, inLow, inHigh, outLow, outHigh));
@@ -7102,7 +7102,7 @@ var global        = __webpack_require__(2)
   , Iterators     = __webpack_require__(35)
   , TO_STRING_TAG = __webpack_require__(6)('toStringTag');
 
-var DOMIterables = ('CSSRuleList,CSSStyleDeclaration,CSSValueList,ClientRectList,DOMRectList,DOMStringList,' + 
+var DOMIterables = ('CSSRuleList,CSSStyleDeclaration,CSSValueList,ClientRectList,DOMRectList,DOMStringList,' +
   'DOMTokenList,DataTransferItemList,FileList,HTMLAllCollection,HTMLCollection,HTMLFormElement,HTMLSelectElement,' +
   'MediaList,MimeTypeArray,NamedNodeMap,NodeList,PaintRequestList,Plugin,PluginArray,SVGLengthList,SVGNumberList,' +
   'SVGPathSegList,SVGPointList,SVGStringList,SVGTransformList,SourceBufferList,StyleSheetList,TextTrackCueList,' +

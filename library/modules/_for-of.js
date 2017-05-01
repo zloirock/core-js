@@ -16,7 +16,7 @@ var exports = module.exports = function(iterable, entries, fn, that, ITERATOR){
   if(isArrayIter(iterFn))for(length = toLength(iterable.length); length > index; index++){
     result = entries ? f(anObject(step = iterable[index])[0], step[1]) : f(iterable[index]);
     if(result === BREAK || result === RETURN)return result;
-  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done; ){
+  } else for(iterator = iterFn.call(iterable); !(step = iterator.next()).done;){
     result = call(iterator, f, step.value, entries);
     if(result === BREAK || result === RETURN)return result;
   }

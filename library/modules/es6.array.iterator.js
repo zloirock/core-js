@@ -21,7 +21,7 @@ module.exports = require('./_iter-define')(Array, 'Array', function(iterated, ki
     this._t = undefined;
     return step(1);
   }
-  if(kind == 'keys'  )return step(0, index);
+  if(kind == 'keys')return step(0, index);
   if(kind == 'values')return step(0, O[index]);
   return step(0, [index, O[index]]);
 }, 'values');
