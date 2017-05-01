@@ -113,7 +113,9 @@ function reduce(object, mapfn, init){
 }
 
 function includes(object, el){
+  // eslint-disable-next-line no-self-compare
   return (el == el ? keyOf(object, el) : findKey(object, function(it){
+    // eslint-disable-next-line no-self-compare
     return it != it;
   })) !== undefined;
 }

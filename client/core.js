@@ -1498,8 +1498,10 @@ module.exports = function(IS_INCLUDES){
       , index  = toIndex(fromIndex, length)
       , value;
     // Array#includes uses SameValueZero equality algorithm
+    // eslint-disable-next-line no-self-compare
     if(IS_INCLUDES && el != el)while(length > index){
       value = O[index++];
+      // eslint-disable-next-line no-self-compare
       if(value != value)return true;
     // Array#toIndex ignores holes, Array#includes - not
     } else for(;length > index; index++)if(IS_INCLUDES || index in O){
@@ -2079,6 +2081,7 @@ module.exports = (!$expm1
 
 // 20.2.2.28 Math.sign(x)
 module.exports = Math.sign || function sign(x){
+  // eslint-disable-next-line no-self-compare
   return (x = +x) == 0 || x != x ? x : x < 0 ? -1 : 1;
 };
 
@@ -2522,7 +2525,9 @@ var packIEEE754 = function(value, mLen, nBytes){
     , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
     , e, m, c;
   value = abs(value);
+  // eslint-disable-next-line no-self-compare
   if(value != value || value === Infinity){
+    // eslint-disable-next-line no-self-compare
     m = value != value ? 1 : 0;
     e = eMax;
   } else {
@@ -3352,6 +3357,7 @@ module.exports = Math.fround || function fround(x){
   if($abs < MIN32)return $sign * roundTiesToEven($abs / MIN32 / EPSILON32) * MIN32 * EPSILON32;
   a = (1 + EPSILON32 / EPSILON) * $abs;
   result = a - (a - $abs);
+  // eslint-disable-next-line no-self-compare
   if(result > MAX32 || result != result)return $sign * Infinity;
   return $sign * result;
 };
@@ -3373,6 +3379,7 @@ module.exports = Math.log1p || function log1p(x){
 
 // https://rwaldron.github.io/proposal-math-extensions/
 module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh) {
+  // eslint-disable-next-line no-self-compare
   if(arguments.length === 0 || x != x || inLow != inLow || inHigh != inHigh || outLow != outLow || outHigh != outHigh){
     return NaN;
   }
@@ -3534,6 +3541,7 @@ module.exports = __webpack_require__(2);
 
 // 7.2.9 SameValue(x, y)
 module.exports = Object.is || function is(x, y){
+  // eslint-disable-next-line no-self-compare
   return x === y ? x !== 0 || 1 / x === 1 / y : x != x && y != y;
 };
 
@@ -3705,7 +3713,9 @@ function reduce(object, mapfn, init){
 }
 
 function includes(object, el){
+  // eslint-disable-next-line no-self-compare
   return (el == el ? keyOf(object, el) : findKey(object, function(it){
+    // eslint-disable-next-line no-self-compare
     return it != it;
   })) !== undefined;
 }
@@ -4355,6 +4365,7 @@ var DateProto    = Date.prototype
 if(new Date(NaN) + '' != INVALID_DATE){
   __webpack_require__(16)(DateProto, TO_STRING, function toString(){
     var value = getTime.call(this);
+    // eslint-disable-next-line no-self-compare
     return value === value ? $toString.call(this) : INVALID_DATE;
   });
 }
@@ -4817,6 +4828,7 @@ var $export = __webpack_require__(0);
 
 $export($export.S, 'Number', {
   isNaN: function isNaN(number){
+    // eslint-disable-next-line no-self-compare
     return number != number;
   }
 });
@@ -4954,6 +4966,7 @@ $export($export.P + $export.F * (!!$toFixed && (
       , m = ZERO
       , e, z, j, k;
     if(f < 0 || f > 20)throw RangeError(ERROR);
+    // eslint-disable-next-line no-self-compare
     if(x != x)return 'NaN';
     if(x <= -1e21 || x >= 1e21)return String(x);
     if(x < 0){

@@ -10,8 +10,10 @@ module.exports = function(IS_INCLUDES){
       , index  = toIndex(fromIndex, length)
       , value;
     // Array#includes uses SameValueZero equality algorithm
+    // eslint-disable-next-line no-self-compare
     if(IS_INCLUDES && el != el)while(length > index){
       value = O[index++];
+      // eslint-disable-next-line no-self-compare
       if(value != value)return true;
     // Array#toIndex ignores holes, Array#includes - not
     } else for(;length > index; index++)if(IS_INCLUDES || index in O){

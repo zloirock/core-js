@@ -69,6 +69,7 @@ $export($export.P + $export.F * (!!$toFixed && (
       , m = ZERO
       , e, z, j, k;
     if(f < 0 || f > 20)throw RangeError(ERROR);
+    // eslint-disable-next-line no-self-compare
     if(x != x)return 'NaN';
     if(x <= -1e21 || x >= 1e21)return String(x);
     if(x < 0){

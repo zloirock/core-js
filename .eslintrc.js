@@ -127,6 +127,8 @@ module.exports = {
     'no-script-url': 'error',
     // disallow self assignment
     'no-self-assign': 'error',
+    // disallow comparisons where both sides are exactly the same
+    'no-self-compare': 'error',
     // disallow use of comma operator
     'no-sequences': 'error',
     // restrict what can be thrown as an exception

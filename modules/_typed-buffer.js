@@ -48,7 +48,9 @@ var packIEEE754 = function(value, mLen, nBytes){
     , s      = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
     , e, m, c;
   value = abs(value);
+  // eslint-disable-next-line no-self-compare
   if(value != value || value === Infinity){
+    // eslint-disable-next-line no-self-compare
     m = value != value ? 1 : 0;
     e = eMax;
   } else {
