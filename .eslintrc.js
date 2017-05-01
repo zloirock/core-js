@@ -7,6 +7,7 @@ module.exports = {
     browser: true,
     node: true,
   },
+  plugins: ['import'],
   rules: {
     // possible errors:
     // disallow window alert / confirm / prompt calls
@@ -235,5 +236,23 @@ module.exports = {
     'space-unary-ops': 'error',
     // require or disallow the Unicode Byte Order Mark
     'unicode-bom': ['error', 'never'],
+
+    // commonjs:
+    // disallow new operators with calls to require
+    'no-new-require': 'error',
+    // disallow string concatenation with `__dirname` and `__filename`
+    'no-path-concat': 'error',
+
+    // import:
+    // forbid AMD imports
+    'import/no-amd': 'error',
+    // ensure imports point to files / modules that can be resolved
+    'import/no-unresolved': ['error', { commonjs: true }],
+    // forbid import of modules using absolute paths
+    'import/no-absolute-path': 'error',
+    // forbid `require()` calls with expressions
+    'import/no-dynamic-require': 'error',
+    // disallow importing from the same path more than once
+    'import/no-duplicates': 'error',
   },
 };
