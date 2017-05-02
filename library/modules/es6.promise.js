@@ -15,7 +15,6 @@ var LIBRARY            = require('./_library')
   , TypeError          = global.TypeError
   , process            = global.process
   , $Promise           = global[PROMISE]
-  , process            = global.process
   , isNode             = classof(process) == 'process'
   , empty              = function(){ /* empty */ }
   , Internal, GenericPromiseCapability, Wrapper;

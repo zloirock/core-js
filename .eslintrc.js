@@ -122,6 +122,8 @@ module.exports = {
     'no-octal-escape': 'error',
     // disallow usage of __proto__ property
     'no-proto': 'error',
+    // disallow declaring the same variable more then once
+    'no-redeclare': 'error',
     // disallow redundant return statements
     'no-useless-return': 'error',
     // disallow use of `javascript:` urls.
