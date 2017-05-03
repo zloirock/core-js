@@ -13,7 +13,7 @@ var construct = function(F, len, args){
   } return factories[len](F, args);
 };
 
-module.exports = Function.bind || function bind(that /*, args... */){
+module.exports = Function.bind || function bind(that /* , ...args */){
   var fn       = aFunction(this)
     , partArgs = arraySlice.call(arguments, 1);
   var bound = function(/* args... */){

@@ -4,7 +4,7 @@ var $export   = require('./_export')
   , $includes = require('./_array-includes')(true);
 
 $export($export.P, 'Array', {
-  includes: function includes(el /*, fromIndex = 0 */){
+  includes: function includes(el /* , fromIndex = 0 */){
     return $includes(this, el, arguments.length > 1 ? arguments[1] : undefined);
   }
 });

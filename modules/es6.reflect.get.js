@@ -6,7 +6,7 @@ var gOPD           = require('./_object-gopd')
   , isObject       = require('./_is-object')
   , anObject       = require('./_an-object');
 
-function get(target, propertyKey/*, receiver*/){
+function get(target, propertyKey /* , receiver */){
   var receiver = arguments.length < 3 ? target : arguments[2]
     , desc, proto;
   if(anObject(target) === receiver)return target[propertyKey];

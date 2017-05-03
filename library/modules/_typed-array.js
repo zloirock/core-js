@@ -132,7 +132,7 @@ if(require('./_descriptors')){
     dP(it, key, {get: function(){ return this._d[internal]; }});
   };
 
-  var $from = function from(source /*, mapfn, thisArg */){
+  var $from = function from(source /* , mapfn, thisArg */){
     var O       = toObject(source)
       , aLen    = arguments.length
       , mapfn   = aLen > 1 ? arguments[1] : undefined
@@ -151,7 +151,7 @@ if(require('./_descriptors')){
     return result;
   };
 
-  var $of = function of(/*...items*/){
+  var $of = function of(/* ...items */){
     var index  = 0
       , length = arguments.length
       , result = allocate(this, length);
@@ -167,47 +167,47 @@ if(require('./_descriptors')){
   };
 
   var proto = {
-    copyWithin: function copyWithin(target, start /*, end */){
+    copyWithin: function copyWithin(target, start /* , end */){
       return arrayCopyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
     },
-    every: function every(callbackfn /*, thisArg */){
+    every: function every(callbackfn /* , thisArg */){
       return arrayEvery(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    fill: function fill(value /*, start, end */){ // eslint-disable-line no-unused-vars
+    fill: function fill(value /* , start, end */){ // eslint-disable-line no-unused-vars
       return arrayFill.apply(validate(this), arguments);
     },
-    filter: function filter(callbackfn /*, thisArg */){
+    filter: function filter(callbackfn /* , thisArg */){
       return speciesFromList(this, arrayFilter(validate(this), callbackfn,
         arguments.length > 1 ? arguments[1] : undefined));
     },
-    find: function find(predicate /*, thisArg */){
+    find: function find(predicate /* , thisArg */){
       return arrayFind(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
     },
-    findIndex: function findIndex(predicate /*, thisArg */){
+    findIndex: function findIndex(predicate /* , thisArg */){
       return arrayFindIndex(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
     },
-    forEach: function forEach(callbackfn /*, thisArg */){
+    forEach: function forEach(callbackfn /* , thisArg */){
       arrayForEach(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    indexOf: function indexOf(searchElement /*, fromIndex */){
+    indexOf: function indexOf(searchElement /* , fromIndex */){
       return arrayIndexOf(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
     },
-    includes: function includes(searchElement /*, fromIndex */){
+    includes: function includes(searchElement /* , fromIndex */){
       return arrayIncludes(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
     },
     join: function join(separator){ // eslint-disable-line no-unused-vars
       return arrayJoin.apply(validate(this), arguments);
     },
-    lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line no-unused-vars
+    lastIndexOf: function lastIndexOf(searchElement /* , fromIndex */){ // eslint-disable-line no-unused-vars
       return arrayLastIndexOf.apply(validate(this), arguments);
     },
-    map: function map(mapfn /*, thisArg */){
+    map: function map(mapfn /* , thisArg */){
       return $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
+    reduce: function reduce(callbackfn /* , initialValue */){ // eslint-disable-line no-unused-vars
       return arrayReduce.apply(validate(this), arguments);
     },
-    reduceRight: function reduceRight(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
+    reduceRight: function reduceRight(callbackfn /* , initialValue */){ // eslint-disable-line no-unused-vars
       return arrayReduceRight.apply(validate(this), arguments);
     },
     reverse: function reverse(){
@@ -222,7 +222,7 @@ if(require('./_descriptors')){
         that[length]  = value;
       } return that;
     },
-    some: function some(callbackfn /*, thisArg */){
+    some: function some(callbackfn /* , thisArg */){
       return arraySome(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
     sort: function sort(comparefn){
@@ -244,7 +244,7 @@ if(require('./_descriptors')){
     return speciesFromList(this, arraySlice.call(validate(this), start, end));
   };
 
-  var $set = function set(arrayLike /*, offset */){
+  var $set = function set(arrayLike /* , offset */){
     validate(this);
     var offset = toOffset(arguments[1], 1)
       , length = this.length

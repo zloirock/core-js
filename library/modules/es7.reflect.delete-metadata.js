@@ -4,7 +4,7 @@ var metadata               = require('./_metadata')
   , getOrCreateMetadataMap = metadata.map
   , store                  = metadata.store;
 
-metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */){
   var targetKey   = arguments.length < 3 ? undefined : toMetaKey(arguments[2])
     , metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);
   if(metadataMap === undefined || !metadataMap['delete'](metadataKey))return false;

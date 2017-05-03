@@ -4,7 +4,7 @@ var toObject = require('./_to-object')
   , toIndex  = require('./_to-index')
   , toLength = require('./_to-length');
 
-module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0, end = @length*/){
+module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /* = 0, end = @length */){
   var O     = toObject(this)
     , len   = toLength(O.length)
     , to    = toIndex(target, len)

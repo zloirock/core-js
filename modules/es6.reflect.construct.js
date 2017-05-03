@@ -19,7 +19,7 @@ var ARGS_BUG = !fails(function(){
 });
 
 $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
-  construct: function construct(Target, args /*, newTarget*/){
+  construct: function construct(Target, args /* , newTarget */){
     aFunction(Target);
     anObject(args);
     var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);

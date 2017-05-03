@@ -6,7 +6,7 @@ var global     = require('./_global')
   , navigator  = global.navigator
   , MSIE       = !!navigator && /MSIE .\./.test(navigator.userAgent); // <- dirty ie9- check
 var wrap = function(set){
-  return MSIE ? function(fn, time /*, ...args */){
+  return MSIE ? function(fn, time /* , ...args */){
     return set(invoke(
       partial,
       [].slice.call(arguments, 2),

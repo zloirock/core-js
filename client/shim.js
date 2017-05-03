@@ -733,7 +733,7 @@ if(__webpack_require__(6)){
     dP(it, key, {get: function(){ return this._d[internal]; }});
   };
 
-  var $from = function from(source /*, mapfn, thisArg */){
+  var $from = function from(source /* , mapfn, thisArg */){
     var O       = toObject(source)
       , aLen    = arguments.length
       , mapfn   = aLen > 1 ? arguments[1] : undefined
@@ -752,7 +752,7 @@ if(__webpack_require__(6)){
     return result;
   };
 
-  var $of = function of(/*...items*/){
+  var $of = function of(/* ...items */){
     var index  = 0
       , length = arguments.length
       , result = allocate(this, length);
@@ -768,47 +768,47 @@ if(__webpack_require__(6)){
   };
 
   var proto = {
-    copyWithin: function copyWithin(target, start /*, end */){
+    copyWithin: function copyWithin(target, start /* , end */){
       return arrayCopyWithin.call(validate(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
     },
-    every: function every(callbackfn /*, thisArg */){
+    every: function every(callbackfn /* , thisArg */){
       return arrayEvery(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    fill: function fill(value /*, start, end */){ // eslint-disable-line no-unused-vars
+    fill: function fill(value /* , start, end */){ // eslint-disable-line no-unused-vars
       return arrayFill.apply(validate(this), arguments);
     },
-    filter: function filter(callbackfn /*, thisArg */){
+    filter: function filter(callbackfn /* , thisArg */){
       return speciesFromList(this, arrayFilter(validate(this), callbackfn,
         arguments.length > 1 ? arguments[1] : undefined));
     },
-    find: function find(predicate /*, thisArg */){
+    find: function find(predicate /* , thisArg */){
       return arrayFind(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
     },
-    findIndex: function findIndex(predicate /*, thisArg */){
+    findIndex: function findIndex(predicate /* , thisArg */){
       return arrayFindIndex(validate(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
     },
-    forEach: function forEach(callbackfn /*, thisArg */){
+    forEach: function forEach(callbackfn /* , thisArg */){
       arrayForEach(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    indexOf: function indexOf(searchElement /*, fromIndex */){
+    indexOf: function indexOf(searchElement /* , fromIndex */){
       return arrayIndexOf(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
     },
-    includes: function includes(searchElement /*, fromIndex */){
+    includes: function includes(searchElement /* , fromIndex */){
       return arrayIncludes(validate(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
     },
     join: function join(separator){ // eslint-disable-line no-unused-vars
       return arrayJoin.apply(validate(this), arguments);
     },
-    lastIndexOf: function lastIndexOf(searchElement /*, fromIndex */){ // eslint-disable-line no-unused-vars
+    lastIndexOf: function lastIndexOf(searchElement /* , fromIndex */){ // eslint-disable-line no-unused-vars
       return arrayLastIndexOf.apply(validate(this), arguments);
     },
-    map: function map(mapfn /*, thisArg */){
+    map: function map(mapfn /* , thisArg */){
       return $map(validate(this), mapfn, arguments.length > 1 ? arguments[1] : undefined);
     },
-    reduce: function reduce(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
+    reduce: function reduce(callbackfn /* , initialValue */){ // eslint-disable-line no-unused-vars
       return arrayReduce.apply(validate(this), arguments);
     },
-    reduceRight: function reduceRight(callbackfn /*, initialValue */){ // eslint-disable-line no-unused-vars
+    reduceRight: function reduceRight(callbackfn /* , initialValue */){ // eslint-disable-line no-unused-vars
       return arrayReduceRight.apply(validate(this), arguments);
     },
     reverse: function reverse(){
@@ -823,7 +823,7 @@ if(__webpack_require__(6)){
         that[length]  = value;
       } return that;
     },
-    some: function some(callbackfn /*, thisArg */){
+    some: function some(callbackfn /* , thisArg */){
       return arraySome(validate(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     },
     sort: function sort(comparefn){
@@ -845,7 +845,7 @@ if(__webpack_require__(6)){
     return speciesFromList(this, arraySlice.call(validate(this), start, end));
   };
 
-  var $set = function set(arrayLike /*, offset */){
+  var $set = function set(arrayLike /* , offset */){
     validate(this);
     var offset = toOffset(arguments[1], 1)
       , length = this.length
@@ -1829,7 +1829,7 @@ addToUnscopables('entries');
 var toObject = __webpack_require__(9)
   , toIndex  = __webpack_require__(38)
   , toLength = __webpack_require__(8);
-module.exports = function fill(value /*, start = 0, end = @length */){
+module.exports = function fill(value /* , start = 0, end = @length */){
   var O      = toObject(this)
     , length = toLength(O.length)
     , aLen   = arguments.length
@@ -2553,24 +2553,24 @@ if(!$typed.ABV){
     getUint8: function getUint8(byteOffset){
       return get(this, 1, byteOffset)[0];
     },
-    getInt16: function getInt16(byteOffset /*, littleEndian */){
+    getInt16: function getInt16(byteOffset /* , littleEndian */){
       var bytes = get(this, 2, byteOffset, arguments[1]);
       return (bytes[1] << 8 | bytes[0]) << 16 >> 16;
     },
-    getUint16: function getUint16(byteOffset /*, littleEndian */){
+    getUint16: function getUint16(byteOffset /* , littleEndian */){
       var bytes = get(this, 2, byteOffset, arguments[1]);
       return bytes[1] << 8 | bytes[0];
     },
-    getInt32: function getInt32(byteOffset /*, littleEndian */){
+    getInt32: function getInt32(byteOffset /* , littleEndian */){
       return unpackI32(get(this, 4, byteOffset, arguments[1]));
     },
-    getUint32: function getUint32(byteOffset /*, littleEndian */){
+    getUint32: function getUint32(byteOffset /* , littleEndian */){
       return unpackI32(get(this, 4, byteOffset, arguments[1])) >>> 0;
     },
-    getFloat32: function getFloat32(byteOffset /*, littleEndian */){
+    getFloat32: function getFloat32(byteOffset /* , littleEndian */){
       return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 23, 4);
     },
-    getFloat64: function getFloat64(byteOffset /*, littleEndian */){
+    getFloat64: function getFloat64(byteOffset /* , littleEndian */){
       return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 52, 8);
     },
     setInt8: function setInt8(byteOffset, value){
@@ -2579,22 +2579,22 @@ if(!$typed.ABV){
     setUint8: function setUint8(byteOffset, value){
       set(this, 1, byteOffset, packI8, value);
     },
-    setInt16: function setInt16(byteOffset, value /*, littleEndian */){
+    setInt16: function setInt16(byteOffset, value /* , littleEndian */){
       set(this, 2, byteOffset, packI16, value, arguments[2]);
     },
-    setUint16: function setUint16(byteOffset, value /*, littleEndian */){
+    setUint16: function setUint16(byteOffset, value /* , littleEndian */){
       set(this, 2, byteOffset, packI16, value, arguments[2]);
     },
-    setInt32: function setInt32(byteOffset, value /*, littleEndian */){
+    setInt32: function setInt32(byteOffset, value /* , littleEndian */){
       set(this, 4, byteOffset, packI32, value, arguments[2]);
     },
-    setUint32: function setUint32(byteOffset, value /*, littleEndian */){
+    setUint32: function setUint32(byteOffset, value /* , littleEndian */){
       set(this, 4, byteOffset, packI32, value, arguments[2]);
     },
-    setFloat32: function setFloat32(byteOffset, value /*, littleEndian */){
+    setFloat32: function setFloat32(byteOffset, value /* , littleEndian */){
       set(this, 4, byteOffset, packF32, value, arguments[2]);
     },
-    setFloat64: function setFloat64(byteOffset, value /*, littleEndian */){
+    setFloat64: function setFloat64(byteOffset, value /* , littleEndian */){
       set(this, 8, byteOffset, packF64, value, arguments[2]);
     }
   });
@@ -2803,7 +2803,7 @@ var toObject = __webpack_require__(9)
   , toIndex  = __webpack_require__(38)
   , toLength = __webpack_require__(8);
 
-module.exports = [].copyWithin || function copyWithin(target/*= 0*/, start/*= 0, end = @length*/){
+module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /* = 0, end = @length */){
   var O     = toObject(this)
     , len   = toLength(O.length)
     , to    = toIndex(target, len)
@@ -2892,7 +2892,7 @@ var construct = function(F, len, args){
   } return factories[len](F, args);
 };
 
-module.exports = Function.bind || function bind(that /*, args... */){
+module.exports = Function.bind || function bind(that /* , ...args */){
   var fn       = aFunction(this)
     , partArgs = arraySlice.call(arguments, 1);
   var bound = function(/* args... */){
@@ -2975,7 +2975,7 @@ module.exports = {
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
-      forEach: function forEach(callbackfn /*, that = undefined */){
+      forEach: function forEach(callbackfn /* , that = undefined */){
         anInstance(this, C, 'forEach');
         var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3)
           , entry;
@@ -3551,7 +3551,7 @@ var $export = __webpack_require__(0)
 // Shouldn't skip holes
 if(KEY in [])Array(1)[KEY](function(){ forced = false; });
 $export($export.P + $export.F * forced, 'Array', {
-  findIndex: function findIndex(callbackfn/*, that = undefined */){
+  findIndex: function findIndex(callbackfn /* , that = undefined */){
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
@@ -3572,7 +3572,7 @@ var $export = __webpack_require__(0)
 // Shouldn't skip holes
 if(KEY in [])Array(1)[KEY](function(){ forced = false; });
 $export($export.P + $export.F * forced, 'Array', {
-  find: function find(callbackfn/*, that = undefined */){
+  find: function find(callbackfn /* , that = undefined */){
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
@@ -3614,7 +3614,7 @@ var ctx            = __webpack_require__(24)
 
 $export($export.S + $export.F * !__webpack_require__(54)(function(iter){ Array.from(iter); }), 'Array', {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
-  from: function from(arrayLike/*, mapfn = undefined, thisArg = undefined*/){
+  from: function from(arrayLike /* , mapfn = undefined, thisArg = undefined */){
     var O       = toObject(arrayLike)
       , C       = typeof this == 'function' ? this : Array
       , aLen    = arguments.length
@@ -3654,7 +3654,7 @@ var $export       = __webpack_require__(0)
 
 $export($export.P + $export.F * (NEGATIVE_ZERO || !__webpack_require__(20)($native)), 'Array', {
   // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
-  indexOf: function indexOf(searchElement /*, fromIndex = 0 */){
+  indexOf: function indexOf(searchElement /* , fromIndex = 0 */){
     return NEGATIVE_ZERO
       // convert -0 to +0
       ? $native.apply(this, arguments) || 0
@@ -3707,7 +3707,7 @@ var $export       = __webpack_require__(0)
 
 $export($export.P + $export.F * (NEGATIVE_ZERO || !__webpack_require__(20)($native)), 'Array', {
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
-  lastIndexOf: function lastIndexOf(searchElement /*, fromIndex = @[*-1] */){
+  lastIndexOf: function lastIndexOf(searchElement /* , fromIndex = @[*-1] */){
     // convert -0 to +0
     if(NEGATIVE_ZERO)return $native.apply(this, arguments) || 0;
     var O      = toIObject(this)
@@ -5213,7 +5213,7 @@ var ARGS_BUG = !fails(function(){
 });
 
 $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
-  construct: function construct(Target, args /*, newTarget*/){
+  construct: function construct(Target, args /* , newTarget */){
     aFunction(Target);
     anObject(args);
     var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);
@@ -5364,7 +5364,7 @@ var gOPD           = __webpack_require__(16)
   , isObject       = __webpack_require__(4)
   , anObject       = __webpack_require__(1);
 
-function get(target, propertyKey/*, receiver*/){
+function get(target, propertyKey /* , receiver */){
   var receiver = arguments.length < 3 ? target : arguments[2]
     , desc, proto;
   if(anObject(target) === receiver)return target[propertyKey];
@@ -5477,7 +5477,7 @@ var dP             = __webpack_require__(7)
   , anObject       = __webpack_require__(1)
   , isObject       = __webpack_require__(4);
 
-function set(target, propertyKey, V/*, receiver*/){
+function set(target, propertyKey, V /* , receiver */){
   var receiver = arguments.length < 4 ? target : arguments[3]
     , ownDesc  = gOPD.f(anObject(target), propertyKey)
     , existingDescriptor, proto;
@@ -5794,7 +5794,7 @@ var $export   = __webpack_require__(0)
   , $endsWith = ''[ENDS_WITH];
 
 $export($export.P + $export.F * __webpack_require__(64)(ENDS_WITH), 'String', {
-  endsWith: function endsWith(searchString /*, endPosition = @length */){
+  endsWith: function endsWith(searchString /* , endPosition = @length */){
     var that = context(this, searchString, ENDS_WITH)
       , endPosition = arguments.length > 1 ? arguments[1] : undefined
       , len    = toLength(that.length)
@@ -5890,7 +5890,7 @@ var $export  = __webpack_require__(0)
   , INCLUDES = 'includes';
 
 $export($export.P + $export.F * __webpack_require__(64)(INCLUDES), 'String', {
-  includes: function includes(searchString /*, position = 0 */){
+  includes: function includes(searchString /* , position = 0 */){
     return !!~context(this, searchString, INCLUDES)
       .indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }
@@ -6013,7 +6013,7 @@ var $export     = __webpack_require__(0)
   , $startsWith = ''[STARTS_WITH];
 
 $export($export.P + $export.F * __webpack_require__(64)(STARTS_WITH), 'String', {
-  startsWith: function startsWith(searchString /*, position = 0 */){
+  startsWith: function startsWith(searchString /* , position = 0 */){
     var that   = context(this, searchString, STARTS_WITH)
       , index  = toLength(Math.min(arguments.length > 1 ? arguments[1] : undefined, that.length))
       , search = String(searchString);
@@ -6514,7 +6514,7 @@ var $export   = __webpack_require__(0)
   , $includes = __webpack_require__(48)(true);
 
 $export($export.P, 'Array', {
-  includes: function includes(el /*, fromIndex = 0 */){
+  includes: function includes(el /* , fromIndex = 0 */){
     return $includes(this, el, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
@@ -7119,7 +7119,7 @@ var metadata               = __webpack_require__(25)
   , getOrCreateMetadataMap = metadata.map
   , store                  = metadata.store;
 
-metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */){
   var targetKey   = arguments.length < 3 ? undefined : toMetaKey(arguments[2])
     , metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);
   if(metadataMap === undefined || !metadataMap['delete'](metadataKey))return false;
@@ -7150,7 +7150,7 @@ var ordinaryMetadataKeys = function(O, P){
   return pKeys.length ? oKeys.length ? from(new Set(oKeys.concat(pKeys))) : pKeys : oKeys;
 };
 
-metadata.exp({getMetadataKeys: function getMetadataKeys(target /*, targetKey */){
+metadata.exp({getMetadataKeys: function getMetadataKeys(target /* , targetKey */){
   return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
 
@@ -7173,7 +7173,7 @@ var ordinaryGetMetadata = function(MetadataKey, O, P){
   return parent !== null ? ordinaryGetMetadata(MetadataKey, parent, P) : undefined;
 };
 
-metadata.exp({getMetadata: function getMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({getMetadata: function getMetadata(metadataKey, target /* , targetKey */){
   return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
 
@@ -7187,7 +7187,7 @@ var metadata                = __webpack_require__(25)
   , ordinaryOwnMetadataKeys = metadata.keys
   , toMetaKey               = metadata.key;
 
-metadata.exp({getOwnMetadataKeys: function getOwnMetadataKeys(target /*, targetKey */){
+metadata.exp({getOwnMetadataKeys: function getOwnMetadataKeys(target /* , targetKey */){
   return ordinaryOwnMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 }});
 
@@ -7201,7 +7201,7 @@ var metadata               = __webpack_require__(25)
   , ordinaryGetOwnMetadata = metadata.get
   , toMetaKey              = metadata.key;
 
-metadata.exp({getOwnMetadata: function getOwnMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({getOwnMetadata: function getOwnMetadata(metadataKey, target /* , targetKey */){
   return ordinaryGetOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
@@ -7224,7 +7224,7 @@ var ordinaryHasMetadata = function(MetadataKey, O, P){
   return parent !== null ? ordinaryHasMetadata(MetadataKey, parent, P) : false;
 };
 
-metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({hasMetadata: function hasMetadata(metadataKey, target /* , targetKey */){
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
 
@@ -7238,7 +7238,7 @@ var metadata               = __webpack_require__(25)
   , ordinaryHasOwnMetadata = metadata.has
   , toMetaKey              = metadata.key;
 
-metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /*, targetKey */){
+metadata.exp({hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , targetKey */){
   return ordinaryHasOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 }});
@@ -7340,7 +7340,7 @@ var $export = __webpack_require__(0)
   , $pad    = __webpack_require__(113);
 
 $export($export.P, 'String', {
-  padEnd: function padEnd(maxLength /*, fillString = ' ' */){
+  padEnd: function padEnd(maxLength /* , fillString = ' ' */){
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
 });
@@ -7357,7 +7357,7 @@ var $export = __webpack_require__(0)
   , $pad    = __webpack_require__(113);
 
 $export($export.P, 'String', {
-  padStart: function padStart(maxLength /*, fillString = ' ' */){
+  padStart: function padStart(maxLength /* , fillString = ' ' */){
     return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, true);
   }
 });
@@ -7503,7 +7503,7 @@ var global     = __webpack_require__(2)
   , navigator  = global.navigator
   , MSIE       = !!navigator && /MSIE .\./.test(navigator.userAgent); // <- dirty ie9- check
 var wrap = function(set){
-  return MSIE ? function(fn, time /*, ...args */){
+  return MSIE ? function(fn, time /* , ...args */){
     return set(invoke(
       partial,
       [].slice.call(arguments, 2),

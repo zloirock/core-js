@@ -238,6 +238,8 @@ module.exports = {
     'space-infix-ops': 'error',
     // Require or disallow spaces before/after unary operators
     'space-unary-ops': 'error',
+    // require or disallow a space immediately following the // or /* in a comment
+    'spaced-comment': ['error', 'always', { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
     // require or disallow the Unicode Byte Order Mark
     'unicode-bom': ['error', 'never'],
 

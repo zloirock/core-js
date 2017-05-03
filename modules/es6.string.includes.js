@@ -5,7 +5,7 @@ var $export  = require('./_export')
   , INCLUDES = 'includes';
 
 $export($export.P + $export.F * require('./_fails-is-regexp')(INCLUDES), 'String', {
-  includes: function includes(searchString /*, position = 0 */){
+  includes: function includes(searchString /* , position = 0 */){
     return !!~context(this, searchString, INCLUDES)
       .indexOf(searchString, arguments.length > 1 ? arguments[1] : undefined);
   }

@@ -3,7 +3,7 @@
 var toObject = require('./_to-object')
   , toIndex  = require('./_to-index')
   , toLength = require('./_to-length');
-module.exports = function fill(value /*, start = 0, end = @length */){
+module.exports = function fill(value /* , start = 0, end = @length */){
   var O      = toObject(this)
     , length = toLength(O.length)
     , aLen   = arguments.length

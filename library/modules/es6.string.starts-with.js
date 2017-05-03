@@ -7,7 +7,7 @@ var $export     = require('./_export')
   , $startsWith = ''[STARTS_WITH];
 
 $export($export.P + $export.F * require('./_fails-is-regexp')(STARTS_WITH), 'String', {
-  startsWith: function startsWith(searchString /*, position = 0 */){
+  startsWith: function startsWith(searchString /* , position = 0 */){
     var that   = context(this, searchString, STARTS_WITH)
       , index  = toLength(Math.min(arguments.length > 1 ? arguments[1] : undefined, that.length))
       , search = String(searchString);

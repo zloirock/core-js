@@ -7,7 +7,7 @@ var $export   = require('./_export')
   , $endsWith = ''[ENDS_WITH];
 
 $export($export.P + $export.F * require('./_fails-is-regexp')(ENDS_WITH), 'String', {
-  endsWith: function endsWith(searchString /*, endPosition = @length */){
+  endsWith: function endsWith(searchString /* , endPosition = @length */){
     var that = context(this, searchString, ENDS_WITH)
       , endPosition = arguments.length > 1 ? arguments[1] : undefined
       , len    = toLength(that.length)

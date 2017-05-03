@@ -8,7 +8,7 @@ var dP             = require('./_object-dp')
   , anObject       = require('./_an-object')
   , isObject       = require('./_is-object');
 
-function set(target, propertyKey, V/*, receiver*/){
+function set(target, propertyKey, V /* , receiver */){
   var receiver = arguments.length < 4 ? target : arguments[3]
     , ownDesc  = gOPD.f(anObject(target), propertyKey)
     , existingDescriptor, proto;
