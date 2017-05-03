@@ -124,6 +124,8 @@ module.exports = {
     'no-proto': 'error',
     // disallow declaring the same variable more then once
     'no-redeclare': 'error',
+    // disallow unnecessary calls to `.call()` and `.apply()`
+    'no-useless-call': 'error',
     // disallow redundant return statements
     'no-useless-return': 'error',
     // disallow use of `javascript:` urls.

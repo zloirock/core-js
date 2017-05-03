@@ -432,10 +432,13 @@ module.exports = function(TYPE, $create){
 /* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
+"use strict";
+
 var fails = __webpack_require__(3);
 
 module.exports = function(method, arg){
   return !!method && fails(function(){
+    // eslint-disable-next-line no-useless-call
     arg ? method.call(null, function(){ /* empty */ }, 1) : method.call(null);
   });
 };
@@ -1678,11 +1681,13 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
 /* 53 */
 /***/ (function(module, exports, __webpack_require__) {
 
+"use strict";
+
 // Forced replacement prototype accessors methods
 module.exports = __webpack_require__(36) || !__webpack_require__(3)(function(){
   var K = Math.random();
   // In FF throws only define methods
-  // eslint-disable-next-line no-undef
+  // eslint-disable-next-line no-undef, no-useless-call
   __defineSetter__.call(null, K, function(){ /* empty */ });
   delete __webpack_require__(2)[K];
 });
