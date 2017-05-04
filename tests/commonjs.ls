@@ -122,6 +122,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/math/radians")(180) is Math.PI
   ok require("#P/fn/math/scale")(3 1 2 1 2) is 3
   ok require("#P/fn/math/umulh")(0xffffffff 7) is 6
+  ok require("#P/fn/math/signbit")(-2) is no
   ok require("#P/fn/number/constructor")(\5) is 5
   ok require("#P/fn/number/epsilon") is Math.pow 2 -52
   ok require("#P/fn/number/is-finite") 42.5

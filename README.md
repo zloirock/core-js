@@ -1550,6 +1550,23 @@ core-js(/library)/fn/math/rad-per-deg
 core-js(/library)/fn/math/radians
 core-js(/library)/fn/math/scale
 ```
+* `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`es7.math.signbit`](https://github.com/zloirock/core-js/blob/v2.X.X/modules/es7.math.signbit.js)
+```js
+Math
+  .signbit(x) -> bool
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/math/signbit
+```
+[*Examples*](http://es6.zloirock.ru/):
+```js
+Math.signbit(NaN); // => NaN
+Math.signbit(1);   // => true
+Math.signbit(-1);  // => false
+Math.signbit(0);   // => true
+Math.signbit(-0);  // => false
+```
 
 #### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)

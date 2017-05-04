@@ -26,4 +26,5 @@ require('../../modules/es7.math.rad-per-deg');
 require('../../modules/es7.math.radians');
 require('../../modules/es7.math.scale');
 require('../../modules/es7.math.umulh');
+require('../../modules/es7.math.signbit');
 module.exports = require('../../modules/_core').Math;
