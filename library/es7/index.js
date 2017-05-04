@@ -16,6 +16,7 @@ require('../modules/es7.object.lookup-getter');
 require('../modules/es7.object.lookup-setter');
 require('../modules/es7.map.to-json');
 require('../modules/es7.set.to-json');
+require('../modules/es7.global');
 require('../modules/es7.system.global');
 require('../modules/es7.error.is-error');
 require('../modules/es7.math.clamp');
