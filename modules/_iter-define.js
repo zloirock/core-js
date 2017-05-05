@@ -33,15 +33,33 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
     , $default   = $native || getMethod(DEFAULT)
     , $entries   = DEFAULT ? !DEF_VALUES ? $default : getMethod('entries') : undefined
     , $anyNative = NAME == 'Array' ? proto.entries || $native : $native
-    , methods, key, IteratorPrototype;
+    , methods, key, IteratorPrototype, IteratorPrototypePrototype;
   // Fix native
   if($anyNative){
     IteratorPrototype = getPrototypeOf($anyNative.call(new Base()));
     if(IteratorPrototype !== Object.prototype && IteratorPrototype.next){
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);
-      // fix for some old engines
-      if(!LIBRARY && !has(IteratorPrototype, ITERATOR))hide(IteratorPrototype, ITERATOR, returnThis);
+      // according to the ES2015 standard, iterators for Map, Set, Array, and String
+      // should have a prototype of %MapIteratorPrototype%, %SetIteratorPrototype%,
+      // %ArrayIteratorPrototype%, and %StringIteratorPrototype%, respectively, and
+      // each of *those* should have a prototype of %IteratorPrototype%.
+      // however, some older engines don't have %IteratorPrototype%, which means that
+      // an iterator instance won't have an @@iterator property, which is a bug.
+      // in addition, some of those older engines don't allow setPrototypeOf, so you can't
+      // just change the prototype chain. the solution here is to put @@iterator on
+      // the %(Map|Set\Array|String)IteratorPrototype%, which is not strictly correct,
+      // but to only do so in engines where we know the prototype chain is wrong.
+
+      // IteratorPrototypePrototype is %IteratorPrototype% in standards-compliant
+      // browsers.
+      IteratorPrototypePrototype = getPrototypeOf(IteratorPrototype)
+      if(!LIBRARY && IteratorPrototypePrototype && !has(IteratorPrototypePrototype, ITERATOR)){
+        // this is a browser that doesn't correctly support %IteratorPrototype%, so
+        // we put the @@iterator property on %(Map|Set|Array|String)IteratorPrototype%
+        // instead.
+        hide(IteratorPrototype, ITERATOR, returnThis);
+      }
     }
   }
   // fix Array#{values, @@iterator}.name in V8 / FF

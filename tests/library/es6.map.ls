@@ -3,7 +3,7 @@ module \ES6
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Map, Set, Symbol} = core
-{getOwnPropertyDescriptor, freeze} = core.Object
+{getOwnPropertyDescriptor, freeze, getPrototypeOf} = core.Object
 {iterator} = core.Symbol
 
 test 'Map' (assert)!->
@@ -246,6 +246,10 @@ test 'Map#@@iterator' (assert)!->
   iter = core.getIterator new Map [[\a \q],[\s \w],[\d \e]]
   assert.isIterator iter
   assert.isIterable iter
+  assert.strictEqual iter, iter[Symbol?iterator]()
+  assert.notOk iter.hasOwnProperty(Symbol?iterator)
+  assert.notOk getPrototypeOf(iter).hasOwnProperty(Symbol?iterator)
+  assert.ok getPrototypeOf(getPrototypeOf(iter)).hasOwnProperty(Symbol?iterator)
   assert.strictEqual iter[Symbol?toStringTag], 'Map Iterator'
   assert.deepEqual iter.next!, {value: [\a \q], done: no}
   assert.deepEqual iter.next!, {value: [\s \w], done: no}

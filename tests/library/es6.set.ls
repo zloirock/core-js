@@ -3,7 +3,7 @@ module \ES6
 
 same = (a, b)-> if a is b => a isnt 0 or 1 / a is 1 / b else a !~= a and b !~= b
 {Set, Map, Symbol} = core
-{getOwnPropertyDescriptor, freeze} = core.Object
+{getOwnPropertyDescriptor, freeze, getPrototypeOf} = core.Object
 {iterator} = core.Symbol
 
 test 'Set' (assert)!->
@@ -237,6 +237,10 @@ test 'Set#@@iterator' (assert)!->
   iter = core.getIterator(new Set <[q w e]>)
   assert.isIterator iter
   assert.isIterable iter
+  assert.strictEqual iter, iter[Symbol?iterator]()
+  assert.notOk iter.hasOwnProperty(Symbol?iterator)
+  assert.notOk getPrototypeOf(iter).hasOwnProperty(Symbol?iterator)
+  assert.ok getPrototypeOf(getPrototypeOf(iter)).hasOwnProperty(Symbol?iterator)
   assert.strictEqual iter[Symbol?toStringTag], 'Set Iterator'
   assert.deepEqual iter.next!, {value: \q, done: no}
   assert.deepEqual iter.next!, {value: \w, done: no}
