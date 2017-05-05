@@ -30,7 +30,7 @@ module.exports = function(Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED
     , VALUES_BUG = false
     , proto      = Base.prototype
     , $native    = proto[ITERATOR] || proto[FF_ITERATOR] || DEFAULT && proto[DEFAULT]
-    , $default   = $native || getMethod(DEFAULT)
+    , $default   = (!BUGGY && $native) || getMethod(DEFAULT)
     , $entries   = DEFAULT ? !DEF_VALUES ? $default : getMethod('entries') : undefined
     , $anyNative = NAME == 'Array' ? proto.entries || $native : $native
     , methods, key, IteratorPrototype;
