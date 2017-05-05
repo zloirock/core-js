@@ -1,20 +1,20 @@
 'use strict';
 // 20.3.4.36 / 15.9.5.43 Date.prototype.toISOString()
-var fails        = require('./_fails')
-  , getTime      = Date.prototype.getTime
+var fails = require('./_fails')
+  , getTime = Date.prototype.getTime
   , $toISOString = Date.prototype.toISOString;
 
-var lz = function(num){
+var lz = function (num) {
   return num > 9 ? num : '0' + num;
 };
 
 // PhantomJS / old WebKit has a broken implementations
-module.exports = (fails(function(){
+module.exports = (fails(function () {
   return $toISOString.call(new Date(-5e13 - 1)) != '0385-07-25T07:06:39.999Z';
-}) || !fails(function(){
+}) || !fails(function () {
   $toISOString.call(new Date(NaN));
-})) ? function toISOString(){
-  if(!isFinite(getTime.call(this)))throw RangeError('Invalid time value');
+})) ? function toISOString() {
+  if (!isFinite(getTime.call(this))) throw RangeError('Invalid time value');
   var d = this
     , y = d.getUTCFullYear()
     , m = d.getUTCMilliseconds()

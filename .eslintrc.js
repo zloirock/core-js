@@ -108,6 +108,8 @@ module.exports = {
     'no-lone-blocks': 'error',
     // disallow function declarations and expressions inside loop statements
     'no-loop-func': 'error',
+    // disallow use of multiple spaces
+    'no-multi-spaces': 'error',
     // disallow use of multiline strings
     'no-multi-str': 'error',
     // disallow use of new operator when not part of the assignment or comparison
@@ -194,6 +196,10 @@ module.exports = {
     'func-call-spacing': 'error',
     // this option sets a specific tab width for your code
     indent: ['error', 2, { VariableDeclarator: 2, SwitchCase: 1 }],
+    // require a space before & after certain keywords
+    'keyword-spacing': ['error', { before: true, after: true }],
+    // enforces spacing between keys and values in object literal properties
+    'key-spacing': ['error', { beforeColon: false, afterColon: true }],
     // enforce consistent linebreak style
     'linebreak-style': ['error', 'unix'],
     // specify the maximum length of a line in your program
@@ -222,6 +228,8 @@ module.exports = {
     'no-whitespace-before-property': 'error',
     // enforce the location of single-line statements
     'nonblock-statement-body-position': ['error', 'beside'],
+    // enforce spaces inside braces
+    'object-curly-spacing': ['error', 'always'],
     // enforce padding within blocks
     'padded-blocks': ['error', 'never'],
     // specify whether double or single quotes should be used
@@ -232,6 +240,10 @@ module.exports = {
     semi: ['error', 'always'],
     // enforce spacing before and after semicolons
     'semi-spacing': 'error',
+    // require or disallow space before blocks
+    'space-before-blocks': 'error',
+    // require or disallow space before function opening parenthesis
+    'space-before-function-paren': ['error', { anonymous: 'always', named: 'never' }],
     // require or disallow spaces inside parentheses
     'space-in-parens': 'error',
     // require spaces around operators

@@ -2,7 +2,7 @@
 var $export = require('./_export');
 
 $export($export.S, 'Math', {
-  isubh: function isubh(x0, x1, y0, y1){
+  isubh: function isubh(x0, x1, y0, y1) {
     var $x0 = x0 >>> 0
       , $x1 = x1 >>> 0
       , $y0 = y0 >>> 0;

@@ -1,25 +1,25 @@
-var global    = require('./_global')
-  , core      = require('./_core')
-  , ctx       = require('./_ctx')
-  , hide      = require('./_hide')
+var global = require('./_global')
+  , core = require('./_core')
+  , ctx = require('./_ctx')
+  , hide = require('./_hide')
   , PROTOTYPE = 'prototype';
 
-var $export = function(type, name, source){
+var $export = function (type, name, source) {
   var IS_FORCED = type & $export.F
     , IS_GLOBAL = type & $export.G
     , IS_STATIC = type & $export.S
-    , IS_PROTO  = type & $export.P
-    , IS_BIND   = type & $export.B
-    , IS_WRAP   = type & $export.W
-    , exports   = IS_GLOBAL ? core : core[name] || (core[name] = {})
-    , expProto  = exports[PROTOTYPE]
-    , target    = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE]
+    , IS_PROTO = type & $export.P
+    , IS_BIND = type & $export.B
+    , IS_WRAP = type & $export.W
+    , exports = IS_GLOBAL ? core : core[name] || (core[name] = {})
+    , expProto = exports[PROTOTYPE]
+    , target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE]
     , key, own, out;
-  if(IS_GLOBAL)source = name;
-  for(key in source){
+  if (IS_GLOBAL)source = name;
+  for (key in source) {
     // contains in native
     own = !IS_FORCED && target && target[key] !== undefined;
-    if(own && key in exports)continue;
+    if (own && key in exports) continue;
     // export native or passed
     out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
@@ -27,10 +27,10 @@ var $export = function(type, name, source){
     // bind timers to global for call from export context
     : IS_BIND && own ? ctx(out, global)
     // wrap global constructors for prevent change them in library
-    : IS_WRAP && target[key] == out ? (function(C){
-      var F = function(a, b, c){
-        if(this instanceof C){
-          switch(arguments.length){
+    : IS_WRAP && target[key] == out ? (function (C) {
+      var F = function (a, b, c) {
+        if (this instanceof C) {
+          switch (arguments.length) {
             case 0: return new C();
             case 1: return new C(a);
             case 2: return new C(a, b);
@@ -42,10 +42,10 @@ var $export = function(type, name, source){
     // make static versions for prototype methods
     })(out) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
-    if(IS_PROTO){
+    if (IS_PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
       // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
-      if(type & $export.R && expProto && !expProto[key])hide(expProto, key, out);
+      if (type & $export.R && expProto && !expProto[key])hide(expProto, key, out);
     }
   }
 };
