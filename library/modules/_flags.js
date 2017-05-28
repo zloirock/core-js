@@ -2,8 +2,8 @@
 // 21.2.5.3 get RegExp.prototype.flags
 var anObject = require('./_an-object');
 module.exports = function () {
-  var that = anObject(this)
-    , result = '';
+  var that = anObject(this);
+  var result = '';
   if (that.global) result += 'g';
   if (that.ignoreCase) result += 'i';
   if (that.multiline) result += 'm';

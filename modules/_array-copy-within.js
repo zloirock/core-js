@@ -1,17 +1,17 @@
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 'use strict';
-var toObject = require('./_to-object')
-  , toIndex = require('./_to-index')
-  , toLength = require('./_to-length');
+var toObject = require('./_to-object');
+var toIndex = require('./_to-index');
+var toLength = require('./_to-length');
 
 module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /* = 0, end = @length */) {
-  var O = toObject(this)
-    , len = toLength(O.length)
-    , to = toIndex(target, len)
-    , from = toIndex(start, len)
-    , end = arguments.length > 2 ? arguments[2] : undefined
-    , count = Math.min((end === undefined ? len : toIndex(end, len)) - from, len - to)
-    , inc = 1;
+  var O = toObject(this);
+  var len = toLength(O.length);
+  var to = toIndex(target, len);
+  var from = toIndex(start, len);
+  var end = arguments.length > 2 ? arguments[2] : undefined;
+  var count = Math.min((end === undefined ? len : toIndex(end, len)) - from, len - to);
+  var inc = 1;
   if (from < to && to < from + count) {
     inc = -1;
     from += count - 1;

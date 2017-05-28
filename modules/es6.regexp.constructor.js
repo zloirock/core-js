@@ -1,16 +1,16 @@
-var global = require('./_global')
-  , inheritIfRequired = require('./_inherit-if-required')
-  , dP = require('./_object-dp').f
-  , gOPN = require('./_object-gopn').f
-  , isRegExp = require('./_is-regexp')
-  , $flags = require('./_flags')
-  , $RegExp = global.RegExp
-  , Base = $RegExp
-  , proto = $RegExp.prototype
-  , re1 = /a/g
-  , re2 = /a/g
-  // "new" creates a new object, old webkit buggy here
-  , CORRECT_NEW = new $RegExp(re1) !== re1;
+var global = require('./_global');
+var inheritIfRequired = require('./_inherit-if-required');
+var dP = require('./_object-dp').f;
+var gOPN = require('./_object-gopn').f;
+var isRegExp = require('./_is-regexp');
+var $flags = require('./_flags');
+var $RegExp = global.RegExp;
+var Base = $RegExp;
+var proto = $RegExp.prototype;
+var re1 = /a/g;
+var re2 = /a/g;
+// "new" creates a new object, old webkit buggy here
+var CORRECT_NEW = new $RegExp(re1) !== re1;
 
 if (require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function () {
   re2[require('./_wks')('match')] = false;
@@ -18,9 +18,9 @@ if (require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function (
   return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';
 }))) {
   $RegExp = function RegExp(p, f) {
-    var tiRE = this instanceof $RegExp
-      , piRE = isRegExp(p)
-      , fiU = f === undefined;
+    var tiRE = this instanceof $RegExp;
+    var piRE = isRegExp(p);
+    var fiU = f === undefined;
     return !tiRE && piRE && p.constructor === $RegExp && fiU ? p
       : inheritIfRequired(CORRECT_NEW
         ? new Base(piRE && !fiU ? p.source : p, f)

@@ -1,10 +1,10 @@
-var global = require('./_global')
-  , hide = require('./_hide')
-  , has = require('./_has')
-  , SRC = require('./_uid')('src')
-  , TO_STRING = 'toString'
-  , $toString = Function[TO_STRING]
-  , TPL = ('' + $toString).split(TO_STRING);
+var global = require('./_global');
+var hide = require('./_hide');
+var has = require('./_has');
+var SRC = require('./_uid')('src');
+var TO_STRING = 'toString';
+var $toString = Function[TO_STRING];
+var TPL = ('' + $toString).split(TO_STRING);
 
 require('./_core').inspectSource = function (it) {
   return $toString.call(it);

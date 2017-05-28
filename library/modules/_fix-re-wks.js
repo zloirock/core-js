@@ -1,15 +1,15 @@
 'use strict';
-var hide = require('./_hide')
-  , redefine = require('./_redefine')
-  , fails = require('./_fails')
-  , defined = require('./_defined')
-  , wks = require('./_wks');
+var hide = require('./_hide');
+var redefine = require('./_redefine');
+var fails = require('./_fails');
+var defined = require('./_defined');
+var wks = require('./_wks');
 
 module.exports = function (KEY, length, exec) {
-  var SYMBOL = wks(KEY)
-    , fns = exec(defined, SYMBOL, ''[KEY])
-    , strfn = fns[0]
-    , rxfn = fns[1];
+  var SYMBOL = wks(KEY);
+  var fns = exec(defined, SYMBOL, ''[KEY]);
+  var strfn = fns[0];
+  var rxfn = fns[1];
   if (fails(function () {
     var O = {};
     O[SYMBOL] = function () { return 7; };

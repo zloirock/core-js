@@ -230,6 +230,8 @@ module.exports = {
     'nonblock-statement-body-position': ['error', 'beside'],
     // enforce spaces inside braces
     'object-curly-spacing': ['error', 'always'],
+    // require newlines around variable declarations with initializations
+    'one-var-declaration-per-line': ['error', 'initializations'],
     // enforce padding within blocks
     'padded-blocks': ['error', 'never'],
     // specify whether double or single quotes should be used

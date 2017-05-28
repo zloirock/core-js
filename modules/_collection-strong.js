@@ -1,21 +1,22 @@
 'use strict';
-var dP = require('./_object-dp').f
-  , create = require('./_object-create')
-  , redefineAll = require('./_redefine-all')
-  , ctx = require('./_ctx')
-  , anInstance = require('./_an-instance')
-  , defined = require('./_defined')
-  , forOf = require('./_for-of')
-  , $iterDefine = require('./_iter-define')
-  , step = require('./_iter-step')
-  , setSpecies = require('./_set-species')
-  , DESCRIPTORS = require('./_descriptors')
-  , fastKey = require('./_meta').fastKey
-  , SIZE = DESCRIPTORS ? '_s' : 'size';
+var dP = require('./_object-dp').f;
+var create = require('./_object-create');
+var redefineAll = require('./_redefine-all');
+var ctx = require('./_ctx');
+var anInstance = require('./_an-instance');
+var defined = require('./_defined');
+var forOf = require('./_for-of');
+var $iterDefine = require('./_iter-define');
+var step = require('./_iter-step');
+var setSpecies = require('./_set-species');
+var DESCRIPTORS = require('./_descriptors');
+var fastKey = require('./_meta').fastKey;
+var SIZE = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function (that, key) {
   // fast case
-  var index = fastKey(key), entry;
+  var index = fastKey(key);
+  var entry;
   if (index !== 'F') return that._i[index];
   // frozen object case
   for (entry = that._f; entry; entry = entry.n) {
@@ -48,11 +49,11 @@ module.exports = {
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
       'delete': function (key) {
-        var that = this
-          , entry = getEntry(that, key);
+        var that = this;
+        var entry = getEntry(that, key);
         if (entry) {
-          var next = entry.n
-            , prev = entry.p;
+          var next = entry.n;
+          var prev = entry.p;
           delete that._i[entry.i];
           entry.r = true;
           if (prev)prev.n = next;
@@ -66,8 +67,8 @@ module.exports = {
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
         anInstance(this, C, 'forEach');
-        var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3)
-          , entry;
+        var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+        var entry;
         while (entry = entry ? entry.n : this._f) {
           f(entry.v, entry.k, this);
           // revert to the last existing entry
@@ -88,8 +89,8 @@ module.exports = {
     return C;
   },
   def: function (that, key, value) {
-    var entry = getEntry(that, key)
-      , prev, index;
+    var entry = getEntry(that, key);
+    var prev, index;
     // change existing entry
     if (entry) {
       entry.v = value;
@@ -119,9 +120,9 @@ module.exports = {
       this._k = kind;      // kind
       this._l = undefined; // previous
     }, function () {
-      var that = this
-        , kind = that._k
-        , entry = that._l;
+      var that = this;
+      var kind = that._k;
+      var entry = that._l;
       // revert to the last existing entry
       while (entry && entry.r)entry = entry.p;
       // get next entry

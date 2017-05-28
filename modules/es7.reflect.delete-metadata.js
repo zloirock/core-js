@@ -1,12 +1,12 @@
-var metadata = require('./_metadata')
-  , anObject = require('./_an-object')
-  , toMetaKey = metadata.key
-  , getOrCreateMetadataMap = metadata.map
-  , store = metadata.store;
+var metadata = require('./_metadata');
+var anObject = require('./_an-object');
+var toMetaKey = metadata.key;
+var getOrCreateMetadataMap = metadata.map;
+var store = metadata.store;
 
 metadata.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */) {
-  var targetKey = arguments.length < 3 ? undefined : toMetaKey(arguments[2])
-    , metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);
+  var targetKey = arguments.length < 3 ? undefined : toMetaKey(arguments[2]);
+  var metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);
   if (metadataMap === undefined || !metadataMap['delete'](metadataKey)) return false;
   if (metadataMap.size) return true;
   var targetMetadata = store.get(target);

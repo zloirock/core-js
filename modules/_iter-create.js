@@ -1,8 +1,8 @@
 'use strict';
-var create = require('./_object-create')
-  , descriptor = require('./_property-desc')
-  , setToStringTag = require('./_set-to-string-tag')
-  , IteratorPrototype = {};
+var create = require('./_object-create');
+var descriptor = require('./_property-desc');
+var setToStringTag = require('./_set-to-string-tag');
+var IteratorPrototype = {};
 
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
 require('./_hide')(IteratorPrototype, require('./_wks')('iterator'), function () { return this; });

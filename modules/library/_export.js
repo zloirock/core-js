@@ -1,20 +1,20 @@
-var global = require('./_global')
-  , core = require('./_core')
-  , ctx = require('./_ctx')
-  , hide = require('./_hide')
-  , PROTOTYPE = 'prototype';
+var global = require('./_global');
+var core = require('./_core');
+var ctx = require('./_ctx');
+var hide = require('./_hide');
+var PROTOTYPE = 'prototype';
 
 var $export = function (type, name, source) {
-  var IS_FORCED = type & $export.F
-    , IS_GLOBAL = type & $export.G
-    , IS_STATIC = type & $export.S
-    , IS_PROTO = type & $export.P
-    , IS_BIND = type & $export.B
-    , IS_WRAP = type & $export.W
-    , exports = IS_GLOBAL ? core : core[name] || (core[name] = {})
-    , expProto = exports[PROTOTYPE]
-    , target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE]
-    , key, own, out;
+  var IS_FORCED = type & $export.F;
+  var IS_GLOBAL = type & $export.G;
+  var IS_STATIC = type & $export.S;
+  var IS_PROTO = type & $export.P;
+  var IS_BIND = type & $export.B;
+  var IS_WRAP = type & $export.W;
+  var exports = IS_GLOBAL ? core : core[name] || (core[name] = {});
+  var expProto = exports[PROTOTYPE];
+  var target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE];
+  var key, own, out;
   if (IS_GLOBAL)source = name;
   for (key in source) {
     // contains in native

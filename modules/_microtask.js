@@ -1,9 +1,9 @@
-var global = require('./_global')
-  , macrotask = require('./_task').set
-  , Observer = global.MutationObserver || global.WebKitMutationObserver
-  , process = global.process
-  , Promise = global.Promise
-  , isNode = require('./_cof')(process) == 'process';
+var global = require('./_global');
+var macrotask = require('./_task').set;
+var Observer = global.MutationObserver || global.WebKitMutationObserver;
+var process = global.process;
+var Promise = global.Promise;
+var isNode = require('./_cof')(process) == 'process';
 
 module.exports = function () {
   var head, last, notify;
@@ -32,8 +32,8 @@ module.exports = function () {
     };
   // browsers with MutationObserver
   } else if (Observer) {
-    var toggle = true
-      , node = document.createTextNode('');
+    var toggle = true;
+    var node = document.createTextNode('');
     new Observer(flush).observe(node, { characterData: true }); // eslint-disable-line no-new
     notify = function () {
       node.data = toggle = !toggle;

@@ -1,6 +1,6 @@
 // 20.2.2.7 Math.atanh(x)
-var $export = require('./_export')
-  , $atanh = Math.atanh;
+var $export = require('./_export');
+var $atanh = Math.atanh;
 
 // Tor Browser bug: Math.atanh(-0) -> 0
 $export($export.S + $export.F * !($atanh && 1 / $atanh(-0) < 0), 'Math', {

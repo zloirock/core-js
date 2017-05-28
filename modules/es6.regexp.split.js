@@ -1,12 +1,12 @@
 // @@split logic
 require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
   'use strict';
-  var isRegExp = require('./_is-regexp')
-    , _split = $split
-    , $push = [].push
-    , $SPLIT = 'split'
-    , LENGTH = 'length'
-    , LAST_INDEX = 'lastIndex';
+  var isRegExp = require('./_is-regexp');
+  var _split = $split;
+  var $push = [].push;
+  var $SPLIT = 'split';
+  var LENGTH = 'length';
+  var LAST_INDEX = 'lastIndex';
   if (
     'abbc'[$SPLIT](/(b)*/)[1] == 'c' ||
     'test'[$SPLIT](/(?:)/, -1)[LENGTH] != 4 ||
@@ -64,8 +64,8 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
   }
   // 21.1.3.17 String.prototype.split(separator, limit)
   return [function split(separator, limit) {
-    var O = defined(this)
-      , fn = separator == undefined ? undefined : separator[SPLIT];
+    var O = defined(this);
+    var fn = separator == undefined ? undefined : separator[SPLIT];
     return fn !== undefined ? fn.call(separator, O, limit) : $split.call(String(O), separator, limit);
   }, $split];
 });

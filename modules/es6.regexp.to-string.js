@@ -1,10 +1,10 @@
 'use strict';
 require('./es6.regexp.flags');
-var anObject = require('./_an-object')
-  , $flags = require('./_flags')
-  , DESCRIPTORS = require('./_descriptors')
-  , TO_STRING = 'toString'
-  , $toString = /./[TO_STRING];
+var anObject = require('./_an-object');
+var $flags = require('./_flags');
+var DESCRIPTORS = require('./_descriptors');
+var TO_STRING = 'toString';
+var $toString = /./[TO_STRING];
 
 var define = function (fn) {
   require('./_redefine')(RegExp.prototype, TO_STRING, fn, true);

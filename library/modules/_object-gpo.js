@@ -1,8 +1,8 @@
 // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
-var has = require('./_has')
-  , toObject = require('./_to-object')
-  , IE_PROTO = require('./_shared-key')('IE_PROTO')
-  , ObjectProto = Object.prototype;
+var has = require('./_has');
+var toObject = require('./_to-object');
+var IE_PROTO = require('./_shared-key')('IE_PROTO');
+var ObjectProto = Object.prototype;
 
 module.exports = Object.getPrototypeOf || function (O) {
   O = toObject(O);

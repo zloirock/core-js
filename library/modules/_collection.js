@@ -1,24 +1,24 @@
 'use strict';
-var global = require('./_global')
-  , $export = require('./_export')
-  , meta = require('./_meta')
-  , fails = require('./_fails')
-  , hide = require('./_hide')
-  , redefineAll = require('./_redefine-all')
-  , forOf = require('./_for-of')
-  , anInstance = require('./_an-instance')
-  , isObject = require('./_is-object')
-  , setToStringTag = require('./_set-to-string-tag')
-  , dP = require('./_object-dp').f
-  , each = require('./_array-methods')(0)
-  , DESCRIPTORS = require('./_descriptors');
+var global = require('./_global');
+var $export = require('./_export');
+var meta = require('./_meta');
+var fails = require('./_fails');
+var hide = require('./_hide');
+var redefineAll = require('./_redefine-all');
+var forOf = require('./_for-of');
+var anInstance = require('./_an-instance');
+var isObject = require('./_is-object');
+var setToStringTag = require('./_set-to-string-tag');
+var dP = require('./_object-dp').f;
+var each = require('./_array-methods')(0);
+var DESCRIPTORS = require('./_descriptors');
 
 module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
-  var Base = global[NAME]
-    , C = Base
-    , ADDER = IS_MAP ? 'set' : 'add'
-    , proto = C && C.prototype
-    , O = {};
+  var Base = global[NAME];
+  var C = Base;
+  var ADDER = IS_MAP ? 'set' : 'add';
+  var proto = C && C.prototype;
+  var O = {};
   if (!DESCRIPTORS || typeof C != 'function' || !(IS_WEAK || proto.forEach && !fails(function () {
     new C().entries().next();
   }))) {

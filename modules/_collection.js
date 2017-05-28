@@ -1,23 +1,23 @@
 'use strict';
-var global = require('./_global')
-  , $export = require('./_export')
-  , redefine = require('./_redefine')
-  , redefineAll = require('./_redefine-all')
-  , meta = require('./_meta')
-  , forOf = require('./_for-of')
-  , anInstance = require('./_an-instance')
-  , isObject = require('./_is-object')
-  , fails = require('./_fails')
-  , $iterDetect = require('./_iter-detect')
-  , setToStringTag = require('./_set-to-string-tag')
-  , inheritIfRequired = require('./_inherit-if-required');
+var global = require('./_global');
+var $export = require('./_export');
+var redefine = require('./_redefine');
+var redefineAll = require('./_redefine-all');
+var meta = require('./_meta');
+var forOf = require('./_for-of');
+var anInstance = require('./_an-instance');
+var isObject = require('./_is-object');
+var fails = require('./_fails');
+var $iterDetect = require('./_iter-detect');
+var setToStringTag = require('./_set-to-string-tag');
+var inheritIfRequired = require('./_inherit-if-required');
 
 module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
-  var Base = global[NAME]
-    , C = Base
-    , ADDER = IS_MAP ? 'set' : 'add'
-    , proto = C && C.prototype
-    , O = {};
+  var Base = global[NAME];
+  var C = Base;
+  var ADDER = IS_MAP ? 'set' : 'add';
+  var proto = C && C.prototype;
+  var O = {};
   var fixMethod = function (KEY) {
     var fn = proto[KEY];
     redefine(proto, KEY,
@@ -39,21 +39,21 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
     redefineAll(C.prototype, methods);
     meta.NEED = true;
   } else {
-    var instance = new C()
-      // early implementations not supports chaining
-      , HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance
-      // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
-      , THROWS_ON_PRIMITIVES = fails(function () { instance.has(1); })
-      // most early implementations doesn't supports iterables, most modern - not close it correctly
-      , ACCEPT_ITERABLES = $iterDetect(function (iter) { new C(iter); }) // eslint-disable-line no-new
-      // for early implementations -0 and +0 not the same
-      , BUGGY_ZERO = !IS_WEAK && fails(function () {
-        // V8 ~ Chromium 42- fails only with 5+ elements
-        var $instance = new C()
-          , index = 5;
-        while (index--)$instance[ADDER](index, index);
-        return !$instance.has(-0);
-      });
+    var instance = new C();
+    // early implementations not supports chaining
+    var HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance;
+    // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
+    var THROWS_ON_PRIMITIVES = fails(function () { instance.has(1); });
+    // most early implementations doesn't supports iterables, most modern - not close it correctly
+    var ACCEPT_ITERABLES = $iterDetect(function (iter) { new C(iter); }); // eslint-disable-line no-new
+    // for early implementations -0 and +0 not the same
+    var BUGGY_ZERO = !IS_WEAK && fails(function () {
+      // V8 ~ Chromium 42- fails only with 5+ elements
+      var $instance = new C();
+      var index = 5;
+      while (index--)$instance[ADDER](index, index);
+      return !$instance.has(-0);
+    });
     if (!ACCEPT_ITERABLES) {
       C = wrapper(function (target, iterable) {
         anInstance(target, C, NAME);

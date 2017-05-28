@@ -1,23 +1,23 @@
 'use strict';
-var LIBRARY = require('./_library')
-  , global = require('./_global')
-  , ctx = require('./_ctx')
-  , classof = require('./_classof')
-  , $export = require('./_export')
-  , isObject = require('./_is-object')
-  , aFunction = require('./_a-function')
-  , anInstance = require('./_an-instance')
-  , forOf = require('./_for-of')
-  , speciesConstructor = require('./_species-constructor')
-  , task = require('./_task').set
-  , microtask = require('./_microtask')()
-  , PROMISE = 'Promise'
-  , TypeError = global.TypeError
-  , process = global.process
-  , $Promise = global[PROMISE]
-  , isNode = classof(process) == 'process'
-  , empty = function () { /* empty */ }
-  , Internal, GenericPromiseCapability, Wrapper;
+var LIBRARY = require('./_library');
+var global = require('./_global');
+var ctx = require('./_ctx');
+var classof = require('./_classof');
+var $export = require('./_export');
+var isObject = require('./_is-object');
+var aFunction = require('./_a-function');
+var anInstance = require('./_an-instance');
+var forOf = require('./_for-of');
+var speciesConstructor = require('./_species-constructor');
+var task = require('./_task').set;
+var microtask = require('./_microtask')();
+var PROMISE = 'Promise';
+var TypeError = global.TypeError;
+var process = global.process;
+var $Promise = global[PROMISE];
+var isNode = classof(process) == 'process';
+var empty = function () { /* empty */ };
+var Internal, GenericPromiseCapability, Wrapper;
 
 var USE_NATIVE = !!function () {
   try {
@@ -67,15 +67,15 @@ var notify = function (promise, isReject) {
   promise._n = true;
   var chain = promise._c;
   microtask(function () {
-    var value = promise._v
-      , ok = promise._s == 1
-      , i = 0;
+    var value = promise._v;
+    var ok = promise._s == 1;
+    var i = 0;
     var run = function (reaction) {
-      var handler = ok ? reaction.ok : reaction.fail
-        , resolve = reaction.resolve
-        , reject = reaction.reject
-        , domain = reaction.domain
-        , result, then;
+      var handler = ok ? reaction.ok : reaction.fail;
+      var resolve = reaction.resolve;
+      var reject = reaction.reject;
+      var domain = reaction.domain;
+      var result, then;
       try {
         if (handler) {
           if (!ok) {
@@ -106,8 +106,8 @@ var notify = function (promise, isReject) {
 };
 var onUnhandled = function (promise) {
   task.call(global, function () {
-    var value = promise._v
-      , abrupt, handler, console;
+    var value = promise._v;
+    var abrupt, handler, console;
     if (isUnhandled(promise)) {
       abrupt = perform(function () {
         if (isNode) {
@@ -126,9 +126,9 @@ var onUnhandled = function (promise) {
 };
 var isUnhandled = function (promise) {
   if (promise._h == 1) return false;
-  var chain = promise._a || promise._c
-    , i = 0
-    , reaction;
+  var chain = promise._a || promise._c;
+  var i = 0;
+  var reaction;
   while (chain.length > i) {
     reaction = chain[i++];
     if (reaction.fail || !isUnhandled(reaction.promise)) return false;
@@ -155,8 +155,8 @@ var $reject = function (value) {
   notify(promise, true);
 };
 var $resolve = function (value) {
-  var promise = this
-    , then;
+  var promise = this;
+  var then;
   if (promise._d) return;
   promise._d = true;
   promise = promise._w || promise; // unwrap
@@ -238,8 +238,8 @@ Wrapper = require('./_core')[PROMISE];
 $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r) {
-    var capability = newPromiseCapability(this)
-      , $$reject = capability.reject;
+    var capability = newPromiseCapability(this);
+    var $$reject = capability.reject;
     $$reject(r);
     return capability.promise;
   }
@@ -249,8 +249,8 @@ $export($export.S + $export.F * (LIBRARY || !USE_NATIVE), PROMISE, {
   resolve: function resolve(x) {
     // instanceof instead of internal slot check because we should fix it without replacement native Promise core
     if (x instanceof $Promise && sameConstructor(x.constructor, this)) return x;
-    var capability = newPromiseCapability(this)
-      , $$resolve = capability.resolve;
+    var capability = newPromiseCapability(this);
+    var $$resolve = capability.resolve;
     $$resolve(x);
     return capability.promise;
   }
@@ -260,17 +260,17 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
 })), PROMISE, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable) {
-    var C = this
-      , capability = newPromiseCapability(C)
-      , resolve = capability.resolve
-      , reject = capability.reject;
+    var C = this;
+    var capability = newPromiseCapability(C);
+    var resolve = capability.resolve;
+    var reject = capability.reject;
     var abrupt = perform(function () {
-      var values = []
-        , index = 0
-        , remaining = 1;
+      var values = [];
+      var index = 0;
+      var remaining = 1;
       forOf(iterable, false, function (promise) {
-        var $index = index++
-          , alreadyCalled = false;
+        var $index = index++;
+        var alreadyCalled = false;
         values.push(undefined);
         remaining++;
         C.resolve(promise).then(function (value) {
@@ -287,9 +287,9 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
   },
   // 25.4.4.4 Promise.race(iterable)
   race: function race(iterable) {
-    var C = this
-      , capability = newPromiseCapability(C)
-      , reject = capability.reject;
+    var C = this;
+    var capability = newPromiseCapability(C);
+    var reject = capability.reject;
     var abrupt = perform(function () {
       forOf(iterable, false, function (promise) {
         C.resolve(promise).then(capability.resolve, reject);

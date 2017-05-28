@@ -1,5 +1,5 @@
-var path = require('./_path')
-  , $export = require('./_export');
+var path = require('./_path');
+var $export = require('./_export');
 
 // Placeholder
 require('./_core')._ = path._ = path._ || {};

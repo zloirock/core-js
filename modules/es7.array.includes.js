@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/Array.prototype.includes
-var $export = require('./_export')
-  , $includes = require('./_array-includes')(true);
+var $export = require('./_export');
+var $includes = require('./_array-includes')(true);
 
 $export($export.P, 'Array', {
   includes: function includes(el /* , fromIndex = 0 */) {

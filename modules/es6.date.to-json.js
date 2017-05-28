@@ -1,7 +1,7 @@
 'use strict';
-var $export = require('./_export')
-  , toObject = require('./_to-object')
-  , toPrimitive = require('./_to-primitive');
+var $export = require('./_export');
+var toObject = require('./_to-object');
+var toPrimitive = require('./_to-primitive');
 
 $export($export.P + $export.F * require('./_fails')(function () {
   return new Date(NaN).toJSON() !== null
@@ -9,8 +9,8 @@ $export($export.P + $export.F * require('./_fails')(function () {
 }), 'Date', {
   // eslint-disable-next-line no-unused-vars
   toJSON: function toJSON(key) {
-    var O = toObject(this)
-      , pv = toPrimitive(O);
+    var O = toObject(this);
+    var pv = toPrimitive(O);
     return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
   }
 });

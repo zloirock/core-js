@@ -1,17 +1,17 @@
-var ctx = require('./_ctx')
-  , invoke = require('./_invoke')
-  , html = require('./_html')
-  , cel = require('./_dom-create')
-  , global = require('./_global')
-  , process = global.process
-  , setTask = global.setImmediate
-  , clearTask = global.clearImmediate
-  , MessageChannel = global.MessageChannel
-  , Dispatch = global.Dispatch
-  , counter = 0
-  , queue = {}
-  , ONREADYSTATECHANGE = 'onreadystatechange'
-  , defer, channel, port;
+var ctx = require('./_ctx');
+var invoke = require('./_invoke');
+var html = require('./_html');
+var cel = require('./_dom-create');
+var global = require('./_global');
+var process = global.process;
+var setTask = global.setImmediate;
+var clearTask = global.clearImmediate;
+var MessageChannel = global.MessageChannel;
+var Dispatch = global.Dispatch;
+var counter = 0;
+var queue = {};
+var ONREADYSTATECHANGE = 'onreadystatechange';
+var defer, channel, port;
 var run = function () {
   var id = +this;
   // eslint-disable-next-line no-prototype-builtins
@@ -27,7 +27,8 @@ var listener = function (event) {
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
 if (!setTask || !clearTask) {
   setTask = function setImmediate(fn) {
-    var args = [], i = 1;
+    var args = [];
+    var i = 1;
     while (arguments.length > i)args.push(arguments[i++]);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func

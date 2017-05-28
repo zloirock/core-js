@@ -1,10 +1,10 @@
 'use strict';
-var $export = require('./_export')
-  , aFunction = require('./_a-function')
-  , toObject = require('./_to-object')
-  , fails = require('./_fails')
-  , $sort = [].sort
-  , test = [1, 2, 3];
+var $export = require('./_export');
+var aFunction = require('./_a-function');
+var toObject = require('./_to-object');
+var fails = require('./_fails');
+var $sort = [].sort;
+var test = [1, 2, 3];
 
 $export($export.P + $export.F * (fails(function () {
   // IE8-

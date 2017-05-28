@@ -1,14 +1,14 @@
 // 26.1.6 Reflect.get(target, propertyKey [, receiver])
-var gOPD = require('./_object-gopd')
-  , getPrototypeOf = require('./_object-gpo')
-  , has = require('./_has')
-  , $export = require('./_export')
-  , isObject = require('./_is-object')
-  , anObject = require('./_an-object');
+var gOPD = require('./_object-gopd');
+var getPrototypeOf = require('./_object-gpo');
+var has = require('./_has');
+var $export = require('./_export');
+var isObject = require('./_is-object');
+var anObject = require('./_an-object');
 
 function get(target, propertyKey /* , receiver */) {
-  var receiver = arguments.length < 3 ? target : arguments[2]
-    , desc, proto;
+  var receiver = arguments.length < 3 ? target : arguments[2];
+  var desc, proto;
   if (anObject(target) === receiver) return target[propertyKey];
   if (desc = gOPD.f(target, propertyKey)) return has(desc, 'value')
     ? desc.value

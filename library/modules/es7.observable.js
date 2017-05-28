@@ -1,17 +1,17 @@
 'use strict';
 // https://github.com/zenparsing/es-observable
-var $export = require('./_export')
-  , global = require('./_global')
-  , core = require('./_core')
-  , microtask = require('./_microtask')()
-  , OBSERVABLE = require('./_wks')('observable')
-  , aFunction = require('./_a-function')
-  , anObject = require('./_an-object')
-  , anInstance = require('./_an-instance')
-  , redefineAll = require('./_redefine-all')
-  , hide = require('./_hide')
-  , forOf = require('./_for-of')
-  , RETURN = forOf.RETURN;
+var $export = require('./_export');
+var global = require('./_global');
+var core = require('./_core');
+var microtask = require('./_microtask')();
+var OBSERVABLE = require('./_wks')('observable');
+var aFunction = require('./_a-function');
+var anObject = require('./_an-object');
+var anInstance = require('./_an-instance');
+var redefineAll = require('./_redefine-all');
+var hide = require('./_hide');
+var forOf = require('./_for-of');
+var RETURN = forOf.RETURN;
 
 var getMethod = function (fn) {
   return fn == null ? undefined : aFunction(fn);
@@ -42,8 +42,8 @@ var Subscription = function (observer, subscriber) {
   this._o = observer;
   observer = new SubscriptionObserver(this);
   try {
-    var cleanup = subscriber(observer)
-      , subscription = cleanup;
+    var cleanup = subscriber(observer);
+    var subscription = cleanup;
     if (cleanup != null) {
       if (typeof cleanup.unsubscribe === 'function')cleanup = function () { subscription.unsubscribe(); };
       else aFunction(cleanup);

@@ -1,22 +1,22 @@
 'use strict';
-var ctx = require('./_ctx')
-  , $export = require('./_export')
-  , createDesc = require('./_property-desc')
-  , assign = require('./_object-assign')
-  , create = require('./_object-create')
-  , getPrototypeOf = require('./_object-gpo')
-  , getKeys = require('./_object-keys')
-  , dP = require('./_object-dp')
-  , keyOf = require('./_keyof')
-  , aFunction = require('./_a-function')
-  , forOf = require('./_for-of')
-  , isIterable = require('./core.is-iterable')
-  , $iterCreate = require('./_iter-create')
-  , step = require('./_iter-step')
-  , isObject = require('./_is-object')
-  , toIObject = require('./_to-iobject')
-  , DESCRIPTORS = require('./_descriptors')
-  , has = require('./_has');
+var ctx = require('./_ctx');
+var $export = require('./_export');
+var createDesc = require('./_property-desc');
+var assign = require('./_object-assign');
+var create = require('./_object-create');
+var getPrototypeOf = require('./_object-gpo');
+var getKeys = require('./_object-keys');
+var dP = require('./_object-dp');
+var keyOf = require('./_keyof');
+var aFunction = require('./_a-function');
+var forOf = require('./_for-of');
+var isIterable = require('./core.is-iterable');
+var $iterCreate = require('./_iter-create');
+var step = require('./_iter-step');
+var isObject = require('./_is-object');
+var toIObject = require('./_to-iobject');
+var DESCRIPTORS = require('./_descriptors');
+var has = require('./_has');
 
 // 0 -> Dict.forEach
 // 1 -> Dict.map
@@ -27,14 +27,14 @@ var ctx = require('./_ctx')
 // 6 -> Dict.findKey
 // 7 -> Dict.mapPairs
 var createDictMethod = function (TYPE) {
-  var IS_MAP = TYPE == 1
-    , IS_EVERY = TYPE == 4;
+  var IS_MAP = TYPE == 1;
+  var IS_EVERY = TYPE == 4;
   return function (object, callbackfn, that /* = undefined */) {
-    var f = ctx(callbackfn, that, 3)
-      , O = toIObject(object)
-      , result = IS_MAP || TYPE == 7 || TYPE == 2
-          ? new (typeof this == 'function' ? this : Dict)() : undefined
-      , key, val, res;
+    var f = ctx(callbackfn, that, 3);
+    var O = toIObject(object);
+    var result = IS_MAP || TYPE == 7 || TYPE == 2
+          ? new (typeof this == 'function' ? this : Dict)() : undefined;
+    var key, val, res;
     for (key in O) if (has(O, key)) {
       val = O[key];
       res = f(val, key, object);
@@ -66,11 +66,11 @@ var DictIterator = function (iterated, kind) {
   this._k = kind;                // kind
 };
 $iterCreate(DictIterator, 'Dict', function () {
-  var that = this
-    , O = that._t
-    , keys = that._a
-    , kind = that._k
-    , key;
+  var that = this;
+  var O = that._t;
+  var keys = that._a;
+  var kind = that._k;
+  var key;
   do {
     if (that._i >= keys.length) {
       that._t = undefined;
@@ -97,11 +97,11 @@ Dict.prototype = null;
 
 function reduce(object, mapfn, init) {
   aFunction(mapfn);
-  var O = toIObject(object)
-    , keys = getKeys(O)
-    , length = keys.length
-    , i = 0
-    , memo, key;
+  var O = toIObject(object);
+  var keys = getKeys(O);
+  var length = keys.length;
+  var i = 0;
+  var memo, key;
   if (arguments.length < 3) {
     if (!length) throw TypeError('Reduce of empty object with no initial value');
     memo = O[keys[i++]];

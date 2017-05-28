@@ -1,17 +1,17 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-var dP = require('./_object-dp')
-  , gOPD = require('./_object-gopd')
-  , getPrototypeOf = require('./_object-gpo')
-  , has = require('./_has')
-  , $export = require('./_export')
-  , createDesc = require('./_property-desc')
-  , anObject = require('./_an-object')
-  , isObject = require('./_is-object');
+var dP = require('./_object-dp');
+var gOPD = require('./_object-gopd');
+var getPrototypeOf = require('./_object-gpo');
+var has = require('./_has');
+var $export = require('./_export');
+var createDesc = require('./_property-desc');
+var anObject = require('./_an-object');
+var isObject = require('./_is-object');
 
 function set(target, propertyKey, V /* , receiver */) {
-  var receiver = arguments.length < 4 ? target : arguments[3]
-    , ownDesc = gOPD.f(anObject(target), propertyKey)
-    , existingDescriptor, proto;
+  var receiver = arguments.length < 4 ? target : arguments[3];
+  var ownDesc = gOPD.f(anObject(target), propertyKey);
+  var existingDescriptor, proto;
   if (!ownDesc) {
     if (isObject(proto = getPrototypeOf(target))) {
       return set(proto, propertyKey, V, receiver);

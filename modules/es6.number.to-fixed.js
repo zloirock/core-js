@@ -1,17 +1,17 @@
 'use strict';
-var $export = require('./_export')
-  , toInteger = require('./_to-integer')
-  , aNumberValue = require('./_a-number-value')
-  , repeat = require('./_string-repeat')
-  , $toFixed = 1.0.toFixed
-  , floor = Math.floor
-  , data = [0, 0, 0, 0, 0, 0]
-  , ERROR = 'Number.toFixed: incorrect invocation!'
-  , ZERO = '0';
+var $export = require('./_export');
+var toInteger = require('./_to-integer');
+var aNumberValue = require('./_a-number-value');
+var repeat = require('./_string-repeat');
+var $toFixed = 1.0.toFixed;
+var floor = Math.floor;
+var data = [0, 0, 0, 0, 0, 0];
+var ERROR = 'Number.toFixed: incorrect invocation!';
+var ZERO = '0';
 
 var multiply = function (n, c) {
-  var i = -1
-    , c2 = c;
+  var i = -1;
+  var c2 = c;
   while (++i < 6) {
     c2 += n * data[i];
     data[i] = c2 % 1e7;
@@ -19,8 +19,8 @@ var multiply = function (n, c) {
   }
 };
 var divide = function (n) {
-  var i = 6
-    , c = 0;
+  var i = 6;
+  var c = 0;
   while (--i >= 0) {
     c += data[i];
     data[i] = floor(c / n);
@@ -28,8 +28,8 @@ var divide = function (n) {
   }
 };
 var numToString = function () {
-  var i = 6
-    , s = '';
+  var i = 6;
+  var s = '';
   while (--i >= 0) {
     if (s !== '' || i === 0 || data[i] !== 0) {
       var t = String(data[i]);
@@ -41,8 +41,8 @@ var pow = function (x, n, acc) {
   return n === 0 ? acc : n % 2 === 1 ? pow(x, n - 1, acc * x) : pow(x * x, n / 2, acc);
 };
 var log = function (x) {
-  var n = 0
-    , x2 = x;
+  var n = 0;
+  var x2 = x;
   while (x2 >= 4096) {
     n += 12;
     x2 /= 4096;
@@ -63,11 +63,11 @@ $export($export.P + $export.F * (!!$toFixed && (
   $toFixed.call({});
 })), 'Number', {
   toFixed: function toFixed(fractionDigits) {
-    var x = aNumberValue(this, ERROR)
-      , f = toInteger(fractionDigits)
-      , s = ''
-      , m = ZERO
-      , e, z, j, k;
+    var x = aNumberValue(this, ERROR);
+    var f = toInteger(fractionDigits);
+    var s = '';
+    var m = ZERO;
+    var e, z, j, k;
     if (f < 0 || f > 20) throw RangeError(ERROR);
     // eslint-disable-next-line no-self-compare
     if (x != x) return 'NaN';

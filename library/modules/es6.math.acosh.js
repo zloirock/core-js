@@ -1,8 +1,8 @@
 // 20.2.2.3 Math.acosh(x)
-var $export = require('./_export')
-  , log1p = require('./_math-log1p')
-  , sqrt = Math.sqrt
-  , $acosh = Math.acosh;
+var $export = require('./_export');
+var log1p = require('./_math-log1p');
+var sqrt = Math.sqrt;
+var $acosh = Math.acosh;
 
 $export($export.S + $export.F * !($acosh
   // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509

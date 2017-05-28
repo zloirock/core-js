@@ -1,16 +1,16 @@
-var ctx = require('./_ctx')
-  , call = require('./_iter-call')
-  , isArrayIter = require('./_is-array-iter')
-  , anObject = require('./_an-object')
-  , toLength = require('./_to-length')
-  , getIterFn = require('./core.get-iterator-method')
-  , BREAK = {}
-  , RETURN = {};
+var ctx = require('./_ctx');
+var call = require('./_iter-call');
+var isArrayIter = require('./_is-array-iter');
+var anObject = require('./_an-object');
+var toLength = require('./_to-length');
+var getIterFn = require('./core.get-iterator-method');
+var BREAK = {};
+var RETURN = {};
 var exports = module.exports = function (iterable, entries, fn, that, ITERATOR) {
-  var iterFn = ITERATOR ? function () { return iterable; } : getIterFn(iterable)
-    , f = ctx(fn, that, entries ? 2 : 1)
-    , index = 0
-    , length, step, iterator, result;
+  var iterFn = ITERATOR ? function () { return iterable; } : getIterFn(iterable);
+  var f = ctx(fn, that, entries ? 2 : 1);
+  var index = 0;
+  var length, step, iterator, result;
   if (typeof iterFn != 'function') throw TypeError(iterable + ' is not iterable!');
   // fast case for arrays with default iterator
   if (isArrayIter(iterFn)) for (length = toLength(iterable.length); length > index; index++) {

@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-string-pad-start-end
-var $export = require('./_export')
-  , $pad = require('./_string-pad');
+var $export = require('./_export');
+var $pad = require('./_string-pad');
 
 $export($export.P, 'String', {
   padEnd: function padEnd(maxLength /* , fillString = ' ' */) {

@@ -1,82 +1,82 @@
 'use strict';
 if (require('./_descriptors')) {
-  var LIBRARY = require('./_library')
-    , global = require('./_global')
-    , fails = require('./_fails')
-    , $export = require('./_export')
-    , $typed = require('./_typed')
-    , $buffer = require('./_typed-buffer')
-    , ctx = require('./_ctx')
-    , anInstance = require('./_an-instance')
-    , propertyDesc = require('./_property-desc')
-    , hide = require('./_hide')
-    , redefineAll = require('./_redefine-all')
-    , toInteger = require('./_to-integer')
-    , toLength = require('./_to-length')
-    , toIndex = require('./_to-index')
-    , toPrimitive = require('./_to-primitive')
-    , has = require('./_has')
-    , same = require('./_same-value')
-    , classof = require('./_classof')
-    , isObject = require('./_is-object')
-    , toObject = require('./_to-object')
-    , isArrayIter = require('./_is-array-iter')
-    , create = require('./_object-create')
-    , getPrototypeOf = require('./_object-gpo')
-    , gOPN = require('./_object-gopn').f
-    , getIterFn = require('./core.get-iterator-method')
-    , uid = require('./_uid')
-    , wks = require('./_wks')
-    , createArrayMethod = require('./_array-methods')
-    , createArrayIncludes = require('./_array-includes')
-    , speciesConstructor = require('./_species-constructor')
-    , ArrayIterators = require('./es6.array.iterator')
-    , Iterators = require('./_iterators')
-    , $iterDetect = require('./_iter-detect')
-    , setSpecies = require('./_set-species')
-    , arrayFill = require('./_array-fill')
-    , arrayCopyWithin = require('./_array-copy-within')
-    , $DP = require('./_object-dp')
-    , $GOPD = require('./_object-gopd')
-    , dP = $DP.f
-    , gOPD = $GOPD.f
-    , RangeError = global.RangeError
-    , TypeError = global.TypeError
-    , Uint8Array = global.Uint8Array
-    , ARRAY_BUFFER = 'ArrayBuffer'
-    , SHARED_BUFFER = 'Shared' + ARRAY_BUFFER
-    , BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT'
-    , PROTOTYPE = 'prototype'
-    , ArrayProto = Array[PROTOTYPE]
-    , $ArrayBuffer = $buffer.ArrayBuffer
-    , $DataView = $buffer.DataView
-    , arrayForEach = createArrayMethod(0)
-    , arrayFilter = createArrayMethod(2)
-    , arraySome = createArrayMethod(3)
-    , arrayEvery = createArrayMethod(4)
-    , arrayFind = createArrayMethod(5)
-    , arrayFindIndex = createArrayMethod(6)
-    , arrayIncludes = createArrayIncludes(true)
-    , arrayIndexOf = createArrayIncludes(false)
-    , arrayValues = ArrayIterators.values
-    , arrayKeys = ArrayIterators.keys
-    , arrayEntries = ArrayIterators.entries
-    , arrayLastIndexOf = ArrayProto.lastIndexOf
-    , arrayReduce = ArrayProto.reduce
-    , arrayReduceRight = ArrayProto.reduceRight
-    , arrayJoin = ArrayProto.join
-    , arraySort = ArrayProto.sort
-    , arraySlice = ArrayProto.slice
-    , arrayToString = ArrayProto.toString
-    , arrayToLocaleString = ArrayProto.toLocaleString
-    , ITERATOR = wks('iterator')
-    , TAG = wks('toStringTag')
-    , TYPED_CONSTRUCTOR = uid('typed_constructor')
-    , DEF_CONSTRUCTOR = uid('def_constructor')
-    , ALL_CONSTRUCTORS = $typed.CONSTR
-    , TYPED_ARRAY = $typed.TYPED
-    , VIEW = $typed.VIEW
-    , WRONG_LENGTH = 'Wrong length!';
+  var LIBRARY = require('./_library');
+  var global = require('./_global');
+  var fails = require('./_fails');
+  var $export = require('./_export');
+  var $typed = require('./_typed');
+  var $buffer = require('./_typed-buffer');
+  var ctx = require('./_ctx');
+  var anInstance = require('./_an-instance');
+  var propertyDesc = require('./_property-desc');
+  var hide = require('./_hide');
+  var redefineAll = require('./_redefine-all');
+  var toInteger = require('./_to-integer');
+  var toLength = require('./_to-length');
+  var toIndex = require('./_to-index');
+  var toPrimitive = require('./_to-primitive');
+  var has = require('./_has');
+  var same = require('./_same-value');
+  var classof = require('./_classof');
+  var isObject = require('./_is-object');
+  var toObject = require('./_to-object');
+  var isArrayIter = require('./_is-array-iter');
+  var create = require('./_object-create');
+  var getPrototypeOf = require('./_object-gpo');
+  var gOPN = require('./_object-gopn').f;
+  var getIterFn = require('./core.get-iterator-method');
+  var uid = require('./_uid');
+  var wks = require('./_wks');
+  var createArrayMethod = require('./_array-methods');
+  var createArrayIncludes = require('./_array-includes');
+  var speciesConstructor = require('./_species-constructor');
+  var ArrayIterators = require('./es6.array.iterator');
+  var Iterators = require('./_iterators');
+  var $iterDetect = require('./_iter-detect');
+  var setSpecies = require('./_set-species');
+  var arrayFill = require('./_array-fill');
+  var arrayCopyWithin = require('./_array-copy-within');
+  var $DP = require('./_object-dp');
+  var $GOPD = require('./_object-gopd');
+  var dP = $DP.f;
+  var gOPD = $GOPD.f;
+  var RangeError = global.RangeError;
+  var TypeError = global.TypeError;
+  var Uint8Array = global.Uint8Array;
+  var ARRAY_BUFFER = 'ArrayBuffer';
+  var SHARED_BUFFER = 'Shared' + ARRAY_BUFFER;
+  var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
+  var PROTOTYPE = 'prototype';
+  var ArrayProto = Array[PROTOTYPE];
+  var $ArrayBuffer = $buffer.ArrayBuffer;
+  var $DataView = $buffer.DataView;
+  var arrayForEach = createArrayMethod(0);
+  var arrayFilter = createArrayMethod(2);
+  var arraySome = createArrayMethod(3);
+  var arrayEvery = createArrayMethod(4);
+  var arrayFind = createArrayMethod(5);
+  var arrayFindIndex = createArrayMethod(6);
+  var arrayIncludes = createArrayIncludes(true);
+  var arrayIndexOf = createArrayIncludes(false);
+  var arrayValues = ArrayIterators.values;
+  var arrayKeys = ArrayIterators.keys;
+  var arrayEntries = ArrayIterators.entries;
+  var arrayLastIndexOf = ArrayProto.lastIndexOf;
+  var arrayReduce = ArrayProto.reduce;
+  var arrayReduceRight = ArrayProto.reduceRight;
+  var arrayJoin = ArrayProto.join;
+  var arraySort = ArrayProto.sort;
+  var arraySlice = ArrayProto.slice;
+  var arrayToString = ArrayProto.toString;
+  var arrayToLocaleString = ArrayProto.toLocaleString;
+  var ITERATOR = wks('iterator');
+  var TAG = wks('toStringTag');
+  var TYPED_CONSTRUCTOR = uid('typed_constructor');
+  var DEF_CONSTRUCTOR = uid('def_constructor');
+  var ALL_CONSTRUCTORS = $typed.CONSTR;
+  var TYPED_ARRAY = $typed.TYPED;
+  var VIEW = $typed.VIEW;
+  var WRONG_LENGTH = 'Wrong length!';
 
   var $map = createArrayMethod(1, function (O, length) {
     return allocate(speciesConstructor(O, O[DEF_CONSTRUCTOR]), length);
@@ -93,8 +93,8 @@ if (require('./_descriptors')) {
 
   var strictToLength = function (it, SAME) {
     if (it === undefined) throw TypeError(WRONG_LENGTH);
-    var number = +it
-      , length = toLength(it);
+    var number = +it;
+    var length = toLength(it);
     if (SAME && !same(number, length)) throw RangeError(WRONG_LENGTH);
     return length;
   };
@@ -121,9 +121,9 @@ if (require('./_descriptors')) {
   };
 
   var fromList = function (C, list) {
-    var index = 0
-      , length = list.length
-      , result = allocate(C, length);
+    var index = 0;
+    var length = list.length;
+    var result = allocate(C, length);
     while (length > index)result[index] = list[index++];
     return result;
   };
@@ -133,12 +133,12 @@ if (require('./_descriptors')) {
   };
 
   var $from = function from(source /* , mapfn, thisArg */) {
-    var O = toObject(source)
-      , aLen = arguments.length
-      , mapfn = aLen > 1 ? arguments[1] : undefined
-      , mapping = mapfn !== undefined
-      , iterFn = getIterFn(O)
-      , i, length, values, result, step, iterator;
+    var O = toObject(source);
+    var aLen = arguments.length;
+    var mapfn = aLen > 1 ? arguments[1] : undefined;
+    var mapping = mapfn !== undefined;
+    var iterFn = getIterFn(O);
+    var i, length, values, result, step, iterator;
     if (iterFn != undefined && !isArrayIter(iterFn)) {
       for (iterator = iterFn.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
         values.push(step.value);
@@ -152,9 +152,9 @@ if (require('./_descriptors')) {
   };
 
   var $of = function of(/* ...items */) {
-    var index = 0
-      , length = arguments.length
-      , result = allocate(this, length);
+    var index = 0;
+    var length = arguments.length;
+    var result = allocate(this, length);
     while (length > index)result[index] = arguments[index++];
     return result;
   };
@@ -211,11 +211,11 @@ if (require('./_descriptors')) {
       return arrayReduceRight.apply(validate(this), arguments);
     },
     reverse: function reverse() {
-      var that = this
-        , length = validate(that).length
-        , middle = Math.floor(length / 2)
-        , index = 0
-        , value;
+      var that = this;
+      var length = validate(that).length;
+      var middle = Math.floor(length / 2);
+      var index = 0;
+      var value;
       while (index < middle) {
         value = that[index];
         that[index++] = that[--length];
@@ -229,9 +229,9 @@ if (require('./_descriptors')) {
       return arraySort.call(validate(this), comparefn);
     },
     subarray: function subarray(begin, end) {
-      var O = validate(this)
-        , length = O.length
-        , $begin = toIndex(begin, length);
+      var O = validate(this);
+      var length = O.length;
+      var $begin = toIndex(begin, length);
       return new (speciesConstructor(O, O[DEF_CONSTRUCTOR]))(
         O.buffer,
         O.byteOffset + $begin * O.BYTES_PER_ELEMENT,
@@ -246,11 +246,11 @@ if (require('./_descriptors')) {
 
   var $set = function set(arrayLike /* , offset */) {
     validate(this);
-    var offset = toOffset(arguments[1], 1)
-      , length = this.length
-      , src = toObject(arrayLike)
-      , len = toLength(src.length)
-      , index = 0;
+    var offset = toOffset(arguments[1], 1);
+    var length = this.length;
+    var src = toObject(arrayLike);
+    var len = toLength(src.length);
+    var index = 0;
     if (len + offset > length) throw RangeError(WRONG_LENGTH);
     while (index < len) this[offset + index] = src[index++];
   };
@@ -329,18 +329,19 @@ if (require('./_descriptors')) {
     get: function () { return this[TYPED_ARRAY]; }
   });
 
+  // eslint-disable-next-line max-statements
   module.exports = function (KEY, BYTES, wrapper, CLAMPED) {
     CLAMPED = !!CLAMPED;
-    var NAME = KEY + (CLAMPED ? 'Clamped' : '') + 'Array'
-      , ISNT_UINT8 = NAME != 'Uint8Array'
-      , GETTER = 'get' + KEY
-      , SETTER = 'set' + KEY
-      , TypedArray = global[NAME]
-      , Base = TypedArray || {}
-      , TAC = TypedArray && getPrototypeOf(TypedArray)
-      , FORCED = !TypedArray || !$typed.ABV
-      , O = {}
-      , TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
+    var NAME = KEY + (CLAMPED ? 'Clamped' : '') + 'Array';
+    var ISNT_UINT8 = NAME != 'Uint8Array';
+    var GETTER = 'get' + KEY;
+    var SETTER = 'set' + KEY;
+    var TypedArray = global[NAME];
+    var Base = TypedArray || {};
+    var TAC = TypedArray && getPrototypeOf(TypedArray);
+    var FORCED = !TypedArray || !$typed.ABV;
+    var O = {};
+    var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var getter = function (that, index) {
       var data = that._d;
       return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
@@ -364,9 +365,9 @@ if (require('./_descriptors')) {
     if (FORCED) {
       TypedArray = wrapper(function (that, data, $offset, $length) {
         anInstance(that, TypedArray, NAME, '_d');
-        var index = 0
-          , offset = 0
-          , buffer, byteLength, length, klass;
+        var index = 0;
+        var offset = 0;
+        var buffer, byteLength, length, klass;
         if (!isObject(data)) {
           length = strictToLength(data, true);
           byteLength = length * BYTES;
@@ -428,9 +429,10 @@ if (require('./_descriptors')) {
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
       if (!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
     }
-    var $nativeIterator = TypedArrayPrototype[ITERATOR]
-      , CORRECT_ITER_NAME = !!$nativeIterator && ($nativeIterator.name == 'values' || $nativeIterator.name == undefined)
-      , $iterator = $iterators.values;
+    var $nativeIterator = TypedArrayPrototype[ITERATOR];
+    var CORRECT_ITER_NAME = !!$nativeIterator
+      && ($nativeIterator.name == 'values' || $nativeIterator.name == undefined);
+    var $iterator = $iterators.values;
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
     hide(TypedArrayPrototype, VIEW, true);

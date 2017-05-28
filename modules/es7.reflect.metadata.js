@@ -1,8 +1,8 @@
-var $metadata = require('./_metadata')
-  , anObject = require('./_an-object')
-  , aFunction = require('./_a-function')
-  , toMetaKey = $metadata.key
-  , ordinaryDefineOwnMetadata = $metadata.set;
+var $metadata = require('./_metadata');
+var anObject = require('./_an-object');
+var aFunction = require('./_a-function');
+var toMetaKey = $metadata.key;
+var ordinaryDefineOwnMetadata = $metadata.set;
 
 $metadata.exp({ metadata: function metadata(metadataKey, metadataValue) {
   return function decorator(target, targetKey) {

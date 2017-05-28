@@ -1,8 +1,8 @@
 require('./es6.array.iterator');
-var global = require('./_global')
-  , hide = require('./_hide')
-  , Iterators = require('./_iterators')
-  , TO_STRING_TAG = require('./_wks')('toStringTag');
+var global = require('./_global');
+var hide = require('./_hide');
+var Iterators = require('./_iterators');
+var TO_STRING_TAG = require('./_wks')('toStringTag');
 
 var DOMIterables = ('CSSRuleList,CSSStyleDeclaration,CSSValueList,ClientRectList,DOMRectList,DOMStringList,' +
   'DOMTokenList,DataTransferItemList,FileList,HTMLAllCollection,HTMLCollection,HTMLFormElement,HTMLSelectElement,' +
@@ -11,9 +11,9 @@ var DOMIterables = ('CSSRuleList,CSSStyleDeclaration,CSSValueList,ClientRectList
   'TextTrackList,TouchList').split(',');
 
 for (var i = 0; i < DOMIterables.length; i++) {
-  var NAME = DOMIterables[i]
-    , Collection = global[NAME]
-    , proto = Collection && Collection.prototype;
+  var NAME = DOMIterables[i];
+  var Collection = global[NAME];
+  var proto = Collection && Collection.prototype;
   if (proto && !proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
   Iterators[NAME] = Iterators.Array;
 }

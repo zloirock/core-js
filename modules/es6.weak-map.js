@@ -1,16 +1,16 @@
 'use strict';
-var each = require('./_array-methods')(0)
-  , redefine = require('./_redefine')
-  , meta = require('./_meta')
-  , assign = require('./_object-assign')
-  , weak = require('./_collection-weak')
-  , isObject = require('./_is-object')
-  , fails = require('./_fails')
-  , getWeak = meta.getWeak
-  , isExtensible = Object.isExtensible
-  , uncaughtFrozenStore = weak.ufstore
-  , tmp = {}
-  , InternalMap;
+var each = require('./_array-methods')(0);
+var redefine = require('./_redefine');
+var meta = require('./_meta');
+var assign = require('./_object-assign');
+var weak = require('./_collection-weak');
+var isObject = require('./_is-object');
+var fails = require('./_fails');
+var getWeak = meta.getWeak;
+var isExtensible = Object.isExtensible;
+var uncaughtFrozenStore = weak.ufstore;
+var tmp = {};
+var InternalMap;
 
 var wrapper = function (get) {
   return function WeakMap() {
@@ -42,8 +42,8 @@ if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(tmp)
   assign(InternalMap.prototype, methods);
   meta.NEED = true;
   each(['delete', 'has', 'get', 'set'], function (key) {
-    var proto = $WeakMap.prototype
-      , method = proto[key];
+    var proto = $WeakMap.prototype;
+    var method = proto[key];
     redefine(proto, key, function (a, b) {
       // store frozen objects on internal weakmap shim
       if (isObject(a) && !isExtensible(a)) {

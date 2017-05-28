@@ -1,14 +1,14 @@
 // false -> Array#indexOf
 // true  -> Array#includes
-var toIObject = require('./_to-iobject')
-  , toLength = require('./_to-length')
-  , toIndex = require('./_to-index');
+var toIObject = require('./_to-iobject');
+var toLength = require('./_to-length');
+var toIndex = require('./_to-index');
 module.exports = function (IS_INCLUDES) {
   return function ($this, el, fromIndex) {
-    var O = toIObject($this)
-      , length = toLength(O.length)
-      , index = toIndex(fromIndex, length)
-      , value;
+    var O = toIObject($this);
+    var length = toLength(O.length);
+    var index = toIndex(fromIndex, length);
+    var value;
     // Array#includes uses SameValueZero equality algorithm
     // eslint-disable-next-line no-self-compare
     if (IS_INCLUDES && el != el) while (length > index) {

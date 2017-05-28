@@ -1,8 +1,8 @@
 'use strict';
-var addToUnscopables = require('./_add-to-unscopables')
-  , step = require('./_iter-step')
-  , Iterators = require('./_iterators')
-  , toIObject = require('./_to-iobject');
+var addToUnscopables = require('./_add-to-unscopables');
+var step = require('./_iter-step');
+var Iterators = require('./_iterators');
+var toIObject = require('./_to-iobject');
 
 // 22.1.3.4 Array.prototype.entries()
 // 22.1.3.13 Array.prototype.keys()
@@ -14,9 +14,9 @@ module.exports = require('./_iter-define')(Array, 'Array', function (iterated, k
   this._k = kind;                // kind
 // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
 }, function () {
-  var O = this._t
-    , kind = this._k
-    , index = this._i++;
+  var O = this._t;
+  var kind = this._k;
+  var index = this._i++;
   if (!O || index >= O.length) {
     this._t = undefined;
     return step(1);

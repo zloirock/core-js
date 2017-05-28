@@ -1,16 +1,16 @@
-var $export = require('./_export')
-  , toIndex = require('./_to-index')
-  , fromCharCode = String.fromCharCode
-  , $fromCodePoint = String.fromCodePoint;
+var $export = require('./_export');
+var toIndex = require('./_to-index');
+var fromCharCode = String.fromCharCode;
+var $fromCodePoint = String.fromCodePoint;
 
 // length should be 1, old FF problem
 $export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   fromCodePoint: function fromCodePoint(x) { // eslint-disable-line no-unused-vars
-    var res = []
-      , aLen = arguments.length
-      , i = 0
-      , code;
+    var res = [];
+    var aLen = arguments.length;
+    var i = 0;
+    var code;
     while (aLen > i) {
       code = +arguments[i++];
       if (toIndex(code, 0x10ffff) !== code) throw RangeError(code + ' is not a valid code point');

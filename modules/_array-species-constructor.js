@@ -1,6 +1,6 @@
-var isObject = require('./_is-object')
-  , isArray = require('./_is-array')
-  , SPECIES = require('./_wks')('species');
+var isObject = require('./_is-object');
+var isArray = require('./_is-array');
+var SPECIES = require('./_wks')('species');
 
 module.exports = function (original) {
   var C;

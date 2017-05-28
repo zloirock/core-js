@@ -1,9 +1,9 @@
 'use strict';
 // 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
-var $export = require('./_export')
-  , $find = require('./_array-methods')(5)
-  , KEY = 'find'
-  , forced = true;
+var $export = require('./_export');
+var $find = require('./_array-methods')(5);
+var KEY = 'find';
+var forced = true;
 // Shouldn't skip holes
 if (KEY in [])Array(1)[KEY](function () { forced = false; });
 $export($export.P + $export.F * forced, 'Array', {

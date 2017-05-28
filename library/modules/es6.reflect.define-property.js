@@ -1,8 +1,8 @@
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
-var dP = require('./_object-dp')
-  , $export = require('./_export')
-  , anObject = require('./_an-object')
-  , toPrimitive = require('./_to-primitive');
+var dP = require('./_object-dp');
+var $export = require('./_export');
+var anObject = require('./_an-object');
+var toPrimitive = require('./_to-primitive');
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 $export($export.S + $export.F * require('./_fails')(function () {

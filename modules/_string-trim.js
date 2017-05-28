@@ -1,11 +1,11 @@
-var $export = require('./_export')
-  , defined = require('./_defined')
-  , fails = require('./_fails')
-  , spaces = require('./_string-ws')
-  , space = '[' + spaces + ']'
-  , non = '\u200b\u0085'
-  , ltrim = RegExp('^' + space + space + '*')
-  , rtrim = RegExp(space + space + '*$');
+var $export = require('./_export');
+var defined = require('./_defined');
+var fails = require('./_fails');
+var spaces = require('./_string-ws');
+var space = '[' + spaces + ']';
+var non = '\u200b\u0085';
+var ltrim = RegExp('^' + space + space + '*');
+var rtrim = RegExp(space + space + '*$');
 
 var exporter = function (KEY, exec, ALIAS) {
   var exp = {};

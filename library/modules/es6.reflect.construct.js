@@ -1,12 +1,12 @@
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-var $export = require('./_export')
-  , create = require('./_object-create')
-  , aFunction = require('./_a-function')
-  , anObject = require('./_an-object')
-  , isObject = require('./_is-object')
-  , fails = require('./_fails')
-  , bind = require('./_bind')
-  , rConstruct = (require('./_global').Reflect || {}).construct;
+var $export = require('./_export');
+var create = require('./_object-create');
+var aFunction = require('./_a-function');
+var anObject = require('./_an-object');
+var isObject = require('./_is-object');
+var fails = require('./_fails');
+var bind = require('./_bind');
+var rConstruct = (require('./_global').Reflect || {}).construct;
 
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
@@ -39,9 +39,9 @@ $export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
       return new (bind.apply(Target, $args))();
     }
     // with altered newTarget, not support built-in constructors
-    var proto = newTarget.prototype
-      , instance = create(isObject(proto) ? proto : Object.prototype)
-      , result = Function.apply.call(Target, instance, args);
+    var proto = newTarget.prototype;
+    var instance = create(isObject(proto) ? proto : Object.prototype);
+    var result = Function.apply.call(Target, instance, args);
     return isObject(result) ? result : instance;
   }
 });

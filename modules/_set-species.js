@@ -1,8 +1,8 @@
 'use strict';
-var global = require('./_global')
-  , dP = require('./_object-dp')
-  , DESCRIPTORS = require('./_descriptors')
-  , SPECIES = require('./_wks')('species');
+var global = require('./_global');
+var dP = require('./_object-dp');
+var DESCRIPTORS = require('./_descriptors');
+var SPECIES = require('./_wks')('species');
 
 module.exports = function (KEY) {
   var C = global[KEY];

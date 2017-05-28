@@ -1,10 +1,10 @@
-var pIE = require('./_object-pie')
-  , createDesc = require('./_property-desc')
-  , toIObject = require('./_to-iobject')
-  , toPrimitive = require('./_to-primitive')
-  , has = require('./_has')
-  , IE8_DOM_DEFINE = require('./_ie8-dom-define')
-  , gOPD = Object.getOwnPropertyDescriptor;
+var pIE = require('./_object-pie');
+var createDesc = require('./_property-desc');
+var toIObject = require('./_to-iobject');
+var toPrimitive = require('./_to-primitive');
+var has = require('./_has');
+var IE8_DOM_DEFINE = require('./_ie8-dom-define');
+var gOPD = Object.getOwnPropertyDescriptor;
 
 exports.f = require('./_descriptors') ? gOPD : function getOwnPropertyDescriptor(O, P) {
   O = toIObject(O);

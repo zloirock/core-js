@@ -1,19 +1,19 @@
 'use strict';
-var $export = require('./_export')
-  , $typed = require('./_typed')
-  , buffer = require('./_typed-buffer')
-  , anObject = require('./_an-object')
-  , toIndex = require('./_to-index')
-  , toLength = require('./_to-length')
-  , isObject = require('./_is-object')
-  , ArrayBuffer = require('./_global').ArrayBuffer
-  , speciesConstructor = require('./_species-constructor')
-  , $ArrayBuffer = buffer.ArrayBuffer
-  , $DataView = buffer.DataView
-  , $isView = $typed.ABV && ArrayBuffer.isView
-  , $slice = $ArrayBuffer.prototype.slice
-  , VIEW = $typed.VIEW
-  , ARRAY_BUFFER = 'ArrayBuffer';
+var $export = require('./_export');
+var $typed = require('./_typed');
+var buffer = require('./_typed-buffer');
+var anObject = require('./_an-object');
+var toIndex = require('./_to-index');
+var toLength = require('./_to-length');
+var isObject = require('./_is-object');
+var ArrayBuffer = require('./_global').ArrayBuffer;
+var speciesConstructor = require('./_species-constructor');
+var $ArrayBuffer = buffer.ArrayBuffer;
+var $DataView = buffer.DataView;
+var $isView = $typed.ABV && ArrayBuffer.isView;
+var $slice = $ArrayBuffer.prototype.slice;
+var VIEW = $typed.VIEW;
+var ARRAY_BUFFER = 'ArrayBuffer';
 
 $export($export.G + $export.W + $export.F * (ArrayBuffer !== $ArrayBuffer), { ArrayBuffer: $ArrayBuffer });
 
@@ -30,13 +30,13 @@ $export($export.P + $export.U + $export.F * require('./_fails')(function () {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end) {
     if ($slice !== undefined && end === undefined) return $slice.call(anObject(this), start); // FF fix
-    var len = anObject(this).byteLength
-      , first = toIndex(start, len)
-      , final = toIndex(end === undefined ? len : end, len)
-      , result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first))
-      , viewS = new $DataView(this)
-      , viewT = new $DataView(result)
-      , index = 0;
+    var len = anObject(this).byteLength;
+    var first = toIndex(start, len);
+    var final = toIndex(end === undefined ? len : end, len);
+    var result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first));
+    var viewS = new $DataView(this);
+    var viewT = new $DataView(result);
+    var index = 0;
     while (first < final) {
       viewT.setUint8(index++, viewS.getUint8(first++));
     } return result;

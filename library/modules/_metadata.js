@@ -1,7 +1,7 @@
-var Map = require('./es6.map')
-  , $export = require('./_export')
-  , shared = require('./_shared')('metadata')
-  , store = shared.store || (shared.store = new (require('./es6.weak-map'))());
+var Map = require('./es6.map');
+var $export = require('./_export');
+var shared = require('./_shared')('metadata');
+var store = shared.store || (shared.store = new (require('./es6.weak-map'))());
 
 var getOrCreateMetadataMap = function (target, targetKey, create) {
   var targetMetadata = store.get(target);
@@ -27,8 +27,8 @@ var ordinaryDefineOwnMetadata = function (MetadataKey, MetadataValue, O, P) {
   getOrCreateMetadataMap(O, P, true).set(MetadataKey, MetadataValue);
 };
 var ordinaryOwnMetadataKeys = function (target, targetKey) {
-  var metadataMap = getOrCreateMetadataMap(target, targetKey, false)
-    , keys = [];
+  var metadataMap = getOrCreateMetadataMap(target, targetKey, false);
+  var keys = [];
   if (metadataMap)metadataMap.forEach(function (_, key) { keys.push(key); });
   return keys;
 };

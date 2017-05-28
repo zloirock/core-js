@@ -1,15 +1,15 @@
 'use strict';
-var redefineAll = require('./_redefine-all')
-  , getWeak = require('./_meta').getWeak
-  , anObject = require('./_an-object')
-  , isObject = require('./_is-object')
-  , anInstance = require('./_an-instance')
-  , forOf = require('./_for-of')
-  , createArrayMethod = require('./_array-methods')
-  , $has = require('./_has')
-  , arrayFind = createArrayMethod(5)
-  , arrayFindIndex = createArrayMethod(6)
-  , id = 0;
+var redefineAll = require('./_redefine-all');
+var getWeak = require('./_meta').getWeak;
+var anObject = require('./_an-object');
+var isObject = require('./_is-object');
+var anInstance = require('./_an-instance');
+var forOf = require('./_for-of');
+var createArrayMethod = require('./_array-methods');
+var $has = require('./_has');
+var arrayFind = createArrayMethod(5);
+var arrayFindIndex = createArrayMethod(6);
+var id = 0;
 
 // fallback for uncaught frozen keys
 var uncaughtFrozenStore = function (that) {

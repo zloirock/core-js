@@ -1,52 +1,52 @@
 'use strict';
-var global = require('./_global')
-  , DESCRIPTORS = require('./_descriptors')
-  , LIBRARY = require('./_library')
-  , $typed = require('./_typed')
-  , hide = require('./_hide')
-  , redefineAll = require('./_redefine-all')
-  , fails = require('./_fails')
-  , anInstance = require('./_an-instance')
-  , toInteger = require('./_to-integer')
-  , toLength = require('./_to-length')
-  , gOPN = require('./_object-gopn').f
-  , dP = require('./_object-dp').f
-  , arrayFill = require('./_array-fill')
-  , setToStringTag = require('./_set-to-string-tag')
-  , ARRAY_BUFFER = 'ArrayBuffer'
-  , DATA_VIEW = 'DataView'
-  , PROTOTYPE = 'prototype'
-  , WRONG_LENGTH = 'Wrong length!'
-  , WRONG_INDEX = 'Wrong index!'
-  , $ArrayBuffer = global[ARRAY_BUFFER]
-  , $DataView = global[DATA_VIEW]
-  , Math = global.Math
-  , RangeError = global.RangeError
-  // eslint-disable-next-line no-shadow-restricted-names
-  , Infinity = global.Infinity
-  , BaseBuffer = $ArrayBuffer
-  , abs = Math.abs
-  , pow = Math.pow
-  , floor = Math.floor
-  , log = Math.log
-  , LN2 = Math.LN2
-  , BUFFER = 'buffer'
-  , BYTE_LENGTH = 'byteLength'
-  , BYTE_OFFSET = 'byteOffset'
-  , $BUFFER = DESCRIPTORS ? '_b' : BUFFER
-  , $LENGTH = DESCRIPTORS ? '_l' : BYTE_LENGTH
-  , $OFFSET = DESCRIPTORS ? '_o' : BYTE_OFFSET;
+var global = require('./_global');
+var DESCRIPTORS = require('./_descriptors');
+var LIBRARY = require('./_library');
+var $typed = require('./_typed');
+var hide = require('./_hide');
+var redefineAll = require('./_redefine-all');
+var fails = require('./_fails');
+var anInstance = require('./_an-instance');
+var toInteger = require('./_to-integer');
+var toLength = require('./_to-length');
+var gOPN = require('./_object-gopn').f;
+var dP = require('./_object-dp').f;
+var arrayFill = require('./_array-fill');
+var setToStringTag = require('./_set-to-string-tag');
+var ARRAY_BUFFER = 'ArrayBuffer';
+var DATA_VIEW = 'DataView';
+var PROTOTYPE = 'prototype';
+var WRONG_LENGTH = 'Wrong length!';
+var WRONG_INDEX = 'Wrong index!';
+var $ArrayBuffer = global[ARRAY_BUFFER];
+var $DataView = global[DATA_VIEW];
+var Math = global.Math;
+var RangeError = global.RangeError;
+// eslint-disable-next-line no-shadow-restricted-names
+var Infinity = global.Infinity;
+var BaseBuffer = $ArrayBuffer;
+var abs = Math.abs;
+var pow = Math.pow;
+var floor = Math.floor;
+var log = Math.log;
+var LN2 = Math.LN2;
+var BUFFER = 'buffer';
+var BYTE_LENGTH = 'byteLength';
+var BYTE_OFFSET = 'byteOffset';
+var $BUFFER = DESCRIPTORS ? '_b' : BUFFER;
+var $LENGTH = DESCRIPTORS ? '_l' : BYTE_LENGTH;
+var $OFFSET = DESCRIPTORS ? '_o' : BYTE_OFFSET;
 
 // IEEE754 conversions based on https://github.com/feross/ieee754
-var packIEEE754 = function (value, mLen, nBytes) {
-  var buffer = Array(nBytes)
-    , eLen = nBytes * 8 - mLen - 1
-    , eMax = (1 << eLen) - 1
-    , eBias = eMax >> 1
-    , rt = mLen === 23 ? pow(2, -24) - pow(2, -77) : 0
-    , i = 0
-    , s = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0
-    , e, m, c;
+function packIEEE754(value, mLen, nBytes) {
+  var buffer = Array(nBytes);
+  var eLen = nBytes * 8 - mLen - 1;
+  var eMax = (1 << eLen) - 1;
+  var eBias = eMax >> 1;
+  var rt = mLen === 23 ? pow(2, -24) - pow(2, -77) : 0;
+  var i = 0;
+  var s = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0;
+  var e, m, c;
   value = abs(value);
   // eslint-disable-next-line no-self-compare
   if (value != value || value === Infinity) {
@@ -85,16 +85,16 @@ var packIEEE754 = function (value, mLen, nBytes) {
   for (; eLen > 0; buffer[i++] = e & 255, e /= 256, eLen -= 8);
   buffer[--i] |= s * 128;
   return buffer;
-};
-var unpackIEEE754 = function (buffer, mLen, nBytes) {
-  var eLen = nBytes * 8 - mLen - 1
-    , eMax = (1 << eLen) - 1
-    , eBias = eMax >> 1
-    , nBits = eLen - 7
-    , i = nBytes - 1
-    , s = buffer[i--]
-    , e = s & 127
-    , m;
+}
+function unpackIEEE754(buffer, mLen, nBytes) {
+  var eLen = nBytes * 8 - mLen - 1;
+  var eMax = (1 << eLen) - 1;
+  var eBias = eMax >> 1;
+  var nBits = eLen - 7;
+  var i = nBytes - 1;
+  var s = buffer[i--];
+  var e = s & 127;
+  var m;
   s >>= 7;
   for (; nBits > 0; e = e * 256 + buffer[i], i--, nBits -= 8);
   m = e & (1 << -nBits) - 1;
@@ -109,57 +109,57 @@ var unpackIEEE754 = function (buffer, mLen, nBytes) {
     m = m + pow(2, mLen);
     e = e - eBias;
   } return (s ? -1 : 1) * m * pow(2, e - mLen);
-};
+}
 
-var unpackI32 = function (bytes) {
+function unpackI32(bytes) {
   return bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0];
-};
-var packI8 = function (it) {
+}
+function packI8(it) {
   return [it & 0xff];
-};
-var packI16 = function (it) {
+}
+function packI16(it) {
   return [it & 0xff, it >> 8 & 0xff];
-};
-var packI32 = function (it) {
+}
+function packI32(it) {
   return [it & 0xff, it >> 8 & 0xff, it >> 16 & 0xff, it >> 24 & 0xff];
-};
-var packF64 = function (it) {
+}
+function packF64(it) {
   return packIEEE754(it, 52, 8);
-};
-var packF32 = function (it) {
+}
+function packF32(it) {
   return packIEEE754(it, 23, 4);
-};
+}
 
-var addGetter = function (C, key, internal) {
+function addGetter(C, key, internal) {
   dP(C[PROTOTYPE], key, { get: function () { return this[internal]; } });
-};
+}
 
-var get = function (view, bytes, index, isLittleEndian) {
-  var numIndex = +index
-    , intIndex = toInteger(numIndex);
+function get(view, bytes, index, isLittleEndian) {
+  var numIndex = +index;
+  var intIndex = toInteger(numIndex);
   if (numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
-  var store = view[$BUFFER]._b
-    , start = intIndex + view[$OFFSET]
-    , pack = store.slice(start, start + bytes);
+  var store = view[$BUFFER]._b;
+  var start = intIndex + view[$OFFSET];
+  var pack = store.slice(start, start + bytes);
   return isLittleEndian ? pack : pack.reverse();
-};
-var set = function (view, bytes, index, conversion, value, isLittleEndian) {
-  var numIndex = +index
-    , intIndex = toInteger(numIndex);
+}
+function set(view, bytes, index, conversion, value, isLittleEndian) {
+  var numIndex = +index;
+  var intIndex = toInteger(numIndex);
   if (numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
-  var store = view[$BUFFER]._b
-    , start = intIndex + view[$OFFSET]
-    , pack = conversion(+value);
+  var store = view[$BUFFER]._b;
+  var start = intIndex + view[$OFFSET];
+  var pack = conversion(+value);
   for (var i = 0; i < bytes; i++)store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
-};
+}
 
-var validateArrayBufferArguments = function (that, length) {
+function validateArrayBufferArguments(that, length) {
   anInstance(that, $ArrayBuffer, ARRAY_BUFFER);
-  var numberLength = +length
-    , byteLength = toLength(numberLength);
+  var numberLength = +length;
+  var byteLength = toLength(numberLength);
   if (numberLength != byteLength) throw RangeError(WRONG_LENGTH);
   return byteLength;
-};
+}
 
 if (!$typed.ABV) {
   $ArrayBuffer = function ArrayBuffer(length) {
@@ -171,8 +171,8 @@ if (!$typed.ABV) {
   $DataView = function DataView(buffer, byteOffset, byteLength) {
     anInstance(this, $DataView, DATA_VIEW);
     anInstance(buffer, $ArrayBuffer, DATA_VIEW);
-    var bufferLength = buffer[$LENGTH]
-      , offset = toInteger(byteOffset);
+    var bufferLength = buffer[$LENGTH];
+    var offset = toInteger(byteOffset);
     if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset!');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
     if (offset + byteLength > bufferLength) throw RangeError(WRONG_LENGTH);
@@ -256,8 +256,8 @@ if (!$typed.ABV) {
     if (!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
-  var view = new $DataView(new $ArrayBuffer(2))
-    , $setInt8 = $DataView[PROTOTYPE].setInt8;
+  var view = new $DataView(new $ArrayBuffer(2));
+  var $setInt8 = $DataView[PROTOTYPE].setInt8;
   view.setInt8(0, 2147483648);
   view.setInt8(1, 2147483649);
   if (view.getInt8(0) || !view.getInt8(1))redefineAll($DataView[PROTOTYPE], {

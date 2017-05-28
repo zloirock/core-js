@@ -1,29 +1,29 @@
 'use strict';
-var global = require('./_global')
-  , has = require('./_has')
-  , cof = require('./_cof')
-  , inheritIfRequired = require('./_inherit-if-required')
-  , toPrimitive = require('./_to-primitive')
-  , fails = require('./_fails')
-  , gOPN = require('./_object-gopn').f
-  , gOPD = require('./_object-gopd').f
-  , dP = require('./_object-dp').f
-  , $trim = require('./_string-trim').trim
-  , NUMBER = 'Number'
-  , $Number = global[NUMBER]
-  , Base = $Number
-  , proto = $Number.prototype
-  // Opera ~12 has broken Object#toString
-  , BROKEN_COF = cof(require('./_object-create')(proto)) == NUMBER
-  , TRIM = 'trim' in String.prototype;
+var global = require('./_global');
+var has = require('./_has');
+var cof = require('./_cof');
+var inheritIfRequired = require('./_inherit-if-required');
+var toPrimitive = require('./_to-primitive');
+var fails = require('./_fails');
+var gOPN = require('./_object-gopn').f;
+var gOPD = require('./_object-gopd').f;
+var dP = require('./_object-dp').f;
+var $trim = require('./_string-trim').trim;
+var NUMBER = 'Number';
+var $Number = global[NUMBER];
+var Base = $Number;
+var proto = $Number.prototype;
+// Opera ~12 has broken Object#toString
+var BROKEN_COF = cof(require('./_object-create')(proto)) == NUMBER;
+var TRIM = 'trim' in String.prototype;
 
 // 7.1.3 ToNumber(argument)
 var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
   if (typeof it == 'string' && it.length > 2) {
     it = TRIM ? it.trim() : $trim(it, 3);
-    var first = it.charCodeAt(0)
-      , third, radix, maxCode;
+    var first = it.charCodeAt(0);
+    var third, radix, maxCode;
     if (first === 43 || first === 45) {
       third = it.charCodeAt(2);
       if (third === 88 || third === 120) return NaN; // Number('+0x1') should be NaN, old V8 fix
@@ -45,8 +45,8 @@ var toNumber = function (argument) {
 
 if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
   $Number = function Number(value) {
-    var it = arguments.length < 1 ? 0 : value
-      , that = this;
+    var it = arguments.length < 1 ? 0 : value;
+    var that = this;
     return that instanceof $Number
       // check on 1..constructor(foo) case
       && (BROKEN_COF ? fails(function () { proto.valueOf.call(that); }) : cof(that) != NUMBER)

@@ -1,7 +1,7 @@
 // 20.2.2.30 Math.sinh(x)
-var $export = require('./_export')
-  , expm1 = require('./_math-expm1')
-  , exp = Math.exp;
+var $export = require('./_export');
+var expm1 = require('./_math-expm1');
+var exp = Math.exp;
 
 // V8 near Chromium 38 has a problem with very small numbers
 $export($export.S + $export.F * require('./_fails')(function () {

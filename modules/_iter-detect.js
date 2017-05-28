@@ -1,5 +1,5 @@
-var ITERATOR = require('./_wks')('iterator')
-  , SAFE_CLOSING = false;
+var ITERATOR = require('./_wks')('iterator');
+var SAFE_CLOSING = false;
 
 try {
   var riter = [7][ITERATOR]();
@@ -12,8 +12,8 @@ module.exports = function (exec, skipClosing) {
   if (!skipClosing && !SAFE_CLOSING) return false;
   var safe = false;
   try {
-    var arr = [7]
-      , iter = arr[ITERATOR]();
+    var arr = [7];
+    var iter = arr[ITERATOR]();
     iter.next = function () { return { done: safe = true }; };
     arr[ITERATOR] = function () { return iter; };
     exec(arr);

@@ -1,8 +1,8 @@
 'use strict';
-var $export = require('./_export')
-  , $fails = require('./_fails')
-  , aNumberValue = require('./_a-number-value')
-  , $toPrecision = 1.0.toPrecision;
+var $export = require('./_export');
+var $fails = require('./_fails');
+var aNumberValue = require('./_a-number-value');
+var $toPrecision = 1.0.toPrecision;
 
 $export($export.P + $export.F * ($fails(function () {
   // IE7-

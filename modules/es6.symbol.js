@@ -1,46 +1,46 @@
 'use strict';
 // ECMAScript 6 symbols shim
-var global = require('./_global')
-  , has = require('./_has')
-  , DESCRIPTORS = require('./_descriptors')
-  , $export = require('./_export')
-  , redefine = require('./_redefine')
-  , META = require('./_meta').KEY
-  , $fails = require('./_fails')
-  , shared = require('./_shared')
-  , setToStringTag = require('./_set-to-string-tag')
-  , uid = require('./_uid')
-  , wks = require('./_wks')
-  , wksExt = require('./_wks-ext')
-  , wksDefine = require('./_wks-define')
-  , keyOf = require('./_keyof')
-  , enumKeys = require('./_enum-keys')
-  , isArray = require('./_is-array')
-  , anObject = require('./_an-object')
-  , toIObject = require('./_to-iobject')
-  , toPrimitive = require('./_to-primitive')
-  , createDesc = require('./_property-desc')
-  , _create = require('./_object-create')
-  , gOPNExt = require('./_object-gopn-ext')
-  , $GOPD = require('./_object-gopd')
-  , $DP = require('./_object-dp')
-  , $keys = require('./_object-keys')
-  , gOPD = $GOPD.f
-  , dP = $DP.f
-  , gOPN = gOPNExt.f
-  , $Symbol = global.Symbol
-  , $JSON = global.JSON
-  , _stringify = $JSON && $JSON.stringify
-  , PROTOTYPE = 'prototype'
-  , HIDDEN = wks('_hidden')
-  , TO_PRIMITIVE = wks('toPrimitive')
-  , isEnum = {}.propertyIsEnumerable
-  , SymbolRegistry = shared('symbol-registry')
-  , AllSymbols = shared('symbols')
-  , OPSymbols = shared('op-symbols')
-  , ObjectProto = Object[PROTOTYPE]
-  , USE_NATIVE = typeof $Symbol == 'function'
-  , QObject = global.QObject;
+var global = require('./_global');
+var has = require('./_has');
+var DESCRIPTORS = require('./_descriptors');
+var $export = require('./_export');
+var redefine = require('./_redefine');
+var META = require('./_meta').KEY;
+var $fails = require('./_fails');
+var shared = require('./_shared');
+var setToStringTag = require('./_set-to-string-tag');
+var uid = require('./_uid');
+var wks = require('./_wks');
+var wksExt = require('./_wks-ext');
+var wksDefine = require('./_wks-define');
+var keyOf = require('./_keyof');
+var enumKeys = require('./_enum-keys');
+var isArray = require('./_is-array');
+var anObject = require('./_an-object');
+var toIObject = require('./_to-iobject');
+var toPrimitive = require('./_to-primitive');
+var createDesc = require('./_property-desc');
+var _create = require('./_object-create');
+var gOPNExt = require('./_object-gopn-ext');
+var $GOPD = require('./_object-gopd');
+var $DP = require('./_object-dp');
+var $keys = require('./_object-keys');
+var gOPD = $GOPD.f;
+var dP = $DP.f;
+var gOPN = gOPNExt.f;
+var $Symbol = global.Symbol;
+var $JSON = global.JSON;
+var _stringify = $JSON && $JSON.stringify;
+var PROTOTYPE = 'prototype';
+var HIDDEN = wks('_hidden');
+var TO_PRIMITIVE = wks('toPrimitive');
+var isEnum = {}.propertyIsEnumerable;
+var SymbolRegistry = shared('symbol-registry');
+var AllSymbols = shared('symbols');
+var OPSymbols = shared('op-symbols');
+var ObjectProto = Object[PROTOTYPE];
+var USE_NATIVE = typeof $Symbol == 'function';
+var QObject = global.QObject;
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var setter = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
@@ -85,10 +85,10 @@ var $defineProperty = function defineProperty(it, key, D) {
 };
 var $defineProperties = function defineProperties(it, P) {
   anObject(it);
-  var keys = enumKeys(P = toIObject(P))
-    , i = 0
-    , l = keys.length
-    , key;
+  var keys = enumKeys(P = toIObject(P));
+  var i = 0;
+  var l = keys.length;
+  var key;
   while (l > i)$defineProperty(it, key = keys[i++], P[key]);
   return it;
 };
@@ -109,20 +109,20 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   return D;
 };
 var $getOwnPropertyNames = function getOwnPropertyNames(it) {
-  var names = gOPN(toIObject(it))
-    , result = []
-    , i = 0
-    , key;
+  var names = gOPN(toIObject(it));
+  var result = [];
+  var i = 0;
+  var key;
   while (names.length > i) {
     if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
   } return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
-  var IS_OP = it === ObjectProto
-    , names = gOPN(IS_OP ? OPSymbols : toIObject(it))
-    , result = []
-    , i = 0
-    , key;
+  var IS_OP = it === ObjectProto;
+  var names = gOPN(IS_OP ? OPSymbols : toIObject(it));
+  var result = [];
+  var i = 0;
+  var key;
   while (names.length > i) {
     if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true))result.push(AllSymbols[key]);
   } return result;
@@ -210,9 +210,9 @@ $JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
 })), 'JSON', {
   stringify: function stringify(it) {
     if (it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
-    var args = [it]
-      , i = 1
-      , replacer, $replacer;
+    var args = [it];
+    var i = 1;
+    var replacer, $replacer;
     while (arguments.length > i)args.push(arguments[i++]);
     replacer = args[1];
     if (typeof replacer == 'function')$replacer = replacer;

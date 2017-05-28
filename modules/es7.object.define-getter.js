@@ -1,8 +1,8 @@
 'use strict';
-var $export = require('./_export')
-  , toObject = require('./_to-object')
-  , aFunction = require('./_a-function')
-  , $defineProperty = require('./_object-dp');
+var $export = require('./_export');
+var toObject = require('./_to-object');
+var aFunction = require('./_a-function');
+var $defineProperty = require('./_object-dp');
 
 // B.2.2.2 Object.prototype.__defineGetter__(P, getter)
 require('./_descriptors') && $export($export.P + require('./_object-forced-pam'), 'Object', {
