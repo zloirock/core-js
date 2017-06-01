@@ -1,1 +1,1 @@
-module.exports = function(){ /* empty */ };
+module.exports = function () { /* empty */ };

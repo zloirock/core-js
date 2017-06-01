@@ -8,4 +8,4 @@ var $re = require('./_replacer')(/[&<>"']/g, {
   "'": '&apos;'
 });
 
-$export($export.P + $export.F, 'String', {escapeHTML: function escapeHTML(){ return $re(this); }});
+$export($export.P + $export.F, 'String', { escapeHTML: function escapeHTML() { return $re(this); } });
