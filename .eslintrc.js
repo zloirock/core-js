@@ -275,4 +275,4 @@ module.exports = {
     // disallow importing from the same path more than once
     'import/no-duplicates': 'error',
   },
-};
+}
