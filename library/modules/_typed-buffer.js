@@ -155,7 +155,8 @@ function set(view, bytes, index, conversion, value, isLittleEndian) {
 
 function validateArrayBufferArguments(that, length) {
   anInstance(that, $ArrayBuffer, ARRAY_BUFFER);
-  var numberLength = +length;
+  if (length === undefined) return 0;
+  var numberLength = toInteger(length);
   var byteLength = toLength(numberLength);
   if (numberLength != byteLength) throw RangeError(WRONG_LENGTH);
   return byteLength;
