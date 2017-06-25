@@ -11,7 +11,7 @@ var FREEZE = !require('./_fails')(function () {
 });
 var setMeta = function (it) {
   setDesc(it, META, { value: {
-    i: 'O' + ++id, // object ID
+    i: 'O' + (++id), // object ID
     w: {}          // weak collections IDs
   } });
 };

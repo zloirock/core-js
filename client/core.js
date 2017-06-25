@@ -1185,7 +1185,7 @@ var FREEZE = !__webpack_require__(3)(function () {
 });
 var setMeta = function (it) {
   setDesc(it, META, { value: {
-    i: 'O' + ++id, // object ID
+    i: 'O' + (++id), // object ID
     w: {}          // weak collections IDs
   } });
 };
