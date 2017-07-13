@@ -30,13 +30,13 @@ module.exports = function (TYPE, $create) {
       val = self[index];
       res = f(val, index, O);
       if (TYPE) {
-        if (IS_MAP)result[index] = res;            // map
+        if (IS_MAP) result[index] = res;   // map
         else if (res) switch (TYPE) {
-          case 3: return true;                    // some
-          case 5: return val;                     // find
-          case 6: return index;                   // findIndex
-          case 2: result.push(val);               // filter
-        } else if (IS_EVERY) return false;          // every
+          case 3: return true;             // some
+          case 5: return val;              // find
+          case 6: return index;            // findIndex
+          case 2: result.push(val);        // filter
+        } else if (IS_EVERY) return false; // every
       }
     }
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : result;

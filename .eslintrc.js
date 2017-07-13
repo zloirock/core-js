@@ -10,6 +10,8 @@ module.exports = {
   plugins: ['import'],
   rules: {
     // possible errors:
+    // enforce 'for' loop update clause moving the counter in the right direction
+    'for-direction': 'error',
     // disallow window alert / confirm / prompt calls
     'no-alert': 'error',
     // disallow comparing against -0
@@ -109,7 +111,7 @@ module.exports = {
     // disallow function declarations and expressions inside loop statements
     'no-loop-func': 'error',
     // disallow use of multiple spaces
-    'no-multi-spaces': 'error',
+    'no-multi-spaces': ['error', { ignoreEOLComments: true }],
     // disallow use of multiline strings
     'no-multi-str': 'error',
     // disallow use of new operator when not part of the assignment or comparison
@@ -195,7 +197,7 @@ module.exports = {
     // disallow space between function identifier and application
     'func-call-spacing': 'error',
     // this option sets a specific tab width for your code
-    indent: ['error', 2, { VariableDeclarator: 2, SwitchCase: 1 }],
+    'indent-legacy': ['error', 2, { VariableDeclarator: 2, SwitchCase: 1 }],
     // require a space before & after certain keywords
     'keyword-spacing': ['error', { before: true, after: true }],
     // enforces spacing between keys and values in object literal properties
@@ -242,6 +244,8 @@ module.exports = {
     semi: ['error', 'always'],
     // enforce spacing before and after semicolons
     'semi-spacing': 'error',
+    // enforce location of semicolons
+    'semi-style': ['error', 'last'],
     // require or disallow space before blocks
     'space-before-blocks': 'error',
     // require or disallow space before function opening parenthesis
@@ -254,6 +258,8 @@ module.exports = {
     'space-unary-ops': 'error',
     // require or disallow a space immediately following the // or /* in a comment
     'spaced-comment': ['error', 'always', { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
+    // enforce spacing around colons of switch statements
+    'switch-colon-spacing': 'error',
     // require or disallow the Unicode Byte Order Mark
     'unicode-bom': ['error', 'never'],
 

@@ -5,7 +5,7 @@ var anObject = require('./_an-object');
 var Enumerate = function (iterated) {
   this._t = anObject(iterated); // target
   this._i = 0;                  // next index
-  var keys = this._k = [];       // keys
+  var keys = this._k = [];      // keys
   var key;
   for (key in iterated)keys.push(key);
 };
