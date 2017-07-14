@@ -13,7 +13,7 @@
     "grunt": "1.0.x",
     "grunt-cli": "1.2.x",
     "grunt-livescript": "0.6.x",
-    "grunt-contrib-uglify": "2.3.x",
+    "grunt-contrib-uglify": "3.0.x",
     "grunt-contrib-watch": "1.0.x",
     "grunt-contrib-clean": "1.1.x",
     "grunt-contrib-copy": "1.0.x",
