@@ -9,7 +9,7 @@
   "main": "index.js",
   "dependencies": {
     "core-js": "2.4.1",
-    "webpack": "2.4.x",
+    "webpack": "3.2.x",
     "temp": "0.8.x"
   },
   "license": "MIT"

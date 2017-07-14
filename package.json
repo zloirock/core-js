@@ -8,7 +8,7 @@
   },
   "main": "index.js",
   "devDependencies": {
-    "webpack": "2.4.x",
+    "webpack": "3.2.x",
     "LiveScript": "1.3.x",
     "grunt": "1.0.x",
     "grunt-cli": "1.2.x",
