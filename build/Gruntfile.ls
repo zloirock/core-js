@@ -13,6 +13,7 @@ module.exports = (grunt)->
       options:
         mangle: {+keep_fnames}
         compress: {+keep_fnames, +pure_getters}
+        output: {max_line_len: 32000}
         ie8: on
         sourceMap: on
         banner: config.banner
