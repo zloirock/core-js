@@ -45,14 +45,14 @@ var Subscription = function (observer, subscriber) {
     var cleanup = subscriber(observer);
     var subscription = cleanup;
     if (cleanup != null) {
-      if (typeof cleanup.unsubscribe === 'function')cleanup = function () { subscription.unsubscribe(); };
+      if (typeof cleanup.unsubscribe === 'function') cleanup = function () { subscription.unsubscribe(); };
       else aFunction(cleanup);
       this._c = cleanup;
     }
   } catch (e) {
     observer.error(e);
     return;
-  } if (subscriptionClosed(this))cleanupSubscription(this);
+  } if (subscriptionClosed(this)) cleanupSubscription(this);
 };
 
 Subscription.prototype = redefineAll({}, {
@@ -176,7 +176,7 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    for (var i = 0, l = arguments.length, items = Array(l); i < l;)items[i] = arguments[i++];
+    for (var i = 0, l = arguments.length, items = Array(l); i < l;) items[i] = arguments[i++];
     return new (typeof this === 'function' ? this : $Observable)(function (observer) {
       var done = false;
       microtask(function () {

@@ -14,8 +14,8 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($
     var O = toIObject(this);
     var length = toLength(O.length);
     var index = length - 1;
-    if (arguments.length > 1)index = Math.min(index, toInteger(arguments[1]));
-    if (index < 0)index = length + index;
+    if (arguments.length > 1) index = Math.min(index, toInteger(arguments[1]));
+    if (index < 0) index = length + index;
     for (;index >= 0; index--) if (index in O) if (O[index] === searchElement) return index || 0;
     return -1;
   }

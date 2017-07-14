@@ -8,6 +8,6 @@ module.exports = require('./_descriptors') ? Object.defineProperties : function 
   var length = keys.length;
   var i = 0;
   var P;
-  while (length > i)dP.f(O, P = keys[i++], Properties[P]);
+  while (length > i) dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };

@@ -18,7 +18,7 @@ module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /*
     to += count - 1;
   }
   while (count-- > 0) {
-    if (from in O)O[to] = O[from];
+    if (from in O) O[to] = O[from];
     else delete O[to];
     to += inc;
     from += inc;

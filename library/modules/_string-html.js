@@ -6,7 +6,7 @@ var quot = /"/g;
 var createHTML = function (string, tag, attribute, value) {
   var S = String(defined(string));
   var p1 = '<' + tag;
-  if (attribute !== '')p1 += ' ' + attribute + '="' + String(value).replace(quot, '&quot;') + '"';
+  if (attribute !== '') p1 += ' ' + attribute + '="' + String(value).replace(quot, '&quot;') + '"';
   return p1 + '>' + S + '</' + tag + '>';
 };
 module.exports = function (NAME, exec) {

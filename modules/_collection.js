@@ -51,14 +51,14 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
       // V8 ~ Chromium 42- fails only with 5+ elements
       var $instance = new C();
       var index = 5;
-      while (index--)$instance[ADDER](index, index);
+      while (index--) $instance[ADDER](index, index);
       return !$instance.has(-0);
     });
     if (!ACCEPT_ITERABLES) {
       C = wrapper(function (target, iterable) {
         anInstance(target, C, NAME);
         var that = inheritIfRequired(new Base(), target, C);
-        if (iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+        if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
         return that;
       });
       C.prototype = proto;
@@ -69,7 +69,7 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
       fixMethod('has');
       IS_MAP && fixMethod('get');
     }
-    if (BUGGY_ZERO || HASNT_CHAINING)fixMethod(ADDER);
+    if (BUGGY_ZERO || HASNT_CHAINING) fixMethod(ADDER);
     // weak collections should not contains .clear method
     if (IS_WEAK && proto.clear) delete proto.clear;
   }
@@ -79,7 +79,7 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
   O[NAME] = C;
   $export($export.G + $export.W + $export.F * (C != Base), O);
 
-  if (!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
+  if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
 
   return C;
 };

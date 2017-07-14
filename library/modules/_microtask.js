@@ -10,19 +10,19 @@ module.exports = function () {
 
   var flush = function () {
     var parent, fn;
-    if (isNode && (parent = process.domain))parent.exit();
+    if (isNode && (parent = process.domain)) parent.exit();
     while (head) {
       fn = head.fn;
       head = head.next;
       try {
         fn();
       } catch (e) {
-        if (head)notify();
+        if (head) notify();
         else last = undefined;
         throw e;
       }
     } last = undefined;
-    if (parent)parent.enter();
+    if (parent) parent.enter();
   };
 
   // Node.js
@@ -59,7 +59,7 @@ module.exports = function () {
 
   return function (fn) {
     var task = { fn: fn, next: undefined };
-    if (last)last.next = task;
+    if (last) last.next = task;
     if (!head) {
       head = task;
       notify();

@@ -16,7 +16,7 @@ module.exports = {
       } catch (e) { buggy = true; }
       return function setPrototypeOf(O, proto) {
         check(O, proto);
-        if (buggy)O.__proto__ = proto;
+        if (buggy) O.__proto__ = proto;
         else set(O, proto);
         return O;
       };

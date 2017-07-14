@@ -8,7 +8,7 @@ var arraySlice = [].slice;
 
 // fallback for not array-like ES3 strings and DOM objects
 $export($export.P + $export.F * require('./_fails')(function () {
-  if (html)arraySlice.call(html);
+  if (html) arraySlice.call(html);
 }), 'Array', {
   slice: function slice(begin, end) {
     var len = toLength(this.length);
@@ -20,7 +20,7 @@ $export($export.P + $export.F * require('./_fails')(function () {
     var size = toLength(upTo - start);
     var cloned = Array(size);
     var i = 0;
-    for (; i < size; i++)cloned[i] = klass == 'String'
+    for (; i < size; i++) cloned[i] = klass == 'String'
       ? this.charAt(start + i)
       : this[start + i];
     return cloned;

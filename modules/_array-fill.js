@@ -10,6 +10,6 @@ module.exports = function fill(value /* , start = 0, end = @length */) {
   var index = toIndex(aLen > 1 ? arguments[1] : undefined, length);
   var end = aLen > 2 ? arguments[2] : undefined;
   var endPos = end === undefined ? length : toIndex(end, length);
-  while (endPos > index)O[index++] = value;
+  while (endPos > index) O[index++] = value;
   return O;
 };

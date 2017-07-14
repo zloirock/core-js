@@ -15,7 +15,7 @@ var $export = function (type, name, source) {
   var exports = IS_GLOBAL ? core : core[name] || (core[name] = {});
   var expProto = exports[PROTOTYPE] || (exports[PROTOTYPE] = {});
   var key, own, out, exp;
-  if (IS_GLOBAL)source = name;
+  if (IS_GLOBAL) source = name;
   for (key in source) {
     // contains in native
     own = !IS_FORCED && target && target[key] !== undefined;
@@ -24,10 +24,10 @@ var $export = function (type, name, source) {
     // bind timers to global for call from export context
     exp = IS_BIND && own ? ctx(out, global) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // extend global
-    if (target)redefine(target, key, out, type & $export.U);
+    if (target) redefine(target, key, out, type & $export.U);
     // export
-    if (exports[key] != out)hide(exports, key, exp);
-    if (IS_PROTO && expProto[key] != out)expProto[key] = out;
+    if (exports[key] != out) hide(exports, key, exp);
+    if (IS_PROTO && expProto[key] != out) expProto[key] = out;
   }
 };
 global.core = core;

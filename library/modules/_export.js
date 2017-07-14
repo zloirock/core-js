@@ -15,7 +15,7 @@ var $export = function (type, name, source) {
   var expProto = exports[PROTOTYPE];
   var target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE];
   var key, own, out;
-  if (IS_GLOBAL)source = name;
+  if (IS_GLOBAL) source = name;
   for (key in source) {
     // contains in native
     own = !IS_FORCED && target && target[key] !== undefined;
@@ -45,7 +45,7 @@ var $export = function (type, name, source) {
     if (IS_PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
       // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
-      if (type & $export.R && expProto && !expProto[key])hide(expProto, key, out);
+      if (type & $export.R && expProto && !expProto[key]) hide(expProto, key, out);
     }
   }
 };

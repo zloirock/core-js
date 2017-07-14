@@ -12,7 +12,7 @@ $export($export.S, 'String', {
     var i = 0;
     while (len > i) {
       res.push(String(tpl[i++]));
-      if (i < aLen)res.push(String(arguments[i]));
+      if (i < aLen) res.push(String(arguments[i]));
     } return res.join('');
   }
 });

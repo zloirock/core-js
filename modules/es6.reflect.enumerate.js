@@ -7,7 +7,7 @@ var Enumerate = function (iterated) {
   this._i = 0;                  // next index
   var keys = this._k = [];      // keys
   var key;
-  for (key in iterated)keys.push(key);
+  for (key in iterated) keys.push(key);
 };
 require('./_iter-create')(Enumerate, 'Object', function () {
   var that = this;

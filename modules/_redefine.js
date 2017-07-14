@@ -12,9 +12,9 @@ require('./_core').inspectSource = function (it) {
 
 (module.exports = function (O, key, val, safe) {
   var isFunction = typeof val == 'function';
-  if (isFunction)has(val, 'name') || hide(val, 'name', key);
+  if (isFunction) has(val, 'name') || hide(val, 'name', key);
   if (O[key] === val) return;
-  if (isFunction)has(val, SRC) || hide(val, SRC, O[key] ? '' + O[key] : TPL.join(String(key)));
+  if (isFunction) has(val, SRC) || hide(val, SRC, O[key] ? '' + O[key] : TPL.join(String(key)));
   if (O === global) {
     O[key] = val;
   } else if (!safe) {

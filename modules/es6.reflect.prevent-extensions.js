@@ -7,7 +7,7 @@ $export($export.S, 'Reflect', {
   preventExtensions: function preventExtensions(target) {
     anObject(target);
     try {
-      if ($preventExtensions)$preventExtensions(target);
+      if ($preventExtensions) $preventExtensions(target);
       return true;
     } catch (e) {
       return false;

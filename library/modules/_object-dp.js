@@ -11,6 +11,6 @@ exports.f = require('./_descriptors') ? Object.defineProperty : function defineP
     return dP(O, P, Attributes);
   } catch (e) { /* empty */ }
   if ('get' in Attributes || 'set' in Attributes) throw TypeError('Accessors not supported!');
-  if ('value' in Attributes)O[P] = Attributes.value;
+  if ('value' in Attributes) O[P] = Attributes.value;
   return O;
 };

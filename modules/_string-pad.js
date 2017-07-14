@@ -11,6 +11,6 @@ module.exports = function (that, maxLength, fillString, left) {
   if (intMaxLength <= stringLength || fillStr == '') return S;
   var fillLen = intMaxLength - stringLength;
   var stringFiller = repeat.call(fillStr, Math.ceil(fillLen / fillStr.length));
-  if (stringFiller.length > fillLen)stringFiller = stringFiller.slice(0, fillLen);
+  if (stringFiller.length > fillLen) stringFiller = stringFiller.slice(0, fillLen);
   return left ? stringFiller + S : S + stringFiller;
 };

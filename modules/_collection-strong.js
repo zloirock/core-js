@@ -32,7 +32,7 @@ module.exports = {
       that._f = undefined;    // first entry
       that._l = undefined;    // last entry
       that[SIZE] = 0;         // size
-      if (iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
     redefineAll(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
@@ -40,7 +40,7 @@ module.exports = {
       clear: function clear() {
         for (var that = this, data = that._i, entry = that._f; entry; entry = entry.n) {
           entry.r = true;
-          if (entry.p)entry.p = entry.p.n = undefined;
+          if (entry.p) entry.p = entry.p.n = undefined;
           delete data[entry.i];
         }
         that._f = that._l = undefined;
@@ -56,10 +56,10 @@ module.exports = {
           var prev = entry.p;
           delete that._i[entry.i];
           entry.r = true;
-          if (prev)prev.n = next;
-          if (next)next.p = prev;
-          if (that._f == entry)that._f = next;
-          if (that._l == entry)that._l = prev;
+          if (prev) prev.n = next;
+          if (next) next.p = prev;
+          if (that._f == entry) that._f = next;
+          if (that._l == entry) that._l = prev;
           that[SIZE]--;
         } return !!entry;
       },
@@ -72,7 +72,7 @@ module.exports = {
         while (entry = entry ? entry.n : this._f) {
           f(entry.v, entry.k, this);
           // revert to the last existing entry
-          while (entry && entry.r)entry = entry.p;
+          while (entry && entry.r) entry = entry.p;
         }
       },
       // 23.1.3.7 Map.prototype.has(key)
@@ -81,7 +81,7 @@ module.exports = {
         return !!getEntry(this, key);
       }
     });
-    if (DESCRIPTORS)dP(C.prototype, 'size', {
+    if (DESCRIPTORS) dP(C.prototype, 'size', {
       get: function () {
         return defined(this[SIZE]);
       }
@@ -104,11 +104,11 @@ module.exports = {
         n: undefined,                  // <- next entry
         r: false                       // <- removed
       };
-      if (!that._f)that._f = entry;
-      if (prev)prev.n = entry;
+      if (!that._f) that._f = entry;
+      if (prev) prev.n = entry;
       that[SIZE]++;
       // add to index
-      if (index !== 'F')that._i[index] = entry;
+      if (index !== 'F') that._i[index] = entry;
     } return that;
   },
   getEntry: getEntry,
@@ -124,7 +124,7 @@ module.exports = {
       var kind = that._k;
       var entry = that._l;
       // revert to the last existing entry
-      while (entry && entry.r)entry = entry.p;
+      while (entry && entry.r) entry = entry.p;
       // get next entry
       if (!that._t || !(that._l = entry = entry ? entry.n : that._t._f)) {
         // or finish the iteration

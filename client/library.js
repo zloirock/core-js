@@ -95,7 +95,7 @@ var $export = function (type, name, source) {
   var expProto = exports[PROTOTYPE];
   var target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE];
   var key, own, out;
-  if (IS_GLOBAL)source = name;
+  if (IS_GLOBAL) source = name;
   for (key in source) {
     // contains in native
     own = !IS_FORCED && target && target[key] !== undefined;
@@ -125,7 +125,7 @@ var $export = function (type, name, source) {
     if (IS_PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
       // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
-      if (type & $export.R && expProto && !expProto[key])hide(expProto, key, out);
+      if (type & $export.R && expProto && !expProto[key]) hide(expProto, key, out);
     }
   }
 };
@@ -161,7 +161,7 @@ var global = module.exports = typeof window != 'undefined' && window.Math == Mat
   ? window : typeof self != 'undefined' && self.Math == Math ? self
   // eslint-disable-next-line no-new-func
   : Function('return this')();
-if (typeof __g == 'number')__g = global; // eslint-disable-line no-undef
+if (typeof __g == 'number') __g = global; // eslint-disable-line no-undef
 
 
 /***/ }),
@@ -203,7 +203,7 @@ exports.f = __webpack_require__(7) ? Object.defineProperty : function defineProp
     return dP(O, P, Attributes);
   } catch (e) { /* empty */ }
   if ('get' in Attributes || 'set' in Attributes) throw TypeError('Accessors not supported!');
-  if ('value' in Attributes)O[P] = Attributes.value;
+  if ('value' in Attributes) O[P] = Attributes.value;
   return O;
 };
 
@@ -311,7 +311,7 @@ var quot = /"/g;
 var createHTML = function (string, tag, attribute, value) {
   var S = String(defined(string));
   var p1 = '<' + tag;
-  if (attribute !== '')p1 += ' ' + attribute + '="' + String(value).replace(quot, '&quot;') + '"';
+  if (attribute !== '') p1 += ' ' + attribute + '="' + String(value).replace(quot, '&quot;') + '"';
   return p1 + '>' + S + '</' + tag + '>';
 };
 module.exports = function (NAME, exec) {
@@ -329,7 +329,7 @@ module.exports = function (NAME, exec) {
 /***/ (function(module, exports) {
 
 var core = module.exports = { version: '2.4.0' };
-if (typeof __e == 'number')__e = core; // eslint-disable-line no-undef
+if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
 /***/ }),
@@ -543,7 +543,7 @@ var ordinaryDefineOwnMetadata = function (MetadataKey, MetadataValue, O, P) {
 var ordinaryOwnMetadataKeys = function (target, targetKey) {
   var metadataMap = getOrCreateMetadataMap(target, targetKey, false);
   var keys = [];
-  if (metadataMap)metadataMap.forEach(function (_, key) { keys.push(key); });
+  if (metadataMap) metadataMap.forEach(function (_, key) { keys.push(key); });
   return keys;
 };
 var toMetaKey = function (it) {
@@ -696,7 +696,7 @@ if (__webpack_require__(7)) {
     var index = 0;
     var length = list.length;
     var result = allocate(C, length);
-    while (length > index)result[index] = list[index++];
+    while (length > index) result[index] = list[index++];
     return result;
   };
 
@@ -716,7 +716,7 @@ if (__webpack_require__(7)) {
         values.push(step.value);
       } O = values;
     }
-    if (mapping && aLen > 2)mapfn = ctx(mapfn, arguments[2], 2);
+    if (mapping && aLen > 2) mapfn = ctx(mapfn, arguments[2], 2);
     for (i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++) {
       result[i] = mapping ? mapfn(O[i], i) : O[i];
     }
@@ -727,7 +727,7 @@ if (__webpack_require__(7)) {
     var index = 0;
     var length = arguments.length;
     var result = allocate(this, length);
-    while (length > index)result[index] = arguments[index++];
+    while (length > index) result[index] = arguments[index++];
     return result;
   };
 
@@ -920,7 +920,7 @@ if (__webpack_require__(7)) {
     };
     var setter = function (that, index, value) {
       var data = that._d;
-      if (CLAMPED)value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
+      if (CLAMPED) value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
       data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
     };
     var addElement = function (that, index) {
@@ -969,7 +969,7 @@ if (__webpack_require__(7)) {
           e: length,
           v: new $DataView(buffer)
         });
-        while (index < length)addElement(that, index++);
+        while (index < length) addElement(that, index++);
       });
       TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
@@ -996,10 +996,10 @@ if (__webpack_require__(7)) {
         return $from.call(TypedArray, data);
       });
       arrayForEach(TAC !== Function.prototype ? gOPN(Base).concat(gOPN(TAC)) : gOPN(Base), function (key) {
-        if (!(key in TypedArray))hide(TypedArray, key, Base[key]);
+        if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
-      if (!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
+      if (!LIBRARY) TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     var CORRECT_ITER_NAME = !!$nativeIterator
@@ -1029,7 +1029,7 @@ if (__webpack_require__(7)) {
       of: $of
     });
 
-    if (!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
+    if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
     $export($export.P, NAME, proto);
 
@@ -1052,7 +1052,7 @@ if (__webpack_require__(7)) {
     })), NAME, { toLocaleString: $toLocaleString });
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
-    if (!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
+    if (!LIBRARY && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function () { /* empty */ };
 
@@ -1104,7 +1104,7 @@ var getWeak = function (it, create) {
 };
 // add metadata on freeze-family methods calling
 var onFreeze = function (it) {
-  if (FREEZE && meta.NEED && isExtensible(it) && !has(it, META))setMeta(it);
+  if (FREEZE && meta.NEED && isExtensible(it) && !has(it, META)) setMeta(it);
   return it;
 };
 var meta = module.exports = {
@@ -1312,7 +1312,7 @@ module.exports = true;
 var hide = __webpack_require__(16);
 module.exports = function (target, src, safe) {
   for (var key in src) {
-    if (safe && target[key])target[key] = src[key];
+    if (safe && target[key]) target[key] = src[key];
     else hide(target, key, src[key]);
   } return target;
 };
@@ -1352,7 +1352,7 @@ var SPECIES = __webpack_require__(6)('species');
 
 module.exports = function (KEY) {
   var C = typeof core[KEY] == 'function' ? core[KEY] : global[KEY];
-  if (DESCRIPTORS && C && !C[SPECIES])dP.f(C, SPECIES, {
+  if (DESCRIPTORS && C && !C[SPECIES]) dP.f(C, SPECIES, {
     configurable: true,
     get: function () { return this; }
   });
@@ -1368,7 +1368,7 @@ var has = __webpack_require__(15);
 var TAG = __webpack_require__(6)('toStringTag');
 
 module.exports = function (it, tag, stat) {
-  if (it && !has(it = stat ? it : it.prototype, TAG))def(it, TAG, { configurable: true, value: tag });
+  if (it && !has(it = stat ? it : it.prototype, TAG)) def(it, TAG, { configurable: true, value: tag });
 };
 
 
@@ -1448,7 +1448,7 @@ var exporter = function (KEY, exec, ALIAS) {
     return !!spaces[KEY]() || non[KEY]() != non;
   });
   var fn = exp[KEY] = FORCE ? exec(trim) : spaces[KEY];
-  if (ALIAS)exp[ALIAS] = fn;
+  if (ALIAS) exp[ALIAS] = fn;
   $export($export.P + $export.F * FORCE, 'String', exp);
 };
 
@@ -1457,8 +1457,8 @@ var exporter = function (KEY, exec, ALIAS) {
 // 3 -> String#trim
 var trim = exporter.trim = function (string, TYPE) {
   string = String(defined(string));
-  if (TYPE & 1)string = string.replace(ltrim, '');
-  if (TYPE & 2)string = string.replace(rtrim, '');
+  if (TYPE & 1) string = string.replace(ltrim, '');
+  if (TYPE & 2) string = string.replace(rtrim, '');
   return string;
 };
 
@@ -1531,11 +1531,11 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
     C = wrapper(function (target, iterable) {
       anInstance(target, C, NAME, '_c');
       target._c = new Base();
-      if (iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
+      if (iterable != undefined) forOf(iterable, IS_MAP, target[ADDER], target);
     });
     each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','), function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
-      if (KEY in proto && !(IS_WEAK && KEY == 'clear'))hide(C.prototype, KEY, function (a, b) {
+      if (KEY in proto && !(IS_WEAK && KEY == 'clear')) hide(C.prototype, KEY, function (a, b) {
         anInstance(this, C, KEY);
         if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
         var result = this._c[KEY](a === 0 ? 0 : a, b);
@@ -1554,7 +1554,7 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
   O[NAME] = C;
   $export($export.G + $export.W + $export.F, O);
 
-  if (!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
+  if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
 
   return C;
 };
@@ -1650,7 +1650,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);
       // fix for some old engines
-      if (!LIBRARY && !has(IteratorPrototype, ITERATOR))hide(IteratorPrototype, ITERATOR, returnThis);
+      if (!LIBRARY && !has(IteratorPrototype, ITERATOR)) hide(IteratorPrototype, ITERATOR, returnThis);
     }
   }
   // fix Array#{values, @@iterator}.name in V8 / FF
@@ -1672,7 +1672,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
       entries: $entries
     };
     if (FORCED) for (key in methods) {
-      if (!(key in proto))redefine(proto, key, methods[key]);
+      if (!(key in proto)) redefine(proto, key, methods[key]);
     } else $export($export.P + $export.F * (BUGGY || VALUES_BUG), NAME, methods);
   }
   return methods;
@@ -1806,7 +1806,7 @@ module.exports = function fill(value /* , start = 0, end = @length */) {
   var index = toIndex(aLen > 1 ? arguments[1] : undefined, length);
   var end = aLen > 2 ? arguments[2] : undefined;
   var endPos = end === undefined ? length : toIndex(end, length);
-  while (endPos > index)O[index++] = value;
+  while (endPos > index) O[index++] = value;
   return O;
 };
 
@@ -1821,7 +1821,7 @@ var $defineProperty = __webpack_require__(5);
 var createDesc = __webpack_require__(29);
 
 module.exports = function (object, index, value) {
-  if (index in object)$defineProperty.f(object, index, createDesc(0, value));
+  if (index in object) $defineProperty.f(object, index, createDesc(0, value));
   else object[index] = value;
 };
 
@@ -1980,19 +1980,19 @@ module.exports = function () {
 
   var flush = function () {
     var parent, fn;
-    if (isNode && (parent = process.domain))parent.exit();
+    if (isNode && (parent = process.domain)) parent.exit();
     while (head) {
       fn = head.fn;
       head = head.next;
       try {
         fn();
       } catch (e) {
-        if (head)notify();
+        if (head) notify();
         else last = undefined;
         throw e;
       }
     } last = undefined;
-    if (parent)parent.enter();
+    if (parent) parent.enter();
   };
 
   // Node.js
@@ -2029,7 +2029,7 @@ module.exports = function () {
 
   return function (fn) {
     var task = { fn: fn, next: undefined };
-    if (last)last.next = task;
+    if (last) last.next = task;
     if (!head) {
       head = task;
       notify();
@@ -2074,7 +2074,7 @@ module.exports = !$assign || __webpack_require__(3)(function () {
     var length = keys.length;
     var j = 0;
     var key;
-    while (length > j) if (isEnum.call(S, key = keys[j++]))T[key] = S[key];
+    while (length > j) if (isEnum.call(S, key = keys[j++])) T[key] = S[key];
   } return T;
 } : $assign;
 
@@ -2111,7 +2111,7 @@ module.exports = function (/* ...pargs */) {
   var i = 0;
   var _ = path._;
   var holder = false;
-  while (length > i) if ((pargs[i] = arguments[i++]) === _)holder = true;
+  while (length > i) if ((pargs[i] = arguments[i++]) === _) holder = true;
   return function (/* ...args */) {
     var that = this;
     var aLen = arguments.length;
@@ -2120,8 +2120,8 @@ module.exports = function (/* ...pargs */) {
     var args;
     if (!holder && !aLen) return invoke(fn, pargs, that);
     args = pargs.slice();
-    if (holder) for (;length > j; j++) if (args[j] === _)args[j] = arguments[k++];
-    while (aLen > k)args.push(arguments[k++]);
+    if (holder) for (;length > j; j++) if (args[j] === _) args[j] = arguments[k++];
+    while (aLen > k) args.push(arguments[k++]);
     return invoke(fn, args, that);
   };
 };
@@ -2225,7 +2225,7 @@ module.exports = function repeat(count) {
   var res = '';
   var n = toInteger(count);
   if (n < 0 || n == Infinity) throw RangeError("Count can't be negative");
-  for (;n > 0; (n >>>= 1) && (str += str)) if (n & 1)res += str;
+  for (;n > 0; (n >>>= 1) && (str += str)) if (n & 1) res += str;
   return res;
 };
 
@@ -2273,7 +2273,7 @@ if (!setTask || !clearTask) {
   setTask = function setImmediate(fn) {
     var args = [];
     var i = 1;
-    while (arguments.length > i)args.push(arguments[i++]);
+    while (arguments.length > i) args.push(arguments[i++]);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func
       invoke(typeof fn == 'function' ? fn : Function(fn), args);
@@ -2485,7 +2485,7 @@ function set(view, bytes, index, conversion, value, isLittleEndian) {
   var store = view[$BUFFER]._b;
   var start = intIndex + view[$OFFSET];
   var pack = conversion(+value);
-  for (var i = 0; i < bytes; i++)store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
+  for (var i = 0; i < bytes; i++) store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
 }
 
 function validateArrayBufferArguments(that, length) {
@@ -2586,16 +2586,16 @@ if (!$typed.ABV) {
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
     for (var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;) {
-      if (!((key = keys[j++]) in $ArrayBuffer))hide($ArrayBuffer, key, BaseBuffer[key]);
+      if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, BaseBuffer[key]);
     }
-    if (!LIBRARY)ArrayBufferProto.constructor = $ArrayBuffer;
+    if (!LIBRARY) ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
   var view = new $DataView(new $ArrayBuffer(2));
   var $setInt8 = $DataView[PROTOTYPE].setInt8;
   view.setInt8(0, 2147483648);
   view.setInt8(1, 2147483649);
-  if (view.getInt8(0) || !view.getInt8(1))redefineAll($DataView[PROTOTYPE], {
+  if (view.getInt8(0) || !view.getInt8(1)) redefineAll($DataView[PROTOTYPE], {
     setInt8: function setInt8(byteOffset, value) {
       $setInt8.call(this, byteOffset, value << 24 >> 24);
     },
@@ -2622,7 +2622,7 @@ var wksExt = __webpack_require__(117);
 var defineProperty = __webpack_require__(5).f;
 module.exports = function (name) {
   var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
-  if (name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, { value: wksExt.f(name) });
+  if (name.charAt(0) != '_' && !(name in $Symbol)) defineProperty($Symbol, name, { value: wksExt.f(name) });
 };
 
 
@@ -2785,7 +2785,7 @@ module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /*
     to += count - 1;
   }
   while (count-- > 0) {
-    if (from in O)O[to] = O[from];
+    if (from in O) O[to] = O[from];
     else delete O[to];
     to += inc;
     from += inc;
@@ -2854,7 +2854,7 @@ var factories = {};
 
 var construct = function (F, len, args) {
   if (!(len in factories)) {
-    for (var n = [], i = 0; i < len; i++)n[i] = 'a[' + i + ']';
+    for (var n = [], i = 0; i < len; i++) n[i] = 'a[' + i + ']';
     // eslint-disable-next-line no-new-func
     factories[len] = Function('F,a', 'return new F(' + n.join(',') + ')');
   } return factories[len](F, args);
@@ -2867,7 +2867,7 @@ module.exports = Function.bind || function bind(that /* , ...args */) {
     var args = partArgs.concat(arraySlice.call(arguments));
     return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
   };
-  if (isObject(fn.prototype))bound.prototype = fn.prototype;
+  if (isObject(fn.prototype)) bound.prototype = fn.prototype;
   return bound;
 };
 
@@ -2911,7 +2911,7 @@ module.exports = {
       that._f = undefined;    // first entry
       that._l = undefined;    // last entry
       that[SIZE] = 0;         // size
-      if (iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
     redefineAll(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
@@ -2919,7 +2919,7 @@ module.exports = {
       clear: function clear() {
         for (var that = this, data = that._i, entry = that._f; entry; entry = entry.n) {
           entry.r = true;
-          if (entry.p)entry.p = entry.p.n = undefined;
+          if (entry.p) entry.p = entry.p.n = undefined;
           delete data[entry.i];
         }
         that._f = that._l = undefined;
@@ -2935,10 +2935,10 @@ module.exports = {
           var prev = entry.p;
           delete that._i[entry.i];
           entry.r = true;
-          if (prev)prev.n = next;
-          if (next)next.p = prev;
-          if (that._f == entry)that._f = next;
-          if (that._l == entry)that._l = prev;
+          if (prev) prev.n = next;
+          if (next) next.p = prev;
+          if (that._f == entry) that._f = next;
+          if (that._l == entry) that._l = prev;
           that[SIZE]--;
         } return !!entry;
       },
@@ -2951,7 +2951,7 @@ module.exports = {
         while (entry = entry ? entry.n : this._f) {
           f(entry.v, entry.k, this);
           // revert to the last existing entry
-          while (entry && entry.r)entry = entry.p;
+          while (entry && entry.r) entry = entry.p;
         }
       },
       // 23.1.3.7 Map.prototype.has(key)
@@ -2960,7 +2960,7 @@ module.exports = {
         return !!getEntry(this, key);
       }
     });
-    if (DESCRIPTORS)dP(C.prototype, 'size', {
+    if (DESCRIPTORS) dP(C.prototype, 'size', {
       get: function () {
         return defined(this[SIZE]);
       }
@@ -2983,11 +2983,11 @@ module.exports = {
         n: undefined,                  // <- next entry
         r: false                       // <- removed
       };
-      if (!that._f)that._f = entry;
-      if (prev)prev.n = entry;
+      if (!that._f) that._f = entry;
+      if (prev) prev.n = entry;
       that[SIZE]++;
       // add to index
-      if (index !== 'F')that._i[index] = entry;
+      if (index !== 'F') that._i[index] = entry;
     } return that;
   },
   getEntry: getEntry,
@@ -3003,7 +3003,7 @@ module.exports = {
       var kind = that._k;
       var entry = that._l;
       // revert to the last existing entry
-      while (entry && entry.r)entry = entry.p;
+      while (entry && entry.r) entry = entry.p;
       // get next entry
       if (!that._t || !(that._l = entry = entry ? entry.n : that._t._f)) {
         // or finish the iteration
@@ -3077,7 +3077,7 @@ UncaughtFrozenStore.prototype = {
   },
   set: function (key, value) {
     var entry = findUncaughtFrozen(this, key);
-    if (entry)entry[1] = value;
+    if (entry) entry[1] = value;
     else this.a.push([key, value]);
   },
   'delete': function (key) {
@@ -3095,7 +3095,7 @@ module.exports = {
       anInstance(that, C, NAME, '_i');
       that._i = id++;      // collection id
       that._l = undefined; // leak store for uncaught frozen objects
-      if (iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
     redefineAll(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
@@ -3119,7 +3119,7 @@ module.exports = {
   },
   def: function (that, key, value) {
     var data = getWeak(anObject(key), true);
-    if (data === true)uncaughtFrozenStore(that).set(key, value);
+    if (data === true) uncaughtFrozenStore(that).set(key, value);
     else data[that._i] = value;
     return that;
   },
@@ -3207,7 +3207,7 @@ module.exports = function (iterator, fn, value, entries) {
   // 7.4.6 IteratorClose(iterator, completion)
   } catch (e) {
     var ret = iterator['return'];
-    if (ret !== undefined)anObject(ret.call(iterator));
+    if (ret !== undefined) anObject(ret.call(iterator));
     throw e;
   }
 };
@@ -3286,14 +3286,8 @@ module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh)
       || outLow != outLow
       // eslint-disable-next-line no-self-compare
       || outHigh != outHigh
-  ) {
-    return NaN;
-  }
-
-  if (x === Infinity || x === -Infinity) {
-    return x;
-  }
-
+  ) return NaN;
+  if (x === Infinity || x === -Infinity) return x;
   return (x - inLow) * (outHigh - outLow) / (inHigh - inLow) + outLow;
 };
 
@@ -3312,7 +3306,7 @@ module.exports = function define(target, mixin) {
   var length = keys.length;
   var i = 0;
   var key;
-  while (length > i)dP.f(target, key = keys[i++], gOPD.f(mixin, key));
+  while (length > i) dP.f(target, key = keys[i++], gOPD.f(mixin, key));
   return target;
 };
 
@@ -3331,7 +3325,7 @@ module.exports = __webpack_require__(7) ? Object.defineProperties : function def
   var length = keys.length;
   var i = 0;
   var P;
-  while (length > i)dP.f(O, P = keys[i++], Properties[P]);
+  while (length > i) dP.f(O, P = keys[i++], Properties[P]);
   return O;
 };
 
@@ -3375,7 +3369,7 @@ module.exports = function (object, names) {
   var i = 0;
   var result = [];
   var key;
-  for (key in O) if (key != IE_PROTO)has(O, key) && result.push(key);
+  for (key in O) if (key != IE_PROTO) has(O, key) && result.push(key);
   // Don't enum bug & hidden keys
   while (names.length > i) if (has(O, key = names[i++])) {
     ~arrayIndexOf(result, key) || result.push(key);
@@ -3475,7 +3469,7 @@ module.exports = {
       } catch (e) { buggy = true; }
       return function setPrototypeOf(O, proto) {
         check(O, proto);
-        if (buggy)O.__proto__ = proto;
+        if (buggy) O.__proto__ = proto;
         else set(O, proto);
         return O;
       };
@@ -3501,7 +3495,7 @@ module.exports = function (that, maxLength, fillString, left) {
   if (intMaxLength <= stringLength || fillStr == '') return S;
   var fillLen = intMaxLength - stringLength;
   var stringFiller = repeat.call(fillStr, Math.ceil(fillLen / fillStr.length));
-  if (stringFiller.length > fillLen)stringFiller = stringFiller.slice(0, fillLen);
+  if (stringFiller.length > fillLen) stringFiller = stringFiller.slice(0, fillLen);
   return left ? stringFiller + S : S + stringFiller;
 };
 
@@ -3577,14 +3571,14 @@ var createDictMethod = function (TYPE) {
       val = O[key];
       res = f(val, key, object);
       if (TYPE) {
-        if (IS_MAP)result[key] = res;            // map
+        if (IS_MAP) result[key] = res;          // map
         else if (res) switch (TYPE) {
           case 2: result[key] = val; break;     // filter
           case 3: return true;                  // some
           case 5: return val;                   // find
           case 6: return key;                   // findKey
           case 7: result[res[0]] = res[1];      // mapPairs
-        } else if (IS_EVERY) return false;        // every
+        } else if (IS_EVERY) return false;      // every
       }
     }
     return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
@@ -3662,7 +3656,7 @@ function get(object, key) {
   if (has(object, key)) return object[key];
 }
 function set(object, key, value) {
-  if (DESCRIPTORS && key in Object)dP.f(object, key, createDesc(0, value));
+  if (DESCRIPTORS && key in Object) dP.f(object, key, createDesc(0, value));
   else object[key] = value;
   return object;
 }
@@ -3897,7 +3891,7 @@ var $find = __webpack_require__(18)(6);
 var KEY = 'findIndex';
 var forced = true;
 // Shouldn't skip holes
-if (KEY in [])Array(1)[KEY](function () { forced = false; });
+if (KEY in []) Array(1)[KEY](function () { forced = false; });
 $export($export.P + $export.F * forced, 'Array', {
   findIndex: function findIndex(callbackfn /* , that = undefined */) {
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -3918,7 +3912,7 @@ var $find = __webpack_require__(18)(5);
 var KEY = 'find';
 var forced = true;
 // Shouldn't skip holes
-if (KEY in [])Array(1)[KEY](function () { forced = false; });
+if (KEY in []) Array(1)[KEY](function () { forced = false; });
 $export($export.P + $export.F * forced, 'Array', {
   find: function find(callbackfn /* , that = undefined */) {
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -3971,7 +3965,7 @@ $export($export.S + $export.F * !__webpack_require__(66)(function (iter) { Array
     var index = 0;
     var iterFn = getIterFn(O);
     var length, result, step, iterator;
-    if (mapping)mapfn = ctx(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
+    if (mapping) mapfn = ctx(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
     // if object isn't iterable or it's array with default iterator - use simple case
     if (iterFn != undefined && !(C == Array && isArrayIter(iterFn))) {
       for (iterator = iterFn.call(O), result = new C(); !(step = iterator.next()).done; index++) {
@@ -4061,8 +4055,8 @@ $export($export.P + $export.F * (NEGATIVE_ZERO || !__webpack_require__(19)($nati
     var O = toIObject(this);
     var length = toLength(O.length);
     var index = length - 1;
-    if (arguments.length > 1)index = Math.min(index, toInteger(arguments[1]));
-    if (index < 0)index = length + index;
+    if (arguments.length > 1) index = Math.min(index, toInteger(arguments[1]));
+    if (index < 0) index = length + index;
     for (;index >= 0; index--) if (index in O) if (O[index] === searchElement) return index || 0;
     return -1;
   }
@@ -4105,7 +4099,7 @@ $export($export.S + $export.F * __webpack_require__(3)(function () {
     var index = 0;
     var aLen = arguments.length;
     var result = new (typeof this == 'function' ? this : Array)(aLen);
-    while (aLen > index)createProperty(result, index, arguments[index++]);
+    while (aLen > index) createProperty(result, index, arguments[index++]);
     result.length = aLen;
     return result;
   }
@@ -4161,7 +4155,7 @@ var arraySlice = [].slice;
 
 // fallback for not array-like ES3 strings and DOM objects
 $export($export.P + $export.F * __webpack_require__(3)(function () {
-  if (html)arraySlice.call(html);
+  if (html) arraySlice.call(html);
 }), 'Array', {
   slice: function slice(begin, end) {
     var len = toLength(this.length);
@@ -4173,7 +4167,7 @@ $export($export.P + $export.F * __webpack_require__(3)(function () {
     var size = toLength(upTo - start);
     var cloned = Array(size);
     var i = 0;
-    for (; i < size; i++)cloned[i] = klass == 'String'
+    for (; i < size; i++) cloned[i] = klass == 'String'
       ? this.charAt(start + i)
       : this[start + i];
     return cloned;
@@ -4306,7 +4300,7 @@ var getPrototypeOf = __webpack_require__(12);
 var HAS_INSTANCE = __webpack_require__(6)('hasInstance');
 var FunctionProto = Function.prototype;
 // 19.2.3.6 Function.prototype[@@hasInstance](V)
-if (!(HAS_INSTANCE in FunctionProto))__webpack_require__(5).f(FunctionProto, HAS_INSTANCE, { value: function (O) {
+if (!(HAS_INSTANCE in FunctionProto)) __webpack_require__(5).f(FunctionProto, HAS_INSTANCE, { value: function (O) {
   if (typeof this != 'function' || !isObject(O)) return false;
   if (!isObject(this.prototype)) return O instanceof this;
   // for environment w/o native `@@hasInstance` logic enough `instanceof`, but add this:
@@ -5146,14 +5140,14 @@ var notify = function (promise, isReject) {
       try {
         if (handler) {
           if (!ok) {
-            if (promise._h == 2)onHandleUnhandled(promise);
+            if (promise._h == 2) onHandleUnhandled(promise);
             promise._h = 1;
           }
-          if (handler === true)result = value;
+          if (handler === true) result = value;
           else {
-            if (domain)domain.enter();
+            if (domain) domain.enter();
             result = handler(value);
-            if (domain)domain.exit();
+            if (domain) domain.exit();
           }
           if (result === reaction.promise) {
             reject(TypeError('Promise-chain cycle'));
@@ -5165,10 +5159,10 @@ var notify = function (promise, isReject) {
         reject(e);
       }
     };
-    while (chain.length > i)run(chain[i++]); // variable length - can't use forEach
+    while (chain.length > i) run(chain[i++]); // variable length - can't use forEach
     promise._c = [];
     promise._n = false;
-    if (isReject && !promise._h)onUnhandled(promise);
+    if (isReject && !promise._h) onUnhandled(promise);
   });
 };
 var onUnhandled = function (promise) {
@@ -5218,7 +5212,7 @@ var $reject = function (value) {
   promise = promise._w || promise; // unwrap
   promise._v = value;
   promise._s = 2;
-  if (!promise._a)promise._a = promise._c.slice();
+  if (!promise._a) promise._a = promise._c.slice();
   notify(promise, true);
 };
 var $resolve = function (value) {
@@ -5280,7 +5274,7 @@ if (!USE_NATIVE) {
       reaction.domain = isNode ? process.domain : undefined;
       this._c.push(reaction);
       if (this._a) this._a.push(reaction);
-      if (this._s)notify(this, false);
+      if (this._s) notify(this, false);
       return reaction.promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
@@ -5349,7 +5343,7 @@ $export($export.S + $export.F * !(USE_NATIVE && __webpack_require__(66)(function
       });
       --remaining || resolve(values);
     });
-    if (abrupt)reject(abrupt.error);
+    if (abrupt) reject(abrupt.error);
     return capability.promise;
   },
   // 25.4.4.4 Promise.race(iterable)
@@ -5362,7 +5356,7 @@ $export($export.S + $export.F * !(USE_NATIVE && __webpack_require__(66)(function
         C.resolve(promise).then(capability.resolve, reject);
       });
     });
-    if (abrupt)reject(abrupt.error);
+    if (abrupt) reject(abrupt.error);
     return capability.promise;
   }
 });
@@ -5503,7 +5497,7 @@ var Enumerate = function (iterated) {
   this._i = 0;                  // next index
   var keys = this._k = [];      // keys
   var key;
-  for (key in iterated)keys.push(key);
+  for (key in iterated) keys.push(key);
 };
 __webpack_require__(51)(Enumerate, 'Object', function () {
   var that = this;
@@ -5635,7 +5629,7 @@ $export($export.S, 'Reflect', {
   preventExtensions: function preventExtensions(target) {
     anObject(target);
     try {
-      if ($preventExtensions)$preventExtensions(target);
+      if ($preventExtensions) $preventExtensions(target);
       return true;
     } catch (e) {
       return false;
@@ -5652,7 +5646,7 @@ $export($export.S, 'Reflect', {
 var $export = __webpack_require__(0);
 var setProto = __webpack_require__(115);
 
-if (setProto)$export($export.S, 'Reflect', {
+if (setProto) $export($export.S, 'Reflect', {
   setPrototypeOf: function setPrototypeOf(target, proto) {
     setProto.check(target, proto);
     try {
@@ -5961,7 +5955,7 @@ $export($export.S, 'String', {
     var i = 0;
     while (len > i) {
       res.push(String(tpl[i++]));
-      if (i < aLen)res.push(String(arguments[i]));
+      if (i < aLen) res.push(String(arguments[i]));
     } return res.join('');
   }
 });
@@ -6134,7 +6128,7 @@ var setSymbolDesc = DESCRIPTORS && $fails(function () {
   var protoDesc = gOPD(ObjectProto, key);
   if (protoDesc) delete ObjectProto[key];
   dP(it, key, D);
-  if (protoDesc && it !== ObjectProto)dP(ObjectProto, key, protoDesc);
+  if (protoDesc && it !== ObjectProto) dP(ObjectProto, key, protoDesc);
 } : dP;
 
 var wrap = function (tag) {
@@ -6150,16 +6144,16 @@ var isSymbol = USE_NATIVE && typeof $Symbol.iterator == 'symbol' ? function (it)
 };
 
 var $defineProperty = function defineProperty(it, key, D) {
-  if (it === ObjectProto)$defineProperty(OPSymbols, key, D);
+  if (it === ObjectProto) $defineProperty(OPSymbols, key, D);
   anObject(it);
   key = toPrimitive(key, true);
   anObject(D);
   if (has(AllSymbols, key)) {
     if (!D.enumerable) {
-      if (!has(it, HIDDEN))dP(it, HIDDEN, createDesc(1, {}));
+      if (!has(it, HIDDEN)) dP(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
-      if (has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
+      if (has(it, HIDDEN) && it[HIDDEN][key]) it[HIDDEN][key] = false;
       D = _create(D, { enumerable: createDesc(0, false) });
     } return setSymbolDesc(it, key, D);
   } return dP(it, key, D);
@@ -6170,7 +6164,7 @@ var $defineProperties = function defineProperties(it, P) {
   var i = 0;
   var l = keys.length;
   var key;
-  while (l > i)$defineProperty(it, key = keys[i++], P[key]);
+  while (l > i) $defineProperty(it, key = keys[i++], P[key]);
   return it;
 };
 var $create = function create(it, P) {
@@ -6186,7 +6180,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   key = toPrimitive(key, true);
   if (it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return;
   var D = gOPD(it, key);
-  if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
+  if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key])) D.enumerable = true;
   return D;
 };
 var $getOwnPropertyNames = function getOwnPropertyNames(it) {
@@ -6195,7 +6189,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it) {
   var i = 0;
   var key;
   while (names.length > i) {
-    if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
+    if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META) result.push(key);
   } return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
@@ -6205,7 +6199,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
   var i = 0;
   var key;
   while (names.length > i) {
-    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true))result.push(AllSymbols[key]);
+    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true)) result.push(AllSymbols[key]);
   } return result;
 };
 
@@ -6215,11 +6209,11 @@ if (!USE_NATIVE) {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
     var tag = uid(arguments.length > 0 ? arguments[0] : undefined);
     var $set = function (value) {
-      if (this === ObjectProto)$set.call(OPSymbols, value);
+      if (this === ObjectProto) $set.call(OPSymbols, value);
       if (has(this, HIDDEN) && has(this[HIDDEN], tag)) this[HIDDEN][tag] = false;
       setSymbolDesc(this, tag, createDesc(1, value));
     };
-    if (DESCRIPTORS && setter)setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
+    if (DESCRIPTORS && setter) setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
     return wrap(tag);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
@@ -6248,7 +6242,7 @@ for (var es6Symbols = (
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
 ).split(','), j = 0; es6Symbols.length > j;)wks(es6Symbols[j++]);
 
-for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;)wksDefine(wellKnownSymbols[k++]);
+for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;) wksDefine(wellKnownSymbols[k++]);
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
@@ -6294,11 +6288,11 @@ $JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
     var args = [it];
     var i = 1;
     var replacer, $replacer;
-    while (arguments.length > i)args.push(arguments[i++]);
+    while (arguments.length > i) args.push(arguments[i++]);
     replacer = args[1];
-    if (typeof replacer == 'function')$replacer = replacer;
-    if ($replacer || !isArray(replacer))replacer = function (key, value) {
-      if ($replacer)value = $replacer.call(this, key, value);
+    if (typeof replacer == 'function') $replacer = replacer;
+    if ($replacer || !isArray(replacer)) replacer = function (key, value) {
+      if ($replacer) value = $replacer.call(this, key, value);
       if (!isSymbol(value)) return value;
     };
     args[1] = replacer;
@@ -6824,7 +6818,7 @@ $export($export.S, 'Object', {
     var key, desc;
     while (keys.length > i) {
       desc = getDesc(O, key = keys[i++]);
-      if (desc !== undefined)createProperty(result, key, desc);
+      if (desc !== undefined) createProperty(result, key, desc);
     }
     return result;
   }
@@ -6948,14 +6942,14 @@ var Subscription = function (observer, subscriber) {
     var cleanup = subscriber(observer);
     var subscription = cleanup;
     if (cleanup != null) {
-      if (typeof cleanup.unsubscribe === 'function')cleanup = function () { subscription.unsubscribe(); };
+      if (typeof cleanup.unsubscribe === 'function') cleanup = function () { subscription.unsubscribe(); };
       else aFunction(cleanup);
       this._c = cleanup;
     }
   } catch (e) {
     observer.error(e);
     return;
-  } if (subscriptionClosed(this))cleanupSubscription(this);
+  } if (subscriptionClosed(this)) cleanupSubscription(this);
 };
 
 Subscription.prototype = redefineAll({}, {
@@ -7079,7 +7073,7 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    for (var i = 0, l = arguments.length, items = Array(l); i < l;)items[i] = arguments[i++];
+    for (var i = 0, l = arguments.length, items = Array(l); i < l;) items[i] = arguments[i++];
     return new (typeof this === 'function' ? this : $Observable)(function (observer) {
       var done = false;
       microtask(function () {
@@ -7442,7 +7436,7 @@ for (var i = 0; i < DOMIterables.length; i++) {
   var NAME = DOMIterables[i];
   var Collection = global[NAME];
   var proto = Collection && Collection.prototype;
-  if (proto && !proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
+  if (proto && !proto[TO_STRING_TAG]) hide(proto, TO_STRING_TAG, NAME);
   Iterators[NAME] = Iterators.Array;
 }
 
@@ -7499,10 +7493,10 @@ module.exports = function (original) {
   if (isArray(original)) {
     C = original.constructor;
     // cross-realm fallback
-    if (typeof C == 'function' && (C === Array || isArray(C.prototype)))C = undefined;
+    if (typeof C == 'function' && (C === Array || isArray(C.prototype))) C = undefined;
     if (isObject(C)) {
       C = C[SPECIES];
-      if (C === null)C = undefined;
+      if (C === null) C = undefined;
     }
   } return C === undefined ? Array : C;
 };
@@ -7536,7 +7530,7 @@ module.exports = function (it) {
     var isEnum = pIE.f;
     var i = 0;
     var key;
-    while (symbols.length > i) if (isEnum.call(it, key = symbols[i++]))result.push(key);
+    while (symbols.length > i) if (isEnum.call(it, key = symbols[i++])) result.push(key);
   } return result;
 };
 

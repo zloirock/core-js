@@ -13,7 +13,7 @@ var exporter = function (KEY, exec, ALIAS) {
     return !!spaces[KEY]() || non[KEY]() != non;
   });
   var fn = exp[KEY] = FORCE ? exec(trim) : spaces[KEY];
-  if (ALIAS)exp[ALIAS] = fn;
+  if (ALIAS) exp[ALIAS] = fn;
   $export($export.P + $export.F * FORCE, 'String', exp);
 };
 
@@ -22,8 +22,8 @@ var exporter = function (KEY, exec, ALIAS) {
 // 3 -> String#trim
 var trim = exporter.trim = function (string, TYPE) {
   string = String(defined(string));
-  if (TYPE & 1)string = string.replace(ltrim, '');
-  if (TYPE & 2)string = string.replace(rtrim, '');
+  if (TYPE & 1) string = string.replace(ltrim, '');
+  if (TYPE & 2) string = string.replace(rtrim, '');
   return string;
 };
 

@@ -9,7 +9,7 @@ module.exports = function (/* ...pargs */) {
   var i = 0;
   var _ = path._;
   var holder = false;
-  while (length > i) if ((pargs[i] = arguments[i++]) === _)holder = true;
+  while (length > i) if ((pargs[i] = arguments[i++]) === _) holder = true;
   return function (/* ...args */) {
     var that = this;
     var aLen = arguments.length;
@@ -18,8 +18,8 @@ module.exports = function (/* ...pargs */) {
     var args;
     if (!holder && !aLen) return invoke(fn, pargs, that);
     args = pargs.slice();
-    if (holder) for (;length > j; j++) if (args[j] === _)args[j] = arguments[k++];
-    while (aLen > k)args.push(arguments[k++]);
+    if (holder) for (;length > j; j++) if (args[j] === _) args[j] = arguments[k++];
+    while (aLen > k) args.push(arguments[k++]);
     return invoke(fn, args, that);
   };
 };

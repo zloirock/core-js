@@ -79,14 +79,14 @@ var notify = function (promise, isReject) {
       try {
         if (handler) {
           if (!ok) {
-            if (promise._h == 2)onHandleUnhandled(promise);
+            if (promise._h == 2) onHandleUnhandled(promise);
             promise._h = 1;
           }
-          if (handler === true)result = value;
+          if (handler === true) result = value;
           else {
-            if (domain)domain.enter();
+            if (domain) domain.enter();
             result = handler(value);
-            if (domain)domain.exit();
+            if (domain) domain.exit();
           }
           if (result === reaction.promise) {
             reject(TypeError('Promise-chain cycle'));
@@ -98,10 +98,10 @@ var notify = function (promise, isReject) {
         reject(e);
       }
     };
-    while (chain.length > i)run(chain[i++]); // variable length - can't use forEach
+    while (chain.length > i) run(chain[i++]); // variable length - can't use forEach
     promise._c = [];
     promise._n = false;
-    if (isReject && !promise._h)onUnhandled(promise);
+    if (isReject && !promise._h) onUnhandled(promise);
   });
 };
 var onUnhandled = function (promise) {
@@ -151,7 +151,7 @@ var $reject = function (value) {
   promise = promise._w || promise; // unwrap
   promise._v = value;
   promise._s = 2;
-  if (!promise._a)promise._a = promise._c.slice();
+  if (!promise._a) promise._a = promise._c.slice();
   notify(promise, true);
 };
 var $resolve = function (value) {
@@ -213,7 +213,7 @@ if (!USE_NATIVE) {
       reaction.domain = isNode ? process.domain : undefined;
       this._c.push(reaction);
       if (this._a) this._a.push(reaction);
-      if (this._s)notify(this, false);
+      if (this._s) notify(this, false);
       return reaction.promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
@@ -282,7 +282,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
       });
       --remaining || resolve(values);
     });
-    if (abrupt)reject(abrupt.error);
+    if (abrupt) reject(abrupt.error);
     return capability.promise;
   },
   // 25.4.4.4 Promise.race(iterable)
@@ -295,7 +295,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
         C.resolve(promise).then(capability.resolve, reject);
       });
     });
-    if (abrupt)reject(abrupt.error);
+    if (abrupt) reject(abrupt.error);
     return capability.promise;
   }
 });

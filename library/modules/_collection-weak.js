@@ -33,7 +33,7 @@ UncaughtFrozenStore.prototype = {
   },
   set: function (key, value) {
     var entry = findUncaughtFrozen(this, key);
-    if (entry)entry[1] = value;
+    if (entry) entry[1] = value;
     else this.a.push([key, value]);
   },
   'delete': function (key) {
@@ -51,7 +51,7 @@ module.exports = {
       anInstance(that, C, NAME, '_i');
       that._i = id++;      // collection id
       that._l = undefined; // leak store for uncaught frozen objects
-      if (iterable != undefined)forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
     redefineAll(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
@@ -75,7 +75,7 @@ module.exports = {
   },
   def: function (that, key, value) {
     var data = getWeak(anObject(key), true);
-    if (data === true)uncaughtFrozenStore(that).set(key, value);
+    if (data === true) uncaughtFrozenStore(that).set(key, value);
     else data[that._i] = value;
     return that;
   },

@@ -50,9 +50,9 @@ for (var collections = getKeys(DOMIterables), i = 0; i < collections.length; i++
   var proto = Collection && Collection.prototype;
   var key;
   if (proto) {
-    if (!proto[ITERATOR])hide(proto, ITERATOR, ArrayValues);
-    if (!proto[TO_STRING_TAG])hide(proto, TO_STRING_TAG, NAME);
+    if (!proto[ITERATOR]) hide(proto, ITERATOR, ArrayValues);
+    if (!proto[TO_STRING_TAG]) hide(proto, TO_STRING_TAG, NAME);
     Iterators[NAME] = ArrayValues;
-    if (explicit) for (key in $iterators) if (!proto[key])redefine(proto, key, $iterators[key], true);
+    if (explicit) for (key in $iterators) if (!proto[key]) redefine(proto, key, $iterators[key], true);
   }
 }

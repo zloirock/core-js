@@ -39,14 +39,14 @@ var createDictMethod = function (TYPE) {
       val = O[key];
       res = f(val, key, object);
       if (TYPE) {
-        if (IS_MAP)result[key] = res;            // map
+        if (IS_MAP) result[key] = res;          // map
         else if (res) switch (TYPE) {
           case 2: result[key] = val; break;     // filter
           case 3: return true;                  // some
           case 5: return val;                   // find
           case 6: return key;                   // findKey
           case 7: result[res[0]] = res[1];      // mapPairs
-        } else if (IS_EVERY) return false;        // every
+        } else if (IS_EVERY) return false;      // every
       }
     }
     return TYPE == 3 || IS_EVERY ? IS_EVERY : result;
@@ -124,7 +124,7 @@ function get(object, key) {
   if (has(object, key)) return object[key];
 }
 function set(object, key, value) {
-  if (DESCRIPTORS && key in Object)dP.f(object, key, createDesc(0, value));
+  if (DESCRIPTORS && key in Object) dP.f(object, key, createDesc(0, value));
   else object[key] = value;
   return object;
 }

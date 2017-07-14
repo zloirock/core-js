@@ -15,7 +15,7 @@ $export($export.S, 'Object', {
     var key, desc;
     while (keys.length > i) {
       desc = getDesc(O, key = keys[i++]);
-      if (desc !== undefined)createProperty(result, key, desc);
+      if (desc !== undefined) createProperty(result, key, desc);
     }
     return result;
   }

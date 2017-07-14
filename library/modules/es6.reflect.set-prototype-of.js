@@ -2,7 +2,7 @@
 var $export = require('./_export');
 var setProto = require('./_set-proto');
 
-if (setProto)$export($export.S, 'Reflect', {
+if (setProto) $export($export.S, 'Reflect', {
   setPrototypeOf: function setPrototypeOf(target, proto) {
     setProto.check(target, proto);
     try {

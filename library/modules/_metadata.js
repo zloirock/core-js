@@ -29,7 +29,7 @@ var ordinaryDefineOwnMetadata = function (MetadataKey, MetadataValue, O, P) {
 var ordinaryOwnMetadataKeys = function (target, targetKey) {
   var metadataMap = getOrCreateMetadataMap(target, targetKey, false);
   var keys = [];
-  if (metadataMap)metadataMap.forEach(function (_, key) { keys.push(key); });
+  if (metadataMap) metadataMap.forEach(function (_, key) { keys.push(key); });
   return keys;
 };
 var toMetaKey = function (it) {

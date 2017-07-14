@@ -124,7 +124,7 @@ if (require('./_descriptors')) {
     var index = 0;
     var length = list.length;
     var result = allocate(C, length);
-    while (length > index)result[index] = list[index++];
+    while (length > index) result[index] = list[index++];
     return result;
   };
 
@@ -144,7 +144,7 @@ if (require('./_descriptors')) {
         values.push(step.value);
       } O = values;
     }
-    if (mapping && aLen > 2)mapfn = ctx(mapfn, arguments[2], 2);
+    if (mapping && aLen > 2) mapfn = ctx(mapfn, arguments[2], 2);
     for (i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++) {
       result[i] = mapping ? mapfn(O[i], i) : O[i];
     }
@@ -155,7 +155,7 @@ if (require('./_descriptors')) {
     var index = 0;
     var length = arguments.length;
     var result = allocate(this, length);
-    while (length > index)result[index] = arguments[index++];
+    while (length > index) result[index] = arguments[index++];
     return result;
   };
 
@@ -348,7 +348,7 @@ if (require('./_descriptors')) {
     };
     var setter = function (that, index, value) {
       var data = that._d;
-      if (CLAMPED)value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
+      if (CLAMPED) value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
       data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
     };
     var addElement = function (that, index) {
@@ -397,7 +397,7 @@ if (require('./_descriptors')) {
           e: length,
           v: new $DataView(buffer)
         });
-        while (index < length)addElement(that, index++);
+        while (index < length) addElement(that, index++);
       });
       TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
@@ -424,10 +424,10 @@ if (require('./_descriptors')) {
         return $from.call(TypedArray, data);
       });
       arrayForEach(TAC !== Function.prototype ? gOPN(Base).concat(gOPN(TAC)) : gOPN(Base), function (key) {
-        if (!(key in TypedArray))hide(TypedArray, key, Base[key]);
+        if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
-      if (!LIBRARY)TypedArrayPrototype.constructor = TypedArray;
+      if (!LIBRARY) TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     var CORRECT_ITER_NAME = !!$nativeIterator
@@ -457,7 +457,7 @@ if (require('./_descriptors')) {
       of: $of
     });
 
-    if (!(BYTES_PER_ELEMENT in TypedArrayPrototype))hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
+    if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
     $export($export.P, NAME, proto);
 
@@ -480,6 +480,6 @@ if (require('./_descriptors')) {
     })), NAME, { toLocaleString: $toLocaleString });
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
-    if (!LIBRARY && !CORRECT_ITER_NAME)hide(TypedArrayPrototype, ITERATOR, $iterator);
+    if (!LIBRARY && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function () { /* empty */ };

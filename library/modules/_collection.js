@@ -30,11 +30,11 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
     C = wrapper(function (target, iterable) {
       anInstance(target, C, NAME, '_c');
       target._c = new Base();
-      if (iterable != undefined)forOf(iterable, IS_MAP, target[ADDER], target);
+      if (iterable != undefined) forOf(iterable, IS_MAP, target[ADDER], target);
     });
     each('add,clear,delete,forEach,get,has,set,keys,values,entries,toJSON'.split(','), function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
-      if (KEY in proto && !(IS_WEAK && KEY == 'clear'))hide(C.prototype, KEY, function (a, b) {
+      if (KEY in proto && !(IS_WEAK && KEY == 'clear')) hide(C.prototype, KEY, function (a, b) {
         anInstance(this, C, KEY);
         if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
         var result = this._c[KEY](a === 0 ? 0 : a, b);
@@ -53,7 +53,7 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
   O[NAME] = C;
   $export($export.G + $export.W + $export.F, O);
 
-  if (!IS_WEAK)common.setStrong(C, NAME, IS_MAP);
+  if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
 
   return C;
 };

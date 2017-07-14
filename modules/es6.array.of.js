@@ -12,7 +12,7 @@ $export($export.S + $export.F * require('./_fails')(function () {
     var index = 0;
     var aLen = arguments.length;
     var result = new (typeof this == 'function' ? this : Array)(aLen);
-    while (aLen > index)createProperty(result, index, arguments[index++]);
+    while (aLen > index) createProperty(result, index, arguments[index++]);
     result.length = aLen;
     return result;
   }

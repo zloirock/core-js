@@ -53,7 +53,7 @@ var setSymbolDesc = DESCRIPTORS && $fails(function () {
   var protoDesc = gOPD(ObjectProto, key);
   if (protoDesc) delete ObjectProto[key];
   dP(it, key, D);
-  if (protoDesc && it !== ObjectProto)dP(ObjectProto, key, protoDesc);
+  if (protoDesc && it !== ObjectProto) dP(ObjectProto, key, protoDesc);
 } : dP;
 
 var wrap = function (tag) {
@@ -69,16 +69,16 @@ var isSymbol = USE_NATIVE && typeof $Symbol.iterator == 'symbol' ? function (it)
 };
 
 var $defineProperty = function defineProperty(it, key, D) {
-  if (it === ObjectProto)$defineProperty(OPSymbols, key, D);
+  if (it === ObjectProto) $defineProperty(OPSymbols, key, D);
   anObject(it);
   key = toPrimitive(key, true);
   anObject(D);
   if (has(AllSymbols, key)) {
     if (!D.enumerable) {
-      if (!has(it, HIDDEN))dP(it, HIDDEN, createDesc(1, {}));
+      if (!has(it, HIDDEN)) dP(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
-      if (has(it, HIDDEN) && it[HIDDEN][key])it[HIDDEN][key] = false;
+      if (has(it, HIDDEN) && it[HIDDEN][key]) it[HIDDEN][key] = false;
       D = _create(D, { enumerable: createDesc(0, false) });
     } return setSymbolDesc(it, key, D);
   } return dP(it, key, D);
@@ -89,7 +89,7 @@ var $defineProperties = function defineProperties(it, P) {
   var i = 0;
   var l = keys.length;
   var key;
-  while (l > i)$defineProperty(it, key = keys[i++], P[key]);
+  while (l > i) $defineProperty(it, key = keys[i++], P[key]);
   return it;
 };
 var $create = function create(it, P) {
@@ -105,7 +105,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   key = toPrimitive(key, true);
   if (it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return;
   var D = gOPD(it, key);
-  if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key]))D.enumerable = true;
+  if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key])) D.enumerable = true;
   return D;
 };
 var $getOwnPropertyNames = function getOwnPropertyNames(it) {
@@ -114,7 +114,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it) {
   var i = 0;
   var key;
   while (names.length > i) {
-    if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META)result.push(key);
+    if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META) result.push(key);
   } return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
@@ -124,7 +124,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
   var i = 0;
   var key;
   while (names.length > i) {
-    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true))result.push(AllSymbols[key]);
+    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true)) result.push(AllSymbols[key]);
   } return result;
 };
 
@@ -134,11 +134,11 @@ if (!USE_NATIVE) {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
     var tag = uid(arguments.length > 0 ? arguments[0] : undefined);
     var $set = function (value) {
-      if (this === ObjectProto)$set.call(OPSymbols, value);
+      if (this === ObjectProto) $set.call(OPSymbols, value);
       if (has(this, HIDDEN) && has(this[HIDDEN], tag)) this[HIDDEN][tag] = false;
       setSymbolDesc(this, tag, createDesc(1, value));
     };
-    if (DESCRIPTORS && setter)setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
+    if (DESCRIPTORS && setter) setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
     return wrap(tag);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
@@ -167,7 +167,7 @@ for (var es6Symbols = (
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
 ).split(','), j = 0; es6Symbols.length > j;)wks(es6Symbols[j++]);
 
-for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;)wksDefine(wellKnownSymbols[k++]);
+for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;) wksDefine(wellKnownSymbols[k++]);
 
 $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   // 19.4.2.1 Symbol.for(key)
@@ -213,11 +213,11 @@ $JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
     var args = [it];
     var i = 1;
     var replacer, $replacer;
-    while (arguments.length > i)args.push(arguments[i++]);
+    while (arguments.length > i) args.push(arguments[i++]);
     replacer = args[1];
-    if (typeof replacer == 'function')$replacer = replacer;
-    if ($replacer || !isArray(replacer))replacer = function (key, value) {
-      if ($replacer)value = $replacer.call(this, key, value);
+    if (typeof replacer == 'function') $replacer = replacer;
+    if ($replacer || !isArray(replacer)) replacer = function (key, value) {
+      if ($replacer) value = $replacer.call(this, key, value);
       if (!isSymbol(value)) return value;
     };
     args[1] = replacer;
