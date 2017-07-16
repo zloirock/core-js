@@ -3782,10 +3782,10 @@ __webpack_require__(303);
 __webpack_require__(304);
 __webpack_require__(305);
 __webpack_require__(306);
-__webpack_require__(48);
 __webpack_require__(307);
-__webpack_require__(119);
+__webpack_require__(48);
 __webpack_require__(308);
+__webpack_require__(119);
 __webpack_require__(309);
 __webpack_require__(310);
 __webpack_require__(311);
@@ -3794,7 +3794,8 @@ __webpack_require__(313);
 __webpack_require__(314);
 __webpack_require__(315);
 __webpack_require__(316);
-module.exports = __webpack_require__(317);
+__webpack_require__(317);
+module.exports = __webpack_require__(318);
 
 
 /***/ }),
@@ -7463,6 +7464,23 @@ $export($export.S, 'Math', { signbit: function signbit(x) {
 /* 292 */
 /***/ (function(module, exports, __webpack_require__) {
 
+"use strict";
+
+// https://github.com/tc39/proposal-promise-try
+var $export = __webpack_require__(0);
+
+$export($export.S, 'Promise', { 'try': function (callbackfn) {
+  // TODO: use NewPromiseCapability logic
+  return new this(function (resolve) {
+    resolve(callbackfn());
+  });
+} });
+
+
+/***/ }),
+/* 293 */
+/***/ (function(module, exports, __webpack_require__) {
+
 var metadata = __webpack_require__(30);
 var anObject = __webpack_require__(1);
 var toMetaKey = metadata.key;
@@ -7474,7 +7492,7 @@ metadata.exp({ defineMetadata: function defineMetadata(metadataKey, metadataValu
 
 
 /***/ }),
-/* 293 */
+/* 294 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7495,7 +7513,7 @@ metadata.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 294 */
+/* 295 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7518,7 +7536,7 @@ metadata.exp({ getMetadata: function getMetadata(metadataKey, target /* , target
 
 
 /***/ }),
-/* 295 */
+/* 296 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Set = __webpack_require__(110);
@@ -7543,7 +7561,7 @@ metadata.exp({ getMetadataKeys: function getMetadataKeys(target /* , targetKey *
 
 
 /***/ }),
-/* 296 */
+/* 297 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7558,7 +7576,7 @@ metadata.exp({ getOwnMetadata: function getOwnMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 297 */
+/* 298 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7572,7 +7590,7 @@ metadata.exp({ getOwnMetadataKeys: function getOwnMetadataKeys(target /* , targe
 
 
 /***/ }),
-/* 298 */
+/* 299 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7594,7 +7612,7 @@ metadata.exp({ hasMetadata: function hasMetadata(metadataKey, target /* , target
 
 
 /***/ }),
-/* 299 */
+/* 300 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(30);
@@ -7609,7 +7627,7 @@ metadata.exp({ hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 300 */
+/* 301 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $metadata = __webpack_require__(30);
@@ -7630,7 +7648,7 @@ $metadata.exp({ metadata: function metadata(metadataKey, metadataValue) {
 
 
 /***/ }),
-/* 301 */
+/* 302 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
@@ -7648,7 +7666,7 @@ $export($export.G, {
 
 
 /***/ }),
-/* 302 */
+/* 303 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7854,7 +7872,7 @@ __webpack_require__(39)('Observable');
 
 
 /***/ }),
-/* 303 */
+/* 304 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -7866,7 +7884,7 @@ $export($export.G + $export.B, {
 
 
 /***/ }),
-/* 304 */
+/* 305 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $iterators = __webpack_require__(81);
@@ -7930,7 +7948,7 @@ for (var collections = getKeys(DOMIterables), i = 0; i < collections.length; i++
 
 
 /***/ }),
-/* 305 */
+/* 306 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // ie9- setTimeout & setInterval additional parameters fix
@@ -7957,7 +7975,7 @@ $export($export.G + $export.B + $export.F * MSIE, {
 
 
 /***/ }),
-/* 306 */
+/* 307 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8121,7 +8139,7 @@ $export($export.S, 'Dict', {
 
 
 /***/ }),
-/* 307 */
+/* 308 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var anObject = __webpack_require__(1);
@@ -8134,7 +8152,7 @@ module.exports = __webpack_require__(18).getIterator = function (it) {
 
 
 /***/ }),
-/* 308 */
+/* 309 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var global = __webpack_require__(2);
@@ -8152,7 +8170,7 @@ $export($export.G + $export.F, {
 
 
 /***/ }),
-/* 309 */
+/* 310 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var path = __webpack_require__(118);
@@ -8165,7 +8183,7 @@ $export($export.P + $export.F, 'Function', { part: __webpack_require__(88) });
 
 
 /***/ }),
-/* 310 */
+/* 311 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -8174,7 +8192,7 @@ $export($export.S + $export.F, 'Object', { isObject: __webpack_require__(4) });
 
 
 /***/ }),
-/* 311 */
+/* 312 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -8183,7 +8201,7 @@ $export($export.S + $export.F, 'Object', { classof: __webpack_require__(37) });
 
 
 /***/ }),
-/* 312 */
+/* 313 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -8193,7 +8211,7 @@ $export($export.S + $export.F, 'Object', { define: define });
 
 
 /***/ }),
-/* 313 */
+/* 314 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -8208,7 +8226,7 @@ $export($export.S + $export.F, 'Object', {
 
 
 /***/ }),
-/* 314 */
+/* 315 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8224,7 +8242,7 @@ __webpack_require__(54)(Number, 'Number', function (iterated) {
 
 
 /***/ }),
-/* 315 */
+/* 316 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // https://github.com/benjamingr/RexExp.escape
@@ -8235,7 +8253,7 @@ $export($export.S, 'RegExp', { escape: function escape(it) { return $re(it); } }
 
 
 /***/ }),
-/* 316 */
+/* 317 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8253,7 +8271,7 @@ $export($export.P + $export.F, 'String', { escapeHTML: function escapeHTML() { r
 
 
 /***/ }),
-/* 317 */
+/* 318 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";

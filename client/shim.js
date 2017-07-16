@@ -3676,7 +3676,8 @@ __webpack_require__(296);
 __webpack_require__(297);
 __webpack_require__(298);
 __webpack_require__(299);
-module.exports = __webpack_require__(300);
+__webpack_require__(300);
+module.exports = __webpack_require__(301);
 
 
 /***/ }),
@@ -7361,6 +7362,23 @@ $export($export.S, 'Math', { signbit: function signbit(x) {
 /* 287 */
 /***/ (function(module, exports, __webpack_require__) {
 
+"use strict";
+
+// https://github.com/tc39/proposal-promise-try
+var $export = __webpack_require__(0);
+
+$export($export.S, 'Promise', { 'try': function (callbackfn) {
+  // TODO: use NewPromiseCapability logic
+  return new this(function (resolve) {
+    resolve(callbackfn());
+  });
+} });
+
+
+/***/ }),
+/* 288 */
+/***/ (function(module, exports, __webpack_require__) {
+
 var metadata = __webpack_require__(26);
 var anObject = __webpack_require__(1);
 var toMetaKey = metadata.key;
@@ -7372,7 +7390,7 @@ metadata.exp({ defineMetadata: function defineMetadata(metadataKey, metadataValu
 
 
 /***/ }),
-/* 288 */
+/* 289 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7393,7 +7411,7 @@ metadata.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 289 */
+/* 290 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7416,7 +7434,7 @@ metadata.exp({ getMetadata: function getMetadata(metadataKey, target /* , target
 
 
 /***/ }),
-/* 290 */
+/* 291 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Set = __webpack_require__(106);
@@ -7441,7 +7459,7 @@ metadata.exp({ getMetadataKeys: function getMetadataKeys(target /* , targetKey *
 
 
 /***/ }),
-/* 291 */
+/* 292 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7456,7 +7474,7 @@ metadata.exp({ getOwnMetadata: function getOwnMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 292 */
+/* 293 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7470,7 +7488,7 @@ metadata.exp({ getOwnMetadataKeys: function getOwnMetadataKeys(target /* , targe
 
 
 /***/ }),
-/* 293 */
+/* 294 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7492,7 +7510,7 @@ metadata.exp({ hasMetadata: function hasMetadata(metadataKey, target /* , target
 
 
 /***/ }),
-/* 294 */
+/* 295 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var metadata = __webpack_require__(26);
@@ -7507,7 +7525,7 @@ metadata.exp({ hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , 
 
 
 /***/ }),
-/* 295 */
+/* 296 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $metadata = __webpack_require__(26);
@@ -7528,7 +7546,7 @@ $metadata.exp({ metadata: function metadata(metadataKey, metadataValue) {
 
 
 /***/ }),
-/* 296 */
+/* 297 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
@@ -7546,7 +7564,7 @@ $export($export.G, {
 
 
 /***/ }),
-/* 297 */
+/* 298 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7752,7 +7770,7 @@ __webpack_require__(37)('Observable');
 
 
 /***/ }),
-/* 298 */
+/* 299 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
@@ -7764,7 +7782,7 @@ $export($export.G + $export.B, {
 
 
 /***/ }),
-/* 299 */
+/* 300 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $iterators = __webpack_require__(80);
@@ -7828,14 +7846,14 @@ for (var collections = getKeys(DOMIterables), i = 0; i < collections.length; i++
 
 
 /***/ }),
-/* 300 */
+/* 301 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // ie9- setTimeout & setInterval additional parameters fix
 var global = __webpack_require__(2);
 var $export = __webpack_require__(0);
 var invoke = __webpack_require__(51);
-var partial = __webpack_require__(301);
+var partial = __webpack_require__(302);
 var navigator = global.navigator;
 var MSIE = !!navigator && /MSIE .\./.test(navigator.userAgent); // <- dirty ie9- check
 var wrap = function (set) {
@@ -7855,12 +7873,12 @@ $export($export.G + $export.B + $export.F * MSIE, {
 
 
 /***/ }),
-/* 301 */
+/* 302 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
-var path = __webpack_require__(302);
+var path = __webpack_require__(303);
 var invoke = __webpack_require__(51);
 var aFunction = __webpack_require__(13);
 module.exports = function (/* ...pargs */) {
@@ -7887,7 +7905,7 @@ module.exports = function (/* ...pargs */) {
 
 
 /***/ }),
-/* 302 */
+/* 303 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports = __webpack_require__(2);

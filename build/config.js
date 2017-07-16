@@ -170,6 +170,7 @@ module.exports = {
     'es7.math.scale',
     'es7.math.umulh',
     'es7.math.signbit',
+    'es7.promise.try',
     'es7.reflect.define-metadata',
     'es7.reflect.delete-metadata',
     'es7.reflect.get-metadata',
