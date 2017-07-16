@@ -11,13 +11,16 @@ var forOf = require('./_for-of');
 var speciesConstructor = require('./_species-constructor');
 var task = require('./_task').set;
 var microtask = require('./_microtask')();
+var newPromiseCapabilityModule = require('./_new-promise-capability');
+var perform = require('./_perform');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
 var $Promise = global[PROMISE];
 var isNode = classof(process) == 'process';
 var empty = function () { /* empty */ };
-var Internal, GenericPromiseCapability, Wrapper;
+var Internal, newGenericPromiseCapability, OwnPromiseCapability, Wrapper;
+var newPromiseCapability = newGenericPromiseCapability = newPromiseCapabilityModule.f;
 
 var USE_NATIVE = !!function () {
   try {
@@ -32,35 +35,15 @@ var USE_NATIVE = !!function () {
 }();
 
 // helpers
-var sameConstructor = function (a, b) {
+var sameConstructor = LIBRARY ? function (a, b) {
   // with library wrapper special case
   return a === b || a === $Promise && b === Wrapper;
+} : function (a, b) {
+  return a === b;
 };
 var isThenable = function (it) {
   var then;
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
-};
-var newPromiseCapability = function (C) {
-  return sameConstructor($Promise, C)
-    ? new PromiseCapability(C)
-    : new GenericPromiseCapability(C);
-};
-var PromiseCapability = GenericPromiseCapability = function (C) {
-  var resolve, reject;
-  this.promise = new C(function ($$resolve, $$reject) {
-    if (resolve !== undefined || reject !== undefined) throw TypeError('Bad Promise constructor');
-    resolve = $$resolve;
-    reject = $$reject;
-  });
-  this.resolve = aFunction(resolve);
-  this.reject = aFunction(reject);
-};
-var perform = function (exec) {
-  try {
-    exec();
-  } catch (e) {
-    return { error: e };
-  }
 };
 var notify = function (promise, isReject) {
   if (promise._n) return;
@@ -107,9 +90,10 @@ var notify = function (promise, isReject) {
 var onUnhandled = function (promise) {
   task.call(global, function () {
     var value = promise._v;
-    var abrupt, handler, console;
-    if (isUnhandled(promise)) {
-      abrupt = perform(function () {
+    var unhandled = isUnhandled(promise);
+    var result, handler, console;
+    if (unhandled) {
+      result = perform(function () {
         if (isNode) {
           process.emit('unhandledRejection', value, promise);
         } else if (handler = global.onunhandledrejection) {
@@ -121,7 +105,7 @@ var onUnhandled = function (promise) {
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
       promise._h = isNode || isUnhandled(promise) ? 2 : 1;
     } promise._a = undefined;
-    if (abrupt) throw abrupt.error;
+    if (unhandled && result.e) throw result.v;
   });
 };
 var isUnhandled = function (promise) {
@@ -221,11 +205,16 @@ if (!USE_NATIVE) {
       return this.then(undefined, onRejected);
     }
   });
-  PromiseCapability = function () {
+  OwnPromiseCapability = function () {
     var promise = new Internal();
     this.promise = promise;
     this.resolve = ctx($resolve, promise, 1);
     this.reject = ctx($reject, promise, 1);
+  };
+  newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
+    return sameConstructor($Promise, C)
+      ? new OwnPromiseCapability(C)
+      : newGenericPromiseCapability(C);
   };
 }
 
@@ -264,7 +253,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
     var capability = newPromiseCapability(C);
     var resolve = capability.resolve;
     var reject = capability.reject;
-    var abrupt = perform(function () {
+    var result = perform(function () {
       var values = [];
       var index = 0;
       var remaining = 1;
@@ -282,7 +271,7 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
       });
       --remaining || resolve(values);
     });
-    if (abrupt) reject(abrupt.error);
+    if (result.e) reject(result.v);
     return capability.promise;
   },
   // 25.4.4.4 Promise.race(iterable)
@@ -290,12 +279,12 @@ $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(functi
     var C = this;
     var capability = newPromiseCapability(C);
     var reject = capability.reject;
-    var abrupt = perform(function () {
+    var result = perform(function () {
       forOf(iterable, false, function (promise) {
         C.resolve(promise).then(capability.resolve, reject);
       });
     });
-    if (abrupt) reject(abrupt.error);
+    if (result.e) reject(result.v);
     return capability.promise;
   }
 });
