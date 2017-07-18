@@ -168,6 +168,7 @@ require('./modules/es7.math.radians');
 require('./modules/es7.math.scale');
 require('./modules/es7.math.umulh');
 require('./modules/es7.math.signbit');
+require('./modules/es7.promise.finally');
 require('./modules/es7.promise.try');
 require('./modules/es7.reflect.define-metadata');
 require('./modules/es7.reflect.delete-metadata');

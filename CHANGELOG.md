@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added `Promise#finally` [stage 2 proposal](https://github.com/tc39/proposal-promise-finally)
 - Added `Promise.try` [stage 1 proposal](https://github.com/tc39/proposal-promise-try)
 - Added `Math` extensions [stage 1 proposal](https://github.com/rwaldron/proposal-math-extensions), [#226](https://github.com/zloirock/core-js/issues/226) - added:
   - `Math.clamp`

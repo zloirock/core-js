@@ -1,3 +1,4 @@
+require('../modules/es7.promise.finally');
 require('../modules/es7.symbol.async-iterator');
 require('../modules/es7.string.trim-left');
 require('../modules/es7.string.trim-right');
