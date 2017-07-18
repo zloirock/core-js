@@ -13,6 +13,7 @@ var task = require('./_task').set;
 var microtask = require('./_microtask')();
 var newPromiseCapabilityModule = require('./_new-promise-capability');
 var perform = require('./_perform');
+var promiseResolve = require('./_promise-resolve');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
@@ -238,10 +239,7 @@ $export($export.S + $export.F * (LIBRARY || !USE_NATIVE), PROMISE, {
   resolve: function resolve(x) {
     // instanceof instead of internal slot check because we should fix it without replacement native Promise core
     if (x instanceof $Promise && sameConstructor(x.constructor, this)) return x;
-    var capability = newPromiseCapability(this);
-    var $$resolve = capability.resolve;
-    $$resolve(x);
-    return capability.promise;
+    return promiseResolve(this, x);
   }
 });
 $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function (iter) {
