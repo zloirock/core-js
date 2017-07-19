@@ -7743,8 +7743,8 @@
     async = assert.async();
     Promise['try'](function(){
       return 42;
-    }).then(function(result){
-      assert.same(42, 42, 'resolved with a correct value');
+    }).then(function(it){
+      assert.same(it, 42, 'resolved with a correct value');
       async();
     });
   });

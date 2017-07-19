@@ -10,8 +10,8 @@ test 'Promise.try' (assert)!->
 test 'Promise.try, resolved' (assert)!->
   assert.expect 1
   async = assert.async!
-  Promise.try(-> 42).then (result)!->
-    assert.same 42 42 'resolved with a correct value'
+  Promise.try(-> 42).then !->
+    assert.same it, 42 'resolved with a correct value'
     async!
 
 test 'Promise.try, rejected' (assert)!->
