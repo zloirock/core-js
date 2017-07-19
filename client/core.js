@@ -7513,7 +7513,7 @@ var global = __webpack_require__(2);
 var speciesConstructor = __webpack_require__(59);
 var promiseResolve = __webpack_require__(110);
 
-$export($export.P, 'Promise', { 'finally': function (onFinally) {
+$export($export.P + $export.R, 'Promise', { 'finally': function (onFinally) {
   var C = speciesConstructor(this, core.Promise || global.Promise);
   var isFunction = typeof onFinally == 'function';
   return this.then(
