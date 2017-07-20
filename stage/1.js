@@ -1,3 +1,11 @@
+require('../modules/es7.map.of');
+require('../modules/es7.set.of');
+require('../modules/es7.weak-map.of');
+require('../modules/es7.weak-set.of');
+require('../modules/es7.map.from');
+require('../modules/es7.set.from');
+require('../modules/es7.weak-map.from');
+require('../modules/es7.weak-set.from');
 require('../modules/es7.math.clamp');
 require('../modules/es7.math.deg-per-rad');
 require('../modules/es7.math.degrees');

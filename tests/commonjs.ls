@@ -268,6 +268,14 @@ for P in <[.. ../library]>
   ok new (require("#P/fn/set"))([1, 2, 3, 2, 1]).size is 3
   ok new (require("#P/fn/weak-map"))([[O = {}, 42]]).get(O) is 42
   ok new (require("#P/fn/weak-set"))([O = {}]).has O
+  ok require("#P/fn/map/of")([1 2], [3 4]) instanceof require("#P/fn/map")
+  ok require("#P/fn/set/of")(1 2 3 2 1) instanceof require("#P/fn/set")
+  ok require("#P/fn/weak-map/of")([{}, 1], [[], 2]) instanceof require("#P/fn/weak-map")
+  ok require("#P/fn/weak-set/of")({}, []) instanceof require("#P/fn/weak-set")
+  ok require("#P/fn/map/from")([[1 2], [3 4]]) instanceof require("#P/fn/map")
+  ok require("#P/fn/set/from")([1 2 3 2 1]) instanceof require("#P/fn/set")
+  ok require("#P/fn/weak-map/from")([[{}, 1], [[], 2]]) instanceof require("#P/fn/weak-map")
+  ok require("#P/fn/weak-set/from")([{}, []]) instanceof require("#P/fn/weak-set")
   ok typeof require("#P/fn/typed/array-buffer") is \function
   ok typeof require("#P/fn/typed/data-view") is \function
   ok typeof require("#P/fn/typed/int8-array") is \function
@@ -326,6 +334,8 @@ for P in <[.. ../library]>
   ok \at of require("#P/es7/string")
   require("#P/es7/set")
   require("#P/es7/map")
+  require("#P/es7/weak-set")
+  require("#P/es7/weak-map")
   ok require("#P/es7/global").Math is Math
   ok require("#P/es7/system").global.Math is Math
   ok require("#P/es7/error").isError new TypeError
