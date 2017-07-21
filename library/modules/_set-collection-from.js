@@ -6,15 +6,17 @@ var ctx = require('./_ctx');
 var forOf = require('./_for-of');
 
 module.exports = function (COLLECTION) {
-  $export($export.S, COLLECTION, { from: function from(source, mapFn, thisArg) {
+  $export($export.S, COLLECTION, { from: function from(source /* , mapFn, thisArg */) {
+    var mapFn = arguments[1];
+    var mapping, A, n, cb;
     aFunction(this);
-    var mapping = mapFn !== undefined;
+    mapping = mapFn !== undefined;
     if (mapping) aFunction(mapFn);
     if (source == undefined) return new this();
-    var A = [];
+    A = [];
     if (mapping) {
-      var n = 0;
-      var cb = ctx(mapFn, thisArg, 2);
+      n = 0;
+      cb = ctx(mapFn, arguments[2], 2);
       forOf(source, false, function (nextItem) {
         A.push(cb(nextItem, n++));
       });
