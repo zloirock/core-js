@@ -1,3 +1,5 @@
+require('../modules/es7.array.flat-map');
+require('../modules/es7.array.flatten');
 require('../modules/es7.string.at');
 require('../modules/es7.map.to-json');
 require('../modules/es7.set.to-json');

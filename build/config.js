@@ -138,6 +138,8 @@ module.exports = {
     'es6.typed.float32-array',
     'es6.typed.float64-array',
     'es7.array.includes',
+    'es7.array.flat-map',
+    'es7.array.flatten',
     'es7.string.at',
     'es7.string.pad-start',
     'es7.string.pad-end',
