@@ -3500,15 +3500,12 @@ var IS_CONCAT_SPREADABLE = __webpack_require__(5)('isConcatSpreadable');
 function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
-  var mapFn = mapper ? ctx(mapper, thisArg, 3) : undefined;
+  var mapFn = mapper ? ctx(mapper, thisArg, 3) : false;
   var element, spreadable;
 
   while (sourceIndex < sourceLen) {
     if (sourceIndex in source) {
-      element = source[sourceIndex];
-      if (mapFn) {
-        element = mapFn(element, sourceIndex, target);
-      }
+      element = mapFn ? mapFn(source[sourceIndex], sourceIndex, target) : source[sourceIndex];
 
       spreadable = false;
       if (isObject(element)) {
@@ -3519,7 +3516,7 @@ function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisA
       if (spreadable && depth > 0) {
         targetIndex = flattenIntoArray(target, element, toLength(element.length), targetIndex, depth - 1) - 1;
       } else {
-        if (targetIndex !== toLength(targetIndex)) throw TypeError();
+        if (targetIndex >= 0x1fffffffffffff) throw TypeError();
         target[targetIndex] = element;
       }
     }
