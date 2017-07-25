@@ -6,7 +6,7 @@ var toLength = require('./_to-length');
 var ctx = require('./_ctx');
 var IS_CONCAT_SPREADABLE = require('./_wks')('isConcatSpreadable');
 
-function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisArg) {
+function flattenIntoArray(target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
   var mapFn = mapper ? ctx(mapper, thisArg, 3) : false;
@@ -14,7 +14,7 @@ function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisA
 
   while (sourceIndex < sourceLen) {
     if (sourceIndex in source) {
-      element = mapFn ? mapFn(source[sourceIndex], sourceIndex, target) : source[sourceIndex];
+      element = mapFn ? mapFn(source[sourceIndex], sourceIndex, original) : source[sourceIndex];
 
       spreadable = false;
       if (isObject(element)) {
@@ -23,7 +23,7 @@ function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisA
       }
 
       if (spreadable && depth > 0) {
-        targetIndex = flattenIntoArray(target, element, toLength(element.length), targetIndex, depth - 1) - 1;
+        targetIndex = flattenIntoArray(target, original, element, toLength(element.length), targetIndex, depth - 1) - 1;
       } else {
         if (targetIndex >= 0x1fffffffffffff) throw TypeError();
         target[targetIndex] = element;

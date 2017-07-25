@@ -16,7 +16,8 @@ test 'Array#flatMap' (assert)!->
   index = void
   context = void
   target = void
-  result = [1]flatMap ($element, $index, $target)!->
+  array = [1]
+  array.flatMap ($element, $index, $target)!->
     element := $element
     index := $index
     target := $target
@@ -25,7 +26,7 @@ test 'Array#flatMap' (assert)!->
   , $context = {}
   assert.same element, 1
   assert.same index, 0
-  assert.same target, result
+  assert.same target, array
   assert.same context, $context
   if STRICT
     assert.throws (!-> Array::flatMap.call null, -> it), TypeError

@@ -10854,7 +10854,7 @@
   module = QUnit.module, test = QUnit.test;
   module('ES7');
   test('Array#flatMap', function(assert){
-    var element, index, context, target, result, $context;
+    var element, index, context, target, array, $context;
     assert.isFunction(Array.prototype.flatMap);
     assert.name(Array.prototype.flatMap, 'flatMap');
     assert.arity(Array.prototype.flatMap, 1);
@@ -10879,7 +10879,8 @@
     index = void 8;
     context = void 8;
     target = void 8;
-    result = [1].flatMap(function($element, $index, $target){
+    array = [1];
+    array.flatMap(function($element, $index, $target){
       element = $element;
       index = $index;
       target = $target;
@@ -10888,7 +10889,7 @@
     }, $context = {});
     assert.same(element, 1);
     assert.same(index, 0);
-    assert.same(target, result);
+    assert.same(target, array);
     assert.same(context, $context);
     if (STRICT) {
       assert.throws(function(){

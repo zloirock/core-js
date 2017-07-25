@@ -3497,7 +3497,7 @@ var toLength = __webpack_require__(7);
 var ctx = __webpack_require__(16);
 var IS_CONCAT_SPREADABLE = __webpack_require__(5)('isConcatSpreadable');
 
-function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisArg) {
+function flattenIntoArray(target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
   var mapFn = mapper ? ctx(mapper, thisArg, 3) : false;
@@ -3505,7 +3505,7 @@ function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisA
 
   while (sourceIndex < sourceLen) {
     if (sourceIndex in source) {
-      element = mapFn ? mapFn(source[sourceIndex], sourceIndex, target) : source[sourceIndex];
+      element = mapFn ? mapFn(source[sourceIndex], sourceIndex, original) : source[sourceIndex];
 
       spreadable = false;
       if (isObject(element)) {
@@ -3514,7 +3514,7 @@ function flattenIntoArray(target, source, sourceLen, start, depth, mapper, thisA
       }
 
       if (spreadable && depth > 0) {
-        targetIndex = flattenIntoArray(target, element, toLength(element.length), targetIndex, depth - 1) - 1;
+        targetIndex = flattenIntoArray(target, original, element, toLength(element.length), targetIndex, depth - 1) - 1;
       } else {
         if (targetIndex >= 0x1fffffffffffff) throw TypeError();
         target[targetIndex] = element;
@@ -6611,7 +6611,7 @@ $export($export.P, 'Array', {
     aFunction(callbackfn);
     sourceLen = toLength(O.length);
     A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, sourceLen, 0, 1, callbackfn, arguments[1]);
+    flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments[1]);
     return A;
   }
 });
@@ -6639,7 +6639,7 @@ $export($export.P, 'Array', {
     var O = toObject(this);
     var sourceLen = toLength(O.length);
     var A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, sourceLen, 0, depthArg === undefined ? 1 : toInteger(depthArg));
+    flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toInteger(depthArg));
     return A;
   }
 });
