@@ -566,7 +566,7 @@ if (__webpack_require__(6)) {
   var redefineAll = __webpack_require__(41);
   var toInteger = __webpack_require__(25);
   var toLength = __webpack_require__(8);
-  var toIndex = __webpack_require__(35);
+  var toAbsoluteIndex = __webpack_require__(35);
   var toPrimitive = __webpack_require__(22);
   var has = __webpack_require__(11);
   var same = __webpack_require__(95);
@@ -784,11 +784,11 @@ if (__webpack_require__(6)) {
     subarray: function subarray(begin, end) {
       var O = validate(this);
       var length = O.length;
-      var $begin = toIndex(begin, length);
+      var $begin = toAbsoluteIndex(begin, length);
       return new (speciesConstructor(O, O[DEF_CONSTRUCTOR]))(
         O.buffer,
         O.byteOffset + $begin * O.BYTES_PER_ELEMENT,
-        toLength((end === undefined ? length : toIndex(end, length)) - $begin)
+        toLength((end === undefined ? length : toAbsoluteIndex(end, length)) - $begin)
       );
     }
   };
@@ -1490,12 +1490,12 @@ module.exports = function (key) {
 // true  -> Array#includes
 var toIObject = __webpack_require__(14);
 var toLength = __webpack_require__(8);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 module.exports = function (IS_INCLUDES) {
   return function ($this, el, fromIndex) {
     var O = toIObject($this);
     var length = toLength(O.length);
-    var index = toIndex(fromIndex, length);
+    var index = toAbsoluteIndex(fromIndex, length);
     var value;
     // Array#includes uses SameValueZero equality algorithm
     // eslint-disable-next-line no-self-compare
@@ -1503,7 +1503,7 @@ module.exports = function (IS_INCLUDES) {
       value = O[index++];
       // eslint-disable-next-line no-self-compare
       if (value != value) return true;
-    // Array#toIndex ignores holes, Array#includes - not
+    // Array#indexOf ignores holes, Array#includes - not
     } else for (;length > index; index++) if (IS_INCLUDES || index in O) {
       if (O[index] === el) return IS_INCLUDES || index || 0;
     } return !IS_INCLUDES && -1;
@@ -2231,15 +2231,15 @@ module.exports = function (original, length) {
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 
 var toObject = __webpack_require__(9);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 var toLength = __webpack_require__(8);
 module.exports = function fill(value /* , start = 0, end = @length */) {
   var O = toObject(this);
   var length = toLength(O.length);
   var aLen = arguments.length;
-  var index = toIndex(aLen > 1 ? arguments[1] : undefined, length);
+  var index = toAbsoluteIndex(aLen > 1 ? arguments[1] : undefined, length);
   var end = aLen > 2 ? arguments[2] : undefined;
-  var endPos = end === undefined ? length : toIndex(end, length);
+  var endPos = end === undefined ? length : toAbsoluteIndex(end, length);
   while (endPos > index) O[index++] = value;
   return O;
 };
@@ -3076,16 +3076,16 @@ module.exports = function (that, callbackfn, aLen, memo, isRight) {
 // 22.1.3.3 Array.prototype.copyWithin(target, start, end = this.length)
 
 var toObject = __webpack_require__(9);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 var toLength = __webpack_require__(8);
 
 module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /* = 0, end = @length */) {
   var O = toObject(this);
   var len = toLength(O.length);
-  var to = toIndex(target, len);
-  var from = toIndex(start, len);
+  var to = toAbsoluteIndex(target, len);
+  var from = toAbsoluteIndex(start, len);
   var end = arguments.length > 2 ? arguments[2] : undefined;
-  var count = Math.min((end === undefined ? len : toIndex(end, len)) - from, len - to);
+  var count = Math.min((end === undefined ? len : toAbsoluteIndex(end, len)) - from, len - to);
   var inc = 1;
   if (from < to && to < from + count) {
     inc = -1;
@@ -5037,7 +5037,7 @@ $export($export.S, 'Math', {
 /***/ (function(module, exports, __webpack_require__) {
 
 var $export = __webpack_require__(0);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 var fromCharCode = String.fromCharCode;
 var $fromCodePoint = String.fromCodePoint;
 
@@ -5051,7 +5051,7 @@ $export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1)
     var code;
     while (aLen > i) {
       code = +arguments[i++];
-      if (toIndex(code, 0x10ffff) !== code) throw RangeError(code + ' is not a valid code point');
+      if (toAbsoluteIndex(code, 0x10ffff) !== code) throw RangeError(code + ' is not a valid code point');
       res.push(code < 0x10000
         ? fromCharCode(code)
         : fromCharCode(((code -= 0x10000) >> 10) + 0xd800, code % 0x400 + 0xdc00)
@@ -5512,7 +5512,7 @@ $export($export.P + $export.F * (__webpack_require__(45) != Object || !__webpack
 var $export = __webpack_require__(0);
 var html = __webpack_require__(67);
 var cof = __webpack_require__(19);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 var toLength = __webpack_require__(8);
 var arraySlice = [].slice;
 
@@ -5525,8 +5525,8 @@ $export($export.P + $export.F * __webpack_require__(3)(function () {
     var klass = cof(this);
     end = end === undefined ? len : end;
     if (klass == 'Array') return arraySlice.call(this, begin, end);
-    var start = toIndex(begin, len);
-    var upTo = toIndex(end, len);
+    var start = toAbsoluteIndex(begin, len);
+    var upTo = toAbsoluteIndex(end, len);
     var size = toLength(upTo - start);
     var cloned = Array(size);
     var i = 0;
@@ -6824,7 +6824,7 @@ var $export = __webpack_require__(0);
 var $typed = __webpack_require__(59);
 var buffer = __webpack_require__(88);
 var anObject = __webpack_require__(1);
-var toIndex = __webpack_require__(35);
+var toAbsoluteIndex = __webpack_require__(35);
 var toLength = __webpack_require__(8);
 var isObject = __webpack_require__(4);
 var ArrayBuffer = __webpack_require__(2).ArrayBuffer;
@@ -6852,8 +6852,8 @@ $export($export.P + $export.U + $export.F * __webpack_require__(3)(function () {
   slice: function slice(start, end) {
     if ($slice !== undefined && end === undefined) return $slice.call(anObject(this), start); // FF fix
     var len = anObject(this).byteLength;
-    var first = toIndex(start, len);
-    var final = toIndex(end === undefined ? len : end, len);
+    var first = toAbsoluteIndex(start, len);
+    var final = toAbsoluteIndex(end === undefined ? len : end, len);
     var result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first));
     var viewS = new $DataView(this);
     var viewT = new $DataView(result);

@@ -2,7 +2,7 @@
 var $export = require('./_export');
 var html = require('./_html');
 var cof = require('./_cof');
-var toIndex = require('./_to-index');
+var toAbsoluteIndex = require('./_to-absolute-index');
 var toLength = require('./_to-length');
 var arraySlice = [].slice;
 
@@ -15,8 +15,8 @@ $export($export.P + $export.F * require('./_fails')(function () {
     var klass = cof(this);
     end = end === undefined ? len : end;
     if (klass == 'Array') return arraySlice.call(this, begin, end);
-    var start = toIndex(begin, len);
-    var upTo = toIndex(end, len);
+    var start = toAbsoluteIndex(begin, len);
+    var upTo = toAbsoluteIndex(end, len);
     var size = toLength(upTo - start);
     var cloned = Array(size);
     var i = 0;

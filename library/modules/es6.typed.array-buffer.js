@@ -3,7 +3,7 @@ var $export = require('./_export');
 var $typed = require('./_typed');
 var buffer = require('./_typed-buffer');
 var anObject = require('./_an-object');
-var toIndex = require('./_to-index');
+var toAbsoluteIndex = require('./_to-absolute-index');
 var toLength = require('./_to-length');
 var isObject = require('./_is-object');
 var ArrayBuffer = require('./_global').ArrayBuffer;
@@ -31,8 +31,8 @@ $export($export.P + $export.U + $export.F * require('./_fails')(function () {
   slice: function slice(start, end) {
     if ($slice !== undefined && end === undefined) return $slice.call(anObject(this), start); // FF fix
     var len = anObject(this).byteLength;
-    var first = toIndex(start, len);
-    var final = toIndex(end === undefined ? len : end, len);
+    var first = toAbsoluteIndex(start, len);
+    var final = toAbsoluteIndex(end === undefined ? len : end, len);
     var result = new (speciesConstructor(this, $ArrayBuffer))(toLength(final - first));
     var viewS = new $DataView(this);
     var viewT = new $DataView(result);

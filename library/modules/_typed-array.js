@@ -13,7 +13,7 @@ if (require('./_descriptors')) {
   var redefineAll = require('./_redefine-all');
   var toInteger = require('./_to-integer');
   var toLength = require('./_to-length');
-  var toIndex = require('./_to-index');
+  var toAbsoluteIndex = require('./_to-absolute-index');
   var toPrimitive = require('./_to-primitive');
   var has = require('./_has');
   var same = require('./_same-value');
@@ -231,11 +231,11 @@ if (require('./_descriptors')) {
     subarray: function subarray(begin, end) {
       var O = validate(this);
       var length = O.length;
-      var $begin = toIndex(begin, length);
+      var $begin = toAbsoluteIndex(begin, length);
       return new (speciesConstructor(O, O[DEF_CONSTRUCTOR]))(
         O.buffer,
         O.byteOffset + $begin * O.BYTES_PER_ELEMENT,
-        toLength((end === undefined ? length : toIndex(end, length)) - $begin)
+        toLength((end === undefined ? length : toAbsoluteIndex(end, length)) - $begin)
       );
     }
   };
