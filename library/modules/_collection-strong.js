@@ -4,7 +4,6 @@ var create = require('./_object-create');
 var redefineAll = require('./_redefine-all');
 var ctx = require('./_ctx');
 var anInstance = require('./_an-instance');
-var defined = require('./_defined');
 var forOf = require('./_for-of');
 var $iterDefine = require('./_iter-define');
 var step = require('./_iter-step');
