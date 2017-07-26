@@ -8003,6 +8003,11 @@
         Typed(1);
       }, TypeError, 'throws without `new`');
       assert.same(Typed[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], Typed, '@@species');
+      assert.ok((function(){
+        try {
+          return Typed.toString();
+        } catch (e$) {}
+      }()));
     });
     test(name + " descriptors", function(assert){
       var typed, desc, base, key, e;

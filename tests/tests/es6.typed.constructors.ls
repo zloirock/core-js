@@ -161,6 +161,8 @@ if DESCRIPTORS
         assert.throws (!-> Typed 1), TypeError, 'throws without `new`'
         assert.same Typed[Symbol?species], Typed, '@@species'
 
+        assert.ok try Typed.toString!
+
       test "#{name} descriptors" (assert)!->
         typed = new Typed 2
         # V8 ~ Chrome 44- bug - descriptor marked as configurable

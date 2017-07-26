@@ -1015,7 +1015,7 @@ if (__webpack_require__(6)) {
 
     $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
 
-    $export($export.P + $export.F * (TypedArrayPrototype.toString != arrayToString), NAME, { toString: arrayToString });
+    if (!LIBRARY && TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
 
     $export($export.P + $export.F * fails(function () {
       new TypedArray(1).slice();
