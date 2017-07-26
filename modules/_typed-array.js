@@ -13,10 +13,10 @@ if (require('./_descriptors')) {
   var redefineAll = require('./_redefine-all');
   var toInteger = require('./_to-integer');
   var toLength = require('./_to-length');
+  var toIndex = require('./_to-index');
   var toAbsoluteIndex = require('./_to-absolute-index');
   var toPrimitive = require('./_to-primitive');
   var has = require('./_has');
-  var same = require('./_same-value');
   var classof = require('./_classof');
   var isObject = require('./_is-object');
   var toObject = require('./_to-object');
@@ -90,14 +90,6 @@ if (require('./_descriptors')) {
   var FORCED_SET = !!Uint8Array && !!Uint8Array[PROTOTYPE].set && fails(function () {
     new Uint8Array(1).set({});
   });
-
-  var strictToLength = function (it, SAME) {
-    if (it === undefined) throw TypeError(WRONG_LENGTH);
-    var number = +it;
-    var length = toLength(it);
-    if (SAME && !same(number, length)) throw RangeError(WRONG_LENGTH);
-    return length;
-  };
 
   var toOffset = function (it, BYTES) {
     var offset = toInteger(it);
@@ -333,7 +325,6 @@ if (require('./_descriptors')) {
   module.exports = function (KEY, BYTES, wrapper, CLAMPED) {
     CLAMPED = !!CLAMPED;
     var NAME = KEY + (CLAMPED ? 'Clamped' : '') + 'Array';
-    var ISNT_UINT8 = NAME != 'Uint8Array';
     var GETTER = 'get' + KEY;
     var SETTER = 'set' + KEY;
     var TypedArray = global[NAME];
@@ -369,7 +360,7 @@ if (require('./_descriptors')) {
         var offset = 0;
         var buffer, byteLength, length, klass;
         if (!isObject(data)) {
-          length = strictToLength(data, true);
+          length = toIndex(data);
           byteLength = length * BYTES;
           buffer = new $ArrayBuffer(byteLength);
         } else if (data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER) {
@@ -401,10 +392,14 @@ if (require('./_descriptors')) {
       });
       TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
-    } else if (!$iterDetect(function (iter) {
-      // V8 works with iterators, but fails in many other cases
-      // https://code.google.com/p/v8/issues/detail?id=4552
+    } else if (!fails(function () {
+      TypedArray(1);
+    }) || !fails(function () {
+      new TypedArray(-1); // eslint-disable-line no-new
+    }) || !$iterDetect(function (iter) {
+      new TypedArray(); // eslint-disable-line no-new
       new TypedArray(null); // eslint-disable-line no-new
+      new TypedArray(1.5); // eslint-disable-line no-new
       new TypedArray(iter); // eslint-disable-line no-new
     }, true)) {
       TypedArray = wrapper(function (that, data, $offset, $length) {
@@ -412,7 +407,7 @@ if (require('./_descriptors')) {
         var klass;
         // `ws` module bug, temporarily remove validation length for Uint8Array
         // https://github.com/websockets/ws/pull/645
-        if (!isObject(data)) return new Base(strictToLength(data, ISNT_UINT8));
+        if (!isObject(data)) return new Base(toIndex(data));
         if (data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER) {
           return $length !== undefined
             ? new Base(data, toOffset($offset, BYTES), $length)

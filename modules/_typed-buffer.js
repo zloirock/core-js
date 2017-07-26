@@ -9,6 +9,7 @@ var fails = require('./_fails');
 var anInstance = require('./_an-instance');
 var toInteger = require('./_to-integer');
 var toLength = require('./_to-length');
+var toIndex = require('./_to-index');
 var gOPN = require('./_object-gopn').f;
 var dP = require('./_object-dp').f;
 var arrayFill = require('./_array-fill');
@@ -136,8 +137,8 @@ function addGetter(C, key, internal) {
 
 function get(view, bytes, index, isLittleEndian) {
   var numIndex = +index;
-  var intIndex = toInteger(numIndex);
-  if (numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
+  var intIndex = toIndex(numIndex);
+  if (intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
   var store = view[$BUFFER]._b;
   var start = intIndex + view[$OFFSET];
   var pack = store.slice(start, start + bytes);
@@ -145,25 +146,18 @@ function get(view, bytes, index, isLittleEndian) {
 }
 function set(view, bytes, index, conversion, value, isLittleEndian) {
   var numIndex = +index;
-  var intIndex = toInteger(numIndex);
-  if (numIndex != intIndex || intIndex < 0 || intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
+  var intIndex = toIndex(numIndex);
+  if (intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
   var store = view[$BUFFER]._b;
   var start = intIndex + view[$OFFSET];
   var pack = conversion(+value);
   for (var i = 0; i < bytes; i++) store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
 }
 
-function validateArrayBufferArguments(that, length) {
-  anInstance(that, $ArrayBuffer, ARRAY_BUFFER);
-  var numberLength = +length;
-  var byteLength = toLength(numberLength);
-  if (numberLength != byteLength) throw RangeError(WRONG_LENGTH);
-  return byteLength;
-}
-
 if (!$typed.ABV) {
   $ArrayBuffer = function ArrayBuffer(length) {
-    var byteLength = validateArrayBufferArguments(this, length);
+    anInstance(this, $ArrayBuffer, ARRAY_BUFFER);
+    var byteLength = toIndex(length);
     this._b = arrayFill.call(Array(byteLength), 0);
     this[$LENGTH] = byteLength;
   };
@@ -242,12 +236,18 @@ if (!$typed.ABV) {
   });
 } else {
   if (!fails(function () {
-    new $ArrayBuffer();      // eslint-disable-line no-new
+    $ArrayBuffer(1);
   }) || !fails(function () {
-    new $ArrayBuffer(0.5); // eslint-disable-line no-new
+    new $ArrayBuffer(-1); // eslint-disable-line no-new
+  }) || fails(function () {
+    new $ArrayBuffer(); // eslint-disable-line no-new
+    new $ArrayBuffer(1.5); // eslint-disable-line no-new
+    new $ArrayBuffer(NaN); // eslint-disable-line no-new
+    return $ArrayBuffer.name != ARRAY_BUFFER;
   })) {
     $ArrayBuffer = function ArrayBuffer(length) {
-      return new BaseBuffer(validateArrayBufferArguments(this, length));
+      anInstance(this, $ArrayBuffer);
+      return new BaseBuffer(toIndex(length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
     for (var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;) {

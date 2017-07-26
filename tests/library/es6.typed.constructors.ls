@@ -6,7 +6,6 @@ if DESCRIPTORS
   for $name, $bytes of {Float32Array: 4, Float64Array: 8, Int8Array: 1, Int16Array: 2, Int32Array: 4, Uint8Array: 1, Uint16Array: 2, Uint32Array: 4, Uint8ClampedArray: 1}
     let name = $name, bytes = $bytes
       Typed = core[name]
-      NATIVE_OR_ISNT_UINT8 = NATIVE or name isnt \Uint8Array
       test "#{name} constructor" !(assert)~>
         assert.isFunction Typed
 
@@ -31,12 +30,42 @@ if DESCRIPTORS
           assert.arrayEqual a, [0], 'correct values, passed boolean'
         catch e => assert.same e, [0], 'passed boolean'
 
-        assert.throws (!-> new Typed), TypeError, 'throws without argument'
-        assert.throws (!-> new Typed void), TypeError, 'throws on undefined'
-        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed 1.5), RangeError, 'throws on 1.5'
-        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed -1), RangeError, 'throws on -1'
-        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed -0), RangeError, 'throws on -0'
-        NATIVE_OR_ISNT_UINT8 and assert.throws (!-> new Typed NaN), RangeError, 'throws on NaN'
+        try
+          a = new Typed!
+          assert.same a.byteOffset, 0, '#byteOffset, passed boolean'
+          assert.same a.byteLength, 0, '#byteLength, passed boolean'
+          assert.arrayEqual a, [], 'correct values, passed boolean'
+        catch e => assert.same e, [], 'passed boolean'
+
+        try
+          a = new Typed void
+          assert.same a.byteOffset, 0, '#byteOffset, passed boolean'
+          assert.same a.byteLength, 0, '#byteLength, passed boolean'
+          assert.arrayEqual a, [], 'correct values, passed boolean'
+        catch e => assert.same e, [], 'passed boolean'
+
+        try
+          a = new Typed -0
+          assert.same a.byteOffset, 0, '#byteOffset, passed boolean'
+          assert.same a.byteLength, 0, '#byteLength, passed boolean'
+          assert.arrayEqual a, [], 'correct values, passed boolean'
+        catch e => assert.same e, [], 'passed boolean'
+
+        try
+          a = new Typed NaN
+          assert.same a.byteOffset, 0, '#byteOffset, passed boolean'
+          assert.same a.byteLength, 0, '#byteLength, passed boolean'
+          assert.arrayEqual a, [], 'correct values, passed boolean'
+        catch e => assert.same e, [], 'passed boolean'
+
+        try
+          a = new Typed 1.5
+          assert.same a.byteOffset, 0, '#byteOffset, passed boolean'
+          assert.same a.byteLength, 1 * bytes, '#byteLength, passed boolean'
+          assert.arrayEqual a, [0], 'correct values, passed boolean'
+        catch e => assert.same e, [0], 'passed boolean'
+
+        NATIVE and assert.throws (!-> new Typed -1), RangeError, 'throws on -1'
 
         try
           a = new Typed null # throws in most engines

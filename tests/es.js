@@ -7720,15 +7720,16 @@
     assert.throws(function(){
       new ArrayBuffer(-1);
     }, RangeError, 'negative length');
-    assert.throws(function(){
-      new ArrayBuffer(0.5);
-    }, RangeError, 'fractional length');
-    assert.throws(function(){
-      new ArrayBuffer();
-    }, RangeError, 'missed length');
-    assert.throws(function(){
-      new ArrayBuffer(Number.MAX_SAFE_INTEGER + 1);
-    }, RangeError, 'absurd length');
+    assert.ok((function(){
+      try {
+        return new ArrayBuffer(0.5);
+      } catch (e$) {}
+    }()), 'fractional length');
+    assert.ok((function(){
+      try {
+        return new ArrayBuffer();
+      } catch (e$) {}
+    }()), 'missed length');
     DESCRIPTORS && assert.same(ArrayBuffer[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.species : void 8], ArrayBuffer, '@@species');
   });
 }).call(this);
@@ -7813,9 +7814,8 @@
     return obj;
   }
   function fn$(name, bytes){
-    var Typed, NATIVE_OR_ISNT_UINT8;
+    var Typed;
     Typed = global[name];
-    NATIVE_OR_ISNT_UINT8 = NATIVE || name !== 'Uint8Array';
     test(name + " constructor", function(assert){
       var a, e, b;
       assert.isFunction(Typed);
@@ -7846,24 +7846,54 @@
         e = e$;
         assert.same(e, [0], 'passed boolean');
       }
-      assert.throws(function(){
-        new Typed;
-      }, TypeError, 'throws without argument');
-      assert.throws(function(){
-        new Typed(void 8);
-      }, TypeError, 'throws on undefined');
-      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
-        new Typed(1.5);
-      }, RangeError, 'throws on 1.5');
-      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
+      try {
+        a = new Typed();
+        assert.same(a.byteOffset, 0, '#byteOffset, passed boolean');
+        assert.same(a.byteLength, 0, '#byteLength, passed boolean');
+        assert.arrayEqual(a, [], 'correct values, passed boolean');
+      } catch (e$) {
+        e = e$;
+        assert.same(e, [], 'passed boolean');
+      }
+      try {
+        a = new Typed(void 8);
+        assert.same(a.byteOffset, 0, '#byteOffset, passed boolean');
+        assert.same(a.byteLength, 0, '#byteLength, passed boolean');
+        assert.arrayEqual(a, [], 'correct values, passed boolean');
+      } catch (e$) {
+        e = e$;
+        assert.same(e, [], 'passed boolean');
+      }
+      try {
+        a = new Typed(-0);
+        assert.same(a.byteOffset, 0, '#byteOffset, passed boolean');
+        assert.same(a.byteLength, 0, '#byteLength, passed boolean');
+        assert.arrayEqual(a, [], 'correct values, passed boolean');
+      } catch (e$) {
+        e = e$;
+        assert.same(e, [], 'passed boolean');
+      }
+      try {
+        a = new Typed(NaN);
+        assert.same(a.byteOffset, 0, '#byteOffset, passed boolean');
+        assert.same(a.byteLength, 0, '#byteLength, passed boolean');
+        assert.arrayEqual(a, [], 'correct values, passed boolean');
+      } catch (e$) {
+        e = e$;
+        assert.same(e, [], 'passed boolean');
+      }
+      try {
+        a = new Typed(1.5);
+        assert.same(a.byteOffset, 0, '#byteOffset, passed boolean');
+        assert.same(a.byteLength, 1 * bytes, '#byteLength, passed boolean');
+        assert.arrayEqual(a, [0], 'correct values, passed boolean');
+      } catch (e$) {
+        e = e$;
+        assert.same(e, [0], 'passed boolean');
+      }
+      NATIVE && assert.throws(function(){
         new Typed(-1);
       }, RangeError, 'throws on -1');
-      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
-        new Typed(-0);
-      }, RangeError, 'throws on -0');
-      NATIVE_OR_ISNT_UINT8 && assert.throws(function(){
-        new Typed(NaN);
-      }, RangeError, 'throws on NaN');
       try {
         a = new Typed(null);
         assert.same(a.byteOffset, 0, '#byteOffset, passed null');
