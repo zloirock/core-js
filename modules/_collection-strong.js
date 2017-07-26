@@ -11,6 +11,7 @@ var step = require('./_iter-step');
 var setSpecies = require('./_set-species');
 var DESCRIPTORS = require('./_descriptors');
 var fastKey = require('./_meta').fastKey;
+var validate = require('./_validate-collection');
 var SIZE = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function (that, key) {
@@ -28,6 +29,7 @@ module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
       anInstance(that, C, NAME, '_i');
+      that._t = NAME;         // collection type
       that._i = create(null); // index
       that._f = undefined;    // first entry
       that._l = undefined;    // last entry
@@ -38,7 +40,7 @@ module.exports = {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function clear() {
-        for (var that = this, data = that._i, entry = that._f; entry; entry = entry.n) {
+        for (var that = validate(this, NAME), data = that._i, entry = that._f; entry; entry = entry.n) {
           entry.r = true;
           if (entry.p) entry.p = entry.p.n = undefined;
           delete data[entry.i];
@@ -49,7 +51,7 @@ module.exports = {
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
       'delete': function (key) {
-        var that = this;
+        var that = validate(this, NAME);
         var entry = getEntry(that, key);
         if (entry) {
           var next = entry.n;
@@ -66,7 +68,7 @@ module.exports = {
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
-        anInstance(this, C, 'forEach');
+        validate(this, NAME);
         var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
         var entry;
         while (entry = entry ? entry.n : this._f) {
@@ -78,12 +80,12 @@ module.exports = {
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)
       has: function has(key) {
-        return !!getEntry(this, key);
+        return !!getEntry(validate(this, NAME), key);
       }
     });
     if (DESCRIPTORS) dP(C.prototype, 'size', {
       get: function () {
-        return defined(this[SIZE]);
+        return validate(this, NAME)[SIZE];
       }
     });
     return C;
@@ -116,9 +118,9 @@ module.exports = {
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
     $iterDefine(C, NAME, function (iterated, kind) {
-      this._t = iterated;  // target
-      this._k = kind;      // kind
-      this._l = undefined; // previous
+      this._t = validate(iterated, NAME); // target
+      this._k = kind;                     // kind
+      this._l = undefined;                // previous
     }, function () {
       var that = this;
       var kind = that._k;

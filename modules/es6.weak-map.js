@@ -6,6 +6,8 @@ var assign = require('./_object-assign');
 var weak = require('./_collection-weak');
 var isObject = require('./_is-object');
 var fails = require('./_fails');
+var validate = require('./_validate-collection');
+var WEAK_MAP = 'WeakMap';
 var getWeak = meta.getWeak;
 var isExtensible = Object.isExtensible;
 var uncaughtFrozenStore = weak.ufstore;
@@ -23,18 +25,18 @@ var methods = {
   get: function get(key) {
     if (isObject(key)) {
       var data = getWeak(key);
-      if (data === true) return uncaughtFrozenStore(this).get(key);
+      if (data === true) return uncaughtFrozenStore(validate(this, WEAK_MAP)).get(key);
       return data ? data[this._i] : undefined;
     }
   },
   // 23.3.3.5 WeakMap.prototype.set(key, value)
   set: function set(key, value) {
-    return weak.def(this, key, value);
+    return weak.def(validate(this, WEAK_MAP), key, value);
   }
 };
 
 // 23.3 WeakMap Objects
-var $WeakMap = module.exports = require('./_collection')('WeakMap', wrapper, methods, weak, true, true);
+var $WeakMap = module.exports = require('./_collection')(WEAK_MAP, wrapper, methods, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
 if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7; })) {

@@ -59,6 +59,7 @@
 [#293](https://github.com/zloirock/core-js/pull/293)
 - Fixed `%TypedArray%.from` Safari bug, [#285](https://github.com/zloirock/core-js/issues/285)
 - Fixed compatibility with old version of Prototype.js, [#278](https://github.com/zloirock/core-js/issues/278), [#289](https://github.com/zloirock/core-js/issues/289)
+- Added errors on incorrect context of collection methods, [#272](https://github.com/zloirock/core-js/issues/272)
 - Fixed `Set#size` with debugger ReactNative for Android, [#297](https://github.com/zloirock/core-js/issues/297)
 - Fixed an issue with Electron-based debugger, [#230](https://github.com/zloirock/core-js/issues/230)
 - Fixed compatibility with incomplete third-party `WeakMap` polyfills, [#252](https://github.com/zloirock/core-js/pull/252)

@@ -7,6 +7,7 @@ var anInstance = require('./_an-instance');
 var forOf = require('./_for-of');
 var createArrayMethod = require('./_array-methods');
 var $has = require('./_has');
+var validate = require('./_validate-collection');
 var arrayFind = createArrayMethod(5);
 var arrayFindIndex = createArrayMethod(6);
 var id = 0;
@@ -49,6 +50,7 @@ module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
       anInstance(that, C, NAME, '_i');
+      that._t = NAME;      // collection type
       that._i = id++;      // collection id
       that._l = undefined; // leak store for uncaught frozen objects
       if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
@@ -59,7 +61,7 @@ module.exports = {
       'delete': function (key) {
         if (!isObject(key)) return false;
         var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(this)['delete'](key);
+        if (data === true) return uncaughtFrozenStore(validate(this, NAME))['delete'](key);
         return data && $has(data, this._i) && delete data[this._i];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
@@ -67,7 +69,7 @@ module.exports = {
       has: function has(key) {
         if (!isObject(key)) return false;
         var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(this).has(key);
+        if (data === true) return uncaughtFrozenStore(validate(this, NAME)).has(key);
         return data && $has(data, this._i);
       }
     });
