@@ -3539,8 +3539,9 @@ function flattenIntoArray(target, original, source, sourceLen, start, depth, map
         if (targetIndex >= 0x1fffffffffffff) throw TypeError();
         target[targetIndex] = element;
       }
+
+      targetIndex++;
     }
-    targetIndex++;
     sourceIndex++;
   }
   return targetIndex;
