@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Added `Promise#finally` [stage 2 proposal](https://github.com/tc39/proposal-promise-finally), [#225](https://github.com/zloirock/core-js/issues/225)
+- Added `Promise#finally` [stage 3 proposal](https://github.com/tc39/proposal-promise-finally), [#225](https://github.com/zloirock/core-js/issues/225)
 - Added `Promise.try` [stage 1 proposal](https://github.com/tc39/proposal-promise-try)
 - Added `Array#flatten` and `Array#flatMap` [stage 0 proposal](https://tc39.github.io/proposal-flatMap)
 - Added `.of` and `.from` methods on collection constructors [stage 1 proposal](https://github.com/tc39/proposal-setmap-offrom):
