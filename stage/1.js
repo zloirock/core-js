@@ -18,4 +18,6 @@ require('../modules/es7.promise.try');
 require('../modules/es7.string.match-all');
 require('../modules/es7.symbol.observable');
 require('../modules/es7.observable');
+require('../modules/es7.array.flat-map');
+require('../modules/es7.array.flatten');
 module.exports = require('./2');
