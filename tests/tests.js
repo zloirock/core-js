@@ -12928,9 +12928,6 @@
       if (Collection) {
         assert.same(Collection.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.toStringTag : void 8], y$, y$ + "::@@toStringTag is '" + y$ + "'");
         assert.isFunction(Collection.prototype[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8], y$ + "::@@iterator is function");
-        assert.notOk(Collection.prototype.values, y$ + "::@@values is not function");
-        assert.notOk(Collection.prototype.keys, y$ + "::@@keys is not function");
-        assert.notOk(Collection.prototype.entries, y$ + "::@@entries is not function");
         absent = false;
       }
     }

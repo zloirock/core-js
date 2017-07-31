@@ -23,9 +23,6 @@ test 'Iterable DOM collections' (assert)->
     if Collection
       assert.same Collection::[Symbol?toStringTag], .., "#{..}::@@toStringTag is '#{..}'"
       assert.isFunction Collection::[Symbol?iterator], "#{..}::@@iterator is function"
-      assert.notOk Collection::values, "#{..}::@@values is not function"
-      assert.notOk Collection::keys, "#{..}::@@keys is not function"
-      assert.notOk Collection::entries, "#{..}::@@entries is not function"
       absent = no
 
   if NodeList? and document?querySelectorAll and document.querySelectorAll(\div) instanceof NodeList
