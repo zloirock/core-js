@@ -3344,7 +3344,7 @@ var $WeakMap = module.exports = __webpack_require__(57)(WEAK_MAP, wrapper, metho
 
 // IE11 WeakMap frozen keys fix
 if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7; })) {
-  InternalMap = weak.getConstructor(wrapper);
+  InternalMap = weak.getConstructor(wrapper, WEAK_MAP);
   assign(InternalMap.prototype, methods);
   meta.NEED = true;
   each(['delete', 'has', 'get', 'set'], function (key) {
