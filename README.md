@@ -1434,6 +1434,21 @@ core-js(/library)/fn/system/global (obsolete)
 ```js
 global.Array === Array; // => true
 ```
+* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`es7.promise.finally`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.promise.finally.js)
+```js
+Promise
+  #finally(onFinally()) -> promise
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/promise/finally
+```
+[*Examples*](https://goo.gl/AhyBbJ):
+```js
+Promise.resolve(42).finally(() => console.log('You will see it anyway'));
+
+Promise.reject(42).finally(() => console.log('You will see it anyway'));
+```
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
