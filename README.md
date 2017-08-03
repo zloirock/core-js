@@ -1441,7 +1441,7 @@ Promise
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/promise/finally
+core-js(/library)/fn/promise/finally
 ```
 [*Examples*](https://goo.gl/AhyBbJ):
 ```js
@@ -1493,6 +1493,21 @@ core-js(/library)/fn/string/virtual/trim-right
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/1
+```
+* `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`es7.promise.try`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.promise.try.js)
+```js
+Promise
+  .try(function()) -> promise
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/promise/try
+```
+[*Examples*](https://goo.gl/k5GGRo):
+```js
+Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
+
+Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.match-all.js)
 ```js
