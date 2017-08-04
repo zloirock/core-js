@@ -1755,16 +1755,47 @@ clearImmediate(setImmediate(function(){
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That mean they should have `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/web.dom.iterable.js):
 ```js
 {
-  NodeList,
+  CSSRuleList,
+  CSSStyleDeclaration,
+  CSSValueList,
+  ClientRectList,
+  DOMRectList,
+  DOMStringList,
   DOMTokenList,
+  DataTransferItemList,
+  FileList,
+  HTMLAllCollection,
+  HTMLCollection,
+  HTMLFormElement,
+  HTMLSelectElement,
   MediaList,
+  MimeTypeArray,
+  NamedNodeMap,
+  NodeList,
+  PaintRequestList,
+  Plugin,
+  PluginArray,
+  SVGLengthList,
+  SVGNumberList,
+  SVGPathSegList,
+  SVGPointList,
+  SVGStringList,
+  SVGTransformList,
+  SourceBufferList,
   StyleSheetList,
-  CSSRuleList
+  TextTrackCueList,
+  TextTrackList,
+  TouchList
 }
-  #values()     -> iterator
-  #keys()       -> iterator
-  #entries()    -> iterator
   #@@iterator() -> iterator (values)
+
+{
+  DOMTokenList,
+  NodeList
+}
+  #values()  -> iterator
+  #keys()    -> iterator
+  #entries() -> iterator
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
