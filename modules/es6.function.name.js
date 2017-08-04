@@ -14,10 +14,7 @@ NAME in FProto || require('./_descriptors') && dP(FProto, NAME, {
   configurable: true,
   get: function () {
     try {
-      var that = this;
-      var name = ('' + that).match(nameRE)[1];
-      has(that, NAME) || !isExtensible(that) || dP(that, NAME, createDesc(5, name));
-      return name;
+      return ('' + this).match(nameRE)[1];
     } catch (e) {
       return '';
     }
