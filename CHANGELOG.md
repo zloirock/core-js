@@ -59,6 +59,7 @@
 [#293](https://github.com/zloirock/core-js/pull/293)
 - Fixed `%TypedArray%.from` Safari bug, [#285](https://github.com/zloirock/core-js/issues/285)
 - Fixed compatibility with old version of Prototype.js, [#278](https://github.com/zloirock/core-js/issues/278), [#289](https://github.com/zloirock/core-js/issues/289)
+- `Function#name` no linger cahe the result for correct behaviour with inherited constructors, [#296](https://github.com/zloirock/core-js/issues/296)
 - Added errors on incorrect context of collection methods, [#272](https://github.com/zloirock/core-js/issues/272)
 - Fixed conversion typed array constructors to string, fix [#300](https://github.com/zloirock/core-js/issues/300)
 - Fixed `Set#size` with debugger ReactNative for Android, [#297](https://github.com/zloirock/core-js/issues/297)
