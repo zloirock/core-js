@@ -1530,6 +1530,38 @@ core-js(/library)/fn/array/virtual/flatMap
 
 [{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
+* `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`es7.set.of`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.set.of.js), [`es7.set.from`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.set.from.js), [`es7.map.of`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.map.of.js), [`es7.map.from`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.map.from.js), [`es7.weak-set.of`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.weak-set.of.js), [`es7.weak-set.from`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.weak-set.from.js), [`es7.weak-map.of`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.weak-map.of.js), [`es7.weak-map.from`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.weak-map.from.js)
+```js
+Set
+  .of(...args) -> set
+  .from(iterable, mapFn(val, index)?, that?) -> set
+Map
+  .of(...args) -> map
+  .from(iterable, mapFn(val, index)?, that?) -> map
+WeakSet
+  .of(...args) -> weakset
+  .from(iterable, mapFn(val, index)?, that?) -> weakset
+WeakMap
+  .of(...args) -> weakmap
+  .from(iterable, mapFn(val, index)?, that?) -> weakmap
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/set/of
+core-js(/library)/fn/set/from
+core-js(/library)/fn/map/of
+core-js(/library)/fn/map/from
+core-js(/library)/fn/weak-set/of
+core-js(/library)/fn/weak-set/from
+core-js(/library)/fn/weak-map/of
+core-js(/library)/fn/weak-map/from
+```
+[*Examples*](https://goo.gl/mSC7eU):
+```js
+Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
+
+Map.from([[1, 2], [3, 4]], ([key, val]) => [key ** 2, val ** 2]); // => Map {1: 4, 9: 16}
+```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.match-all.js)
 ```js
 String
