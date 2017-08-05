@@ -1509,6 +1509,27 @@ Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
 
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
+* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`es7.array.flatten`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.array.flatten.js) and [`es7.array.flat-map`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.array.flat-map.js)
+```js
+Array
+  #flatten(depthArg = 1) -> array
+  #flatMap(fn(val, key, @), that) -> array
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/array/flatten
+core-js(/library)/fn/array/flatMap
+core-js(/library)/fn/array/virtual/flatten
+core-js(/library)/fn/array/virtual/flatMap
+```
+[*Examples*](https://goo.gl/jTXsZi):
+```js
+[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
+[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
+[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
+
+[{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
+```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.4.1/modules/es7.string.match-all.js)
 ```js
 String
