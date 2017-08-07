@@ -262,7 +262,7 @@ module.exports = function (it, key) {
 /***/ (function(module, exports, __webpack_require__) {
 
 // to indexed object, toObject with fallback for non-array-like ES3 strings
-var IObject = __webpack_require__(47);
+var IObject = __webpack_require__(46);
 var defined = __webpack_require__(23);
 module.exports = function (it) {
   return IObject(defined(it));
@@ -394,7 +394,7 @@ module.exports = function (fn, that, length) {
 /* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var pIE = __webpack_require__(48);
+var pIE = __webpack_require__(47);
 var createDesc = __webpack_require__(30);
 var toIObject = __webpack_require__(12);
 var toPrimitive = __webpack_require__(21);
@@ -516,7 +516,7 @@ module.exports = function (KEY, exec) {
 // 5 -> Array#find
 // 6 -> Array#findIndex
 var ctx = __webpack_require__(17);
-var IObject = __webpack_require__(47);
+var IObject = __webpack_require__(46);
 var toObject = __webpack_require__(9);
 var toLength = __webpack_require__(8);
 var asc = __webpack_require__(84);
@@ -591,7 +591,7 @@ if (__webpack_require__(6)) {
   var toAbsoluteIndex = __webpack_require__(37);
   var toPrimitive = __webpack_require__(21);
   var has = __webpack_require__(11);
-  var classof = __webpack_require__(44);
+  var classof = __webpack_require__(48);
   var isObject = __webpack_require__(4);
   var toObject = __webpack_require__(9);
   var isArrayIter = __webpack_require__(82);
@@ -1385,35 +1385,6 @@ module.exports = function (it, tag, stat) {
 /* 44 */
 /***/ (function(module, exports, __webpack_require__) {
 
-// getting tag from 19.1.3.6 Object.prototype.toString()
-var cof = __webpack_require__(22);
-var TAG = __webpack_require__(5)('toStringTag');
-// ES3 wrong here
-var ARG = cof(function () { return arguments; }()) == 'Arguments';
-
-// fallback for IE11 Script Access Denied error
-var tryGet = function (it, key) {
-  try {
-    return it[key];
-  } catch (e) { /* empty */ }
-};
-
-module.exports = function (it) {
-  var O, T, B;
-  return it === undefined ? 'Undefined' : it === null ? 'Null'
-    // @@toStringTag case
-    : typeof (T = tryGet(O = Object(it), TAG)) == 'string' ? T
-    // builtinTag case
-    : ARG ? cof(O)
-    // ES3 arguments fallback
-    : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
-};
-
-
-/***/ }),
-/* 45 */
-/***/ (function(module, exports, __webpack_require__) {
-
 var $export = __webpack_require__(0);
 var defined = __webpack_require__(23);
 var fails = __webpack_require__(3);
@@ -1447,7 +1418,7 @@ module.exports = exporter;
 
 
 /***/ }),
-/* 46 */
+/* 45 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var isObject = __webpack_require__(4);
@@ -1458,7 +1429,7 @@ module.exports = function (it, TYPE) {
 
 
 /***/ }),
-/* 47 */
+/* 46 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // fallback for non-array-like ES3 and non-enumerable old V8 strings
@@ -1470,17 +1441,46 @@ module.exports = Object('z').propertyIsEnumerable(0) ? Object : function (it) {
 
 
 /***/ }),
-/* 48 */
+/* 47 */
 /***/ (function(module, exports) {
 
 exports.f = {}.propertyIsEnumerable;
 
 
 /***/ }),
+/* 48 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// getting tag from 19.1.3.6 Object.prototype.toString()
+var cof = __webpack_require__(22);
+var TAG = __webpack_require__(5)('toStringTag');
+// ES3 wrong here
+var ARG = cof(function () { return arguments; }()) == 'Arguments';
+
+// fallback for IE11 Script Access Denied error
+var tryGet = function (it, key) {
+  try {
+    return it[key];
+  } catch (e) { /* empty */ }
+};
+
+module.exports = function (it) {
+  var O, T, B;
+  return it === undefined ? 'Undefined' : it === null ? 'Null'
+    // @@toStringTag case
+    : typeof (T = tryGet(O = Object(it), TAG)) == 'string' ? T
+    // builtinTag case
+    : ARG ? cof(O)
+    // ES3 arguments fallback
+    : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
+};
+
+
+/***/ }),
 /* 49 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var classof = __webpack_require__(44);
+var classof = __webpack_require__(48);
 var ITERATOR = __webpack_require__(5)('iterator');
 var Iterators = __webpack_require__(39);
 module.exports = __webpack_require__(19).getIteratorMethod = function (it) {
@@ -1923,9 +1923,9 @@ module.exports = document && document.documentElement;
 // 19.1.2.1 Object.assign(target, source, ...)
 var getKeys = __webpack_require__(27);
 var gOPS = __webpack_require__(52);
-var pIE = __webpack_require__(48);
+var pIE = __webpack_require__(47);
 var toObject = __webpack_require__(9);
-var IObject = __webpack_require__(47);
+var IObject = __webpack_require__(46);
 var $assign = Object.assign;
 
 // should work with symbols and should have deterministic property order (V8 bug)
@@ -2957,7 +2957,7 @@ module.exports = function isInteger(it) {
 /***/ (function(module, exports, __webpack_require__) {
 
 var $parseFloat = __webpack_require__(2).parseFloat;
-var $trim = __webpack_require__(45).trim;
+var $trim = __webpack_require__(44).trim;
 
 module.exports = 1 / $parseFloat(__webpack_require__(73) + '-0') !== -Infinity ? function parseFloat(str) {
   var string = $trim(String(str), 3);
@@ -2971,7 +2971,7 @@ module.exports = 1 / $parseFloat(__webpack_require__(73) + '-0') !== -Infinity ?
 /***/ (function(module, exports, __webpack_require__) {
 
 var $parseInt = __webpack_require__(2).parseInt;
-var $trim = __webpack_require__(45).trim;
+var $trim = __webpack_require__(44).trim;
 var ws = __webpack_require__(73);
 var hex = /^[-+]?0[xX]/;
 
@@ -3044,7 +3044,7 @@ module.exports = function (iterator, fn, value, entries) {
 
 var aFunction = __webpack_require__(10);
 var toObject = __webpack_require__(9);
-var IObject = __webpack_require__(47);
+var IObject = __webpack_require__(46);
 var toLength = __webpack_require__(8);
 
 module.exports = function (that, callbackfn, aLen, memo, isRight) {
@@ -3154,7 +3154,7 @@ module.exports = function (C, x) {
 "use strict";
 
 var strong = __webpack_require__(111);
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var MAP = 'Map';
 
 // 23.1 Map Objects
@@ -3190,7 +3190,7 @@ var step = __webpack_require__(87);
 var setSpecies = __webpack_require__(40);
 var DESCRIPTORS = __webpack_require__(6);
 var fastKey = __webpack_require__(31).fastKey;
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var SIZE = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function (that, key) {
@@ -3331,7 +3331,7 @@ module.exports = {
 "use strict";
 
 var strong = __webpack_require__(111);
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var SET = 'Set';
 
 // 23.2 Set Objects
@@ -3358,7 +3358,7 @@ var assign = __webpack_require__(69);
 var weak = __webpack_require__(114);
 var isObject = __webpack_require__(4);
 var fails = __webpack_require__(3);
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var WEAK_MAP = 'WeakMap';
 var getWeak = meta.getWeak;
 var isExtensible = Object.isExtensible;
@@ -3425,7 +3425,7 @@ var anInstance = __webpack_require__(41);
 var forOf = __webpack_require__(34);
 var createArrayMethod = __webpack_require__(26);
 var $has = __webpack_require__(11);
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var arrayFind = createArrayMethod(5);
 var arrayFindIndex = createArrayMethod(6);
 var id = 0;
@@ -3609,7 +3609,7 @@ module.exports = function (that, maxLength, fillString, left) {
 
 var getKeys = __webpack_require__(27);
 var toIObject = __webpack_require__(12);
-var isEnum = __webpack_require__(48).f;
+var isEnum = __webpack_require__(47).f;
 module.exports = function (isEntries) {
   return function (it) {
     var O = toIObject(it);
@@ -3653,7 +3653,7 @@ module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh)
 /* 121 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var classof = __webpack_require__(44);
+var classof = __webpack_require__(48);
 var ITERATOR = __webpack_require__(5)('iterator');
 var Iterators = __webpack_require__(39);
 module.exports = __webpack_require__(19).isIterable = function (it) {
@@ -3871,8 +3871,7 @@ __webpack_require__(315);
 __webpack_require__(49);
 __webpack_require__(317);
 __webpack_require__(121);
-__webpack_require__(318);
-module.exports = __webpack_require__(320);
+module.exports = __webpack_require__(318);
 
 
 /***/ }),
@@ -4029,7 +4028,7 @@ if (!USE_NATIVE) {
   $GOPD.f = $getOwnPropertyDescriptor;
   $DP.f = $defineProperty;
   __webpack_require__(38).f = gOPNExt.f = $getOwnPropertyNames;
-  __webpack_require__(48).f = $propertyIsEnumerable;
+  __webpack_require__(47).f = $propertyIsEnumerable;
   __webpack_require__(52).f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS && !__webpack_require__(36)) {
@@ -4123,7 +4122,7 @@ setToStringTag(global.JSON, 'JSON', true);
 // all enumerable object keys, includes symbols
 var getKeys = __webpack_require__(27);
 var gOPS = __webpack_require__(52);
-var pIE = __webpack_require__(48);
+var pIE = __webpack_require__(47);
 module.exports = function (it) {
   var result = getKeys(it);
   var getSymbols = gOPS.f;
@@ -4352,7 +4351,7 @@ $export($export.S, 'Object', { setPrototypeOf: __webpack_require__(70).set });
 "use strict";
 
 // 19.1.3.6 Object.prototype.toString()
-var classof = __webpack_require__(44);
+var classof = __webpack_require__(48);
 var test = {};
 test[__webpack_require__(5)('toStringTag')] = 'z';
 if (test + '' != '[object z]') {
@@ -4429,7 +4428,7 @@ var fails = __webpack_require__(3);
 var gOPN = __webpack_require__(38).f;
 var gOPD = __webpack_require__(18).f;
 var dP = __webpack_require__(7).f;
-var $trim = __webpack_require__(45).trim;
+var $trim = __webpack_require__(44).trim;
 var NUMBER = 'Number';
 var $Number = global[NUMBER];
 var Base = $Number;
@@ -5098,7 +5097,7 @@ $export($export.S, 'String', {
 "use strict";
 
 // 21.1.3.25 String.prototype.trim()
-__webpack_require__(45)('trim', function ($trim) {
+__webpack_require__(44)('trim', function ($trim) {
   return function trim() {
     return $trim(this, 3);
   };
@@ -5502,7 +5501,7 @@ var toIObject = __webpack_require__(12);
 var arrayJoin = [].join;
 
 // fallback for not array-like strings
-$export($export.P + $export.F * (__webpack_require__(47) != Object || !__webpack_require__(20)(arrayJoin)), 'Array', {
+$export($export.P + $export.F * (__webpack_require__(46) != Object || !__webpack_require__(20)(arrayJoin)), 'Array', {
   join: function join(separator) {
     return arrayJoin.call(toIObject(this), separator === undefined ? ',' : separator);
   }
@@ -6057,7 +6056,7 @@ __webpack_require__(57)('split', 2, function (defined, SPLIT, $split) {
 var LIBRARY = __webpack_require__(36);
 var global = __webpack_require__(2);
 var ctx = __webpack_require__(17);
-var classof = __webpack_require__(44);
+var classof = __webpack_require__(48);
 var $export = __webpack_require__(0);
 var isObject = __webpack_require__(4);
 var aFunction = __webpack_require__(10);
@@ -6342,7 +6341,7 @@ $export($export.S + $export.F * !(USE_NATIVE && __webpack_require__(55)(function
 "use strict";
 
 var weak = __webpack_require__(114);
-var validate = __webpack_require__(46);
+var validate = __webpack_require__(45);
 var WEAK_SET = 'WeakSet';
 
 // 23.4 WeakSet Objects
@@ -7077,7 +7076,7 @@ $export($export.P, 'String', {
 "use strict";
 
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
-__webpack_require__(45)('trimLeft', function ($trim) {
+__webpack_require__(44)('trimLeft', function ($trim) {
   return function trimLeft() {
     return $trim(this, 1);
   };
@@ -7091,7 +7090,7 @@ __webpack_require__(45)('trimLeft', function ($trim) {
 "use strict";
 
 // https://github.com/sebmarkbage/ecmascript-string-left-right-trim
-__webpack_require__(45)('trimRight', function ($trim) {
+__webpack_require__(44)('trimRight', function ($trim) {
   return function trimRight() {
     return $trim(this, 2);
   };
@@ -8334,15 +8333,6 @@ module.exports = function (/* ...pargs */) {
     return invoke(fn, args, that);
   };
 };
-
-
-/***/ }),
-/* 320 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var $export = __webpack_require__(0);
-
-$export($export.S + $export.F, 'Object', { classof: __webpack_require__(44) });
 
 
 /***/ })

@@ -56,7 +56,6 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [setImmediate](#setimmediate)
     - [iterable DOM collections](#iterable-dom-collections)
   - [Non-standard](#non-standard)
-    - [Object](#object)
     - [Dict](#dict)
     - [partial application](#partial-application)
     - [helpers for iterators](#helpers-for-iterators)
@@ -1840,62 +1839,6 @@ for(var [index, {id}] of document.querySelectorAll('*').entries()){
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/core
-```
-#### Object
-Module [`core.object.classof`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.classof.js)
-```js
-Object
-  .classof(var) -> string
-```
-
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/core/object
-core-js(/library)/fn/object/classof
-```
-Object classify [*examples*](https://goo.gl/M7qIFd):
-```js
-var classof = Object.classof;
-
-classof(null);                 // => 'Null'
-classof(undefined);            // => 'Undefined'
-classof(1);                    // => 'Number'
-classof(true);                 // => 'Boolean'
-classof('string');             // => 'String'
-classof(Symbol());             // => 'Symbol'
-
-classof(new Number(1));        // => 'Number'
-classof(new Boolean(true));    // => 'Boolean'
-classof(new String('string')); // => 'String'
-
-var fn   = function(){}
-  , list = (function(){return arguments})(1, 2, 3);
-
-classof({});                   // => 'Object'
-classof(fn);                   // => 'Function'
-classof([]);                   // => 'Array'
-classof(list);                 // => 'Arguments'
-classof(/./);                  // => 'RegExp'
-classof(new TypeError);        // => 'Error'
-
-classof(new Set);              // => 'Set'
-classof(new Map);              // => 'Map'
-classof(new WeakSet);          // => 'WeakSet'
-classof(new WeakMap);          // => 'WeakMap'
-classof(new Promise(fn));      // => 'Promise'
-
-classof([].values());          // => 'Array Iterator'
-classof(new Set().values());   // => 'Set Iterator'
-classof(new Map().values());   // => 'Map Iterator'
-
-classof(Math);                 // => 'Math'
-classof(JSON);                 // => 'JSON'
-
-function Example(){}
-Example.prototype[Symbol.toStringTag] = 'Example';
-
-classof(new Example);          // => 'Example'
-```
 #### Dict
 Module [`core.dict`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
 ```js
