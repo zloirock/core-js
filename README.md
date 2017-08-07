@@ -60,7 +60,6 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [Dict](#dict)
     - [partial application](#partial-application)
     - [escaping strings](#escaping-strings)
-    - [delay](#delay)
     - [helpers for iterators](#helpers-for-iterators)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](./CHANGELOG.md)
@@ -2112,27 +2111,6 @@ RegExp.escape('Hello, []{}()*+?.\\^$|!'); // => 'Hello, \[\]\{\}\(\)\*\+\?\.\\\^
 
 '<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
-```
-#### delay
-Module [`core.delay`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.delay.js). [Promise](#ecmascript-6-promise)-returning delay function, [esdiscuss](https://esdiscuss.org/topic/promise-returning-delay-function).
-```js
-delay(ms) -> promise
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/core/delay
-core-js(/library)/fn/delay
-```
-[*Examples*](http://goo.gl/lbucba):
-```js
-delay(1e3).then(() => console.log('after 1 sec'));
-
-(async () => {
-  await delay(3e3);
-  console.log('after 3 sec');
-
-  while(await delay(3e3))console.log('each 3 sec');
-})();
 ```
 #### Helpers for iterators
 Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
