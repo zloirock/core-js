@@ -59,7 +59,6 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [Object](#object)
     - [Dict](#dict)
     - [partial application](#partial-application)
-    - [escaping strings](#escaping-strings)
     - [helpers for iterators](#helpers-for-iterators)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](./CHANGELOG.md)
@@ -2085,26 +2084,6 @@ fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
-```
-#### Escaping strings
-Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.unescape-html.js).
-```js
-String
-  #escapeHTML() -> str
-  #unescapeHTML() -> str
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/core/string
-core-js(/library)/fn/string/escape-html
-core-js(/library)/fn/string/unescape-html
-core-js(/library)/fn/string/virtual/escape-html
-core-js(/library)/fn/string/virtual/unescape-html
-```
-[*Examples*](http://es6.zloirock.ru/#log('%3Cscript%3EdoSomething()%3B%3C%2Fscript%3E'.escapeHTML())%3B%0Alog('%26lt%3Bscript%26gt%3BdoSomething()%3B%26lt%3B%2Fscript%26gt%3B'.unescapeHTML())%3B):
-```js
-'<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
-'&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
 #### Helpers for iterators
 Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
