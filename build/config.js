@@ -166,7 +166,6 @@ module.exports = {
     'es7.weak-map.from',
     'es7.weak-set.from',
     'es7.global',
-    'es7.system.global',
     'es7.math.clamp',
     'es7.math.deg-per-rad',
     'es7.math.degrees',

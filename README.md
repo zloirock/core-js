@@ -1419,16 +1419,13 @@ core-js(/library)/fn/object/lookup-setter
 ```js
 core-js(/library)/stage/3
 ```
-* `global` [proposal](https://github.com/tc39/proposal-global) - modules [`es7.global`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.global.js) and [`es7.system.global`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.system.global.js) (obsolete)
+* `global` [proposal](https://github.com/tc39/proposal-global) - modules [`es7.global`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.global.js)
 ```js
 global -> object
-System
-  .global -> object (obsolete)
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/fn/global
-core-js(/library)/fn/system/global (obsolete)
 ```
 [*Examples*](http://goo.gl/gEqMl7):
 ```js
