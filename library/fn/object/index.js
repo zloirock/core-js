@@ -23,6 +23,5 @@ require('../../modules/es7.object.define-getter');
 require('../../modules/es7.object.define-setter');
 require('../../modules/es7.object.lookup-getter');
 require('../../modules/es7.object.lookup-setter');
-require('../../modules/core.object.is-object');
 require('../../modules/core.object.classof');
 module.exports = require('../../modules/_core').Object;

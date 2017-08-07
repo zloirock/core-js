@@ -1842,25 +1842,19 @@ for(var [index, {id}] of document.querySelectorAll('*').entries()){
 core-js(/library)/core
 ```
 #### Object
-Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.is-object.js) and [`core.object.classof`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.classof.js)
+Module [`core.object.classof`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.classof.js)
 ```js
 Object
-  .isObject(var) -> bool
   .classof(var) -> string
 ```
 
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/core/object
-core-js(/library)/fn/object/is-object
 core-js(/library)/fn/object/classof
 ```
-Object classify [*examples*](http://goo.gl/YZQmGo):
+Object classify [*examples*](https://goo.gl/M7qIFd):
 ```js
-Object.isObject({});    // => true
-Object.isObject(isNaN); // => true
-Object.isObject(null);  // => false
-
 var classof = Object.classof;
 
 classof(null);                 // => 'Null'
