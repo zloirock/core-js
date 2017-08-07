@@ -201,7 +201,6 @@ module.exports = {
     'core.object.classof',
     'core.object.define',
     'core.object.make',
-    'core.number.iterator',
     'core.regexp.escape',
     'core.string.escape-html',
     'core.string.unescape-html',
