@@ -1,2 +1,2 @@
-require('../../../modules/core.number.iterator');
+require('../../../modules/es6.string.iterator');
 module.exports = require('../../../modules/_iterators').String;
