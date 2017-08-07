@@ -111,7 +111,6 @@ module.exports = {
     'es6.reflect.construct',
     'es6.reflect.define-property',
     'es6.reflect.delete-property',
-    'es6.reflect.enumerate',
     'es6.reflect.get',
     'es6.reflect.get-own-property-descriptor',
     'es6.reflect.get-prototype-of',
