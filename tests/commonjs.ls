@@ -233,8 +233,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/regexp/replace") is \function
   ok typeof require("#P/fn/regexp/search") is \function
   ok typeof require("#P/fn/regexp/split") is \function
-  ok require("#P/fn/regexp/escape")('...') is '\\.\\.\\.'
-  ok \escape of require("#P/fn/regexp")
+  require("#P/fn/regexp")
   ok require("#P/fn/json").stringify([1]) is '[1]'
   ok require("#P/fn/json/stringify")([1]) is '[1]'
   ok typeof require("#P/fn/date/now")(new Date) is \number
@@ -342,7 +341,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
   ok \isObject of require("#P/core/object")
-  ok \escape of require("#P/core/regexp")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
   ok require("#P/stage/4")
