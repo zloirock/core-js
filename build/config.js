@@ -154,8 +154,6 @@ module.exports = {
     'es7.object.define-setter',
     'es7.object.lookup-getter',
     'es7.object.lookup-setter',
-    'es7.map.to-json',
-    'es7.set.to-json',
     'es7.map.of',
     'es7.set.of',
     'es7.weak-map.of',
