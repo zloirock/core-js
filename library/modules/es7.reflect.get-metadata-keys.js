@@ -1,10 +1,16 @@
 var Set = require('./es6.set');
-var from = require('./_array-from-iterable');
 var metadata = require('./_metadata');
 var anObject = require('./_an-object');
 var getPrototypeOf = require('./_object-gpo');
+var forOf = require('./_for-of');
 var ordinaryOwnMetadataKeys = metadata.keys;
 var toMetaKey = metadata.key;
+
+var from = function (iter) {
+  var result = [];
+  forOf(iter, false, result.push, result);
+  return result;
+};
 
 var ordinaryMetadataKeys = function (O, P) {
   var oKeys = ordinaryOwnMetadataKeys(O, P);
