@@ -1683,15 +1683,6 @@ Set
 core-js(/library)/fn/map
 core-js(/library)/fn/set
 ```
-* `Error.isError` [proposal](https://github.com/ljharb/proposal-is-error) - module [`es7.error.is-error`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.error.is-error.js) (withdrawn and will be removed from `core-js@3`)
-```js
-Error
-  .isError(it) -> bool (withdrawn and will be removed from core-js@3)
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/error/is-error
-```
 * `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`es7.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.iaddh.js), [`es7.math.isubh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.isubh.js), [`es7.math.imulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.imulh.js) and [`es7.math.umulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.umulh.js)
 ```js
 Math
