@@ -59,7 +59,6 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [Object](#object)
     - [Dict](#dict)
     - [partial application](#partial-application)
-    - [Number Iterator](#number-iterator)
     - [escaping strings](#escaping-strings)
     - [delay](#delay)
     - [helpers for iterators](#helpers-for-iterators)
@@ -2139,31 +2138,6 @@ fn3(2, 3);    // => 1, 2, 3, 4
 
 fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
-```
-#### Number Iterator
-Module [`core.number.iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.number.iterator.js).
-```js
-Number
-  #@@iterator() -> iterator
-```
-
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/core/number
-core-js(/library)/fn/number/iterator
-core-js(/library)/fn/number/virtual/iterator
-```
-[*Examples*](http://goo.gl/o45pCN):
-```js
-for(var i of 3)console.log(i); // => 0, 1, 2
-
-[...10]; // => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-Array.from(10, Math.random); // => [0.9817775336559862, 0.02720663254149258, ...]
-
-Array.from(10, function(it){
-  return this + it * it;
-}, .42); // => [0.42, 1.42, 4.42, 9.42, 16.42, 25.42, 36.42, 49.42, 64.42, 81.42]
 ```
 #### Escaping strings
 Modules [`core.regexp.escape`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.regexp.escape.js), [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.unescape-html.js).
