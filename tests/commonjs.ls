@@ -24,7 +24,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/object/define-setter") if \function
   ok typeof require("#P/fn/object/lookup-getter") if \function
   ok typeof require("#P/fn/object/lookup-setter") if \function
-  ok require("#P/fn/object/classof")(null) is \Null
   ok \values of require("#P/fn/object")
   ok require("#P/fn/function/bind")(((a, b)-> @ + a + b), 1 2)(3) is 6
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
@@ -335,8 +334,7 @@ for P in <[.. ../library]>
   ok require("#P/core/_")
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
-  ok \classof of require("#P/core/object")
-  ok \Array of require("#P/core")
+  ok \Dict of require("#P/core")
   ok require("#P/stage/4")
   ok require("#P/stage/3")
   ok require("#P/stage/2")
