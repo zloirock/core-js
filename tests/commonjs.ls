@@ -148,7 +148,6 @@ for P in <[.. ../library]>
   require("#P/fn/reflect/define-property")(O = {}, \a {value: 42})
   ok O.a is 42
   ok require("#P/fn/reflect/delete-property") {q: 1}, \q
-  ok \next of require("#P/fn/reflect/enumerate") {}
   ok require("#P/fn/reflect/get")({q: 1}, \q) is 1
   ok require("#P/fn/reflect/get-own-property-descriptor")({q: 1}, \q).enumerable
   ok require("#P/fn/reflect/get-prototype-of")([]) is Array::
@@ -168,7 +167,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/reflect/has-metadata") is \function
   ok typeof require("#P/fn/reflect/has-own-metadata") is \function
   ok typeof require("#P/fn/reflect/metadata") is \function
-  ok \enumerate of require("#P/fn/reflect")
+  ok \has of require("#P/fn/reflect")
   ok require("#P/fn/string/from-code-point")(97) is \a
   ok require("#P/fn/string/raw")({raw: \test}, 0, 1, 2) is \t0e1s2t
   ok require("#P/fn/string/code-point-at")(\a 0) is 97
