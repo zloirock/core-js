@@ -1232,14 +1232,13 @@ for(var [key, val] of typed.entries()){
 * In the `library` version we can't pollute native prototypes, so prototype methods available as constructors static.
 
 #### ECMAScript 6: Reflect
-Modules [`es6.reflect.apply`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.apply.js), [`es6.reflect.construct`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.construct.js), [`es6.reflect.define-property`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.define-property.js), [`es6.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.delete-property.js), [`es6.reflect.enumerate`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.enumerate.js), [`es6.reflect.get`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get.js), [`es6.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get-own-property-descriptor.js), [`es6.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get-prototype-of.js), [`es6.reflect.has`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.has.js), [`es6.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.is-extensible.js), [`es6.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.own-keys.js), [`es6.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.prevent-extensions.js), [`es6.reflect.set`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.set.js), [`es6.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.set-prototype-of.js).
+Modules [`es6.reflect.apply`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.apply.js), [`es6.reflect.construct`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.construct.js), [`es6.reflect.define-property`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.define-property.js), [`es6.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.delete-property.js), [`es6.reflect.get`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get.js), [`es6.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get-own-property-descriptor.js), [`es6.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.get-prototype-of.js), [`es6.reflect.has`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.has.js), [`es6.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.is-extensible.js), [`es6.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.own-keys.js), [`es6.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.prevent-extensions.js), [`es6.reflect.set`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.set.js), [`es6.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es6.reflect.set-prototype-of.js).
 ```js
 Reflect
   .apply(target, thisArgument, argumentsList) -> var
   .construct(target, argumentsList, newTarget?) -> object
   .defineProperty(target, propertyKey, attributes) -> bool
   .deleteProperty(target, propertyKey) -> bool
-  .enumerate(target) -> iterator (removed from the spec and will be removed from core-js@3)
   .get(target, propertyKey, receiver?) -> var
   .getOwnPropertyDescriptor(target, propertyKey) -> desc
   .getPrototypeOf(target) -> object | null
@@ -1258,7 +1257,6 @@ core-js(/library)/fn/reflect/apply
 core-js(/library)/fn/reflect/construct
 core-js(/library)/fn/reflect/define-property
 core-js(/library)/fn/reflect/delete-property
-core-js(/library)/fn/reflect/enumerate (deprecated and will be removed from the next major release)
 core-js(/library)/fn/reflect/get
 core-js(/library)/fn/reflect/get-own-property-descriptor
 core-js(/library)/fn/reflect/get-prototype-of
