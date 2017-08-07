@@ -198,8 +198,6 @@ module.exports = {
     'core.function.part',
     'core.object.is-object',
     'core.object.classof',
-    'core.string.escape-html',
-    'core.string.unescape-html',
   ],
   experimental: [
   ],
