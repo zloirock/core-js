@@ -2087,28 +2087,22 @@ fn2(1, 3, 5); // => 1, 2, 3, 4, 5
 fn2(1);       // => 1, 2, undefined, 4
 ```
 #### Escaping strings
-Modules [`core.regexp.escape`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.regexp.escape.js), [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.unescape-html.js).
+Modules [`core.string.escape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.escape-html.js) and [`core.string.unescape-html`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.string.unescape-html.js).
 ```js
-RegExp
-  .escape(str) -> str
 String
   #escapeHTML() -> str
   #unescapeHTML() -> str
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/core/regexp
 core-js(/library)/core/string
-core-js(/library)/fn/regexp/escape
 core-js(/library)/fn/string/escape-html
 core-js(/library)/fn/string/unescape-html
 core-js(/library)/fn/string/virtual/escape-html
 core-js(/library)/fn/string/virtual/unescape-html
 ```
-[*Examples*](http://goo.gl/6bOvsQ):
+[*Examples*](http://es6.zloirock.ru/#log('%3Cscript%3EdoSomething()%3B%3C%2Fscript%3E'.escapeHTML())%3B%0Alog('%26lt%3Bscript%26gt%3BdoSomething()%3B%26lt%3B%2Fscript%26gt%3B'.unescapeHTML())%3B):
 ```js
-RegExp.escape('Hello, []{}()*+?.\\^$|!'); // => 'Hello, \[\]\{\}\(\)\*\+\?\.\\\^\$\|!'
-
 '<script>doSomething();</script>'.escapeHTML(); // => '&lt;script&gt;doSomething();&lt;/script&gt;'
 '&lt;script&gt;doSomething();&lt;/script&gt;'.unescapeHTML(); // => '<script>doSomething();</script>'
 ```
