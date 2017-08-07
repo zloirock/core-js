@@ -195,7 +195,6 @@ module.exports = {
     'core.get-iterator-method',
     'core.get-iterator',
     'core.is-iterable',
-    'core.delay',
     'core.function.part',
     'core.object.is-object',
     'core.object.classof',
