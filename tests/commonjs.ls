@@ -26,8 +26,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/object/lookup-setter") if \function
   ok require("#P/fn/object/is-object") {}
   ok require("#P/fn/object/classof")(null) is \Null
-  ok require("#P/fn/object/define")({}, {q: 42}).q is 42
-  ok require("#P/fn/object/make")([], {}) instanceof Array
   ok \isObject of require("#P/fn/object")
   ok require("#P/fn/function/bind")(((a, b)-> @ + a + b), 1 2)(3) is 6
   ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
@@ -345,7 +343,7 @@ for P in <[.. ../library]>
   ok typeof require("#P/core/delay") is \function
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
-  ok \define of require("#P/core/object")
+  ok \isObject of require("#P/core/object")
   ok \escape of require("#P/core/regexp")
   ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
