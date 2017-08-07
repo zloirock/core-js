@@ -1,5 +1,5 @@
 ## Changelog
-##### 2.5.0 - 2016.08.05
+##### 2.5.0 - 2017.08.05
 - Added `Promise#finally` [stage 3 proposal](https://github.com/tc39/proposal-promise-finally), [#225](https://github.com/zloirock/core-js/issues/225)
 - Added `Promise.try` [stage 1 proposal](https://github.com/tc39/proposal-promise-try)
 - Added `Array#flatten` and `Array#flatMap` [stage 1 proposal](https://tc39.github.io/proposal-flatMap)
