@@ -137,11 +137,9 @@ for P in <[.. ../library]>
   ok require("#P/fn/number/to-precision")(1) is \1
   ok require("#P/fn/parse-float")('1.5') is 1.5
   ok require("#P/fn/parse-int")('2.1') is 2
-  ok \next of require("#P/fn/number/iterator") 42
-  ok \next of require("#P/fn/number/virtual/iterator").call 42
   ok require("#P/fn/number/virtual/to-fixed").call(1 1) is '1.0'
   ok require("#P/fn/number/virtual/to-precision").call(1) is \1
-  ok \next of require("#P/fn/number/virtual").iterator.call 42
+  ok require("#P/fn/number/virtual").toFixed.call(42, 2) is '42.00'
   ok \isNaN of require("#P/fn/number")
   ok require("#P/fn/reflect/apply")(((a, b)-> a + b), null, [1, 2]) is 3
   ok require("#P/fn/reflect/construct")((-> @a = 2), []).a is 2
