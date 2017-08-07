@@ -10,5 +10,4 @@ require('../../modules/es6.number.parse-float');
 require('../../modules/es6.number.parse-int');
 require('../../modules/es6.number.to-fixed');
 require('../../modules/es6.number.to-precision');
-require('../../modules/core.number.iterator');
 module.exports = require('../../modules/_core').Number;
