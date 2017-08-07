@@ -1844,21 +1844,18 @@ for(var [index, {id}] of document.querySelectorAll('*').entries()){
 core-js(/library)/core
 ```
 #### Object
-Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.is-object.js), [`core.object.classof`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.classof.js), [`core.object.define`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.define.js), [`core.object.make`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.make.js).
+Modules [`core.object.is-object`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.is-object.js) and [`core.object.classof`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.object.classof.js)
 ```js
 Object
   .isObject(var) -> bool
   .classof(var) -> string
-  .define(target, mixin) -> target
-  .make(proto | null, mixin?) -> object
 ```
 
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/core/object
 core-js(/library)/fn/object/is-object
-core-js(/library)/fn/object/define
-core-js(/library)/fn/object/make
+core-js(/library)/fn/object/classof
 ```
 Object classify [*examples*](http://goo.gl/YZQmGo):
 ```js
@@ -1906,55 +1903,6 @@ function Example(){}
 Example.prototype[Symbol.toStringTag] = 'Example';
 
 classof(new Example);          // => 'Example'
-```
-`Object.define` and `Object.make` [*examples*](http://goo.gl/rtpD5Z):
-```js
-// Before:
-Object.defineProperty(target, 'c', {
-  enumerable: true,
-  configurable: true,
-  get: function(){
-    return this.a + this.b;
-  }
-});
-
-// After:
-Object.define(target, {
-  get c(){
-    return this.a + this.b;
-  }
-});
-
-// Shallow object cloning with prototype and descriptors:
-var copy = Object.make(Object.getPrototypeOf(src), src);
-
-// Simple inheritance:
-function Vector2D(x, y){
-  this.x = x;
-  this.y = y;
-}
-Object.define(Vector2D.prototype, {
-  get xy(){
-    return Math.hypot(this.x, this.y);
-  }
-});
-function Vector3D(x, y, z){
-  Vector2D.apply(this, arguments);
-  this.z = z;
-}
-Vector3D.prototype = Object.make(Vector2D.prototype, {
-  constructor: Vector3D,
-  get xyz(){
-    return Math.hypot(this.x, this.y, this.z);
-  }
-});
-
-var vector = new Vector3D(9, 12, 20);
-console.log(vector.xy);  // => 15
-console.log(vector.xyz); // => 25
-vector.y++;
-console.log(vector.xy);  // => 15.811388300841896
-console.log(vector.xyz); // => 25.495097567963924
 ```
 #### Dict
 Module [`core.dict`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.dict.js). Based on [TC39 discuss](https://github.com/rwaldron/tc39-notes/blob/master/es6/2012-11/nov-29.md#collection-apis-review) / [strawman](http://wiki.ecmascript.org/doku.php?id=harmony:modules_standard#dictionaries).
