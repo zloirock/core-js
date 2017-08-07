@@ -192,8 +192,6 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/trim-left")(' a ') is 'a '
   ok require("#P/fn/string/trim-right")(' a ') is ' a'
   ok \next of require("#P/fn/string/match-all")(\a /./)
-  ok require("#P/fn/string/escape-html")('<br />') is '&lt;br /&gt;'
-  ok require("#P/fn/string/unescape-html")('&lt;br /&gt;') is '<br />'
   ok \next of require("#P/fn/string/iterator") \qwe
   ok require("#P/fn/string/virtual/code-point-at").call(\a 0) is 97
   ok require("#P/fn/string/virtual/ends-with").call \qwe, \we
@@ -221,9 +219,7 @@ for P in <[.. ../library]>
   ok require("#P/fn/string/virtual/trim-left").call(' a ') is 'a '
   ok require("#P/fn/string/virtual/trim-right").call(' a ') is ' a'
   ok \next of require("#P/fn/string/virtual/match-all").call(\a /./)
-  ok require("#P/fn/string/virtual/escape-html").call('<br />') is '&lt;br /&gt;'
-  ok require("#P/fn/string/virtual/unescape-html").call('&lt;br /&gt;') is '<br />'
-  ok require("#P/fn/string/virtual").unescapeHTML.call('&lt;br /&gt;') is '<br />'
+  ok require("#P/fn/string/virtual").at.call('a', 0) is 'a'
   ok \next of require("#P/fn/string/virtual/iterator").call \qwe
   ok \raw of require("#P/fn/string")
   ok require("#P/fn/regexp/constructor")(\a \g) + '' is '/a/g'
@@ -341,7 +337,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
   ok \isObject of require("#P/core/object")
-  ok \escapeHTML of require("#P/core/string")
   ok \Array of require("#P/core")
   ok require("#P/stage/4")
   ok require("#P/stage/3")
