@@ -199,8 +199,6 @@ module.exports = {
     'core.function.part',
     'core.object.is-object',
     'core.object.classof',
-    'core.object.define',
-    'core.object.make',
     'core.regexp.escape',
     'core.string.escape-html',
     'core.string.unescape-html',

@@ -89,7 +89,7 @@ test 'Dict.forEach' (assert)!->
   forEach obj = {q: 1 w: 2} !-> rez &&= (obj is &2)
   assert.ok rez
   rez = {}
-  forEach Object.make({e: 3} {q: 1 w: 2}), !-> rez[&1] = &0
+  forEach assign(create({e: 3}), {q: 1 w: 2}), !-> rez[&1] = &0
   assert.ok !(\e of rez)
   rez = {}
   forEach [1 2] !-> rez[&1] = &0
