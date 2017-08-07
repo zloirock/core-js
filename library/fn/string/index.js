@@ -30,6 +30,4 @@ require('../../modules/es7.string.pad-end');
 require('../../modules/es7.string.trim-left');
 require('../../modules/es7.string.trim-right');
 require('../../modules/es7.string.match-all');
-require('../../modules/core.string.escape-html');
-require('../../modules/core.string.unescape-html');
 module.exports = require('../../modules/_core').String;
