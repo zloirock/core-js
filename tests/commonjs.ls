@@ -294,8 +294,6 @@ for P in <[.. ../library]>
   ok require("#P/fn/global").Math is Math
   ok require("#P/fn/system/global").Math is Math
   ok require("#P/fn/system").global.Math is Math
-  ok require("#P/fn/error/is-error") new TypeError
-  ok require("#P/fn/error").isError new TypeError
   ok typeof require("#P/fn/dom-collections").iterator is \function
   ok typeof require("#P/fn/dom-collections/iterator") is \function
   ok typeof require("#P/fn/set-timeout") is \function
@@ -338,7 +336,6 @@ for P in <[.. ../library]>
   require("#P/es7/weak-map")
   ok require("#P/es7/global").Math is Math
   ok require("#P/es7/system").global.Math is Math
-  ok require("#P/es7/error").isError new TypeError
   ok typeof require("#P/es7/math").isubh is \function
   ok typeof require("#P/es7/promise").try is \function
   ok \metadata of require("#P/es7/reflect")
