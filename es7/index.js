@@ -28,7 +28,6 @@ require('../modules/es7.weak-map.from');
 require('../modules/es7.weak-set.from');
 require('../modules/es7.global');
 require('../modules/es7.system.global');
-require('../modules/es7.error.is-error');
 require('../modules/es7.math.clamp');
 require('../modules/es7.math.deg-per-rad');
 require('../modules/es7.math.degrees');
