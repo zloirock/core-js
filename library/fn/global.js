@@ -1,2 +1,2 @@
-require('../modules/es7.global');
+require('../modules/esnext.global');
 module.exports = require('../modules/_core').global;

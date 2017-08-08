@@ -1,4 +1,4 @@
 delete global.Observable;
 require('../../shim');
-require('../../modules/es7.observable');
+require('../../modules/esnext.observable');
 require('es-observable-tests').runTests(Observable);

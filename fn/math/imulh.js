@@ -1,2 +1,2 @@
-require('../../modules/es7.math.imulh');
+require('../../modules/esnext.math.imulh');
 module.exports = require('../../modules/_core').Math.imulh;

@@ -1,2 +1,2 @@
-require('../modules/es7.asap');
+require('../modules/esnext.asap');
 module.exports = require('../modules/_core').asap;

@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test 'String#padEnd' (assert)!->
   {padEnd} = core.String
