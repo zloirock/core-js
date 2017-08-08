@@ -55,9 +55,7 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [setTimeout / setInterval](#settimeout--setinterval)
     - [setImmediate](#setimmediate)
     - [iterable DOM collections](#iterable-dom-collections)
-  - [Non-standard](#non-standard)
-    - [partial application](#partial-application)
-    - [helpers for iterators](#helpers-for-iterators)
+  - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
 - [Changelog](./CHANGELOG.md)
 
@@ -1834,41 +1832,7 @@ for(var [index, {id}] of document.querySelectorAll('*').entries()){
   if(id)console.log(index, id);
 }
 ```
-### Non-standard
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/core
-#### Partial application
-Module [`core.function.part`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.function.part.js).
-```js
-Function
-  #part(...args | _) -> fn(...args)
-```
-
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/core/function
-core-js(/library)/fn/function/part
-core-js(/library)/fn/function/virtual/part
-core-js(/library)/fn/_
-```
-`Function#part` partial apply function without `this` binding. Uses global variable `_` (`core._` for builds without global namespace pollution) as placeholder and not conflict with `Underscore` / `LoDash`.
-
-[*Examples*](http://goo.gl/p9ZJ8K):
-```js
-var fn1 = log.part(1, 2);
-fn1(3, 4);    // => 1, 2, 3, 4
-
-var fn2 = log.part(_, 2, _, 4);
-fn2(1, 3);    // => 1, 2, 3, 4
-
-var fn3 = log.part(1, _, _, 4);
-fn3(2, 3);    // => 1, 2, 3, 4
-
-fn2(1, 3, 5); // => 1, 2, 3, 4, 5
-fn2(1);       // => 1, 2, undefined, 4
-```
-#### Helpers for iterators
+### Iteration helpers
 Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
 ```js
 core
