@@ -1,6 +1,6 @@
 'use strict'
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test \Observable (assert)!->
   assert.isFunction Observable

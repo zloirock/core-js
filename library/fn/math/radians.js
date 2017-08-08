@@ -1,2 +1,2 @@
-require('../../modules/es7.math.radians');
+require('../../modules/esnext.math.radians');
 module.exports = require('../../modules/_core').Math.radians;

@@ -1,2 +1,2 @@
-require('../../modules/es7.math.rad-per-deg');
+require('../../modules/esnext.math.rad-per-deg');
 module.exports = 180 / Math.PI;

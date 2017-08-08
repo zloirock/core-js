@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test 'Reflect.hasOwnMetadata' (assert)!->
   {defineMetadata, hasOwnMetadata} = Reflect

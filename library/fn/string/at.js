@@ -1,2 +1,2 @@
-require('../../modules/es7.string.at');
+require('../../modules/esnext.string.at');
 module.exports = require('../../modules/_core').String.at;
