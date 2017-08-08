@@ -287,7 +287,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/set-immediate") is \function
   ok typeof require("#P/fn/clear-immediate") is \function
   ok typeof require("#P/fn/asap") is \function
-  ok \mapPairs of require("#P/fn/dict")
   ok require("#P/fn/is-iterable")([])
   ok typeof require("#P/fn/get-iterator-method")([]) is \function
   ok \next of require("#P/fn/get-iterator")([])
@@ -332,9 +331,8 @@ for P in <[.. ../library]>
   require("#P/web/dom-collections")
   ok \setImmediate of require("#P/web")
   ok require("#P/core/_")
-  ok typeof require("#P/core/dict") is \function
   ok \part of require("#P/core/function")
-  ok \Dict of require("#P/core")
+  ok \Function of require("#P/core")
   ok require("#P/stage/4")
   ok require("#P/stage/3")
   ok require("#P/stage/2")
