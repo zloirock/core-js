@@ -26,14 +26,12 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/object/lookup-setter") if \function
   ok \values of require("#P/fn/object")
   ok require("#P/fn/function/bind")(((a, b)-> @ + a + b), 1 2)(3) is 6
-  ok require("#P/fn/function/part")(((a, b, c)-> a + b + c), 2 3)(4) is 9
   ok require("#P/fn/function/virtual/bind").call(((a, b)-> @ + a + b), 1 2)(3) is 6
-  ok require("#P/fn/function/virtual/part").call(((a, b, c)-> a + b + c), 2 3)(4) is 9
-  ok require("#P/fn/function/virtual").part.call(((a, b, c)-> a + b + c), 2 3)(4) is 9
+  ok require("#P/fn/function/virtual").bind.call(((a, b)-> @ + a + b), 1 2)(3) is 6
   require("#P/fn/function/name")
   require("#P/fn/function/has-instance")
   ok Function[require("#P/fn/symbol/has-instance")] ->
-  ok \part of require("#P/fn/function")
+  ok \bind of require("#P/fn/function")
   ok require("#P/fn/array/is-array") []
   ok Array.isArray require("#P/fn/array/from") 'qwe'
   ok Array.isArray require("#P/fn/array/of") \q \w \e
@@ -330,9 +328,6 @@ for P in <[.. ../library]>
   ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom-collections")
   ok \setImmediate of require("#P/web")
-  ok require("#P/core/_")
-  ok \part of require("#P/core/function")
-  ok \Function of require("#P/core")
   ok require("#P/stage/4")
   ok require("#P/stage/3")
   ok require("#P/stage/2")
