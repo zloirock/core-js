@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 if DESCRIPTORS => test 'Object#__lookupSetter__' (assert)!->
   {__lookupSetter__} = Object::

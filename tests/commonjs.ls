@@ -309,21 +309,6 @@ for P in <[.. ../library]>
   ok typeof require("#P/es6/symbol") is \function
   ok typeof require("#P/es6/typed").Uint32Array is \function
   ok \Map of require("#P/es6")
-  ok \includes of require("#P/es7/array")
-  ok \values of require("#P/es7/object")
-  ok \at of require("#P/es7/string")
-  require("#P/es7/set")
-  require("#P/es7/map")
-  require("#P/es7/weak-set")
-  require("#P/es7/weak-map")
-  ok require("#P/es7/global").Math is Math
-  ok typeof require("#P/es7/math").isubh is \function
-  ok typeof require("#P/es7/promise").try is \function
-  ok \metadata of require("#P/es7/reflect")
-  ok typeof require("#P/es7/asap") is \function
-  ok \observable of require("#P/es7/symbol")
-  ok \from of require("#P/es7/observable")
-  ok \Array of require("#P/es7")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom-collections")

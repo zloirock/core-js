@@ -1,3 +1,3 @@
-require('../modules/es7.string.trim-left');
-require('../modules/es7.string.trim-right');
+require('../modules/esnext.string.trim-left');
+require('../modules/esnext.string.trim-right');
 module.exports = require('./3');

@@ -1,6 +1,6 @@
 'use strict'
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 {Observable, Promise, Symbol} = core
 

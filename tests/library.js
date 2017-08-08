@@ -6351,7 +6351,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Array#flatMap', function(assert){
     var flatMap, element, index, context, target, array, $context;
     flatMap = core.Array.flatMap;
@@ -6421,7 +6421,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Array#flatten', function(assert){
     var flatten, arr;
     flatten = core.Array.flatten;
@@ -6469,7 +6469,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Array#includes', function(assert){
     var includes, arr, o;
     includes = core.Array.includes;
@@ -6532,7 +6532,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('global', function(assert){
     var global;
     global = core.global;
@@ -6545,7 +6545,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Map.from', function(assert){
     var Map, from, element, index, context, $$element, $context, arg, F;
     Map = core.Map;
@@ -6587,7 +6587,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Map.of', function(assert){
     var Map, $of, arg, F;
     Map = core.Map;
@@ -6613,7 +6613,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.clamp', function(assert){
     var clamp;
     clamp = core.Math.clamp;
@@ -6642,7 +6642,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.degrees', function(assert){
     var degrees;
     degrees = core.Math.degrees;
@@ -6659,7 +6659,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.fscale', function(assert){
     var fscale;
     fscale = core.Math.fscale;
@@ -6676,7 +6676,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.iaddh', function(assert){
     var iaddh;
     iaddh = core.Math.iaddh;
@@ -6694,7 +6694,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.imulh', function(assert){
     var imulh;
     imulh = core.Math.imulh;
@@ -6711,7 +6711,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.isubh', function(assert){
     var isubh;
     isubh = core.Math.isubh;
@@ -6742,7 +6742,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.radians', function(assert){
     var radians;
     radians = core.Math.radians;
@@ -6759,7 +6759,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.scale', function(assert){
     var scale;
     scale = core.Math.scale;
@@ -6776,7 +6776,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.signbit', function(assert){
     var signbit;
     signbit = core.Math.signbit;
@@ -6798,7 +6798,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Math.umulh', function(assert){
     var umulh;
     umulh = core.Math.umulh;
@@ -6815,7 +6815,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   if (DESCRIPTORS) {
     test('Object#__defineGetter__', function(assert){
       var ref$, __defineGetter__, __defineSetter__, O, i$, x$, len$;
@@ -6848,7 +6848,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   if (DESCRIPTORS) {
     test('Object#__defineSetter__', function(assert){
       var ref$, __defineSetter__, __defineGetter__, O, i$, x$, len$;
@@ -6886,7 +6886,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Object.entries', function(assert){
     var ref$, entries, create, assign;
     ref$ = core.Object, entries = ref$.entries, create = ref$.create, assign = ref$.assign;
@@ -6923,7 +6923,7 @@
 (function(){
   var module, test, create;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   create = core.Object.create;
   test('Object.getOwnPropertyDescriptors', function(assert){
     var getOwnPropertyDescriptors, O, s, descs;
@@ -6970,7 +6970,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   if (DESCRIPTORS) {
     test('Object#__lookupGetter__', function(assert){
       var ref$, __lookupGetter__, __defineGetter__, create, O, F, i$, x$, len$;
@@ -7004,7 +7004,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   if (DESCRIPTORS) {
     test('Object#__lookupSetter__', function(assert){
       var ref$, __lookupSetter__, __defineSetter__, create, O, F, i$, x$, len$;
@@ -7038,7 +7038,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Object.values', function(assert){
     var ref$, values, create, assign;
     ref$ = core.Object, values = ref$.values, create = ref$.create, assign = ref$.assign;
@@ -7076,7 +7076,7 @@
   'use strict';
   var module, test, Observable, Promise, Symbol;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   Observable = core.Observable, Promise = core.Promise, Symbol = core.Symbol;
   test('Observable', function(assert){
     var obsevable;
@@ -7143,7 +7143,7 @@
 (function(){
   var module, test, Promise;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   Promise = core.Promise;
   test('Promise#finally', function(assert){
     assert.isFunction(Promise.prototype['finally']);
@@ -7189,7 +7189,7 @@
   var module, test, Promise;
   module = QUnit.module, test = QUnit.test;
   Promise = core.Promise;
-  module('ES7');
+  module('ESNext');
   test('Promise.try', function(assert){
     assert.isFunction(Promise['try']);
     assert.arity(Promise['try'], 1);
@@ -7225,7 +7225,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.defineMetadata', function(assert){
     var defineMetadata;
     defineMetadata = core.Reflect.defineMetadata;
@@ -7243,7 +7243,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.deleteMetadata', function(assert){
     var ref$, defineMetadata, hasOwnMetadata, deleteMetadata, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, hasOwnMetadata = ref$.hasOwnMetadata, deleteMetadata = ref$.deleteMetadata;
@@ -7271,7 +7271,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.getMetadataKeys', function(assert){
     var ref$, defineMetadata, getMetadataKeys, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, getMetadataKeys = ref$.getMetadataKeys;
@@ -7331,7 +7331,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.getMetadata', function(assert){
     var ref$, defineMetadata, getMetadata, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, getMetadata = ref$.getMetadata;
@@ -7364,7 +7364,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.getOwnMetadata', function(assert){
     var ref$, defineMetadata, getOwnMetadata, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, getOwnMetadata = ref$.getOwnMetadata;
@@ -7397,7 +7397,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.getOwnMetadataKeys', function(assert){
     var ref$, defineMetadata, getOwnMetadataKeys, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, getOwnMetadataKeys = ref$.getOwnMetadataKeys;
@@ -7457,7 +7457,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.hasMetadata', function(assert){
     var ref$, defineMetadata, hasMetadata, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, hasMetadata = ref$.hasMetadata;
@@ -7490,7 +7490,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.hasOwnMetadata', function(assert){
     var ref$, defineMetadata, hasOwnMetadata, create, obj, prototype;
     ref$ = core.Reflect, defineMetadata = ref$.defineMetadata, hasOwnMetadata = ref$.hasOwnMetadata;
@@ -7523,7 +7523,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Reflect.metadata', function(assert){
     var ref$, metadata, hasOwnMetadata, decorator, target;
     ref$ = core.Reflect, metadata = ref$.metadata, hasOwnMetadata = ref$.hasOwnMetadata;
@@ -7550,7 +7550,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Set.from', function(assert){
     var Set, from, element, index, context, $context, arg, F;
     Set = core.Set;
@@ -7592,7 +7592,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Set.of', function(assert){
     var Set, $of, arg, F;
     Set = core.Set;
@@ -7618,7 +7618,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#at', function(assert){
     var at;
     at = core.String.at;
@@ -7717,7 +7717,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#matchAll', function(assert){
     var matchAll, assign, i$, x$, ref$, len$, iter, y$, z$;
     matchAll = core.String.matchAll;
@@ -7812,7 +7812,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#padEnd', function(assert){
     var padEnd;
     padEnd = core.String.padEnd;
@@ -7839,7 +7839,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#padStart', function(assert){
     var padStart;
     padStart = core.String.padStart;
@@ -7866,7 +7866,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#trimLeft', function(assert){
     var trimLeft;
     trimLeft = core.String.trimLeft;
@@ -7905,7 +7905,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('String#trimRight', function(assert){
     var trimRight;
     trimRight = core.String.trimRight;
@@ -7944,7 +7944,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Symbol.asyncIterator', function(assert){
     var Symbol;
     Symbol = core.Symbol;
@@ -7957,7 +7957,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('Symbol.observable', function(assert){
     var Symbol;
     Symbol = core.Symbol;
@@ -7970,7 +7970,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('WeakMap.from', function(assert){
     var WeakMap, from, $1, element, index, context, $$element, $context, arg, F;
     WeakMap = core.WeakMap;
@@ -8011,7 +8011,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('WeakMap.of', function(assert){
     var WeakMap, $of, $1, arg, F;
     WeakMap = core.WeakMap;
@@ -8037,7 +8037,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('WeakSet.from', function(assert){
     var WeakSet, from, $1, element, index, context, $$element, $context, arg, F;
     WeakSet = core.WeakSet;
@@ -8078,7 +8078,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES7');
+  module('ESNext');
   test('WeakSet.of', function(assert){
     var WeakSet, $of, $1, arg, F;
     WeakSet = core.WeakSet;

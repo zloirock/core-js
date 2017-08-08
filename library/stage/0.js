@@ -1,7 +1,7 @@
-require('../modules/es7.string.at');
-require('../modules/es7.math.iaddh');
-require('../modules/es7.math.isubh');
-require('../modules/es7.math.imulh');
-require('../modules/es7.math.umulh');
-require('../modules/es7.asap');
+require('../modules/esnext.string.at');
+require('../modules/esnext.math.iaddh');
+require('../modules/esnext.math.isubh');
+require('../modules/esnext.math.imulh');
+require('../modules/esnext.math.umulh');
+require('../modules/esnext.asap');
 module.exports = require('./1');
