@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 test 'Math.signbit' (assert)!->
   {signbit} = core.Math
   assert.isFunction signbit

@@ -1,2 +1,2 @@
-require('../../modules/es7.math.iaddh');
+require('../../modules/esnext.math.iaddh');
 module.exports = require('../../modules/_core').Math.iaddh;

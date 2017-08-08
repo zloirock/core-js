@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 if DESCRIPTORS => test 'Object#__defineGetter__' (assert)!->
   {__defineGetter__, __defineSetter__} = core.Object

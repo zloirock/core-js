@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test 'Symbol.asyncIterator' (assert)!->
   assert.ok \asyncIterator of Symbol, "Symbol.asyncIterator available"

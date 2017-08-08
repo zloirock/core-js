@@ -1,2 +1,2 @@
-require('../../modules/es7.object.values');
+require('../../modules/esnext.object.values');
 module.exports = require('../../modules/_core').Object.values;

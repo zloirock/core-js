@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es6.promise');
-require('../../modules/es7.promise.try');
+require('../../modules/esnext.promise.try');
 var $Promise = require('../../modules/_core').Promise;
 var $try = $Promise['try'];
 module.exports = { 'try': function (callbackfn) {
