@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test 'global' (assert)!->
   assert.same global, Object(global), 'is object'

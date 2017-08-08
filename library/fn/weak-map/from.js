@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es6.weak-map');
-require('../../modules/es7.weak-map.from');
+require('../../modules/esnext.weak-map.from');
 var $WeakMap = require('../../modules/_core').WeakMap;
 var $from = $WeakMap.from;
 module.exports = function from(source, mapFn, thisArg) {

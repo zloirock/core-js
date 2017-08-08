@@ -1,2 +1,2 @@
-require('../../modules/es7.math.scale');
+require('../../modules/esnext.math.scale');
 module.exports = require('../../modules/_core').Math.scale;
