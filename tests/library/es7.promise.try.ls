@@ -1,6 +1,6 @@
 {module, test} = QUnit
 {Promise} = core
-module \ES7
+module 'ESNext'
 
 test 'Promise.try' (assert)!->
   assert.isFunction Promise.try

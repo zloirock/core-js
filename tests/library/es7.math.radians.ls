@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 
 test 'Math.radians' (assert)!->
   {radians} = core.Math

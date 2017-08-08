@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ES7
+module 'ESNext'
 {Promise} = core
 
 test 'Promise#finally' (assert)!->

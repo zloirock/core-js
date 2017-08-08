@@ -44,7 +44,7 @@ core.setImmediate(x => console.log(x), 42);         // => 42
     - [ECMAScript 6: Collections](#ecmascript-6-collections)
     - [ECMAScript 6: Typed Arrays](#ecmascript-6-typed-arrays)
     - [ECMAScript 6: Reflect](#ecmascript-6-reflect)
-  - [ECMAScript 7+ proposals](#ecmascript-7-proposals)
+  - [ECMAScript proposals](#ecmascript-7-proposals)
     - [stage 4 proposals](#stage-4-proposals)
     - [stage 3 proposals](#stage-3-proposals)
     - [stage 2 proposals](#stage-2-proposals)
@@ -1275,24 +1275,8 @@ var instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
 ```
 
-### ECMAScript 7+ proposals
+### ECMAScript proposals
 [The TC39 process.](https://tc39.github.io/process-document/)
-
-[*CommonJS entry points:*](#commonjs)
-```
-core-js(/library)/es7
-core-js(/library)/es7/array
-core-js(/library)/es7/global
-core-js(/library)/es7/string
-core-js(/library)/es7/map
-core-js(/library)/es7/set
-core-js(/library)/es7/error
-core-js(/library)/es7/math
-core-js(/library)/es7/system
-core-js(/library)/es7/symbol
-core-js(/library)/es7/reflect
-core-js(/library)/es7/observable
-```
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
 #### Stage 4 proposals
 
@@ -1300,7 +1284,7 @@ core-js(/library)/es7/observable
 ```js
 core-js(/library)/stage/4
 ```
-* `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`es7.array.includes`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
+* `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`esnext.array.includes`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-6-typed-arrays).
 ```js
 Array
   #includes(var, from?) -> bool
@@ -1332,7 +1316,7 @@ core-js(/library)/fn/array/includes
 Array(1).indexOf(undefined);  // => -1
 Array(1).includes(undefined); // => true
 ```
-* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`es7.object.values`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.values.js), [`es7.object.entries`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.entries.js)
+* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.entries.js)
 ```js
 Object
   .values(object) -> array
@@ -1353,7 +1337,7 @@ for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
   console.log(value); // => 1, 2, 3
 }
 ```
-* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`es7.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.get-own-property-descriptors.js)
+* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`esnext.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.get-own-property-descriptors.js)
 ```js
 Object
   .getOwnPropertyDescriptors(object) -> object
@@ -1369,7 +1353,7 @@ var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescript
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 ```
-* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`es7.string.pad-start`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.pad-start.js), [`es7.string.pad-end`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.pad-end.js)
+* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`esnext.string.pad-start`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.pad-start.js), [`esnext.string.pad-end`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.pad-end.js)
 ```js
 String
   #padStart(length, fillStr = ' ') -> string
@@ -1389,7 +1373,7 @@ core-js(/library)/fn/string/virtual/pad-end
 'hello'.padEnd(10);           // => 'hello     '
 'hello'.padEnd(10, '1234');   // => 'hello12341'
 ```
-* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`es7.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.define-setter.js), [`es7.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.define-getter.js), [`es7.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.lookup-setter.js) and [`es7.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.object.lookup-getter.js).
+* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`esnext.object.define-setter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.define-setter.js), [`esnext.object.define-getter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.define-getter.js), [`esnext.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.lookup-setter.js) and [`esnext.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.object.lookup-getter.js).
 ```js
 Object
   #__defineSetter__(key, fn) -> void
@@ -1410,7 +1394,7 @@ core-js(/library)/fn/object/lookup-setter
 ```js
 core-js(/library)/stage/3
 ```
-* `global` [proposal](https://github.com/tc39/proposal-global) - modules [`es7.global`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.global.js)
+* `global` [proposal](https://github.com/tc39/proposal-global) - modules [`esnext.global`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.global.js)
 ```js
 global -> object
 ```
@@ -1422,7 +1406,7 @@ core-js(/library)/fn/global
 ```js
 global.Array === Array; // => true
 ```
-* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`es7.promise.finally`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.promise.finally.js)
+* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`esnext.promise.finally`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.promise.finally.js)
 ```js
 Promise
   #finally(onFinally()) -> promise
@@ -1437,7 +1421,7 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.symbol.async-iterator.js)
+* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.symbol.async-iterator.js)
 ```js
 Symbol
   .asyncIterator -> @@asyncIterator
@@ -1452,7 +1436,7 @@ core-js(/library)/fn/symbol/async-iterator
 ```js
 core-js(/library)/stage/2
 ```
-* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.trim-right.js)
+* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.trim-right.js)
 ```js
 String
   #trimLeft()  -> string
@@ -1482,7 +1466,7 @@ core-js(/library)/fn/string/virtual/trim-right
 ```js
 core-js(/library)/stage/1
 ```
-* `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`es7.promise.try`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.promise.try.js)
+* `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.promise.try.js)
 ```js
 Promise
   .try(function()) -> promise
@@ -1497,7 +1481,7 @@ Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
 
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
-* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`es7.array.flatten`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.array.flatten.js) and [`es7.array.flat-map`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.array.flat-map.js)
+* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.array.flat-map.js)
 ```js
 Array
   #flatten(depthArg = 1) -> array
@@ -1518,7 +1502,7 @@ core-js(/library)/fn/array/virtual/flat-map
 
 [{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
-* `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`es7.set.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.set.of.js), [`es7.set.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.set.from.js), [`es7.map.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.map.of.js), [`es7.map.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.map.from.js), [`es7.weak-set.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.weak-set.of.js), [`es7.weak-set.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.weak-set.from.js), [`es7.weak-map.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.weak-map.of.js), [`es7.weak-map.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.weak-map.from.js)
+* `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.weak-map.from.js)
 ```js
 Set
   .of(...args) -> set
@@ -1550,7 +1534,7 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, val]) => [key ** 2, val ** 2]); // => Map {1: 4, 9: 16}
 ```
-* `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`es7.string.match-all`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.match-all.js)
+* `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.match-all.js)
 ```js
 String
   #matchAll(regexp) -> iterator
@@ -1566,7 +1550,7 @@ for(let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)){
   console.log(d, D); // => 1 a, 2 b, 3 c
 }
 ```
-* `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`es7.observable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.observable.js) and [`es7.symbol.observable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.symbol.observable.js)
+* `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.symbol.observable.js)
 ```js
 new Observable(fn)             -> observable
   #subscribe(observer)         -> subscription
@@ -1594,13 +1578,13 @@ new Observable(observer => {
 ```
 * `Math.{clamp, DEG_PER_RAD, degrees, fscale, rad-per-deg, radians, scale}` 
   [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules 
-  [`es7.math.clamp`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.clamp.js), 
-  [`es7.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.DEG_PER_RAD.js), 
-  [`es7.math.degrees`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.degrees.js),
-  [`es7.math.fscale`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.fscale.js), 
-  [`es7.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.RAD_PER_DEG.js), 
-  [`es7.math.radians`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.radians.js) and
-  [`es7.math.scale`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.scale.js)
+  [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.clamp.js), 
+  [`esnext.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.DEG_PER_RAD.js), 
+  [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.degrees.js),
+  [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.fscale.js), 
+  [`esnext.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.RAD_PER_DEG.js), 
+  [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.radians.js) and
+  [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.scale.js)
 ```js
 Math
   .DEG_PER_RAD -> number
@@ -1621,7 +1605,7 @@ core-js(/library)/fn/math/rad-per-deg
 core-js(/library)/fn/math/radians
 core-js(/library)/fn/math/scale
 ```
-* `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`es7.math.signbit`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.signbit.js)
+* `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.signbit.js)
 ```js
 Math
   .signbit(x) -> bool
@@ -1644,7 +1628,7 @@ Math.signbit(-0);  // => false
 ```js
 core-js(/library)/stage/0
 ```
-* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`es7.string.at`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.at.js)
+* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.string.at.js)
 ```js
 String
   #at(index) -> string
@@ -1659,7 +1643,7 @@ core-js(/library)/fn/string/virtual/at
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 ```
-* `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`es7.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.iaddh.js), [`es7.math.isubh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.isubh.js), [`es7.math.imulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.imulh.js) and [`es7.math.umulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.math.umulh.js)
+* `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.math.umulh.js)
 ```js
 Math
   .iaddh(lo0, hi0, lo1, hi1) -> int32
@@ -1674,7 +1658,7 @@ core-js(/library)/fn/math/isubh
 core-js(/library)/fn/math/imulh
 core-js(/library)/fn/math/umulh
 ```
-* `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`es7.asap`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.asap.js)
+* `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`esnext.asap`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.asap.js)
 ```js
 asap(fn) -> void
 ```
@@ -1692,7 +1676,7 @@ asap(() => console.log('called as microtask'));
 ```js
 core-js(/library)/stage/pre
 ```
-* `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`es7.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.define-metadata.js), [`es7.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.delete-metadata.js), [`es7.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.get-metadata.js), [`es7.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.get-metadata-keys.js), [`es7.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.get-own-metadata.js), [`es7.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.get-own-metadata-keys.js), [`es7.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.has-metadata.js), [`es7.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.has-own-metadata.js) and [`es7.reflect.metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.reflect.metadata.js).
+* `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/esnext.reflect.metadata.js).
 ```js
 Reflect
   .defineMetadata(metadataKey, metadataValue, target, propertyKey?) -> void
