@@ -12522,7 +12522,7 @@
   test('Iterable DOM collections', function(assert){
     var absent, i$, x$, ref$, len$, Collection, y$;
     absent = true;
-    for (i$ = 0, len$ = (ref$ = ['NodeList', 'DOMTokenList', 'MediaList', 'StyleSheetList', 'CSSRuleList']).length; i$ < len$; ++i$) {
+    for (i$ = 0, len$ = (ref$ = ['NodeList', 'DOMTokenList']).length; i$ < len$; ++i$) {
       x$ = ref$[i$];
       Collection = global[x$];
       if (Collection) {
