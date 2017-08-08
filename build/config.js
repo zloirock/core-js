@@ -194,7 +194,6 @@ module.exports = {
     'core.get-iterator-method',
     'core.get-iterator',
     'core.is-iterable',
-    'core.function.part',
   ],
   experimental: [
   ],
