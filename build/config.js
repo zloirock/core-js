@@ -191,7 +191,6 @@ module.exports = {
     'web.immediate',
     'web.dom.iterable',
     'web.timers',
-    'core.dict',
     'core.get-iterator-method',
     'core.get-iterator',
     'core.is-iterable',
