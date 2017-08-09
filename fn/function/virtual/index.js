@@ -1,2 +1,2 @@
-require('../../../modules/es6.function.bind');
+require('../../../modules/es.function.bind');
 module.exports = require('../../../modules/_entry-virtual')('Function');

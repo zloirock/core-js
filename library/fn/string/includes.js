@@ -1,2 +1,2 @@
-require('../../modules/es6.string.includes');
+require('../../modules/es.string.includes');
 module.exports = require('../../modules/_core').String.includes;

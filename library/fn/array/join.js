@@ -1,2 +1,2 @@
-require('../../modules/es6.array.join');
+require('../../modules/es.array.join');
 module.exports = require('../../modules/_core').Array.join;

@@ -1,2 +1,2 @@
-require('../../modules/es6.array.of');
+require('../../modules/es.array.of');
 module.exports = require('../../modules/_core').Array.of;

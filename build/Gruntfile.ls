@@ -28,7 +28,7 @@ module.exports = (grunt)->
     copy: lib: files:
       * expand: on
         cwd: './'
-        src: <[es5/** es6/** stage/** web/** core/** fn/** index.js shim.js]>
+        src: <[es/** stage/** web/** core/** fn/** index.js shim.js]>
         dest: './library/'
       * expand: on
         cwd: './'
@@ -56,7 +56,7 @@ module.exports = (grunt)->
   grunt.registerTask \build (options)->
     done = @async!
     build {
-      modules:   (options || 'es6,esnext,web,core')split \,
+      modules:   (options || 'es,esnext,web,core')split \,
       blacklist: (grunt.option(\blacklist) || '')split \,
       library:   grunt.option(\library) in <[yes on true]>
       umd:       grunt.option(\umd) not in <[no off false]>
@@ -70,17 +70,17 @@ module.exports = (grunt)->
   grunt.registerTask \client ->
     grunt.option \library ''
     grunt.option \path './client/core'
-    grunt.task.run <[build:es6,esnext,web,core uglify]>
+    grunt.task.run <[build:es,esnext,web,core uglify]>
   grunt.registerTask \library ->
     grunt.option \library 'true'
     grunt.option \path './client/library'
-    grunt.task.run <[build:es6,esnext,web,core uglify]>
+    grunt.task.run <[build:es,esnext,web,core uglify]>
   grunt.registerTask \shim ->
     grunt.option \library ''
     grunt.option \path './client/shim'
-    grunt.task.run <[build:es6,esnext,web uglify]>
+    grunt.task.run <[build:es,esnext,web uglify]>
   grunt.registerTask \e ->
     grunt.option \library ''>
     grunt.option \path './client/core'
-    grunt.task.run <[build:es6,esnext,web,core,exp uglify]>
+    grunt.task.run <[build:es,esnext,web,core,exp uglify]>
   grunt.registerTask \default <[clean copy client library shim]>

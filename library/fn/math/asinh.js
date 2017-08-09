@@ -1,2 +1,2 @@
-require('../../modules/es6.math.asinh');
+require('../../modules/es.math.asinh');
 module.exports = require('../../modules/_core').Math.asinh;

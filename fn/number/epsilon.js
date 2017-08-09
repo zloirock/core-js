@@ -1,2 +1,2 @@
-require('../../modules/es6.number.epsilon');
+require('../../modules/es.number.epsilon');
 module.exports = Math.pow(2, -52);

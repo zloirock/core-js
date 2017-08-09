@@ -1,2 +1,2 @@
-require('../../modules/es6.math.atanh');
+require('../../modules/es.math.atanh');
 module.exports = require('../../modules/_core').Math.atanh;
