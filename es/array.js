@@ -1,4 +1,5 @@
 require('../modules/es.string.iterator');
+require('../modules/es.array.includes');
 require('../modules/es.array.is-array');
 require('../modules/es.array.from');
 require('../modules/es.array.of');
