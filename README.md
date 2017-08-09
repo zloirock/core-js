@@ -269,31 +269,32 @@ core-js/fn/function/virtual/bind
 console.log.bind(console, 42)(43); // => 42 43
 ```
 #### ECMAScript: Array
-Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.from.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.iterator.js). ES5 features with fixes: [`es.array.is-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.is-array.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce-right.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.sort.js).
+Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce-right.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.sort.js)
 ```js
 Array
   .from(iterable | array-like, mapFn(val, index)?, that) -> array
-  .of(...args)                                           -> array
   .isArray(var)                                          -> bool
+  .of(...args)                                           -> array
   #copyWithin(target = 0, start = 0, end = @length)      -> @
-  #fill(val, start = 0, end = @length)                   -> @
-  #find(fn(val, index, @), that)                         -> val
-  #findIndex(fn(val, index, @), that)                    -> index | -1
-  #values()                                              -> iterator
-  #keys()                                                -> iterator
   #entries()                                             -> iterator
-  #join(string = ',')                                    -> string, fix for ie7-
-  #slice(start?, end?)                                   -> array, fix for ie7-
-  #indexOf(var, from?)                                   -> index | -1
-  #lastIndexOf(var, from?)                               -> index | -1
   #every(fn(val, index, @), that)                        -> bool
-  #some(fn(val, index, @), that)                         -> bool
-  #forEach(fn(val, index, @), that)                      -> void
-  #map(fn(val, index, @), that)                          -> array
+  #fill(val, start = 0, end = @length)                   -> @
   #filter(fn(val, index, @), that)                       -> array
+  #find(fn(val, index, @), that)                         -> val
+  #forEach(fn(val, index, @), that)                      -> void
+  #findIndex(fn(val, index, @), that)                    -> index | -1
+  #includes(var, from?)                                  -> bool
+  #indexOf(var, from?)                                   -> index | -1
+  #join(string = ',')                                    -> string, fix for ie7-
+  #keys()                                                -> iterator
+  #lastIndexOf(var, from?)                               -> index | -1
+  #map(fn(val, index, @), that)                          -> array
   #reduce(fn(memo, val, index, @), memo?)                -> var
   #reduceRight(fn(memo, val, index, @), memo?)           -> var
+  #slice(start?, end?)                                   -> array, fix for ie7-
+  #some(fn(val, index, @), that)                         -> bool
   #sort(fn?)                                             -> @, invalid arguments fix
+  #values()                                              -> iterator
   #@@iterator()                                          -> iterator (values)
   #@@unscopables                                         -> object (cap)
 Arguments
@@ -305,11 +306,13 @@ core-js(/library)/es/array
 core-js(/library)/fn/array/from
 core-js(/library)/fn/array/of
 core-js(/library)/fn/array/is-array
+core-js(/library)/fn/array/includes
 core-js(/library)/fn/array/iterator
 core-js(/library)/fn/array/copy-within
 core-js(/library)/fn/array/fill
 core-js(/library)/fn/array/find
 core-js(/library)/fn/array/find-index
+core-js(/library)/fn/array/includes
 core-js(/library)/fn/array/values
 core-js(/library)/fn/array/keys
 core-js(/library)/fn/array/entries
@@ -330,6 +333,7 @@ core-js(/library)/fn/array/virtual/copy-within
 core-js(/library)/fn/array/virtual/fill
 core-js(/library)/fn/array/virtual/find
 core-js(/library)/fn/array/virtual/find-index
+core-js(/library)/fn/array/virtual/includes
 core-js(/library)/fn/array/virtual/values
 core-js(/library)/fn/array/virtual/keys
 core-js(/library)/fn/array/virtual/entries
@@ -346,7 +350,7 @@ core-js(/library)/fn/array/virtual/reduce
 core-js(/library)/fn/array/virtual/reduce-right
 core-js(/library)/fn/array/virtual/sort
 ```
-[*Examples*](http://goo.gl/oaUFUf):
+[*Examples*](https://goo.gl/Tegvq4):
 ```js
 Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
 Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
@@ -379,6 +383,16 @@ function isOdd(val){
 Array(5).fill(42); // => [42, 42, 42, 42, 42]
 
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
+
+
+[1, 2, 3].includes(2);        // => true
+[1, 2, 3].includes(4);        // => false
+[1, 2, 3].includes(2, 2);     // => false
+
+[NaN].indexOf(NaN);           // => -1
+[NaN].includes(NaN);          // => true
+Array(1).indexOf(undefined);  // => -1
+Array(1).includes(undefined); // => true
 ```
 #### ECMAScript: String
 Modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.repeat.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.starts-with.js) and [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.trim.js).
@@ -1095,6 +1109,7 @@ new DataView(buffer, byteOffset = 0, byteLength = buffer.byteLength - byteOffset
   #find(fn(val, index, @), that) -> val
   #findIndex(fn(val, index, @), that) -> index
   #forEach(fn(val, index, @), that) -> void
+  #includes(var, from?) -> bool
   #indexOf(var, from?) -> int
   #join(string = ',') -> string
   #lastIndexOf(var, from?) -> int
@@ -1231,38 +1246,6 @@ instance.c; // => 42
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/4
-```
-* `{Array, %TypedArray%}#includes` [proposal](https://github.com/tc39/Array.prototype.includes) - module [`esnext.array.includes`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.includes.js), `%TypedArray%` version in modules from [this section](#ecmascript-typed-arrays).
-```js
-Array
-  #includes(var, from?) -> bool
-{
-  Int8Array,
-  Uint8Array,
-  Uint8ClampedArray,
-  Int16Array,
-  Uint16Array,
-  Int32Array,
-  Uint32Array,
-  Float32Array,
-  Float64Array
-}
-  #includes(var, from?) -> bool
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/array/includes
-```
-[*Examples*](http://goo.gl/2Gq4ma):
-```js
-[1, 2, 3].includes(2);        // => true
-[1, 2, 3].includes(4);        // => false
-[1, 2, 3].includes(2, 2);     // => false
-
-[NaN].indexOf(NaN);           // => -1
-[NaN].includes(NaN);          // => true
-Array(1).indexOf(undefined);  // => -1
-Array(1).includes(undefined); // => true
 ```
 * `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js)
 ```js
