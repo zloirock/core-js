@@ -1,2 +1,2 @@
-require('../../modules/es6.math.trunc');
+require('../../modules/es.math.trunc');
 module.exports = require('../../modules/_core').Math.trunc;

@@ -1,2 +1,2 @@
-require('../../modules/es6.reflect.construct');
+require('../../modules/es.reflect.construct');
 module.exports = require('../../modules/_core').Reflect.construct;

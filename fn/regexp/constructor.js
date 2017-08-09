@@ -1,2 +1,2 @@
-require('../../modules/es6.regexp.constructor');
+require('../../modules/es.regexp.constructor');
 module.exports = RegExp;

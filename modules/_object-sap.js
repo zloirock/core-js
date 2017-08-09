@@ -1,4 +1,4 @@
-// most Object methods by ES6 should accept primitives
+// most Object methods by ES2015+ should accept primitives
 var $export = require('./_export');
 var core = require('./_core');
 var fails = require('./_fails');

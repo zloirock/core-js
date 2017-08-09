@@ -1,2 +1,2 @@
-require('../../modules/es6.object.seal');
+require('../../modules/es.object.seal');
 module.exports = require('../../modules/_core').Object.seal;

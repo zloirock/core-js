@@ -1,2 +1,2 @@
-require('../../modules/es6.object.keys');
+require('../../modules/es.object.keys');
 module.exports = require('../../modules/_core').Object.keys;

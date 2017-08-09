@@ -30,7 +30,7 @@ if (require('./_descriptors')) {
   var createArrayMethod = require('./_array-methods');
   var createArrayIncludes = require('./_array-includes');
   var speciesConstructor = require('./_species-constructor');
-  var ArrayIterators = require('./es6.array.iterator');
+  var ArrayIterators = require('./es.array.iterator');
   var Iterators = require('./_iterators');
   var $iterDetect = require('./_iter-detect');
   var setSpecies = require('./_set-species');
