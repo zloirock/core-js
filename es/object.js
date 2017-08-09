@@ -1,0 +1,20 @@
+require('../modules/es.symbol');
+require('../modules/es.object.create');
+require('../modules/es.object.define-property');
+require('../modules/es.object.define-properties');
+require('../modules/es.object.get-own-property-descriptor');
+require('../modules/es.object.get-prototype-of');
+require('../modules/es.object.keys');
+require('../modules/es.object.get-own-property-names');
+require('../modules/es.object.freeze');
+require('../modules/es.object.seal');
+require('../modules/es.object.prevent-extensions');
+require('../modules/es.object.is-frozen');
+require('../modules/es.object.is-sealed');
+require('../modules/es.object.is-extensible');
+require('../modules/es.object.assign');
+require('../modules/es.object.is');
+require('../modules/es.object.set-prototype-of');
+require('../modules/es.object.to-string');
+
+module.exports = require('../modules/_core').Object;

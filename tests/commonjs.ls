@@ -289,26 +289,25 @@ for P in <[.. ../library]>
   ok typeof require("#P/fn/get-iterator-method")([]) is \function
   ok \next of require("#P/fn/get-iterator")([])
   ################################################
-  ok \Array of require("#P/es5")
-  ok \map of require("#P/es6/array")
-  require("#P/es6/function")
-  ok typeof require("#P/es6/map") is \function
-  ok typeof require("#P/es6/set") is \function
-  ok typeof require("#P/es6/weak-map") is \function
-  ok typeof require("#P/es6/weak-set") is \function
-  ok \hypot of require("#P/es6/math")
-  ok \MAX_SAFE_INTEGER of require("#P/es6/number")
-  ok require("#P/es6/parse-float")('1.5') is 1.5
-  ok require("#P/es6/parse-int")('2.1') is 2
-  ok \assign of require("#P/es6/object")
-  ok typeof require("#P/es6/promise") is \function
-  ok \ownKeys of require("#P/es6/reflect")
-  require("#P/es6/regexp")
-  ok \raw of require("#P/es6/string")
-  ok require("#P/es6/date")
-  ok typeof require("#P/es6/symbol") is \function
-  ok typeof require("#P/es6/typed").Uint32Array is \function
-  ok \Map of require("#P/es6")
+  ok \map of require("#P/es/array")
+  require("#P/es/function")
+  ok typeof require("#P/es/map") is \function
+  ok typeof require("#P/es/set") is \function
+  ok typeof require("#P/es/weak-map") is \function
+  ok typeof require("#P/es/weak-set") is \function
+  ok \hypot of require("#P/es/math")
+  ok \MAX_SAFE_INTEGER of require("#P/es/number")
+  ok require("#P/es/parse-float")('1.5') is 1.5
+  ok require("#P/es/parse-int")('2.1') is 2
+  ok \assign of require("#P/es/object")
+  ok typeof require("#P/es/promise") is \function
+  ok \ownKeys of require("#P/es/reflect")
+  require("#P/es/regexp")
+  ok \raw of require("#P/es/string")
+  ok require("#P/es/date")
+  ok typeof require("#P/es/symbol") is \function
+  ok typeof require("#P/es/typed").Uint32Array is \function
+  ok \Map of require("#P/es")
   ok \setTimeout of require("#P/web/timers")
   ok \setImmediate of require("#P/web/immediate")
   require("#P/web/dom-collections")

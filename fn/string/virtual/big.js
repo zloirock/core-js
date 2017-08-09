@@ -1,2 +1,2 @@
-require('../../../modules/es6.string.big');
+require('../../../modules/es.string.big');
 module.exports = require('../../../modules/_entry-virtual')('String').big;

@@ -1,2 +1,2 @@
-require('../../modules/es6.symbol');
+require('../../modules/es.symbol');
 module.exports = require('../../modules/_core').Object.getOwnPropertySymbols;

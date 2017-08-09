@@ -2,7 +2,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#copyWithin', function(assert){
     var a;
     assert.isFunction(Array.prototype.copyWithin);
@@ -52,7 +52,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#every', function(assert){
     var a, ctx, rez, arr;
     assert.isFunction(Array.prototype.every);
@@ -117,7 +117,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#fill', function(assert){
     var a;
     assert.isFunction(Array.prototype.fill);
@@ -160,7 +160,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#filter', function(assert){
     var a, ctx;
     assert.isFunction(Array.prototype.filter);
@@ -205,7 +205,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#findIndex', function(assert){
     var a, ctx;
     assert.isFunction(Array.prototype.findIndex);
@@ -254,7 +254,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#find', function(assert){
     var a, ctx;
     assert.isFunction(Array.prototype.find);
@@ -303,7 +303,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#forEach', function(assert){
     var a, ctx, rez, arr;
     assert.isFunction(Array.prototype.forEach);
@@ -372,7 +372,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array.from', function(assert){
     var from, isArray, defineProperty, iterator, type, ref$, col, ctx, i$, x$, len$, y$, done, iter, F, inst, a, array, called;
     from = Array.from, isArray = Array.isArray;
@@ -530,7 +530,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#indexOf', function(assert){
     assert.isFunction(Array.prototype.indexOf);
     assert.arity(Array.prototype.indexOf, 1);
@@ -574,7 +574,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array.isArray', function(assert){
     var isArray;
     isArray = Array.isArray;
@@ -595,7 +595,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#keys', function(assert){
     var iter;
     assert.isFunction(Array.prototype.keys);
@@ -750,7 +750,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#join', function(assert){
     assert.isFunction(Array.prototype.join);
     assert.arity(Array.prototype.join, 1);
@@ -775,7 +775,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#lastIndexOf', function(assert){
     assert.isFunction(Array.prototype.lastIndexOf);
     assert.arity(Array.prototype.lastIndexOf, 1);
@@ -826,7 +826,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#map', function(assert){
     var a, ctx;
     assert.isFunction(Array.prototype.map);
@@ -890,7 +890,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array.of', function(assert){
     var defineProperty, F, inst, called;
     defineProperty = Object.defineProperty;
@@ -926,7 +926,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#reduceRight', function(assert){
     var a, accumulator, v, k;
     assert.isFunction(Array.prototype.reduceRight);
@@ -1008,7 +1008,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#reduce', function(assert){
     var a, accumulator, v, k;
     assert.isFunction(Array.prototype.reduce);
@@ -1089,7 +1089,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#slice', function(assert){
     var arr, str, list, ref$, e;
     assert.isFunction(Array.prototype.slice);
@@ -1140,7 +1140,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#some', function(assert){
     var a, ctx, rez, arr;
     assert.isFunction(Array.prototype.some);
@@ -1206,7 +1206,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Array#sort', function(assert){
     assert.isFunction(Array.prototype.sort);
     assert.arity(Array.prototype.sort, 1);
@@ -1239,7 +1239,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Date.now', function(assert){
     var now;
     now = Date.now;
@@ -1256,7 +1256,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Date#toISOString', function(assert){
     var ft, bc;
     assert.isFunction(Date.prototype.toISOString);
@@ -1281,7 +1281,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Date#toJSON', function(assert){
     var d;
     assert.isFunction(Date.prototype.toJSON);
@@ -1304,7 +1304,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Date#@@toPrimitive', function(assert){
     var TO_PRIMITIVE, toPrimitive, date, i$, x$, ref$, len$, y$;
     TO_PRIMITIVE = Symbol.toPrimitive;
@@ -1349,7 +1349,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Date#toString', function(assert){
     assert.isFunction(Date.prototype.toString);
     assert.arity(Date.prototype.toString, 0);
@@ -1364,7 +1364,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Function#bind', function(assert){
     var obj, fn, inst, F, date;
     assert.isFunction(Function.prototype.bind);
@@ -1404,7 +1404,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Function#@@hasInstance', function(assert){
     assert.ok(Symbol.hasInstance in Function.prototype);
     assert.nonEnumerable(Function.prototype, Symbol.hasInstance);
@@ -1418,7 +1418,7 @@
   var module, test;
   if (DESCRIPTORS) {
     module = QUnit.module, test = QUnit.test;
-    module('ES6');
+    module('ES');
     test('Function#name', function(assert){
       var fn;
       assert.ok('name' in Function.prototype);
@@ -1456,7 +1456,7 @@
 (function(){
   var module, test, same, getOwnPropertyDescriptor, freeze;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   same = function(a, b){
     if (a === b) {
       return a !== 0 || 1 / a === 1 / b;
@@ -1905,7 +1905,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.acosh', function(assert){
     var acosh;
     acosh = Math.acosh;
@@ -1932,7 +1932,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.asinh', function(assert){
     var asinh;
     asinh = Math.asinh;
@@ -1958,7 +1958,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.atanh', function(assert){
     var atanh;
     atanh = Math.atanh;
@@ -1988,7 +1988,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.cbrt', function(assert){
     var cbrt;
     cbrt = Math.cbrt;
@@ -2013,7 +2013,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.clz32', function(assert){
     var clz32;
     clz32 = Math.clz32;
@@ -2035,7 +2035,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.cosh', function(assert){
     var cosh;
     cosh = Math.cosh;
@@ -2060,7 +2060,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.expm1', function(assert){
     var expm1;
     expm1 = Math.expm1;
@@ -2082,7 +2082,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.fround', function(assert){
     var fround, maxFloat32, minFloat32;
     fround = Math.fround;
@@ -2122,7 +2122,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.hypot', function(assert){
     var hypot, sqrt;
     hypot = Math.hypot, sqrt = Math.sqrt;
@@ -2173,7 +2173,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.imul', function(assert){
     var imul;
     imul = Math.imul;
@@ -2224,7 +2224,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.log10', function(assert){
     var log10;
     log10 = Math.log10;
@@ -2253,7 +2253,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.log1p', function(assert){
     var log1p;
     log1p = Math.log1p;
@@ -2278,7 +2278,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.log2', function(assert){
     var log2;
     log2 = Math.log2;
@@ -2304,7 +2304,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.sign', function(assert){
     var sign;
     sign = Math.sign;
@@ -2330,7 +2330,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.sinh', function(assert){
     var sinh;
     sinh = Math.sinh;
@@ -2354,7 +2354,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.tanh', function(assert){
     var tanh;
     tanh = Math.tanh;
@@ -2377,7 +2377,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Math.trunc', function(assert){
     var trunc;
     trunc = Math.trunc;
@@ -2408,7 +2408,7 @@
 (function(){
   var module, test, ws, $check, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   ws = ' \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000';
   $check = function(assert){
     return function(a, b){
@@ -2687,7 +2687,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.EPSILON', function(assert){
     var EPSILON;
     EPSILON = Number.EPSILON;
@@ -2703,7 +2703,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.isFinite', function(assert){
     var isFinite, create, i$, x$, ref$, len$, y$, e;
     isFinite = Number.isFinite;
@@ -2737,7 +2737,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.isInteger', function(assert){
     var isInteger, create, i$, x$, ref$, len$, y$, e;
     isInteger = Number.isInteger;
@@ -2771,7 +2771,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.isNaN', function(assert){
     var isNaN, create, i$, x$, ref$, len$, e;
     isNaN = Number.isNaN;
@@ -2802,7 +2802,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.isSafeInteger', function(assert){
     var isSafeInteger, create, i$, x$, ref$, len$, y$, e;
     isSafeInteger = Number.isSafeInteger;
@@ -2836,7 +2836,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.MAX_SAFE_INTEGER', function(assert){
     assert.ok('MAX_SAFE_INTEGER' in Number);
     assert.nonEnumerable(Number, 'MAX_SAFE_INTEGER');
@@ -2848,7 +2848,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.MIN_SAFE_INTEGER', function(assert){
     assert.ok('MIN_SAFE_INTEGER' in Number);
     assert.nonEnumerable(Number, 'MIN_SAFE_INTEGER');
@@ -2860,7 +2860,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.parseFloat', function(assert){
     var parseFloat, ws;
     parseFloat = Number.parseFloat;
@@ -2888,7 +2888,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number.parseInt', function(assert){
     var parseInt, i$, r, x$, ref$, len$, ws, fakeZero;
     parseInt = Number.parseInt;
@@ -2934,7 +2934,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number#toFixed', function(assert){
     var toFixed;
     toFixed = Number.prototype.toFixed;
@@ -3043,7 +3043,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Number#toPrecision', function(assert){
     var toPrecision;
     toPrecision = Number.prototype.toPrecision;
@@ -3086,7 +3086,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.assign', function(assert){
     var assign, keys, defineProperty, foo, str, c, d, D, ref$, O, string, i$, x$, len$;
     assign = Object.assign, keys = Object.keys, defineProperty = Object.defineProperty;
@@ -3178,7 +3178,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.create', function(assert){
     var create, getPrototypeOf, getOwnPropertyNames, isObject, isPrototype, getPropertyNames, obj, fn;
     create = Object.create, getPrototypeOf = Object.getPrototypeOf, getOwnPropertyNames = Object.getOwnPropertyNames;
@@ -3239,7 +3239,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.defineProperties', function(assert){
     var defineProperties, rez, src;
     defineProperties = Object.defineProperties;
@@ -3264,7 +3264,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.defineProperty', function(assert){
     var defineProperty, create, rez, src;
     defineProperty = Object.defineProperty, create = Object.create;
@@ -3293,7 +3293,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.freeze', function(assert){
     var freeze, isFrozen, keys, getOwnPropertyNames, i$, ref$, len$, value, key;
     freeze = Object.freeze, isFrozen = Object.isFrozen, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames;
@@ -3334,7 +3334,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.getOwnPropertyDescriptor', function(assert){
     var getOwnPropertyDescriptor, i$, ref$, len$, value;
     getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -3376,7 +3376,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.getOwnPropertyNames', function(assert){
     var getOwnPropertyNames, fn1, fn2, names, i$, ref$, len$, value, iframe, w;
     getOwnPropertyNames = Object.getOwnPropertyNames, getOwnPropertyNames = Object.getOwnPropertyNames;
@@ -3444,7 +3444,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.getPrototypeOf', function(assert){
     var create, getPrototypeOf, fn, obj, foo, bar, i$, ref$, len$, value;
     create = Object.create, getPrototypeOf = Object.getPrototypeOf;
@@ -3497,7 +3497,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.isExtensible', function(assert){
     var preventExtensions, isExtensible, i$, ref$, len$, value;
     preventExtensions = Object.preventExtensions, isExtensible = Object.isExtensible;
@@ -3528,7 +3528,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.isFrozen', function(assert){
     var freeze, isFrozen, i$, ref$, len$, value;
     freeze = Object.freeze, isFrozen = Object.isFrozen;
@@ -3559,7 +3559,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.isSealed', function(assert){
     var seal, isSealed, i$, ref$, len$, value;
     seal = Object.seal, isSealed = Object.isSealed;
@@ -3590,7 +3590,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.is', function(assert){
     var same;
     same = Object.is;
@@ -3610,7 +3610,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.keys', function(assert){
     var keys, fn1, fn2, i$, ref$, len$, value;
     keys = Object.keys;
@@ -3659,7 +3659,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.preventExtensions', function(assert){
     var preventExtensions, isExtensible, keys, getOwnPropertyNames, i$, ref$, len$, value, key;
     preventExtensions = Object.preventExtensions, isExtensible = Object.isExtensible, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames;
@@ -3700,7 +3700,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object.seal', function(assert){
     var seal, isSealed, keys, getOwnPropertyNames, i$, ref$, len$, value, key;
     seal = Object.seal, isSealed = Object.isSealed, keys = Object.keys, getOwnPropertyNames = Object.getOwnPropertyNames;
@@ -3742,7 +3742,7 @@
   var module, test;
   if (PROTO) {
     module = QUnit.module, test = QUnit.test;
-    module('ES6');
+    module('ES');
     test('Object.setPrototypeOf', function(assert){
       var setPrototypeOf, tmp;
       setPrototypeOf = Object.setPrototypeOf;
@@ -3771,7 +3771,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Object#toString', function(assert){
     var toString, i$, x$, ref$, len$, Constructor, Class;
     assert.arity(Object.prototype.toString, 0);
@@ -3854,7 +3854,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('parseFloat', function(assert){
     var ws;
     assert.isFunction(parseFloat);
@@ -3879,7 +3879,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('parseInt', function(assert){
     var i$, r, x$, ref$, len$, ws, fakeZero;
     assert.isFunction(parseInt);
@@ -3923,7 +3923,7 @@
   'use strict';
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Promise', function(assert){
     assert.isFunction(Promise);
     assert.arity(Promise, 1);
@@ -4368,7 +4368,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Reflect.apply', function(assert){
     var apply, C;
     apply = Reflect.apply;
@@ -4399,7 +4399,7 @@
 (function(){
   var module, test, getPrototypeOf;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   getPrototypeOf = Object.getPrototypeOf;
   test('Reflect.construct', function(assert){
     var construct, C, inst, f, e;
@@ -4448,7 +4448,7 @@
 (function(){
   var module, test, defineProperty, getOwnPropertyDescriptor;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   test('Reflect.defineProperty', function(assert){
     var defineProperty, create, O;
@@ -4501,7 +4501,7 @@
 (function(){
   var module, test, defineProperty;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty;
   test('Reflect.deleteProperty', function(assert){
     var deleteProperty, O;
@@ -4536,7 +4536,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Reflect.getOwnPropertyDescriptor', function(assert){
     var getOwnPropertyDescriptor, obj, desc;
     getOwnPropertyDescriptor = Reflect.getOwnPropertyDescriptor;
@@ -4560,7 +4560,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Reflect.getPrototypeOf', function(assert){
     var getPrototypeOf;
     getPrototypeOf = Reflect.getPrototypeOf;
@@ -4580,7 +4580,7 @@
 (function(){
   var module, test, defineProperty, create;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, create = Object.create;
   test('Reflect.get', function(assert){
     var get, target, receiver;
@@ -4627,7 +4627,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('Reflect.has', function(assert){
     var has, O;
     has = Reflect.has;
@@ -4652,7 +4652,7 @@
 (function(){
   var module, test, defineProperty, preventExtensions;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, preventExtensions = Object.preventExtensions;
   test('Reflect.isExtensible', function(assert){
     var isExtensible;
@@ -4676,7 +4676,7 @@
 (function(){
   var module, test, defineProperty;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty;
   test('Reflect.ownKeys', function(assert){
     var ownKeys, sym, O1, keys, O2;
@@ -4721,7 +4721,7 @@
 (function(){
   var module, test, defineProperty, isExtensible;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, isExtensible = Object.isExtensible;
   test('Reflect.preventExtensions', function(assert){
     var preventExtensions, obj;
@@ -4747,7 +4747,7 @@
   var module, test;
   if (PROTO) {
     module = QUnit.module, test = QUnit.test;
-    module('ES6');
+    module('ES');
     test('Reflect.setPrototypeOf', function(assert){
       var setPrototypeOf, obj, o;
       setPrototypeOf = Reflect.setPrototypeOf;
@@ -4774,7 +4774,7 @@
 (function(){
   var module, test, defineProperty, getOwnPropertyDescriptor, create;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, create = Object.create;
   test('Reflect.set', function(assert){
     var set, obj, target, receiver, out;
@@ -4850,7 +4850,7 @@
 (function(){
   var module, test, toString$ = {}.toString;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   if (DESCRIPTORS) {
     test('RegExp constructor', function(assert){
       var re, O, result, i$, len$, index, val, C;
@@ -4898,7 +4898,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   if (DESCRIPTORS) {
     test('RegExp#flags', function(assert){
       assert.nonEnumerable(RegExp.prototype, 'flags');
@@ -4918,7 +4918,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#match regression', function(assert){
     var instance, matched, expected, obj, str, x, e, reg, string, matches, i$, len$, i, re, num;
     assert.isFunction(''.match);
@@ -5172,7 +5172,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#replace regression', function(assert){
     var instance, e;
     assert.isFunction(''.replace);
@@ -5352,7 +5352,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#search regression', function(assert){
     var instance, e, aString;
     assert.isFunction(''.search);
@@ -5462,7 +5462,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#split regression', function(assert){
     var instance, split, e, F, string, i$, to$, i, expected, results$ = [];
     assert.isFunction(''.split);
@@ -6223,7 +6223,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('RegExp#toString', function(assert){
     var toString;
     toString = /./.toString;
@@ -6271,7 +6271,7 @@
 (function(){
   var module, test, same, getOwnPropertyDescriptor, freeze;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   same = function(a, b){
     if (a === b) {
       return a !== 0 || 1 / a === 1 / b;
@@ -6703,7 +6703,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#anchor', function(assert){
     assert.isFunction(String.prototype.anchor);
     assert.arity(String.prototype.anchor, 1);
@@ -6719,7 +6719,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#big', function(assert){
     assert.isFunction(String.prototype.big);
     assert.arity(String.prototype.big, 0);
@@ -6734,7 +6734,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#blink', function(assert){
     assert.isFunction(String.prototype.blink);
     assert.arity(String.prototype.blink, 0);
@@ -6749,7 +6749,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#bold', function(assert){
     assert.isFunction(String.prototype.bold);
     assert.arity(String.prototype.bold, 0);
@@ -6764,7 +6764,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#codePointAt', function(assert){
     assert.isFunction(String.prototype.codePointAt);
     assert.arity(String.prototype.codePointAt, 1);
@@ -6835,7 +6835,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#endsWith', function(assert){
     var re, e, O;
     assert.isFunction(String.prototype.endsWith);
@@ -6897,7 +6897,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#fixed', function(assert){
     assert.isFunction(String.prototype.fixed);
     assert.arity(String.prototype.fixed, 0);
@@ -6912,7 +6912,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#fontcolor', function(assert){
     assert.isFunction(String.prototype.fontcolor);
     assert.arity(String.prototype.fontcolor, 1);
@@ -6928,7 +6928,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#fontsize', function(assert){
     assert.isFunction(String.prototype.fontsize);
     assert.arity(String.prototype.fontsize, 1);
@@ -6944,7 +6944,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String.fromCodePoint', function(assert){
     var fromCodePoint, tmp, counter, result;
     fromCodePoint = String.fromCodePoint;
@@ -7027,7 +7027,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#includes', function(assert){
     var re, e, O;
     assert.isFunction(String.prototype.includes);
@@ -7080,7 +7080,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#italics', function(assert){
     assert.isFunction(String.prototype.italics);
     assert.arity(String.prototype.italics, 0);
@@ -7095,7 +7095,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#@@iterator', function(assert){
     var iter;
     assert.isIterable(String.prototype);
@@ -7144,7 +7144,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#link', function(assert){
     assert.isFunction(String.prototype.link);
     assert.arity(String.prototype.link, 1);
@@ -7160,7 +7160,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String.raw', function(assert){
     var raw;
     raw = String.raw;
@@ -7193,7 +7193,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#repeat', function(assert){
     assert.isFunction(String.prototype.repeat);
     assert.arity(String.prototype.repeat, 1);
@@ -7223,7 +7223,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#small', function(assert){
     assert.isFunction(String.prototype.small);
     assert.arity(String.prototype.small, 0);
@@ -7238,7 +7238,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#startsWith', function(assert){
     var re, e, O;
     assert.isFunction(String.prototype.startsWith);
@@ -7299,7 +7299,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#strike', function(assert){
     assert.isFunction(String.prototype.strike);
     assert.arity(String.prototype.strike, 0);
@@ -7314,7 +7314,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#sub', function(assert){
     assert.isFunction(String.prototype.sub);
     assert.arity(String.prototype.sub, 0);
@@ -7329,7 +7329,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#sup', function(assert){
     assert.isFunction(String.prototype.sup);
     assert.arity(String.prototype.sup, 0);
@@ -7344,7 +7344,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('String#trim', function(assert){
     assert.isFunction(''.trim);
     assert.arity(String.prototype.trim, 0);
@@ -7369,7 +7369,7 @@
 (function(){
   var module, test, defineProperty, getOwnPropertyDescriptor, create, i$, ref$, len$, $key;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   defineProperty = Object.defineProperty, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, create = Object.create;
   test('Symbol', function(assert){
     var s1, s2, O, count, i;
@@ -7661,7 +7661,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('ArrayBuffer', function(assert){
     var b, this$ = this;
     assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
@@ -7691,7 +7691,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('ArrayBuffer.isView', function(assert){
     var isView, i$, x$, ref$, len$, y$;
     isView = ArrayBuffer.isView;
@@ -7719,7 +7719,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('ArrayBuffer#slice', function(assert){
     var buffer;
     assert.isFunction(ArrayBuffer.prototype.slice);
@@ -7744,7 +7744,7 @@
   var module, test, keys, getOwnPropertyDescriptor, defineProperty, $name, ref$, $bytes;
   module = QUnit.module, test = QUnit.test;
   keys = Object.keys, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor, defineProperty = Object.defineProperty;
-  module('ES6');
+  module('ES');
   if (DESCRIPTORS) {
     for ($name in ref$ = {
       Float32Array: 4,
@@ -8068,7 +8068,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Float32 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Float32';
@@ -8116,7 +8116,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Float64 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Float64';
@@ -8164,7 +8164,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Int16 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Int16';
@@ -8213,7 +8213,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Int32 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Int32';
@@ -8259,7 +8259,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Int8 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little;
     NAME = 'Int8';
@@ -8300,7 +8300,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Uint16 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Uint16';
@@ -8349,7 +8349,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Uint32 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, uint8, view, viewFrom, z, i$, len$, ref$, value, conversion, little, big, rep;
     NAME = 'Uint32';
@@ -8395,7 +8395,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Uint8Clamped conversions', function(assert){
     var NAME, ARRAY, Typed, data, typed, uint8, z, i$, len$, ref$, value, conversion, little;
     NAME = 'Uint8Clamped';
@@ -8424,7 +8424,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('Uint8 conversions', function(assert){
     var NAME, ARRAY, Typed, SET, GET, data, typed, view, viewFrom, z, i$, len$, ref$, value, conversion, little;
     NAME = 'Uint8';
@@ -8464,7 +8464,7 @@
 (function(){
   var module, test, i$, x$, ref$, len$, y$;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   test('DataView', function(assert){
     var a, d;
     assert.same(DataView, Object(DataView), 'is object');
@@ -8680,7 +8680,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.copyWithin', function(assert){
     var global, i$, x$, ref$, len$, Typed, a;
     global = Function('return this')();
@@ -8716,7 +8716,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.every', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8782,7 +8782,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.fill', function(assert){
     var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8810,7 +8810,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.filter', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8857,7 +8857,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.findIndex', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k, results$ = [];
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8907,7 +8907,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.find', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8956,7 +8956,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.forEach', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -8999,7 +8999,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArray%.from', function(assert){
     var i$, x$, ref$, len$, Typed, inst, O;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9063,7 +9063,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.indexOf', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9090,7 +9090,7 @@
 (function(){
   var module, test, arrays;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
   DESCRIPTORS && test('%TypedArrayPrototype%.keys', function(assert){
     var i$, x$, ref$, len$, Typed, iter;
@@ -9239,7 +9239,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.join', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9263,7 +9263,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.lastIndexOf', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9290,7 +9290,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.map', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, instance, v, k;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9337,7 +9337,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArray%.of', function(assert){
     var i$, x$, ref$, len$, Typed, inst;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9372,7 +9372,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.reduceRight', function(assert){
     var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
@@ -9438,7 +9438,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.reduce', function(assert){
     var i$, x$, ref$, len$, Typed, a, accumulator, v, k, fn1$ = curry$(function(x$, y$){
       return x$ + y$;
@@ -9504,7 +9504,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.reverse', function(assert){
     var i$, x$, ref$, len$, Typed, a;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9529,7 +9529,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.set', function(assert){
     var i$, x$, ref$, len$, Typed, a, b, y$;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9581,7 +9581,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.slice', function(assert){
     var i$, x$, ref$, len$, Typed, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9613,7 +9613,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.some', function(assert){
     var i$, x$, ref$, len$, Typed, a, ctx, v, k, arr;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9674,7 +9674,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.subarray', function(assert){
     var i$, x$, ref$, len$, Typed, a, b;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9711,7 +9711,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.toLocaleString', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9734,7 +9734,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   DESCRIPTORS && test('%TypedArrayPrototype%.toString', function(assert){
     var i$, x$, ref$, len$, Typed;
     for (i$ = 0, len$ = (ref$ = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray']).length; i$ < len$; ++i$) {
@@ -9754,7 +9754,7 @@
 (function(){
   var module, test, freeze;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   freeze = Object.freeze;
   test('WeakMap', function(assert){
     var a, x$, f, M, done, iter, o, key, C, O;
@@ -9903,7 +9903,7 @@
 (function(){
   var module, test, freeze;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ES');
   freeze = Object.freeze;
   test('WeakSet', function(assert){
     var a, x$, f, S, done, iter, o, key, C, O;
@@ -10202,7 +10202,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ESNext');
   test('asap', function(assert){
     var async, done, after;
     assert.expect(5);
@@ -10336,7 +10336,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ESNext');
   test('Math.DEG_PER_RAD', function(assert){
     var DEG_PER_RAD;
     DEG_PER_RAD = Math.DEG_PER_RAD;
@@ -10453,7 +10453,7 @@
 (function(){
   var module, test;
   module = QUnit.module, test = QUnit.test;
-  module('ES6');
+  module('ESNext');
   test('Math.RAD_PER_DEG', function(assert){
     var RAD_PER_DEG;
     RAD_PER_DEG = Math.RAD_PER_DEG;

@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es6.set');
+require('../../modules/es.set');
 require('../../modules/esnext.set.from');
 var $Set = require('../../modules/_core').Set;
 var $from = $Set.from;

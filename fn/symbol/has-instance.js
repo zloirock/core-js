@@ -1,2 +1,2 @@
-require('../../modules/es6.function.has-instance');
+require('../../modules/es.function.has-instance');
 module.exports = require('../../modules/_wks-ext').f('hasInstance');
