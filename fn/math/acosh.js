@@ -1,2 +1,2 @@
-require('../../modules/es6.math.acosh');
+require('../../modules/es.math.acosh');
 module.exports = require('../../modules/_core').Math.acosh;

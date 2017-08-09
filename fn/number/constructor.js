@@ -1,2 +1,2 @@
-require('../../modules/es6.number.constructor');
+require('../../modules/es.number.constructor');
 module.exports = Number;

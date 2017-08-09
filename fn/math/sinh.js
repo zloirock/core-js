@@ -1,2 +1,2 @@
-require('../../modules/es6.math.sinh');
+require('../../modules/es.math.sinh');
 module.exports = require('../../modules/_core').Math.sinh;

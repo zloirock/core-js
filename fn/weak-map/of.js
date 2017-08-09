@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es6.weak-map');
+require('../../modules/es.weak-map');
 require('../../modules/esnext.weak-map.of');
 var $WeakMap = require('../../modules/_core').WeakMap;
 var $of = $WeakMap.of;

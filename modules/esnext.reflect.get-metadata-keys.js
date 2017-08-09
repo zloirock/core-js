@@ -1,4 +1,4 @@
-var Set = require('./es6.set');
+var Set = require('./es.set');
 var metadata = require('./_metadata');
 var anObject = require('./_an-object');
 var getPrototypeOf = require('./_object-gpo');

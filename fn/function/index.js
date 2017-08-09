@@ -1,4 +1,4 @@
-require('../../modules/es6.function.bind');
-require('../../modules/es6.function.name');
-require('../../modules/es6.function.has-instance');
+require('../../modules/es.function.bind');
+require('../../modules/es.function.name');
+require('../../modules/es.function.has-instance');
 module.exports = require('../../modules/_core').Function;
