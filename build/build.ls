@@ -1,6 +1,6 @@
 require! {
   '../library/fn/promise': Promise
-  './config': {list, experimental, libraryBlacklist, es5SpecialCase, banner}
+  './config': {list, experimental, libraryBlacklist, banner}
   fs: {readFile, writeFile, unlink}
   path: {basename, dirname, join}
   webpack, temp
@@ -10,7 +10,6 @@ module.exports = ({modules = [], blacklist = [], library = no, umd = on})->
   resolve, reject <~! new Promise _
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
     if @exp => for experimental => @[..] = on
-    if @es5 => for es5SpecialCase => @[..] = on
     for ns of @
       if @[ns]
         for name in list

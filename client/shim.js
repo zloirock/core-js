@@ -484,7 +484,7 @@ module.exports = function (it) {
 /* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
-// most Object methods by ES6 should accept primitives
+// most Object methods by ES2015+ should accept primitives
 var $export = __webpack_require__(0);
 var core = __webpack_require__(28);
 var fails = __webpack_require__(3);
@@ -4447,7 +4447,7 @@ if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
   for (var keys = __webpack_require__(6) ? gOPN(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
-    // ES6 (in case, if modules with ES6 Number statics required before):
+    // ES2015 (in case, if modules with ES2015 Number statics required before):
     'EPSILON,isFinite,isInteger,isNaN,isSafeInteger,MAX_SAFE_INTEGER,' +
     'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
   ).split(','), j = 0, key; keys.length > j; j++) {

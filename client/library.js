@@ -483,7 +483,7 @@ module.exports = function (it) {
 /* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
-// most Object methods by ES6 should accept primitives
+// most Object methods by ES2015+ should accept primitives
 var $export = __webpack_require__(0);
 var core = __webpack_require__(20);
 var fails = __webpack_require__(4);

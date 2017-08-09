@@ -1,7 +1,7 @@
-require('../../modules/es6.regexp.constructor');
-require('../../modules/es6.regexp.to-string');
-require('../../modules/es6.regexp.flags');
-require('../../modules/es6.regexp.match');
-require('../../modules/es6.regexp.replace');
-require('../../modules/es6.regexp.search');
-require('../../modules/es6.regexp.split');
+require('../../modules/es.regexp.constructor');
+require('../../modules/es.regexp.to-string');
+require('../../modules/es.regexp.flags');
+require('../../modules/es.regexp.match');
+require('../../modules/es.regexp.replace');
+require('../../modules/es.regexp.search');
+require('../../modules/es.regexp.split');
