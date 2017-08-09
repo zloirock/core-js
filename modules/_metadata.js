@@ -1,7 +1,7 @@
-var Map = require('./es6.map');
+var Map = require('./es.map');
 var $export = require('./_export');
 var shared = require('./_shared')('metadata');
-var store = shared.store || (shared.store = new (require('./es6.weak-map'))());
+var store = shared.store || (shared.store = new (require('./es.weak-map'))());
 
 var getOrCreateMetadataMap = function (target, targetKey, create) {
   var targetMetadata = store.get(target);

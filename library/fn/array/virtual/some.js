@@ -1,2 +1,2 @@
-require('../../../modules/es6.array.some');
+require('../../../modules/es.array.some');
 module.exports = require('../../../modules/_entry-virtual')('Array').some;

@@ -1,2 +1,2 @@
-require('../../modules/es6.math.tanh');
+require('../../modules/es.math.tanh');
 module.exports = require('../../modules/_core').Math.tanh;

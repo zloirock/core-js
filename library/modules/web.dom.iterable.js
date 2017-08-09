@@ -1,4 +1,4 @@
-require('./es6.array.iterator');
+require('./es.array.iterator');
 var global = require('./_global');
 var hide = require('./_hide');
 var Iterators = require('./_iterators');

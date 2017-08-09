@@ -1,3 +1,3 @@
-require('../../modules/es6.string.iterator');
-require('../../modules/es6.array.from');
+require('../../modules/es.string.iterator');
+require('../../modules/es.array.from');
 module.exports = require('../../modules/_core').Array.from;

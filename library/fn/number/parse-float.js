@@ -1,2 +1,2 @@
-require('../../modules/es6.number.parse-float');
+require('../../modules/es.number.parse-float');
 module.exports = parseFloat;
