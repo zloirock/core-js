@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ESNext
+module \ES
 
 test 'Array#includes' (assert)!->
   assert.isFunction Array::includes

@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/Array.prototype.includes
+// 22.1.3.11 Array.prototype.includes(searchElement [ , fromIndex ])
 var $export = require('./_export');
 var $includes = require('./_array-includes')(true);
 
