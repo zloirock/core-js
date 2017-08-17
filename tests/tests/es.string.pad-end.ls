@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ESNext
+module \ES
 
 test 'String#padEnd' (assert)!->
   assert.isFunction String::padEnd
