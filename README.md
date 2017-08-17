@@ -178,6 +178,8 @@ core-js(/library)/es
 Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`esnext.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js), [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
 
 Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.es.object.define-properties.js).
+
+[ES2017 Annex B](https://tc39.github.io/ecma262/#sec-object.prototype.__defineGetter__) - modules [`esnext.object.define-setter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.define-setter.js), [`esnext.object.define-getter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.define-getter.js), [`esnext.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.lookup-setter.js) and [`esnext.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.lookup-getter.js)
 ```js
 Object
   .assign(target, ...src)                -> target
@@ -200,6 +202,10 @@ Object
   .isSealed(var)                         -> bool
   .isExtensible(var)                     -> bool
   #toString()                            -> string, ES2015 fix: @@toStringTag support
+  #__defineSetter__(key, fn)             -> void
+  #__defineGetter__(key, fn)             -> void
+  #__lookupSetter__(key)                 -> fn | void
+  #__lookupGetter__(key)                 -> fn | void
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -224,6 +230,10 @@ core-js(/library)/fn/object/is-frozen
 core-js(/library)/fn/object/is-sealed
 core-js(/library)/fn/object/is-extensible
 core-js/fn/object/to-string
+core-js(/library)/fn/object/define-getter
+core-js(/library)/fn/object/define-setter
+core-js(/library)/fn/object/lookup-getter
+core-js(/library)/fn/object/lookup-setter
 ```
 [*Examples*](https://goo.gl/sqY5mD):
 ```js
@@ -1283,21 +1293,6 @@ core-js(/library)/fn/string/virtual/pad-end
 'hello'.padStart(10, '1234'); // => '12341hello'
 'hello'.padEnd(10);           // => 'hello     '
 'hello'.padEnd(10, '1234');   // => 'hello12341'
-```
-* `Object#__(define|lookup)[GS]etter__`, [annex B ES2017](https://github.com/tc39/ecma262/pull/381), but we haven't special namespace for that - modules [`esnext.object.define-setter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.define-setter.js), [`esnext.object.define-getter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.define-getter.js), [`esnext.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.lookup-setter.js) and [`esnext.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.lookup-getter.js).
-```js
-Object
-  #__defineSetter__(key, fn) -> void
-  #__defineGetter__(key, fn) -> void
-  #__lookupSetter__(key) -> fn | void
-  #__lookupGetter__(key) -> fn | void
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/object/define-getter
-core-js(/library)/fn/object/define-setter
-core-js(/library)/fn/object/lookup-getter
-core-js(/library)/fn/object/lookup-setter
 ```
 
 #### Stage 3 proposals
