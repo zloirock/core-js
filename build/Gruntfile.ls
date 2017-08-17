@@ -22,7 +22,6 @@ module.exports = (grunt)->
       './tests/tests.js': './tests/tests/*'
       './tests/library.js': './tests/library/*'
       './tests/es.js': './tests/tests/es*'
-      './tests/experimental.js': './tests/experimental/*'
       './build/index.js': './build/build.ls*'
     clean: <[./library]>
     copy: lib: files:
@@ -79,8 +78,4 @@ module.exports = (grunt)->
     grunt.option \library ''
     grunt.option \path './client/shim'
     grunt.task.run <[build:es,esnext,web uglify]>
-  grunt.registerTask \e ->
-    grunt.option \library ''>
-    grunt.option \path './client/core'
-    grunt.task.run <[build:es,esnext,web,core,exp uglify]>
   grunt.registerTask \default <[clean copy client library shim]>
