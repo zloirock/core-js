@@ -175,7 +175,7 @@ core-js(/library)/shim  <- only polyfills
 core-js(/library)/es
 ```
 #### ECMAScript: Object
-Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js), [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
+Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`esnext.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js), [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
 
 Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.es.object.define-properties.js).
 ```js
@@ -188,6 +188,7 @@ Object
   .defineProperty(object, key, desc)     -> target
   .defineProperties(object, descriptors) -> target
   .getOwnPropertyDescriptor(var, key)    -> desc | undefined
+  .getOwnPropertyDescriptors(object)     -> object
   .keys(var)                             -> array
   .values(var)                           -> array
   .entries(var)                          -> array
@@ -211,6 +212,7 @@ core-js(/library)/fn/object/create
 core-js(/library)/fn/object/define-property
 core-js(/library)/fn/object/define-properties
 core-js(/library)/fn/object/get-own-property-descriptor
+core-js(/library)/fn/object/get-own-property-descriptors
 core-js(/library)/fn/object/keys
 core-js(/library)/fn/object/values
 core-js(/library)/fn/object/entries
@@ -255,6 +257,11 @@ for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
   console.log(key);   // => 'a', 'b', 'c'
   console.log(value); // => 1, 2, 3
 }
+
+// Shallow object cloning with prototype and descriptors:
+var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
+// Mixin:
+Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 ```
 #### ECMAScript: Function
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.bind.js).
@@ -1256,22 +1263,6 @@ instance.c; // => 42
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/4
-```
-* `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`esnext.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.get-own-property-descriptors.js)
-```js
-Object
-  .getOwnPropertyDescriptors(object) -> object
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/object/get-own-property-descriptors
-```
-*Examples*:
-```js
-// Shallow object cloning with prototype and descriptors:
-var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
-// Mixin:
-Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 ```
 * `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`esnext.string.pad-start`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-start.js), [`esnext.string.pad-end`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-end.js)
 ```js
