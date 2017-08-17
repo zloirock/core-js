@@ -422,34 +422,36 @@ Array(1).indexOf(undefined);  // => -1
 Array(1).includes(undefined); // => true
 ```
 #### ECMAScript: String
-Modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.repeat.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.starts-with.js) and [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.trim.js).
+Modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.repeat.js), [`esnext.string.pad-start`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-start.js), [`esnext.string.pad-end`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.starts-with.js) and [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.trim.js).
 
 Annex B HTML methods. Ugly, but it's also the part of the spec. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.sub.js) and [`es.string.sup`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.sup.js).
 ```js
 String
-  .fromCodePoint(...codePoints) -> str
-  .raw({raw}, ...substitutions) -> str
-  #split(separator, limit)      -> array
-  #includes(str, from?)         -> bool
-  #startsWith(str, from?)       -> bool
-  #endsWith(str, from?)         -> bool
-  #repeat(num)                  -> str
-  #codePointAt(pos)             -> uint
-  #trim()                       -> str
-  #anchor(name)                 -> str
-  #big()                        -> str
-  #blink()                      -> str
-  #bold()                       -> str
-  #fixed()                      -> str
-  #fontcolor(color)             -> str
-  #fontsize(size)               -> str
-  #italics()                    -> str
-  #link(url)                    -> str
-  #small()                      -> str
-  #strike()                     -> str
-  #sub()                        -> str
-  #sup()                        -> str
-  #@@iterator()                 -> iterator (code points)
+  .fromCodePoint(...codePoints)    -> str
+  .raw({raw}, ...substitutions)    -> str
+  #split(separator, limit)         -> array
+  #includes(str, from?)            -> bool
+  #startsWith(str, from?)          -> bool
+  #endsWith(str, from?)            -> bool
+  #repeat(num)                     -> str
+  #padStart(length, fillStr = ' ') -> string
+  #padEnd(length, fillStr = ' ')   -> string
+  #codePointAt(pos)                -> uint
+  #trim()                          -> str
+  #anchor(name)                    -> str
+  #big()                           -> str
+  #blink()                         -> str
+  #bold()                          -> str
+  #fixed()                         -> str
+  #fontcolor(color)                -> str
+  #fontsize(size)                  -> str
+  #italics()                       -> str
+  #link(url)                       -> str
+  #small()                         -> str
+  #strike()                        -> str
+  #sub()                           -> str
+  #sup()                           -> str
+  #@@iterator()                    -> iterator (code points)
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -460,6 +462,8 @@ core-js(/library)/fn/string/includes
 core-js(/library)/fn/string/starts-with
 core-js(/library)/fn/string/ends-with
 core-js(/library)/fn/string/repeat
+core-js(/library)/fn/string/pad-start
+core-js(/library)/fn/string/pad-end
 core-js(/library)/fn/string/code-point-at
 core-js(/library)/fn/string/trim
 core-js(/library)/fn/string/anchor
@@ -480,6 +484,8 @@ core-js(/library)/fn/string/virtual/includes
 core-js(/library)/fn/string/virtual/starts-with
 core-js(/library)/fn/string/virtual/ends-with
 core-js(/library)/fn/string/virtual/repeat
+core-js(/library)/fn/string/virtual/pad-start
+core-js(/library)/fn/string/virtual/pad-end
 core-js(/library)/fn/string/virtual/code-point-at
 core-js(/library)/fn/string/virtual/trim
 core-js(/library)/fn/string/virtual/anchor
@@ -497,7 +503,7 @@ core-js(/library)/fn/string/virtual/sub
 core-js(/library)/fn/string/virtual/sup
 core-js(/library)/fn/string/virtual/iterator
 ```
-[*Examples*](http://goo.gl/3UaQ93):
+[*Examples*](https://goo.gl/oVvKga):
 ```js
 for(var val of 'a𠮷b'){
   console.log(val); // => 'a', '𠮷', 'b'
@@ -511,6 +517,11 @@ for(var val of 'a𠮷b'){
 'foobarbaz'.endsWith('bar', 6);   // => true
 
 'string'.repeat(3); // => 'stringstringstring'
+
+'hello'.padStart(10);         // => '     hello'
+'hello'.padStart(10, '1234'); // => '12341hello'
+'hello'.padEnd(10);           // => 'hello     '
+'hello'.padEnd(10, '1234');   // => 'hello12341'
 
 '𠮷'.codePointAt(0); // => 134071
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
@@ -1274,26 +1285,7 @@ instance.c; // => 42
 ```js
 core-js(/library)/stage/4
 ```
-* `String#padStart`, `String#padEnd` [proposal](https://github.com/tc39/proposal-string-pad-start-end) - modules [`esnext.string.pad-start`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-start.js), [`esnext.string.pad-end`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.pad-end.js)
-```js
-String
-  #padStart(length, fillStr = ' ') -> string
-  #padEnd(length, fillStr = ' ') -> string
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/string/pad-start
-core-js(/library)/fn/string/pad-end
-core-js(/library)/fn/string/virtual/pad-start
-core-js(/library)/fn/string/virtual/pad-end
-```
-[*Examples*](http://goo.gl/hK5ccv):
-```js
-'hello'.padStart(10);         // => '     hello'
-'hello'.padStart(10, '1234'); // => '12341hello'
-'hello'.padEnd(10);           // => 'hello     '
-'hello'.padEnd(10, '1234');   // => 'hello12341'
-```
+None.
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)
