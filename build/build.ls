@@ -1,6 +1,6 @@
 require! {
   '../library/fn/promise': Promise
-  './config': {list, experimental, libraryBlacklist, banner}
+  './config': {list, libraryBlacklist, banner}
   fs: {readFile, writeFile, unlink}
   path: {basename, dirname, join}
   webpack, temp
@@ -9,11 +9,10 @@ require! {
 module.exports = ({modules = [], blacklist = [], library = no, umd = on})->
   resolve, reject <~! new Promise _
   let @ = modules.reduce ((memo, it)-> memo[it] = on; memo), {}
-    if @exp => for experimental => @[..] = on
     for ns of @
       if @[ns]
         for name in list
-          if name.indexOf("#ns.") is 0 and name not in experimental
+          if name.indexOf("#ns.") is 0
             @[name] = on
 
     if library => blacklist ++= libraryBlacklist
