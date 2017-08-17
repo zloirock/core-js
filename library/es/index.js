@@ -3,6 +3,7 @@ require('../modules/es.object.create');
 require('../modules/es.object.define-property');
 require('../modules/es.object.define-properties');
 require('../modules/es.object.get-own-property-descriptor');
+require('../modules/es.object.get-own-property-descriptors');
 require('../modules/es.object.get-prototype-of');
 require('../modules/es.object.keys');
 require('../modules/es.object.values');
