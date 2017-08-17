@@ -1,5 +1,5 @@
 {module, test} = QUnit
-module \ESNext
+module \ES
 
 test 'Object.values' (assert)!->
   {values, create, assign} = Object

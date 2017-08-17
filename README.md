@@ -175,9 +175,7 @@ core-js(/library)/shim  <- only polyfills
 core-js(/library)/es
 ```
 #### ECMAScript: Object
-Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js) and [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js).
-
-In ES 2015+, most `Object` static methods should work with primitives. Modules [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
+Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js), [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
 
 Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.es.object.define-properties.js).
 ```js
@@ -191,6 +189,8 @@ Object
   .defineProperties(object, descriptors) -> target
   .getOwnPropertyDescriptor(var, key)    -> desc | undefined
   .keys(var)                             -> array
+  .values(var)                           -> array
+  .entries(var)                          -> array
   .getOwnPropertyNames(var)              -> array
   .freeze(var)                           -> var
   .seal(var)                             -> var
@@ -212,6 +212,8 @@ core-js(/library)/fn/object/define-property
 core-js(/library)/fn/object/define-properties
 core-js(/library)/fn/object/get-own-property-descriptor
 core-js(/library)/fn/object/keys
+core-js(/library)/fn/object/values
+core-js(/library)/fn/object/entries
 core-js(/library)/fn/object/get-own-property-names
 core-js(/library)/fn/object/freeze
 core-js(/library)/fn/object/seal
@@ -221,7 +223,7 @@ core-js(/library)/fn/object/is-sealed
 core-js(/library)/fn/object/is-extensible
 core-js/fn/object/to-string
 ```
-[*Examples*](http://goo.gl/ywdwPz):
+[*Examples*](https://goo.gl/sqY5mD):
 ```js
 var foo = {q: 1, w: 2}
   , bar = {e: 3, r: 4}
@@ -245,6 +247,14 @@ O[Symbol.toStringTag] = 'Foo';
 
 Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
+
+Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
+Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
+
+for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
+  console.log(key);   // => 'a', 'b', 'c'
+  console.log(value); // => 1, 2, 3
+}
 ```
 #### ECMAScript: Function
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.bind.js).
@@ -1246,27 +1256,6 @@ instance.c; // => 42
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/4
-```
-* `Object.values`, `Object.entries` [proposal](https://github.com/tc39/proposal-object-values-entries) - modules [`esnext.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.values.js), [`esnext.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.entries.js)
-```js
-Object
-  .values(object) -> array
-  .entries(object) -> array
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/object/values
-core-js(/library)/fn/object/entries
-```
-[*Examples*](http://goo.gl/6kuGOn):
-```js
-Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
-Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
-
-for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
-  console.log(key);   // => 'a', 'b', 'c'
-  console.log(value); // => 1, 2, 3
-}
 ```
 * `Object.getOwnPropertyDescriptors` [proposal](https://github.com/tc39/proposal-object-getownpropertydescriptors) - module [`esnext.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.object.get-own-property-descriptors.js)
 ```js
