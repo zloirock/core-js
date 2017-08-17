@@ -195,8 +195,6 @@ module.exports = {
     'core.get-iterator',
     'core.is-iterable',
   ],
-  experimental: [
-  ],
   libraryBlacklist: [
     'es.object.to-string',
     'es.function.name',
