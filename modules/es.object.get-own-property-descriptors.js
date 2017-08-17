@@ -1,4 +1,4 @@
-// https://github.com/tc39/proposal-object-getownpropertydescriptors
+// 19.1.2.8 Object.getOwnPropertyDescriptors(O)
 var $export = require('./_export');
 var ownKeys = require('./_own-keys');
 var toIObject = require('./_to-iobject');
