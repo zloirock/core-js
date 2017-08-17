@@ -5,6 +5,8 @@ require('../modules/es.object.define-properties');
 require('../modules/es.object.get-own-property-descriptor');
 require('../modules/es.object.get-prototype-of');
 require('../modules/es.object.keys');
+require('../modules/es.object.values');
+require('../modules/es.object.entries');
 require('../modules/es.object.get-own-property-names');
 require('../modules/es.object.freeze');
 require('../modules/es.object.seal');
