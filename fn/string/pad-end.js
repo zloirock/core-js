@@ -1,2 +1,2 @@
-require('../../modules/esnext.string.pad-end');
+require('../../modules/es.string.pad-end');
 module.exports = require('../../modules/_core').String.padEnd;

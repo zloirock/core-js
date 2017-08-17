@@ -7,6 +7,8 @@ require('../modules/es.string.ends-with');
 require('../modules/es.string.includes');
 require('../modules/es.string.repeat');
 require('../modules/es.string.starts-with');
+require('../modules/es.string.pad-start');
+require('../modules/es.string.pad-end');
 require('../modules/es.string.anchor');
 require('../modules/es.string.big');
 require('../modules/es.string.blink');
