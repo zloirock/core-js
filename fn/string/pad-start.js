@@ -1,2 +1,2 @@
-require('../../modules/esnext.string.pad-start');
+require('../../modules/es.string.pad-start');
 module.exports = require('../../modules/_core').String.padStart;
