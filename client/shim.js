@@ -8181,9 +8181,9 @@ $export($export.G + $export.B + $export.F * MSIE, {
 /***/ })
 /******/ ]);
 // CommonJS export
-if(typeof module != 'undefined' && module.exports)module.exports = __e;
+if (typeof module != 'undefined' && module.exports) module.exports = __e;
 // RequireJS export
-else if(typeof define == 'function' && define.amd)define(function(){return __e});
+else if (typeof define == 'function' && define.amd) define(function () { return __e; });
 // Export to global object
 else __g.core = __e;
 }(1, 1);

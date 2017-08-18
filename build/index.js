@@ -82,7 +82,7 @@
                 return reject(err);
               }
               if (umd) {
-                exportScript = "// CommonJS export\nif(typeof module != 'undefined' && module.exports)module.exports = __e;\n// RequireJS export\nelse if(typeof define == 'function' && define.amd)define(function(){return __e});\n// Export to global object\nelse __g.core = __e;";
+                exportScript = "// CommonJS export\nif (typeof module != 'undefined' && module.exports) module.exports = __e;\n// RequireJS export\nelse if (typeof define == 'function' && define.amd) define(function () { return __e; });\n// Export to global object\nelse __g.core = __e;";
               } else {
                 exportScript = "";
               }
