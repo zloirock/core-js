@@ -36,12 +36,6 @@ var USE_NATIVE = !!function () {
 }();
 
 // helpers
-var sameConstructor = LIBRARY ? function (a, b) {
-  // with library wrapper special case
-  return a === b || a === $Promise && b === Wrapper;
-} : function (a, b) {
-  return a === b;
-};
 var isThenable = function (it) {
   var then;
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
@@ -213,7 +207,7 @@ if (!USE_NATIVE) {
     this.reject = ctx($reject, promise, 1);
   };
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
-    return sameConstructor($Promise, C)
+    return C === $Promise || C === Wrapper
       ? new OwnPromiseCapability(C)
       : newGenericPromiseCapability(C);
   };
@@ -237,9 +231,7 @@ $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
 $export($export.S + $export.F * (LIBRARY || !USE_NATIVE), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x) {
-    // instanceof instead of internal slot check because we should fix it without replacement native Promise core
-    if (x instanceof $Promise && sameConstructor(x.constructor, this)) return x;
-    return promiseResolve(this, x);
+    return promiseResolve(LIBRARY && this === Wrapper ? $Promise : this, x);
   }
 });
 $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function (iter) {
