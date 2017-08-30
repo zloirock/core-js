@@ -10,3 +10,4 @@ Desktop.ini
 
 tests/es.js
 client/shim.*
+client/library.*
