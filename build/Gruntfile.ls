@@ -21,13 +21,12 @@ module.exports = (grunt)->
       './tests/helpers.js': './tests/helpers/*'
       './tests/tests.js': './tests/tests/*'
       './tests/library.js': './tests/library/*'
-      './tests/es.js': './tests/tests/es*'
       './build/index.js': './build/build.ls*'
     clean: <[./library]>
     copy: lib: files:
       * expand: on
         cwd: './'
-        src: <[es/** stage/** web/** core/** fn/** index.js shim.js]>
+        src: <[es/** stage/** web/** core/** fn/** index.js]>
         dest: './library/'
       * expand: on
         cwd: './'
@@ -69,13 +68,9 @@ module.exports = (grunt)->
   grunt.registerTask \client ->
     grunt.option \library ''
     grunt.option \path './client/core'
-    grunt.task.run <[build:es,esnext,web,core uglify]>
+    grunt.task.run <[build:es,esnext,web uglify]>
   grunt.registerTask \library ->
     grunt.option \library 'true'
     grunt.option \path './client/library'
     grunt.task.run <[build:es,esnext,web,core uglify]>
-  grunt.registerTask \shim ->
-    grunt.option \library ''
-    grunt.option \path './client/shim'
-    grunt.task.run <[build:es,esnext,web uglify]>
-  grunt.registerTask \default <[clean copy client library shim]>
+  grunt.registerTask \default <[clean copy client library]>
