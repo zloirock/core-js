@@ -165,7 +165,7 @@
 (function(){
   QUnit.assert.isIterable = function(it, message){
     this.pushResult({
-      result: typeof core != 'undefined' && core !== null
+      result: (typeof core != 'undefined' && core !== null) && core.isIterable
         ? core.isIterable(it)
         : !!it[typeof Symbol != 'undefined' && Symbol !== null ? Symbol.iterator : void 8],
       actual: false,
