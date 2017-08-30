@@ -13,13 +13,18 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 setImmediate(x => console.log(x), 42);         // => 42
 ```
 
-[*Without global namespace pollution*](http://goo.gl/paOHb0):
+*Without global namespace pollution*:
 ```js
-var core = require('core-js/library'); // With a modular system, otherwise use global `core`
-core.Array.from(new core.Set([1, 2, 3, 2, 1]));     // => [1, 2, 3]
-core.String.repeat('*', 10);                        // => '**********'
-core.Promise.resolve(32).then(x => console.log(x)); // => 32
-core.setImmediate(x => console.log(x), 42);         // => 42
+import from from 'core-js/library/fn/array/from';
+import repeat from 'core-js/library/fn/string/repeat';
+import Set from 'core-js/library/fn/set';
+import Promise from 'core-js/library/fn/promise';
+import setImmediate from 'core-js/library/fn/set-immediate';
+
+from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
+repeat('*', 10);                               // => '**********'
+Promise.resolve(32).then(x => console.log(x)); // => 32
+setImmediate(x => console.log(x), 42);         // => 42
 ```
 
 ### Index
@@ -66,15 +71,10 @@ bower install core.js
 ```
 
 ```js
-// Default
+// Include all polyfills
 require('core-js');
-// Without global namespace pollution
-var core = require('core-js/library');
 ```
-If you need complete build for browser, use builds from `core-js/client` path:  
-
-* [default](https://raw.githack.com/zloirock/core-js/v3/client/core.min.js): Includes all global polyfills.
-* [as a library](https://raw.githack.com/zloirock/core-js/v3/client/library.min.js): Like "default", but does not pollute the global namespace (see [2nd example at the top](#core-js)).
+If you need already bundled version of `core-js`, use [`core-js/client/core.js`](https://raw.githack.com/zloirock/core-js/v3/client/core.js) or [`core-js/client/core.min.js`](https://raw.githack.com/zloirock/core-js/v3/client/core.min.js).
 
 Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
 
