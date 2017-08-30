@@ -7,3 +7,6 @@ node_modules/
 Thumbs.db
 
 Desktop.ini
+
+tests/es.js
+client/shim.*

@@ -70,14 +70,11 @@ bower install core.js
 require('core-js');
 // Without global namespace pollution
 var core = require('core-js/library');
-// Shim only
-require('core-js/shim');
 ```
 If you need complete build for browser, use builds from `core-js/client` path:  
 
-* [default](https://raw.githack.com/zloirock/core-js/v3/client/core.min.js): Includes all features, standard and non-standard.
+* [default](https://raw.githack.com/zloirock/core-js/v3/client/core.min.js): Includes all global polyfills.
 * [as a library](https://raw.githack.com/zloirock/core-js/v3/client/library.min.js): Like "default", but does not pollute the global namespace (see [2nd example at the top](#core-js)).
-* [shim only](https://raw.githack.com/zloirock/core-js/v3/client/shim.min.js): Only includes the standard methods.
 
 Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
 
@@ -165,8 +162,7 @@ require('core-js-builder')({
 ## Features:
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)       <- all features
-core-js(/library)/shim  <- only polyfills
+core-js(/library)
 ```
 
 ### ECMAScript

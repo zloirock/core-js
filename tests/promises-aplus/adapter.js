@@ -1,6 +1,6 @@
 delete global.Promise;
 
-var Promise = require('../../shim.js').Promise;
+var Promise = require('../../').Promise;
 var assert  = require('assert')
 
 module.exports = {
