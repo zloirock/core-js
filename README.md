@@ -7,24 +7,35 @@ Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2
 
 [*Example*](http://goo.gl/a2xexl):
 ```js
+import 'core-js'; // <- at the top of your entry point
+
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 '*'.repeat(10);                                // => '**********'
 Promise.resolve(32).then(x => console.log(x)); // => 32
-setImmediate(x => console.log(x), 42);         // => 42
 ```
 
-*Without global namespace pollution*:
+*You can get only required features*:
+```js
+import 'core-js/fn/array/from';    // <- at the top of your entry point
+import 'core-js/fn/string/repeat'; // <- at the top of your entry point
+import 'core-js/fn/set';           // <- at the top of your entry point
+import 'core-js/fn/promise';       // <- at the top of your entry point
+
+Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
+'*'.repeat(10);                                // => '**********'
+Promise.resolve(32).then(x => console.log(x)); // => 32
+```
+
+*Or use it without global namespace pollution*:
 ```js
 import from from 'core-js/library/fn/array/from';
 import repeat from 'core-js/library/fn/string/repeat';
 import Set from 'core-js/library/fn/set';
 import Promise from 'core-js/library/fn/promise';
-import setImmediate from 'core-js/library/fn/set-immediate';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
 repeat('*', 10);                               // => '**********'
 Promise.resolve(32).then(x => console.log(x)); // => 32
-setImmediate(x => console.log(x), 42);         // => 42
 ```
 
 ### Index
@@ -79,24 +90,7 @@ If you need already bundled version of `core-js`, use [`core-js/client/core.js`]
 Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
 
 ### CommonJS
-You can require only needed modules.
-
-```js
-require('core-js/fn/set');
-require('core-js/fn/array/from');
-require('core-js/fn/array/find-index');
-Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
-[1, 2, NaN, 3, 4].findIndex(isNaN);   // => 2
-
-// or, w/o global namespace pollution:
-
-var Set       = require('core-js/library/fn/set');
-var from      = require('core-js/library/fn/array/from');
-var findIndex = require('core-js/library/fn/array/find-index');
-from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
-findIndex([1, 2, NaN, 3, 4], isNaN); // => 2
-```
-Available entry points for methods / constructors, as above examples, and namespaces: for example, `core-js/es/array` (`core-js/library/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js/library/es`) contains all ES features.
+You can require only needed modules, like in examples in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js/library/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js/library/es`) contains all ES features.
 
 ##### Caveats when using CommonJS API:
 
