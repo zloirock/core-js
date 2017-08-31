@@ -1,4 +1,9 @@
 ## Changelog
+##### 2.5.1 - 2017.09.01
+- Updated `Promise#finally` per [tc39/proposal-promise-finally#37](https://github.com/tc39/proposal-promise-finally/issues/37)
+- Optimized usage of some internal helpers for reducing size of `shim` version
+- Fixed some entry points for virtual methods
+
 ##### 2.5.0 - 2017.08.05
 - Added `Promise#finally` [stage 3 proposal](https://github.com/tc39/proposal-promise-finally), [#225](https://github.com/zloirock/core-js/issues/225)
 - Added `Promise.try` [stage 1 proposal](https://github.com/tc39/proposal-promise-try)
