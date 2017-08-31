@@ -1720,27 +1720,31 @@ core
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/is-iterable
-core-js(/library)/fn/get-iterator
-core-js(/library)/fn/get-iterator-method
+core-js/library/fn/is-iterable
+core-js/library/fn/get-iterator
+core-js/library/fn/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js
+import isIterable from 'core-js/library/fn/is-iterable';
+import getIterator from 'core-js/library/fn/get-iterator';
+import getIteratorMethod from 'core-js/library/fn/get-iterator-method';
+
 var list = (function(){
   return arguments;
 })(1, 2, 3);
 
-console.log(core.isIterable(list)); // true;
+console.log(isIterable(list)); // true;
 
-var iter = core.getIterator(list);
+var iter = getIterator(list);
 console.log(iter.next().value); // 1
 console.log(iter.next().value); // 2
 console.log(iter.next().value); // 3
 console.log(iter.next().value); // undefined
 
-core.getIterator({});   // TypeError: [object Object] is not iterable!
+getIterator({});   // TypeError: [object Object] is not iterable!
 
-var iterFn = core.getIteratorMethod(list);
+var iterFn = getIteratorMethod(list);
 console.log(typeof iterFn);     // 'function'
 var iter = iterFn.call(list);
 console.log(iter.next().value); // 1
@@ -1748,7 +1752,7 @@ console.log(iter.next().value); // 2
 console.log(iter.next().value); // 3
 console.log(iter.next().value); // undefined
 
-console.log(core.getIteratorMethod({})); // undefined
+console.log(getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills
