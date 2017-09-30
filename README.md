@@ -1518,9 +1518,9 @@ Array
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/fn/array/flatten
-core-js(/library)/fn/array/flatMap
+core-js(/library)/fn/array/flat-map
 core-js(/library)/fn/array/virtual/flatten
-core-js(/library)/fn/array/virtual/flatMap
+core-js(/library)/fn/array/virtual/flat-map
 ```
 [*Examples*](https://goo.gl/jTXsZi):
 ```js
