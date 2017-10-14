@@ -76,9 +76,9 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 ## Usage
 ### Basic
+Installation:
 ```
 npm i core-js
-bower install core.js
 ```
 
 ```js
