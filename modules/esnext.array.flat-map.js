@@ -14,7 +14,7 @@ $export($export.P, 'Array', {
     aFunction(callbackfn);
     sourceLen = toLength(O.length);
     A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments[1]);
+    A.length = flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments[1]);
     return A;
   }
 });
