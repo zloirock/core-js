@@ -13,7 +13,7 @@ $export($export.P, 'Array', {
     var O = toObject(this);
     var sourceLen = toLength(O.length);
     var A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toInteger(depthArg));
+    A.length = flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toInteger(depthArg));
     return A;
   }
 });
