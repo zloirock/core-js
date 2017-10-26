@@ -1,4 +1,38 @@
 ## Changelog
+##### 3.0.0
+- Removed obsolete features:
+  - `Error.isError` (withdrawn)
+  - `System.global` (replaced by `global`)
+  - `Map#toJSON` and `Set#toJSON` (rejected)
+  - `RegExp.escape` (rejected)
+  - `Reflect.enumerate` (removed from the spec)
+  - Unnecessary iteration methods from `CSSRuleList`, `MediaList`, `StyleSheetList`
+- Updated proposals:
+  - `Array#flatten` and `Array#flatMap` updated and moved to the stage 2
+  - `Symbol.asyncIterator` moved to the stage 3
+- ES2016 and ES2017 features marked as stable:
+  - `Array#includes` and `%TypedArray%#includes`
+  - `Object.values` and `Object.entries`
+  - `Object.getOwnPropertyDescriptors`
+  - `Object#__(define|lookup)[GS]etter__`
+  - `String#padStart` and `String#padEnd`
+- Finally removed all non-standard / non-proposed features:
+  - `Dict`
+  - `Object.{classof, isObject, define, make}`
+  - `Function#part`
+  - `Number#@@iterator`
+  - `String#{escapeHTML, unescapeHTML}`
+  - `delay`
+  - Because of this, we no longer need `core-js/shim` entry point, replace it just to `core-js`.
+- The repo and the package cleaned from unnecessary bundles:
+  - We no longer need `core-js/client/shim.js` and `core-js/client/shim.min.js` because all non-standard features was removed - now `core-js/client/core.js` and `core-js/client/core.min.js` do the same.
+  - Bundles of `library` version - `core-js/client/library.js` and `core-js/client/library.min.js` - removed because they are useless for almost all - [usage `babel-runtime` for automatic inclusion](http://babeljs.io/docs/plugins/transform-runtime/) or individual import of required features much more useful.
+  - Thanks to this, the size of the package was reduced almost twice.
+- Changed namespaces:
+  - All features from ES5, ES2015, ES2016 and ES2017 moved to one ES namespace - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
+  - Prefix for ES proposals changed from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
+- Finally removed `bower.json`
+
 ##### 2.5.3 - 2017.12.12
 - Fixed calling `onunhandledrejectionhandler` multiple times for one `Promise` chain, [#318](https://github.com/zloirock/core-js/issues/318)
 - Forced replacement of `String#{padStart, padEnd}` in Safari 10 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=161944), [#280](https://github.com/zloirock/core-js/issues/280)
