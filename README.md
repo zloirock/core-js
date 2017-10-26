@@ -1449,12 +1449,6 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-
-#### Stage 2 proposals
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/stage/2
-```
 * `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.symbol.async-iterator.js)
 ```js
 Symbol
@@ -1463,6 +1457,12 @@ Symbol
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/fn/symbol/async-iterator
+```
+
+#### Stage 2 proposals
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/stage/2
 ```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`es7.string.trim-left`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.trim-right.js), [`es7.string.trim-right`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.string.trim-right.js)
 ```js
