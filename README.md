@@ -1324,6 +1324,27 @@ core-js(/library)/fn/symbol/async-iterator
 ```js
 core-js(/library)/stage/2
 ```
+* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
+```js
+Array
+  #flatten(depthArg = 1) -> array
+  #flatMap(fn(val, key, @), that) -> array
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/array/flatten
+core-js(/library)/fn/array/flat-map
+core-js(/library)/fn/array/virtual/flatten
+core-js(/library)/fn/array/virtual/flat-map
+```
+[*Examples*](https://goo.gl/jTXsZi):
+```js
+[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
+[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
+[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
+
+[{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
+```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
 String
@@ -1368,27 +1389,6 @@ core-js(/library)/fn/promise/try
 Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
 
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
-```
-* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
-```js
-Array
-  #flatten(depthArg = 1) -> array
-  #flatMap(fn(val, key, @), that) -> array
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/array/flatten
-core-js(/library)/fn/array/flat-map
-core-js(/library)/fn/array/virtual/flatten
-core-js(/library)/fn/array/virtual/flat-map
-```
-[*Examples*](https://goo.gl/jTXsZi):
-```js
-[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
-[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
-[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
-
-[{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
 * `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-map.from.js)
 ```js
