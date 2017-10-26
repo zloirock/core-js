@@ -3,3 +3,4 @@ build/index.js
 client/**
 tests/**
 !**/.eslintrc.js
+Gruntfile.js
