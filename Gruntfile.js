@@ -1,3 +1,4 @@
+'use strict';
 const build = require('./build');
 const fs = require('fs');
 const config = require('./build/config');
@@ -38,7 +39,6 @@ module.exports = grunt => {
           './tests/helpers.js': './tests/helpers/*',
           './tests/tests.js': './tests/tests/*',
           './tests/library.js': './tests/library/*',
-          './build/index.js': './build/build.ls*',
         },
       },
     },

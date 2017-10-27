@@ -4,7 +4,7 @@
  * License: http://rock.mit-license.org
  * © 2017 Denis Pushkarev
  */
-!function(__e, __g, undefined){
+!function (__e, __g, undefined) {
 'use strict';
 /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
