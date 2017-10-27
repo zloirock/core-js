@@ -36,7 +36,7 @@
     "lint": "eslint ./",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
     "observables-tests": "node tests/observables/adapter && node tests/observables/adapter-library",
-    "test": "npm run grunt clean copy && npm run lint && npm run grunt livescript client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && lsc tests/commonjs"
+    "test": "npm run grunt clean copy && npm run lint && npm run grunt livescript client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
   },
   "license": "MIT",
   "keywords": [
