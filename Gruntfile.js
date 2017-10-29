@@ -1,6 +1,7 @@
 'use strict';
 const build = require('./build');
 const fs = require('fs');
+const path = require('path');
 const config = require('./build/config');
 module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
@@ -9,6 +10,7 @@ module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-livescript');
   grunt.loadNpmTasks('grunt-karma');
+  grunt.loadNpmTasks('grunt-webpack');
   grunt.initConfig({
     pkg: grunt.file.readJSON('./package.json'),
     uglify: {
@@ -36,7 +38,6 @@ module.exports = grunt => {
     livescript: {
       src: {
         files: {
-          './tests/helpers.js': './tests/helpers/*',
           './tests/tests.js': './tests/tests/*',
           './tests/library.js': './tests/library/*',
         },
@@ -85,6 +86,18 @@ module.exports = grunt => {
       default: {},
       library: {
         files: ['client/library.js', 'tests/helpers.js', 'tests/library.js'].map(it => ({ src: it })),
+      },
+    },
+    webpack: {
+      options: {
+        stats: false,
+        output: {
+          path: path.resolve(__dirname, 'tests'),
+        },
+      },
+      helpers: {
+        entry: './tests/helpers/index.js',
+        output: { filename: 'helpers.js' },
       },
     },
   });
