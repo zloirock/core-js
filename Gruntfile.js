@@ -79,11 +79,14 @@ module.exports = grunt => {
     },
     karma: {
       options: {
-        configFile: './tests/karma.conf.js',
+        frameworks: ['qunit'],
+        basePath: './',
         browsers: ['PhantomJS'],
         singleRun: true,
       },
-      default: {},
+      default: {
+        files: ['client/core.js', 'tests/helpers.js', 'tests/tests.js'].map(it => ({ src: it })),
+      },
       library: {
         files: ['client/library.js', 'tests/helpers.js', 'tests/library.js'].map(it => ({ src: it })),
       },
