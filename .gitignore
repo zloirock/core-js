@@ -10,5 +10,8 @@ Thumbs.db
 Desktop.ini
 
 tests/es.js
+tests/helpers.js
+tests/library.js
+tests/tests.js
 client/shim.*
 client/library.*
