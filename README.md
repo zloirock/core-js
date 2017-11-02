@@ -1707,7 +1707,7 @@ core-js(/library)/fn/math/isubh
 core-js(/library)/fn/math/imulh
 core-js(/library)/fn/math/umulh
 ```
-* `glogal.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`es7.asap`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.asap.js)
+* `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`es7.asap`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.asap.js)
 ```js
 asap(fn) -> void
 ```
@@ -2078,7 +2078,7 @@ Dict.set(O, '__proto__', {w: 2});
 O['__proto__']; // => {w: 2}
 O['w'];         // => undefined
 ```
-Other methods of `Dict` module are static equialents of `Array.prototype` methods for dictionaries.
+Other methods of `Dict` module are static equivalents of `Array.prototype` methods for dictionaries.
 
 [*Examples*](http://goo.gl/xFi1RH):
 ```js
