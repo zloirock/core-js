@@ -5,6 +5,7 @@ require('./array-to-buffer');
 require('./buffer-to-array');
 require('./create-iterable');
 require('./epsilon');
+require('./includes');
 require('./is-function');
 require('./is-iterable');
 require('./is-iterator');

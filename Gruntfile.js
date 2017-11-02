@@ -39,7 +39,6 @@ module.exports = grunt => {
       src: {
         files: {
           './tests/tests.js': './tests/tests/*',
-          './tests/library.js': './tests/library/*',
         },
       },
     },
@@ -101,6 +100,10 @@ module.exports = grunt => {
       helpers: {
         entry: './tests/helpers/index.js',
         output: { filename: 'helpers.js' },
+      },
+      library: {
+        entry: './tests/library/index.js',
+        output: { filename: 'library.js' },
       },
     },
   });
