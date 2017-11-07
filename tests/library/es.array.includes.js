@@ -3,12 +3,12 @@ var test = QUnit.test;
 test('Array#includes', function (assert) {
   var includes = core.Array.includes;
   assert.isFunction(includes);
-  var O = {};
-  var array = [1, 2, 3, -0, O];
+  var object = {};
+  var array = [1, 2, 3, -0, object];
   assert.ok(includes(array, 1));
   assert.ok(includes(array, -0));
   assert.ok(includes(array, 0));
-  assert.ok(includes(array, O));
+  assert.ok(includes(array, object));
   assert.ok(!includes(array, 4));
   assert.ok(!includes(array, -0.5));
   assert.ok(!includes(array, {}));

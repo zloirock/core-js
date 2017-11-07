@@ -19,15 +19,20 @@ test('Set', function (assert) {
   assert.ok('forEach' in Set.prototype, 'forEach in Set.prototype');
   assert.ok('has' in Set.prototype, 'has in Set.prototype');
   assert.ok(new Set() instanceof Set, 'new Set instanceof Set');
-  assert.strictEqual(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
-  assert.strictEqual(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
-  var set = new Set([1, 2, 3, 2, 1]);
+  var set = new Set();
+  set.add(1);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
   assert.strictEqual(set.size, 3);
   var result = [];
   set.forEach(function (val) {
     result.push(val);
   });
   assert.deepEqual(result, [1, 2, 3]);
+  assert.strictEqual(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
+  assert.strictEqual(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
   assert.strictEqual(new Set([NaN, NaN, NaN]).size, 1);
   assert.deepEqual(from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   var done = false;
@@ -62,8 +67,8 @@ test('Set', function (assert) {
     assert.arrayEqual(keys(object), []);
   }
   assert.arrayEqual(getOwnPropertyNames(object), []);
-  assert.arrayEqual(getOwnPropertySymbols(object), []);
-  assert.arrayEqual(ownKeys(object), []);
+  if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
+  if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     var Subclass = nativeSubclass(Set);
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
@@ -75,7 +80,13 @@ test('Set', function (assert) {
 test('Set#add', function (assert) {
   assert.isFunction(Set.prototype.add);
   var array = [];
-  var set = new Set([NaN, 2, 3, 2, 1, array]);
+  var set = new Set();
+  set.add(NaN);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
+  set.add(array);
   assert.strictEqual(set.size, 5);
   var chain = set.add(NaN);
   assert.strictEqual(chain, set);
@@ -89,7 +100,8 @@ test('Set#add', function (assert) {
   set.add(4);
   assert.strictEqual(set.size, 7);
   var frozen = freeze({});
-  set = new Set().add(frozen);
+  set = new Set();
+  set.add(frozen);
   assert.ok(set.has(frozen));
 });
 
@@ -98,14 +110,21 @@ test('Set#clear', function (assert) {
   var set = new Set();
   set.clear();
   assert.strictEqual(set.size, 0);
-  set = new Set([1, 2, 3, 2, 1]);
+  set = new Set();
+  set.add(1);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
   set.clear();
   assert.strictEqual(set.size, 0);
   assert.ok(!set.has(1));
   assert.ok(!set.has(2));
   assert.ok(!set.has(3));
   var frozen = freeze({});
-  set = new Set([1, frozen]);
+  set = new Set();
+  set.add(1);
+  set.add(frozen);
   set.clear();
   assert.strictEqual(set.size, 0, 'Support frozen objects');
   assert.ok(!set.has(1));
@@ -115,7 +134,13 @@ test('Set#clear', function (assert) {
 test('Set#delete', function (assert) {
   assert.isFunction(Set.prototype['delete']);
   var array = [];
-  var set = new Set([NaN, 2, 3, 2, 1, array]);
+  var set = new Set();
+  set.add(NaN);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
+  set.add(array);
   assert.strictEqual(set.size, 5);
   assert.strictEqual(set['delete'](NaN), true);
   assert.strictEqual(set.size, 4);
@@ -136,14 +161,23 @@ test('Set#forEach', function (assert) {
   assert.isFunction(Set.prototype.forEach);
   var result = [];
   var count = 0;
-  var set = new Set([1, 2, 3, 2, 1]);
+  var set = new Set();
+  set.add(1);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
   set.forEach(function (value) {
     count++;
     result.push(value);
   });
   assert.strictEqual(count, 3);
   assert.deepEqual(result, [1, 2, 3]);
-  set = new Set(['0', '1', '2', '3']);
+  set = new Set();
+  set.add('0');
+  set.add('1');
+  set.add('2');
+  set.add('3');
   result = '';
   set.forEach(function (it) {
     result += it;
@@ -155,7 +189,8 @@ test('Set#forEach', function (assert) {
     }
   });
   assert.strictEqual(result, '0124');
-  set = new Set(['0']);
+  set = new Set();
+  set.add('0');
   result = '';
   set.forEach(function (it) {
     set['delete']('0');
@@ -172,7 +207,14 @@ test('Set#has', function (assert) {
   assert.isFunction(Set.prototype.has);
   var array = [];
   var frozen = freeze({});
-  var set = new Set([NaN, 2, 3, 2, 1, frozen, array]);
+  var set = new Set();
+  set.add(NaN);
+  set.add(2);
+  set.add(3);
+  set.add(2);
+  set.add(1);
+  set.add(frozen);
+  set.add(array);
   assert.ok(set.has(NaN));
   assert.ok(set.has(array));
   assert.ok(set.has(frozen));
@@ -182,7 +224,9 @@ test('Set#has', function (assert) {
 });
 
 test('Set#size', function (assert) {
-  var size = new Set([1]).size;
+  var set = new Set();
+  set.add(1);
+  var size = set.size;
   assert.strictEqual(typeof size, 'number', 'size is number');
   assert.strictEqual(size, 1, 'size is correct');
   if (DESCRIPTORS) {
@@ -224,7 +268,11 @@ test('Set#@@toStringTag', function (assert) {
 });
 
 test('Set Iterator', function (assert) {
-  var set = new Set(['a', 'b', 'c', 'd']);
+  var set = new Set();
+  set.add('a');
+  set.add('b');
+  set.add('c');
+  set.add('d');
   var results = [];
   var iterator = set.keys();
   results.push(iterator.next().value);
@@ -242,7 +290,11 @@ test('Set Iterator', function (assert) {
 
 test('Set#keys', function (assert) {
   assert.isFunction(Set.prototype.keys);
-  var iterator = new Set(['q', 'w', 'e']).keys();
+  var set = new Set();
+  set.add('q');
+  set.add('w');
+  set.add('e');
+  var iterator = set.keys();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
@@ -266,7 +318,11 @@ test('Set#keys', function (assert) {
 
 test('Set#values', function (assert) {
   assert.isFunction(Set.prototype.values);
-  var iterator = new Set(['q', 'w', 'e']).values();
+  var set = new Set();
+  set.add('q');
+  set.add('w');
+  set.add('e');
+  var iterator = set.values();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
@@ -290,7 +346,11 @@ test('Set#values', function (assert) {
 
 test('Set#entries', function (assert) {
   assert.isFunction(Set.prototype.entries);
-  var iterator = new Set(['q', 'w', 'e']).entries();
+  var set = new Set();
+  set.add('q');
+  set.add('w');
+  set.add('e');
+  var iterator = set.entries();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
@@ -313,7 +373,11 @@ test('Set#entries', function (assert) {
 });
 
 test('Set#@@iterator', function (assert) {
-  var iterator = core.getIterator(new Set(['q', 'w', 'e']));
+  var set = new Set();
+  set.add('q');
+  set.add('w');
+  set.add('e');
+  var iterator = core.getIterator(set);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
