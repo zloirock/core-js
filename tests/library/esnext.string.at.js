@@ -3,6 +3,7 @@ var test = QUnit.test;
 test('String#at', function (assert) {
   var at = core.String.at;
   assert.isFunction(at);
+  // String that starts with a BMP symbol
   assert.strictEqual(at('abc\uD834\uDF06def', -Infinity), '');
   assert.strictEqual(at('abc\uD834\uDF06def', -1), '');
   assert.strictEqual(at('abc\uD834\uDF06def', -0), 'a');
@@ -27,6 +28,7 @@ test('String#at', function (assert) {
   assert.strictEqual(at('abc\uD834\uDF06def', 1.9), 'b');
   assert.strictEqual(at('abc\uD834\uDF06def', 7.9), 'f');
   assert.strictEqual(at('abc\uD834\uDF06def', Math.pow(2, 32)), '');
+  // String that starts with an astral symbol
   assert.strictEqual(at('\uD834\uDF06def', -Infinity), '');
   assert.strictEqual(at('\uD834\uDF06def', -1), '');
   assert.strictEqual(at('\uD834\uDF06def', -0), '\uD834\uDF06');
@@ -45,6 +47,7 @@ test('String#at', function (assert) {
   assert.strictEqual(at('\uD834\uDF06def', ''), '\uD834\uDF06');
   assert.strictEqual(at('\uD834\uDF06def', '_'), '\uD834\uDF06');
   assert.strictEqual(at('\uD834\uDF06def', '1'), '\uDF06');
+  // Lone high surrogates
   assert.strictEqual(at('\uD834abc', -Infinity), '');
   assert.strictEqual(at('\uD834abc', -1), '');
   assert.strictEqual(at('\uD834abc', -0), '\uD834');
@@ -60,6 +63,7 @@ test('String#at', function (assert) {
   assert.strictEqual(at('\uD834abc', ''), '\uD834');
   assert.strictEqual(at('\uD834abc', '_'), '\uD834');
   assert.strictEqual(at('\uD834abc', '1'), 'a');
+  // Lone low surrogates
   assert.strictEqual(at('\uDF06abc', -Infinity), '');
   assert.strictEqual(at('\uDF06abc', -1), '');
   assert.strictEqual(at('\uDF06abc', -0), '\uDF06');

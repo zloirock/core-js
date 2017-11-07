@@ -1,10 +1,10 @@
 var test = QUnit.test;
 
 if (DESCRIPTORS) {
-  test('Object#__defineGetter__', function (assert) {
+  test('Object#__defineSetter__', function (assert) {
     var __defineGetter__ = core.Object.__defineGetter__;
     var __defineSetter__ = core.Object.__defineSetter__;
-    assert.isFunction(__defineGetter__);
+    assert.isFunction(__defineSetter__);
     var object = {};
     assert.same(__defineSetter__(object, 'key', function () {
       this.foo = 43;
