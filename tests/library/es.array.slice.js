@@ -2,6 +2,7 @@ var test = QUnit.test;
 
 test('Array#slice', function (assert) {
   var slice = core.Array.slice;
+  var isArray = core.Array.isArray;
   assert.isFunction(slice);
   var array = ['1', '2', '3', '4', '5'];
   assert.deepEqual(slice(array), array);
@@ -20,7 +21,7 @@ test('Array#slice', function (assert) {
   var list = global.document && document.body && document.body.childNodes;
   if (list) {
     try {
-      assert.ok(core.Array.isArray(slice(list)));
+      assert.ok(isArray(slice(list)));
     } catch (e) {
       assert.ok(false);
     }

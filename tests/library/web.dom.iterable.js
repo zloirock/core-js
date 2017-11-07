@@ -1,4 +1,5 @@
 var test = QUnit.test;
+var Symbol = core.Symbol;
 
 test('Iterable DOM collections', function (assert) {
   var absent = true;
@@ -40,7 +41,7 @@ test('Iterable DOM collections', function (assert) {
     var name = collections[i];
     var Collection = global[name];
     if (Collection) {
-      assert.same(Collection.prototype[core.Symbol.toStringTag], name, name + "::@@toStringTag is '" + name + "'");
+      assert.same(Collection.prototype[Symbol.toStringTag], name, name + "::@@toStringTag is '" + name + "'");
       assert.isFunction(core.getIteratorMethod(Collection.prototype), name + '::@@iterator is function');
       absent = false;
     }
