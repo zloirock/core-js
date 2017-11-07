@@ -3,6 +3,8 @@ var test = QUnit.test;
 var Promise = core.Promise;
 var Symbol = core.Symbol;
 var bind = core.Function.bind;
+var setPrototypeOf = core.Object.setPrototypeOf;
+var create = core.Object.create;
 
 test('Promise', function (assert) {
   assert.isFunction(Promise);
@@ -348,12 +350,12 @@ if (PROTO) {
   test('Promise subclassing', function (assert) {
     function SubPromise(executor) {
       var self = new Promise(executor);
-      core.Object.setPrototypeOf(self, SubPromise.prototype);
+      setPrototypeOf(self, SubPromise.prototype);
       self.mine = 'subclass';
       return self;
     }
-    core.Object.setPrototypeOf(SubPromise, Promise);
-    SubPromise.prototype = core.Object.create(Promise.prototype);
+    setPrototypeOf(SubPromise, Promise);
+    SubPromise.prototype = create(Promise.prototype);
     SubPromise.prototype.constructor = SubPromise;
     var promise1 = SubPromise.resolve(5);
     assert.strictEqual(promise1.mine, 'subclass');

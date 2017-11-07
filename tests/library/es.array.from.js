@@ -20,12 +20,12 @@ test('Array.from', function (assert) {
     iterable: createIterable(['1', '2', '3']),
     string: '123'
   };
-  for (var typ in types) {
-    var data = types[typ];
-    assert.arrayEqual(from(data), ['1', '2', '3'], 'Works with ' + typ);
+  for (var type in types) {
+    var data = types[type];
+    assert.arrayEqual(from(data), ['1', '2', '3'], 'Works with ' + type);
     assert.arrayEqual(from(data, function (it) {
       return Math.pow(it, 2);
-    }), [1, 4, 9], 'Works with ' + typ + ' + mapFn');
+    }), [1, 4, 9], 'Works with ' + type + ' + mapFn');
   }
   types = {
     'array-like': {
@@ -39,16 +39,16 @@ test('Array.from', function (assert) {
     iterable: createIterable([1]),
     string: '1'
   };
-  for (var typ in types) {
-    var data = types[typ];
+  for (var type in types) {
+    var data = types[type];
     var context = {};
     assert.arrayEqual(from(data, function (value, key) {
-      assert.same(this, context, 'Works with ' + typ + ', correct callback context');
-      assert.same(value, typ === 'string' ? '1' : 1, 'Works with ' + typ + ', correct callback key');
-      assert.same(key, 0, 'Works with ' + typ + ', correct callback value');
-      assert.same(arguments.length, 2, 'Works with ' + typ + ', correct callback arguments number');
+      assert.same(this, context, 'Works with ' + type + ', correct callback context');
+      assert.same(value, type === 'string' ? '1' : 1, 'Works with ' + type + ', correct callback key');
+      assert.same(key, 0, 'Works with ' + type + ', correct callback value');
+      assert.same(arguments.length, 2, 'Works with ' + type + ', correct callback arguments number');
       return 42;
-    }, context), [42], 'Works with ' + typ + ', correct result');
+    }, context), [42], 'Works with ' + type + ', correct result');
   }
   var primitives = [false, true, 0];
   for (var i = 0; i < 3; ++i) {

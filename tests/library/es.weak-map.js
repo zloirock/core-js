@@ -17,8 +17,10 @@ test('WeakMap', function (assert) {
   assert.ok(new WeakMap() instanceof WeakMap, 'new WeakMap instanceof WeakMap');
   var object = {};
   assert.strictEqual(new WeakMap(createIterable([[object, 42]])).get(object), 42, 'Init from iterable');
+  var weakmap = new WeakMap();
   var frozen = freeze({});
-  assert.strictEqual(new WeakMap([[frozen, 42]]).get(frozen), 42, 'Support frozen objects');
+  weakmap.set(frozen, 42);
+  assert.strictEqual(weakmap.get(frozen), 42, 'Support frozen objects');
   var weakmap = new WeakMap();
   weakmap.set(frozen, 42);
   assert.strictEqual(weakmap.has(frozen), true, 'works with frozen objects, #1');
@@ -54,8 +56,8 @@ test('WeakMap', function (assert) {
     assert.arrayEqual(keys(object), []);
   }
   assert.arrayEqual(getOwnPropertyNames(object), []);
-  assert.arrayEqual(getOwnPropertySymbols(object), []);
-  assert.arrayEqual(ownKeys(object), []);
+  if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
+  if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     var Subclass = nativeSubclass(WeakMap);
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
@@ -69,7 +71,9 @@ test('WeakMap#delete', function (assert) {
   assert.isFunction(WeakMap.prototype['delete']);
   var a = {};
   var b = {};
-  var weakmap = new WeakMap([[a, 42], [b, 21]]);
+  var weakmap = new WeakMap();
+  weakmap.set(a, 42);
+  weakmap.set(b, 21);
   assert.ok(weakmap.has(a) && weakmap.has(b), 'WeakMap has values before .delete()');
   weakmap['delete'](a);
   assert.ok(!weakmap.has(a) && weakmap.has(b), 'WeakMap hasn`t value after .delete()');
@@ -115,6 +119,9 @@ test('WeakMap#has', function (assert) {
 test('WeakMap#set', function (assert) {
   assert.isFunction(WeakMap.prototype.set);
   var weakmap = new WeakMap();
+  var object = {};
+  weakmap.set(object, 33);
+  assert.same(weakmap.get(object), 33, 'works with object as keys');
   assert.ok(weakmap.set({}, 42) === weakmap, 'chaining');
   assert.ok(function () {
     try {

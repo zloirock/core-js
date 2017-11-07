@@ -15,9 +15,8 @@ test('WeakSet', function (assert) {
   assert.ok(new WeakSet() instanceof WeakSet, 'new WeakSet instanceof WeakSet');
   var object = {};
   assert.ok(new WeakSet(createIterable([object])).has(object), 'Init from iterable');
-  var frozen = freeze({});
-  assert.ok(new WeakSet([freeze(frozen)]).has(frozen), 'Support frozen objects');
   var weakset = new WeakSet();
+  var frozen = freeze({});
   weakset.add(frozen);
   assert.strictEqual(weakset.has(frozen), true, 'works with frozen objects, #1');
   weakset['delete'](frozen);
@@ -50,8 +49,8 @@ test('WeakSet', function (assert) {
     assert.arrayEqual(keys(object), []);
   }
   assert.arrayEqual(getOwnPropertyNames(object), []);
-  assert.arrayEqual(getOwnPropertySymbols(object), []);
-  assert.arrayEqual(ownKeys(object), []);
+  if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
+  if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     var Subclass = nativeSubclass(WeakSet);
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');

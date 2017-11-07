@@ -49,8 +49,8 @@ test('Map', function (assert) {
     assert.arrayEqual(keys(object), []);
   }
   assert.arrayEqual(getOwnPropertyNames(object), []);
-  assert.arrayEqual(getOwnPropertySymbols(object), []);
-  assert.arrayEqual(ownKeys(object), []);
+  if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
+  if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     var Subclass = nativeSubclass(Map);
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
@@ -79,8 +79,14 @@ test('Map#clear', function (assert) {
 
 test('Map#delete', function (assert) {
   assert.isFunction(Map.prototype['delete']);
-  var array = [];
-  var map = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(array, {});
+  var object = {};
+  var map = new Map();
+  map.set(NaN, 1);
+  map.set(2, 1);
+  map.set(3, 7);
+  map.set(2, 5);
+  map.set(1, 4);
+  map.set(object, 9);
   assert.strictEqual(map.size, 5);
   assert.ok(map['delete'](NaN));
   assert.strictEqual(map.size, 4);
@@ -88,7 +94,7 @@ test('Map#delete', function (assert) {
   assert.strictEqual(map.size, 4);
   map['delete']([]);
   assert.strictEqual(map.size, 4);
-  map['delete'](array);
+  map['delete'](object);
   assert.strictEqual(map.size, 3);
   var frozen = freeze({});
   map.set(frozen, 42);
@@ -102,7 +108,13 @@ test('Map#forEach', function (assert) {
   var result = {};
   var count = 0;
   var object = {};
-  var map = new Map().set(NaN, 1).set(2, 1).set(3, 7).set(2, 5).set(1, 4).set(object, 9);
+  var map = new Map();
+  map.set(NaN, 1);
+  map.set(2, 1);
+  map.set(3, 7);
+  map.set(2, 5);
+  map.set(1, 4);
+  map.set(object, 9);
   map.forEach(function (value, key) {
     count++;
     result[value] = key;
@@ -115,7 +127,11 @@ test('Map#forEach', function (assert) {
     4: 1,
     9: object
   });
-  map = new Map([['0', 9], ['1', 9], ['2', 9], ['3', 9]]);
+  map = new Map();
+  map.set('0', 9);
+  map.set('1', 9);
+  map.set('2', 9);
+  map.set('3', 9);
   result = '';
   map.forEach(function (value, key) {
     result += key;
@@ -144,7 +160,14 @@ test('Map#get', function (assert) {
   assert.isFunction(Map.prototype.get);
   var object = {};
   var frozen = freeze({});
-  var map = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [frozen, 42], [object, object]]);
+  var map = new Map();
+  map.set(NaN, 1);
+  map.set(2, 1);
+  map.set(3, 1);
+  map.set(2, 5);
+  map.set(1, 4);
+  map.set(frozen, 42);
+  map.set(object, object);
   assert.strictEqual(map.get(NaN), 1);
   assert.strictEqual(map.get(4), undefined);
   assert.strictEqual(map.get({}), undefined);
@@ -157,7 +180,14 @@ test('Map#has', function (assert) {
   assert.isFunction(Map.prototype.has);
   var object = {};
   var frozen = freeze({});
-  var map = new Map([[NaN, 1], [2, 1], [3, 1], [2, 5], [1, 4], [frozen, 42], [object, object]]);
+  var map = new Map();
+  map.set(NaN, 1);
+  map.set(2, 1);
+  map.set(3, 1);
+  map.set(2, 5);
+  map.set(1, 4);
+  map.set(frozen, 42);
+  map.set(object, object);
   assert.ok(map.has(NaN));
   assert.ok(map.has(object));
   assert.ok(map.has(2));
@@ -169,7 +199,13 @@ test('Map#has', function (assert) {
 test('Map#set', function (assert) {
   assert.isFunction(Map.prototype.set);
   var object = {};
-  var map = new Map().set(NaN, 1).set(2, 1).set(3, 1).set(2, 5).set(1, 4).set(object, object);
+  var map = new Map();
+  map.set(NaN, 1);
+  map.set(2, 1);
+  map.set(3, 1);
+  map.set(2, 5);
+  map.set(1, 4);
+  map.set(object, object);
   assert.ok(map.size === 5);
   var chain = map.set(7, 2);
   assert.strictEqual(chain, map);
@@ -186,14 +222,20 @@ test('Map#set', function (assert) {
   map.set(object, 27);
   assert.strictEqual(map.size, 7);
   assert.strictEqual(map.get(object), 27);
-  assert.strictEqual(new Map().set(NaN, 2).set(NaN, 3).set(NaN, 4).size, 1);
+  map = new Map();
+  map.set(NaN, 2);
+  map.set(NaN, 3);
+  map.set(NaN, 4);
+  assert.strictEqual(map.size, 1);
   var frozen = freeze({});
   map = new Map().set(frozen, 42);
   assert.strictEqual(map.get(frozen), 42);
 });
 
 test('Map#size', function (assert) {
-  var size = new Map().set(2, 1).size;
+  var map = new Map();
+  map.set(2, 1);
+  var size = map.size;
   assert.strictEqual(typeof size, 'number', 'size is number');
   assert.strictEqual(size, 1, 'size is correct');
   if (DESCRIPTORS) {
@@ -237,7 +279,11 @@ test('Map#@@toStringTag', function (assert) {
 });
 
 test('Map Iterator', function (assert) {
-  var map = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4]]);
+  var map = new Map();
+  map.set('a', 1);
+  map.set('b', 2);
+  map.set('c', 3);
+  map.set('d', 4);
   var results = [];
   var iterator = map.keys();
   results.push(iterator.next().value);
@@ -255,7 +301,11 @@ test('Map Iterator', function (assert) {
 
 test('Map#keys', function (assert) {
   assert.isFunction(Map.prototype.keys);
-  var iterator = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).keys();
+  var map = new Map();
+  map.set('a', 'q');
+  map.set('s', 'w');
+  map.set('d', 'e');
+  var iterator = map.keys();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
@@ -279,7 +329,11 @@ test('Map#keys', function (assert) {
 
 test('Map#values', function (assert) {
   assert.isFunction(Map.prototype.values);
-  var iterator = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).values();
+  var map = new Map();
+  map.set('a', 'q');
+  map.set('s', 'w');
+  map.set('d', 'e');
+  var iterator = map.values();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
@@ -303,7 +357,11 @@ test('Map#values', function (assert) {
 
 test('Map#entries', function (assert) {
   assert.isFunction(Map.prototype.entries);
-  var iterator = new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]).entries();
+  var map = new Map();
+  map.set('a', 'q');
+  map.set('s', 'w');
+  map.set('d', 'e');
+  var iterator = map.entries();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
@@ -326,7 +384,11 @@ test('Map#entries', function (assert) {
 });
 
 test('Map#@@iterator', function (assert) {
-  var iterator = core.getIterator(new Map([['a', 'q'], ['s', 'w'], ['d', 'e']]));
+  var map = new Map();
+  map.set('a', 'q');
+  map.set('s', 'w');
+  map.set('d', 'e');
+  var iterator = core.getIterator(map);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
