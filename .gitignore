@@ -12,5 +12,6 @@ tests/es.js
 tests/helpers.js
 tests/library.js
 tests/tests.js
+tests/promises-aplus/bundle.js
 client/shim.*
 client/library.*
