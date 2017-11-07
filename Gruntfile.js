@@ -91,6 +91,10 @@ module.exports = grunt => {
         entry: './tests/tests/index.js',
         output: { filename: 'tests.js' },
       },
+      'promises-aplus-tests': {
+        entry: 'promises-aplus-tests/lib/testFiles.js',
+        output: { filename: 'promises-aplus/bundle.js' },
+      },
     },
   });
   grunt.registerTask('build', function (options) {

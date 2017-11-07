@@ -32,8 +32,9 @@
     "grunt": "grunt",
     "lint": "eslint ./",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
+    "bundle-promises-tests": "npm run grunt webpack:promises-aplus-tests",
     "observables-tests": "node tests/observables/adapter && node tests/observables/adapter-library",
-    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
+    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack:helpers webpack:tests client karma:default && npm run grunt webpack:library library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
   },
   "license": "MIT",
   "keywords": [
