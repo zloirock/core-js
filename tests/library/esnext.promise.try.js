@@ -24,7 +24,7 @@ test('Promise.try, rejected', function (assert) {
   assert.expect(1);
   var async = assert.async();
   Promise['try'](function () {
-    throw 42;
+    throw new Error();
   })['catch'](function () {
     assert.ok(true, 'rejected as expected');
     async();

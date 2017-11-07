@@ -9,6 +9,7 @@ var getOwnPropertyNames = core.Object.getOwnPropertyNames;
 var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
 var keys = core.Object.keys;
 var create = core.Object.create;
+var ownKeys = core.Reflect.ownKeys;
 
 test('Symbol', function (assert) {
   assert.isFunction(Symbol);
@@ -191,7 +192,7 @@ if (DESCRIPTORS) {
     assert.strictEqual(keys(object).length, 2, 'Object.keys');
     assert.strictEqual(getOwnPropertyNames(object).length, 3, 'Object.getOwnPropertyNames');
     assert.strictEqual(getOwnPropertySymbols(object).length, 3, 'Object.getOwnPropertySymbols');
-    assert.strictEqual(core.Reflect.ownKeys(object).length, 6, 'Reflect.ownKeys');
+    assert.strictEqual(ownKeys(object).length, 6, 'Reflect.ownKeys');
     delete object[e];
     object[e] = 'e';
     assert.deepEqual(getOwnPropertyDescriptor(object, e), {

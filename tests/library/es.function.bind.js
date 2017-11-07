@@ -3,9 +3,7 @@ var test = QUnit.test;
 test('Function#bind', function (assert) {
   var bind = core.Function.bind;
   assert.isFunction(bind);
-  var object = {
-    a: 42
-  };
+  var object = { a: 42 };
   assert.ok(bind(function () {
     return this.a;
   }, object)() === 42);
@@ -23,9 +21,9 @@ test('Function#bind', function (assert) {
   }, null, 42)() === 42);
   var regExpTest = bind(RegExp.prototype.test, /a/);
   assert.ok(regExpTest('a'));
-  var F = bind(Date, null, 2015);
-  var date = new F(6);
+  var Date2017 = bind(Date, null, 2017);
+  var date = new Date2017(11);
   assert.ok(date instanceof Date);
-  assert.strictEqual(date.getFullYear(), 2015);
-  assert.strictEqual(date.getMonth(), 6);
+  assert.strictEqual(date.getFullYear(), 2017);
+  assert.strictEqual(date.getMonth(), 11);
 });

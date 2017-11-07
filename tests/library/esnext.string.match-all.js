@@ -74,12 +74,11 @@ test('String#matchAll', function (assert) {
     }, TypeError, 'Throws on ' + target + ' as first argument');
   }
   if (STRICT) {
-    var data = [null, undefined];
-    for (var i = 0, length = data.length; i < length; ++i) {
-      var target = data[i];
-      assert['throws'](function () {
-        matchAll(target, /./);
-      }, TypeError, 'Throws on ' + target + ' as `this`');
-    }
+    assert['throws'](function () {
+      matchAll(null, /./);
+    }, TypeError, 'Throws on null as `this`');
+    assert['throws'](function () {
+      matchAll(undefined, /./);
+    }, TypeError, 'Throws on undefined as `this`');
   }
 });
