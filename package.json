@@ -18,7 +18,6 @@
     "grunt-contrib-uglify": "3.3.x",
     "grunt-contrib-watch": "^1.0.0",
     "grunt-karma": "^2.0.0",
-    "grunt-livescript": "0.6.x",
     "grunt-webpack": "^3.0.2",
     "karma": "^2.0.0",
     "karma-qunit": "^2.1.0",
@@ -34,7 +33,7 @@
     "lint": "eslint ./",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
     "observables-tests": "node tests/observables/adapter && node tests/observables/adapter-library",
-    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack livescript client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
+    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack client karma:default && npm run grunt library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
   },
   "license": "MIT",
   "keywords": [

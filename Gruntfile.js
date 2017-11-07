@@ -8,7 +8,6 @@ module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-contrib-watch');
-  grunt.loadNpmTasks('grunt-livescript');
   grunt.loadNpmTasks('grunt-karma');
   grunt.loadNpmTasks('grunt-webpack');
   grunt.initConfig({
@@ -35,13 +34,6 @@ module.exports = grunt => {
         },
       },
     },
-    livescript: {
-      src: {
-        files: {
-          './tests/tests.js': './tests/tests/*',
-        },
-      },
-    },
     clean: ['./library'],
     copy: {
       lib: {
@@ -64,16 +56,6 @@ module.exports = grunt => {
             dest: './library/modules/',
           },
         ],
-      },
-    },
-    watch: {
-      core: {
-        files: './modules/*',
-        tasks: 'default',
-      },
-      tests: {
-        files: './tests/tests/*',
-        tasks: 'livescript',
       },
     },
     karma: {
@@ -104,6 +86,10 @@ module.exports = grunt => {
       library: {
         entry: './tests/library/index.js',
         output: { filename: 'library.js' },
+      },
+      tests: {
+        entry: './tests/tests/index.js',
+        output: { filename: 'tests.js' },
       },
     },
   });

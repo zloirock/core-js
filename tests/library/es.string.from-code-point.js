@@ -55,26 +55,22 @@ test('String.fromCodePoint', function (assert) {
   assert['throws'](function () {
     fromCodePoint(/./);
   }, RangeError);
-  var tmp = 0x60;
+  var number = 0x60;
   assert.strictEqual(fromCodePoint({
     valueOf: function () {
-      return ++tmp;
+      return ++number;
     }
   }), 'a');
-  assert.strictEqual(tmp, 0x61);
+  assert.strictEqual(number, 0x61);
   // one code unit per symbol
   var counter = Math.pow(2, 15) * 3 / 2;
   var result = [];
-  while (--counter >= 0) {
-    result.push(0);
-  }
+  while (--counter >= 0) result.push(0);
   // should not throw
   fromCodePoint.apply(null, result);
   counter = Math.pow(2, 15) * 3 / 2;
   result = [];
-  while (--counter >= 0) {
-    result.push(0xFFFF + 1);
-  }
+  while (--counter >= 0) result.push(0xFFFF + 1);
   // should not throw
   fromCodePoint.apply(null, result);
 });
