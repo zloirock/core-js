@@ -4,14 +4,5 @@ node_modules/
 *.bak
 *.swp
 
-Thumbs.db
-
-Desktop.ini
-
-tests/es.js
-tests/helpers.js
-tests/library.js
-tests/tests.js
-tests/promises-aplus/bundle.js
-client/shim.*
+tests/bundles/
 client/library.*

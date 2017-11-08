@@ -15,7 +15,7 @@ module.exports = grunt => {
     uglify: {
       build: {
         files: {
-          '<%=grunt.option("path")%>.min.js': '<%=grunt.option("path")%>.js'
+          '<%=grunt.option("path")%>.min.js': '<%=grunt.option("path")%>.js',
         },
         options: {
           mangle: {
@@ -66,17 +66,17 @@ module.exports = grunt => {
         singleRun: true,
       },
       default: {
-        files: ['client/core.js', 'tests/helpers.js', 'tests/tests.js'].map(it => ({ src: it })),
+        files: ['client/core.js', 'tests/bundles/helpers.js', 'tests/bundles/tests.js'].map(it => ({ src: it })),
       },
       library: {
-        files: ['client/library.js', 'tests/helpers.js', 'tests/library.js'].map(it => ({ src: it })),
+        files: ['client/library.js', 'tests/bundles/helpers.js', 'tests/bundles/library.js'].map(it => ({ src: it })),
       },
     },
     webpack: {
       options: {
         stats: false,
         output: {
-          path: path.resolve(__dirname, 'tests'),
+          path: path.resolve(__dirname, 'tests/bundles'),
         },
       },
       helpers: {
@@ -93,7 +93,7 @@ module.exports = grunt => {
       },
       'promises-aplus-tests': {
         entry: 'promises-aplus-tests/lib/testFiles.js',
-        output: { filename: 'promises-aplus/bundle.js' },
+        output: { filename: 'promises-aplus.js' },
       },
     },
   });
@@ -108,6 +108,7 @@ module.exports = grunt => {
       grunt.option('path') || grunt.option('path', './custom');
       fs.writeFile(grunt.option('path') + '.js', it, done);
     }).catch(it => {
+      // eslint-disable-next-line no-console
       console.error(it);
       process.exit(1);
     });

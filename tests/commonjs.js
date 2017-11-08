@@ -1,3 +1,4 @@
+/* eslint-disable import/no-dynamic-require */
 'use strict';
 const ok = require('assert').ok;
 
@@ -329,4 +330,5 @@ for (const PATH of ['..', '../library']) {
   ok(require(`${PATH}/stage`));
 }
 
+// eslint-disable-next-line no-console
 console.log('CommonJS - OK');
