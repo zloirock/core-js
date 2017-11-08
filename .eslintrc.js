@@ -1,4 +1,3 @@
-/* eslint comma-dangle: ['error', 'always-multiline'] */
 module.exports = {
   parserOptions: {
     ecmaVersion: 3,
@@ -6,6 +5,7 @@ module.exports = {
   env: {
     browser: true,
     node: true,
+    worker: true,
   },
   plugins: ['import'],
   rules: {
@@ -285,4 +285,29 @@ module.exports = {
     // forbid useless path segments
     'import/no-useless-path-segments': 'error',
   },
+  overrides: [
+    {
+      files: [
+        '.eslintrc.js',
+        'Gruntfile.js',
+        'build/index.js',
+        'tests/commonjs.js',
+        'tests/worker/**',
+      ],
+      parserOptions: {
+        ecmaVersion: 2015,
+      },
+      env: {
+        es6: true,
+      },
+      rules: {
+        // enforce trailing commas in multiline object literals
+        'comma-dangle': ['error', 'always-multiline'],
+        // encourages use of dot notation whenever possible
+        'dot-notation': ['error', { allowKeywords: true }],
+        // require or disallow use of quotes around object literal property names
+        'quote-props': ['error', 'as-needed', { keywords: false }],
+      },
+    },
+  ],
 };

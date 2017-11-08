@@ -57,7 +57,7 @@ function perf() {
     function inc() {
       setImmediate(function () {
         x = x + 1;
-        if (+new Date() - time < 5e3) {
+        if (now() - time < 5e3) {
           inc();
         } else if (global.console) {
           console.log('setImmediate: ' + x / 5 + ' per second');
