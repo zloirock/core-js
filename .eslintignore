@@ -1,6 +1,7 @@
 node_modules/**
-build/index.js
 client/**
-tests/**
+tests/helpers/**
+tests/library/**
+tests/tests/**
+tests/bundles/**
 !**/.eslintrc.js
-Gruntfile.js

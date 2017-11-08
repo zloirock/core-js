@@ -71,7 +71,13 @@ module.exports = options => {
             else if (typeof define == 'function' && define.amd) define(function () { return __e; });
             // Export to global object
             else __g.core = __e;`.replace(/^\s+/gm, '') : '';
-          resolve(`${ banner }\n!function (__e, __g, undefined) {\n'use strict';\n${ script }\n${ exportScript }\n}(1, 1);`);
+          resolve(`${
+              banner
+            }\n!function (__e, __g, undefined) {\n'use strict';\n${
+              script
+            }\n${
+              exportScript
+            }\n}(1, 1);`);
         });
       });
     });
