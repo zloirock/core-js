@@ -107,7 +107,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 // or
 
-import {fill, findIndex} from 'core-js/library/fn/array/virtual';
+import { fill, findIndex } from 'core-js/library/fn/array/virtual';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 
@@ -131,7 +131,7 @@ require('core-js-builder')({
   modules: ['es', 'web'],    // modules / namespaces
   blacklist: ['es.reflect'], // blacklist of modules / namespaces, by default - empty list
   library: false,            // flag for build without global namespace pollution, by default - false
-  umd: true                  // use UMD wrapper for export `core` object, by default - true
+  umd: true,                 // use UMD wrapper for export `core` object, by default - true
 }).then(code => {
   // ...
 }).catch(error => {
@@ -227,39 +227,39 @@ core-js(/library)/fn/object/lookup-setter
 ```
 [*Examples*](https://goo.gl/sqY5mD):
 ```js
-var foo = {q: 1, w: 2}
-  , bar = {e: 3, r: 4}
-  , baz = {t: 5, y: 6};
-Object.assign(foo, bar, baz); // => foo = {q: 1, w: 2, e: 3, r: 4, t: 5, y: 6}
+let foo = { q: 1, w: 2 };
+let bar = { e: 3, r: 4 };
+let baz = { t: 5, y: 6 };
+Object.assign(foo, bar, baz); // => foo = { q: 1, w: 2, e: 3, r: 4, t: 5, y: 6 }
 
 Object.is(NaN, NaN); // => true
 Object.is(0, -0);    // => false
 Object.is(42, 42);   // => true
 Object.is(42, '42'); // => false
 
-function Parent(){}
-function Child(){}
+function Parent() {}
+function Child() {}
 Object.setPrototypeOf(Child.prototype, Parent.prototype);
-new Child instanceof Child;  // => true
-new Child instanceof Parent; // => true
+new Child() instanceof Child;  // => true
+new Child() instanceof Parent; // => true
 
-var O = {};
-O[Symbol.toStringTag] = 'Foo';
-'' + O; // => '[object Foo]'
+let object = {};
+object[Symbol.toStringTag] = 'Foo';
+'' + object; // => '[object Foo]'
 
 Object.keys('qwe'); // => ['0', '1', '2']
 Object.getPrototypeOf('qwe') === String.prototype; // => true
 
-Object.values({a: 1, b: 2, c: 3});  // => [1, 2, 3]
-Object.entries({a: 1, b: 2, c: 3}); // => [['a', 1], ['b', 2], ['c', 3]]
+Object.values({ a: 1, b: 2, c: 3 });  // => [1, 2, 3]
+Object.entries({ a: 1, b: 2, c: 3 }); // => [['a', 1], ['b', 2], ['c', 3]]
 
-for(let [key, value] of Object.entries({a: 1, b: 2, c: 3})){
+for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
   console.log(key);   // => 'a', 'b', 'c'
   console.log(value); // => 1, 2, 3
 }
 
 // Shallow object cloning with prototype and descriptors:
-var copy = Object.create(Object.getPrototypeOf(O), Object.getOwnPropertyDescriptors(O));
+let copy = Object.create(Object.getPrototypeOf(object), Object.getOwnPropertyDescriptors(object));
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 ```
@@ -281,7 +281,7 @@ core-js/fn/function/virtual/bind
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
-(function foo(){}).name // => 'foo'
+(function foo() {}).name // => 'foo'
 
 console.log.bind(console, 42)(43); // => 42 43
 ```
@@ -369,28 +369,26 @@ core-js(/library)/fn/array/virtual/sort
 ```
 [*Examples*](https://goo.gl/Tegvq4):
 ```js
-Array.from(new Set([1, 2, 3, 2, 1]));      // => [1, 2, 3]
-Array.from({0: 1, 1: 2, 2: 3, length: 3}); // => [1, 2, 3]
-Array.from('123', Number);                 // => [1, 2, 3]
-Array.from('123', function(it){
-  return it * it;
-});                                        // => [1, 4, 9]
+Array.from(new Set([1, 2, 3, 2, 1]));        // => [1, 2, 3]
+Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
+Array.from('123', Number);                   // => [1, 2, 3]
+Array.from('123', it => it * it);            // => [1, 4, 9]
 
 Array.of(1);       // => [1]
 Array.of(1, 2, 3); // => [1, 2, 3]
 
-var array = ['a', 'b', 'c'];
+let array = ['a', 'b', 'c'];
 
-for(var val of array)console.log(val);          // => 'a', 'b', 'c'
-for(var val of array.values())console.log(val); // => 'a', 'b', 'c'
-for(var key of array.keys())console.log(key);   // => 0, 1, 2
-for(var [key, val] of array.entries()){
-  console.log(key);                             // => 0, 1, 2
-  console.log(val);                             // => 'a', 'b', 'c'
+for (let value of array) console.log(value);          // => 'a', 'b', 'c'
+for (let value of array.values()) console.log(value); // => 'a', 'b', 'c'
+for (let key of array.keys()) console.log(key);       // => 0, 1, 2
+for (let [key, value] of array.entries()) {
+  console.log(key);                                   // => 0, 1, 2
+  console.log(value);                                 // => 'a', 'b', 'c'
 }
 
-function isOdd(val){
-  return val % 2;
+function isOdd(value) {
+  return value % 2;
 }
 [4, 8, 15, 16, 23, 42].find(isOdd);      // => 15
 [4, 8, 15, 16, 23, 42].findIndex(isOdd); // => 2
@@ -495,8 +493,8 @@ core-js(/library)/fn/string/virtual/iterator
 ```
 [*Examples*](https://goo.gl/oVvKga):
 ```js
-for(var val of 'a𠮷b'){
-  console.log(val); // => 'a', '𠮷', 'b'
+for (let value of 'a𠮷b') {
+  console.log(value); // => 'a', '𠮷', 'b'
 }
 
 'foobarbaz'.includes('bar');      // => true
@@ -516,9 +514,9 @@ for(var val of 'a𠮷b'){
 '𠮷'.codePointAt(0); // => 134071
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 
-var name = 'Bob';
-String.raw`Hi\n${name}!`;           // => 'Hi\\nBob!' (ES2015 template string syntax)
-String.raw({raw: 'test'}, 0, 1, 2); // => 't0e1s2t'
+let name = 'Bob';
+String.raw`Hi\n${name}!`;             // => 'Hi\\nBob!' (ES2015 template string syntax)
+String.raw({ raw: 'test' }, 0, 1, 2); // => 't0e1s2t'
 
 'foo'.bold();                     // => '<b>foo</b>'
 'bar'.anchor('a"b');              // => '<a name="a&quot;b">bar</a>'
@@ -531,7 +529,7 @@ Support well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@sear
 ```
 [new] RegExp(pattern, flags?) -> regexp, ES2015 fix: can alter flags (IE9+)
   #flags -> str (IE9+)
-  #toString() -             > str, ES2015 fixes
+  #toString()               -> str, ES2015 fixes
   #@@match(str)             -> array | null
   #@@replace(str, replacer) -> string
   #@@search(str)            -> index
@@ -560,12 +558,12 @@ RegExp(/./g, 'm'); // => /./m
 /foo/.flags;    // => ''
 /foo/gim.flags; // => 'gim'
 
-'foo'.match({[Symbol.match]: _ => 1});     // => 1
-'foo'.replace({[Symbol.replace]: _ => 2}); // => 2
-'foo'.search({[Symbol.search]: _ => 3});   // => 3
-'foo'.split({[Symbol.split]: _ => 4});     // => 4
+'foo'.match({ [Symbol.match]: () => 1 });     // => 1
+'foo'.replace({ [Symbol.replace]: () => 2 }); // => 2
+'foo'.search({ [Symbol.search]: () => 3 });   // => 3
+'foo'.split({ [Symbol.split]: () => 4 });     // => 4
 
-RegExp.prototype.toString.call({source: 'foo', flags: 'bar'}); // => '/foo/bar'
+RegExp.prototype.toString.call({ source: 'foo', flags: 'bar' }); // => '/foo/bar'
 ```
 #### ECMAScript: Number
 Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](http://goo.gl/jRd6b3):
@@ -693,22 +691,22 @@ core-js(/library)/fn/promise
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
-function sleepRandom(time){
-  return new Promise(function(resolve, reject){
+function sleepRandom(time) {
+  return new Promise((resolve, reject) => {
     setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3);
   });
 }
 
 console.log('Run');                    // => Run
-sleepRandom(5).then(function(result){
+sleepRandom(5).then(result => {
   console.log(result);                 // => 869, after 5 sec.
   return sleepRandom(10);
-}).then(function(result){
+}).then(result => {
   console.log(result);                 // => 202, after 10 sec.
-}).then(function(){
+}).then(() => {
   console.log('immediately after');    // => immediately after
   throw Error('Irror!');
-}).then(function(){
+}).then(() => {
   console.log('will not be displayed');
 }).catch(x => console.log(x));         // => => Error: Irror!
 ```
@@ -730,8 +728,8 @@ Promise.all([
 ```
 `Promise.race` [*example*](http://goo.gl/L8ovkJ):
 ```js
-function timeLimit(promise, time){
-  return Promise.race([promise, new Promise(function(resolve, reject){
+function timeLimit(promise, time) {
+  return Promise.race([promise, new Promise((resolve, reject) => {
     setTimeout(reject, time * 1e3, Error('Await > ' + time + ' sec'));
   })]);
 }
@@ -739,33 +737,34 @@ function timeLimit(promise, time){
 timeLimit(sleepRandom(5), 10).then(x => console.log(x));   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(x => console.log(x)); // Error: Await > 10 sec
 ```
-ECMAScript 7 [async functions](https://tc39.github.io/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
+With [async functions](https://tc39.github.io/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
 ```js
-var delay = time => new Promise(resolve => setTimeout(resolve, time))
+let delay = time => new Promise(resolve => setTimeout(resolve, time))
 
-async function sleepRandom(time){
+async function sleepRandom(time) {
   await delay(time * 1e3);
   return 0 | Math.random() * 1e3;
-};
-async function sleepError(time, msg){
+}
+
+async function sleepError(time, msg) {
   await delay(time * 1e3);
   throw Error(msg);
-};
+}
 
 (async () => {
   try {
     console.log('Run');                // => Run
     console.log(await sleepRandom(5)); // => 936, after 5 sec.
-    var [a, b, c] = await Promise.all([
+    let [a, b, c] = await Promise.all([
       sleepRandom(5),
       sleepRandom(15),
       sleepRandom(10)
     ]);
     console.log(a, b, c);              // => 210 445 71, after 15 sec.
-    await sleepError(5, 'Irror!');
+    await sleepError(5, 'Error!');
     console.log('Will not be displayed');
-  } catch(e){
-    console.log(e);                    // => Error: 'Irror!', after 5 sec.
+  } catch (e) {
+    console.log(e);                    // => Error: 'Error!', after 5 sec.
   }
 })();
 ```
@@ -777,10 +776,10 @@ In Node.js, like in native implementation, available events [`unhandledRejection
 process.on('unhandledRejection', (reason, promise) => console.log('unhandled', reason, promise));
 process.on('rejectionHandled', (promise) => console.log('handled', promise));
 
-var p = Promise.reject(42);
+let promise = Promise.reject(42);
 // unhandled 42 [object Promise]
 
-setTimeout(() => p.catch(_ => _), 1e3);
+setTimeout(() => promise.catch(() => {}), 1e3);
 // handled [object Promise]
 ```
 In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](http://goo.gl/Wozskl):
@@ -788,11 +787,11 @@ In a browser on rejection, by default, you will see notify in the console, or yo
 window.onunhandledrejection = e => console.log('unhandled', e.reason, e.promise);
 window.onrejectionhandled = e => console.log('handled', e.reason, e.promise);
 
-var p = Promise.reject(42);
-// unhandled 42 [object Promise]
+let promise = Promise.reject(42);
+// => unhandled 42 [object Promise]
 
-setTimeout(() => p.catch(_ => _), 1e3);
-// handled 42 [object Promise]
+setTimeout(() => promise.catch(() => {}), 1e3);
+// => handled 42 [object Promise]
 ```
 
 #### ECMAScript: Symbol
@@ -849,38 +848,39 @@ core-js(/library)/fn/symbol/key-for
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
-var Person = (function(){
-  var NAME = Symbol('name');
-  function Person(name){
-    this[NAME] = name;
+let Person = (() => {
+  let NAME = Symbol('name');
+  return class {
+    constructor(name) {
+      this[NAME] = name;
+    }
+    getName() {
+      return this[NAME];
+    }
   }
-  Person.prototype.getName = function(){
-    return this[NAME];
-  };
-  return Person;
 })();
 
-var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-console.log(person['name']);            // => undefined
-console.log(person[Symbol('name')]);    // => undefined, symbols are uniq
-for(var key in person)console.log(key); // => only 'getName', symbols are not enumerable
+let person = new Person('Vasya');
+console.log(person.getName());            // => 'Vasya'
+console.log(person['name']);              // => undefined
+console.log(person[Symbol('name')]);      // => undefined, symbols are uniq
+for (let key in person) console.log(key); // => nothing, symbols are not enumerable
 ```
 `Symbol.for` & `Symbol.keyFor` [*example*](http://goo.gl/0pdJjX):
 ```js
-var symbol = Symbol.for('key');
+let symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
 [*Example*](http://goo.gl/mKVOQJ) with methods for getting own object keys:
 ```js
-var O = {a: 1};
-Object.defineProperty(O, 'b', {value: 2});
-O[Symbol('c')] = 3;
-Object.keys(O);                  // => ['a']
-Object.getOwnPropertyNames(O);   // => ['a', 'b']
-Object.getOwnPropertySymbols(O); // => [Symbol(c)]
-Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
+let object = { a: 1 };
+Object.defineProperty(object, 'b', { value: 2 });
+object[Symbol('c')] = 3;
+Object.keys(object);                  // => ['a']
+Object.getOwnPropertyNames(object);   // => ['a', 'b']
+Object.getOwnPropertySymbols(object); // => [Symbol(c)]
+Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ```
 ##### Caveats when using `Symbol` polyfill:
 
@@ -891,16 +891,16 @@ Reflect.ownKeys(O);              // => ['a', 'b', Symbol(c)]
 You can disable defining setters in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
 ```js
 Symbol.useSimple();
-var s1 = Symbol('s1')
-  , o1 = {};
-o1[s1] = true;
-for(var key in o1)console.log(key); // => 'Symbol(s1)_t.qamkg9f3q', w/o native Symbol
+let symbol1 = Symbol('symbol1');
+let object1 = {};
+object1[symbol1] = true;
+for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', w/o native Symbol
 
 Symbol.useSetter();
-var s2 = Symbol('s2')
-  , o2 = {};
-o2[s2] = true;
-for(var key in o2)console.log(key); // nothing
+let symbol2 = Symbol('symbol2');
+let object2 = {};
+object2[symbol2] = true;
+for (let key in object2) console.log(key); // nothing
 ```
 * Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
 * Some problems possible with environment exotic objects (for example, IE `localStorage`).
@@ -930,35 +930,35 @@ core-js(/library)/fn/map
 ```
 [*Examples*](http://goo.gl/GWR7NI):
 ```js
-var a = [1];
+let array = [1];
 
-var map = new Map([['a', 1], [42, 2]]);
-map.set(a, 3).set(true, 4);
+let map = new Map([['a', 1], [42, 2]]);
+map.set(array, 3).set(true, 4);
 
 console.log(map.size);        // => 4
-console.log(map.has(a));      // => true
+console.log(map.has(array));  // => true
 console.log(map.has([1]));    // => false
-console.log(map.get(a));      // => 3
-map.forEach(function(val, key){
+console.log(map.get(array));  // => 3
+map.forEach((val, key) => {
   console.log(val);           // => 1, 2, 3, 4
   console.log(key);           // => 'a', 42, [1], true
 });
-map.delete(a);
+map.delete(array);
 console.log(map.size);        // => 3
-console.log(map.get(a));      // => undefined
+console.log(map.get(array));  // => undefined
 console.log(Array.from(map)); // => [['a', 1], [42, 2], [true, 4]]
 
-var map = new Map([['a', 1], ['b', 2], ['c', 3]]);
+let map = new Map([['a', 1], ['b', 2], ['c', 3]]);
 
-for(var [key, val] of map){
-  console.log(key);                           // => 'a', 'b', 'c'
-  console.log(val);                           // => 1, 2, 3
+for (let [key, value] of map) {
+  console.log(key);                                 // => 'a', 'b', 'c'
+  console.log(value);                               // => 1, 2, 3
 }
-for(var val of map.values())console.log(val); // => 1, 2, 3
-for(var key of map.keys())console.log(key);   // => 'a', 'b', 'c'
-for(var [key, val] of map.entries()){
-  console.log(key);                           // => 'a', 'b', 'c'
-  console.log(val);                           // => 1, 2, 3
+for (let value of map.values()) console.log(value); // => 1, 2, 3
+for (let key of map.keys()) console.log(key);       // => 'a', 'b', 'c'
+for (let [key, value] of map.entries()) {
+  console.log(key);                                 // => 'a', 'b', 'c'
+  console.log(value);                               // => 1, 2, 3
 }
 ```
 #### Set
@@ -983,11 +983,11 @@ core-js(/library)/fn/set
 ```
 [*Examples*](http://goo.gl/bmhLwg):
 ```js
-var set = new Set(['a', 'b', 'a', 'c']);
+let set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
 console.log(set.size);        // => 5
 console.log(set.has('b'));    // => true
-set.forEach(function(it){
+set.forEach(it => {
   console.log(it);            // => 'a', 'b', 'c', 'd', 'e'
 });
 set.delete('b');
@@ -995,14 +995,14 @@ console.log(set.size);        // => 4
 console.log(set.has('b'));    // => false
 console.log(Array.from(set)); // => ['a', 'c', 'd', 'e']
 
-var set = new Set([1, 2, 3, 2, 1]);
+let set = new Set([1, 2, 3, 2, 1]);
 
-for(var val of set)console.log(val);          // => 1, 2, 3
-for(var val of set.values())console.log(val); // => 1, 2, 3
-for(var key of set.keys())console.log(key);   // => 1, 2, 3
-for(var [key, val] of set.entries()){
-  console.log(key);                           // => 1, 2, 3
-  console.log(val);                           // => 1, 2, 3
+for (let value of set) console.log(value);          // => 1, 2, 3
+for (let value of set.values()) console.log(value); // => 1, 2, 3
+for (let key of set.keys()) console.log(key);       // => 1, 2, 3
+for (let [key, value] of set.entries()) {
+  console.log(key);                                 // => 1, 2, 3
+  console.log(value);                               // => 1, 2, 3
 }
 ```
 #### WeakMap
@@ -1021,33 +1021,34 @@ core-js(/library)/fn/weak-map
 ```
 [*Examples*](http://goo.gl/SILXyw):
 ```js
-var a = [1]
-  , b = [2]
-  , c = [3];
+let a = [1];
+let b = [2];
+let c = [3];
 
-var wmap = new WeakMap([[a, 1], [b, 2]]);
-wmap.set(c, 3).set(b, 4);
-console.log(wmap.has(a));   // => true
-console.log(wmap.has([1])); // => false
-console.log(wmap.get(a));   // => 1
-wmap.delete(a);
-console.log(wmap.get(a));   // => undefined
+let weakmap = new WeakMap([[a, 1], [b, 2]]);
+weakmap.set(c, 3).set(b, 4);
+console.log(weakmap.has(a));   // => true
+console.log(weakmap.has([1])); // => false
+console.log(weakmap.get(a));   // => 1
+weakmap.delete(a);
+console.log(weakmap.get(a));   // => undefined
 
 // Private properties store:
-var Person = (function(){
-  var names = new WeakMap;
-  function Person(name){
-    names.set(this, name);
+let Person = (() => {
+  let names = new WeakMap;
+  return class {
+    constructor(name) {
+      names.set(this, name);
+    }
+    getName() {
+      return names.get(this);
+    }
   }
-  Person.prototype.getName = function(){
-    return names.get(this);
-  };
-  return Person;
 })();
 
-var person = new Person('Vasya');
-console.log(person.getName());          // => 'Vasya'
-for(var key in person)console.log(key); // => only 'getName'
+let person = new Person('Vasya');
+console.log(person.getName());            // => 'Vasya'
+for (let key in person) console.log(key); // => only 'getName'
 ```
 #### WeakSet
 Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/v3/modules/es.weak-set.js).
@@ -1064,16 +1065,16 @@ core-js(/library)/fn/weak-set
 ```
 [*Examples*](http://goo.gl/TdFbEx):
 ```js
-var a = [1]
-  , b = [2]
-  , c = [3];
+let a = [1];
+let b = [2];
+let c = [3];
 
-var wset = new WeakSet([a, b, a]);
-wset.add(c).add(b).add(c);
-console.log(wset.has(b));   // => true
-console.log(wset.has([2])); // => false
-wset.delete(b);
-console.log(wset.has(b));   // => false
+let weakset = new WeakSet([a, b, a]);
+weakset.add(c).add(b).add(c);
+console.log(weakset.has(b));   // => true
+console.log(weakset.has([2])); // => false
+weakset.delete(b);
+console.log(weakset.has(b));   // => false
 ```
 ##### Caveats when using collections polyfill:
 
@@ -1183,30 +1184,30 @@ new Int32Array(4);                          // => [0, 0, 0, 0]
 new Uint8ClampedArray([1, 2, 3, 666]);      // => [1, 2, 3, 255]
 new Float32Array(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 
-var buffer = new ArrayBuffer(8);
-var view   = new DataView(buffer);
+let buffer = new ArrayBuffer(8);
+let view   = new DataView(buffer);
 view.setFloat64(0, 123.456, true);
 new Uint8Array(buffer.slice(4)); // => [47, 221, 94, 64]
 
 Int8Array.of(1, 1.5, 5.7, 745);      // => [1, 1, 5, -23]
 Uint8Array.from([1, 1.5, 5.7, 745]); // => [1, 1, 5, 233]
 
-var typed = new Uint8Array([1, 2, 3]);
+let typed = new Uint8Array([1, 2, 3]);
 
-var a = typed.slice(1);    // => [2, 3]
+let a = typed.slice(1);    // => [2, 3]
 typed.buffer === a.buffer; // => false
-var b = typed.subarray(1); // => [2, 3]
+let b = typed.subarray(1); // => [2, 3]
 typed.buffer === b.buffer; // => true
 
 typed.filter(it => it % 2); // => [1, 3]
 typed.map(it => it * 1.5);  // => [1, 3, 4]
 
-for(var val of typed)console.log(val);          // => 1, 2, 3
-for(var val of typed.values())console.log(val); // => 1, 2, 3
-for(var key of typed.keys())console.log(key);   // => 0, 1, 2
-for(var [key, val] of typed.entries()){
-  console.log(key);                             // => 0, 1, 2
-  console.log(val);                             // => 1, 2, 3
+for (let value of typed) console.log(value);          // => 1, 2, 3
+for (let value of typed.values()) console.log(value); // => 1, 2, 3
+for (let key of typed.keys()) console.log(key);       // => 0, 1, 2
+for (let [key, value] of typed.entries()) {
+  console.log(key);                                   // => 0, 1, 2
+  console.log(value);                                 // => 1, 2, 3
 }
 ```
 ##### Caveats when using typed arrays:
@@ -1253,16 +1254,16 @@ core-js(/library)/fn/reflect/set-prototype-of
 ```
 [*Examples*](http://goo.gl/gVT0cH):
 ```js
-var O = {a: 1};
-Object.defineProperty(O, 'b', {value: 2});
-O[Symbol('c')] = 3;
-Reflect.ownKeys(O); // => ['a', 'b', Symbol(c)]
+let object = { a: 1 };
+Object.defineProperty(object, 'b', { value: 2 });
+object[Symbol('c')] = 3;
+Reflect.ownKeys(object); // => ['a', 'b', Symbol(c)]
 
-function C(a, b){
+function C(a, b) {
   this.c = a + b;
 }
 
-var instance = Reflect.construct(C, [20, 22]);
+let instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
 ```
 
@@ -1343,7 +1344,7 @@ core-js(/library)/fn/array/virtual/flat-map
 [1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
 [1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
 
-[{a: 1, b: 2}, {a: 3, b: 4}, {a: 5, b: 6}].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
+[{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
@@ -1420,7 +1421,7 @@ core-js(/library)/fn/weak-map/from
 ```js
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
-Map.from([[1, 2], [3, 4]], ([key, val]) => [key ** 2, val ** 2]); // => Map {1: 4, 9: 16}
+Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.match-all.js)
 ```js
@@ -1434,7 +1435,7 @@ core-js(/library)/fn/string/virtual/match-all
 ```
 [*Examples*](http://goo.gl/6kp9EB):
 ```js
-for(let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)){
+for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)) {
   console.log(d, D); // => 1 a, 2 b, 3 c
 }
 ```
@@ -1462,7 +1463,7 @@ new Observable(observer => {
   observer.next('world');
   observer.complete();
 }).forEach(it => console.log(it))
-  .then(_ => console.log('!'));
+  .then(() => console.log('!'));
 ```
 * `Math.{clamp, DEG_PER_RAD, degrees, fscale, rad-per-deg, radians, scale}` 
   [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules 
@@ -1591,11 +1592,11 @@ core-js(/library)/fn/reflect/metadata
 ```
 [*Examples*](http://goo.gl/KCo3PS):
 ```js
-var O = {};
-Reflect.defineMetadata('foo', 'bar', O);
-Reflect.ownKeys(O);               // => []
-Reflect.getOwnMetadataKeys(O);    // => ['foo']
-Reflect.getOwnMetadata('foo', O); // => 'bar'
+let object = {};
+Reflect.defineMetadata('foo', 'bar', object);
+Reflect.ownKeys(object);               // => []
+Reflect.getOwnMetadataKeys(object);    // => ['foo']
+Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
 ### Web standards
@@ -1635,11 +1636,11 @@ core-js(/library)/fn/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
-setImmediate(function(arg1, arg2){
+setImmediate((arg1, arg2) => {
   console.log(arg1, arg2); // => Message will be displayed with minimum delay
 }, 'Message will be displayed', 'with minimum delay');
 
-clearImmediate(setImmediate(function(){
+clearImmediate(setImmediate(() => {
   console.log('Message will not be displayed');
 }));
 ```
@@ -1696,12 +1697,12 @@ core-js(/library)/fn/dom-collections/iterator
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js
-for(var {id} of document.querySelectorAll('*')){
-  if(id)console.log(id);
+for (let { id } of document.querySelectorAll('*')) {
+  if (id) console.log(id);
 }
 
-for(var [index, {id}] of document.querySelectorAll('*').entries()){
-  if(id)console.log(index, id);
+for (let [index, { id }] of document.querySelectorAll('*').entries()) {
+  if (id) console.log(index, id);
 }
 ```
 ### Iteration helpers
@@ -1724,27 +1725,27 @@ import isIterable from 'core-js/library/fn/is-iterable';
 import getIterator from 'core-js/library/fn/get-iterator';
 import getIteratorMethod from 'core-js/library/fn/get-iterator-method';
 
-var list = (function(){
+let list = (function () {
   return arguments;
 })(1, 2, 3);
 
 console.log(isIterable(list)); // true;
 
-var iter = getIterator(list);
-console.log(iter.next().value); // 1
-console.log(iter.next().value); // 2
-console.log(iter.next().value); // 3
-console.log(iter.next().value); // undefined
+let iterator = getIterator(list);
+console.log(iterator.next().value); // 1
+console.log(iterator.next().value); // 2
+console.log(iterator.next().value); // 3
+console.log(iterator.next().value); // undefined
 
 getIterator({});   // TypeError: [object Object] is not iterable!
 
-var iterFn = getIteratorMethod(list);
-console.log(typeof iterFn);     // 'function'
-var iter = iterFn.call(list);
-console.log(iter.next().value); // 1
-console.log(iter.next().value); // 2
-console.log(iter.next().value); // 3
-console.log(iter.next().value); // undefined
+let method = getIteratorMethod(list);
+console.log(typeof method);         // 'function'
+let iterator = method.call(list);
+console.log(iterator.next().value); // 1
+console.log(iterator.next().value); // 2
+console.log(iterator.next().value); // 3
+console.log(iterator.next().value); // undefined
 
 console.log(getIteratorMethod({})); // undefined
 ```
