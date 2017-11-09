@@ -12,6 +12,16 @@ const unlink = fs.unlink;
 const basename = path.basename;
 const dirname = path.dirname;
 const join = path.join;
+
+function dedent(template) {
+  let result = [];
+  for (let i = 0; template.length > i;) {
+    result.push(template[i++].replace(/\n\s+/gm, '\n'));
+    if (i !== template.length) result.push(arguments[i]);
+  }
+  return result.join('').trim();
+}
+
 module.exports = options => {
   const library = options.library || false;
   const umd = options.umd != null ? options.umd : true;
@@ -26,7 +36,7 @@ module.exports = options => {
       if (modules[ns]) {
         for (let i = 0, length = list.length; i < length; ++i) {
           let name = list[i];
-          if (name.indexOf(ns + '.') === 0) {
+          if (name.indexOf(`${ ns }.`) === 0) {
             modules[name] = true;
           }
         }
@@ -39,7 +49,7 @@ module.exports = options => {
       const ns = blacklist[i];
       for (let j = 0, length2 = list.length; j < length2; ++j) {
         let name = list[j];
-        if (name === ns || name.indexOf(ns + '.') === 0) {
+        if (name === ns || name.indexOf(`${ ns }.`) === 0) {
           modules[name] = false;
         }
       }
@@ -56,7 +66,7 @@ module.exports = options => {
         ),
       output: {
         path: dirname(TARGET),
-        filename: basename('./' + TARGET),
+        filename: basename(`./${ TARGET }`),
       },
     }, err1 => {
       if (err1) return reject(err1);
@@ -64,20 +74,21 @@ module.exports = options => {
         if (err2) return reject(err2);
         unlink(TARGET, err3 => {
           if (err3) return reject(err3);
-          const exportScript = umd ? `
+          resolve(dedent`
+            ${ banner }
+            !function (__e, __g, undefined) {
+            'use strict';
+            ${ script }
+            ${ umd ? dedent`
             // CommonJS export
             if (typeof module != 'undefined' && module.exports) module.exports = __e;
             // RequireJS export
             else if (typeof define == 'function' && define.amd) define(function () { return __e; });
             // Export to global object
-            else __g.core = __e;`.replace(/^\s+/gm, '') : '';
-          resolve(`${
-              banner
-            }\n!function (__e, __g, undefined) {\n'use strict';\n${
-              script
-            }\n${
-              exportScript
-            }\n}(1, 1);`);
+            else __g.core = __e;
+            ` : '' }
+            }(1, 1);
+          `);
         });
       });
     });
