@@ -17,12 +17,12 @@ QUnit.test('Array#flatten', function (assert) {
   assert.deepEqual(array.flatten(-1), array);
   assert.deepEqual(array.flatten(Infinity), [1, 2, 3, 4, 5, 6]);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       flatten.call(null, function (it) {
         return it;
       });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       flatten.call(undefined, function (it) {
         return it;
       });

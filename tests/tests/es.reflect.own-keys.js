@@ -22,7 +22,7 @@ QUnit.test('Reflect.ownKeys', function (assert) {
   assert.strictEqual(object[keys[2]], 3, 'ownKeys return all own keys: symbol');
   keys = ownKeys(create(object));
   assert.strictEqual(keys.length, 0, 'ownKeys return only own keys');
-  assert['throws'](function () {
+  assert.throws(function () {
     ownKeys(42);
   }, TypeError, 'throws on primitive');
 });

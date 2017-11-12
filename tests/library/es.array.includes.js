@@ -15,10 +15,10 @@ QUnit.test('Array#includes', function (assert) {
   assert.ok(includes(Array(1), undefined));
   assert.ok(includes([NaN], NaN));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       includes(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       includes(undefined, 0);
     }, TypeError);
   }

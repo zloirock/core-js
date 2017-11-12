@@ -5,10 +5,10 @@ QUnit.test('Reflect.metadata', function (assert) {
   assert.arity(metadata, 2);
   assert.isFunction(metadata('key', 'value'));
   var decorator = metadata('key', 'value');
-  assert['throws'](function () {
+  assert.throws(function () {
     decorator(undefined, 'name');
   }, TypeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     decorator({}, undefined);
   }, TypeError);
   var target = function () { /* empty */ };

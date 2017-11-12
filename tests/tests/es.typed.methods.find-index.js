@@ -32,7 +32,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.findIndex', function (assert)
     });
     assert.same(values, '123');
     assert.same(keys, '012');
-    assert['throws'](function () {
+    assert.throws(function () {
       findIndex.call([0], function () { /* empty */ });
     }, "isn't generic");
   }

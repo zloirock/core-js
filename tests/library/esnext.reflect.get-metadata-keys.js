@@ -4,7 +4,7 @@ QUnit.test('Reflect.getMetadataKeys', function (assert) {
   var create = core.Object.create;
   assert.isFunction(getMetadataKeys);
   assert.arity(getMetadataKeys, 1);
-  assert['throws'](function () {
+  assert.throws(function () {
     getMetadataKeys(undefined, undefined);
   }, TypeError);
   assert.deepEqual(getMetadataKeys({}, undefined), []);

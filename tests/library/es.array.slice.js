@@ -27,10 +27,10 @@ QUnit.test('Array#slice', function (assert) {
     }
   }
   if (NATIVE && STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       slice(null);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       slice(undefined);
     }, TypeError);
   }

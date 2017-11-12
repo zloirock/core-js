@@ -10,7 +10,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toLocaleString', function (as
     assert.name(toLocaleString, 'toLocaleString', name + "::toLocaleString name is 'toLocaleString'");
     assert.looksNative(toLocaleString, name + '::toLocaleString looks native');
     assert.same(new TypedArray([1, 2, 3]).toLocaleString(), [1, 2, 3].toLocaleString(), 'works');
-    assert['throws'](function () {
+    assert.throws(function () {
       toLocaleString.call([1, 2, 3]);
     }, "isn't generic");
   }

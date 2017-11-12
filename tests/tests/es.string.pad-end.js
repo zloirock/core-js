@@ -15,10 +15,10 @@ QUnit.test('String#padEnd', function (assert) {
   assert.strictEqual('foo'.padEnd(1), 'foo');
   assert.strictEqual('foo'.padEnd(5, ''), 'foo');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       padEnd.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       padEnd.call(undefined, 0);
     }, TypeError);
   }

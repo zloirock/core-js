@@ -42,10 +42,10 @@ QUnit.test('Array#some', function (assert) {
     return that !== array;
   }));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       some.call(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       some.call(undefined, function () { /* empty */ });
     }, TypeError);
   }

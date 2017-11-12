@@ -12,7 +12,7 @@ QUnit.test('Reflect.isExtensible', function (assert) {
   if (DESCRIPTORS) {
     assert.ok(!isExtensible(preventExtensions({})));
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     isExtensible(42);
   }, TypeError, 'throws on primitive');
 });

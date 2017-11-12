@@ -31,7 +31,7 @@ QUnit.test('Reflect.get', function (assert) {
     assert.strictEqual(get(target, 'w', receiver), receiver, 'get w');
     assert.strictEqual(get(target, 'u', receiver), undefined, 'get u');
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     get(42, 'constructor');
   }, TypeError, 'throws on primitive');
 });

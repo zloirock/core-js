@@ -7,7 +7,7 @@ var Symbol = core.Symbol;
 QUnit.test('Observable', function (assert) {
   assert.isFunction(Observable);
   assert.arity(Observable, 1);
-  assert['throws'](function () {
+  assert.throws(function () {
     Observable(function () { /* empty */ });
   }, 'throws w/o `new`');
   var obsevable = new Observable(function (subscriptionObserver) {

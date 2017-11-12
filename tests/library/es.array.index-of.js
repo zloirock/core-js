@@ -13,10 +13,10 @@ QUnit.test('Array#indexOf', function (assert) {
   assert.same(-1, indexOf(Array(1), undefined));
   assert.same(0, indexOf([1], 1, -0), "shouldn't return negative zero");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       indexOf(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       indexOf(undefined, 0);
     }, TypeError);
   }

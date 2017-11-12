@@ -19,10 +19,10 @@ QUnit.test('Array#includes', function (assert) {
   assert.ok(Array(1).includes(undefined));
   assert.ok([NaN].includes(NaN));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       includes.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       includes.call(undefined, 0);
     }, TypeError);
   }

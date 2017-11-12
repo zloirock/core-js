@@ -18,10 +18,10 @@ if (DESCRIPTORS) {
     assert.same(create(object).__lookupGetter__('key'), setter, 'proto getter');
     assert.same(create(object).__lookupGetter__('foo'), undefined, 'empty proto');
     if (STRICT) {
-      assert['throws'](function () {
+      assert.throws(function () {
         __lookupGetter__.call(null, 1, function () { /* empty */ });
       }, TypeError, 'Throws on null as `this`');
-      assert['throws'](function () {
+      assert.throws(function () {
         __lookupGetter__.call(undefined, 1, function () { /* empty */ });
       }, TypeError, 'Throws on undefined as `this`');
     }

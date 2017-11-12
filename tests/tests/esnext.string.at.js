@@ -91,10 +91,10 @@ QUnit.test('String#at', function (assert) {
     }
   }, 2), 'c');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       at.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       at.call(undefined, 0);
     }, TypeError);
   }
