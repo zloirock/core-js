@@ -1,7 +1,8 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
 
-test('Array.from', function (assert) {
-  var Symbol = global.Symbol || {};
+QUnit.test('Array.from', function (assert) {
+  var Symbol = GLOBAL.Symbol || {};
   var from = Array.from;
   var defineProperty = Object.defineProperty;
   assert.isFunction(from);

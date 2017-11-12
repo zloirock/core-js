@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#bold', function (assert) {
+QUnit.test('String#bold', function (assert) {
   var bold = String.prototype.bold;
   assert.isFunction(bold);
   assert.arity(bold, 0);

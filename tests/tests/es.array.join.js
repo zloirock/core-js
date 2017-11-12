@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#join', function (assert) {
+QUnit.test('Array#join', function (assert) {
   var join = Array.prototype.join;
   assert.isFunction(join);
   assert.arity(join, 1);

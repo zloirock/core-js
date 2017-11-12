@@ -1,12 +1,14 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { createIterable, nativeSubclass } from '../helpers/helpers';
+
+var Symbol = GLOBAL.Symbol || {};
 var freeze = Object.freeze;
 var keys = Object.keys;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var ownKeys = (global.Reflect || {}).ownKeys;
+var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
 
-test('WeakSet', function (assert) {
+QUnit.test('WeakSet', function (assert) {
   assert.isFunction(WeakSet);
   assert.name(WeakSet, 'WeakSet');
   assert.arity(WeakSet, 0);
@@ -62,7 +64,7 @@ test('WeakSet', function (assert) {
   }
 });
 
-test('WeakSet#add', function (assert) {
+QUnit.test('WeakSet#add', function (assert) {
   assert.isFunction(WeakSet.prototype.add);
   assert.name(WeakSet.prototype.add, 'add');
   assert.arity(WeakSet.prototype.add, 1);
@@ -79,9 +81,9 @@ test('WeakSet#add', function (assert) {
   }(), 'throws with primitive keys');
 });
 
-test('WeakSet#delete', function (assert) {
+QUnit.test('WeakSet#delete', function (assert) {
   assert.isFunction(WeakSet.prototype['delete']);
-  NATIVE && assert.arity(WeakSet.prototype['delete'], 1);
+  if (NATIVE) assert.arity(WeakSet.prototype['delete'], 1);
   assert.looksNative(WeakSet.prototype['delete']);
   assert.nonEnumerable(WeakSet.prototype, 'delete');
   var a = {};
@@ -97,7 +99,7 @@ test('WeakSet#delete', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakSet#has', function (assert) {
+QUnit.test('WeakSet#has', function (assert) {
   assert.isFunction(WeakSet.prototype.has);
   assert.name(WeakSet.prototype.has, 'has');
   assert.arity(WeakSet.prototype.has, 1);
@@ -117,6 +119,6 @@ test('WeakSet#has', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakSet::@@toStringTag', function (assert) {
+QUnit.test('WeakSet::@@toStringTag', function (assert) {
   assert.strictEqual(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
 });

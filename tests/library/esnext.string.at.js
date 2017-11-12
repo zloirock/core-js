@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#at', function (assert) {
+QUnit.test('String#at', function (assert) {
   var at = core.String.at;
   assert.isFunction(at);
   // String that starts with a BMP symbol

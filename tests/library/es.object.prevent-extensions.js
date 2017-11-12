@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.preventExtensions', function (assert) {
+QUnit.test('Object.preventExtensions', function (assert) {
   var preventExtensions = core.Object.preventExtensions;
   var keys = core.Object.keys;
   var getOwnPropertyNames = core.Object.getOwnPropertyNames;

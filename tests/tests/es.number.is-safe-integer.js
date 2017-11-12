@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.isSafeInteger', function (assert) {
+QUnit.test('Number.isSafeInteger', function (assert) {
   var isSafeInteger = Number.isSafeInteger;
   var create = Object.create;
   assert.isFunction(isSafeInteger);

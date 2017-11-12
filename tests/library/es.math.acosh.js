@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.acosh', function (assert) {
+QUnit.test('Math.acosh', function (assert) {
   var acosh = core.Math.acosh;
   assert.isFunction(acosh);
   assert.same(acosh(NaN), NaN);

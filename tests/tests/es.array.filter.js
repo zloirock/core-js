@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#filter', function (assert) {
+QUnit.test('Array#filter', function (assert) {
   var filter = Array.prototype.filter;
   assert.isFunction(filter);
   assert.arity(filter, 1);

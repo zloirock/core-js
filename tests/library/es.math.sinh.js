@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.sinh', function (assert) {
+QUnit.test('Math.sinh', function (assert) {
   var sinh = core.Math.sinh;
   assert.isFunction(sinh);
   assert.same(sinh(NaN), NaN);

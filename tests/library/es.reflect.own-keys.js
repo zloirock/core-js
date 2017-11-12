@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { includes } from '../helpers/helpers';
 
-test('Reflect.ownKeys', function (assert) {
+QUnit.test('Reflect.ownKeys', function (assert) {
   var ownKeys = core.Reflect.ownKeys;
   var defineProperty = core.Object.defineProperty;
   var create = core.Object.create;

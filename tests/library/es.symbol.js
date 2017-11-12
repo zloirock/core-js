@@ -1,4 +1,4 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
 var Symbol = core.Symbol;
 var JSON = core.JSON;
@@ -11,7 +11,7 @@ var keys = core.Object.keys;
 var create = core.Object.create;
 var ownKeys = core.Reflect.ownKeys;
 
-test('Symbol', function (assert) {
+QUnit.test('Symbol', function (assert) {
   assert.isFunction(Symbol);
   var symbol1 = Symbol('symbol');
   var symbol2 = Symbol('symbol');
@@ -22,12 +22,13 @@ test('Symbol', function (assert) {
   assert.ok(object[symbol2] !== 42, 'Various symbols from one description are various keys');
   if (DESCRIPTORS) {
     var count = 0;
+    // eslint-disable-next-line no-unused-vars
     for (var key in object) count++;
     assert.ok(count === 0, 'object[Symbol()] is not enumerable');
   }
 });
 
-test('Well-known Symbols', function (assert) {
+QUnit.test('Well-known Symbols', function (assert) {
   var wks = [
     'hasInstance',
     'isConcatSpreadable',
@@ -48,7 +49,7 @@ test('Well-known Symbols', function (assert) {
   }
 });
 
-test('Global symbol registry', function (assert) {
+QUnit.test('Global symbol registry', function (assert) {
   assert.isFunction(Symbol['for'], 'Symbol.for is function');
   assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
   var symbol = Symbol['for']('foo');
@@ -59,17 +60,17 @@ test('Global symbol registry', function (assert) {
   }, 'throws on non-symbol');
 });
 
-test('Symbol#@@toPrimitive', function (assert) {
+QUnit.test('Symbol#@@toPrimitive', function (assert) {
   var symbol = Symbol();
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
   assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
 
-test('Symbol#@@toStringTag', function (assert) {
+QUnit.test('Symbol#@@toStringTag', function (assert) {
   assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
 });
 
-test('Object.getOwnPropertySymbols', function (assert) {
+QUnit.test('Object.getOwnPropertySymbols', function (assert) {
   assert.isFunction(getOwnPropertySymbols);
   var prototype = { q: 1, w: 2, e: 3 };
   prototype[Symbol()] = 42;
@@ -87,7 +88,7 @@ test('Object.getOwnPropertySymbols', function (assert) {
 });
 
 if (JSON) {
-  test('Symbols & JSON.stringify', function (assert) {
+  QUnit.test('Symbols & JSON.stringify', function (assert) {
     assert.strictEqual(JSON.stringify([
       1,
       Symbol('foo'),
@@ -111,7 +112,7 @@ if (JSON) {
 }
 
 if (DESCRIPTORS) {
-  test('Symbols & descriptors', function (assert) {
+  QUnit.test('Symbols & descriptors', function (assert) {
     var d = Symbol('d');
     var e = Symbol('e');
     var f = Symbol('f');
@@ -203,7 +204,7 @@ if (DESCRIPTORS) {
     }, 'redefined non-enum key');
   });
 
-  test('Symbols & Object.defineProperties', function (assert) {
+  QUnit.test('Symbols & Object.defineProperties', function (assert) {
     var c = Symbol('c');
     var d = Symbol('d');
     var descriptors = {
@@ -231,7 +232,7 @@ if (DESCRIPTORS) {
     assert.strictEqual(object[d], undefined, 'd');
   });
 
-  test('Symbols & Object.create', function (assert) {
+  QUnit.test('Symbols & Object.create', function (assert) {
     var c = Symbol('c');
     var d = Symbol('d');
     var descriptors = {
@@ -261,14 +262,14 @@ if (DESCRIPTORS) {
 
   var constructors = ['Map', 'Set', 'Promise'];
   for (var i = 0, length = constructors.length; i < length; ++i) !function (name) {
-    test(name + '@@species', function (assert) {
+    QUnit.test(name + '@@species', function (assert) {
       assert.strictEqual(core[name][Symbol.species], core[name], name + '@@species === ' + name);
       var Subclass = create(core[name]);
       assert.strictEqual(Subclass[Symbol.species], Subclass, name + ' subclass');
     });
   }(constructors[i]);
 
-  test('Array@@species', function (assert) {
+  QUnit.test('Array@@species', function (assert) {
     assert.strictEqual(Array[Symbol.species], Array, 'Array@@species === Array');
     var Subclass = create(Array);
     assert.strictEqual(Subclass[Symbol.species], Subclass, 'Array subclass');

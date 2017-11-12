@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#endsWith', function (assert) {
+QUnit.test('String#endsWith', function (assert) {
   var endsWith = core.String.endsWith;
   var Symbol = core.Symbol;
   assert.isFunction(endsWith);

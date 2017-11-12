@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.freeze', function (assert) {
+QUnit.test('Object.freeze', function (assert) {
   var freeze = core.Object.freeze;
   var keys = core.Object.keys;
   var getOwnPropertyNames = core.Object.getOwnPropertyNames;

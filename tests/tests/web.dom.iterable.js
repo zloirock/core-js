@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL } from '../helpers/constants';
 
-test('Iterable DOM collections', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('Iterable DOM collections', function (assert) {
   var absent = true;
   var collections = [
     'CSSRuleList',
@@ -39,7 +40,7 @@ test('Iterable DOM collections', function (assert) {
 
   for (var i = 0, length = collections.length; i < length; ++i) {
     var name = collections[i];
-    var Collection = global[name];
+    var Collection = GLOBAL[name];
     if (Collection) {
       assert.same(Collection.prototype[Symbol.toStringTag], name, name + "::@@toStringTag is '" + name + "'");
       assert.isFunction(Collection.prototype[Symbol.iterator], name + '::@@iterator is function');
@@ -47,7 +48,7 @@ test('Iterable DOM collections', function (assert) {
     }
   }
 
-  if (global.NodeList && global.document && document.querySelectorAll && document.querySelectorAll('div') instanceof NodeList) {
+  if (GLOBAL.NodeList && GLOBAL.document && document.querySelectorAll && document.querySelectorAll('div') instanceof NodeList) {
     assert.isFunction(document.querySelectorAll('div')[Symbol.iterator], 'works with document.querySelectorAll');
   }
 
@@ -58,7 +59,7 @@ test('Iterable DOM collections', function (assert) {
 
   for (var i = 0, length = collections.length; i < length; ++i) {
     var name = collections[i];
-    var Collection = global[name];
+    var Collection = GLOBAL[name];
     if (Collection) {
       assert.isFunction(Collection.prototype.values, name + '::@@values is function');
       assert.isFunction(Collection.prototype.keys, name + '::@@keys is function');

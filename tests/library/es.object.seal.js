@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.seal', function (assert) {
+QUnit.test('Object.seal', function (assert) {
   var seal = core.Object.seal;
   var keys = core.Object.keys;
   var getOwnPropertyNames = core.Object.getOwnPropertyNames;

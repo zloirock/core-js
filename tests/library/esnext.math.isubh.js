@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.isubh', function (assert) {
+QUnit.test('Math.isubh', function (assert) {
   var isubh = core.Math.isubh;
   assert.isFunction(isubh);
   assert.arity(isubh, 4);

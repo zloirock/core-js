@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Reflect.defineProperty', function (assert) {
+QUnit.test('Reflect.defineProperty', function (assert) {
   var defineProperty = Reflect.defineProperty;
   var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   var create = Object.create;

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String.raw', function (assert) {
+QUnit.test('String.raw', function (assert) {
   var raw = String.raw;
   assert.isFunction(raw);
   assert.arity(raw, 1);

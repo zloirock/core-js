@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
 
-test('ArrayBuffer', function (assert) {
-  var Symbol = global.Symbol || {};
+QUnit.test('ArrayBuffer', function (assert) {
+  var Symbol = GLOBAL.Symbol || {};
   // in Safari 5 typeof ArrayBuffer is 'object'
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
   // 0 in V8 ~ Chromium 27-

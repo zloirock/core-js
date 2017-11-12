@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#includes', function (assert) {
+QUnit.test('Array#includes', function (assert) {
   var includes = Array.prototype.includes;
   assert.isFunction(includes);
   assert.name(includes, 'includes');

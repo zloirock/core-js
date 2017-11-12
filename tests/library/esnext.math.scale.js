@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.scale', function (assert) {
+QUnit.test('Math.scale', function (assert) {
   var scale = core.Math.scale;
   assert.isFunction(scale);
   assert.arity(scale, 5);

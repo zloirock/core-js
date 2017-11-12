@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#join', function (assert) {
+QUnit.test('Array#join', function (assert) {
   var join = core.Array.join;
   assert.isFunction(join);
   assert.strictEqual(join([1, 2, 3], undefined), '1,2,3');
