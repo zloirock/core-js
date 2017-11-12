@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.signbit', function (assert) {
+QUnit.test('Math.signbit', function (assert) {
   var signbit = Math.signbit;
   assert.isFunction(signbit);
   assert.name(signbit, 'signbit');

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.EPSILON', function (assert) {
+QUnit.test('Number.EPSILON', function (assert) {
   var EPSILON = core.Number.EPSILON;
   assert.ok('EPSILON' in core.Number, 'EPSILON in Number');
   assert.strictEqual(EPSILON, Math.pow(2, -52), 'Is 2^-52');

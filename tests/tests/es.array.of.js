@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Array.of', function (assert) {
+QUnit.test('Array.of', function (assert) {
   var defineProperty = Object.defineProperty;
   assert.isFunction(Array.of);
   assert.arity(Array.of, 0);
@@ -19,7 +19,6 @@ test('Array.of', function (assert) {
     var called = false;
     defineProperty(F.prototype, 0, {
       set: function () {
-        var called;
         called = true;
       }
     });

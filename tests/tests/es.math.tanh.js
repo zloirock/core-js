@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { NATIVE } from '../helpers/constants';
 
-test('Math.tanh', function (assert) {
+QUnit.test('Math.tanh', function (assert) {
   var tanh = Math.tanh;
   assert.isFunction(tanh);
   assert.name(tanh, 'tanh');

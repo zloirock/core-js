@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('WeakMap.of', function (assert) {
+QUnit.test('WeakMap.of', function (assert) {
   var WeakMap = core.WeakMap;
   var of = WeakMap.of;
   assert.isFunction(of);

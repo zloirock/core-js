@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.hypot', function (assert) {
+QUnit.test('Math.hypot', function (assert) {
   var hypot = Math.hypot;
   var sqrt = Math.sqrt;
   assert.isFunction(hypot);

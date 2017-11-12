@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS } from '../helpers/constants';
 
-test('Object.assign', function (assert) {
-  var Symbol = global.Symbol;
+QUnit.test('Object.assign', function (assert) {
+  var Symbol = GLOBAL.Symbol;
   var assign = Object.assign;
   var keys = Object.keys;
   var defineProperty = Object.defineProperty;
@@ -51,7 +51,7 @@ test('Object.assign', function (assert) {
       assert.strictEqual(Function('return Object.assign({b: 1}, {get a(){Object.defineProperty(this, "b", {value:4,enumerable:false});},b: 2})')().b, 1);
     } catch (e) { /* empty */ }
   }
-  var string = 'abcdefghijklmnopqrst';
+  string = 'abcdefghijklmnopqrst';
   var result = {};
   for (var i = 0, length = string.length; i < length; ++i) {
     var char = string.charAt(i);

@@ -1,4 +1,5 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, PROTO } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
 
 var Promise = core.Promise;
 var Symbol = core.Symbol;
@@ -6,7 +7,7 @@ var bind = core.Function.bind;
 var setPrototypeOf = core.Object.setPrototypeOf;
 var create = core.Object.create;
 
-test('Promise', function (assert) {
+QUnit.test('Promise', function (assert) {
   assert.isFunction(Promise);
   assert['throws'](function () {
     Promise();
@@ -14,60 +15,58 @@ test('Promise', function (assert) {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    assert.same(this, global, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
 });
 
-if (DESCRIPTORS) {
-  test('Promise operations order', function (assert) {
-    var resolve, resolve2;
-    assert.expect(1);
-    var EXPECTED_ORDER = 'DEHAFGBC';
-    var async = assert.async();
-    var result = '';
-    var promise1 = new Promise(function (r) {
-      resolve = r;
-    });
-    resolve({
-      then: function () {
-        result += 'A';
-        throw Error();
-      }
-    });
-    promise1['catch'](function () {
-      result += 'B';
-    });
-    promise1['catch'](function () {
-      result += 'C';
-      assert.same(result, EXPECTED_ORDER);
-      async();
-    });
-    var promise2 = new Promise(function (r) {
-      resolve2 = r;
-    });
-    resolve2(Object.defineProperty({}, 'then', {
-      get: function () {
-        result += 'D';
-        throw Error();
-      }
-    }));
-    result += 'E';
-    promise2['catch'](function () {
-      result += 'F';
-    });
-    promise2['catch'](function () {
-      result += 'G';
-    });
-    result += 'H';
-    setTimeout(function () {
-      if (~result.indexOf('C')) {
-        assert.same(result, EXPECTED_ORDER);
-      }
-    }, 1e3);
+if (DESCRIPTORS) QUnit.test('Promise operations order', function (assert) {
+  var resolve, resolve2;
+  assert.expect(1);
+  var EXPECTED_ORDER = 'DEHAFGBC';
+  var async = assert.async();
+  var result = '';
+  var promise1 = new Promise(function (r) {
+    resolve = r;
   });
-}
+  resolve({
+    then: function () {
+      result += 'A';
+      throw Error();
+    }
+  });
+  promise1['catch'](function () {
+    result += 'B';
+  });
+  promise1['catch'](function () {
+    result += 'C';
+    assert.same(result, EXPECTED_ORDER);
+    async();
+  });
+  var promise2 = new Promise(function (r) {
+    resolve2 = r;
+  });
+  resolve2(Object.defineProperty({}, 'then', {
+    get: function () {
+      result += 'D';
+      throw Error();
+    }
+  }));
+  result += 'E';
+  promise2['catch'](function () {
+    result += 'F';
+  });
+  promise2['catch'](function () {
+    result += 'G';
+  });
+  result += 'H';
+  setTimeout(function () {
+    if (~result.indexOf('C')) {
+      assert.same(result, EXPECTED_ORDER);
+    }
+  }, 1e3);
+});
 
-test('Promise#then', function (assert) {
+QUnit.test('Promise#then', function (assert) {
   var FakePromise1, FakePromise2;
   assert.isFunction(Promise.prototype.then);
   assert.nonEnumerable(Promise.prototype, 'then');
@@ -112,7 +111,7 @@ test('Promise#then', function (assert) {
   }, 'NewPromiseCapability validations, #3');
 });
 
-test('Promise#catch', function (assert) {
+QUnit.test('Promise#catch', function (assert) {
   var FakePromise1, FakePromise2;
   assert.isFunction(Promise.prototype['catch']);
   assert.nonEnumerable(Promise.prototype, 'catch');
@@ -162,11 +161,11 @@ test('Promise#catch', function (assert) {
   }, 42), 42, 'calling `.then`');
 });
 
-test('Promise#@@toStringTag', function (assert) {
+QUnit.test('Promise#@@toStringTag', function (assert) {
   assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
 });
 
-test('Promise.all', function (assert) {
+QUnit.test('Promise.all', function (assert) {
   var FakePromise1, FakePromise2, FakePromise3;
   var all = Promise.all;
   assert.isFunction(all);
@@ -228,7 +227,7 @@ test('Promise.all', function (assert) {
   }, 'NewPromiseCapability validations, #3');
 });
 
-test('Promise.race', function (assert) {
+QUnit.test('Promise.race', function (assert) {
   var FakePromise1, FakePromise2, FakePromise3;
   var race = Promise.race;
   assert.isFunction(race);
@@ -290,7 +289,7 @@ test('Promise.race', function (assert) {
   }, 'NewPromiseCapability validations, #3');
 });
 
-test('Promise.resolve', function (assert) {
+QUnit.test('Promise.resolve', function (assert) {
   var resolve = Promise.resolve;
   assert.isFunction(resolve);
   assert['throws'](function () {
@@ -318,7 +317,7 @@ test('Promise.resolve', function (assert) {
   }, 'NewPromiseCapability validations, #3');
 });
 
-test('Promise.reject', function (assert) {
+QUnit.test('Promise.reject', function (assert) {
   var reject = Promise.reject;
   assert.isFunction(reject);
   assert['throws'](function () {
@@ -346,45 +345,43 @@ test('Promise.reject', function (assert) {
   }, 'NewPromiseCapability validations, #3');
 });
 
-if (PROTO) {
-  test('Promise subclassing', function (assert) {
-    function SubPromise(executor) {
-      var self = new Promise(executor);
-      setPrototypeOf(self, SubPromise.prototype);
-      self.mine = 'subclass';
-      return self;
-    }
-    setPrototypeOf(SubPromise, Promise);
-    SubPromise.prototype = create(Promise.prototype);
-    SubPromise.prototype.constructor = SubPromise;
-    var promise1 = SubPromise.resolve(5);
-    assert.strictEqual(promise1.mine, 'subclass');
-    promise1 = promise1.then(function (it) {
-      assert.strictEqual(it, 5);
-    });
-    assert.strictEqual(promise1.mine, 'subclass');
-    var promise2 = new SubPromise(function (resolve) {
-      resolve(6);
-    });
-    assert.strictEqual(promise2.mine, 'subclass');
-    promise2 = promise2.then(function (it) {
-      assert.strictEqual(it, 6);
-    });
-    assert.strictEqual(promise2.mine, 'subclass');
-    var promise3 = SubPromise.all([promise1, promise2]);
-    assert.strictEqual(promise3.mine, 'subclass');
-    assert.ok(promise3 instanceof Promise);
-    assert.ok(promise3 instanceof SubPromise);
-    promise3.then(assert.async(), function (it) {
-      assert.ok(it, false);
-    });
+if (PROTO) QUnit.test('Promise subclassing', function (assert) {
+  function SubPromise(executor) {
+    var self = new Promise(executor);
+    setPrototypeOf(self, SubPromise.prototype);
+    self.mine = 'subclass';
+    return self;
+  }
+  setPrototypeOf(SubPromise, Promise);
+  SubPromise.prototype = create(Promise.prototype);
+  SubPromise.prototype.constructor = SubPromise;
+  var promise1 = SubPromise.resolve(5);
+  assert.strictEqual(promise1.mine, 'subclass');
+  promise1 = promise1.then(function (it) {
+    assert.strictEqual(it, 5);
   });
-}
+  assert.strictEqual(promise1.mine, 'subclass');
+  var promise2 = new SubPromise(function (resolve) {
+    resolve(6);
+  });
+  assert.strictEqual(promise2.mine, 'subclass');
+  promise2 = promise2.then(function (it) {
+    assert.strictEqual(it, 6);
+  });
+  assert.strictEqual(promise2.mine, 'subclass');
+  var promise3 = SubPromise.all([promise1, promise2]);
+  assert.strictEqual(promise3.mine, 'subclass');
+  assert.ok(promise3 instanceof Promise);
+  assert.ok(promise3 instanceof SubPromise);
+  promise3.then(assert.async(), function (it) {
+    assert.ok(it, false);
+  });
+});
 
-test('Unhandled rejection tracking', function (assert) {
+QUnit.test('Unhandled rejection tracking', function (assert) {
   var done = false;
   var start = assert.async();
-  if (global.process) {
+  if (GLOBAL.process) {
     assert.expect(3);
     var onunhandledrejection = function (reason, promise) {
       process.removeListener('unhandledRejection', onunhandledrejection);
@@ -402,18 +399,18 @@ test('Unhandled rejection tracking', function (assert) {
     process.on('rejectionHandled', onrejectionhandled);
   } else {
     assert.expect(4);
-    global.onunhandledrejection = function (it) {
+    GLOBAL.onunhandledrejection = function (it) {
       assert.same(it.promise, $promise, 'onunhandledrejection, promise');
       assert.same(it.reason, 42, 'onunhandledrejection, reason');
       setTimeout(function () {
         $promise['catch'](function () { /* empty */ });
       }, 1);
-      global.onunhandledrejection = null;
+      GLOBAL.onunhandledrejection = null;
     };
-    global.onrejectionhandled = function (it) {
+    GLOBAL.onrejectionhandled = function (it) {
       assert.same(it.promise, $promise, 'onrejectionhandled, promise');
       assert.same(it.reason, 42, 'onrejectionhandled, reason');
-      global.onrejectionhandled = null;
+      GLOBAL.onrejectionhandled = null;
       done || start();
       done = true;
     };

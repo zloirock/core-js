@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Array.isArray', function (assert) {
+QUnit.test('Array.isArray', function (assert) {
   var isArray = Array.isArray;
   assert.isFunction(isArray);
   assert.arity(isArray, 1);

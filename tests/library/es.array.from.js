@@ -1,6 +1,7 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
 
-test('Array.from', function (assert) {
+QUnit.test('Array.from', function (assert) {
   var from = core.Array.from;
   var Symbol = core.Symbol;
   var defineProperty = core.Object.defineProperty;

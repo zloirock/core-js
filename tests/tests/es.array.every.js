@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#every', function (assert) {
+QUnit.test('Array#every', function (assert) {
   var every = Array.prototype.every;
   assert.isFunction(every);
   assert.arity(every, 1);

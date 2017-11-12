@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#trim', function (assert) {
+QUnit.test('String#trim', function (assert) {
   var trim = String.prototype.trim;
   assert.isFunction(''.trim);
   assert.arity(trim, 0);

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Function#bind', function (assert) {
+QUnit.test('Function#bind', function (assert) {
   var bind = Function.prototype.bind;
   assert.isFunction(bind);
   assert.arity(bind, 1);

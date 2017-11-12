@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Reflect.deleteProperty', function (assert) {
+QUnit.test('Reflect.deleteProperty', function (assert) {
   var deleteProperty = core.Reflect.deleteProperty;
   var defineProperty = core.Object.defineProperty;
   var keys = core.Object.keys;

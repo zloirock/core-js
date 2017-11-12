@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.deleteMetadata', function (assert) {
+QUnit.test('Reflect.deleteMetadata', function (assert) {
   var defineMetadata = core.Reflect.defineMetadata;
   var hasOwnMetadata = core.Reflect.hasOwnMetadata;
   var deleteMetadata = core.Reflect.deleteMetadata;

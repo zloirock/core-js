@@ -1,11 +1,12 @@
-var test = QUnit.test;
+import { GLOBAL, NATIVE } from '../helpers/constants';
 
-test('Object.seal', function (assert) {
+QUnit.test('Object.seal', function (assert) {
   var seal = Object.seal;
+  var isSealed = Object.isSealed;
   var keys = Object.keys;
   var getOwnPropertyNames = Object.getOwnPropertyNames;
   var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-  var ownKeys = (global.Reflect || {}).ownKeys;
+  var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
   assert.isFunction(seal);
   assert.arity(seal, 1);
   assert.name(seal, 'seal');
@@ -22,6 +23,7 @@ test('Object.seal', function (assert) {
     }(), 'accept ' + {}.toString.call(value).slice(8, -1));
     assert.same(seal(value), value, 'returns target on ' + {}.toString.call(value).slice(8, -1));
   }
+  if (NATIVE) assert.ok(isSealed(seal({})));
   var results = [];
   for (var key in seal({})) results.push(key);
   assert.arrayEqual(results, []);

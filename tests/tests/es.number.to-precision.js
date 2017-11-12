@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number#toPrecision', function (assert) {
+QUnit.test('Number#toPrecision', function (assert) {
   var toPrecision = Number.prototype.toPrecision;
   assert.isFunction(toPrecision);
   assert.name(toPrecision, 'toPrecision');

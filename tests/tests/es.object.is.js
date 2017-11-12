@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.is', function (assert) {
+QUnit.test('Object.is', function (assert) {
   var is = Object.is;
   assert.isFunction(is);
   assert.arity(is, 2);

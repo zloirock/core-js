@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, STRICT, NATIVE } from '../helpers/constants';
 
-test('String#match regression', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('String#match regression', function (assert) {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -100,7 +101,7 @@ test('String#match regression', function (assert) {
   string = 'Boston, Mass. 02134';
   assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[0], '02134', 'S15.5.4.10_A2_T6 #1');
   assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[1], '02134', 'S15.5.4.10_A2_T6 #2');
-  NATIVE && assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[2], undefined, 'S15.5.4.10_A2_T6 #3');
+  if (NATIVE) assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[2], undefined, 'S15.5.4.10_A2_T6 #3');
   assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
   assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
   assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
@@ -168,7 +169,7 @@ test('String#match regression', function (assert) {
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T16 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T16 #2');
   regexp = /0./;
-  number = 10203040506070809000;
+  var number = 10203040506070809000;
   assert.strictEqual(''.match.call(number, regexp)[0], '02', 'S15.5.4.10_A2_T17 #1');
   assert.strictEqual(''.match.call(number, regexp).length, 1, 'S15.5.4.10_A2_T17 #2');
   assert.strictEqual(''.match.call(number, regexp).index, 1, 'S15.5.4.10_A2_T17 #3');
@@ -182,7 +183,7 @@ test('String#match regression', function (assert) {
   assert.strictEqual(''.match.call(number, regexp).input, String(number), 'S15.5.4.10_A2_T18 #4');
 });
 
-test('RegExp#@@match', function (assert) {
+QUnit.test('RegExp#@@match', function (assert) {
   assert.isFunction(/./[Symbol.match]);
   assert.arity(/./[Symbol.match], 1);
   var string = 'Boston, MA 02134';
@@ -194,7 +195,7 @@ test('RegExp#@@match', function (assert) {
   }
 });
 
-test('@@match logic', function (assert) {
+QUnit.test('@@match logic', function (assert) {
   var string = STRICT ? 'string' : Object('string');
   var number = STRICT ? 42 : Object(42);
   var object = {};

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.entries', function (assert) {
+QUnit.test('Object.entries', function (assert) {
   var entries = Object.entries;
   var create = Object.create;
   var assign = Object.assign;

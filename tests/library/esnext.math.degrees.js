@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.degrees', function (assert) {
+QUnit.test('Math.degrees', function (assert) {
   var degrees = core.Math.degrees;
   assert.isFunction(degrees);
   assert.arity(degrees, 1);

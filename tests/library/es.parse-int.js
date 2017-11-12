@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('parseInt', function (assert) {
+QUnit.test('parseInt', function (assert) {
   var parseInt = core.parseInt;
   assert.isFunction(parseInt);
   assert.arity(parseInt, 2);

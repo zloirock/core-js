@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#anchor', function (assert) {
+QUnit.test('String#anchor', function (assert) {
   var anchor = core.String.anchor;
   assert.isFunction(anchor);
   assert.same(anchor('a', 'b'), '<a name="b">a</a>', 'lower case');

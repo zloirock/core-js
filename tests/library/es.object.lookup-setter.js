@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  test('Object#__lookupSetter__', function (assert) {
+  QUnit.test('Object#__lookupSetter__', function (assert) {
     var __lookupSetter__ = core.Object.__lookupSetter__;
     var __defineSetter__ = core.Object.__defineSetter__;
     var create = core.Object.create;

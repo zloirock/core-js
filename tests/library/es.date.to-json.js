@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Date#toJSON', function (assert) {
+QUnit.test('Date#toJSON', function (assert) {
   var toJSON = core.Date.toJSON;
   var toISOString = core.Date.toISOString;
   assert.isFunction(toJSON);

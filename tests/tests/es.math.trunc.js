@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.trunc', function (assert) {
+QUnit.test('Math.trunc', function (assert) {
   var trunc = Math.trunc;
   assert.isFunction(trunc);
   assert.name(trunc, 'trunc');

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.create', function (assert) {
+QUnit.test('Object.create', function (assert) {
   var create = Object.create;
   var getPrototypeOf = Object.getPrototypeOf;
   var getOwnPropertyNames = Object.getOwnPropertyNames;

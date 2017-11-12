@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('RegExp#toString', function (assert) {
+QUnit.test('RegExp#toString', function (assert) {
   var toString = /./.toString;
   assert.isFunction(toString);
   assert.arity(toString, 0);

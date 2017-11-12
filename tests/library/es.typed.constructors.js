@@ -1,4 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
+
 var ArrayBuffer = core.ArrayBuffer;
 var Symbol = core.Symbol;
 var keys = core.Object.keys;
@@ -6,23 +8,11 @@ var getOwnPropertyDescriptor = core.Object.getOwnPropertyDescriptor;
 var defineProperty = core.Object.defineProperty;
 var assign = core.Object.assign;
 
-var arrays = {
-  Float32Array: 4,
-  Float64Array: 8,
-  Int8Array: 1,
-  Int16Array: 2,
-  Int32Array: 4,
-  Uint8Array: 1,
-  Uint16Array: 2,
-  Uint32Array: 4,
-  Uint8ClampedArray: 1
-};
-
 if (DESCRIPTORS) {
-  for (var name in arrays) !function (name, bytes) {
+  for (var name in TYPED_ARRAYS) !function (name, bytes) {
     var TypedArray = core[name];
 
-    test(name + ' constructor', function (assert) {
+    QUnit.test(name + ' constructor', function (assert) {
       assert.isFunction(TypedArray);
       assert.same(TypedArray.BYTES_PER_ELEMENT, bytes, name + '.BYTES_PER_ELEMENT');
       var array = new TypedArray(4);
@@ -197,7 +187,7 @@ if (DESCRIPTORS) {
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
     });
 
-    test(name + ' descriptors', function (assert) {
+    QUnit.test(name + ' descriptors', function (assert) {
       var array = new TypedArray(2);
       var descriptor = getOwnPropertyDescriptor(array, 0);
       var base = NATIVE ? {
@@ -279,5 +269,5 @@ if (DESCRIPTORS) {
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
     });
-  }(name, arrays[name]);
+  }(name, TYPED_ARRAYS[name]);
 }

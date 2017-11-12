@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.isSealed', function (assert) {
+QUnit.test('Object.isSealed', function (assert) {
   var isSealed = core.Object.isSealed;
   assert.isFunction(isSealed);
   assert.arity(isSealed, 1);

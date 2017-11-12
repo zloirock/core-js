@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('asap', function (assert) {
+QUnit.test('asap', function (assert) {
   var asap = core.asap;
   assert.expect(3);
   assert.isFunction(asap);

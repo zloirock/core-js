@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String.fromCodePoint', function (assert) {
+QUnit.test('String.fromCodePoint', function (assert) {
   var fromCodePoint = String.fromCodePoint;
   assert.isFunction(fromCodePoint);
   assert.arity(fromCodePoint, 1);

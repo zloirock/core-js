@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Date#toISOString', function (assert) {
+QUnit.test('Date#toISOString', function (assert) {
   var toISOString = Date.prototype.toISOString;
   assert.isFunction(toISOString);
   assert.arity(toISOString, 0);

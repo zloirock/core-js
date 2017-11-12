@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Promise#finally', function (assert) {
+QUnit.test('Promise#finally', function (assert) {
   assert.isFunction(Promise.prototype['finally']);
   assert.arity(Promise.prototype['finally'], 1);
   assert.looksNative(Promise.prototype['finally']);
@@ -8,7 +6,7 @@ test('Promise#finally', function (assert) {
   assert.ok(Promise.resolve(42)['finally'](function () { /* empty */ }) instanceof Promise, 'returns a promise');
 });
 
-test('Promise#finally, resolved', function (assert) {
+QUnit.test('Promise#finally, resolved', function (assert) {
   assert.expect(3);
   var async = assert.async();
   var called = 0;
@@ -24,7 +22,7 @@ test('Promise#finally, resolved', function (assert) {
   });
 });
 
-test('Promise#finally, rejected', function (assert) {
+QUnit.test('Promise#finally, rejected', function (assert) {
   assert.expect(2);
   var async = assert.async();
   var called = 0;

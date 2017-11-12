@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#italics', function (assert) {
+QUnit.test('String#italics', function (assert) {
   var italics = String.prototype.italics;
   assert.isFunction(italics);
   assert.arity(italics, 0);

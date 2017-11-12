@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#fill', function (assert) {
+QUnit.test('Array#fill', function (assert) {
   var fill = core.Array.fill;
   assert.isFunction(fill);
   var array = fill(Array(5), 5);

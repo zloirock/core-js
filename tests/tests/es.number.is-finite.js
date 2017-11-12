@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.isFinite', function (assert) {
+QUnit.test('Number.isFinite', function (assert) {
   var isFinite = Number.isFinite;
   var create = Object.create;
   assert.isFunction(isFinite);
