@@ -15,10 +15,10 @@ QUnit.test('Object.assign', function (assert) {
   assert.strictEqual(object.bar, 2, 'assign define properties');
   assert.deepEqual(assign({}, { q: 1 }, { w: 2 }), { q: 1, w: 2 });
   assert.deepEqual(assign({}, 'qwe'), { 0: 'q', 1: 'w', 2: 'e' });
-  assert['throws'](function () {
+  assert.throws(function () {
     assign(null, { q: 1 });
   }, TypeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     assign(undefined, { q: 1 });
   }, TypeError);
   var string = assign('qwe', { q: 1 });

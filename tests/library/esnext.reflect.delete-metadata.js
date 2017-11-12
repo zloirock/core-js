@@ -5,7 +5,7 @@ QUnit.test('Reflect.deleteMetadata', function (assert) {
   var create = core.Object.create;
   assert.isFunction(deleteMetadata);
   assert.arity(deleteMetadata, 2);
-  assert['throws'](function () {
+  assert.throws(function () {
     deleteMetadata('key', undefined, undefined);
   }, TypeError);
   assert.same(deleteMetadata('key', {}, undefined), false);

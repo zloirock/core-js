@@ -24,7 +24,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.subarray', function (assert) 
     assert.arrayEqual(array1.subarray(-1, -4), []);
     assert.arrayEqual(array1.subarray(1).subarray(1), [3, 4, 5]);
     assert.arrayEqual(array1.subarray(1, 4).subarray(1, 2), [3]);
-    assert['throws'](function () {
+    assert.throws(function () {
       subarray.call([1, 2, 3], 1);
     }, "isn't generic");
   }

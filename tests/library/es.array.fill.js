@@ -11,10 +11,10 @@ QUnit.test('Array#fill', function (assert) {
   assert.deepEqual(fill(Array(5), 5, 6, 1), [undefined, undefined, undefined, undefined, undefined]);
   assert.deepEqual(fill(Array(5), 5, -3, 4), [undefined, undefined, 5, 5, undefined]);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       fill(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       fill(undefined, 0);
     }, TypeError);
   }

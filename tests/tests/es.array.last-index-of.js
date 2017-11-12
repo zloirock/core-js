@@ -17,10 +17,10 @@ QUnit.test('Array#lastIndexOf', function (assert) {
   assert.same(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   assert.same(0, [1].lastIndexOf(1, -0), "shouldn't return negative zero");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       lastIndexOf.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       lastIndexOf.call(undefined, 0);
     }, TypeError);
   }

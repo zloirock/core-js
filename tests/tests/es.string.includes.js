@@ -14,15 +14,15 @@ QUnit.test('String#includes', function (assert) {
   assert.ok('abcd'.includes('b', 1));
   assert.ok(!'abcd'.includes('b', 2));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       String.prototype.includes.call(null, '.');
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       String.prototype.includes.call(undefined, '.');
     }, TypeError);
   }
   var regexp = /./;
-  assert['throws'](function () {
+  assert.throws(function () {
     '/./'.includes(regexp);
   }, TypeError);
   regexp[Symbol.match] = false;
@@ -38,7 +38,7 @@ QUnit.test('String#includes', function (assert) {
     } catch (e) { /* empty */ }
   }());
   object[Symbol.match] = true;
-  assert['throws'](function () {
+  assert.throws(function () {
     '[object Object]'.includes(object);
   }, TypeError);
 });

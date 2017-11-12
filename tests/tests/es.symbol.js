@@ -70,7 +70,7 @@ QUnit.test('Global symbol registry', function (assert) {
   var symbol = Symbol['for']('foo');
   assert.strictEqual(Symbol['for']('foo'), symbol);
   assert.strictEqual(Symbol.keyFor(symbol), 'foo');
-  assert['throws'](function () {
+  assert.throws(function () {
     Symbol.keyFor('foo');
   }, 'throws on non-symbol');
 });

@@ -26,10 +26,10 @@ QUnit.test('Array#map', function (assert) {
     return +this;
   }, 2));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       map.call(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       map.call(undefined, function () { /* empty */ });
     }, TypeError);
   }

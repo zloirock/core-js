@@ -87,10 +87,10 @@ QUnit.test('String#at', function (assert) {
     }
   }, 2), 'c');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       at(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       at(undefined, 0);
     }, TypeError);
   }

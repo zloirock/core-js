@@ -8,7 +8,7 @@ QUnit.test('core.getIterator', function (assert) {
     return arguments;
   }()));
   assert.isIterator(getIterator(createIterable([])));
-  assert['throws'](function () {
+  assert.throws(function () {
     getIterator({});
   }, TypeError);
 });

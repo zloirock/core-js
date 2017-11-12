@@ -18,10 +18,10 @@ QUnit.test('Array#find', function (assert) {
     return it === 43;
   }), undefined);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       find(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       find(undefined, 0);
     }, TypeError);
   }

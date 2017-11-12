@@ -17,10 +17,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.of', function (assert) {
     instance = TypedArray.of(1, 2, 3);
     assert.ok(instance instanceof TypedArray, 'correct instance with several arguments');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with several arguments');
-    assert['throws'](function () {
+    assert.throws(function () {
       TypedArray.of.call(undefined, 1);
     }, "isn't generic #1");
-    if (NATIVE) assert['throws'](function () {
+    if (NATIVE) assert.throws(function () {
       TypedArray.of.call(Array, 1);
     }, "isn't generic #2");
   }

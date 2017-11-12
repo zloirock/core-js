@@ -8,7 +8,7 @@ QUnit.test('WeakMap.of', function (assert) {
   var array = [];
   assert.ok(WeakMap.of() instanceof WeakMap);
   assert.same(WeakMap.of([array, 2]).get(array), 2);
-  assert['throws'](function () {
+  assert.throws(function () {
     of(1);
   });
   var arg = null;

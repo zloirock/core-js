@@ -11,13 +11,13 @@ QUnit.test('Reflect.apply', function (assert) {
   }
   f.apply = 42;
   assert.strictEqual(apply(f, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
-  assert['throws'](function () {
+  assert.throws(function () {
     apply(42, null, []);
   }, TypeError, 'throws on primitive');
-  assert['throws'](function () {
+  assert.throws(function () {
     apply(function () { /* empty */ }, null);
   }, TypeError, 'throws without third argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     apply(function () { /* empty */ }, null, '123');
   }, TypeError, 'throws on primitive as third argument');
 });

@@ -9,17 +9,17 @@ QUnit.test('String#repeat', function (assert) {
   assert.nonEnumerable(String.prototype, 'repeat');
   assert.strictEqual('qwe'.repeat(3), 'qweqweqwe');
   assert.strictEqual('qwe'.repeat(2.5), 'qweqwe');
-  assert['throws'](function () {
+  assert.throws(function () {
     'qwe'.repeat(-1);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     'qwe'.repeat(Infinity);
   }, RangeError);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       repeat.call(null, 1);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       repeat.call(undefined, 1);
     }, TypeError);
   }

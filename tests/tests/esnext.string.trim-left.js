@@ -12,10 +12,10 @@ QUnit.test('String#trimLeft', function (assert) {
   assert.strictEqual(whitespaces.trimLeft(), '', 'removes all whitespaces');
   assert.strictEqual('\u200b\u0085'.trimLeft(), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       trimLeft.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       trimLeft.call(undefined, 0);
     }, TypeError);
   }
@@ -33,10 +33,10 @@ QUnit.test('String#trimStart', function (assert) {
   assert.strictEqual(whitespaces.trimStart(), '', 'removes all whitespaces');
   assert.strictEqual('\u200b\u0085'.trimStart(), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       trimStart.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       trimStart.call(undefined, 0);
     }, TypeError);
   }

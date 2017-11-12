@@ -11,10 +11,10 @@ QUnit.test('Array#join', function (assert) {
   assert.strictEqual(join.call('123'), '1,2,3');
   assert.strictEqual(join.call('123', '|'), '1|2|3');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       join.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       join.call(undefined, 0);
     }, TypeError);
   }

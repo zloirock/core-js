@@ -15,7 +15,7 @@ QUnit.test('setImmediate / clearImmediate', function (assert) {
     });
   }).then(function () {
     assert.ok(true, 'setImmediate works');
-  })['catch'](function () {
+  }).catch(function () {
     assert.ok(false, 'setImmediate works');
   }).then(assert.async());
   assert.strictEqual(called, false, 'setImmediate is async');
@@ -25,14 +25,14 @@ QUnit.test('setImmediate / clearImmediate', function (assert) {
     }, 'a', 'b');
   }).then(function (it) {
     assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
-  })['catch'](function () {
+  }).catch(function () {
     assert.ok(false, 'setImmediate works with additional args');
   }).then(assert.async());
   timeLimitedPromise(50, function (res) {
     clearImmediate(setImmediate(res));
   }).then(function () {
     assert.ok(false, 'clearImmediate works');
-  })['catch'](function () {
+  }).catch(function () {
     assert.ok(true, 'clearImmediate works');
   }).then(assert.async());
 });

@@ -19,10 +19,10 @@ QUnit.test('Object.getOwnPropertyDescriptor', function (assert) {
       } catch (e) { /* empty */ }
     }(), 'accept ' + typeof value);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     getOwnPropertyDescriptor(null);
   }, TypeError, 'throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     getOwnPropertyDescriptor(undefined);
   }, TypeError, 'throws on undefined');
 });

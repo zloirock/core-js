@@ -23,19 +23,19 @@ QUnit.test('RegExp#toString', function (assert) {
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       toString.call(7);
     });
-    assert['throws'](function () {
+    assert.throws(function () {
       toString.call('a');
     });
-    assert['throws'](function () {
+    assert.throws(function () {
       toString.call(false);
     });
-    assert['throws'](function () {
+    assert.throws(function () {
       toString.call(null);
     });
-    assert['throws'](function () {
+    assert.throws(function () {
       toString.call(undefined);
     });
   }

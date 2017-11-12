@@ -17,7 +17,7 @@ QUnit.test('Set.from', function (assert) {
     assert.same(this, context);
     return element;
   }, context);
-  assert['throws'](function () {
+  assert.throws(function () {
     from(1);
   });
   var arg = null;

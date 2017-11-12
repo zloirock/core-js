@@ -56,10 +56,10 @@ QUnit.test('Array.from', function (assert) {
     var primitive = primitives[i];
     assert.arrayEqual(from(primitive), [], 'Works with ' + primitive);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     from(null);
   }, TypeError, 'Throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     from(undefined);
   }, TypeError, 'Throws on undefined');
   assert.arrayEqual(from('𠮷𠮷𠮷'), ['𠮷', '𠮷', '𠮷'], 'Uses correct string iterator');
@@ -117,19 +117,19 @@ QUnit.test('Array.from', function (assert) {
     } catch (e) { /* empty */ }
   }(), 'Uses ToLength');
   assert.arrayEqual(from([], undefined), [], 'Works with undefined as asecond argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     from([], null);
   }, TypeError, 'Throws with null as second argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     from([], 0);
   }, TypeError, 'Throws with 0 as second argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     from([], '');
   }, TypeError, 'Throws with "" as second argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     from([], false);
   }, TypeError, 'Throws with false as second argument');
-  assert['throws'](function () {
+  assert.throws(function () {
     from([], {});
   }, TypeError, 'Throws with {} as second argument');
   if (DESCRIPTORS) {

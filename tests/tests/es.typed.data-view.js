@@ -28,31 +28,31 @@ QUnit.test('DataView', function (assert) {
     assert.same(dataview.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
     assert.same(dataview.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
     // TypeError in IE + FF bug - TypeError instead of RangeError
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(8), -1);
     }, RangeError, 'If offset < 0, throw a RangeError exception');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(8), 16);
     }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(24), 8, 24);
     }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
     // Android ~ 4.0
-    assert['throws'](function () {
+    assert.throws(function () {
       DataView(1);
     }, TypeError, 'throws without `new`');
-    assert['throws'](function () {
+    assert.throws(function () {
       DataView(1);
     }, 'throws without `new`');
   } else {
     // FF bug - TypeError instead of RangeError
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(8), -1);
     }, 'If offset < 0, throw a RangeError exception');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(8), 16);
     }, 'If newByteLength < 0, throw a RangeError exception');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(new ArrayBuffer(24), 8, 24);
     }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
   }
@@ -65,7 +65,7 @@ QUnit.test('DataView', function (assert) {
   assert.same(dataview.getUint32(0), 0x78563412, 'little endian/big endian');
   dataview.setUint32(0, 0x12345678);
   assert.same(dataview.getUint32(0, true), 0x78563412, 'big endian/little endian');
-  assert['throws'](function () {
+  assert.throws(function () {
     new DataView({});
   }, 'non-ArrayBuffer argument');
   assert.ok(function () {
@@ -117,63 +117,63 @@ if (DESCRIPTORS) {
     var dataview = new DataView(buffer);
     assert.same(dataview.byteLength, 8, 'buffer');
     assert.same(dataview.byteOffset, 0, 'buffer');
-    assert['throws'](function () {
+    assert.throws(function () {
       return dataview.getUint8(-2);
     });
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.getUint8(8);
     }, 'bounds for buffer');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(-2, 0);
     }, 'bounds for buffer');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(8, 0);
     }, 'bounds for buffer');
     dataview = new DataView(buffer, 2);
     assert.same(dataview.byteLength, 6, 'buffer, byteOffset');
     assert.same(dataview.byteOffset, 2, 'buffer, byteOffset');
     assert.same(dataview.getUint8(5), 7, 'buffer, byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.getUint8(-2);
     }, 'bounds for buffer, byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.getUint8(6);
     }, 'bounds for buffer, byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(6, 0);
     }, 'bounds for buffer, byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(buffer, -1);
     }, 'invalid byteOffset');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(buffer, 9);
     }, 'invalid byteOffset');
     dataview = new DataView(buffer, 2, 4);
     assert.same(dataview.byteLength, 4, 'buffer, byteOffset, length');
     assert.same(dataview.byteOffset, 2, 'buffer, byteOffset, length');
     assert.same(dataview.getUint8(3), 5, 'buffer, byteOffset, length');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.getUint8(-2);
     }, 'bounds for buffer, byteOffset, length');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.getUint8(4);
     }, 'bounds for buffer, byteOffset, length');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(-2, 0);
     }, 'bounds for buffer, byteOffset, length');
-    assert['throws'](function () {
+    assert.throws(function () {
       dataview.setUint8(4, 0);
     }, 'bounds for buffer, byteOffset, length');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(buffer, 0, 9);
     }, 'invalid byteOffset+length');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(buffer, 8, 1);
     }, 'invalid byteOffset+length');
-    assert['throws'](function () {
+    assert.throws(function () {
       new DataView(buffer, 9, -1);
     }, 'invalid byteOffset+length');
   });
