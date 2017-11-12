@@ -58,6 +58,11 @@ module.exports = options => {
       suffix: '.js',
     });
     webpack({
+      node: {
+        global: false,
+        process: false,
+        setImmediate: false,
+      },
       entry: list
         .filter(it => modules[it])
         .map(it => library
