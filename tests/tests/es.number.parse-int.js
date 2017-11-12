@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { GLOBAL } from '../helpers/constants';
 
-test('Number.parseInt', function (assert) {
+QUnit.test('Number.parseInt', function (assert) {
   var parseInt = Number.parseInt;
   assert.isFunction(parseInt);
   assert.isFunction(parseInt);
@@ -8,7 +8,7 @@ test('Number.parseInt', function (assert) {
   assert.arity(parseInt, 2);
   assert.looksNative(parseInt);
   assert.nonEnumerable(Number, 'parseInt');
-  assert.same(parseInt, global.parseInt);
+  assert.same(parseInt, GLOBAL.parseInt);
   for (var radix = 2; radix <= 36; ++radix) {
     assert.same(parseInt('10', radix), radix, 'radix ' + radix);
   }

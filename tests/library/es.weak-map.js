@@ -1,4 +1,5 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
+import { createIterable, nativeSubclass } from '../helpers/helpers';
 
 var WeakMap = core.WeakMap;
 var Symbol = core.Symbol;
@@ -8,7 +9,7 @@ var getOwnPropertyNames = core.Object.getOwnPropertyNames;
 var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
 var ownKeys = core.Reflect.ownKeys;
 
-test('WeakMap', function (assert) {
+QUnit.test('WeakMap', function (assert) {
   assert.isFunction(WeakMap);
   assert.ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
   assert.ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
@@ -21,7 +22,7 @@ test('WeakMap', function (assert) {
   var frozen = freeze({});
   weakmap.set(frozen, 42);
   assert.strictEqual(weakmap.get(frozen), 42, 'Support frozen objects');
-  var weakmap = new WeakMap();
+  weakmap = new WeakMap();
   weakmap.set(frozen, 42);
   assert.strictEqual(weakmap.has(frozen), true, 'works with frozen objects, #1');
   assert.strictEqual(weakmap.get(frozen), 42, 'works with frozen objects, #2');
@@ -67,7 +68,7 @@ test('WeakMap', function (assert) {
   }
 });
 
-test('WeakMap#delete', function (assert) {
+QUnit.test('WeakMap#delete', function (assert) {
   assert.isFunction(WeakMap.prototype['delete']);
   var a = {};
   var b = {};
@@ -84,7 +85,7 @@ test('WeakMap#delete', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakMap#get', function (assert) {
+QUnit.test('WeakMap#get', function (assert) {
   assert.isFunction(WeakMap.prototype.get);
   var weakmap = new WeakMap();
   assert.strictEqual(weakmap.get({}), undefined, 'WeakMap .get() before .set() return undefined');
@@ -100,7 +101,7 @@ test('WeakMap#get', function (assert) {
   }(), 'return undefined on primitive');
 });
 
-test('WeakMap#has', function (assert) {
+QUnit.test('WeakMap#has', function (assert) {
   assert.isFunction(WeakMap.prototype.has);
   var weakmap = new WeakMap();
   assert.ok(!weakmap.has({}), 'WeakMap .has() before .set() return false');
@@ -116,7 +117,7 @@ test('WeakMap#has', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakMap#set', function (assert) {
+QUnit.test('WeakMap#set', function (assert) {
   assert.isFunction(WeakMap.prototype.set);
   var weakmap = new WeakMap();
   var object = {};
@@ -132,6 +133,6 @@ test('WeakMap#set', function (assert) {
   }(), 'throws with primitive keys');
 });
 
-test('WeakMap#@@toStringTag', function (assert) {
+QUnit.test('WeakMap#@@toStringTag', function (assert) {
   assert.strictEqual(WeakMap.prototype[Symbol.toStringTag], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
 });

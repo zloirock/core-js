@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.trunc', function (assert) {
+QUnit.test('Math.trunc', function (assert) {
   var trunc = core.Math.trunc;
   assert.isFunction(trunc);
   assert.same(trunc(NaN), NaN, 'NaN -> NaN');

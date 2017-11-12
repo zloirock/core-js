@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Map.of', function (assert) {
+QUnit.test('Map.of', function (assert) {
   var Map = core.Map;
   var of = Map.of;
   assert.isFunction(of);

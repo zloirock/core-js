@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#padEnd', function (assert) {
+QUnit.test('String#padEnd', function (assert) {
   var padEnd = String.prototype.padEnd;
   assert.isFunction(padEnd);
   assert.arity(padEnd, 1);

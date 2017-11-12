@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { NATIVE } from '../helpers/constants';
 
-test('Object.isExtensible', function (assert) {
+QUnit.test('Object.isExtensible', function (assert) {
   var preventExtensions = Object.preventExtensions;
   var isExtensible = Object.isExtensible;
   assert.isFunction(isExtensible);
@@ -20,8 +20,6 @@ test('Object.isExtensible', function (assert) {
     assert.same(isExtensible(value), false, 'returns true on ' + value);
   }
   assert.same(isExtensible({}), true);
-  if (NATIVE) {
-    assert.ok(!isExtensible(preventExtensions({})));
-  }
+  if (NATIVE) assert.ok(!isExtensible(preventExtensions({})));
 });
 

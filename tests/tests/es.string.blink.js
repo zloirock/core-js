@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#blink', function (assert) {
+QUnit.test('String#blink', function (assert) {
   var blink = String.prototype.blink;
   assert.isFunction(blink);
   assert.arity(blink, 0);

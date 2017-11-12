@@ -1,14 +1,7 @@
-var test = QUnit.test;
+import { GLOBAL } from '../helpers/constants';
+import { timeLimitedPromise } from '../helpers/helpers';
 
-function timeLimitedPromise(time, fn) {
-  return Promise.race([
-    new Promise(fn), new Promise(function (res, rej) {
-      setTimeout(rej, time);
-    })
-  ]);
-}
-
-test('setImmediate / clearImmediate', function (assert) {
+QUnit.test('setImmediate / clearImmediate', function (assert) {
   var called = false;
   assert.expect(8);
   assert.isFunction(setImmediate, 'setImmediate is function');
@@ -57,7 +50,8 @@ function perf() {
         x = x + 1;
         if (now() - time < 5e3) {
           inc();
-        } else if (global.console) {
+        } else if (GLOBAL.console) {
+          // eslint-disable-next-line no-console
           console.log('setImmediate: ' + x / 5 + ' per second');
         }
       });

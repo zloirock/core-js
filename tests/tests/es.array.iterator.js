@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, NATIVE } from '../helpers/constants';
 
-test('Array#keys', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('Array#keys', function (assert) {
   var keys = Array.prototype.keys;
   assert.isFunction(keys);
   assert.arity(keys, 0);
@@ -39,7 +40,7 @@ test('Array#keys', function (assert) {
   assert.ok('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
-test('Array#values', function (assert) {
+QUnit.test('Array#values', function (assert) {
   var values = Array.prototype.values;
   assert.isFunction(values);
   assert.arity(values, 0);
@@ -77,7 +78,7 @@ test('Array#values', function (assert) {
   assert.ok('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
-test('Array#entries', function (assert) {
+QUnit.test('Array#entries', function (assert) {
   var entries = Array.prototype.entries;
   assert.isFunction(entries);
   assert.arity(entries, 0);
@@ -115,7 +116,7 @@ test('Array#entries', function (assert) {
   assert.ok('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
-test('Array#@@iterator', function (assert) {
+QUnit.test('Array#@@iterator', function (assert) {
   assert.isIterable(Array.prototype);
   assert.arity(Array.prototype[Symbol.iterator], 0);
   assert.name(Array.prototype[Symbol.iterator], 'values');

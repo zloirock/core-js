@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Array.of', function (assert) {
+QUnit.test('Array.of', function (assert) {
   var Array = core.Array;
   var defineProperty = core.Object.defineProperty;
   assert.isFunction(Array.of);

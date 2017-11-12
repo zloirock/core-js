@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.expm1', function (assert) {
+QUnit.test('Math.expm1', function (assert) {
   var expm1 = core.Math.expm1;
   assert.isFunction(expm1);
   assert.same(expm1(NaN), NaN);

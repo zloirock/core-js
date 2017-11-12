@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
 
-DESCRIPTORS && test('Float64 conversions', function (assert) {
+if (DESCRIPTORS) QUnit.test('Float64 conversions', function (assert) {
   var float64array = new Float64Array(1);
   var uint8array = new Uint8Array(float64array.buffer);
   var dataview = new DataView(float64array.buffer);

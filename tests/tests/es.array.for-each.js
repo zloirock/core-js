@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#forEach', function (assert) {
+QUnit.test('Array#forEach', function (assert) {
   var forEach = Array.prototype.forEach;
   assert.isFunction(forEach);
   assert.arity(forEach, 1);

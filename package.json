@@ -8,6 +8,9 @@
   },
   "main": "index.js",
   "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.26.0",
     "es-observable-tests": "0.2.x",
     "eslint": "4.19.x",
     "eslint-plugin-import": "2.12.x",

@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Symbol.asyncIterator', function (assert) {
+QUnit.test('Symbol.asyncIterator', function (assert) {
   assert.ok('asyncIterator' in Symbol, 'Symbol.asyncIterator available');
   assert.nonEnumerable(Symbol, 'asyncIterator');
   assert.ok(Object(Symbol.asyncIterator) instanceof Symbol, 'Symbol.asyncIterator is symbol');

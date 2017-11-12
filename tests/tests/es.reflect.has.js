@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.has', function (assert) {
+QUnit.test('Reflect.has', function (assert) {
   var has = Reflect.has;
   assert.isFunction(has);
   assert.arity(has, 2);

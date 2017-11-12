@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#flatten', function (assert) {
+QUnit.test('Array#flatten', function (assert) {
   var flatten = core.Array.flatten;
   assert.isFunction(flatten);
   assert.deepEqual(flatten([]), []);

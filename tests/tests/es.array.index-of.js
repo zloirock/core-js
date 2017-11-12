@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#indexOf', function (assert) {
+QUnit.test('Array#indexOf', function (assert) {
   var indexOf = Array.prototype.indexOf;
   assert.isFunction(indexOf);
   assert.arity(indexOf, 1);

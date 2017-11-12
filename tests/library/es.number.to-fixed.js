@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number#toFixed', function (assert) {
+QUnit.test('Number#toFixed', function (assert) {
   var toFixed = core.Number.toFixed;
   assert.isFunction(toFixed);
   assert.same(toFixed(0.00008, 3), '0.000');

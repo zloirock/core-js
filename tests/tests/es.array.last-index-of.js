@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#lastIndexOf', function (assert) {
+QUnit.test('Array#lastIndexOf', function (assert) {
   var lastIndexOf = Array.prototype.lastIndexOf;
   assert.isFunction(lastIndexOf);
   assert.arity(lastIndexOf, 1);

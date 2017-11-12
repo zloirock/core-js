@@ -1,4 +1,4 @@
-var test = QUnit.test;
+import { nativeSubclass } from '../helpers/helpers';
 var ws = ' \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000';
 
 function getCheck(assert) {
@@ -12,7 +12,7 @@ function getCheck(assert) {
   };
 }
 
-test('Number constructor: regression', function (assert) {
+QUnit.test('Number constructor: regression', function (assert) {
   var check = getCheck(assert);
   assert.isFunction(Number);
   assert.arity(Number, 1);
@@ -188,7 +188,7 @@ test('Number constructor: regression', function (assert) {
   }
 });
 
-test('Number constructor: binary', function (assert) {
+QUnit.test('Number constructor: binary', function (assert) {
   var check = getCheck(assert);
   check('0b1', 1);
   check('0B1', 1);
@@ -231,7 +231,7 @@ test('Number constructor: binary', function (assert) {
   check(ws + '0B11' + ws, 3);
 });
 
-test('Number constructor: octal', function (assert) {
+QUnit.test('Number constructor: octal', function (assert) {
   var check = getCheck(assert);
   check('0o7', 7);
   check('0O7', 7);

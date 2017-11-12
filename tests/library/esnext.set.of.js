@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Set.of', function (assert) {
+QUnit.test('Set.of', function (assert) {
   var Set = core.Set;
   var of = Set.of;
   assert.isFunction(of);

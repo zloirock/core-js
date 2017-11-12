@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#findIndex', function (assert) {
+QUnit.test('Array#findIndex', function (assert) {
   var findIndex = core.Array.findIndex;
   assert.isFunction(findIndex);
   var array = [1];

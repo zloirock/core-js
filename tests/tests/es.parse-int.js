@@ -1,6 +1,5 @@
-var test = QUnit.test;
-
-test('parseInt', function (assert) {
+/* eslint-disable radix */
+QUnit.test('parseInt', function (assert) {
   assert.isFunction(parseInt);
   assert.name(parseInt, 'parseInt');
   assert.arity(parseInt, 2);

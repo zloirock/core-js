@@ -1,7 +1,6 @@
-var test = QUnit.test;
 var Promise = core.Promise;
 
-test('Promise.try', function (assert) {
+QUnit.test('Promise.try', function (assert) {
   assert.isFunction(Promise['try']);
   assert.arity(Promise['try'], 1);
   assert.ok(Promise['try'](function () {
@@ -9,7 +8,7 @@ test('Promise.try', function (assert) {
   }) instanceof Promise, 'returns a promise');
 });
 
-test('Promise.try, resolved', function (assert) {
+QUnit.test('Promise.try, resolved', function (assert) {
   assert.expect(1);
   var async = assert.async();
   Promise['try'](function () {
@@ -20,7 +19,7 @@ test('Promise.try, resolved', function (assert) {
   });
 });
 
-test('Promise.try, rejected', function (assert) {
+QUnit.test('Promise.try, rejected', function (assert) {
   assert.expect(1);
   var async = assert.async();
   Promise['try'](function () {

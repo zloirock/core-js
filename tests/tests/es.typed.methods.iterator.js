@@ -1,12 +1,11 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
-var arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
+import { GLOBAL, DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
 
-if (DESCRIPTORS) test('%TypedArrayPrototype%.keys', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', function (assert) {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     var keys = TypedArray.prototype.keys;
     assert.isFunction(keys, name + '::keys is function');
     assert.arity(keys, 0, name + '::keys arity is 0');
@@ -38,11 +37,10 @@ if (DESCRIPTORS) test('%TypedArrayPrototype%.keys', function (assert) {
   }
 });
 
-if (DESCRIPTORS) test('%TypedArrayPrototype%.values', function (assert) {
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', function (assert) {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     var values = TypedArray.prototype.values;
     assert.isFunction(values, name + '::values is function');
     assert.arity(values, 0, name + '::values arity is 0');
@@ -74,11 +72,10 @@ if (DESCRIPTORS) test('%TypedArrayPrototype%.values', function (assert) {
   }
 });
 
-if (DESCRIPTORS) test('%TypedArrayPrototype%.entries', function (assert) {
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', function (assert) {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     var entries = TypedArray.prototype.entries;
     assert.isFunction(entries, name + '::entries is function');
     assert.arity(entries, 0, name + '::entries arity is 0');
@@ -110,11 +107,10 @@ if (DESCRIPTORS) test('%TypedArrayPrototype%.entries', function (assert) {
   }
 });
 
-if (DESCRIPTORS) test('%TypedArrayPrototype%.@@iterator', function (assert) {
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', function (assert) {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     assert.isIterable(TypedArray.prototype, name + ' is itrable');
     assert.arity(TypedArray.prototype[Symbol.iterator], 0, name + '::@@iterator arity is 0');
     assert.name(TypedArray.prototype[Symbol.iterator], 'values', name + "::@@iterator name is 'values'");

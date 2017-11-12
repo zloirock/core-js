@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, STRICT, NATIVE } from '../helpers/constants';
 
-test('String#replace regression', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('String#replace regression', function (assert) {
   assert.isFunction(''.replace);
   assert.arity(''.replace, 2);
   assert.name(''.replace, 'replace');
@@ -131,7 +132,7 @@ test('String#replace regression', function (assert) {
   assert.strictEqual('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
 });
 
-test('RegExp#@@replace', function (assert) {
+QUnit.test('RegExp#@@replace', function (assert) {
   assert.isFunction(/./[Symbol.replace]);
   assert.arity(/./[Symbol.replace], 2);
   assert.strictEqual(/([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', function () {
@@ -139,7 +140,7 @@ test('RegExp#@@replace', function (assert) {
   }), '12abc def34');
 });
 
-test('@@replace logic', function (assert) {
+QUnit.test('@@replace logic', function (assert) {
   var string = STRICT ? 'string' : Object('string');
   var number = STRICT ? 42 : Object(42);
   var object = {};

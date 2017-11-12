@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { GLOBAL, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#slice', function (assert) {
+QUnit.test('Array#slice', function (assert) {
   var slice = Array.prototype.slice;
   var isArray = Array.isArray;
   assert.isFunction(slice);
@@ -22,7 +22,7 @@ test('Array#slice', function (assert) {
   assert.deepEqual(Array.prototype.slice.call(string, 1, -1), ['2', '3', '4']);
   assert.deepEqual(Array.prototype.slice.call(string, -2, -1), ['4']);
   assert.deepEqual(Array.prototype.slice.call(string, -2, -3), []);
-  var list = global.document && document.body && document.body.childNodes;
+  var list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
     try {
       assert.ok(isArray(slice.call(list)));

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#anchor', function (assert) {
+QUnit.test('String#anchor', function (assert) {
   var anchor = String.prototype.anchor;
   assert.isFunction(anchor);
   assert.arity(anchor, 1);
