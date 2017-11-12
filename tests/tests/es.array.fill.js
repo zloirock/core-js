@@ -15,10 +15,10 @@ QUnit.test('Array#fill', function (assert) {
   assert.deepEqual(Array(5).fill(5, 6, 1), [undefined, undefined, undefined, undefined, undefined]);
   assert.deepEqual(Array(5).fill(5, -3, 4), [undefined, undefined, 5, 5, undefined]);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       return fill.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       return fill.call(undefined, 0);
     }, TypeError);
   }

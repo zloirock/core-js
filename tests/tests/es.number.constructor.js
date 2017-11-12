@@ -151,19 +151,19 @@ QUnit.test('Number constructor: regression', function (assert) {
     }
   }).valueOf(), 2, 'new Number call toString only once #1');
   assert.strictEqual(number, 2, 'new Number call toString only once #2');
-  assert['throws'](function () {
+  assert.throws(function () {
     return Number(Object.create(null));
   }, TypeError, 'Number assert.throws on object w/o valueOf and toString');
-  assert['throws'](function () {
+  assert.throws(function () {
     return Number({
       valueOf: 1,
       toString: 2
     });
   }, TypeError, 'Number assert.throws on object then valueOf and toString are not functions');
-  assert['throws'](function () {
+  assert.throws(function () {
     return new Number(Object.create(null));
   }, TypeError, 'new Number assert.throws on object w/o valueOf and toString');
-  assert['throws'](function () {
+  assert.throws(function () {
     return new Number({
       valueOf: 1,
       toString: 2

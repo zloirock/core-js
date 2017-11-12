@@ -17,7 +17,7 @@ QUnit.test('Reflect.construct', function (assert) {
   }, [], Array);
   assert.strictEqual(instance.x, 42, 'constructor with newTarget');
   assert.ok(instance instanceof Array, 'prototype with newTarget');
-  assert['throws'](function () {
+  assert.throws(function () {
     construct(42, []);
   }, TypeError, 'throws on primitive');
   function B() { /* empty */ }
@@ -32,7 +32,7 @@ QUnit.test('Reflect.construct', function (assert) {
       return construct(Date, []).getTime();
     } catch (e) { /* empty */ }
   }()), 'number', 'works with native constructors with 2 arguments');
-  assert['throws'](function () {
+  assert.throws(function () {
     construct(function () { /* empty */ });
   }, 'throws when the second argument is not an object');
 });

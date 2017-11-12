@@ -25,10 +25,10 @@ QUnit.test('Object.keys', function (assert) {
       } catch (e) { /* empty */ }
     }(), 'accept ' + typeof value);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     keys(null);
   }, TypeError, 'throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     keys(undefined);
   }, TypeError, 'throws on undefined');
 });

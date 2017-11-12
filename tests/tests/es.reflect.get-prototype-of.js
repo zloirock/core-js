@@ -6,7 +6,7 @@ QUnit.test('Reflect.getPrototypeOf', function (assert) {
   assert.looksNative(getPrototypeOf);
   assert.nonEnumerable(Reflect, 'getPrototypeOf');
   assert.strictEqual(getPrototypeOf([]), Array.prototype);
-  assert['throws'](function () {
+  assert.throws(function () {
     getPrototypeOf(42);
   }, TypeError, 'throws on primitive');
 });

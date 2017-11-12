@@ -17,10 +17,10 @@ QUnit.test('Array#indexOf', function (assert) {
   assert.same(-1, Array(1).indexOf(undefined));
   assert.same(0, [1].indexOf(1, -0), "shouldn't return negative zero");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       indexOf.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       indexOf.call(undefined, 0);
     }, TypeError);
   }

@@ -8,7 +8,7 @@ QUnit.test('Date#toISOString', function (assert) {
   assert.ok(future === '+033658-09-27T01:46:40.001Z' || future === '33658-09-27T01:46:40.001Z');
   var prehistoric = toISOString(new Date(-1e15 + 1));
   assert.ok(prehistoric === '-029719-04-05T22:13:20.001Z' || prehistoric === '-29719-04-05T22:13:20.001Z');
-  assert['throws'](function () {
+  assert.throws(function () {
     toISOString(new Date(NaN));
   }, RangeError);
 });

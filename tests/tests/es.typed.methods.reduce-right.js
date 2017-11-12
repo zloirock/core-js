@@ -37,7 +37,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.reduceRight', function (asser
     }, 0);
     assert.same(values, '321', 'correct order #1');
     assert.same(keys, '210', 'correct order #2');
-    assert['throws'](function () {
+    assert.throws(function () {
       reduceRight.call([0], function () { /* empty */ });
     }, "isn't generic");
   }

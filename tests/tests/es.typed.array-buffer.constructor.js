@@ -12,7 +12,7 @@ QUnit.test('ArrayBuffer', function (assert) {
   if (NATIVE) assert.looksNative(ArrayBuffer);
   assert.same(new ArrayBuffer(123).byteLength, 123, 'length');
   // fails in Safari
-  assert['throws'](function () {
+  assert.throws(function () {
     new ArrayBuffer(-1);
   }, RangeError, 'negative length');
   assert.ok(function () {

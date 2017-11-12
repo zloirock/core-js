@@ -73,15 +73,15 @@ QUnit.test('String#matchAll', function (assert) {
   var data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
   for (var i = 0, length = data.length; i < length; ++i) {
     var target = data[i];
-    assert['throws'](function () {
+    assert.throws(function () {
       ''.matchAll(target);
     }, TypeError, 'Throws on ' + target + ' as first argument');
   }
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       matchAll.call(null, /./);
     }, TypeError, 'Throws on null as `this`');
-    assert['throws'](function () {
+    assert.throws(function () {
       matchAll.call(undefined, /./);
     }, TypeError, 'Throws on undefined as `this`');
   }
