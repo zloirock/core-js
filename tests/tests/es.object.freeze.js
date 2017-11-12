@@ -1,11 +1,12 @@
-var test = QUnit.test;
+import { GLOBAL, NATIVE } from '../helpers/constants';
 
-test('Object.freeze', function (assert) {
+QUnit.test('Object.freeze', function (assert) {
   var freeze = Object.freeze;
+  var isFrozen = Object.isFrozen;
   var keys = Object.keys;
   var getOwnPropertyNames = Object.getOwnPropertyNames;
   var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-  var ownKeys = (global.Reflect || {}).ownKeys;
+  var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
   assert.isFunction(freeze);
   assert.arity(freeze, 1);
   assert.name(freeze, 'freeze');

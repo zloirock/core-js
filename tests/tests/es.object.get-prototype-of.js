@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.getPrototypeOf', function (assert) {
+QUnit.test('Object.getPrototypeOf', function (assert) {
   var create = Object.create;
   var getPrototypeOf = Object.getPrototypeOf;
   assert.isFunction(getPrototypeOf);

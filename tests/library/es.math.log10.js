@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.log10', function (assert) {
+QUnit.test('Math.log10', function (assert) {
   var log10 = core.Math.log10;
   assert.isFunction(log10);
   assert.same(log10(''), log10(0));

@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  test('Object#__defineGetter__', function (assert) {
+  QUnit.test('Object#__defineGetter__', function (assert) {
     var __defineGetter__ = Object.prototype.__defineGetter__;
     assert.isFunction(__defineGetter__);
     assert.arity(__defineGetter__, 2);

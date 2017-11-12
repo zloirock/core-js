@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { createIterable } from '../helpers/helpers';
 
-test('Map.from', function (assert) {
+QUnit.test('Map.from', function (assert) {
   var Map = core.Map;
   var from = Map.from;
   assert.isFunction(from);

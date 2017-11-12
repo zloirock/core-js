@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('WeakSet.of', function (assert) {
+QUnit.test('WeakSet.of', function (assert) {
   var of = WeakSet.of;
   assert.isFunction(of);
   assert.arity(of, 0);

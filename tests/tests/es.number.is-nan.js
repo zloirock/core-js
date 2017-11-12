@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.isNaN', function (assert) {
+QUnit.test('Number.isNaN', function (assert) {
   var isNaN = Number.isNaN;
   var create = Object.create;
   assert.isFunction(isNaN);

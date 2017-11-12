@@ -1,4 +1,5 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
+import { is, createIterable, nativeSubclass } from '../helpers/helpers';
 
 var Map = core.Map;
 var Set = core.Set;
@@ -9,9 +10,8 @@ var getOwnPropertyNames = core.Object.getOwnPropertyNames;
 var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
 var ownKeys = core.Reflect.ownKeys;
 var freeze = core.Object.freeze;
-var is = core.Object.is;
 
-test('Map', function (assert) {
+QUnit.test('Map', function (assert) {
   assert.isFunction(Map);
   assert.ok('clear' in Map.prototype, 'clear in Map.prototype');
   assert.ok('delete' in Map.prototype, 'delete in Map.prototype');
@@ -59,7 +59,7 @@ test('Map', function (assert) {
   }
 });
 
-test('Map#clear', function (assert) {
+QUnit.test('Map#clear', function (assert) {
   assert.isFunction(Map.prototype.clear);
   var map = new Map();
   map.clear();
@@ -77,7 +77,7 @@ test('Map#clear', function (assert) {
   assert.ok(!map.has(frozen));
 });
 
-test('Map#delete', function (assert) {
+QUnit.test('Map#delete', function (assert) {
   assert.isFunction(Map.prototype['delete']);
   var object = {};
   var map = new Map();
@@ -103,7 +103,7 @@ test('Map#delete', function (assert) {
   assert.strictEqual(map.size, 3);
 });
 
-test('Map#forEach', function (assert) {
+QUnit.test('Map#forEach', function (assert) {
   assert.isFunction(Map.prototype.forEach);
   var result = {};
   var count = 0;
@@ -156,7 +156,7 @@ test('Map#forEach', function (assert) {
   }, 'non-generic');
 });
 
-test('Map#get', function (assert) {
+QUnit.test('Map#get', function (assert) {
   assert.isFunction(Map.prototype.get);
   var object = {};
   var frozen = freeze({});
@@ -176,7 +176,7 @@ test('Map#get', function (assert) {
   assert.strictEqual(map.get(2), 5);
 });
 
-test('Map#has', function (assert) {
+QUnit.test('Map#has', function (assert) {
   assert.isFunction(Map.prototype.has);
   var object = {};
   var frozen = freeze({});
@@ -196,7 +196,7 @@ test('Map#has', function (assert) {
   assert.ok(!map.has({}));
 });
 
-test('Map#set', function (assert) {
+QUnit.test('Map#set', function (assert) {
   assert.isFunction(Map.prototype.set);
   var object = {};
   var map = new Map();
@@ -232,7 +232,7 @@ test('Map#set', function (assert) {
   assert.strictEqual(map.get(frozen), 42);
 });
 
-test('Map#size', function (assert) {
+QUnit.test('Map#size', function (assert) {
   var map = new Map();
   map.set(2, 1);
   var size = map.size;
@@ -248,7 +248,7 @@ test('Map#size', function (assert) {
   }
 });
 
-test('Map & -0', function (assert) {
+QUnit.test('Map & -0', function (assert) {
   var map = new Map();
   map.set(-0, 1);
   assert.strictEqual(map.size, 1);
@@ -274,11 +274,11 @@ test('Map & -0', function (assert) {
   assert.ok(map.has(-0));
 });
 
-test('Map#@@toStringTag', function (assert) {
+QUnit.test('Map#@@toStringTag', function (assert) {
   assert.strictEqual(Map.prototype[Symbol.toStringTag], 'Map', 'Map::@@toStringTag is `Map`');
 });
 
-test('Map Iterator', function (assert) {
+QUnit.test('Map Iterator', function (assert) {
   var map = new Map();
   map.set('a', 1);
   map.set('b', 2);
@@ -299,7 +299,7 @@ test('Map Iterator', function (assert) {
   assert.deepEqual(results, ['a', 'd', 'e']);
 });
 
-test('Map#keys', function (assert) {
+QUnit.test('Map#keys', function (assert) {
   assert.isFunction(Map.prototype.keys);
   var map = new Map();
   map.set('a', 'q');
@@ -327,7 +327,7 @@ test('Map#keys', function (assert) {
   });
 });
 
-test('Map#values', function (assert) {
+QUnit.test('Map#values', function (assert) {
   assert.isFunction(Map.prototype.values);
   var map = new Map();
   map.set('a', 'q');
@@ -355,7 +355,7 @@ test('Map#values', function (assert) {
   });
 });
 
-test('Map#entries', function (assert) {
+QUnit.test('Map#entries', function (assert) {
   assert.isFunction(Map.prototype.entries);
   var map = new Map();
   map.set('a', 'q');
@@ -383,7 +383,7 @@ test('Map#entries', function (assert) {
   });
 });
 
-test('Map#@@iterator', function (assert) {
+QUnit.test('Map#@@iterator', function (assert) {
   var map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');

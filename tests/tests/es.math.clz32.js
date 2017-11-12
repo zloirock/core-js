@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.clz32', function (assert) {
+QUnit.test('Math.clz32', function (assert) {
   var clz32 = Math.clz32;
   assert.isFunction(clz32);
   assert.name(clz32, 'clz32');

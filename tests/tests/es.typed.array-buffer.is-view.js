@@ -1,17 +1,15 @@
-var test = QUnit.test;
+import { GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
 
-test('ArrayBuffer.isView', function (assert) {
+QUnit.test('ArrayBuffer.isView', function (assert) {
   var isView = ArrayBuffer.isView;
   assert.isFunction(isView);
   assert.arity(isView, 1);
   assert.name(isView, 'isView');
   assert.looksNative(isView);
   assert.nonEnumerable(ArrayBuffer, 'isView');
-  var examples = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
-  for (var i = 0, length = examples.length; i < length; ++i) {
-    var name = examples[i];
-    if (global[name]) {
-      assert.same(isView(new global[name]([1])), true, name + ' - true');
+  for (var name in TYPED_ARRAYS) {
+    if (GLOBAL[name]) {
+      assert.same(isView(new GLOBAL[name]([1])), true, name + ' - true');
     }
   }
   assert.same(isView(new DataView(new ArrayBuffer(1))), true, 'DataView - true');

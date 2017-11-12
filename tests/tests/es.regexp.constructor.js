@@ -1,8 +1,9 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS } from '../helpers/constants';
+import { nativeSubclass } from '../helpers/helpers';
 
 if (DESCRIPTORS) {
-  test('RegExp constructor', function (assert) {
-    var Symbol = global.Symbol || {};
+  QUnit.test('RegExp constructor', function (assert) {
+    var Symbol = GLOBAL.Symbol || {};
     assert.isFunction(RegExp);
     assert.arity(RegExp, 2);
     assert.name(RegExp, 'RegExp');

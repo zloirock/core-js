@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { includes } from '../helpers/helpers';
 
-test('Object.keys', function (assert) {
+QUnit.test('Object.keys', function (assert) {
   var keys = core.Object.keys;
   assert.isFunction(keys);
   assert.arity(keys, 1);

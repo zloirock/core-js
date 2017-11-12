@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.radians', function (assert) {
+QUnit.test('Math.radians', function (assert) {
   var radians = Math.radians;
   assert.isFunction(radians);
   assert.name(radians, 'radians');

@@ -66,14 +66,34 @@ module.exports = grunt => {
         singleRun: true,
       },
       default: {
-        files: ['client/core.js', 'tests/bundles/helpers.js', 'tests/bundles/tests.js'].map(it => ({ src: it })),
+        files: [
+          'client/core.js',
+          'tests/bundles/qunit-helpers.js',
+          'tests/bundles/tests.js',
+        ].map(it => ({ src: it })),
       },
       library: {
-        files: ['client/library.js', 'tests/bundles/helpers.js', 'tests/bundles/library.js'].map(it => ({ src: it })),
+        files: [
+          'client/library.js',
+          'tests/bundles/qunit-helpers.js',
+          'tests/bundles/library.js',
+        ].map(it => ({ src: it })),
       },
     },
     webpack: {
       options: {
+        module: {
+          loaders: [{
+            test: /\.js$/,
+            loader: 'babel-loader',
+            options: {
+              plugins: [
+                // use it instead of webpack es modules for support engines without descriptors
+                ['transform-es2015-modules-commonjs', { loose: true }],
+              ],
+            },
+          }],
+        },
         node: {
           global: false,
           process: false,
@@ -85,8 +105,8 @@ module.exports = grunt => {
         },
       },
       helpers: {
-        entry: './tests/helpers/index.js',
-        output: { filename: 'helpers.js' },
+        entry: './tests/helpers/qunit-helpers.js',
+        output: { filename: 'qunit-helpers.js' },
       },
       library: {
         entry: './tests/library/index.js',

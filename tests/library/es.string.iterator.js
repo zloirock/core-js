@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#@@iterator', function (assert) {
+QUnit.test('String#@@iterator', function (assert) {
   var iter = core.getIterator('qwe');
   var Symbol = core.Symbol;
   assert.isIterator(iter);

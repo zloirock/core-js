@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#lastIndexOf', function (assert) {
+QUnit.test('Array#lastIndexOf', function (assert) {
   var lastIndexOf = core.Array.lastIndexOf;
   assert.isFunction(lastIndexOf);
   assert.same(2, lastIndexOf([1, 1, 1], 1));

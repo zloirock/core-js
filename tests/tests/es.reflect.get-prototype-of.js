@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.getPrototypeOf', function (assert) {
+QUnit.test('Reflect.getPrototypeOf', function (assert) {
   var getPrototypeOf = Reflect.getPrototypeOf;
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);

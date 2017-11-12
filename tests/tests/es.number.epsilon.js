@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.EPSILON', function (assert) {
+QUnit.test('Number.EPSILON', function (assert) {
   var EPSILON = Number.EPSILON;
   assert.ok('EPSILON' in Number, 'EPSILON in Number');
   assert.nonEnumerable(Number, 'EPSILON');

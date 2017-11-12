@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#repeat', function (assert) {
+QUnit.test('String#repeat', function (assert) {
   var repeat = core.String.repeat;
   assert.isFunction(repeat);
   assert.strictEqual(repeat('qwe', 3), 'qweqweqwe');

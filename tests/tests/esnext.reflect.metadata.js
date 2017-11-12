@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.metadata', function (assert) {
+QUnit.test('Reflect.metadata', function (assert) {
   var metadata = Reflect.metadata;
   var hasOwnMetadata = Reflect.hasOwnMetadata;
   assert.isFunction(metadata);

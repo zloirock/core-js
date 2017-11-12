@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number#toPrecision', function (assert) {
+QUnit.test('Number#toPrecision', function (assert) {
   var toPrecision = core.Number.toPrecision;
   assert.isFunction(toPrecision);
   assert.same(toPrecision(0.00008, 3), '0.0000800', '0.00008.toPrecision(3)');

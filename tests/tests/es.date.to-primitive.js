@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Date#@@toPrimitive', function (assert) {
+QUnit.test('Date#@@toPrimitive', function (assert) {
   var toPrimitive = Date.prototype[Symbol.toPrimitive];
   assert.isFunction(toPrimitive);
   assert.arity(toPrimitive, 1);

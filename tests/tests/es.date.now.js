@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Date.now', function (assert) {
+QUnit.test('Date.now', function (assert) {
   var now = Date.now;
   assert.isFunction(now);
   assert.arity(now, 0);

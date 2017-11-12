@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Symbol.observable', function (assert) {
+QUnit.test('Symbol.observable', function (assert) {
   assert.ok('observable' in Symbol, 'Symbol.observable available');
   assert.nonEnumerable(Symbol, 'observable');
   assert.ok(Object(Symbol.observable) instanceof Symbol, 'Symbol.observable is symbol');

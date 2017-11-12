@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#matchAll', function (assert) {
+QUnit.test('String#matchAll', function (assert) {
   var matchAll = core.String.matchAll;
   var assign = core.Object.assign;
   assert.isFunction(matchAll);

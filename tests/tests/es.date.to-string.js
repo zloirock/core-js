@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Date#toString', function (assert) {
+QUnit.test('Date#toString', function (assert) {
   var toString = Date.prototype.toString;
   assert.isFunction(toString);
   assert.arity(toString, 0);

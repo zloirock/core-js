@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.hasOwnMetadata', function (assert) {
+QUnit.test('Reflect.hasOwnMetadata', function (assert) {
   var defineMetadata = Reflect.defineMetadata;
   var hasOwnMetadata = Reflect.hasOwnMetadata;
   var create = Object.create;

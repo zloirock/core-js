@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.construct', function (assert) {
+QUnit.test('Reflect.construct', function (assert) {
   var getPrototypeOf = core.Object.getPrototypeOf;
   var construct = core.Reflect.construct;
   assert.isFunction(construct);

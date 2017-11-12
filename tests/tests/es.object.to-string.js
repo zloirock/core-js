@@ -1,8 +1,8 @@
-var test = QUnit.test;
+import { GLOBAL, STRICT } from '../helpers/constants';
 
-test('Object#toString', function (assert) {
+QUnit.test('Object#toString', function (assert) {
   var toString = Object.prototype.toString;
-  var Symbol = global.Symbol || {};
+  var Symbol = GLOBAL.Symbol || {};
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
   assert.looksNative(toString);
@@ -22,30 +22,47 @@ test('Object#toString', function (assert) {
   assert.strictEqual(toString.call(function () {
     return arguments;
   }()), '[object Arguments]', 'arguments -> `Arguments`');
-  var constructors = ['Array', 'RegExp', 'Boolean', 'String', 'Number', 'Error', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array', 'ArrayBuffer'];
+  var constructors = [
+    'Array',
+    'RegExp',
+    'Boolean',
+    'String',
+    'Number',
+    'Error',
+    'Int8Array',
+    'Uint8Array',
+    'Uint8ClampedArray',
+    'Int16Array',
+    'Uint16Array',
+    'Int32Array',
+    'Uint32Array',
+    'Float32Array',
+    'Float64Array',
+    'ArrayBuffer'
+  ];
   for (var i = 0, length = constructors.length; i < length; ++i) {
     var name = constructors[i];
-    var Constructor = global[name];
+    var Constructor = GLOBAL[name];
     if (Constructor) {
       assert.strictEqual(toString.call(new Constructor(1)), '[object ' + name + ']', 'new ' + name + '(1) -> `' + name + '`');
     }
   }
-  if (global.DataView) {
+  if (GLOBAL.DataView) {
     assert.strictEqual('' + new DataView(new ArrayBuffer(1)), '[object DataView]', 'dataview -> `DataView`');
   }
-  if (global.Set) {
+  if (GLOBAL.Set) {
     assert.strictEqual('' + new Set(), '[object Set]', 'set -> `Set`');
   }
-  if (global.Map) {
+  if (GLOBAL.Map) {
     assert.strictEqual('' + new Map(), '[object Map]', 'map -> `Map`');
   }
-  if (global.WeakSet) {
+  if (GLOBAL.WeakSet) {
     assert.strictEqual('' + new WeakSet(), '[object WeakSet]', 'weakset -> `WeakSet`');
   }
-  if (global.WeakMap) {
+  if (GLOBAL.WeakMap) {
     assert.strictEqual('' + new WeakMap(), '[object WeakMap]', 'weakmap -> `WeakMap`');
   }
-  if (global.Promise) {
+  if (GLOBAL.Promise) {
     assert.strictEqual('' + new Promise(function () { /* empty */ }), '[object Promise]', 'promise -> `Promise`');
   }
   if (''[Symbol.iterator]) {
@@ -54,14 +71,14 @@ test('Object#toString', function (assert) {
   if ([].entries) {
     assert.strictEqual('' + [].entries(), '[object Array Iterator]', 'Array Iterator -> `Array Iterator`');
   }
-  if (global.Set && Set.entries) {
+  if (GLOBAL.Set && Set.entries) {
     assert.strictEqual('' + new Set().entries(), '[object Set Iterator]', 'Set Iterator -> `Set Iterator`');
   }
-  if (global.Map && Map.entries) {
+  if (GLOBAL.Map && Map.entries) {
     assert.strictEqual('' + new Map().entries(), '[object Map Iterator]', 'Map Iterator -> `Map Iterator`');
   }
   assert.strictEqual('' + Math, '[object Math]', 'Math -> `Math`');
-  if (global.JSON) {
+  if (GLOBAL.JSON) {
     assert.strictEqual('' + JSON, '[object JSON]', 'JSON -> `JSON`');
   }
   function Class() { /* empty */ }

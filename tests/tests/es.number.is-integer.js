@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number.isInteger', function (assert) {
+QUnit.test('Number.isInteger', function (assert) {
   var isInteger = Number.isInteger;
   var create = Object.create;
   assert.isFunction(isInteger);

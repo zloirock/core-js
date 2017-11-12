@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { createIterable } from '../helpers/helpers';
 
-test('core.getIterator', function (assert) {
+QUnit.test('core.getIterator', function (assert) {
   var getIterator = core.getIterator;
   assert.isFunction(getIterator);
   assert.isIterator(getIterator([]));

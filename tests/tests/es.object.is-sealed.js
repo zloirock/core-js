@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { NATIVE } from '../helpers/constants';
 
-test('Object.isSealed', function (assert) {
+QUnit.test('Object.isSealed', function (assert) {
   var seal = Object.seal;
   var isSealed = Object.isSealed;
   assert.isFunction(isSealed);
@@ -20,7 +20,5 @@ test('Object.isSealed', function (assert) {
     assert.same(isSealed(value), true, 'returns true on ' + value);
   }
   assert.same(isSealed({}), false);
-  if (NATIVE) {
-    assert.ok(isSealed(seal({})));
-  }
+  if (NATIVE) assert.ok(isSealed(seal({})));
 });

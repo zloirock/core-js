@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#indexOf', function (assert) {
+QUnit.test('Array#indexOf', function (assert) {
   var indexOf = core.Array.indexOf;
   assert.isFunction(indexOf);
   assert.same(0, indexOf([1, 1, 1], 1));

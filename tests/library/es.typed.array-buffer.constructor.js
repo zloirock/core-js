@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('ArrayBuffer', function (assert) {
+QUnit.test('ArrayBuffer', function (assert) {
   var ArrayBuffer = core.ArrayBuffer;
   var Symbol = core.Symbol;
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');

@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
 
-test('ArrayBuffer#slice', function (assert) {
+QUnit.test('ArrayBuffer#slice', function (assert) {
   var ArrayBuffer = core.ArrayBuffer;
   var slice = ArrayBuffer.slice;
   assert.isFunction(slice);

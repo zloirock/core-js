@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#includes', function (assert) {
+QUnit.test('String#includes', function (assert) {
   var includes = core.String.includes;
   var Symbol = core.Symbol;
   assert.isFunction(includes);

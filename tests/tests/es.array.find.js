@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#find', function (assert) {
+QUnit.test('Array#find', function (assert) {
   var find = Array.prototype.find;
   assert.isFunction(find);
   assert.arity(find, 1);
