@@ -14,14 +14,14 @@ QUnit.test('Date#@@toPrimitive', function (assert) {
   assert.same(toPrimitive.call(Object(2), 'default'), '2', 'generic, hint "default"');
   var data = [undefined, '', 'foo', { toString: function () { return 'string'; } }];
   for (var i = 0, length = data.length; i < length; ++i) {
-    assert['throws'](function () {
+    assert.throws(function () {
       new Date()[Symbol.toPrimitive](data[i]);
     }, TypeError, 'throws on ' + data[i] + ' as a hint');
   }
   if (STRICT) {
     data = [1, false, 'string', null, undefined];
     for (var i = 0, length = data.length; i < length; ++i) {
-      assert['throws'](function () {
+      assert.throws(function () {
         toPrimitive.call(data[i], 'string');
       }, TypeError, 'throws on ' + data[i] + ' as `this`');
     }

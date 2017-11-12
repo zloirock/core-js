@@ -23,15 +23,15 @@ QUnit.test('String#endsWith', function (assert) {
   assert.ok(!'abc'.endsWith('c', 'x'));
   assert.ok(!'abc'.endsWith('a', 'x'));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       endsWith.call(null, '.');
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       endsWith.call(undefined, '.');
     }, TypeError);
   }
   var regexp = /./;
-  assert['throws'](function () {
+  assert.throws(function () {
     '/./'.endsWith(regexp);
   }, TypeError);
   regexp[Symbol.match] = false;
@@ -47,7 +47,7 @@ QUnit.test('String#endsWith', function (assert) {
     } catch (e) { /* empty */ }
   }());
   object[Symbol.match] = true;
-  assert['throws'](function () {
+  assert.throws(function () {
     '[object Object]'.endsWith(object);
   }, TypeError);
 });

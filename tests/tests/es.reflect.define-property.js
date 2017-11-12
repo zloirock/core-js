@@ -28,18 +28,18 @@ QUnit.test('Reflect.defineProperty', function (assert) {
       value: 42
     }), false);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty(42, 'foo', {
       value: 42
     });
   }, TypeError, 'throws on primitive');
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty(42, 1, {});
   });
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty({}, create(null), {});
   });
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty({}, 1, 1);
   });
 });

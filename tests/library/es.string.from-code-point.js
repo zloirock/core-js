@@ -14,43 +14,43 @@ QUnit.test('String.fromCodePoint', function (assert) {
   assert.strictEqual(fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07');
   assert.strictEqual(fromCodePoint(false), '\0');
   assert.strictEqual(fromCodePoint(null), '\0');
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint('_');
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint('+Infinity');
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint('-Infinity');
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(-1);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(0x10FFFF + 1);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(3.14);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(3e-2);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(-Infinity);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(Infinity);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(NaN);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(undefined);
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint({});
   }, RangeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     fromCodePoint(/./);
   }, RangeError);
   var number = 0x60;

@@ -41,10 +41,10 @@ QUnit.test('Array#every', function (assert) {
     return arguments[2] === array;
   }));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       every.call(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       every.call(undefined, function () { /* empty */ });
     }, TypeError);
   }

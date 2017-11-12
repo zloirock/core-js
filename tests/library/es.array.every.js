@@ -37,10 +37,10 @@ QUnit.test('Array#every', function (assert) {
     return that === arr;
   }));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       every(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       every(undefined, function () { /* empty */ });
     }, TypeError);
   }

@@ -10,7 +10,7 @@ QUnit.test('Promise', function (assert) {
   assert.arity(Promise, 1);
   assert.name(Promise, 'Promise');
   assert.looksNative(Promise);
-  assert['throws'](function () {
+  assert.throws(function () {
     Promise();
   }, 'throws w/o `new`');
   new Promise(function (resolve, reject) {
@@ -35,10 +35,10 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', function (assert) {
       throw Error();
     }
   });
-  promise1['catch'](function () {
+  promise1.catch(function () {
     result += 'B';
   });
-  promise1['catch'](function () {
+  promise1.catch(function () {
     result += 'C';
     assert.same(result, EXPECTED_ORDER);
     async();
@@ -53,10 +53,10 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', function (assert) {
     }
   }));
   result += 'E';
-  promise2['catch'](function () {
+  promise2.catch(function () {
     result += 'F';
   });
-  promise2['catch'](function () {
+  promise2.catch(function () {
     result += 'G';
   });
   result += 'H';
@@ -98,29 +98,29 @@ QUnit.test('Promise#then', function (assert) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
   FakePromise1[Symbol.species] = function () { /* empty */ };
-  assert['throws'](function () {
+  assert.throws(function () {
     promise.then(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #1');
   FakePromise1[Symbol.species] = function (executor) {
     executor(null, function () { /* empty */ });
   };
-  assert['throws'](function () {
+  assert.throws(function () {
     promise.then(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #2');
   FakePromise1[Symbol.species] = function (executor) {
     executor(function () { /* empty */ }, null);
   };
-  assert['throws'](function () {
+  assert.throws(function () {
     promise.then(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #3');
 });
 
 QUnit.test('Promise#catch', function (assert) {
   var FakePromise1, FakePromise2;
-  assert.isFunction(Promise.prototype['catch']);
-  if (NATIVE) assert.arity(Promise.prototype['catch'], 1);
-  if (NATIVE) assert.name(Promise.prototype['catch'], 'catch');
-  assert.looksNative(Promise.prototype['catch']);
+  assert.isFunction(Promise.prototype.catch);
+  if (NATIVE) assert.arity(Promise.prototype.catch, 1);
+  if (NATIVE) assert.name(Promise.prototype.catch, 'catch');
+  assert.looksNative(Promise.prototype.catch);
   assert.nonEnumerable(Promise.prototype, 'catch');
   var promise = new Promise(function (resolve) {
     resolve(42);
@@ -131,14 +131,14 @@ QUnit.test('Promise#catch', function (assert) {
   FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
-  assert.ok(promise['catch'](function () { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
+  assert.ok(promise.catch(function () { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
   promise = new Promise(function (resolve) {
     resolve(42);
   });
   promise.constructor = FakePromise1 = function (executor) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
-  assert.ok(promise['catch'](function () { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
+  assert.ok(promise.catch(function () { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
   promise = new Promise(function (resolve) {
     resolve(42);
   });
@@ -146,22 +146,22 @@ QUnit.test('Promise#catch', function (assert) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
   FakePromise1[Symbol.species] = function () { /* empty */ };
-  assert['throws'](function () {
-    promise['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    promise.catch(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #1');
   FakePromise1[Symbol.species] = function (executor) {
     executor(null, function () { /* empty */ });
   };
-  assert['throws'](function () {
-    promise['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    promise.catch(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #2');
   FakePromise1[Symbol.species] = function (executor) {
     executor(function () { /* empty */ }, null);
   };
-  assert['throws'](function () {
-    promise['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    promise.catch(function () { /* empty */ });
   }, 'NewPromiseCapability validations, #3');
-  assert.same(Promise.prototype['catch'].call({
+  assert.same(Promise.prototype.catch.call({
     then: function (x, y) {
       return y;
     }
@@ -181,7 +181,7 @@ QUnit.test('Promise.all', function (assert) {
   assert.looksNative(all);
   assert.nonEnumerable(Promise, 'all');
   var iterable = createIterable([1, 2, 3]);
-  Promise.all(iterable)['catch'](function () { /* empty */ });
+  Promise.all(iterable).catch(function () { /* empty */ });
   assert.ok(iterable.received, 'works with iterables: iterator received');
   assert.ok(iterable.called, 'works with iterables: next called');
   var array = [];
@@ -193,8 +193,8 @@ QUnit.test('Promise.all', function (assert) {
   };
   Promise.all(array);
   assert.ok(done);
-  assert['throws'](function () {
-    all.call(null, [])['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    all.call(null, []).catch(function () { /* empty */ });
   }, TypeError, 'throws without context');
   done = false;
   var resolve = Promise.resolve;
@@ -206,7 +206,7 @@ QUnit.test('Promise.all', function (assert) {
       'return': function () {
         done = true;
       }
-    }))['catch'](function () { /* empty */ });
+    })).catch(function () { /* empty */ });
   } catch (e) { /* empty */ }
   Promise.resolve = resolve;
   assert.ok(done, 'iteration closing');
@@ -226,13 +226,13 @@ QUnit.test('Promise.all', function (assert) {
     executor(function () { /* empty */ }, null);
   };
   FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = Promise.resolve.bind(Promise);
-  assert['throws'](function () {
+  assert.throws(function () {
     all.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');
-  assert['throws'](function () {
+  assert.throws(function () {
     all.call(FakePromise2, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #2');
-  assert['throws'](function () {
+  assert.throws(function () {
     all.call(FakePromise3, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #3');
 });
@@ -246,7 +246,7 @@ QUnit.test('Promise.race', function (assert) {
   assert.looksNative(race);
   assert.nonEnumerable(Promise, 'race');
   var iterable = createIterable([1, 2, 3]);
-  Promise.race(iterable)['catch'](function () { /* empty */ });
+  Promise.race(iterable).catch(function () { /* empty */ });
   assert.ok(iterable.received, 'works with iterables: iterator received');
   assert.ok(iterable.called, 'works with iterables: next called');
   var array = [];
@@ -258,8 +258,8 @@ QUnit.test('Promise.race', function (assert) {
   };
   Promise.race(array);
   assert.ok(done);
-  assert['throws'](function () {
-    race.call(null, [])['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    race.call(null, []).catch(function () { /* empty */ });
   }, TypeError, 'throws without context');
   done = false;
   var resolve = Promise.resolve;
@@ -271,7 +271,7 @@ QUnit.test('Promise.race', function (assert) {
       'return': function () {
         done = true;
       }
-    }))['catch'](function () { /* empty */ });
+    })).catch(function () { /* empty */ });
   } catch (e) { /* empty */ }
   Promise.resolve = resolve;
   assert.ok(done, 'iteration closing');
@@ -291,13 +291,13 @@ QUnit.test('Promise.race', function (assert) {
     executor(function () { /* empty */ }, null);
   };
   FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = Promise.resolve.bind(Promise);
-  assert['throws'](function () {
+  assert.throws(function () {
     race.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');
-  assert['throws'](function () {
+  assert.throws(function () {
     race.call(FakePromise2, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #2');
-  assert['throws'](function () {
+  assert.throws(function () {
     race.call(FakePromise3, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #3');
 });
@@ -309,8 +309,8 @@ QUnit.test('Promise.resolve', function (assert) {
   assert.name(resolve, 'resolve');
   assert.looksNative(resolve);
   assert.nonEnumerable(Promise, 'resolve');
-  assert['throws'](function () {
-    resolve.call(null, 1)['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    resolve.call(null, 1).catch(function () { /* empty */ });
   }, TypeError, 'throws without context');
   function FakePromise1(executor) {
     executor(function () { /* empty */ }, function () { /* empty */ });
@@ -319,15 +319,15 @@ QUnit.test('Promise.resolve', function (assert) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
   assert.ok(resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
-  assert['throws'](function () {
+  assert.throws(function () {
     resolve.call(function () { /* empty */ }, 42);
   }, 'NewPromiseCapability validations, #1');
-  assert['throws'](function () {
+  assert.throws(function () {
     resolve.call(function (executor) {
       executor(null, function () { /* empty */ });
     }, 42);
   }, 'NewPromiseCapability validations, #2');
-  assert['throws'](function () {
+  assert.throws(function () {
     resolve.call(function (executor) {
       executor(function () { /* empty */ }, null);
     }, 42);
@@ -341,8 +341,8 @@ QUnit.test('Promise.reject', function (assert) {
   assert.name(reject, 'reject');
   assert.looksNative(reject);
   assert.nonEnumerable(Promise, 'reject');
-  assert['throws'](function () {
-    reject.call(null, 1)['catch'](function () { /* empty */ });
+  assert.throws(function () {
+    reject.call(null, 1).catch(function () { /* empty */ });
   }, TypeError, 'throws without context');
   function FakePromise1(executor) {
     executor(function () { /* empty */ }, function () { /* empty */ });
@@ -351,15 +351,15 @@ QUnit.test('Promise.reject', function (assert) {
     executor(function () { /* empty */ }, function () { /* empty */ });
   };
   assert.ok(reject.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
-  assert['throws'](function () {
+  assert.throws(function () {
     reject.call(function () { /* empty */ }, 42);
   }, 'NewPromiseCapability validations, #1');
-  assert['throws'](function () {
+  assert.throws(function () {
     reject.call(function (executor) {
       executor(null, function () { /* empty */ });
     }, 42);
   }, 'NewPromiseCapability validations, #2');
-  assert['throws'](function () {
+  assert.throws(function () {
     reject.call(function (executor) {
       executor(function () { /* empty */ }, null);
     }, 42);
@@ -408,7 +408,7 @@ QUnit.test('Unhandled rejection tracking', function (assert) {
       process.removeListener('unhandledRejection', onunhandledrejection);
       assert.same(promise, $promise, 'unhandledRejection, promise');
       assert.same(reason, 42, 'unhandledRejection, reason');
-      $promise['catch'](function () { /* empty */ });
+      $promise.catch(function () { /* empty */ });
     };
     var onrejectionhandled = function (promise) {
       process.removeListener('rejectionHandled', onrejectionhandled);
@@ -424,7 +424,7 @@ QUnit.test('Unhandled rejection tracking', function (assert) {
       assert.same(it.promise, $promise, 'onunhandledrejection, promise');
       assert.same(it.reason, 42, 'onunhandledrejection, reason');
       setTimeout(function () {
-        $promise['catch'](function () { /* empty */ });
+        $promise.catch(function () { /* empty */ });
       }, 1);
       GLOBAL.onunhandledrejection = null;
     };
@@ -436,7 +436,7 @@ QUnit.test('Unhandled rejection tracking', function (assert) {
       done = true;
     };
   }
-  Promise.reject(43)['catch'](function () { /* empty */ });
+  Promise.reject(43).catch(function () { /* empty */ });
   var $promise = Promise.reject(42);
   setTimeout(function () {
     done || start();

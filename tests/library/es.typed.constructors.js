@@ -76,7 +76,7 @@ if (DESCRIPTORS) {
       } catch (e) {
         assert.same(e, [0], 'passed boolean');
       }
-      NATIVE && assert['throws'](function () {
+      NATIVE && assert.throws(function () {
         new TypedArray(-1);
       }, RangeError, 'throws on -1');
       try {
@@ -153,35 +153,35 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
       assert.same(array.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
       assert.arrayEqual(array, [], 'correct values, passed buffer and byteOffset with buffer length');
-      assert['throws'](function () {
+      assert.throws(function () {
         new TypedArray(new ArrayBuffer(8), -1);
       }, RangeError, 'If offset < 0, throw a RangeError exception');
       if (bytes !== 1) {
-        assert['throws'](function () {
+        assert.throws(function () {
           new TypedArray(new ArrayBuffer(8), 3);
         }, RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
       }
       if (NATIVE) {
         if (bytes !== 1) {
-          assert['throws'](function () {
+          assert.throws(function () {
             new TypedArray(new ArrayBuffer(9));
           }, RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
         }
-        assert['throws'](function () {
+        assert.throws(function () {
           new TypedArray(new ArrayBuffer(8), 16);
         }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
-        assert['throws'](function () {
+        assert.throws(function () {
           new TypedArray(new ArrayBuffer(24), 8, 24);
         }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       } else {
-        assert['throws'](function () {
+        assert.throws(function () {
           new TypedArray(new ArrayBuffer(8), 16);
         }, 'If newByteLength < 0, throw a RangeError exception');
-        assert['throws'](function () {
+        assert.throws(function () {
           new TypedArray(new ArrayBuffer(24), 8, 24);
         }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       }
-      assert['throws'](function () {
+      assert.throws(function () {
         TypedArray(1);
       }, TypeError, 'throws without `new`');
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');

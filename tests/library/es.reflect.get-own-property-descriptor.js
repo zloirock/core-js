@@ -8,7 +8,7 @@ QUnit.test('Reflect.getOwnPropertyDescriptor', function (assert) {
   var object = { baz: 789 };
   var descriptor = getOwnPropertyDescriptor(object, 'baz');
   assert.strictEqual(descriptor.value, 789);
-  assert['throws'](function () {
+  assert.throws(function () {
     getOwnPropertyDescriptor(42, 'constructor');
   }, TypeError, 'throws on primitive');
 });

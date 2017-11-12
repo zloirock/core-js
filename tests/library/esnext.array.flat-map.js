@@ -27,12 +27,12 @@ QUnit.test('Array#flatMap', function (assert) {
     assert.same(this, context);
   }, context);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       flatMap(null, function (it) {
         return it;
       });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       flatMap(undefined, function (it) {
         return it;
       });

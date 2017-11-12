@@ -12,17 +12,17 @@ QUnit.test('Array#sort', function (assert) {
       return [1, 2, 3].sort(undefined);
     } catch (e) { /* empty */ }
   }(), 'works with undefined');
-  assert['throws'](function () {
+  assert.throws(function () {
     [1, 2, 3].sort(null);
   }, 'throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     [1, 2, 3].sort({});
   }, 'throws on {}');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       return sort.call(null);
     }, TypeError, 'ToObject(this)');
-    assert['throws'](function () {
+    assert.throws(function () {
       return sort.call(undefined);
     }, TypeError, 'ToObject(this)');
   }

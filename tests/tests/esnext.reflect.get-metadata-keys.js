@@ -7,7 +7,7 @@ QUnit.test('Reflect.getMetadataKeys', function (assert) {
   assert.name(getMetadataKeys, 'getMetadataKeys');
   assert.looksNative(getMetadataKeys);
   assert.nonEnumerable(Reflect, 'getMetadataKeys');
-  assert['throws'](function () {
+  assert.throws(function () {
     getMetadataKeys(undefined, undefined);
   }, TypeError);
   assert.deepEqual(getMetadataKeys({}, undefined), []);

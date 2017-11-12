@@ -4,7 +4,7 @@ QUnit.test('Reflect.hasMetadata', function (assert) {
   var create = core.Object.create;
   assert.isFunction(hasMetadata);
   assert.arity(hasMetadata, 2);
-  assert['throws'](function () {
+  assert.throws(function () {
     hasMetadata('key', undefined, undefined);
   }, TypeError);
   assert.same(hasMetadata('key', {}, undefined), false);

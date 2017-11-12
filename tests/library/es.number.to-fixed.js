@@ -70,28 +70,28 @@ QUnit.test('Number#toFixed', function (assert) {
       return toFixed(1e21, -0.1);
     } catch (e) { /* empty */ }
   }(), String(1e21));
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(1, -101);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(1, 101);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(NaN, Infinity);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed({}, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed('123', 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(false, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(null, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed(undefined, 1);
   }, TypeError, '? thisNumberValue(this value)');
 });

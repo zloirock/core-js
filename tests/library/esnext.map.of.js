@@ -6,7 +6,7 @@ QUnit.test('Map.of', function (assert) {
   assert.ok(Map.of() instanceof Map);
   assert.deepEqual(core.Array.from(Map.of([1, 2])), [[1, 2]]);
   assert.deepEqual(core.Array.from(Map.of([1, 2], [2, 3], [1, 4])), [[1, 4], [2, 3]]);
-  assert['throws'](function () {
+  assert.throws(function () {
     of(1);
   });
   var arg = null;

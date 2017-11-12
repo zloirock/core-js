@@ -19,7 +19,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.slice', function (assert) {
     assert.arrayEqual(array.slice(1, -1), [2, 3, 4]);
     assert.arrayEqual(array.slice(-2, -1), [4]);
     assert.arrayEqual(array.slice(-2, -3), []);
-    assert['throws'](function () {
+    assert.throws(function () {
       slice.call([1, 2], 1);
     }, "isn't generic");
   }

@@ -16,10 +16,10 @@ if (DESCRIPTORS) {
     object.key = 44;
     assert.ok(object.key === 42 && object.foo === 43, 'works with setter');
     if (STRICT) {
-      assert['throws'](function () {
+      assert.throws(function () {
         __defineGetter__(null, 1, function () { /* empty */ });
       }, TypeError, 'Throws on null as `this`');
-      assert['throws'](function () {
+      assert.throws(function () {
         __defineGetter__(undefined, 1, function () { /* empty */ });
       }, TypeError, 'Throws on undefined as `this`');
     }

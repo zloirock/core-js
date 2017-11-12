@@ -11,10 +11,10 @@ QUnit.test('String#padEnd', function (assert) {
   assert.strictEqual(padEnd('foo', 1), 'foo');
   assert.strictEqual(padEnd('foo', 5, ''), 'foo');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       padEnd(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       padEnd(undefined, 0);
     }, TypeError);
   }
