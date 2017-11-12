@@ -23,10 +23,10 @@ QUnit.test('Array#findIndex', function (assert) {
     return it === 43;
   }), -1);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       return findIndex.call(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       return findIndex.call(undefined, 0);
     }, TypeError);
   }

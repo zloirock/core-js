@@ -32,12 +32,12 @@ QUnit.test('Array#flatMap', function (assert) {
     return value;
   }, context);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       flatMap.call(null, function (it) {
         return it;
       });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       flatMap.call(undefined, function (it) {
         return it;
       });

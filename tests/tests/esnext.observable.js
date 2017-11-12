@@ -5,7 +5,7 @@ QUnit.test('Observable', function (assert) {
   assert.arity(Observable, 1);
   assert.name(Observable, 'Observable');
   assert.looksNative(Observable);
-  assert['throws'](function () {
+  assert.throws(function () {
     Observable(function () { /* empty */ });
   }, 'throws w/o `new`');
   var obsevable = new Observable(function (subscriptionObserver) {

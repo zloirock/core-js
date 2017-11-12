@@ -33,11 +33,11 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', function (assert) {
       assert.same(key, 0, 'correct index in callback');
       assert.same(this, context, 'correct callback context');
     }, context);
-    assert['throws'](function () {
+    assert.throws(function () {
       TypedArray.from.call(undefined, []);
     }, "isn't generic #1");
     if (NATIVE) {
-      assert['throws'](function () {
+      assert.throws(function () {
         TypedArray.from.call(Array, []);
       }, "isn't generic #2");
       assert.ok(function () {

@@ -8,7 +8,7 @@ QUnit.test('Reflect.deleteMetadata', function (assert) {
   assert.name(deleteMetadata, 'deleteMetadata');
   assert.looksNative(deleteMetadata);
   assert.nonEnumerable(Reflect, 'deleteMetadata');
-  assert['throws'](function () {
+  assert.throws(function () {
     deleteMetadata('key', undefined, undefined);
   }, TypeError);
   assert.same(deleteMetadata('key', {}, undefined), false);

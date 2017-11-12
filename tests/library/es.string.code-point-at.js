@@ -53,10 +53,10 @@ QUnit.test('String#codePointAt', function (assert) {
   assert.strictEqual(codePointAt('\uDF06abc', null), 0xDF06);
   assert.strictEqual(codePointAt('\uDF06abc', undefined), 0xDF06);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       codePointAt(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       codePointAt(undefined, 0);
     }, TypeError);
   }

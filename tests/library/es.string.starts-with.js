@@ -17,15 +17,15 @@ QUnit.test('String#startsWith', function (assert) {
   assert.ok(startsWith('abc', 'b', true));
   assert.ok(startsWith('abc', 'a', 'x'));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       startsWith(null, '.');
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       startsWith(undefined, '.');
     }, TypeError);
   }
   var regexp = /./;
-  assert['throws'](function () {
+  assert.throws(function () {
     startsWith('/./', regexp);
   }, TypeError);
   regexp[Symbol.match] = false;
@@ -41,7 +41,7 @@ QUnit.test('String#startsWith', function (assert) {
     } catch (e) { /* empty */ }
   }());
   object[Symbol.match] = true;
-  assert['throws'](function () {
+  assert.throws(function () {
     startsWith('[object Object]', object);
   }, TypeError);
 });

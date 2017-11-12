@@ -11,7 +11,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.join', function (assert) {
     assert.looksNative(join, name + '::join looks native');
     assert.same(new TypedArray([1, 2, 3]).join('|'), '1|2|3', 'works #1');
     assert.same(new TypedArray([1, 2, 3]).join(), '1,2,3', 'works #2');
-    assert['throws'](function () {
+    assert.throws(function () {
       join.call([1, 2, 3]);
     }, "isn't generic");
   }

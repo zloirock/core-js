@@ -43,10 +43,10 @@ QUnit.test('Array#reduceRight', function (assert) {
     return a + b;
   }), 3, 'generic');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       reduceRight.call(null, function () { /* empty */ }, 1);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       reduceRight.call(undefined, function () { /* empty */ }, 1);
     }, TypeError);
   }

@@ -14,7 +14,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.lastIndexOf', function (asser
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, 1), 1);
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, -3), -1);
     assert.same(new TypedArray([1, 2, 3]).lastIndexOf(2, -2), 1);
-    assert['throws'](function () {
+    assert.throws(function () {
       lastIndexOf.call([1], 1);
     }, "isn't generic");
   }

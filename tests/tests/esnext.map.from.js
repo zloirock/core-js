@@ -21,7 +21,7 @@ QUnit.test('Map.from', function (assert) {
     assert.same(this, context);
     return element;
   }, context);
-  assert['throws'](function () {
+  assert.throws(function () {
     from([1, 2]);
   });
   var arg = null;

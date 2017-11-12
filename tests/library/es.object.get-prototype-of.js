@@ -27,10 +27,10 @@ QUnit.test('Object.getPrototypeOf', function (assert) {
       } catch (e) { /* empty */ }
     }(), 'accept ' + typeof value);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     getPrototypeOf(null);
   }, TypeError, 'throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     getPrototypeOf(undefined);
   }, TypeError, 'throws on undefined');
   assert.strictEqual(getPrototypeOf('foo'), String.prototype);

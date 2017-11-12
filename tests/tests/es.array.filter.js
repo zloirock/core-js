@@ -20,10 +20,10 @@ QUnit.test('Array#filter', function (assert) {
     return typeof it === 'number';
   }));
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       filter.call(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       filter.call(undefined, function () { /* empty */ });
     }, TypeError);
   }

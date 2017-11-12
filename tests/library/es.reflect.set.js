@@ -64,7 +64,7 @@ QUnit.test('Reflect.set', function (assert) {
     assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
     assert.strictEqual(target.c, 1, 'set c');
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     set(42, 'q', 42);
   }, TypeError, 'throws on primitive');
 });
