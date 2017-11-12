@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#map', function (assert) {
+QUnit.test('Array#map', function (assert) {
   var map = Array.prototype.map;
   assert.isFunction(map);
   assert.arity(map, 1);

@@ -1,4 +1,4 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
 
 var defineProperty = Object.defineProperty;
 var defineProperties = Object.defineProperties;
@@ -7,11 +7,11 @@ var getOwnPropertyNames = Object.getOwnPropertyNames;
 var getOwnPropertySymbols = Object.getOwnPropertySymbols;
 var keys = Object.keys;
 var create = Object.create;
-var ownKeys = (global.Reflect || {}).ownKeys;
+var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
 
-test('Symbol', function (assert) {
+QUnit.test('Symbol', function (assert) {
   assert.isFunction(Symbol);
-  NATIVE && assert.strictEqual(Symbol.length, 0, 'arity is 0');
+  if (NATIVE) assert.strictEqual(Symbol.length, 0, 'arity is 0');
   assert.name(Symbol, 'Symbol');
   assert.looksNative(Symbol);
   var symbol1 = Symbol('symbol');
@@ -23,12 +23,13 @@ test('Symbol', function (assert) {
   assert.ok(object[symbol2] !== 42, 'Various symbols from one description are various keys');
   if (DESCRIPTORS) {
     var count = 0;
+    // eslint-disable-next-line no-unused-vars
     for (var key in object) count++;
     assert.ok(count === 0, 'object[Symbol()] is not enumerable');
   }
 });
 
-test('Well-known Symbols', function (assert) {
+QUnit.test('Well-known Symbols', function (assert) {
   var wks = [
     'hasInstance',
     'isConcatSpreadable',
@@ -55,11 +56,11 @@ test('Well-known Symbols', function (assert) {
   }
 });
 
-test('Global symbol registry', function (assert) {
+QUnit.test('Global symbol registry', function (assert) {
   assert.isFunction(Symbol['for'], 'Symbol.for is function');
   assert.nonEnumerable(Symbol, 'for');
   assert.strictEqual(Symbol['for'].length, 1, 'Symbol.for arity is 1');
-  NATIVE && assert.strictEqual(Symbol['for'].name, 'for', 'Symbol.for.name is "for"');
+  if (NATIVE) assert.strictEqual(Symbol['for'].name, 'for', 'Symbol.for.name is "for"');
   assert.looksNative(Symbol['for'], 'Symbol.for looks like native');
   assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
   assert.nonEnumerable(Symbol, 'keyFor');
@@ -74,17 +75,17 @@ test('Global symbol registry', function (assert) {
   }, 'throws on non-symbol');
 });
 
-test('Symbol#@@toPrimitive', function (assert) {
+QUnit.test('Symbol#@@toPrimitive', function (assert) {
   var symbol = Symbol();
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
   assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
 
-test('Symbol#@@toStringTag', function (assert) {
+QUnit.test('Symbol#@@toStringTag', function (assert) {
   assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
 });
 
-test('Object.getOwnPropertySymbols', function (assert) {
+QUnit.test('Object.getOwnPropertySymbols', function (assert) {
   assert.isFunction(getOwnPropertySymbols);
   assert.nonEnumerable(Object, 'getOwnPropertySymbols');
   assert.strictEqual(getOwnPropertySymbols.length, 1, 'arity is 1');
@@ -106,7 +107,7 @@ test('Object.getOwnPropertySymbols', function (assert) {
 });
 
 if (JSON) {
-  test('Symbols & JSON.stringify', function (assert) {
+  QUnit.test('Symbols & JSON.stringify', function (assert) {
     assert.strictEqual(JSON.stringify([
       1,
       Symbol('foo'),
@@ -130,7 +131,7 @@ if (JSON) {
 }
 
 if (DESCRIPTORS) {
-  test('Symbols & descriptors', function (assert) {
+  QUnit.test('Symbols & descriptors', function (assert) {
     var d = Symbol('d');
     var e = Symbol('e');
     var f = Symbol('f');
@@ -222,7 +223,7 @@ if (DESCRIPTORS) {
     }, 'redefined non-enum key');
   });
 
-  test('Symbols & Object.defineProperties', function (assert) {
+  QUnit.test('Symbols & Object.defineProperties', function (assert) {
     var c = Symbol('c');
     var d = Symbol('d');
     var descriptors = {
@@ -250,7 +251,7 @@ if (DESCRIPTORS) {
     assert.strictEqual(object[d], undefined, 'd');
   });
 
-  test('Symbols & Object.create', function (assert) {
+  QUnit.test('Symbols & Object.create', function (assert) {
     var c = Symbol('c');
     var d = Symbol('d');
     var descriptors = {
@@ -280,14 +281,14 @@ if (DESCRIPTORS) {
 
   var constructors = ['Map', 'Set', 'Promise'];
   for (var i = 0, length = constructors.length; i < length; ++i) !function (name) {
-    test(name + '@@species', function (assert) {
-      assert.strictEqual(core[name][Symbol.species], core[name], name + '@@species === ' + name);
-      var Subclass = create(core[name]);
+    QUnit.test(name + '@@species', function (assert) {
+      assert.strictEqual(GLOBAL[name][Symbol.species], GLOBAL[name], name + '@@species === ' + name);
+      var Subclass = create(GLOBAL[name]);
       assert.strictEqual(Subclass[Symbol.species], Subclass, name + ' subclass');
     });
   }(constructors[i]);
 
-  test('Array@@species', function (assert) {
+  QUnit.test('Array@@species', function (assert) {
     assert.strictEqual(Array[Symbol.species], Array, 'Array@@species === Array');
     var Subclass = create(Array);
     assert.strictEqual(Subclass[Symbol.species], Subclass, 'Array subclass');

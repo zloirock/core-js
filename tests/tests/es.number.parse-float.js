@@ -1,13 +1,13 @@
-var test = QUnit.test;
+import { GLOBAL } from '../helpers/constants';
 
-test('Number.parseFloat', function (assert) {
+QUnit.test('Number.parseFloat', function (assert) {
   var parseFloat = Number.parseFloat;
   assert.isFunction(parseFloat);
   assert.name(parseFloat, 'parseFloat');
   assert.arity(parseFloat, 1);
   assert.looksNative(parseFloat);
   assert.nonEnumerable(Number, 'parseFloat');
-  assert.same(parseFloat, global.parseFloat);
+  assert.same(parseFloat, GLOBAL.parseFloat);
   assert.same(parseFloat('0'), 0);
   assert.same(parseFloat(' 0'), 0);
   assert.same(parseFloat('+0'), 0);

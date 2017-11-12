@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, STRICT } from '../helpers/constants';
 
-test('String#search regression', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('String#search regression', function (assert) {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -71,14 +72,14 @@ test('String#search regression', function (assert) {
   assert.strictEqual(string.search(/of/), string.search(/of/g), 'S15.5.4.12_A3_T2');
 });
 
-test('RegExp#@@search', function (assert) {
+QUnit.test('RegExp#@@search', function (assert) {
   assert.isFunction(/./[Symbol.search]);
   assert.arity(/./[Symbol.search], 1);
   assert.strictEqual(/four/[Symbol.search]('one two three four five'), 14);
   assert.strictEqual(/Four/[Symbol.search]('one two three four five'), -1);
 });
 
-test('@@search logic', function (assert) {
+QUnit.test('@@search logic', function (assert) {
   var string = STRICT ? 'string' : Object('string');
   var number = STRICT ? 42 : Object(42);
   var object = {};

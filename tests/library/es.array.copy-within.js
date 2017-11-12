@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#copyWithin', function (assert) {
+QUnit.test('Array#copyWithin', function (assert) {
   var copyWithin = core.Array.copyWithin;
   assert.isFunction(copyWithin);
   var array = [1];

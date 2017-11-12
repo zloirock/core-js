@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.fscale', function (assert) {
+QUnit.test('Math.fscale', function (assert) {
   var fscale = Math.fscale;
   var fround = Math.fround;
   var PI = Math.PI;

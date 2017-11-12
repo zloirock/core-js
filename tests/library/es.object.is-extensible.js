@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.isExtensible', function (assert) {
+QUnit.test('Object.isExtensible', function (assert) {
   var isExtensible = core.Object.isExtensible;
   assert.isFunction(isExtensible);
   assert.arity(isExtensible, 1);

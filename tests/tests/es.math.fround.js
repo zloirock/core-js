@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.fround', function (assert) {
+QUnit.test('Math.fround', function (assert) {
   var fround = Math.fround;
   assert.isFunction(fround);
   assert.name(fround, 'fround');

@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#trim', function (assert) {
+QUnit.test('String#trim', function (assert) {
   var trim = core.String.trim;
   assert.isFunction(trim);
   assert.strictEqual(trim(' \n  q w e \n  '), 'q w e', 'removes whitespaces at left & right side of string');

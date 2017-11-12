@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.defineProperties', function (assert) {
+QUnit.test('Object.defineProperties', function (assert) {
   var defineProperties = Object.defineProperties;
   assert.isFunction(defineProperties);
   assert.arity(defineProperties, 2);

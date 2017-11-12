@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { createIterable } from '../helpers/helpers';
 
-test('WeakSet.from', function (assert) {
+QUnit.test('WeakSet.from', function (assert) {
   var from = WeakSet.from;
   assert.isFunction(from);
   assert.arity(from, 1);

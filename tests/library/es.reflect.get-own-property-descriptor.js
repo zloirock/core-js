@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.getOwnPropertyDescriptor', function (assert) {
+QUnit.test('Reflect.getOwnPropertyDescriptor', function (assert) {
   var getOwnPropertyDescriptor = core.Reflect.getOwnPropertyDescriptor;
   assert.isFunction(getOwnPropertyDescriptor);
   assert.arity(getOwnPropertyDescriptor, 2);

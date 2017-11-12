@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Date#toJSON', function (assert) {
+QUnit.test('Date#toJSON', function (assert) {
   var toJSON = Date.prototype.toJSON;
   assert.isFunction(toJSON);
   assert.arity(toJSON, 1);

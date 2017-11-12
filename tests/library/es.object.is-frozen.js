@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.isFrozen', function (assert) {
+QUnit.test('Object.isFrozen', function (assert) {
   var isFrozen = core.Object.isFrozen;
   assert.isFunction(isFrozen);
   assert.arity(isFrozen, 1);

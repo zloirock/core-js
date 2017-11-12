@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#fontcolor', function (assert) {
+QUnit.test('String#fontcolor', function (assert) {
   var fontcolor = String.prototype.fontcolor;
   assert.isFunction(fontcolor);
   assert.arity(fontcolor, 1);

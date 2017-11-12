@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Reflect.preventExtensions', function (assert) {
+QUnit.test('Reflect.preventExtensions', function (assert) {
   var preventExtensions = Reflect.preventExtensions;
   var isExtensible = Object.isExtensible;
   assert.isFunction(preventExtensions);

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Number#toFixed', function (assert) {
+QUnit.test('Number#toFixed', function (assert) {
   var toFixed = Number.prototype.toFixed;
   assert.isFunction(toFixed);
   assert.name(toFixed, 'toFixed');

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('WeakMap.of', function (assert) {
+QUnit.test('WeakMap.of', function (assert) {
   var of = WeakMap.of;
   assert.isFunction(of);
   assert.arity(of, 0);

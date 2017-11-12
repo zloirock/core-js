@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
 
-test('Array#flatMap', function (assert) {
+QUnit.test('Array#flatMap', function (assert) {
   var flatMap = core.Array.flatMap;
   assert.isFunction(flatMap);
   assert.deepEqual(flatMap([], function (it) {

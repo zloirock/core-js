@@ -1,11 +1,9 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
-if (DESCRIPTORS) test('%TypedArrayPrototype%.reduceRight', function (assert) {
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.reduceRight', function (assert) {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  var arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     var reduceRight = TypedArray.prototype.reduceRight;
     assert.isFunction(reduceRight, name + '::reduceRight is function');
     assert.arity(reduceRight, 1, name + '::reduceRight arity is 1');

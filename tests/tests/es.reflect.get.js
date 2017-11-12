@@ -1,11 +1,11 @@
-var test = QUnit.test;
+import { DESCRIPTORS, NATIVE } from '../helpers/constants';
 
-test('Reflect.get', function (assert) {
+QUnit.test('Reflect.get', function (assert) {
   var defineProperty = Object.defineProperty;
   var create = Object.create;
   var get = Reflect.get;
   assert.isFunction(get);
-  NATIVE && assert.arity(get, 2);
+  if (NATIVE) assert.arity(get, 2);
   assert.name(get, 'get');
   assert.looksNative(get);
   assert.nonEnumerable(Reflect, 'get');

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Function#bind', function (assert) {
+QUnit.test('Function#bind', function (assert) {
   var bind = core.Function.bind;
   assert.isFunction(bind);
   var object = { a: 42 };

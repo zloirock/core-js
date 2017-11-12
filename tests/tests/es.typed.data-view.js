@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS, NATIVE } from '../helpers/constants';
 
-test('DataView', function (assert) {
+QUnit.test('DataView', function (assert) {
   assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'
   if (NATIVE) assert.arity(DataView, 3); // 1 in IE11
   if (NATIVE) assert.name(DataView, 'DataView'); // Safari 5 bug
@@ -78,7 +78,7 @@ test('DataView', function (assert) {
 });
 
 if (DESCRIPTORS) {
-  test('DataView accessors', function (assert) {
+  QUnit.test('DataView accessors', function (assert) {
     var uint8array = new Uint8Array(8);
     var dataview = new DataView(uint8array.buffer);
     assert.arrayEqual(uint8array, [0, 0, 0, 0, 0, 0, 0, 0]);
@@ -112,7 +112,7 @@ if (DESCRIPTORS) {
     assert.same(dataview.getFloat64(0), -3.116851295377095e-306);
   });
 
-  test('DataView endian', function (assert) {
+  QUnit.test('DataView endian', function (assert) {
     var buffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
     var dataview = new DataView(buffer);
     assert.same(dataview.byteLength, 8, 'buffer');
@@ -179,17 +179,17 @@ if (DESCRIPTORS) {
   });
 }
 
-var arrays = ['Uint8', 'Int8', 'Uint16', 'Int16', 'Uint32', 'Int32', 'Float32', 'Float64'];
-for (var i = 0, length = arrays.length; i < length; ++i) !function (GETTER, SETTER) {
-  test('DataView#' + GETTER, function (assert) {
+var types = ['Uint8', 'Int8', 'Uint16', 'Int16', 'Uint32', 'Int32', 'Float32', 'Float64'];
+for (var i = 0, length = types.length; i < length; ++i) !function (GETTER, SETTER) {
+  QUnit.test('DataView#' + GETTER, function (assert) {
     assert.isFunction(DataView.prototype[GETTER]);
     NATIVE && assert.arity(DataView.prototype[GETTER], 1);
     assert.same(new DataView(new ArrayBuffer(8))[GETTER](0), 0, 'returns element');
   });
 
-  test('DataView#' + SETTER, function (assert) {
+  QUnit.test('DataView#' + SETTER, function (assert) {
     assert.isFunction(DataView.prototype[SETTER]);
     NATIVE && assert.arity(DataView.prototype[SETTER], 2);
     assert.same(new DataView(new ArrayBuffer(8))[SETTER](0, 0), undefined, 'void');
   });
-}('get' + arrays[i], 'set' + arrays[i]);
+}('get' + types[i], 'set' + types[i]);

@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Reflect.defineMetadata', function (assert) {
+QUnit.test('Reflect.defineMetadata', function (assert) {
   var defineMetadata = Reflect.defineMetadata;
   assert.isFunction(defineMetadata);
   assert.arity(defineMetadata, 4);

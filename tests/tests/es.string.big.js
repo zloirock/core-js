@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#big', function (assert) {
+QUnit.test('String#big', function (assert) {
   var big = String.prototype.big;
   assert.isFunction(big);
   assert.arity(big, 0);

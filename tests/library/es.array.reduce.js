@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#reduce', function (assert) {
+QUnit.test('Array#reduce', function (assert) {
   var reduce = core.Array.reduce;
   assert.isFunction(reduce);
   var array = [1];
