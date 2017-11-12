@@ -10,7 +10,7 @@ QUnit.test('setTimeout / clearTimeout', function (assert) {
     setTimeout(function (a, b) { res(a + b); }, 10, 'a', 'b');
   }).then(function (it) {
     assert.strictEqual(it, 'ab', 'setTimeout works with additional args');
-  })['catch'](function () {
+  }).catch(function () {
     assert.ok(false, 'setTimeout works with additional args');
   }).then(assert.async());
 
@@ -18,7 +18,7 @@ QUnit.test('setTimeout / clearTimeout', function (assert) {
     clearTimeout(setTimeout(res, 10));
   }).then(function () {
     assert.ok(false, 'clearImmediate works with wraped setTimeout');
-  })['catch'](function () {
+  }).catch(function () {
     assert.ok(true, 'clearImmediate works with wraped setTimeout');
   }).then(assert.async());
 });
@@ -37,7 +37,7 @@ QUnit.test('setInterval / clearInterval', function (assert) {
     }, 5, 'a', 'b');
   }).then(function () {
     assert.ok(true, 'setInterval & clearInterval works with additional args');
-  })['catch'](function (args) {
+  }).catch(function (args) {
     if (!args) args = {};
     assert.ok(false, 'setInterval & clearInterval works with additional args: ' + args.a + ', ' + args.b + ', times: ' + args.i);
   }).then(assert.async());

@@ -8,10 +8,10 @@ QUnit.test('String#trimRight', function (assert) {
   assert.strictEqual(trimRight(whitespaces), '', 'removes all whitespaces');
   assert.strictEqual(trimRight('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       trimRight(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       trimRight(undefined, 0);
     }, TypeError);
   }
@@ -24,10 +24,10 @@ QUnit.test('String#trimEnd', function (assert) {
   assert.strictEqual(trimEnd(whitespaces), '', 'removes all whitespaces');
   assert.strictEqual(trimEnd('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       trimEnd(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       trimEnd(undefined, 0);
     }, TypeError);
   }

@@ -18,10 +18,10 @@ QUnit.test('Array#copyWithin', function (assert) {
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], -4, -3, -1), [1, 3, 4, 4, 5]);
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], -4, -3), [1, 3, 4, 5, 5]);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       copyWithin(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       copyWithin(undefined, 0);
     }, TypeError);
   }

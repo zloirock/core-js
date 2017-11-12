@@ -9,7 +9,7 @@ QUnit.test('Reflect.has', function (assert) {
   assert.strictEqual(has(object, 'qux'), true);
   assert.strictEqual(has(object, 'qwe'), false);
   assert.strictEqual(has(object, 'toString'), true);
-  assert['throws'](function () {
+  assert.throws(function () {
     has(42, 'constructor');
   }, TypeError, 'throws on primitive');
 });

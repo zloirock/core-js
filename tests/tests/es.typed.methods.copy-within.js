@@ -23,7 +23,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.copyWithin', function (assert
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3), [1, 3, 4, 5, 5]);
-    assert['throws'](function () {
+    assert.throws(function () {
       copyWithin.call([0], 1);
     }, "isn't generic");
   }

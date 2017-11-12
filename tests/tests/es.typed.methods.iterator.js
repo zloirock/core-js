@@ -31,7 +31,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', function (assert) {
       value: undefined,
       done: true
     }, 'done');
-    if (NATIVE) assert['throws'](function () {
+    if (NATIVE) assert.throws(function () {
       keys.call([1, 2]);
     }, "isn't generic");
   }
@@ -66,7 +66,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', function (assert) {
       value: undefined,
       done: true
     }, 'done');
-    if (NATIVE) assert['throws'](function () {
+    if (NATIVE) assert.throws(function () {
       values.call([1, 2]);
     }, "isn't generic");
   }
@@ -101,7 +101,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', function (assert) {
       value: undefined,
       done: true
     }, 'done');
-    if (NATIVE) assert['throws'](function () {
+    if (NATIVE) assert.throws(function () {
       entries.call([1, 2]);
     }, "isn't generic");
   }
@@ -136,7 +136,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', function (assert
       value: undefined,
       done: true
     }, 'done');
-    if (NATIVE) assert['throws'](function () {
+    if (NATIVE) assert.throws(function () {
       TypedArray.prototype[Symbol.iterator].call([1, 2]);
     }, "isn't generic");
   }

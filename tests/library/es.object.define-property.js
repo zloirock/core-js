@@ -9,13 +9,13 @@ QUnit.test('Object.defineProperty', function (assert) {
   });
   assert.same(result, source);
   assert.same(result.q, 42);
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty(42, 1, {});
   });
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty({}, create(null), {});
   });
-  assert['throws'](function () {
+  assert.throws(function () {
     defineProperty({}, 1, 1);
   });
 });

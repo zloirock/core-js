@@ -74,28 +74,28 @@ QUnit.test('Number#toFixed', function (assert) {
       return new Number(1e21).toFixed(-0.1);
     } catch (e) { /* empty */ }
   }(), String(1e21));
-  assert['throws'](function () {
+  assert.throws(function () {
     1.0.toFixed(-101);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     1.0.toFixed(101);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     NaN.toFixed(Infinity);
   }, RangeError, 'If f < 0 or f > 20, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed.call({}, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed.call('123', 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed.call(false, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed.call(null, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toFixed.call(undefined, 1);
   }, TypeError, '? thisNumberValue(this value)');
 });

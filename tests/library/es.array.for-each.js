@@ -40,10 +40,10 @@ QUnit.test('Array#forEach', function (assert) {
   });
   assert.ok(result === '5');
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       forEach(null, function () { /* empty */ });
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       forEach(undefined, function () { /* empty */ });
     }, TypeError);
   }

@@ -5,7 +5,7 @@ QUnit.test('ArrayBuffer', function (assert) {
   var Symbol = core.Symbol;
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
   assert.same(new ArrayBuffer(123).byteLength, 123, 'length');
-  assert['throws'](function () {
+  assert.throws(function () {
     new ArrayBuffer(-1);
   }, RangeError, 'negative length');
   assert.ok(function () {

@@ -8,7 +8,7 @@ QUnit.test('WeakSet.of', function (assert) {
   var array = [];
   assert.ok(WeakSet.of() instanceof WeakSet);
   assert.ok(WeakSet.of(array).has(array));
-  assert['throws'](function () {
+  assert.throws(function () {
     of(1);
   });
   var arg = null;

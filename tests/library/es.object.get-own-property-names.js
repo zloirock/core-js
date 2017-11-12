@@ -33,10 +33,10 @@ QUnit.test('Object.getOwnPropertyNames', function (assert) {
       } catch (e) { /* empty */ }
     }, 'accept ' + typeof value);
   }
-  assert['throws'](function () {
+  assert.throws(function () {
     getOwnPropertyNames(null);
   }, TypeError, 'throws on null');
-  assert['throws'](function () {
+  assert.throws(function () {
     getOwnPropertyNames(undefined);
   }, TypeError, 'throws on undefined');
   if (GLOBAL.document) {

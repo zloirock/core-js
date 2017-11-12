@@ -5,7 +5,7 @@ QUnit.test('Reflect.defineMetadata', function (assert) {
   assert.name(defineMetadata, 'defineMetadata');
   assert.looksNative(defineMetadata);
   assert.nonEnumerable(Reflect, 'defineMetadata');
-  assert['throws'](function () {
+  assert.throws(function () {
     defineMetadata('key', 'value', undefined, undefined);
   }, TypeError);
   assert.same(defineMetadata('key', 'value', {}, undefined), undefined);

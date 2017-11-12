@@ -90,6 +90,8 @@ module.exports = grunt => {
               plugins: [
                 // use it instead of webpack es modules for support engines without descriptors
                 ['transform-es2015-modules-commonjs', { loose: true }],
+                ['transform-es3-member-expression-literals'],
+                ['transform-es3-property-literals'],
               ],
             },
           }],

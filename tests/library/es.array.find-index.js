@@ -15,10 +15,10 @@ QUnit.test('Array#findIndex', function (assert) {
     return it === 42;
   }), 3);
   if (STRICT) {
-    assert['throws'](function () {
+    assert.throws(function () {
       findIndex(null, 0);
     }, TypeError);
-    assert['throws'](function () {
+    assert.throws(function () {
       findIndex(undefined, 0);
     }, TypeError);
   }

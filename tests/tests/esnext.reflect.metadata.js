@@ -8,10 +8,10 @@ QUnit.test('Reflect.metadata', function (assert) {
   assert.isFunction(metadata('key', 'value'));
   assert.nonEnumerable(Reflect, 'metadata');
   var decorator = metadata('key', 'value');
-  assert['throws'](function () {
+  assert.throws(function () {
     decorator(undefined, 'name');
   }, TypeError);
-  assert['throws'](function () {
+  assert.throws(function () {
     decorator({}, undefined);
   }, TypeError);
   var target = function () { /* empty */ };

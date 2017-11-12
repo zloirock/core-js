@@ -7,25 +7,25 @@ QUnit.test('Number#toPrecision', function (assert) {
   assert.same(toPrecision(NaN, 1), 'NaN', 'If x is NaN, return the String "NaN".');
   assert.same(toPrecision(123.456), '123.456', 'If precision is undefined, return ! ToString(x).');
   assert.same(toPrecision(123.456, undefined), '123.456', 'If precision is undefined, return ! ToString(x).');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision(0.9, 0);
   }, RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision(0.9, 101);
   }, RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision({}, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision('123', 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision(false, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision(null, 1);
   }, TypeError, '? thisNumberValue(this value)');
-  assert['throws'](function () {
+  assert.throws(function () {
     toPrecision(undefined, 1);
   }, TypeError, '? thisNumberValue(this value)');
 });
