@@ -1,27 +1,17 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
+
+var Symbol = GLOBAL.Symbol || {};
 var keys = Object.keys;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var defineProperty = Object.defineProperty;
 var assign = Object.assign;
 
-var arrays = {
-  Float32Array: 4,
-  Float64Array: 8,
-  Int8Array: 1,
-  Int16Array: 2,
-  Int32Array: 4,
-  Uint8Array: 1,
-  Uint16Array: 2,
-  Uint32Array: 4,
-  Uint8ClampedArray: 1
-};
-
 if (DESCRIPTORS) {
-  for (var name in arrays) !function (name, bytes) {
-    var TypedArray = global[name];
+  for (var name in TYPED_ARRAYS) !function (name, bytes) {
+    var TypedArray = GLOBAL[name];
 
-    test(name + ' constructor', function (assert) {
+    QUnit.test(name + ' constructor', function (assert) {
       assert.isFunction(TypedArray);
       assert.arity(TypedArray, 3);
       assert.name(TypedArray, name);
@@ -91,7 +81,7 @@ if (DESCRIPTORS) {
       } catch (e) {
         assert.same(e, [0], 'passed boolean');
       }
-      NATIVE && assert['throws'](function () {
+      if (NATIVE) assert['throws'](function () {
         new TypedArray(-1);
       }, RangeError, 'throws on -1');
       try {
@@ -207,7 +197,7 @@ if (DESCRIPTORS) {
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
     });
 
-    test(name + ' descriptors', function (assert) {
+    QUnit.test(name + ' descriptors', function (assert) {
       var array = new TypedArray(2);
       var descriptor = getOwnPropertyDescriptor(array, 0);
       var base = NATIVE ? {
@@ -291,5 +281,5 @@ if (DESCRIPTORS) {
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
     });
-  }(name, arrays[name]);
+  }(name, TYPED_ARRAYS[name]);
 }

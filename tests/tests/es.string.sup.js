@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#sup', function (assert) {
+QUnit.test('String#sup', function (assert) {
   var sup = String.prototype.sup;
   assert.isFunction(sup);
   assert.arity(sup, 0);

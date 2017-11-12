@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
-test('Object.getOwnPropertyDescriptors', function (assert) {
+QUnit.test('Object.getOwnPropertyDescriptors', function (assert) {
   var create = Object.create;
   var getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
   assert.isFunction(getOwnPropertyDescriptors);

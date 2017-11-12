@@ -1,11 +1,10 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { createIterable } from '../helpers/helpers';
 
-if (DESCRIPTORS) test('%TypedArray%.from', function (assert) {
-  // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  var arrays = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
-  for (var i = 0, length = arrays.length; i < length; ++i) {
-    var name = arrays[i];
-    var TypedArray = global[name];
+if (DESCRIPTORS) QUnit.test('%TypedArray%.from', function (assert) {
+  // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
+  for (var name in TYPED_ARRAYS) {
+    var TypedArray = GLOBAL[name];
     assert.isFunction(TypedArray.from, name + '.from is function');
     assert.arity(TypedArray.from, 1, name + '.from arity is 1');
     assert.name(TypedArray.from, 'from', name + ".from name is 'from'");

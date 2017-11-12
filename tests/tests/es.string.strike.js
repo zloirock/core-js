@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('String#strike', function (assert) {
+QUnit.test('String#strike', function (assert) {
   var strike = String.prototype.strike;
   assert.isFunction(strike);
   assert.arity(strike, 0);

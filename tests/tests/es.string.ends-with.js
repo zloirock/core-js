@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL, STRICT } from '../helpers/constants';
 
-test('String#endsWith', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('String#endsWith', function (assert) {
   var endsWith = String.prototype.endsWith;
   assert.isFunction(endsWith);
   assert.arity(endsWith, 1);

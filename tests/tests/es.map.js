@@ -1,15 +1,15 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { is, createIterable, nativeSubclass } from '../helpers/helpers';
 
-var Symbol = global.Symbol || {};
+var Symbol = GLOBAL.Symbol || {};
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var keys = Object.keys;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var ownKeys = (global.Reflect || {}).ownKeys;
+var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
 var freeze = Object.freeze;
-var is = Object.is;
 
-test('Map', function (assert) {
+QUnit.test('Map', function (assert) {
   assert.isFunction(Map);
   assert.arity(Map, 0);
   assert.name(Map, 'Map');
@@ -60,7 +60,7 @@ test('Map', function (assert) {
   }
 });
 
-test('Map#clear', function (assert) {
+QUnit.test('Map#clear', function (assert) {
   assert.isFunction(Map.prototype.clear);
   assert.arity(Map.prototype.clear, 0);
   assert.name(Map.prototype.clear, 'clear');
@@ -87,10 +87,10 @@ test('Map#clear', function (assert) {
   assert.ok(!map.has(frozen));
 });
 
-test('Map#delete', function (assert) {
+QUnit.test('Map#delete', function (assert) {
   assert.isFunction(Map.prototype['delete']);
   assert.arity(Map.prototype['delete'], 1);
-  NATIVE && assert.name(Map.prototype['delete'], 'delete');
+  if (NATIVE) assert.name(Map.prototype['delete'], 'delete');
   assert.looksNative(Map.prototype['delete']);
   assert.nonEnumerable(Map.prototype, 'delete');
   var object = {};
@@ -117,7 +117,7 @@ test('Map#delete', function (assert) {
   assert.strictEqual(map.size, 3);
 });
 
-test('Map#forEach', function (assert) {
+QUnit.test('Map#forEach', function (assert) {
   assert.isFunction(Map.prototype.forEach);
   assert.arity(Map.prototype.forEach, 1);
   assert.name(Map.prototype.forEach, 'forEach');
@@ -174,7 +174,7 @@ test('Map#forEach', function (assert) {
   }, 'non-generic');
 });
 
-test('Map#get', function (assert) {
+QUnit.test('Map#get', function (assert) {
   assert.isFunction(Map.prototype.get);
   assert.name(Map.prototype.get, 'get');
   assert.arity(Map.prototype.get, 1);
@@ -198,7 +198,7 @@ test('Map#get', function (assert) {
   assert.strictEqual(map.get(2), 5);
 });
 
-test('Map#has', function (assert) {
+QUnit.test('Map#has', function (assert) {
   assert.isFunction(Map.prototype.has);
   assert.name(Map.prototype.has, 'has');
   assert.arity(Map.prototype.has, 1);
@@ -222,7 +222,7 @@ test('Map#has', function (assert) {
   assert.ok(!map.has({}));
 });
 
-test('Map#set', function (assert) {
+QUnit.test('Map#set', function (assert) {
   assert.isFunction(Map.prototype.set);
   assert.name(Map.prototype.set, 'set');
   assert.arity(Map.prototype.set, 2);
@@ -262,7 +262,7 @@ test('Map#set', function (assert) {
   assert.strictEqual(map.get(frozen), 42);
 });
 
-test('Map#size', function (assert) {
+QUnit.test('Map#size', function (assert) {
   assert.nonEnumerable(Map.prototype, 'size');
   var map = new Map();
   map.set(2, 1);
@@ -279,7 +279,7 @@ test('Map#size', function (assert) {
   }
 });
 
-test('Map & -0', function (assert) {
+QUnit.test('Map & -0', function (assert) {
   var map = new Map();
   map.set(-0, 1);
   assert.strictEqual(map.size, 1);
@@ -305,11 +305,11 @@ test('Map & -0', function (assert) {
   assert.ok(map.has(-0));
 });
 
-test('Map#@@toStringTag', function (assert) {
+QUnit.test('Map#@@toStringTag', function (assert) {
   assert.strictEqual(Map.prototype[Symbol.toStringTag], 'Map', 'Map::@@toStringTag is `Map`');
 });
 
-test('Map Iterator', function (assert) {
+QUnit.test('Map Iterator', function (assert) {
   var map = new Map();
   map.set('a', 1);
   map.set('b', 2);
@@ -334,7 +334,7 @@ test('Map Iterator', function (assert) {
   assert.deepEqual(results, ['a', 'd', 'e']);
 });
 
-test('Map#keys', function (assert) {
+QUnit.test('Map#keys', function (assert) {
   assert.isFunction(Map.prototype.keys);
   assert.name(Map.prototype.keys, 'keys');
   assert.arity(Map.prototype.keys, 0);
@@ -366,7 +366,7 @@ test('Map#keys', function (assert) {
   });
 });
 
-test('Map#values', function (assert) {
+QUnit.test('Map#values', function (assert) {
   assert.isFunction(Map.prototype.values);
   assert.name(Map.prototype.values, 'values');
   assert.arity(Map.prototype.values, 0);
@@ -398,7 +398,7 @@ test('Map#values', function (assert) {
   });
 });
 
-test('Map#entries', function (assert) {
+QUnit.test('Map#entries', function (assert) {
   assert.isFunction(Map.prototype.entries);
   assert.name(Map.prototype.entries, 'entries');
   assert.arity(Map.prototype.entries, 0);
@@ -430,7 +430,7 @@ test('Map#entries', function (assert) {
   });
 });
 
-test('Map#@@iterator', function (assert) {
+QUnit.test('Map#@@iterator', function (assert) {
   assert.isIterable(Map.prototype);
   assert.name(Map.prototype.entries, 'entries');
   assert.arity(Map.prototype.entries, 0);

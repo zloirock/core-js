@@ -295,7 +295,7 @@ module.exports = {
         'tests/worker/**',
       ],
       parserOptions: {
-        ecmaVersion: 2015,
+        ecmaVersion: 6,
       },
       env: {
         es6: true,
@@ -307,6 +307,40 @@ module.exports = {
         'dot-notation': ['error', { allowKeywords: true }],
         // require or disallow use of quotes around object literal property names
         'quote-props': ['error', 'as-needed', { keywords: false }],
+      },
+    },
+    {
+      files: [
+        'tests/helpers/**',
+        'tests/library/**',
+        'tests/tests/**',
+      ],
+      parserOptions: {
+        ecmaVersion: 6,
+        sourceType: 'module',
+      },
+      env: {
+        qunit: true,
+      },
+      rules: {
+        // enforces return statements in callbacks of array's methods
+        'array-callback-return': 'off',
+        // specify the maximum length of a line in your program
+        'max-len': ['error', 140, 2],
+        // specify the maximum number of statement allowed in a function
+        'max-statements': 'off',
+        // disallow function declarations and expressions inside loop statements
+        'no-loop-func': 'off',
+        // disallow use of new operator when not part of the assignment or comparison
+        'no-new': 'off',
+        // disallow use of new operator for Function object
+        'no-new-func': 'off',
+        // disallows creating new instances of String, Number, and Boolean
+        'no-new-wrappers': 'off',
+        // disallow usage of expressions in statement position
+        'no-unused-expressions': 'off',
+        // disallow unnecessary calls to `.call()` and `.apply()`
+        'no-useless-call': 'off',
       },
     },
   ],

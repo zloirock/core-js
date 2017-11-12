@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#padStart', function (assert) {
+QUnit.test('String#padStart', function (assert) {
   var padStart = core.String.padStart;
   assert.isFunction(padStart);
   assert.strictEqual(padStart('abc', 5), '  abc');

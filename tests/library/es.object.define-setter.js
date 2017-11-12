@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  test('Object#__defineSetter__', function (assert) {
+  QUnit.test('Object#__defineSetter__', function (assert) {
     var __defineGetter__ = core.Object.__defineGetter__;
     var __defineSetter__ = core.Object.__defineSetter__;
     assert.isFunction(__defineSetter__);

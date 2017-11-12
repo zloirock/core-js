@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#codePointAt', function (assert) {
+QUnit.test('String#codePointAt', function (assert) {
   var codePointAt = String.prototype.codePointAt;
   assert.isFunction(codePointAt);
   assert.arity(codePointAt, 1);

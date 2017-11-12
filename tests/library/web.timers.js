@@ -1,17 +1,9 @@
-var test = QUnit.test;
+import { timeLimitedPromise } from '../helpers/helpers';
 
 var setTimeout = core.setTimeout;
 var setInterval = core.setInterval;
-var Promise = core.Promise;
-function timeLimitedPromise(time, fn) {
-  return Promise.race([
-    new Promise(fn), new Promise(function (res, rej) {
-      setTimeout(rej, time);
-    })
-  ]);
-}
 
-test('setTimeout / clearTimeout', function (assert) {
+QUnit.test('setTimeout / clearTimeout', function (assert) {
   assert.expect(2);
 
   timeLimitedPromise(1e3, function (res) {
@@ -31,7 +23,7 @@ test('setTimeout / clearTimeout', function (assert) {
   }).then(assert.async());
 });
 
-test('setInterval / clearInterval', function (assert) {
+QUnit.test('setInterval / clearInterval', function (assert) {
   assert.expect(1);
 
   timeLimitedPromise(1e4, function (res, rej) {

@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('Array#sort', function (assert) {
+QUnit.test('Array#sort', function (assert) {
   var sort = core.Array.sort;
   assert.isFunction(sort);
   assert.ok(!!function () {

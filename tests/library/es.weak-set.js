@@ -1,4 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
+import { createIterable, nativeSubclass } from '../helpers/helpers';
+
 var WeakSet = core.WeakSet;
 var Symbol = core.Symbol;
 var freeze = core.Object.freeze;
@@ -7,7 +9,7 @@ var getOwnPropertyNames = core.Object.getOwnPropertyNames;
 var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
 var ownKeys = core.Reflect.ownKeys;
 
-test('WeakSet', function (assert) {
+QUnit.test('WeakSet', function (assert) {
   assert.isFunction(WeakSet);
   assert.ok('add' in WeakSet.prototype, 'add in WeakSet.prototype');
   assert.ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
@@ -60,7 +62,7 @@ test('WeakSet', function (assert) {
   }
 });
 
-test('WeakSet#add', function (assert) {
+QUnit.test('WeakSet#add', function (assert) {
   assert.isFunction(WeakSet.prototype.add);
   var weakset = new WeakSet();
   assert.ok(weakset.add({}) === weakset, 'chaining');
@@ -73,7 +75,7 @@ test('WeakSet#add', function (assert) {
   }(), 'throws with primitive keys');
 });
 
-test('WeakSet#delete', function (assert) {
+QUnit.test('WeakSet#delete', function (assert) {
   assert.isFunction(WeakSet.prototype['delete']);
   var a = {};
   var b = {};
@@ -88,7 +90,7 @@ test('WeakSet#delete', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakSet#has', function (assert) {
+QUnit.test('WeakSet#has', function (assert) {
   assert.isFunction(WeakSet.prototype.has);
   var weakset = new WeakSet();
   assert.ok(!weakset.has({}), 'WeakSet has`nt value');
@@ -104,6 +106,6 @@ test('WeakSet#has', function (assert) {
   }(), 'return false on primitive');
 });
 
-test('WeakSet::@@toStringTag', function (assert) {
+QUnit.test('WeakSet::@@toStringTag', function (assert) {
   assert.strictEqual(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
 });

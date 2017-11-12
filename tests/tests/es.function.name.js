@@ -1,7 +1,7 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  test('Function#name', function (assert) {
+  QUnit.test('Function#name', function (assert) {
     assert.ok('name' in Function.prototype);
     assert.nonEnumerable(Function.prototype, 'name');
     function foo() { /* empty */ }

@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#at', function (assert) {
+QUnit.test('String#at', function (assert) {
   var at = String.prototype.at;
   assert.isFunction(at);
   assert.arity(at, 1);

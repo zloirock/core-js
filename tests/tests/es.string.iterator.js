@@ -1,7 +1,8 @@
-var test = QUnit.test;
-var Symbol = global.Symbol || {};
+import { GLOBAL } from '../helpers/constants';
 
-test('String#@@iterator', function (assert) {
+var Symbol = GLOBAL.Symbol || {};
+
+QUnit.test('String#@@iterator', function (assert) {
   assert.isIterable(String.prototype);
   var iterator = 'qwe'[Symbol.iterator]();
   assert.isIterator(iterator);

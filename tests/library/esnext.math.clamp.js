@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.clamp', function (assert) {
+QUnit.test('Math.clamp', function (assert) {
   var clamp = core.Math.clamp;
   assert.isFunction(clamp);
   assert.arity(clamp, 3);

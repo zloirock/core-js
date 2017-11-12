@@ -1,10 +1,9 @@
-var test = QUnit.test;
 var Symbol = core.Symbol;
 var keys = core.Array.keys;
 var values = core.Array.values;
 var entries = core.Array.entries;
 
-test('Array#@@iterator', function (assert) {
+QUnit.test('Array#@@iterator', function (assert) {
   assert.isFunction(values);
   var iterator = core.getIterator(['q', 'w', 'e']);
   assert.isIterator(iterator);
@@ -28,7 +27,7 @@ test('Array#@@iterator', function (assert) {
   });
 });
 
-test('Array#keys', function (assert) {
+QUnit.test('Array#keys', function (assert) {
   assert.isFunction(keys);
   var iterator = keys(['q', 'w', 'e']);
   assert.isIterator(iterator);
@@ -52,7 +51,7 @@ test('Array#keys', function (assert) {
   });
 });
 
-test('Array#values', function (assert) {
+QUnit.test('Array#values', function (assert) {
   assert.isFunction(values);
   var iterator = values(['q', 'w', 'e']);
   assert.isIterator(iterator);
@@ -76,7 +75,7 @@ test('Array#values', function (assert) {
   });
 });
 
-test('Array#entries', function (assert) {
+QUnit.test('Array#entries', function (assert) {
   assert.isFunction(entries);
   var iterator = entries(['q', 'w', 'e']);
   assert.isIterator(iterator);

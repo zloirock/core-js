@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#startsWith', function (assert) {
+QUnit.test('String#startsWith', function (assert) {
   var startsWith = core.String.startsWith;
   var Symbol = core.Symbol;
   assert.isFunction(startsWith);

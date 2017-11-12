@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Math.log1p', function (assert) {
+QUnit.test('Math.log1p', function (assert) {
   var log1p = Math.log1p;
   assert.isFunction(log1p);
   assert.name(log1p, 'log1p');

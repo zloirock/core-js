@@ -1,14 +1,12 @@
-var test = QUnit.test;
+import { TYPED_ARRAYS } from '../helpers/constants';
 
-test('ArrayBuffer.isView', function (assert) {
+QUnit.test('ArrayBuffer.isView', function (assert) {
   var ArrayBuffer = core.ArrayBuffer;
   var DataView = core.DataView;
   var isView = ArrayBuffer.isView;
   assert.isFunction(isView);
   assert.arity(isView, 1);
-  var examples = ['Float32Array', 'Float64Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Uint8ClampedArray'];
-  for (var i = 0, length = examples.length; i < length; ++i) {
-    var name = examples[i];
+  for (var name in TYPED_ARRAYS) {
     if (core[name]) {
       assert.same(isView(new core[name]([1])), true, name + ' - true');
     }

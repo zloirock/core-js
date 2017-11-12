@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
 
-test('String#codePointAt', function (assert) {
+QUnit.test('String#codePointAt', function (assert) {
   var codePointAt = core.String.codePointAt;
   assert.isFunction(codePointAt);
   assert.strictEqual(codePointAt('abc\uD834\uDF06def', ''), 0x61);

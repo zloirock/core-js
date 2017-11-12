@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { createIterable } from '../helpers/helpers';
 
-test('Set.from', function (assert) {
+QUnit.test('Set.from', function (assert) {
   var from = Set.from;
   var toArray = Array.from;
   assert.isFunction(from);

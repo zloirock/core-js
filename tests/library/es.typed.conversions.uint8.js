@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
 
-DESCRIPTORS && test('Uint8 conversions', function (assert) {
+if (DESCRIPTORS) QUnit.test('Uint8 conversions', function (assert) {
   var Uint8Array = core.Uint8Array;
   var DataView = core.DataView;
 
@@ -56,7 +56,7 @@ DESCRIPTORS && test('Uint8 conversions', function (assert) {
     [NaN, 0, [0]]
   ];
   // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(global.navigator && navigator.userAgent)) {
+  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
     data = data.concat([
       [2147483649, 1, [1]],
       [-2147483649, 255, [255]],

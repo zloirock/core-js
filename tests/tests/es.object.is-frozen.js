@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { NATIVE } from '../helpers/constants';
 
-test('Object.isFrozen', function (assert) {
+QUnit.test('Object.isFrozen', function (assert) {
   var freeze = Object.freeze;
   var isFrozen = Object.isFrozen;
   assert.isFunction(isFrozen);
@@ -20,7 +20,5 @@ test('Object.isFrozen', function (assert) {
     assert.same(isFrozen(value), true, 'returns true on ' + value);
   }
   assert.same(isFrozen({}), false);
-  if (NATIVE) {
-    assert.ok(isFrozen(freeze({})));
-  }
+  if (NATIVE) assert.ok(isFrozen(freeze({})));
 });

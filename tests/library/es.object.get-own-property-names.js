@@ -1,6 +1,7 @@
-var test = QUnit.test;
+import { GLOBAL } from '../helpers/constants';
+import { includes } from '../helpers/helpers';
 
-test('Object.getOwnPropertyNames', function (assert) {
+QUnit.test('Object.getOwnPropertyNames', function (assert) {
   var getOwnPropertyNames = core.Object.getOwnPropertyNames;
   assert.isFunction(getOwnPropertyNames);
   assert.arity(getOwnPropertyNames, 1);
@@ -38,7 +39,7 @@ test('Object.getOwnPropertyNames', function (assert) {
   assert['throws'](function () {
     getOwnPropertyNames(undefined);
   }, TypeError, 'throws on undefined');
-  if (global.document) {
+  if (GLOBAL.document) {
     assert.ok(function () {
       try {
         var iframe = document.createElement('iframe');

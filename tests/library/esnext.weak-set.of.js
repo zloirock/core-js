@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('WeakSet.of', function (assert) {
+QUnit.test('WeakSet.of', function (assert) {
   var WeakSet = core.WeakSet;
   var of = WeakSet.of;
   assert.isFunction(of);

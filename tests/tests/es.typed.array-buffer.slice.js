@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
 
-test('ArrayBuffer#slice', function (assert) {
+QUnit.test('ArrayBuffer#slice', function (assert) {
   var slice = ArrayBuffer.prototype.slice;
   assert.isFunction(slice);
   assert.arity(slice, 2);

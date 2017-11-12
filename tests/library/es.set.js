@@ -1,4 +1,6 @@
-var test = QUnit.test;
+import { DESCRIPTORS } from '../helpers/constants';
+import { is, createIterable, nativeSubclass } from '../helpers/helpers';
+
 var Set = core.Set;
 var Map = core.Map;
 var Symbol = core.Symbol;
@@ -8,10 +10,9 @@ var getOwnPropertyNames = core.Object.getOwnPropertyNames;
 var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
 var ownKeys = core.Reflect.ownKeys;
 var freeze = core.Object.freeze;
-var is = core.Object.is;
 var from = core.Array.from;
 
-test('Set', function (assert) {
+QUnit.test('Set', function (assert) {
   assert.isFunction(Set);
   assert.ok('add' in Set.prototype, 'add in Set.prototype');
   assert.ok('clear' in Set.prototype, 'clear in Set.prototype');
@@ -77,7 +78,7 @@ test('Set', function (assert) {
   }
 });
 
-test('Set#add', function (assert) {
+QUnit.test('Set#add', function (assert) {
   assert.isFunction(Set.prototype.add);
   var array = [];
   var set = new Set();
@@ -105,7 +106,7 @@ test('Set#add', function (assert) {
   assert.ok(set.has(frozen));
 });
 
-test('Set#clear', function (assert) {
+QUnit.test('Set#clear', function (assert) {
   assert.isFunction(Set.prototype.clear);
   var set = new Set();
   set.clear();
@@ -131,7 +132,7 @@ test('Set#clear', function (assert) {
   assert.ok(!set.has(frozen));
 });
 
-test('Set#delete', function (assert) {
+QUnit.test('Set#delete', function (assert) {
   assert.isFunction(Set.prototype['delete']);
   var array = [];
   var set = new Set();
@@ -157,7 +158,7 @@ test('Set#delete', function (assert) {
   assert.strictEqual(set.size, 3);
 });
 
-test('Set#forEach', function (assert) {
+QUnit.test('Set#forEach', function (assert) {
   assert.isFunction(Set.prototype.forEach);
   var result = [];
   var count = 0;
@@ -203,7 +204,7 @@ test('Set#forEach', function (assert) {
   }, 'non-generic');
 });
 
-test('Set#has', function (assert) {
+QUnit.test('Set#has', function (assert) {
   assert.isFunction(Set.prototype.has);
   var array = [];
   var frozen = freeze({});
@@ -223,7 +224,7 @@ test('Set#has', function (assert) {
   assert.ok(!set.has([]));
 });
 
-test('Set#size', function (assert) {
+QUnit.test('Set#size', function (assert) {
   var set = new Set();
   set.add(1);
   var size = set.size;
@@ -239,7 +240,7 @@ test('Set#size', function (assert) {
   }
 });
 
-test('Set & -0', function (assert) {
+QUnit.test('Set & -0', function (assert) {
   var set = new Set();
   set.add(-0);
   assert.strictEqual(set.size, 1);
@@ -263,11 +264,11 @@ test('Set & -0', function (assert) {
   assert.ok(set.has(-0));
 });
 
-test('Set#@@toStringTag', function (assert) {
+QUnit.test('Set#@@toStringTag', function (assert) {
   assert.strictEqual(Set.prototype[Symbol.toStringTag], 'Set', 'Set::@@toStringTag is `Set`');
 });
 
-test('Set Iterator', function (assert) {
+QUnit.test('Set Iterator', function (assert) {
   var set = new Set();
   set.add('a');
   set.add('b');
@@ -288,7 +289,7 @@ test('Set Iterator', function (assert) {
   assert.deepEqual(results, ['a', 'd', 'e']);
 });
 
-test('Set#keys', function (assert) {
+QUnit.test('Set#keys', function (assert) {
   assert.isFunction(Set.prototype.keys);
   var set = new Set();
   set.add('q');
@@ -316,7 +317,7 @@ test('Set#keys', function (assert) {
   });
 });
 
-test('Set#values', function (assert) {
+QUnit.test('Set#values', function (assert) {
   assert.isFunction(Set.prototype.values);
   var set = new Set();
   set.add('q');
@@ -344,7 +345,7 @@ test('Set#values', function (assert) {
   });
 });
 
-test('Set#entries', function (assert) {
+QUnit.test('Set#entries', function (assert) {
   assert.isFunction(Set.prototype.entries);
   var set = new Set();
   set.add('q');
@@ -372,7 +373,7 @@ test('Set#entries', function (assert) {
   });
 });
 
-test('Set#@@iterator', function (assert) {
+QUnit.test('Set#@@iterator', function (assert) {
   var set = new Set();
   set.add('q');
   set.add('w');

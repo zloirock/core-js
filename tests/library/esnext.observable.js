@@ -1,10 +1,10 @@
-'use strict';
-var test = QUnit.test;
+import { STRICT } from '../helpers/constants';
+
 var Observable = core.Observable;
 var Promise = core.Promise;
 var Symbol = core.Symbol;
 
-test('Observable', function (assert) {
+QUnit.test('Observable', function (assert) {
   assert.isFunction(Observable);
   assert.arity(Observable, 1);
   assert['throws'](function () {
@@ -30,7 +30,7 @@ test('Observable', function (assert) {
   assert.ok(obsevable instanceof Observable);
 });
 
-test('Observable#subscribe', function (assert) {
+QUnit.test('Observable#subscribe', function (assert) {
   assert.isFunction(Observable.prototype.subscribe);
   assert.arity(Observable.prototype.subscribe, 1);
   var subscription = new Observable(function () { /* empty */ }).subscribe({});
@@ -40,28 +40,28 @@ test('Observable#subscribe', function (assert) {
   assert.arity(subscription.unsubscribe, 0);
 });
 
-test('Observable#forEach', function (assert) {
+QUnit.test('Observable#forEach', function (assert) {
   assert.isFunction(Observable.prototype.forEach);
   assert.arity(Observable.prototype.forEach, 1);
   assert.ok(new Observable(function () { /* empty */ }).forEach(function () { /* empty */ }) instanceof Promise, 'returns Promise');
 });
 
-test('Observable#constructor', function (assert) {
+QUnit.test('Observable#constructor', function (assert) {
   assert.same(Observable.prototype.constructor, Observable);
 });
 
-test('Observable#@@observable', function (assert) {
+QUnit.test('Observable#@@observable', function (assert) {
   assert.isFunction(Observable.prototype[Symbol.observable]);
   var observable = new Observable(function () { /* empty*/ });
   assert.same(observable[Symbol.observable](), observable);
 });
 
-test('Observable.of', function (assert) {
+QUnit.test('Observable.of', function (assert) {
   assert.isFunction(Observable.of);
   assert.arity(Observable.of, 0);
 });
 
-test('Observable.from', function (assert) {
+QUnit.test('Observable.from', function (assert) {
   assert.isFunction(Observable.from);
   assert.arity(Observable.from, 1);
 });

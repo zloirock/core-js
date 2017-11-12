@@ -1,6 +1,4 @@
-var test = QUnit.test;
-
-test('Object.defineProperty', function (assert) {
+QUnit.test('Object.defineProperty', function (assert) {
   var defineProperty = Object.defineProperty;
   var create = Object.create;
   assert.isFunction(defineProperty);

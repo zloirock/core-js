@@ -1,6 +1,6 @@
-var test = QUnit.test;
+import { createIterable } from '../helpers/helpers';
 
-test('WeakMap.from', function (assert) {
+QUnit.test('WeakMap.from', function (assert) {
   var WeakMap = core.WeakMap;
   var from = WeakMap.from;
   assert.isFunction(from);
