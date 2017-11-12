@@ -74,6 +74,11 @@ module.exports = grunt => {
     },
     webpack: {
       options: {
+        node: {
+          global: false,
+          process: false,
+          setImmediate: false,
+        },
         stats: false,
         output: {
           path: path.resolve(__dirname, 'tests/bundles'),
