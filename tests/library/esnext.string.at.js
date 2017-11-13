@@ -27,7 +27,7 @@ QUnit.test('String#at', function (assert) {
   assert.strictEqual(at('abc\uD834\uDF06def', -0.9), 'a');
   assert.strictEqual(at('abc\uD834\uDF06def', 1.9), 'b');
   assert.strictEqual(at('abc\uD834\uDF06def', 7.9), 'f');
-  assert.strictEqual(at('abc\uD834\uDF06def', Math.pow(2, 32)), '');
+  assert.strictEqual(at('abc\uD834\uDF06def', 2 ** 32), '');
   // String that starts with an astral symbol
   assert.strictEqual(at('\uD834\uDF06def', -Infinity), '');
   assert.strictEqual(at('\uD834\uDF06def', -1), '');

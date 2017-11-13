@@ -25,7 +25,7 @@ QUnit.test('Array.from', function (assert) {
     var data = types[type];
     assert.arrayEqual(from(data), ['1', '2', '3'], 'Works with ' + type);
     assert.arrayEqual(from(data, function (it) {
-      return Math.pow(it, 2);
+      return it ** 2;
     }), [1, 4, 9], 'Works with ' + type + ' + mapFn');
   }
   types = {
