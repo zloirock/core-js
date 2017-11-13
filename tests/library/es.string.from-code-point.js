@@ -61,12 +61,12 @@ QUnit.test('String.fromCodePoint', function (assert) {
   }), 'a');
   assert.strictEqual(number, 0x61);
   // one code unit per symbol
-  var counter = Math.pow(2, 15) * 3 / 2;
+  var counter = 2 ** 15 * 3 / 2;
   var result = [];
   while (--counter >= 0) result.push(0);
   // should not throw
   fromCodePoint.apply(null, result);
-  counter = Math.pow(2, 15) * 3 / 2;
+  counter = 2 ** 15 * 3 / 2;
   result = [];
   while (--counter >= 0) result.push(0xFFFF + 1);
   // should not throw

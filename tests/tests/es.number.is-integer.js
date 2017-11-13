@@ -9,12 +9,12 @@ QUnit.test('Number.isInteger', function (assert) {
   var integers = [
     1,
     -1,
-    Math.pow(2, 16),
-    Math.pow(2, 16) - 1,
-    Math.pow(2, 31),
-    Math.pow(2, 31) - 1,
-    Math.pow(2, 32),
-    Math.pow(2, 32) - 1,
+    2 ** 16,
+    2 ** 16 - 1,
+    2 ** 31,
+    2 ** 31 - 1,
+    2 ** 32,
+    2 ** 32 - 1,
     -0
   ];
   for (var i = 0, length = integers.length; i < length; ++i) {
