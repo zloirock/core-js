@@ -9,12 +9,12 @@ QUnit.test('Number.isSafeInteger', function (assert) {
   var safeIntegers = [
     1,
     -1,
-    Math.pow(2, 16),
-    Math.pow(2, 16) - 1,
-    Math.pow(2, 31),
-    Math.pow(2, 31) - 1,
-    Math.pow(2, 32),
-    Math.pow(2, 32) - 1,
+    2 ** 16,
+    2 ** 16 - 1,
+    2 ** 31,
+    2 ** 31 - 1,
+    2 ** 32,
+    2 ** 32 - 1,
     -0,
     9007199254740991,
     -9007199254740991

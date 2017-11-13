@@ -25,7 +25,7 @@ QUnit.test('WeakSet.from', function (assert) {
     return arg = it;
   }
   from.call(F, createIterable([1, 2, 3]), function (it) {
-    return Math.pow(it, 2);
+    return it ** 2;
   });
   assert.deepEqual(arg, [1, 4, 9]);
 });
