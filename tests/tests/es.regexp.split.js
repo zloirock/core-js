@@ -67,8 +67,8 @@ QUnit.test('String#split regression', function (assert) {
   assert.arrayEqual('test'.split(/(t)(e)(s)(t)/), ['', 't', 'e', 's', 't', ''], "'test'.split(/(t)(e)(s)(t)/) results in ['', 't', 'e', 's', 't', '']");
   assert.arrayEqual('.'.split(/(((.((.??)))))/), ['', '.', '.', '.', '', '', ''], "'.'.split(/(((.((.??)))))/) results in ['', '.', '.', '.', '', '', '']");
   assert.arrayEqual('.'.split(/(((((.??)))))/), ['.'], "'.'.split(/(((((.??)))))/) results in ['.']");
-  assert.arrayEqual('a b c d'.split(/ /, -(Math.pow(2, 32) - 1)), ['a'], "'a b c d'.split(/ /, -(Math.pow(2, 32) - 1)) results in ['a']");
-  assert.arrayEqual('a b c d'.split(/ /, Math.pow(2, 32) + 1), ['a'], "'a b c d'.split(/ /, Math.pow(2, 32) + 1) results in ['a']");
+  assert.arrayEqual('a b c d'.split(/ /, -(2 ** 32) + 1), ['a'], "'a b c d'.split(/ /, -(2 ** 32) + 1) results in ['a']");
+  assert.arrayEqual('a b c d'.split(/ /, 2 ** 32 + 1), ['a'], "'a b c d'.split(/ /, 2 ** 32 + 1) results in ['a']");
   assert.arrayEqual('a b c d'.split(/ /, Infinity), [], "'a b c d'.split(/ /, Infinity) results in []");
   var instance = Object(true);
   instance.split = String.prototype.split;
@@ -460,7 +460,7 @@ QUnit.test('String#split regression', function (assert) {
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
-  split = instance.split(1, Math.pow(2, 32) - 1);
+  split = instance.split(1, 2 ** 32 - 1);
   expected = ['', '00', '', '', '', '22', '33', '44', '60'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T35 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T35 #2');
@@ -474,7 +474,7 @@ QUnit.test('String#split regression', function (assert) {
   assert.strictEqual(split.length, 0, 'S15.5.4.14_A2_T36 #2');
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
-  split = instance.split(1, -Math.pow(2, 32) + 1);
+  split = instance.split(1, -(2 ** 32) + 1);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T37 #1');
   assert.arrayEqual(split, [''], 'S15.5.4.14_A2_T37 #2');
   instance = Object(100111122133144155);
