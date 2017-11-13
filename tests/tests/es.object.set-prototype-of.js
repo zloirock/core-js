@@ -10,7 +10,7 @@ if (PROTO) QUnit.test('Object.setPrototypeOf', function (assert) {
   assert.ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
   assert.strictEqual(setPrototypeOf({ a: 2 }, {
     b: function () {
-      return Math.pow(this.a, 2);
+      return this.a ** 2;
     }
   }).b(), 4, 'Child and parent properties in target');
   var object = {};

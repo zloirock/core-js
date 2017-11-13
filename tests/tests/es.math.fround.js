@@ -22,11 +22,11 @@ QUnit.test('Math.fround', function (assert) {
   var minFloat32 = 1.401298464324817e-45;
   assert.strictEqual(fround(maxFloat32), maxFloat32);
   assert.strictEqual(fround(-maxFloat32), -maxFloat32);
-  assert.strictEqual(fround(maxFloat32 + Math.pow(2, Math.pow(2, 8 - 1) - 1 - 23 - 2)), maxFloat32);
+  assert.strictEqual(fround(maxFloat32 + 2 ** 102), maxFloat32);
   assert.strictEqual(fround(minFloat32), minFloat32);
   assert.strictEqual(fround(-minFloat32), -minFloat32);
   assert.same(fround(minFloat32 / 2), 0);
   assert.same(fround(-minFloat32 / 2), -0);
-  assert.strictEqual(fround(minFloat32 / 2 + Math.pow(2, -202)), minFloat32);
-  assert.strictEqual(fround(-minFloat32 / 2 - Math.pow(2, -202)), -minFloat32);
+  assert.strictEqual(fround(minFloat32 / 2 + 2 ** -202), minFloat32);
+  assert.strictEqual(fround(-minFloat32 / 2 - 2 ** -202), -minFloat32);
 });
