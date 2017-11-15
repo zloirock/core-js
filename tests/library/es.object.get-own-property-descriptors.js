@@ -1,15 +1,14 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-QUnit.test('Object.getOwnPropertyDescriptors', function (assert) {
-  var Symbol = core.Symbol;
-  var create = core.Object.create;
-  var getOwnPropertyDescriptors = core.Object.getOwnPropertyDescriptors;
+QUnit.test('Object.getOwnPropertyDescriptors', assert => {
+  const { Symbol } = core;
+  const { create, getOwnPropertyDescriptors } = core.Object;
   assert.isFunction(getOwnPropertyDescriptors);
-  var object = create({ q: 1 }, { e: { value: 3 } });
+  const object = create({ q: 1 }, { e: { value: 3 } });
   object.w = 2;
-  var symbol = Symbol('4');
+  const symbol = Symbol('4');
   object[symbol] = 4;
-  var descriptors = getOwnPropertyDescriptors(object);
+  const descriptors = getOwnPropertyDescriptors(object);
   assert.strictEqual(descriptors.q, undefined);
   assert.deepEqual(descriptors.w, {
     enumerable: true,

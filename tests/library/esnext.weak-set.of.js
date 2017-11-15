@@ -1,15 +1,15 @@
-QUnit.test('WeakSet.of', function (assert) {
-  var WeakSet = core.WeakSet;
-  var of = WeakSet.of;
+QUnit.test('WeakSet.of', assert => {
+  const { WeakSet } = core;
+  const { of } = WeakSet;
   assert.isFunction(of);
   assert.arity(of, 0);
-  var array = [];
+  const array = [];
   assert.ok(WeakSet.of() instanceof WeakSet);
   assert.ok(WeakSet.of(array).has(array));
-  assert.throws(function () {
-    of(1);
+  assert.throws(() => {
+    return of(1);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     arg = it;
   }

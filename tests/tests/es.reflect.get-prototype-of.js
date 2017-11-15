@@ -1,12 +1,12 @@
-QUnit.test('Reflect.getPrototypeOf', function (assert) {
-  var getPrototypeOf = Reflect.getPrototypeOf;
+QUnit.test('Reflect.getPrototypeOf', assert => {
+  const { getPrototypeOf } = Reflect;
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);
   assert.name(getPrototypeOf, 'getPrototypeOf');
   assert.looksNative(getPrototypeOf);
   assert.nonEnumerable(Reflect, 'getPrototypeOf');
   assert.strictEqual(getPrototypeOf([]), Array.prototype);
-  assert.throws(function () {
-    getPrototypeOf(42);
+  assert.throws(() => {
+    return getPrototypeOf(42);
   }, TypeError, 'throws on primitive');
 });

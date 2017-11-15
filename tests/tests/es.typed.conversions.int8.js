@@ -1,9 +1,9 @@
-import { GLOBAL, DESCRIPTORS, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Int8 conversions', function (assert) {
-  var int8array = new Int8Array(1);
-  var uint8array = new Uint8Array(int8array.buffer);
-  var dataview = new DataView(int8array.buffer);
+if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
+  const int8array = new Int8Array(1);
+  const uint8array = new Uint8Array(int8array.buffer);
+  const dataview = new DataView(int8array.buffer);
 
   function viewFrom(it) {
     return new DataView(new Uint8Array(it).buffer);
@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('Int8 conversions', function (assert) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  let data = [
     [0, 0, [0]],
     [-0, 0, [0]],
     [1, 1, [1]],
@@ -67,17 +67,14 @@ if (DESCRIPTORS) QUnit.test('Int8 conversions', function (assert) {
       [-9007199254740994, -2, [254]]
     ]);
   }
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
-    var big = little.slice().reverse();
-    var representation = LITTLE_ENDIAN ? little : big;
+  for (const [value, conversion, little] of data) {
+    const big = little.slice().reverse();
+    const representation = LITTLE_ENDIAN ? little : big;
     int8array[0] = value;
-    assert.same(int8array[0], conversion, 'Int8Array ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, representation, 'Int8Array ' + toString(value) + ' -> [' + representation + ']');
+    assert.same(int8array[0], conversion, `Int8Array ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, representation, `Int8Array ${ toString(value) } -> [${ representation }]`);
     dataview.setInt8(0, value);
-    assert.arrayEqual(uint8array, big, 'dataview.setInt8(0, ' + toString(value) + ') -> [' + big + ']');
-    assert.same(viewFrom(big).getInt8(0), conversion, 'dataview{' + big + '}.getInt8(0) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setInt8(0, ${ toString(value) }) -> [${ big }]`);
+    assert.same(viewFrom(big).getInt8(0), conversion, `dataview{${ big }}.getInt8(0) -> ${ toString(conversion) }`);
   }
 });

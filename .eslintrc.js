@@ -295,7 +295,7 @@ module.exports = {
         'tests/worker/**',
       ],
       parserOptions: {
-        ecmaVersion: 6,
+        ecmaVersion: 2017,
       },
       env: {
         es6: true,
@@ -316,7 +316,7 @@ module.exports = {
         'tests/tests/**',
       ],
       parserOptions: {
-        ecmaVersion: 6,
+        ecmaVersion: 2017,
         sourceType: 'module',
       },
       env: {
@@ -325,10 +325,23 @@ module.exports = {
       rules: {
         // enforces return statements in callbacks of array's methods
         'array-callback-return': 'off',
+        // require parentheses around arrow function arguments
+        'arrow-parens': ['error', 'as-needed'],
+        // enforce consistent spacing before and after the arrow in arrow functions
+        'arrow-spacing': 'error',
+        // encourages use of dot notation whenever possible
+        'dot-notation': ['error', { allowKeywords: true }],
         // specify the maximum length of a line in your program
-        'max-len': ['error', 140, 2],
+        'max-len': ['error', 150, 2],
         // specify the maximum number of statement allowed in a function
         'max-statements': 'off',
+        // disallow duplicate module imports
+        'no-duplicate-imports': 'error',
+        'no-inner-declarations': 'off',
+        // disallow unnecessary computed property keys in object literals
+        'no-useless-computed-key': 'error',
+        // require let or const instead of var
+        'no-var': 'error',
         // disallow function declarations and expressions inside loop statements
         'no-loop-func': 'off',
         // disallow use of new operator when not part of the assignment or comparison
@@ -341,6 +354,28 @@ module.exports = {
         'no-unused-expressions': 'off',
         // disallow unnecessary calls to `.call()` and `.apply()`
         'no-useless-call': 'off',
+        // disallow unnecessary constructors
+        'no-useless-constructor': 'error',
+        // disallow renaming import, export, and destructured assignments to the same name
+        'no-useless-rename': 'error',
+        // require or disallow method and property shorthand syntax for object literals
+        'object-shorthand': 'error',
+        // require using arrow functions for callbacks
+        'prefer-arrow-callback': 'error',
+        // require const declarations for variables that are never reassigned after declared
+        'prefer-const': 'error',
+        // require destructuring from arrays and/or objects
+        'prefer-destructuring': 'error',
+        // require template literals instead of string concatenation
+        'prefer-template': 'error',
+        // require or disallow use of quotes around object literal property names
+        'quote-props': ['error', 'as-needed', { keywords: false }],
+        // enforce spacing between rest and spread operators and their expressions
+        'rest-spread-spacing': 'error',
+        // require or disallow spacing around embedded expressions of template strings
+        'template-curly-spacing': ['error', 'always'],
+        // enforce sorted import declarations within modules
+        'sort-imports': 'error',
       },
     },
   ],

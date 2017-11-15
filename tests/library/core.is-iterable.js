@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('core.isIterable', function (assert) {
-  var isIterable = core.isIterable;
+QUnit.test('core.isIterable', assert => {
+  const { isIterable } = core;
   assert.isFunction(isIterable);
   assert.ok(isIterable(createIterable([])));
   assert.ok(isIterable([]));

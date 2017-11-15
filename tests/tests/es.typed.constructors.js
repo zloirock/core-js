@@ -1,26 +1,24 @@
-import { GLOBAL, DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-var Symbol = GLOBAL.Symbol || {};
-var keys = Object.keys;
-var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var defineProperty = Object.defineProperty;
-var assign = Object.assign;
+const Symbol = GLOBAL.Symbol || {};
+const { keys, getOwnPropertyDescriptor, defineProperty, assign } = Object;
 
 if (DESCRIPTORS) {
-  for (var name in TYPED_ARRAYS) !function (name, bytes) {
-    var TypedArray = GLOBAL[name];
+  for (const name in TYPED_ARRAYS) {
+    const bytes = TYPED_ARRAYS[name];
+    const TypedArray = GLOBAL[name];
 
-    QUnit.test(name + ' constructor', function (assert) {
+    QUnit.test(`${ name } constructor`, assert => {
       assert.isFunction(TypedArray);
       assert.arity(TypedArray, 3);
       assert.name(TypedArray, name);
       // Safari 5 bug
       if (NATIVE) assert.looksNative(TypedArray);
-      assert.same(TypedArray.BYTES_PER_ELEMENT, bytes, name + '.BYTES_PER_ELEMENT');
-      var array = new TypedArray(4);
+      assert.same(TypedArray.BYTES_PER_ELEMENT, bytes, `${ name }.BYTES_PER_ELEMENT`);
+      let array = new TypedArray(4);
       assert.same(array.BYTES_PER_ELEMENT, bytes, '#BYTES_PER_ELEMENT');
-      assert.same(array.byteOffset, 0, name + '#byteOffset, passed number');
+      assert.same(array.byteOffset, 0, `${ name }#byteOffset, passed number`);
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed number');
       assert.arrayEqual(array, [0, 0, 0, 0], 'correct values, passed number');
       try {
@@ -81,7 +79,7 @@ if (DESCRIPTORS) {
       } catch (e) {
         assert.same(e, [0], 'passed boolean');
       }
-      if (NATIVE) assert.throws(function () {
+      if (NATIVE) assert.throws(() => {
         new TypedArray(-1);
       }, RangeError, 'throws on -1');
       try {
@@ -127,7 +125,7 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 0, '#byteOffset, passed typed array');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed typed array');
       assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed typed array');
-      var fake = new TypedArray([1, 2, 3, 4]);
+      const fake = new TypedArray([1, 2, 3, 4]);
       fake[Symbol.iterator] = function () {
         return createIterable([4, 3, 2, 1])[Symbol.iterator]();
       };
@@ -160,47 +158,47 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
       assert.same(array.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
       assert.arrayEqual(array, [], 'correct values, passed buffer and byteOffset with buffer length');
-      assert.throws(function () {
+      assert.throws(() => {
         // FF bug - TypeError instead of RangeError
-        new TypedArray(new ArrayBuffer(8), -1);
+        return new TypedArray(new ArrayBuffer(8), -1);
       }, RangeError, 'If offset < 0, throw a RangeError exception');
       if (bytes !== 1) {
-        assert.throws(function () {
+        assert.throws(() => {
           // FF bug - TypeError instead of RangeError
-          new TypedArray(new ArrayBuffer(8), 3);
+          return new TypedArray(new ArrayBuffer(8), 3);
         }, RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
       }
       if (NATIVE) {
         if (bytes !== 1) {
-          assert.throws(function () {
+          assert.throws(() => {
             // fails in Opera 12
-            new TypedArray(new ArrayBuffer(9));
+            return new TypedArray(new ArrayBuffer(9));
           }, RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
         }
-        assert.throws(function () {
-          new TypedArray(new ArrayBuffer(8), 16);
+        assert.throws(() => {
+          return new TypedArray(new ArrayBuffer(8), 16);
         }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(function () {
-          new TypedArray(new ArrayBuffer(24), 8, 24);
+        assert.throws(() => {
+          return new TypedArray(new ArrayBuffer(24), 8, 24);
         }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       } else { // FF bug - TypeError instead of RangeError
-        assert.throws(function () {
-          new TypedArray(new ArrayBuffer(8), 16);
+        assert.throws(() => {
+          return new TypedArray(new ArrayBuffer(8), 16);
         }, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(function () {
-          new TypedArray(new ArrayBuffer(24), 8, 24);
+        assert.throws(() => {
+          return new TypedArray(new ArrayBuffer(24), 8, 24);
         }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       }
-      assert.throws(function () {
-        TypedArray(1);
+      assert.throws(() => {
+        return TypedArray(1);
       }, TypeError, 'throws without `new`');
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
     });
 
-    QUnit.test(name + ' descriptors', function (assert) {
-      var array = new TypedArray(2);
-      var descriptor = getOwnPropertyDescriptor(array, 0);
-      var base = NATIVE ? {
+    QUnit.test(`${ name } descriptors`, assert => {
+      const array = new TypedArray(2);
+      const descriptor = getOwnPropertyDescriptor(array, 0);
+      const base = NATIVE ? {
         writable: true,
         enumerable: true,
         configurable: false
@@ -215,8 +213,8 @@ if (DESCRIPTORS) {
       if (NATIVE) {
         // fails in old WebKit
         assert.arrayEqual(keys(array), ['0', '1'], 'Object.keys');
-        var results = [];
-        for (var key in array) results.push(key);
+        const results = [];
+        for (const key in array) results.push(key);
         // fails in old WebKit
         assert.arrayEqual(results, ['0', '1'], 'for-in');
         defineProperty(array, 0, {
@@ -260,7 +258,7 @@ if (DESCRIPTORS) {
         }
         try {
           defineProperty(array, 0, {
-            get: function () {
+            get() {
               return 2;
             }
           });
@@ -272,7 +270,7 @@ if (DESCRIPTORS) {
       try {
         defineProperty(array, 0, {
           value: 2,
-          get: function () {
+          get() {
             return 2;
           }
         });
@@ -281,5 +279,5 @@ if (DESCRIPTORS) {
         assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
       }
     });
-  }(name, TYPED_ARRAYS[name]);
+  }
 }

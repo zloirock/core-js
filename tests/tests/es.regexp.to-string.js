@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('RegExp#toString', function (assert) {
-  var toString = /./.toString;
+QUnit.test('RegExp#toString', assert => {
+  const { toString } = RegExp.prototype;
   assert.isFunction(toString);
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
@@ -23,20 +23,20 @@ QUnit.test('RegExp#toString', function (assert) {
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
   if (STRICT) {
-    assert.throws(function () {
-      toString.call(7);
+    assert.throws(() => {
+      return toString.call(7);
     });
-    assert.throws(function () {
-      toString.call('a');
+    assert.throws(() => {
+      return toString.call('a');
     });
-    assert.throws(function () {
-      toString.call(false);
+    assert.throws(() => {
+      return toString.call(false);
     });
-    assert.throws(function () {
-      toString.call(null);
+    assert.throws(() => {
+      return toString.call(null);
     });
-    assert.throws(function () {
-      toString.call(undefined);
+    assert.throws(() => {
+      return toString.call(undefined);
     });
   }
 });

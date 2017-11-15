@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#codePointAt', function (assert) {
-  var codePointAt = core.String.codePointAt;
+QUnit.test('String#codePointAt', assert => {
+  const { codePointAt } = core.String;
   assert.isFunction(codePointAt);
   assert.strictEqual(codePointAt('abc\uD834\uDF06def', ''), 0x61);
   assert.strictEqual(codePointAt('abc\uD834\uDF06def', '_'), 0x61);
@@ -53,11 +53,11 @@ QUnit.test('String#codePointAt', function (assert) {
   assert.strictEqual(codePointAt('\uDF06abc', null), 0xDF06);
   assert.strictEqual(codePointAt('\uDF06abc', undefined), 0xDF06);
   if (STRICT) {
-    assert.throws(function () {
-      codePointAt(null, 0);
+    assert.throws(() => {
+      return codePointAt(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      codePointAt(undefined, 0);
+    assert.throws(() => {
+      return codePointAt(undefined, 0);
     }, TypeError);
   }
 });

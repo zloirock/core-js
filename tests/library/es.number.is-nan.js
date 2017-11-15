@@ -1,9 +1,9 @@
-QUnit.test('Number.isNaN', function (assert) {
-  var isNaN = core.Number.isNaN;
-  var create = core.Object.create;
+QUnit.test('Number.isNaN', assert => {
+  const { isNaN } = core.Number;
+  const { create } = core.Object;
   assert.isFunction(isNaN);
   assert.ok(isNaN(NaN), 'Number.isNaN NaN');
-  var notNaNs = [
+  const notNaNs = [
     1,
     0.1,
     -1,
@@ -27,9 +27,8 @@ QUnit.test('Number.isNaN', function (assert) {
     {},
     function () { /* empty */ }
   ];
-  for (var i = 0, length = notNaNs.length; i < length; ++i) {
-    var val = notNaNs[i];
-    assert.ok(!isNaN(val), 'not Number.isNaN ' + typeof val + ' ' + val);
+  for (const value of notNaNs) {
+    assert.ok(!isNaN(value), `not Number.isNaN ${ typeof value } ${ value }`);
   }
   assert.ok(!isNaN(create(null)), 'Number.isNaN(Object.create(null)) -> false');
 });

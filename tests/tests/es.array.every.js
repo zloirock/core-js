@@ -1,14 +1,14 @@
-import { STRICT, NATIVE } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#every', function (assert) {
-  var every = Array.prototype.every;
+QUnit.test('Array#every', assert => {
+  const { every } = Array.prototype;
   assert.isFunction(every);
   assert.arity(every, 1);
   assert.name(every, 'every');
   assert.looksNative(every);
   assert.nonEnumerable(Array.prototype, 'every');
-  var array = [1];
-  var context = {};
+  let array = [1];
+  const context = {};
   array.every(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
@@ -16,48 +16,36 @@ QUnit.test('Array#every', function (assert) {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok([1, 2, 3].every(function (it) {
-    return typeof it === 'number';
-  }));
-  assert.ok([1, 2, 3].every(function (it) {
-    return it < 4;
-  }));
-  assert.ok(![1, 2, 3].every(function (it) {
-    return it < 3;
-  }));
-  assert.ok(![1, 2, 3].every(function (it) {
-    return typeof it === 'string';
-  }));
+  assert.ok([1, 2, 3].every(it => typeof it === 'number'));
+  assert.ok([1, 2, 3].every(it => it < 4));
+  assert.ok(![1, 2, 3].every(it => it < 3));
+  assert.ok(![1, 2, 3].every(it => typeof it === 'string'));
   assert.ok([1, 2, 3].every(function () {
     return +this === 1;
   }, 1));
-  var result = '';
-  [1, 2, 3].every(function () {
-    return result += arguments[1];
-  });
+  let result = '';
+  [1, 2, 3].every((value, key) => result += key);
   assert.ok(result === '012');
   array = [1, 2, 3];
-  assert.ok(array.every(function () {
-    return arguments[2] === array;
-  }));
+  assert.ok(array.every((value, key, that) => that === array));
   if (STRICT) {
-    assert.throws(function () {
-      every.call(null, function () { /* empty */ });
+    assert.throws(() => {
+      return every.call(null, () => { /* empty */ });
     }, TypeError);
-    assert.throws(function () {
-      every.call(undefined, function () { /* empty */ });
+    assert.throws(() => {
+      return every.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
   if (NATIVE) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
         return true === every.call({
           length: -1,
           0: 1
-        }, function () {
+        }, () => {
           throw new Error();
         });
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });

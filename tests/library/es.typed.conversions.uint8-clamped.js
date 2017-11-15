@@ -1,17 +1,16 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', function (assert) {
-  var Uint8ClampedArray = core.Uint8ClampedArray;
-  var Uint8Array = core.Uint8Array;
+if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
+  const { Uint8ClampedArray, Uint8Array } = core;
 
-  var uint8clamped = new Uint8ClampedArray(1);
-  var uint8array = new Uint8Array(uint8clamped.buffer);
+  const uint8clamped = new Uint8ClampedArray(1);
+  const uint8array = new Uint8Array(uint8clamped.buffer);
 
   function toString(it) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  const data = [
     [0, 0, [0]],
     [-0, 0, [0]],
     [1, 1, [1]],
@@ -61,12 +60,9 @@ if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', function (assert) {
     [-5e-324, 0, [0]],
     [NaN, 0, [0]]
   ];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
+  for (const [value, conversion, little] of data) {
     uint8clamped[0] = value;
-    assert.same(uint8clamped[0], conversion, 'Uint8ClampedArray ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, little, 'Uint8ClampedArray ' + toString(value) + ' -> [' + little + ']');
+    assert.same(uint8clamped[0], conversion, `Uint8ClampedArray ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, little, `Uint8ClampedArray ${ toString(value) } -> [${ little }]`);
   }
 });

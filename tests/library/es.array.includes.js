@@ -1,10 +1,10 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#includes', function (assert) {
-  var includes = core.Array.includes;
+QUnit.test('Array#includes', assert => {
+  const { includes } = core.Array;
   assert.isFunction(includes);
-  var object = {};
-  var array = [1, 2, 3, -0, object];
+  const object = {};
+  const array = [1, 2, 3, -0, object];
   assert.ok(includes(array, 1));
   assert.ok(includes(array, -0));
   assert.ok(includes(array, 0));
@@ -15,11 +15,11 @@ QUnit.test('Array#includes', function (assert) {
   assert.ok(includes(Array(1), undefined));
   assert.ok(includes([NaN], NaN));
   if (STRICT) {
-    assert.throws(function () {
-      includes(null, 0);
+    assert.throws(() => {
+      return includes(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      includes(undefined, 0);
+    assert.throws(() => {
+      return includes(undefined, 0);
     }, TypeError);
   }
 });

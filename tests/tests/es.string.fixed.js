@@ -1,5 +1,5 @@
-QUnit.test('String#fixed', function (assert) {
-  var fixed = String.prototype.fixed;
+QUnit.test('String#fixed', assert => {
+  const { fixed } = String.prototype;
   assert.isFunction(fixed);
   assert.arity(fixed, 0);
   assert.name(fixed, 'fixed');

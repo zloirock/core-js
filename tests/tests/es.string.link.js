@@ -1,5 +1,5 @@
-QUnit.test('String#link', function (assert) {
-  var link = String.prototype.link;
+QUnit.test('String#link', assert => {
+  const { link } = String.prototype;
   assert.isFunction(link);
   assert.arity(link, 1);
   assert.name(link, 'link');

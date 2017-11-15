@@ -1,5 +1,5 @@
-QUnit.test('Math.signbit', function (assert) {
-  var signbit = Math.signbit;
+QUnit.test('Math.signbit', assert => {
+  const { signbit } = Math;
   assert.isFunction(signbit);
   assert.name(signbit, 'signbit');
   assert.arity(signbit, 1);

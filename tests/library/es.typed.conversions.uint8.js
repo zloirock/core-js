@@ -1,11 +1,10 @@
-import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint8 conversions', function (assert) {
-  var Uint8Array = core.Uint8Array;
-  var DataView = core.DataView;
+if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
+  const { Uint8Array, DataView } = core;
 
-  var uint8array = new Uint8Array(1);
-  var dataview = new DataView(uint8array.buffer);
+  const uint8array = new Uint8Array(1);
+  const dataview = new DataView(uint8array.buffer);
 
   function viewFrom(it) {
     return new DataView(new Uint8Array(it).buffer);
@@ -14,7 +13,7 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', function (assert) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  let data = [
     [0, 0, [0]],
     [-0, 0, [0]],
     [1, 1, [1]],
@@ -56,7 +55,7 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', function (assert) {
     [NaN, 0, [0]]
   ];
   // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
+  if (!/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
     data = data.concat([
       [2147483649, 1, [1]],
       [-2147483649, 255, [255]],
@@ -68,15 +67,12 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', function (assert) {
       [-9007199254740994, 254, [254]]
     ]);
   }
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
+  for (const [value, conversion, little] of data) {
     uint8array[0] = value;
-    assert.same(uint8array[0], conversion, 'Uint8Array ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, little, 'Uint8Array ' + toString(value) + ' -> [' + little + ']');
+    assert.same(uint8array[0], conversion, `Uint8Array ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, little, `Uint8Array ${ toString(value) } -> [${ little }]`);
     dataview.setUint8(0, value);
-    assert.arrayEqual(uint8array, little, 'dataview.setUint8(0, ' + toString(value) + ') -> [' + little + ']');
-    assert.same(viewFrom(little).getUint8(0), conversion, 'dataview{' + little + '}.getUint8(0) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, little, `dataview.setUint8(0, ${ toString(value) }) -> [${ little }]`);
+    assert.same(viewFrom(little).getUint8(0), conversion, `dataview{${ little }}.getUint8(0) -> ${ toString(conversion) }`);
   }
 });

@@ -1,17 +1,16 @@
-QUnit.test('Reflect.hasMetadata', function (assert) {
-  var defineMetadata = core.Reflect.defineMetadata;
-  var hasMetadata = core.Reflect.hasMetadata;
-  var create = core.Object.create;
+QUnit.test('Reflect.hasMetadata', assert => {
+  const { defineMetadata, hasMetadata } = core.Reflect;
+  const { create } = core.Object;
   assert.isFunction(hasMetadata);
   assert.arity(hasMetadata, 2);
-  assert.throws(function () {
-    hasMetadata('key', undefined, undefined);
+  assert.throws(() => {
+    return hasMetadata('key', undefined, undefined);
   }, TypeError);
   assert.same(hasMetadata('key', {}, undefined), false);
-  var object = {};
+  let object = {};
   defineMetadata('key', 'value', object, undefined);
   assert.same(hasMetadata('key', object, undefined), true);
-  var prototype = {};
+  let prototype = {};
   object = create(prototype);
   defineMetadata('key', 'value', prototype, undefined);
   assert.same(hasMetadata('key', object, undefined), true);
