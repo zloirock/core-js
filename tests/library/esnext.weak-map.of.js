@@ -1,15 +1,15 @@
-QUnit.test('WeakMap.of', function (assert) {
-  var WeakMap = core.WeakMap;
-  var of = WeakMap.of;
+QUnit.test('WeakMap.of', assert => {
+  const { WeakMap } = core;
+  const { of } = WeakMap;
   assert.isFunction(of);
   assert.arity(of, 0);
-  var array = [];
+  const array = [];
   assert.ok(WeakMap.of() instanceof WeakMap);
   assert.same(WeakMap.of([array, 2]).get(array), 2);
-  assert.throws(function () {
-    of(1);
+  assert.throws(() => {
+    return of(1);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }

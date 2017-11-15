@@ -1,5 +1,5 @@
-QUnit.test('Math.radians', function (assert) {
-  var radians = Math.radians;
+QUnit.test('Math.radians', assert => {
+  const { radians } = Math;
   assert.isFunction(radians);
   assert.name(radians, 'radians');
   assert.arity(radians, 1);

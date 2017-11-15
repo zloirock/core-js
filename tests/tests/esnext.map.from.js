@@ -1,8 +1,8 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('Map.from', function (assert) {
-  var from = Map.from;
-  var toArray = Array.from;
+QUnit.test('Map.from', assert => {
+  const { from } = Map;
+  const toArray = Array.from;
   assert.isFunction(from);
   assert.arity(from, 1);
   assert.name(from, 'from');
@@ -13,23 +13,21 @@ QUnit.test('Map.from', function (assert) {
   assert.deepEqual(toArray(Map.from([[1, 2]])), [[1, 2]]);
   assert.deepEqual(toArray(Map.from([[1, 2], [2, 3], [1, 4]])), [[1, 4], [2, 3]]);
   assert.deepEqual(toArray(Map.from(createIterable([[1, 2], [2, 3], [1, 4]]))), [[1, 4], [2, 3]]);
-  var pair = [1, 2];
-  var context = {};
+  const pair = [1, 2];
+  const context = {};
   Map.from([pair], function (element, index) {
     assert.same(element, pair);
     assert.same(index, 0);
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(function () {
+  assert.throws(() => {
     from([1, 2]);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }
-  from.call(F, createIterable([1, 2, 3]), function (it) {
-    return it ** 2;
-  });
+  from.call(F, createIterable([1, 2, 3]), it => it ** 2);
   assert.deepEqual(arg, [1, 4, 9]);
 });

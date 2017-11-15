@@ -1,5 +1,5 @@
-QUnit.test('Math.fround', function (assert) {
-  var fround = Math.fround;
+QUnit.test('Math.fround', assert => {
+  const { fround } = Math;
   assert.isFunction(fround);
   assert.name(fround, 'fround');
   assert.arity(fround, 1);
@@ -18,8 +18,8 @@ QUnit.test('Math.fround', function (assert) {
   assert.strictEqual(fround(3.4028235677973366e+38), Infinity);
   assert.strictEqual(fround(3), 3);
   assert.strictEqual(fround(-3), -3);
-  var maxFloat32 = 3.4028234663852886e+38;
-  var minFloat32 = 1.401298464324817e-45;
+  const maxFloat32 = 3.4028234663852886e+38;
+  const minFloat32 = 1.401298464324817e-45;
   assert.strictEqual(fround(maxFloat32), maxFloat32);
   assert.strictEqual(fround(-maxFloat32), -maxFloat32);
   assert.strictEqual(fround(maxFloat32 + 2 ** 102), maxFloat32);

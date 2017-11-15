@@ -1,5 +1,5 @@
-QUnit.test('Math.clz32', function (assert) {
-  var clz32 = core.Math.clz32;
+QUnit.test('Math.clz32', assert => {
+  const { clz32 } = core.Math;
   assert.isFunction(clz32);
   assert.strictEqual(clz32(0), 32);
   assert.strictEqual(clz32(1), 31);

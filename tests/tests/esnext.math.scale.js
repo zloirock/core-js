@@ -1,5 +1,5 @@
-QUnit.test('Math.scale', function (assert) {
-  var scale = Math.scale;
+QUnit.test('Math.scale', assert => {
+  const { scale } = Math;
   assert.isFunction(scale);
   assert.name(scale, 'scale');
   assert.arity(scale, 5);

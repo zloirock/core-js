@@ -1,5 +1,5 @@
-QUnit.test('String#sup', function (assert) {
-  var sup = String.prototype.sup;
+QUnit.test('String#sup', assert => {
+  const { sup } = String.prototype;
   assert.isFunction(sup);
   assert.arity(sup, 0);
   assert.name(sup, 'sup');

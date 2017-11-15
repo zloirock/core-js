@@ -1,5 +1,5 @@
-QUnit.test('String#blink', function (assert) {
-  var blink = String.prototype.blink;
+QUnit.test('String#blink', assert => {
+  const { blink } = String.prototype;
   assert.isFunction(blink);
   assert.arity(blink, 0);
   assert.name(blink, 'blink');

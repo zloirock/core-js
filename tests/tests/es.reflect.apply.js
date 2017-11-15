@@ -1,5 +1,5 @@
-QUnit.test('Reflect.apply', function (assert) {
-  var apply = Reflect.apply;
+QUnit.test('Reflect.apply', assert => {
+  const { apply } = Reflect;
   assert.isFunction(apply);
   assert.arity(apply, 3);
   assert.name(apply, 'apply');
@@ -11,13 +11,13 @@ QUnit.test('Reflect.apply', function (assert) {
   }
   f.apply = 42;
   assert.strictEqual(apply(f, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
-  assert.throws(function () {
-    apply(42, null, []);
+  assert.throws(() => {
+    return apply(42, null, []);
   }, TypeError, 'throws on primitive');
-  assert.throws(function () {
-    apply(function () { /* empty */ }, null);
+  assert.throws(() => {
+    return apply(() => { /* empty */ }, null);
   }, TypeError, 'throws without third argument');
-  assert.throws(function () {
-    apply(function () { /* empty */ }, null, '123');
+  assert.throws(() => {
+    return apply(() => { /* empty */ }, null, '123');
   }, TypeError, 'throws on primitive as third argument');
 });

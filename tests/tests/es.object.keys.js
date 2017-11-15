@@ -1,7 +1,7 @@
 import { includes } from '../helpers/helpers';
 
-QUnit.test('Object.keys', function (assert) {
-  var keys = Object.keys;
+QUnit.test('Object.keys', assert => {
+  const { keys } = Object;
   assert.isFunction(keys);
   assert.arity(keys, 1);
   assert.name(keys, 'keys');
@@ -18,21 +18,20 @@ QUnit.test('Object.keys', function (assert) {
   assert.deepEqual(keys(new F1()), ['w']);
   assert.deepEqual(keys(new F2()), ['toString']);
   assert.ok(!includes(keys(Array.prototype), 'push'));
-  var primitives = [42, 'foo', false];
-  for (var i = 0, length = primitives.length; i < length; ++i) {
-    var value = primitives[i];
-    assert.ok(function () {
+  const primitives = [42, 'foo', false];
+  for (const value of primitives) {
+    assert.ok((() => {
       try {
         keys(value);
         return true;
       } catch (e) { /* empty */ }
-    }(), 'accept ' + typeof value);
+    })(), `accept ${ typeof value }`);
   }
-  assert.throws(function () {
-    keys(null);
+  assert.throws(() => {
+    return keys(null);
   }, TypeError, 'throws on null');
-  assert.throws(function () {
-    keys(undefined);
+  assert.throws(() => {
+    return keys(undefined);
   }, TypeError, 'throws on undefined');
 });
 

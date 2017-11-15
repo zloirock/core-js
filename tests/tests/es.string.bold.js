@@ -1,5 +1,5 @@
-QUnit.test('String#bold', function (assert) {
-  var bold = String.prototype.bold;
+QUnit.test('String#bold', assert => {
+  const { bold } = String.prototype;
   assert.isFunction(bold);
   assert.arity(bold, 0);
   assert.name(bold, 'bold');

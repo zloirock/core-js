@@ -1,8 +1,8 @@
 import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
-QUnit.test('Object.getOwnPropertyNames', function (assert) {
-  var getOwnPropertyNames = core.Object.getOwnPropertyNames;
+QUnit.test('Object.getOwnPropertyNames', assert => {
+  const { getOwnPropertyNames } = core.Object;
   assert.isFunction(getOwnPropertyNames);
   assert.arity(getOwnPropertyNames, 1);
   function F1() {
@@ -12,7 +12,7 @@ QUnit.test('Object.getOwnPropertyNames', function (assert) {
     this.toString = 1;
   }
   F1.prototype.q = F2.prototype.q = 1;
-  var names = getOwnPropertyNames([1, 2, 3]);
+  const names = getOwnPropertyNames([1, 2, 3]);
   assert.strictEqual(names.length, 4);
   assert.ok(includes(names, '0'));
   assert.ok(includes(names, '1'));
@@ -23,32 +23,31 @@ QUnit.test('Object.getOwnPropertyNames', function (assert) {
   assert.ok(includes(getOwnPropertyNames(Array.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'constructor'));
-  var primitives = [42, 'foo', false];
-  for (var i = 0, length = primitives.length; i < length; ++i) {
-    var value = primitives[i];
-    assert.ok(function () {
+  const primitives = [42, 'foo', false];
+  for (const value of primitives) {
+    assert.ok(() => {
       try {
         getOwnPropertyNames(value);
         return true;
       } catch (e) { /* empty */ }
-    }, 'accept ' + typeof value);
+    }, `accept ${ typeof value }`);
   }
-  assert.throws(function () {
-    getOwnPropertyNames(null);
+  assert.throws(() => {
+    return getOwnPropertyNames(null);
   }, TypeError, 'throws on null');
-  assert.throws(function () {
-    getOwnPropertyNames(undefined);
+  assert.throws(() => {
+    return getOwnPropertyNames(undefined);
   }, TypeError, 'throws on undefined');
   if (GLOBAL.document) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
-        var iframe = document.createElement('iframe');
+        const iframe = document.createElement('iframe');
         iframe.src = 'http://example.com';
         document.documentElement.appendChild(iframe);
-        var window = iframe.contentWindow;
+        const window = iframe.contentWindow;
         document.documentElement.removeChild(iframe);
         return getOwnPropertyNames(window);
       } catch (e) { /* empty */ }
-    }(), 'IE11 bug with iframe and window');
+    })(), 'IE11 bug with iframe and window');
   }
 });

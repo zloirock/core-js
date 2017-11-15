@@ -1,14 +1,14 @@
-import { STRICT, NATIVE } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#forEach', function (assert) {
-  var forEach = Array.prototype.forEach;
+QUnit.test('Array#forEach', assert => {
+  const { forEach } = Array.prototype;
   assert.isFunction(forEach);
   assert.arity(forEach, 1);
   assert.name(forEach, 'forEach');
   assert.looksNative(forEach);
   assert.nonEnumerable(Array.prototype, 'forEach');
-  var array = [1];
-  var context = {};
+  let array = [1];
+  const context = {};
   array.forEach(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
@@ -16,18 +16,18 @@ QUnit.test('Array#forEach', function (assert) {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  var result = '';
-  [1, 2, 3].forEach(function (value) {
+  let result = '';
+  [1, 2, 3].forEach(value => {
     result += value;
   });
   assert.ok(result === '123');
   result = '';
-  [1, 2, 3].forEach(function (value, key) {
+  [1, 2, 3].forEach((value, key) => {
     result += key;
   });
   assert.ok(result === '012');
   result = '';
-  [1, 2, 3].forEach(function (value, key, that) {
+  [1, 2, 3].forEach((value, key, that) => {
     result += that;
   });
   assert.ok(result === '1,2,31,2,31,2,3');
@@ -39,28 +39,28 @@ QUnit.test('Array#forEach', function (assert) {
   result = '';
   array = [];
   array[5] = '';
-  array.forEach(function (value, key) {
+  array.forEach((value, key) => {
     result += key;
   });
   assert.ok(result === '5');
   if (STRICT) {
-    assert.throws(function () {
-      forEach.call(null, function () { /* empty */ });
+    assert.throws(() => {
+      forEach.call(null, () => { /* empty */ });
     }, TypeError);
-    assert.throws(function () {
-      forEach.call(undefined, function () { /* empty */ });
+    assert.throws(() => {
+      forEach.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
   if (NATIVE) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
         return forEach.call({
           length: -1,
           0: 1
-        }, function () {
+        }, () => {
           throw new Error();
         }) === undefined;
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });

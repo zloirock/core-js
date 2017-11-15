@@ -1,7 +1,5 @@
-QUnit.test('Math.fscale', function (assert) {
-  var fscale = Math.fscale;
-  var fround = Math.fround;
-  var PI = Math.PI;
+QUnit.test('Math.fscale', assert => {
+  const { fscale, fround, PI } = Math;
   assert.isFunction(fscale);
   assert.name(fscale, 'fscale');
   assert.arity(fscale, 5);

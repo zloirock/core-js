@@ -1,9 +1,7 @@
-QUnit.test('Object.create', function (assert) {
-  var create = core.Object.create;
-  var getPrototypeOf = core.Object.getPrototypeOf;
-  var getOwnPropertyNames = core.Object.getOwnPropertyNames;
+QUnit.test('Object.create', assert => {
+  const { create, getPrototypeOf, getOwnPropertyNames } = core.Object;
   function getPropertyNames(object) {
-    var result = [];
+    let result = [];
     do {
       result = result.concat(getOwnPropertyNames(object));
     } while (object = getPrototypeOf(object));
@@ -11,15 +9,15 @@ QUnit.test('Object.create', function (assert) {
   }
   assert.isFunction(create);
   assert.arity(create, 2);
-  var object = { q: 1 };
+  let object = { q: 1 };
   assert.ok({}.isPrototypeOf.call(object, create(object)));
   assert.ok(create(object).q === 1);
-  function F() {
+  function C() {
     return this.a = 1;
   }
-  assert.ok(create(new F()) instanceof F);
-  assert.ok(F.prototype === getPrototypeOf(getPrototypeOf(create(new F()))));
-  assert.ok(create(new F()).a === 1);
+  assert.ok(create(new C()) instanceof C);
+  assert.ok(C.prototype === getPrototypeOf(getPrototypeOf(create(new C()))));
+  assert.ok(create(new C()).a === 1);
   assert.ok(create({}, { a: { value: 42 } }).a === 42);
   object = create(null, { w: { value: 2 } });
   assert.same(object, Object(object));

@@ -1,13 +1,13 @@
 import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('Array.from', function (assert) {
-  var from = core.Array.from;
-  var Symbol = core.Symbol;
-  var defineProperty = core.Object.defineProperty;
+QUnit.test('Array.from', assert => {
+  const { from } = core.Array;
+  const { Symbol } = core;
+  const { defineProperty } = core.Object;
   assert.isFunction(from);
   assert.arity(from, 1);
-  var types = {
+  let types = {
     'array-like': {
       length: '3',
       0: '1',
@@ -21,12 +21,10 @@ QUnit.test('Array.from', function (assert) {
     iterable: createIterable(['1', '2', '3']),
     string: '123'
   };
-  for (var type in types) {
-    var data = types[type];
-    assert.arrayEqual(from(data), ['1', '2', '3'], 'Works with ' + type);
-    assert.arrayEqual(from(data, function (it) {
-      return it ** 2;
-    }), [1, 4, 9], 'Works with ' + type + ' + mapFn');
+  for (const type in types) {
+    const data = types[type];
+    assert.arrayEqual(from(data), ['1', '2', '3'], `Works with ${ type }`);
+    assert.arrayEqual(from(data, it => it ** 2), [1, 4, 9], `Works with ${ type } + mapFn`);
   }
   types = {
     'array-like': {
@@ -40,61 +38,58 @@ QUnit.test('Array.from', function (assert) {
     iterable: createIterable([1]),
     string: '1'
   };
-  for (var type in types) {
-    var data = types[type];
-    var context = {};
+  for (const type in types) {
+    const data = types[type];
+    const context = {};
     assert.arrayEqual(from(data, function (value, key) {
-      assert.same(this, context, 'Works with ' + type + ', correct callback context');
-      assert.same(value, type === 'string' ? '1' : 1, 'Works with ' + type + ', correct callback key');
-      assert.same(key, 0, 'Works with ' + type + ', correct callback value');
-      assert.same(arguments.length, 2, 'Works with ' + type + ', correct callback arguments number');
+      assert.same(this, context, `Works with ${ type }, correct callback context`);
+      assert.same(value, type === 'string' ? '1' : 1, `Works with ${ type }, correct callback key`);
+      assert.same(key, 0, `Works with ${ type }, correct callback value`);
+      assert.same(arguments.length, 2, `Works with ${ type }, correct callback arguments number`);
       return 42;
-    }, context), [42], 'Works with ' + type + ', correct result');
+    }, context), [42], `Works with ${ type }, correct result`);
   }
-  var primitives = [false, true, 0];
-  for (var i = 0; i < 3; ++i) {
-    var primitive = primitives[i];
-    assert.arrayEqual(from(primitive), [], 'Works with ' + primitive);
+  const primitives = [false, true, 0];
+  for (const primitive of primitives) {
+    assert.arrayEqual(from(primitive), [], `Works with ${ primitive }`);
   }
-  assert.throws(function () {
-    from(null);
+  assert.throws(() => {
+    return from(null);
   }, TypeError, 'Throws on null');
-  assert.throws(function () {
-    from(undefined);
+  assert.throws(() => {
+    return from(undefined);
   }, TypeError, 'Throws on undefined');
   assert.arrayEqual(from('𠮷𠮷𠮷'), ['𠮷', '𠮷', '𠮷'], 'Uses correct string iterator');
-  var done = true;
+  let done = true;
   from(createIterable([1, 2, 3], {
-    'return': function () {
+    return() {
       return done = false;
     }
-  }), function () {
-    return false;
-  });
+  }), () => false);
   assert.ok(done, '.return #default');
   done = false;
   try {
     from(createIterable([1, 2, 3], {
-      'return': function () {
+      return() {
         return done = true;
       }
-    }), function () {
+    }), () => {
       throw new Error();
     });
   } catch (e) { /* empty */ }
   assert.ok(done, '.return #throw');
-  function F() { /* empty */ }
-  var instance = from.call(F, createIterable([1, 2]));
-  assert.ok(instance instanceof F, 'generic, iterable case, instanceof');
+  class C { /* empty */ }
+  let instance = from.call(C, createIterable([1, 2]));
+  assert.ok(instance instanceof C, 'generic, iterable case, instanceof');
   assert.arrayEqual(instance, [1, 2], 'generic, iterable case, elements');
-  instance = from.call(F, {
+  instance = from.call(C, {
     0: 1,
     1: 2,
     length: 2
   });
-  assert.ok(instance instanceof F, 'generic, array-like case, instanceof');
+  assert.ok(instance instanceof C, 'generic, array-like case, instanceof');
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
-  var array = [1, 2, 3];
+  let array = [1, 2, 3];
   done = false;
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
@@ -106,40 +101,40 @@ QUnit.test('Array.from', function (assert) {
   array = [1, 2, 3];
   delete array[1];
   assert.arrayEqual(from(array, String), ['1', 'undefined', '3'], 'Ignores holes');
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       return from({
         length: -1,
         0: 1
-      }, function () {
+      }, () => {
         throw new Error();
       });
     } catch (e) { /* empty */ }
-  }(), 'Uses ToLength');
+  })(), 'Uses ToLength');
   assert.arrayEqual(from([], undefined), [], 'Works with undefined as asecond argument');
-  assert.throws(function () {
-    from([], null);
+  assert.throws(() => {
+    return from([], null);
   }, TypeError, 'Throws with null as second argument');
-  assert.throws(function () {
-    from([], 0);
+  assert.throws(() => {
+    return from([], 0);
   }, TypeError, 'Throws with 0 as second argument');
-  assert.throws(function () {
-    from([], '');
+  assert.throws(() => {
+    return from([], '');
   }, TypeError, 'Throws with "" as second argument');
-  assert.throws(function () {
-    from([], false);
+  assert.throws(() => {
+    return from([], false);
   }, TypeError, 'Throws with false as second argument');
-  assert.throws(function () {
-    from([], {});
+  assert.throws(() => {
+    return from([], {});
   }, TypeError, 'Throws with {} as second argument');
   if (DESCRIPTORS) {
-    var called = false;
-    defineProperty(F.prototype, 0, {
-      set: function () {
+    let called = false;
+    defineProperty(C.prototype, 0, {
+      set() {
         called = true;
       }
     });
-    from.call(F, [1, 2, 3]);
+    from.call(C, [1, 2, 3]);
     assert.ok(!called, 'Should not call prototype accessors');
   }
 });

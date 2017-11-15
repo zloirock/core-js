@@ -1,5 +1,5 @@
-QUnit.test('Array.isArray', function (assert) {
-  var isArray = core.Array.isArray;
+QUnit.test('Array.isArray', assert => {
+  const { isArray } = core.Array;
   assert.isFunction(isArray);
   assert.ok(!isArray({}));
   assert.ok(!isArray(function () {

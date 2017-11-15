@@ -1,7 +1,7 @@
-import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#indexOf', function (assert) {
-  var indexOf = Array.prototype.indexOf;
+QUnit.test('Array#indexOf', assert => {
+  const { indexOf } = Array.prototype;
   assert.isFunction(indexOf);
   assert.arity(indexOf, 1);
   assert.name(indexOf, 'indexOf');
@@ -17,24 +17,24 @@ QUnit.test('Array#indexOf', function (assert) {
   assert.same(-1, Array(1).indexOf(undefined));
   assert.same(0, [1].indexOf(1, -0), "shouldn't return negative zero");
   if (STRICT) {
-    assert.throws(function () {
-      indexOf.call(null, 0);
+    assert.throws(() => {
+      return indexOf.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      indexOf.call(undefined, 0);
+    assert.throws(() => {
+      return indexOf.call(undefined, 0);
     }, TypeError);
   }
   if (NATIVE && DESCRIPTORS) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
         return indexOf.call(Object.defineProperty({
           length: -1
         }, 0, {
-          get: function () {
+          get() {
             throw new Error();
           }
         }), 1) === -1;
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });

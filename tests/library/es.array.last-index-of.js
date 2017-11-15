@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#lastIndexOf', function (assert) {
-  var lastIndexOf = core.Array.lastIndexOf;
+QUnit.test('Array#lastIndexOf', assert => {
+  const { lastIndexOf } = core.Array;
   assert.isFunction(lastIndexOf);
   assert.same(2, lastIndexOf([1, 1, 1], 1));
   assert.same(-1, lastIndexOf([1, 2, 3], 3, 1));
@@ -13,11 +13,11 @@ QUnit.test('Array#lastIndexOf', function (assert) {
   assert.same(1, lastIndexOf([1, 2, 3].concat(Array(2)), 2));
   assert.same(0, lastIndexOf([1], 1, -0), "shouldn't return negative zero");
   if (STRICT) {
-    assert.throws(function () {
-      lastIndexOf(null, 0);
+    assert.throws(() => {
+      return lastIndexOf(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      lastIndexOf(undefined, 0);
+    assert.throws(() => {
+      return lastIndexOf(undefined, 0);
     }, TypeError);
   }
 });

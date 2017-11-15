@@ -1,5 +1,5 @@
-QUnit.test('Object.is', function (assert) {
-  var is = Object.is;
+QUnit.test('Object.is', assert => {
+  const { is } = Object;
   assert.isFunction(is);
   assert.arity(is, 2);
   assert.name(is, 'is');

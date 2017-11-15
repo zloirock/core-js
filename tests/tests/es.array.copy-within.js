@@ -1,12 +1,12 @@
-import { STRICT, NATIVE } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#copyWithin', function (assert) {
-  var copyWithin = Array.prototype.copyWithin;
+QUnit.test('Array#copyWithin', assert => {
+  const { copyWithin } = Array.prototype;
   assert.isFunction(copyWithin);
   assert.arity(copyWithin, 2);
   assert.name(copyWithin, 'copyWithin');
   assert.looksNative(copyWithin);
-  var array = [1];
+  const array = [1];
   assert.strictEqual(array.copyWithin(0), array);
   assert.nonEnumerable(Array.prototype, 'copyWithin');
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(0, 3), [4, 5, 3, 4, 5]);
@@ -22,10 +22,10 @@ QUnit.test('Array#copyWithin', function (assert) {
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
   if (STRICT) {
-    assert.throws(function () {
+    assert.throws(() => {
       return copyWithin.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
+    assert.throws(() => {
       return copyWithin.call(undefined, 0);
     }, TypeError);
   }

@@ -1,12 +1,12 @@
-QUnit.test('Number.isInteger', function (assert) {
-  var isInteger = Number.isInteger;
-  var create = Object.create;
+QUnit.test('Number.isInteger', assert => {
+  const { isInteger } = Number;
+  const { create } = Object;
   assert.isFunction(isInteger);
   assert.name(isInteger, 'isInteger');
   assert.arity(isInteger, 1);
   assert.looksNative(isInteger);
   assert.nonEnumerable(Number, 'isInteger');
-  var integers = [
+  const integers = [
     1,
     -1,
     2 ** 16,
@@ -17,11 +17,10 @@ QUnit.test('Number.isInteger', function (assert) {
     2 ** 32 - 1,
     -0
   ];
-  for (var i = 0, length = integers.length; i < length; ++i) {
-    var val = integers[i];
-    assert.ok(isInteger(val), 'isInteger ' + typeof val + ' ' + val);
+  for (const value of integers) {
+    assert.ok(isInteger(value), `isInteger ${ typeof value } ${ value }`);
   }
-  var notIntegers = [
+  const notIntegers = [
     NaN,
     0.1,
     Infinity,
@@ -37,9 +36,8 @@ QUnit.test('Number.isInteger', function (assert) {
     {},
     function () { /* empty */ }
   ];
-  for (var i = 0, length = notIntegers.length; i < length; ++i) {
-    var val = notIntegers[i];
-    assert.ok(!isInteger(val), 'not isInteger ' + typeof val + ' ' + val);
+  for (const value of notIntegers) {
+    assert.ok(!isInteger(value), `not isInteger ${ typeof value } ${ value }`);
   }
   assert.ok(!isInteger(create(null)), 'Number.isInteger(Object.create(null)) -> false');
 });

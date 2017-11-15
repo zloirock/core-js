@@ -1,13 +1,13 @@
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
 
-QUnit.test('ArrayBuffer#slice', function (assert) {
-  var slice = ArrayBuffer.prototype.slice;
+QUnit.test('ArrayBuffer#slice', assert => {
+  const { slice } = ArrayBuffer.prototype;
   assert.isFunction(slice);
   assert.arity(slice, 2);
   assert.name(slice, 'slice');
   assert.looksNative(slice);
   // assert.nonEnumerable(ArrayBuffer.prototype, 'slice');
-  var buffer = arrayToBuffer([1, 2, 3, 4, 5]);
+  const buffer = arrayToBuffer([1, 2, 3, 4, 5]);
   assert.ok(buffer instanceof ArrayBuffer, 'correct buffer');
   assert.ok(buffer.slice() !== buffer, 'returns new buffer');
   assert.ok(buffer.slice() instanceof ArrayBuffer, 'correct instance');

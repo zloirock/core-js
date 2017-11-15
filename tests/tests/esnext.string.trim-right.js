@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
-var whitespaces = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
+// eslint-disable-next-line max-len
+const whitespaces = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
 
-QUnit.test('String#trimRight', function (assert) {
-  var trimRight = String.prototype.trimRight;
+QUnit.test('String#trimRight', assert => {
+  const { trimRight } = String.prototype;
   assert.isFunction(trimRight);
   assert.arity(trimRight, 0);
   assert.name(trimRight, 'trimRight');
@@ -12,17 +13,17 @@ QUnit.test('String#trimRight', function (assert) {
   assert.strictEqual(whitespaces.trimRight(), '', 'removes all whitespaces');
   assert.strictEqual('\u200b\u0085'.trimRight(), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert.throws(function () {
-      trimRight.call(null, 0);
+    assert.throws(() => {
+      return trimRight.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      trimRight.call(undefined, 0);
+    assert.throws(() => {
+      return trimRight.call(undefined, 0);
     }, TypeError);
   }
 });
 
-QUnit.test('String#trimEnd', function (assert) {
-  var trimEnd = String.prototype.trimEnd;
+QUnit.test('String#trimEnd', assert => {
+  const { trimEnd } = String.prototype;
   assert.isFunction(trimEnd);
   assert.arity(trimEnd, 0);
   assert.name(trimEnd, 'trimRight');
@@ -33,11 +34,11 @@ QUnit.test('String#trimEnd', function (assert) {
   assert.strictEqual(whitespaces.trimEnd(), '', 'removes all whitespaces');
   assert.strictEqual('\u200b\u0085'.trimEnd(), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert.throws(function () {
-      trimEnd.call(null, 0);
+    assert.throws(() => {
+      return trimEnd.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      trimEnd.call(undefined, 0);
+    assert.throws(() => {
+      return trimEnd.call(undefined, 0);
     }, TypeError);
   }
 });

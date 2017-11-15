@@ -1,10 +1,10 @@
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
 
-QUnit.test('ArrayBuffer#slice', function (assert) {
-  var ArrayBuffer = core.ArrayBuffer;
-  var slice = ArrayBuffer.slice;
+QUnit.test('ArrayBuffer#slice', assert => {
+  const { ArrayBuffer } = core;
+  const { slice } = ArrayBuffer;
   assert.isFunction(slice);
-  var buffer = arrayToBuffer([1, 2, 3, 4, 5]);
+  const buffer = arrayToBuffer([1, 2, 3, 4, 5]);
   assert.ok(buffer instanceof ArrayBuffer, 'correct buffer');
   assert.ok(slice(buffer) !== buffer, 'returns new buffer');
   assert.ok(slice(buffer) instanceof ArrayBuffer, 'correct instance');

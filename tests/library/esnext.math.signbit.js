@@ -1,5 +1,5 @@
-QUnit.test('Math.signbit', function (assert) {
-  var signbit = core.Math.signbit;
+QUnit.test('Math.signbit', assert => {
+  const { signbit } = core.Math;
   assert.isFunction(signbit);
   assert.same(signbit(NaN), NaN);
   assert.same(signbit(), NaN);
