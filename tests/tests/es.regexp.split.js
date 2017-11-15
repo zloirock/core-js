@@ -1,8 +1,8 @@
-import { GLOBAL, STRICT, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 
-var Symbol = GLOBAL.Symbol || {};
+const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#split regression', function (assert) {
+QUnit.test('String#split regression', assert => {
   assert.isFunction(''.split);
   assert.arity(''.split, 2);
   assert.name(''.split, 'split');
@@ -51,10 +51,13 @@ QUnit.test('String#split regression', function (assert) {
   assert.arrayEqual('.'.split(/(.?)(.?)/), ['', '.', '', ''], "'.'.split(/(.?)(.?)/) results in ['', '.', '', '']");
   assert.arrayEqual('.'.split(/(.??)(.??)/), ['.'], "'.'.split(/(.??)(.??)/) results in ['.']");
   assert.arrayEqual('.'.split(/(.)?(.)?/), ['', '.', undefined, ''], "'.'.split(/(.)?(.)?/) results in ['', '.', undefined, '']");
+  // eslint-disable-next-line max-len
   assert.arrayEqual('A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\/)?([^<>]+)>/), ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', ''], "'A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\\/)?([^<>]+)>/) results in ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', '']");
   assert.arrayEqual('tesst'.split(/(s)*/), ['t', undefined, 'e', 's', 't'], "'tesst'.split(/(s)*/) results in ['t', undefined, 'e', 's', 't']");
+  // eslint-disable-next-line max-len
   assert.arrayEqual('tesst'.split(/(s)*?/), ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't'], "'tesst'.split(/(s)*?/) results in ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't']");
   assert.arrayEqual('tesst'.split(/(s*)/), ['t', '', 'e', 'ss', 't'], "'tesst'.split(/(s*)/) results in ['t', '', 'e', 'ss', 't']");
+  // eslint-disable-next-line max-len
   assert.arrayEqual('tesst'.split(/(s*?)/), ['t', '', 'e', '', 's', '', 's', '', 't'], "'tesst'.split(/(s*?)/) results in ['t', '', 'e', '', 's', '', 's', '', 't']");
   assert.arrayEqual('tesst'.split(/(?:s)*/), ['t', 'e', 't'], "'tesst'.split(/(?:s)*/) results in ['t', 'e', 't']");
   assert.arrayEqual('tesst'.split(/(?=s+)/), ['te', 's', 'st'], "'tesst'.split(/(?=s+)/) results in ['te', 's', 'st']");
@@ -64,15 +67,17 @@ QUnit.test('String#split regression', function (assert) {
   assert.arrayEqual('test'.split(/es/), ['t', 't'], "'test'.split(/es/) results in ['t', 't']");
   assert.arrayEqual('test'.split(/(t)/), ['', 't', 'es', 't', ''], "'test'.split(/(t)/) results in ['', 't', 'es', 't', '']");
   assert.arrayEqual('test'.split(/(es)/), ['t', 'es', 't'], "'test'.split(/(es)/) results in ['t', 'es', 't']");
+  // eslint-disable-next-line max-len
   assert.arrayEqual('test'.split(/(t)(e)(s)(t)/), ['', 't', 'e', 's', 't', ''], "'test'.split(/(t)(e)(s)(t)/) results in ['', 't', 'e', 's', 't', '']");
+  // eslint-disable-next-line max-len
   assert.arrayEqual('.'.split(/(((.((.??)))))/), ['', '.', '.', '.', '', '', ''], "'.'.split(/(((.((.??)))))/) results in ['', '.', '.', '.', '', '', '']");
   assert.arrayEqual('.'.split(/(((((.??)))))/), ['.'], "'.'.split(/(((((.??)))))/) results in ['.']");
   assert.arrayEqual('a b c d'.split(/ /, -(2 ** 32) + 1), ['a'], "'a b c d'.split(/ /, -(2 ** 32) + 1) results in ['a']");
   assert.arrayEqual('a b c d'.split(/ /, 2 ** 32 + 1), ['a'], "'a b c d'.split(/ /, 2 ** 32 + 1) results in ['a']");
   assert.arrayEqual('a b c d'.split(/ /, Infinity), [], "'a b c d'.split(/ /, Infinity) results in []");
-  var instance = Object(true);
+  let instance = Object(true);
   instance.split = String.prototype.split;
-  var split = instance.split(true, false);
+  let split = instance.split(true, false);
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T1 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T1 #2');
   assert.strictEqual(split.length, 0, 'S15.5.4.14_A1_T1 #3');
@@ -105,7 +110,7 @@ QUnit.test('String#split regression', function (assert) {
     assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T7 #3');
     assert.strictEqual(split[0], 'undefinedd', 'S15.5.4.14_A1_T7 #4');
     split = String({
-      toString: function () { /* empty */ }
+      toString() { /* empty */ }
     }).split(undefined);
     assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T8 #1');
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T8 #2');
@@ -113,19 +118,19 @@ QUnit.test('String#split regression', function (assert) {
     assert.strictEqual(split[0], 'undefined', 'S15.5.4.14_A1_T8 #4');
   }
   split = new String({
-    valueOf: function () { /* empty */ },
+    valueOf() { /* empty */ },
     toString: undefined
-  }).split(function () { /* empty */ });
+  }).split(() => { /* empty */ });
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T9 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T9 #2');
   assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T9 #3');
   assert.strictEqual(split[0], 'undefined', 'S15.5.4.14_A1_T9 #4');
   split = 'ABB\u0041BABAB'.split({
-    toString: function () {
+    toString() {
       return '\u0042B';
     }
   }, {
-    valueOf: function () {
+    valueOf() {
       return true;
     }
   });
@@ -135,13 +140,13 @@ QUnit.test('String#split regression', function (assert) {
   assert.strictEqual(split[0], 'A', 'S15.5.4.14_A1_T10 #4');
   try {
     'ABB\u0041BABAB'.split({
-      toString: function () {
+      toString() {
         return '\u0041B';
       }
     }, {
-      valueOf: (function () {
+      valueOf() {
         throw new Error('intointeger');
-      }())
+      }
     });
     assert.ok(false, 'S15.5.4.14_A1_T11 #1 lead to throwing exception');
   } catch (e) {
@@ -150,14 +155,14 @@ QUnit.test('String#split regression', function (assert) {
   if (NATIVE) {
     try {
       new String('ABB\u0041BABAB').split({
-        toString: function () {
+        toString() {
           return '\u0041B';
         }
       }, {
-        valueOf: function () {
+        valueOf() {
           return {};
         },
-        toString: function () {
+        toString() {
           throw new Error('intointeger');
         }
       });
@@ -167,14 +172,14 @@ QUnit.test('String#split regression', function (assert) {
     }
   }
   split = 'ABB\u0041BABAB\u0042cc^^\u0042Bvv%%B\u0042xxx'.split({
-    toString: function () {
+    toString() {
       return '\u0042\u0042';
     }
   }, {
-    valueOf: function () {
+    valueOf() {
       return {};
     },
-    toString: function () {
+    toString() {
       return '2';
     }
   });
@@ -188,11 +193,11 @@ QUnit.test('String#split regression', function (assert) {
       instance = Object(10001.10001);
       instance.split = String.prototype.split;
       instance.split({
-        toString: function () {
+        toString() {
           throw new Error('intostr');
         }
       }, {
-        valueOf: function () {
+        valueOf() {
           throw new Error('intoint');
         }
       });
@@ -201,26 +206,27 @@ QUnit.test('String#split regression', function (assert) {
       assert.strictEqual(e.message, 'intoint', 'S15.5.4.14_A1_T14 #2');
     }
     try {
-      var F = function () { /* empty */ };
-      F.prototype.costructor = function (value) {
-        this.value = value;
-      };
-      F.prototype.valueOf = function () {
-        return '' + this.value;
-      };
-      F.prototype.toString = function () {
-        return new Number();
-      };
+      class F {
+        costructor(value) {
+          this.value = value;
+        }
+        valueOf() {
+          return `${ this.value }`;
+        }
+        toString() {
+          return new Number();
+        }
+      }
       F.prototype.split = String.prototype.split;
       new F().split({
-        toString: function () {
+        toString() {
           return {};
         },
-        valueOf: function () {
+        valueOf() {
           throw new Error('intostr');
         }
       }, {
-        valueOf: function () {
+        valueOf() {
           throw new Error('intoint');
         }
       });
@@ -231,7 +237,7 @@ QUnit.test('String#split regression', function (assert) {
   }
   try {
     String.prototype.split.call(6776767677.006771122677555, {
-      toString: function () {
+      toString() {
         return /\u0037\u0037/g;
       }
     });
@@ -286,43 +292,43 @@ QUnit.test('String#split regression', function (assert) {
   assert.strictEqual(split[0], 'one-1', 'S15.5.4.14_A2_T5 #3');
   assert.strictEqual(split[1], 'two-2', 'S15.5.4.14_A2_T5 #4');
   assert.strictEqual(split[2], 'four-4', 'S15.5.4.14_A2_T5 #5');
-  string = Object('one-1 two-2 three-3');
+  let string = Object('one-1 two-2 three-3');
   split = string.split('');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T6 #1');
   assert.strictEqual(split.length, string.length, 'S15.5.4.14_A2_T6 #2');
-  for (var i = 0, split = split.length; i < length; ++i) {
-    assert.strictEqual(split[i], string.charAt(i), 'S15.5.4.14_A2_T6 #' + (i + 3));
+  for (let i = 0, { length } = split; i < length; ++i) {
+    assert.strictEqual(split[i], string.charAt(i), `S15.5.4.14_A2_T6 #${ i + 3 }`);
   }
   if (NATIVE) {
-    var string = 'thisundefinedisundefinedaundefinedstringundefinedobject';
+    string = 'thisundefinedisundefinedaundefinedstringundefinedobject';
     split = string.split(undefined);
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T7 #1');
     assert.strictEqual(split.length, 1, 'S15.5.4.14_A2_T7 #2');
     assert.strictEqual(split[0], string, 'S15.5.4.14_A2_T7 #3');
   }
   string = 'thisnullisnullanullstringnullobject';
-  var expected = ['this', 'is', 'a', 'string', 'object'];
+  let expected = ['this', 'is', 'a', 'string', 'object'];
   split = string.split(null);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T8 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T8 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T8 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T8 #${ i + 3 }`);
   }
   string = 'thistrueistrueatruestringtrueobject';
   expected = ['this', 'is', 'a', 'string', 'object'];
   split = string.split(true);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T9 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T9 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T9 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T9 #${ i + 3 }`);
   }
   string = 'this123is123a123string123object';
   expected = ['this', 'is', 'a', 'string', 'object'];
   split = string.split(123);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T10 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T10 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T10 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T10 #${ i + 3 }`);
   }
   split = Object('one-1,two-2,four-4').split(':');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T11 #1');
@@ -367,8 +373,8 @@ QUnit.test('String#split regression', function (assert) {
   split = string.split(new RegExp());
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T20 #1');
   assert.strictEqual(split.length, string.length, 'S15.5.4.14_A2_T20 #2');
-  for (var i = 0, length = split.length; i < length; ++i) {
-    assert.strictEqual(split[i], string.charAt(i), 'S15.5.4.14_A2_T20 #' + (i + 3));
+  for (let i = 0, { length } = split; i < length; ++i) {
+    assert.strictEqual(split[i], string.charAt(i), `S15.5.4.14_A2_T20 #${ i + 3 }`);
   }
   split = Object('hello').split('ll');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T21 #1');
@@ -414,8 +420,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['', '00', '', '', '', '22', '33', '44', '60'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T29 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T29 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T29 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T29 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -423,8 +429,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = [''];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T30 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T30 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T30 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T30 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -432,8 +438,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['', '00'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T31 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T31 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T31 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T31 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -446,8 +452,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['', '00', '', '', '', '22', '33', '44', '60'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T33 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T33 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T33 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T33 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -455,8 +461,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['', '00', '', '', '', '22', '33', '44', '60'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T34 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T34 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T34 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T34 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -464,8 +470,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['', '00', '', '', '', '22', '33', '44', '60'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T35 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T35 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T35 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T35 #${ i + 3 }`);
   }
   instance = Object(100111122133144155);
   instance.split = String.prototype.split;
@@ -493,22 +499,22 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['he', ''];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T41 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T41 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T41 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T41 #${ i + 3 }`);
   }
   split = Object('hello').split('l', 3);
   expected = ['he', '', 'o'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T42 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T42 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T42 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T42 #${ i + 3 }`);
   }
   split = Object('hello').split('l', 4);
   expected = ['he', '', 'o'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T43 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A2_T43 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A2_T43 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A2_T43 #${ i + 3 }`);
   }
   split = Object('one,two,three,four,five').split();
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A3_T1 #1');
@@ -519,7 +525,7 @@ QUnit.test('String#split regression', function (assert) {
   assert.strictEqual(split.length, 1, 'S15.5.4.14_A3_T2 #2');
   assert.strictEqual(split[0], '[object Object]', 'S15.5.4.14_A3_T2 #3');
   split = String.prototype.split.call({
-    toString: function () {
+    toString() {
       return 'function(){}';
     }
   });
@@ -606,8 +612,8 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['h', 'e', 'l', 'l', 'o'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T10 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T10 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T10 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T10 #${ i + 3 }`);
   }
   split = Object('hello').split(new RegExp(), 0);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T11 #1');
@@ -620,29 +626,29 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['h', 'e'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T13 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T13 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T13 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T13 #${ i + 3 }`);
   }
   split = Object('hello').split(new RegExp(), 3);
   expected = ['h', 'e', 'l'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T14 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T14 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T14 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T14 #${ i + 3 }`);
   }
   split = Object('hello').split(new RegExp(), 4);
   expected = ['h', 'e', 'l', 'l'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T15 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T15 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T15 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T15 #${ i + 3 }`);
   }
   split = Object('hello').split(new RegExp(), undefined);
   expected = ['h', 'e', 'l', 'l', 'o'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T16 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T16 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T16 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T16 #${ i + 3 }`);
   }
   split = Object('hello').split(new RegExp(), 'hi');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T18 #1');
@@ -651,15 +657,15 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['a', 'b', 'c', 'de', 'f'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T19 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T19 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T19 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T19 #${ i + 3 }`);
   }
   split = Object('a b c de f').split(/\s/, 3);
   expected = ['a', 'b', 'c'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T20 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T20 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T20 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T20 #${ i + 3 }`);
   }
   split = Object('a b c de f').split(/X/);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T21 #1');
@@ -669,21 +675,21 @@ QUnit.test('String#split regression', function (assert) {
   expected = ['dfe', 'iu ', ' =+', '--'];
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T22 #1');
   assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T22 #2');
-  for (var i = 0, length = expected.length; i < length; ++i) {
-    assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T22 #' + (i + 3));
+  for (let i = 0, { length } = expected; i < length; ++i) {
+    assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T22 #${ i + 3 }`);
   }
   if (NATIVE) {
     split = Object('abc').split(/[a-z]/);
     expected = ['', '', '', ''];
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A4_T24 #1');
     assert.strictEqual(split.length, expected.length, 'S15.5.4.14_A4_T24 #2');
-    for (var i = 0, length = expected.length; i < length; ++i) {
-      assert.strictEqual(expected[i], split[i], 'S15.5.4.14_A4_T24 #' + (i + 3));
+    for (let i = 0, { length } = expected; i < length; ++i) {
+      assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T24 #${ i + 3 }`);
     }
   }
 });
 
-QUnit.test('RegExp#@@split', function (assert) {
+QUnit.test('RegExp#@@split', assert => {
   assert.isFunction(/./[Symbol.split]);
   assert.arity(/./[Symbol.split], 2);
   assert.strictEqual(/\s/[Symbol.split]('a b c de f').length, 5);
@@ -692,20 +698,20 @@ QUnit.test('RegExp#@@split', function (assert) {
   assert.strictEqual(/\s/[Symbol.split]('a b c de f', 10).length, 5);
 });
 
-QUnit.test('@@split logic', function (assert) {
-  var string = STRICT ? 'string' : Object('string');
-  var number = STRICT ? 42 : Object(42);
-  var object = {};
+QUnit.test('@@split logic', assert => {
+  const string = STRICT ? 'string' : Object('string');
+  const number = STRICT ? 42 : Object(42);
+  const object = {};
   object[Symbol.split] = function (a, b) {
-    return { a: a, b: b };
+    return { a, b };
   };
   assert.strictEqual(string.split(object, 42).a, string);
   assert.strictEqual(string.split(object, 42).b, 42);
   assert.strictEqual(''.split.call(number, object, 42).a, number);
   assert.strictEqual(''.split.call(number, object, 42).b, 42);
-  var regexp = /./;
+  const regexp = /./;
   regexp[Symbol.split] = function (a, b) {
-    return { a: a, b: b };
+    return { a, b };
   };
   assert.strictEqual(string.split(regexp, 42).a, string);
   assert.strictEqual(string.split(regexp, 42).b, 42);

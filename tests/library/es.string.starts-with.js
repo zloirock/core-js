@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#startsWith', function (assert) {
-  var startsWith = core.String.startsWith;
-  var Symbol = core.Symbol;
+QUnit.test('String#startsWith', assert => {
+  const { startsWith } = core.String;
+  const { Symbol } = core;
   assert.isFunction(startsWith);
   assert.ok(startsWith('undefined'));
   assert.ok(!startsWith('undefined', null));
@@ -17,31 +17,31 @@ QUnit.test('String#startsWith', function (assert) {
   assert.ok(startsWith('abc', 'b', true));
   assert.ok(startsWith('abc', 'a', 'x'));
   if (STRICT) {
-    assert.throws(function () {
-      startsWith(null, '.');
+    assert.throws(() => {
+      return startsWith(null, '.');
     }, TypeError);
-    assert.throws(function () {
-      startsWith(undefined, '.');
+    assert.throws(() => {
+      return startsWith(undefined, '.');
     }, TypeError);
   }
-  var regexp = /./;
-  assert.throws(function () {
-    startsWith('/./', regexp);
+  const regexp = /./;
+  assert.throws(() => {
+    return startsWith('/./', regexp);
   }, TypeError);
   regexp[Symbol.match] = false;
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       return startsWith('/./', regexp);
     } catch (e) { /* empty */ }
-  }());
-  var object = {};
-  assert.ok(function () {
+  })());
+  const object = {};
+  assert.ok((() => {
     try {
       return startsWith('[object Object]', object);
     } catch (e) { /* empty */ }
-  }());
+  })());
   object[Symbol.match] = true;
-  assert.throws(function () {
-    startsWith('[object Object]', object);
+  assert.throws(() => {
+    return startsWith('[object Object]', object);
   }, TypeError);
 });

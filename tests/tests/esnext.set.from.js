@@ -1,8 +1,8 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('Set.from', function (assert) {
-  var from = Set.from;
-  var toArray = Array.from;
+QUnit.test('Set.from', assert => {
+  const { from } = Set;
+  const toArray = Array.from;
   assert.isFunction(from);
   assert.arity(from, 1);
   assert.name(from, 'from');
@@ -13,22 +13,20 @@ QUnit.test('Set.from', function (assert) {
   assert.deepEqual(toArray(Set.from([1])), [1]);
   assert.deepEqual(toArray(Set.from([1, 2, 3, 2, 1])), [1, 2, 3]);
   assert.deepEqual(toArray(Set.from(createIterable([1, 2, 3, 2, 1]))), [1, 2, 3]);
-  var context = {};
+  const context = {};
   Set.from([1], function (element, index) {
     assert.same(element, 1);
     assert.same(index, 0);
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(function () {
-    from(1);
+  assert.throws(() => {
+    return from(1);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }
-  from.call(F, createIterable([1, 2, 3]), function (it) {
-    return it ** 2;
-  });
+  from.call(F, createIterable([1, 2, 3]), it => it ** 2);
   assert.deepEqual(arg, [1, 4, 9]);
 });

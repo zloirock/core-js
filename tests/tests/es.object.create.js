@@ -1,9 +1,7 @@
-QUnit.test('Object.create', function (assert) {
-  var create = Object.create;
-  var getPrototypeOf = Object.getPrototypeOf;
-  var getOwnPropertyNames = Object.getOwnPropertyNames;
+QUnit.test('Object.create', assert => {
+  const { create, getPrototypeOf, getOwnPropertyNames } = Object;
   function getPropertyNames(object) {
-    var result = [];
+    let result = [];
     do {
       result = result.concat(getOwnPropertyNames(object));
     } while (object = getPrototypeOf(object));
@@ -14,7 +12,7 @@ QUnit.test('Object.create', function (assert) {
   assert.name(create, 'create');
   assert.looksNative(create);
   assert.nonEnumerable(Object, 'create');
-  var object = { q: 1 };
+  let object = { q: 1 };
   assert.ok({}.isPrototypeOf.call(object, create(object)));
   assert.ok(create(object).q === 1);
   function F() {

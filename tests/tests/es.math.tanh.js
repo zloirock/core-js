@@ -1,7 +1,7 @@
 import { NATIVE } from '../helpers/constants';
 
-QUnit.test('Math.tanh', function (assert) {
-  var tanh = Math.tanh;
+QUnit.test('Math.tanh', assert => {
+  const { tanh } = Math;
   assert.isFunction(tanh);
   assert.name(tanh, 'tanh');
   assert.arity(tanh, 1);

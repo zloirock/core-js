@@ -1,14 +1,11 @@
-import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, nativeSubclass } from '../helpers/helpers';
 
-var Symbol = GLOBAL.Symbol || {};
-var freeze = Object.freeze;
-var keys = Object.keys;
-var getOwnPropertyNames = Object.getOwnPropertyNames;
-var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var ownKeys = (GLOBAL.Reflect || {}).ownKeys;
+const Symbol = GLOBAL.Symbol || {};
+const { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } = Object;
+const { ownKeys } = GLOBAL.Reflect || {};
 
-QUnit.test('WeakSet', function (assert) {
+QUnit.test('WeakSet', assert => {
   assert.isFunction(WeakSet);
   assert.name(WeakSet, 'WeakSet');
   assert.arity(WeakSet, 0);
@@ -17,25 +14,25 @@ QUnit.test('WeakSet', function (assert) {
   assert.ok('delete' in WeakSet.prototype, 'delete in WeakSet.prototype');
   assert.ok('has' in WeakSet.prototype, 'has in WeakSet.prototype');
   assert.ok(new WeakSet() instanceof WeakSet, 'new WeakSet instanceof WeakSet');
-  var object = {};
+  let object = {};
   assert.ok(new WeakSet(createIterable([object])).has(object), 'Init from iterable');
-  var weakset = new WeakSet();
-  var frozen = freeze({});
+  const weakset = new WeakSet();
+  const frozen = freeze({});
   weakset.add(frozen);
   assert.strictEqual(weakset.has(frozen), true, 'works with frozen objects, #1');
-  weakset['delete'](frozen);
+  weakset.delete(frozen);
   assert.strictEqual(weakset.has(frozen), false, 'works with frozen objects, #2');
-  var done = false;
+  let done = false;
   try {
     new WeakSet(createIterable([null, 1, 2], {
-      'return': function () {
+      return() {
         return done = true;
       }
     }));
   } catch (e) { /* empty */ }
   assert.ok(done, '.return #throw');
   assert.ok(!('clear' in WeakSet.prototype), 'should not contains `.clear` method');
-  var array = [];
+  const array = [];
   done = false;
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
@@ -47,8 +44,8 @@ QUnit.test('WeakSet', function (assert) {
   object = {};
   new WeakSet().add(object);
   if (DESCRIPTORS) {
-    var results = [];
-    for (var key in object) results.push(key);
+    const results = [];
+    for (const key in object) results.push(key);
     assert.arrayEqual(results, []);
     assert.arrayEqual(keys(object), []);
   }
@@ -56,7 +53,7 @@ QUnit.test('WeakSet', function (assert) {
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
-    var Subclass = nativeSubclass(WeakSet);
+    const Subclass = nativeSubclass(WeakSet);
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
     assert.ok(new Subclass() instanceof WeakSet, 'correct subclassing with native classes #2');
     object = {};
@@ -64,61 +61,61 @@ QUnit.test('WeakSet', function (assert) {
   }
 });
 
-QUnit.test('WeakSet#add', function (assert) {
+QUnit.test('WeakSet#add', assert => {
   assert.isFunction(WeakSet.prototype.add);
   assert.name(WeakSet.prototype.add, 'add');
   assert.arity(WeakSet.prototype.add, 1);
   assert.looksNative(WeakSet.prototype.add);
   assert.nonEnumerable(WeakSet.prototype, 'add');
-  var weakset = new WeakSet();
+  const weakset = new WeakSet();
   assert.ok(weakset.add({}) === weakset, 'chaining');
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       new WeakSet().add(42);
     } catch (e) {
       return true;
     }
-  }(), 'throws with primitive keys');
+  })(), 'throws with primitive keys');
 });
 
-QUnit.test('WeakSet#delete', function (assert) {
-  assert.isFunction(WeakSet.prototype['delete']);
-  if (NATIVE) assert.arity(WeakSet.prototype['delete'], 1);
-  assert.looksNative(WeakSet.prototype['delete']);
+QUnit.test('WeakSet#delete', assert => {
+  assert.isFunction(WeakSet.prototype.delete);
+  if (NATIVE) assert.arity(WeakSet.prototype.delete, 1);
+  assert.looksNative(WeakSet.prototype.delete);
   assert.nonEnumerable(WeakSet.prototype, 'delete');
-  var a = {};
-  var b = {};
-  var weakset = new WeakSet().add(a).add(b);
+  const a = {};
+  const b = {};
+  const weakset = new WeakSet().add(a).add(b);
   assert.ok(weakset.has(a) && weakset.has(b), 'WeakSet has values before .delete()');
-  weakset['delete'](a);
+  weakset.delete(a);
   assert.ok(!weakset.has(a) && weakset.has(b), 'WeakSet has`nt value after .delete()');
-  assert.ok(function () {
+  assert.ok((() => {
     try {
-      return !weakset['delete'](1);
+      return !weakset.delete(1);
     } catch (e) { /* empty */ }
-  }(), 'return false on primitive');
+  })(), 'return false on primitive');
 });
 
-QUnit.test('WeakSet#has', function (assert) {
+QUnit.test('WeakSet#has', assert => {
   assert.isFunction(WeakSet.prototype.has);
   assert.name(WeakSet.prototype.has, 'has');
   assert.arity(WeakSet.prototype.has, 1);
   assert.looksNative(WeakSet.prototype.has);
   assert.nonEnumerable(WeakSet.prototype, 'has');
-  var weakset = new WeakSet();
+  const weakset = new WeakSet();
   assert.ok(!weakset.has({}), 'WeakSet has`nt value');
-  var object = {};
+  const object = {};
   weakset.add(object);
   assert.ok(weakset.has(object), 'WeakSet has value after .add()');
-  weakset['delete'](object);
+  weakset.delete(object);
   assert.ok(!weakset.has(object), 'WeakSet hasn`t value after .delete()');
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       return !weakset.has(1);
     } catch (e) { /* empty */ }
-  }(), 'return false on primitive');
+  })(), 'return false on primitive');
 });
 
-QUnit.test('WeakSet::@@toStringTag', function (assert) {
+QUnit.test('WeakSet::@@toStringTag', assert => {
   assert.strictEqual(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
 });

@@ -1,6 +1,6 @@
-QUnit.test('Set.of', function (assert) {
-  var of = Set.of;
-  var toArray = Array.from;
+QUnit.test('Set.of', assert => {
+  const { of } = Set;
+  const toArray = Array.from;
   assert.isFunction(of);
   assert.arity(of, 0);
   assert.name(of, 'of');
@@ -9,10 +9,10 @@ QUnit.test('Set.of', function (assert) {
   assert.ok(Set.of() instanceof Set);
   assert.deepEqual(toArray(Set.of(1)), [1]);
   assert.deepEqual(toArray(Set.of(1, 2, 3, 2, 1)), [1, 2, 3]);
-  assert.throws(function () {
-    of(1);
+  assert.throws(() => {
+    return of(1);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }

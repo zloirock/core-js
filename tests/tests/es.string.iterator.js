@@ -1,10 +1,10 @@
 import { GLOBAL } from '../helpers/constants';
 
-var Symbol = GLOBAL.Symbol || {};
+const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#@@iterator', function (assert) {
+QUnit.test('String#@@iterator', assert => {
   assert.isIterable(String.prototype);
-  var iterator = 'qwe'[Symbol.iterator]();
+  let iterator = 'qwe'[Symbol.iterator]();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'String Iterator');

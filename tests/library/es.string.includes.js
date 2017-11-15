@@ -1,23 +1,23 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#includes', function (assert) {
-  var includes = core.String.includes;
-  var Symbol = core.Symbol;
+QUnit.test('String#includes', assert => {
+  const { includes } = core.String;
+  const { Symbol } = core;
   assert.isFunction(includes);
   assert.ok(!includes('abc'));
   assert.ok(includes('aundefinedb'));
   assert.ok(includes('abcd', 'b', 1));
   assert.ok(!includes('abcd', 'b', 2));
   if (STRICT) {
-    assert.throws(function () {
+    assert.throws(() => {
       includes(null, '.');
     }, TypeError);
-    assert.throws(function () {
+    assert.throws(() => {
       includes(undefined, '.');
     }, TypeError);
   }
-  var re = /./;
-  assert.throws(function () {
+  const re = /./;
+  assert.throws(() => {
     includes('/./', re);
   }, TypeError);
   re[Symbol.match] = false;
@@ -28,7 +28,7 @@ QUnit.test('String#includes', function (assert) {
       return false;
     }
   }());
-  var O = {};
+  const O = {};
   assert.ok(function () {
     try {
       return includes('[object Object]', O);
@@ -37,7 +37,7 @@ QUnit.test('String#includes', function (assert) {
     }
   }());
   O[Symbol.match] = true;
-  assert.throws(function () {
-    includes('[object Object]', O);
+  assert.throws(() => {
+    return includes('[object Object]', O);
   }, TypeError);
 });

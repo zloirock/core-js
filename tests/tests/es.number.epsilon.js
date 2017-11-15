@@ -1,5 +1,5 @@
-QUnit.test('Number.EPSILON', function (assert) {
-  var EPSILON = Number.EPSILON;
+QUnit.test('Number.EPSILON', assert => {
+  const { EPSILON } = Number;
   assert.ok('EPSILON' in Number, 'EPSILON in Number');
   assert.nonEnumerable(Number, 'EPSILON');
   assert.strictEqual(EPSILON, 2 ** -52, 'Is 2^-52');

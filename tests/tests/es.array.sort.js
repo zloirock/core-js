@@ -1,28 +1,28 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#sort', function (assert) {
-  var sort = Array.prototype.sort;
+QUnit.test('Array#sort', assert => {
+  const { sort } = Array.prototype;
   assert.isFunction(sort);
   assert.arity(sort, 1);
   assert.name(sort, 'sort');
   assert.looksNative(sort);
   assert.nonEnumerable(Array.prototype, 'sort');
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       return [1, 2, 3].sort(undefined);
     } catch (e) { /* empty */ }
-  }(), 'works with undefined');
-  assert.throws(function () {
+  })(), 'works with undefined');
+  assert.throws(() => {
     [1, 2, 3].sort(null);
   }, 'throws on null');
-  assert.throws(function () {
+  assert.throws(() => {
     [1, 2, 3].sort({});
   }, 'throws on {}');
   if (STRICT) {
-    assert.throws(function () {
+    assert.throws(() => {
       return sort.call(null);
     }, TypeError, 'ToObject(this)');
-    assert.throws(function () {
+    assert.throws(() => {
       return sort.call(undefined);
     }, TypeError, 'ToObject(this)');
   }

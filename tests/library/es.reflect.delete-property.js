@@ -1,15 +1,14 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-QUnit.test('Reflect.deleteProperty', function (assert) {
-  var deleteProperty = core.Reflect.deleteProperty;
-  var defineProperty = core.Object.defineProperty;
-  var keys = core.Object.keys;
+QUnit.test('Reflect.deleteProperty', assert => {
+  const { deleteProperty } = core.Reflect;
+  const { defineProperty, keys } = core.Object;
   assert.isFunction(deleteProperty);
   assert.arity(deleteProperty, 2);
   if ('name' in deleteProperty) {
     assert.name(deleteProperty, 'deleteProperty');
   }
-  var object = { bar: 456 };
+  const object = { bar: 456 };
   assert.strictEqual(deleteProperty(object, 'bar'), true);
   assert.ok(keys(object).length === 0);
   if (DESCRIPTORS) {
@@ -17,7 +16,7 @@ QUnit.test('Reflect.deleteProperty', function (assert) {
       value: 42
     }), 'foo'), false);
   }
-  assert.throws(function () {
-    deleteProperty(42, 'foo');
+  assert.throws(() => {
+    return deleteProperty(42, 'foo');
   }, TypeError, 'throws on primitive');
 });

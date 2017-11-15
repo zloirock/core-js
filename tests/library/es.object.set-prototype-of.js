@@ -1,15 +1,15 @@
 import { PROTO } from '../helpers/constants';
 
-if (PROTO) QUnit.test('Object.setPrototypeOf', function (assert) {
-  var setPrototypeOf = core.Object.setPrototypeOf;
+if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
+  const { setPrototypeOf } = core.Object;
   assert.isFunction(setPrototypeOf);
   assert.ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
   assert.strictEqual(setPrototypeOf({ a: 2 }, {
-    b: function () {
+    b() {
       return this.a ** 2;
     }
   }).b(), 4, 'Child and parent properties in target');
-  var object = {};
+  const object = {};
   assert.strictEqual(setPrototypeOf(object, { a: 1 }), object, 'setPrototypeOf return target');
   assert.ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
 });

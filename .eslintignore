@@ -1,7 +1,4 @@
 node_modules/**
 client/**
-tests/helpers/**
-tests/library/**
-tests/tests/**
 tests/bundles/**
 !**/.eslintrc.js

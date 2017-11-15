@@ -1,20 +1,18 @@
-'use strict';
-
-export var DESCRIPTORS = !!function () {
+export const DESCRIPTORS = !!(() => {
   try {
     return Object.defineProperty({}, 'a', {
-      get: function () {
+      get() {
         return 7;
       }
     }).a === 7;
   } catch (e) { /* empty */ }
-}();
+})();
 
-export var GLOBAL = Function('return this')();
+export const GLOBAL = Function('return this')();
 
-export var NATIVE = GLOBAL.NATIVE || false;
+export const NATIVE = GLOBAL.NATIVE || false;
 
-export var TYPED_ARRAYS = {
+export const TYPED_ARRAYS = {
   Float32Array: 4,
   Float64Array: 8,
   Int8Array: 1,
@@ -26,16 +24,16 @@ export var TYPED_ARRAYS = {
   Uint8ClampedArray: 1
 };
 
-export var LITTLE_ENDIAN = function () {
+export const LITTLE_ENDIAN = (() => {
   try {
-    return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+    return new GLOBAL.Uint8Array(new GLOBAL.Uint16Array([1]).buffer)[0] === 1;
   } catch (e) {
     return true;
   }
-}();
+})();
 
-export var PROTO = !!Object.setPrototypeOf || '__proto__' in Object.prototype;
+export const PROTO = !!Object.setPrototypeOf || '__proto__' in Object.prototype;
 
-export var STRICT = !function () {
+export const STRICT = !function () {
   return this;
 }();

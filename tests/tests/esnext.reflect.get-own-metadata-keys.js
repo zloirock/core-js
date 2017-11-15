@@ -1,20 +1,19 @@
-QUnit.test('Reflect.getOwnMetadataKeys', function (assert) {
-  var defineMetadata = Reflect.defineMetadata;
-  var getOwnMetadataKeys = Reflect.getOwnMetadataKeys;
-  var create = Object.create;
+QUnit.test('Reflect.getOwnMetadataKeys', assert => {
+  const { defineMetadata, getOwnMetadataKeys } = Reflect;
+  const { create } = Object;
   assert.isFunction(getOwnMetadataKeys);
   assert.arity(getOwnMetadataKeys, 1);
   assert.name(getOwnMetadataKeys, 'getOwnMetadataKeys');
   assert.looksNative(getOwnMetadataKeys);
   assert.nonEnumerable(Reflect, 'getOwnMetadataKeys');
-  assert.throws(function () {
-    getOwnMetadataKeys(undefined, undefined);
+  assert.throws(() => {
+    return getOwnMetadataKeys(undefined, undefined);
   }, TypeError);
   assert.deepEqual(getOwnMetadataKeys({}, undefined), []);
-  var object = {};
+  let object = {};
   defineMetadata('key', 'value', object, undefined);
   assert.deepEqual(getOwnMetadataKeys(object, undefined), ['key']);
-  var prototype = {};
+  let prototype = {};
   object = create(prototype);
   defineMetadata('key', 'value', prototype, undefined);
   assert.deepEqual(getOwnMetadataKeys(object, undefined), []);

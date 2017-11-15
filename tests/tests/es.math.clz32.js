@@ -1,5 +1,5 @@
-QUnit.test('Math.clz32', function (assert) {
-  var clz32 = Math.clz32;
+QUnit.test('Math.clz32', assert => {
+  const { clz32 } = Math;
   assert.isFunction(clz32);
   assert.name(clz32, 'clz32');
   assert.arity(clz32, 1);

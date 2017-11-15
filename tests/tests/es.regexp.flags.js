@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  QUnit.test('RegExp#flags', function (assert) {
+  QUnit.test('RegExp#flags', assert => {
     assert.nonEnumerable(RegExp.prototype, 'flags');
     assert.strictEqual(/./g.flags, 'g', '/./g.flags is "g"');
     assert.strictEqual(/./.flags, '', '/./.flags is ""');

@@ -1,19 +1,19 @@
-QUnit.test('asap', function (assert) {
-  var asap = core.asap;
+QUnit.test('asap', assert => {
+  const { asap } = core;
   assert.expect(3);
   assert.isFunction(asap);
   assert.arity(asap, 1);
-  var async = assert.async();
-  var done = false;
-  var after = false;
-  asap(function () {
+  const async = assert.async();
+  let done = false;
+  let after = false;
+  asap(() => {
     if (!done) {
       done = true;
       assert.ok(after, 'works');
       async();
     }
   });
-  setTimeout(function () {
+  setTimeout(() => {
     if (!done) {
       done = true;
       assert.ok(false, 'fails');

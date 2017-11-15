@@ -1,8 +1,8 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-QUnit.test('Reflect.isExtensible', function (assert) {
-  var isExtensible = core.Reflect.isExtensible;
-  var preventExtensions = core.Object.preventExtensions;
+QUnit.test('Reflect.isExtensible', assert => {
+  const { isExtensible } = core.Reflect;
+  const { preventExtensions } = core.Object;
   assert.isFunction(isExtensible);
   assert.arity(isExtensible, 1);
   if ('name' in isExtensible) {
@@ -12,7 +12,7 @@ QUnit.test('Reflect.isExtensible', function (assert) {
   if (DESCRIPTORS) {
     assert.ok(!isExtensible(preventExtensions({})));
   }
-  assert.throws(function () {
-    isExtensible(42);
+  assert.throws(() => {
+    return isExtensible(42);
   }, TypeError, 'throws on primitive');
 });

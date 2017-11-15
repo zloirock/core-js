@@ -1,30 +1,26 @@
-var Promise = core.Promise;
+const { Promise } = core;
 
-QUnit.test('Promise.try', function (assert) {
+QUnit.test('Promise.try', assert => {
   assert.isFunction(Promise.try);
   assert.arity(Promise.try, 1);
-  assert.ok(Promise.try(function () {
-    return 42;
-  }) instanceof Promise, 'returns a promise');
+  assert.ok(Promise.try(() => 42) instanceof Promise, 'returns a promise');
 });
 
-QUnit.test('Promise.try, resolved', function (assert) {
+QUnit.test('Promise.try, resolved', assert => {
   assert.expect(1);
-  var async = assert.async();
-  Promise.try(function () {
-    return 42;
-  }).then(function (it) {
+  const async = assert.async();
+  Promise.try(() => 42).then(it => {
     assert.same(it, 42, 'resolved with a correct value');
     async();
   });
 });
 
-QUnit.test('Promise.try, rejected', function (assert) {
+QUnit.test('Promise.try, rejected', assert => {
   assert.expect(1);
-  var async = assert.async();
-  Promise.try(function () {
+  const async = assert.async();
+  Promise.try(() => {
     throw new Error();
-  }).catch(function () {
+  }).catch(() => {
     assert.ok(true, 'rejected as expected');
     async();
   });
