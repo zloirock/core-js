@@ -1,5 +1,5 @@
-QUnit.test('Math.cosh', function (assert) {
-  var cosh = core.Math.cosh;
+QUnit.test('Math.cosh', assert => {
+  const { cosh } = core.Math;
   assert.isFunction(cosh);
   assert.same(cosh(NaN), NaN);
   assert.strictEqual(cosh(0), 1);

@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#at', function (assert) {
-  var at = String.prototype.at;
+QUnit.test('String#at', assert => {
+  const { at } = String.prototype;
   assert.isFunction(at);
   assert.arity(at, 1);
   assert.name(at, 'at');
@@ -86,16 +86,16 @@ QUnit.test('String#at', function (assert) {
   assert.strictEqual(at.call(42, 0), '4');
   assert.strictEqual(at.call(42, 1), '2');
   assert.strictEqual(at.call({
-    toString: function () {
+    toString() {
       return 'abc';
     }
   }, 2), 'c');
   if (STRICT) {
-    assert.throws(function () {
-      at.call(null, 0);
+    assert.throws(() => {
+      return at.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      at.call(undefined, 0);
+    assert.throws(() => {
+      return at.call(undefined, 0);
     }, TypeError);
   }
 });

@@ -1,7 +1,7 @@
-import { GLOBAL, DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
 
-QUnit.test('ArrayBuffer', function (assert) {
-  var Symbol = GLOBAL.Symbol || {};
+QUnit.test('ArrayBuffer', assert => {
+  const Symbol = GLOBAL.Symbol || {};
   // in Safari 5 typeof ArrayBuffer is 'object'
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
   // 0 in V8 ~ Chromium 27-
@@ -12,8 +12,8 @@ QUnit.test('ArrayBuffer', function (assert) {
   if (NATIVE) assert.looksNative(ArrayBuffer);
   assert.same(new ArrayBuffer(123).byteLength, 123, 'length');
   // fails in Safari
-  assert.throws(function () {
-    new ArrayBuffer(-1);
+  assert.throws(() => {
+    return new ArrayBuffer(-1);
   }, RangeError, 'negative length');
   assert.ok(function () {
     try {

@@ -1,5 +1,5 @@
-QUnit.test('Math.log1p', function (assert) {
-  var log1p = core.Math.log1p;
+QUnit.test('Math.log1p', assert => {
+  const { log1p } = core.Math;
   assert.isFunction(log1p);
   assert.same(log1p(''), log1p(0));
   assert.same(log1p(NaN), NaN);

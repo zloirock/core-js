@@ -1,5 +1,5 @@
-QUnit.test('Function#bind', function (assert) {
-  var bind = Function.prototype.bind;
+QUnit.test('Function#bind', assert => {
+  const { bind } = Function.prototype;
   assert.isFunction(bind);
   assert.arity(bind, 1);
   assert.name(bind, 'bind');
@@ -13,17 +13,15 @@ QUnit.test('Function#bind', function (assert) {
     this.a = a;
     this.b = b;
   }
-  var instance = new (A.bind(null, 1))(2);
+  const instance = new (A.bind(null, 1))(2);
   assert.ok(instance instanceof A);
   assert.strictEqual(instance.a, 1);
   assert.strictEqual(instance.b, 2);
-  assert.same(function (it) {
-    return it;
-  }.bind(null, 42)(), 42);
-  var regExpTest = RegExp.prototype.test.bind(/a/);
+  assert.same((it => it).bind(null, 42)(), 42);
+  const regExpTest = RegExp.prototype.test.bind(/a/);
   assert.ok(regExpTest('a'));
-  var Date2017 = Date.bind(null, 2017);
-  var date = new Date2017(11);
+  const Date2017 = Date.bind(null, 2017);
+  const date = new Date2017(11);
   assert.ok(date instanceof Date);
   assert.strictEqual(date.getFullYear(), 2017);
   assert.strictEqual(date.getMonth(), 11);

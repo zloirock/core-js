@@ -1,24 +1,23 @@
-import { GLOBAL, DESCRIPTORS } from './constants';
+import { DESCRIPTORS, GLOBAL } from './constants';
 import { is } from './helpers';
 
-var toString = Object.prototype.toString;
-var propertyIsEnumerable = Object.prototype.propertyIsEnumerable;
+const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
 
 QUnit.assert.arity = function (fn, length, message) {
   this.pushResult({
     result: fn.length === length,
     actual: fn.length,
     expected: length,
-    message: message || 'arity is ' + length
+    message: message || `arity is ${ length }`
   });
 };
 
 QUnit.assert.arrayEqual = function (a, b, message) {
-  var result = true;
+  let result = true;
   if (a.length !== b.length) {
     result = false;
   } else {
-    for (var i = 0, length = a.length; i < length; ++i) {
+    for (let i = 0, { length } = a; i < length; ++i) {
       if (!is(a[i], b[i])) {
         result = false;
         break;
@@ -26,10 +25,10 @@ QUnit.assert.arrayEqual = function (a, b, message) {
     }
   }
   this.pushResult({
-    result: result,
+    result,
     actual: [].slice.call(a),
     expected: [].slice.call(b),
-    message: message
+    message
   });
 };
 
@@ -38,7 +37,7 @@ QUnit.assert.epsilon = function (a, b, E, message) {
     result: Math.abs(a - b) <= (E != null ? E : 1e-11),
     actual: a,
     expected: b,
-    message: message
+    message
   });
 };
 
@@ -53,6 +52,7 @@ QUnit.assert.isFunction = function (fn, message) {
 
 QUnit.assert.isIterable = function (it, message) {
   this.pushResult({
+    // eslint-disable-next-line no-undef
     result: GLOBAL.core && core.isIterable ? core.isIterable(it) : !!it[GLOBAL.Symbol && Symbol.iterator],
     actual: false,
     expected: true,
@@ -83,7 +83,7 @@ QUnit.assert.name = function (fn, name, message) {
     result: fn.name === name,
     actual: fn.name,
     expected: name,
-    message: message || "name is '" + name + "'"
+    message: message || `name is '${ name }'`
   });
 };
 
@@ -92,7 +92,7 @@ QUnit.assert.nonEnumerable = function (O, key, message) {
     result: !propertyIsEnumerable.call(O, key),
     actual: false,
     expected: true,
-    message: message || (typeof key === 'symbol' ? 'method' : key) + ' is non-enumerable'
+    message: message || `${ typeof key === 'symbol' ? 'method' : key } is non-enumerable`
   });
 };
 
@@ -101,6 +101,6 @@ QUnit.assert.same = function (a, b, message) {
     result: is(a, b),
     actual: a,
     expected: b,
-    message: message
+    message
   });
 };

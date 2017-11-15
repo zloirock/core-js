@@ -1,19 +1,17 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-QUnit.test('Reflect.set', function (assert) {
-  var set = core.Reflect.set;
-  var defineProperty = core.Object.defineProperty;
-  var getOwnPropertyDescriptor = core.Object.getOwnPropertyDescriptor;
-  var create = core.Object.create;
+QUnit.test('Reflect.set', assert => {
+  const { set } = core.Reflect;
+  const { defineProperty, getOwnPropertyDescriptor, create } = core.Object;
   assert.isFunction(set);
   if ('name' in set) {
     assert.name(set, 'set');
   }
-  var object = {};
+  const object = {};
   assert.ok(set(object, 'quux', 654), true);
   assert.strictEqual(object.quux, 654);
-  var target = {};
-  var receiver = {};
+  let target = {};
+  const receiver = {};
   set(target, 'foo', 1, receiver);
   assert.strictEqual(target.foo, undefined, 'target.foo === undefined');
   assert.strictEqual(receiver.foo, 1, 'receiver.foo === 1');
@@ -27,9 +25,9 @@ QUnit.test('Reflect.set', function (assert) {
     set(target, 'bar', 1, receiver);
     assert.strictEqual(receiver.bar, 1, 'receiver.bar === 1');
     assert.strictEqual(getOwnPropertyDescriptor(receiver, 'bar').enumerable, false, 'enumerability not overridden');
-    var out = null;
+    let out = null;
     target = create(defineProperty({ z: 3 }, 'w', {
-      set: function () {
+      set() {
         out = this;
       }
     }), {
@@ -39,7 +37,7 @@ QUnit.test('Reflect.set', function (assert) {
         configurable: true
       },
       y: {
-        set: function () {
+        set() {
           out = this;
         }
       },
@@ -64,7 +62,7 @@ QUnit.test('Reflect.set', function (assert) {
     assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
     assert.strictEqual(target.c, 1, 'set c');
   }
-  assert.throws(function () {
-    set(42, 'q', 42);
+  assert.throws(() => {
+    return set(42, 'q', 42);
   }, TypeError, 'throws on primitive');
 });

@@ -1,21 +1,21 @@
-var Promise = core.Promise;
+const { Promise } = core;
 
-QUnit.test('Promise#finally', function (assert) {
+QUnit.test('Promise#finally', assert => {
   assert.isFunction(Promise.prototype.finally);
   assert.arity(Promise.prototype.finally, 1);
   assert.nonEnumerable(Promise.prototype, 'finally');
-  assert.ok(Promise.resolve(42).finally(function () { /* empty */ }) instanceof Promise, 'returns a promise');
+  assert.ok(Promise.resolve(42).finally(() => { /* empty */ }) instanceof Promise, 'returns a promise');
 });
 
-QUnit.test('Promise#finally, resolved', function (assert) {
+QUnit.test('Promise#finally, resolved', assert => {
   assert.expect(3);
-  var async = assert.async();
-  var called = 0;
-  var argument = null;
-  Promise.resolve(42).finally(function (it) {
+  const async = assert.async();
+  let called = 0;
+  let argument = null;
+  Promise.resolve(42).finally(it => {
     called++;
     argument = it;
-  }).then(function (it) {
+  }).then(it => {
     assert.same(it, 42, 'resolved with a correct value');
     assert.same(called, 1, 'onFinally function called one time');
     assert.same(argument, undefined, 'onFinally function called with a correct argument');
@@ -23,15 +23,15 @@ QUnit.test('Promise#finally, resolved', function (assert) {
   });
 });
 
-QUnit.test('Promise#finally, rejected', function (assert) {
+QUnit.test('Promise#finally, rejected', assert => {
   assert.expect(2);
-  var async = assert.async();
-  var called = 0;
-  var argument = null;
-  Promise.reject(42).finally(function (it) {
+  const async = assert.async();
+  let called = 0;
+  let argument = null;
+  Promise.reject(42).finally(it => {
     called++;
     argument = it;
-  }).catch(function () {
+  }).catch(() => {
     assert.same(called, 1, 'onFinally function called one time');
     assert.same(argument, undefined, 'onFinally function called with a correct argument');
     async();

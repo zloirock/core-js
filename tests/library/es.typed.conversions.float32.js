@@ -1,13 +1,11 @@
 import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Float32 conversions', function (assert) {
-  var Float32Array = core.Float32Array;
-  var Uint8Array = core.Uint8Array;
-  var DataView = core.DataView;
+if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
+  const { Float32Array, Uint8Array, DataView } = core;
 
-  var float32array = new Float32Array(1);
-  var uint8array = new Uint8Array(float32array.buffer);
-  var dataview = new DataView(float32array.buffer);
+  const float32array = new Float32Array(1);
+  const uint8array = new Uint8Array(float32array.buffer);
+  const dataview = new DataView(float32array.buffer);
 
   function viewFrom(it) {
     return new DataView(new Uint8Array(it).buffer);
@@ -16,7 +14,7 @@ if (DESCRIPTORS) QUnit.test('Float32 conversions', function (assert) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  const data = [
     [0, 0, [0, 0, 0, 0]],
     [-0, -0, [0, 0, 0, 128]],
     [1, 1, [0, 0, 128, 63]],
@@ -65,24 +63,21 @@ if (DESCRIPTORS) QUnit.test('Float32 conversions', function (assert) {
     [5e-324, 0, [0, 0, 0, 0]],
     [-5e-324, -0, [0, 0, 0, 128]]
   ];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
-    var big = little.slice().reverse();
-    var representation = LITTLE_ENDIAN ? little : big;
+  for (const [value, conversion, little] of data) {
+    const big = little.slice().reverse();
+    const representation = LITTLE_ENDIAN ? little : big;
     float32array[0] = value;
-    assert.same(float32array[0], conversion, 'Float32Array ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, representation, 'Float32Array ' + toString(value) + ' -> [' + representation + ']');
+    assert.same(float32array[0], conversion, `Float32Array ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, representation, `Float32Array ${ toString(value) } -> [${ representation }]`);
     dataview.setFloat32(0, value);
-    assert.arrayEqual(uint8array, big, 'dataview.setFloat32(0, ' + toString(value) + ') -> [' + big + ']');
-    assert.same(viewFrom(big).getFloat32(0), conversion, 'dataview{' + big + '}.getFloat32(0) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setFloat32(0, ${ toString(value) }) -> [${ big }]`);
+    assert.same(viewFrom(big).getFloat32(0), conversion, `dataview{${ big }}.getFloat32(0) -> ${ toString(conversion) }`);
     dataview.setFloat32(0, value, false);
-    assert.arrayEqual(uint8array, big, 'dataview.setFloat32(0, ' + toString(value) + ', false) -> [' + big + ']');
-    assert.same(viewFrom(big).getFloat32(0, false), conversion, 'dataview{' + big + '}.getFloat32(0, false) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setFloat32(0, ${ toString(value) }, false) -> [${ big }]`);
+    assert.same(viewFrom(big).getFloat32(0, false), conversion, `dataview{${ big }}.getFloat32(0, false) -> ${ toString(conversion) }`);
     dataview.setFloat32(0, value, true);
-    assert.arrayEqual(uint8array, little, 'dataview.setFloat32(0, ' + toString(value) + ', true) -> [' + little + ']');
-    assert.same(viewFrom(little).getFloat32(0, true), conversion, 'dataview{' + little + '}.getFloat32(0, true) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, little, `dataview.setFloat32(0, ${ toString(value) }, true) -> [${ little }]`);
+    assert.same(viewFrom(little).getFloat32(0, true), conversion, `dataview{${ little }}.getFloat32(0, true) -> ${ toString(conversion) }`);
   }
   float32array[0] = NaN;
   assert.same(float32array[0], NaN, 'NaN -> NaN');

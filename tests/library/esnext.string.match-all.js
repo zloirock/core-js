@@ -1,15 +1,14 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#matchAll', function (assert) {
-  var matchAll = core.String.matchAll;
-  var assign = core.Object.assign;
+QUnit.test('String#matchAll', assert => {
+  const { matchAll } = core.String;
+  const { assign } = core.Object;
   assert.isFunction(matchAll);
-  var data = ['aabc', { toString: function () {
+  let data = ['aabc', { toString() {
     return 'aabc';
   } }];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var target = data[i];
-    var iterator = matchAll(target, /[ac]/);
+  for (const target of data) {
+    const iterator = matchAll(target, /[ac]/);
     assert.isIterator(iterator);
     assert.isIterable(iterator);
     assert.deepEqual(iterator.next(), {
@@ -38,7 +37,7 @@ QUnit.test('String#matchAll', function (assert) {
       done: true
     });
   }
-  var iterator = matchAll('1111a2b3cccc', /(\d)(\D)/);
+  const iterator = matchAll('1111a2b3cccc', /(\d)(\D)/);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.deepEqual(iterator.next(), {
@@ -66,19 +65,18 @@ QUnit.test('String#matchAll', function (assert) {
     value: null,
     done: true
   });
-  var data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var target = data[i];
-    assert.throws(function () {
+  data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
+  for (const target of data) {
+    assert.throws(() => {
       matchAll('', target);
-    }, TypeError, 'Throws on ' + target + ' as first argument');
+    }, TypeError, `Throws on ${ target } as first argument`);
   }
   if (STRICT) {
-    assert.throws(function () {
-      matchAll(null, /./);
+    assert.throws(() => {
+      return matchAll(null, /./);
     }, TypeError, 'Throws on null as `this`');
-    assert.throws(function () {
-      matchAll(undefined, /./);
+    assert.throws(() => {
+      return matchAll(undefined, /./);
     }, TypeError, 'Throws on undefined as `this`');
   }
 });
