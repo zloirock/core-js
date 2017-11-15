@@ -1,15 +1,15 @@
-import { GLOBAL, DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.copyWithin', function (assert) {
+if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.copyWithin', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (var name in TYPED_ARRAYS) {
-    var TypedArray = GLOBAL[name];
-    var copyWithin = TypedArray.prototype.copyWithin;
-    assert.isFunction(copyWithin, name + '::copyWithin is function');
-    assert.arity(copyWithin, 2, name + '::copyWithin arity is 2');
-    assert.name(copyWithin, 'copyWithin', name + "::copyWithin name is 'copyWithin'");
-    assert.looksNative(copyWithin, name + '::copyWithin looks native');
-    var array = new TypedArray(5);
+  for (const name in TYPED_ARRAYS) {
+    const TypedArray = GLOBAL[name];
+    const { copyWithin } = TypedArray.prototype;
+    assert.isFunction(copyWithin, `${ name }::copyWithin is function`);
+    assert.arity(copyWithin, 2, `${ name }::copyWithin arity is 2`);
+    assert.name(copyWithin, 'copyWithin', `${ name }::copyWithin name is 'copyWithin'`);
+    assert.looksNative(copyWithin, `${ name }::copyWithin looks native`);
+    const array = new TypedArray(5);
     assert.strictEqual(array.copyWithin(0), array, 'return this');
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(0, 3), [4, 5, 3, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(1, 3), [1, 4, 5, 4, 5]);
@@ -23,8 +23,8 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.copyWithin', function (assert
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(-4, -3), [1, 3, 4, 5, 5]);
-    assert.throws(function () {
-      copyWithin.call([0], 1);
+    assert.throws(() => {
+      return copyWithin.call([0], 1);
     }, "isn't generic");
   }
 });

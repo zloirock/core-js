@@ -1,9 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#copyWithin', function (assert) {
-  var copyWithin = core.Array.copyWithin;
+QUnit.test('Array#copyWithin', assert => {
+  const { copyWithin } = core.Array;
   assert.isFunction(copyWithin);
-  var array = [1];
+  const array = [1];
   assert.strictEqual(copyWithin(array, 0), array);
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], 0, 3), [4, 5, 3, 4, 5]);
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], 1, 3), [1, 4, 5, 4, 5]);
@@ -18,11 +18,11 @@ QUnit.test('Array#copyWithin', function (assert) {
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], -4, -3, -1), [1, 3, 4, 4, 5]);
   assert.deepEqual(copyWithin([1, 2, 3, 4, 5], -4, -3), [1, 3, 4, 5, 5]);
   if (STRICT) {
-    assert.throws(function () {
-      copyWithin(null, 0);
+    assert.throws(() => {
+      return copyWithin(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      copyWithin(undefined, 0);
+    assert.throws(() => {
+      return copyWithin(undefined, 0);
     }, TypeError);
   }
 });

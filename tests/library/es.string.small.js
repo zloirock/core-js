@@ -1,5 +1,5 @@
-QUnit.test('String#small', function (assert) {
-  var small = core.String.small;
+QUnit.test('String#small', assert => {
+  const { small } = core.String;
   assert.isFunction(small);
   assert.same(small('a'), '<small>a</small>', 'lower case');
 });

@@ -1,19 +1,16 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#matchAll', function (assert) {
-  var matchAll = String.prototype.matchAll;
-  var assign = Object.assign;
+QUnit.test('String#matchAll', assert => {
+  const { matchAll } = String.prototype;
+  const { assign } = Object;
   assert.isFunction(matchAll);
   assert.arity(matchAll, 1);
   assert.name(matchAll, 'matchAll');
   assert.looksNative(matchAll);
   assert.nonEnumerable(String.prototype, 'matchAll');
-  var data = ['aabc', { toString: function () {
-    return 'aabc';
-  } }];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var target = data[i];
-    var iterator = matchAll.call(target, /[ac]/);
+  let data = ['aabc', { toString() { return 'aabc'; } }];
+  for (const target of data) {
+    const iterator = matchAll.call(target, /[ac]/);
     assert.isIterator(iterator);
     assert.isIterable(iterator);
     assert.deepEqual(iterator.next(), {
@@ -42,7 +39,7 @@ QUnit.test('String#matchAll', function (assert) {
       done: true
     });
   }
-  var iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
+  const iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.deepEqual(iterator.next(), {
@@ -70,19 +67,18 @@ QUnit.test('String#matchAll', function (assert) {
     value: null,
     done: true
   });
-  var data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var target = data[i];
-    assert.throws(function () {
-      ''.matchAll(target);
-    }, TypeError, 'Throws on ' + target + ' as first argument');
+  data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
+  for (const target of data) {
+    assert.throws(() => {
+      return ''.matchAll(target);
+    }, TypeError, `Throws on ${ target } as first argument`);
   }
   if (STRICT) {
-    assert.throws(function () {
-      matchAll.call(null, /./);
+    assert.throws(() => {
+      return matchAll.call(null, /./);
     }, TypeError, 'Throws on null as `this`');
-    assert.throws(function () {
-      matchAll.call(undefined, /./);
+    assert.throws(() => {
+      return matchAll.call(undefined, /./);
     }, TypeError, 'Throws on undefined as `this`');
   }
 });

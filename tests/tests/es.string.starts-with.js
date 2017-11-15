@@ -1,9 +1,9 @@
 import { GLOBAL, STRICT } from '../helpers/constants';
 
-var Symbol = GLOBAL.Symbol || {};
+const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#startsWith', function (assert) {
-  var startsWith = String.prototype.startsWith;
+QUnit.test('String#startsWith', assert => {
+  const { startsWith } = String.prototype;
   assert.isFunction(startsWith);
   assert.arity(startsWith, 1);
   assert.name(startsWith, 'startsWith');
@@ -22,31 +22,31 @@ QUnit.test('String#startsWith', function (assert) {
   assert.ok('abc'.startsWith('b', true));
   assert.ok('abc'.startsWith('a', 'x'));
   if (STRICT) {
-    assert.throws(function () {
-      startsWith.call(null, '.');
+    assert.throws(() => {
+      return startsWith.call(null, '.');
     }, TypeError);
-    assert.throws(function () {
-      startsWith.call(undefined, '.');
+    assert.throws(() => {
+      return startsWith.call(undefined, '.');
     }, TypeError);
   }
-  var regexp = /./;
-  assert.throws(function () {
-    '/./'.startsWith(regexp);
+  const regexp = /./;
+  assert.throws(() => {
+    return '/./'.startsWith(regexp);
   }, TypeError);
   regexp[Symbol.match] = false;
-  assert.ok(function () {
+  assert.ok((() => {
     try {
       return '/./'.startsWith(regexp);
     } catch (e) { /* empty */ }
-  }());
-  var object = {};
-  assert.ok(function () {
+  })());
+  const object = {};
+  assert.ok((() => {
     try {
       return '[object Object]'.startsWith(object);
     } catch (e) { /* empty */ }
-  }());
+  })());
   object[Symbol.match] = true;
-  assert.throws(function () {
-    '[object Object]'.startsWith(object);
+  assert.throws(() => {
+    return '[object Object]'.startsWith(object);
   }, TypeError);
 });

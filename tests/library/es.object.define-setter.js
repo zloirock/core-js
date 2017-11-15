@@ -1,11 +1,10 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  QUnit.test('Object#__defineSetter__', function (assert) {
-    var __defineGetter__ = core.Object.__defineGetter__;
-    var __defineSetter__ = core.Object.__defineSetter__;
+  QUnit.test('Object#__defineSetter__', assert => {
+    const { __defineGetter__, __defineSetter__ } = core.Object;
     assert.isFunction(__defineSetter__);
-    var object = {};
+    let object = {};
     assert.same(__defineSetter__(object, 'key', function () {
       this.foo = 43;
     }), undefined, 'void');
@@ -15,17 +14,17 @@ if (DESCRIPTORS) {
     __defineSetter__(object, 'key', function () {
       this.foo = 43;
     });
-    __defineGetter__(object, 'key', function () {
+    __defineGetter__(object, 'key', () => {
       return 42;
     });
     object.key = 44;
     assert.ok(object.key === 42 && object.foo === 43, 'works with getter');
     if (STRICT) {
-      assert.throws(function () {
-        __defineSetter__(null, 1, function () { /* empty */ });
+      assert.throws(() => {
+        return __defineSetter__(null, 1, () => { /* empty */ });
       }, TypeError, 'Throws on null as `this`');
-      assert.throws(function () {
-        __defineSetter__(undefined, 1, function () { /* empty */ });
+      assert.throws(() => {
+        return __defineSetter__(undefined, 1, () => { /* empty */ });
       }, TypeError, 'Throws on undefined as `this`');
     }
   });

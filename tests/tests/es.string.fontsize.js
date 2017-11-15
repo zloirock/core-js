@@ -1,5 +1,5 @@
-QUnit.test('String#fontsize', function (assert) {
-  var fontsize = String.prototype.fontsize;
+QUnit.test('String#fontsize', assert => {
+  const { fontsize } = String.prototype;
   assert.isFunction(fontsize);
   assert.arity(fontsize, 1);
   assert.name(fontsize, 'fontsize');

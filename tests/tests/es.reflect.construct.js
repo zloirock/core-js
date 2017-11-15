@@ -1,6 +1,6 @@
-QUnit.test('Reflect.construct', function (assert) {
-  var getPrototypeOf = Object.getPrototypeOf;
-  var construct = Reflect.construct;
+QUnit.test('Reflect.construct', assert => {
+  const { construct } = Reflect;
+  const { getPrototypeOf } = Object;
   assert.isFunction(construct);
   assert.arity(construct, 2);
   assert.name(construct, 'construct');
@@ -12,12 +12,12 @@ QUnit.test('Reflect.construct', function (assert) {
   assert.strictEqual(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
   A.apply = 42;
   assert.strictEqual(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
-  var instance = construct(function () {
+  const instance = construct(function () {
     this.x = 42;
   }, [], Array);
   assert.strictEqual(instance.x, 42, 'constructor with newTarget');
   assert.ok(instance instanceof Array, 'prototype with newTarget');
-  assert.throws(function () {
+  assert.throws(() => {
     construct(42, []);
   }, TypeError, 'throws on primitive');
   function B() { /* empty */ }
@@ -32,8 +32,8 @@ QUnit.test('Reflect.construct', function (assert) {
       return construct(Date, []).getTime();
     } catch (e) { /* empty */ }
   }()), 'number', 'works with native constructors with 2 arguments');
-  assert.throws(function () {
-    construct(function () { /* empty */ });
+  assert.throws(() => {
+    return construct(() => { /* empty */ });
   }, 'throws when the second argument is not an object');
 });
 

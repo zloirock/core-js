@@ -1,69 +1,80 @@
 import { GLOBAL } from './constants';
 
-var Promise = GLOBAL.core ? core.Promise : GLOBAL.Promise;
-var ArrayBuffer = GLOBAL.core ? core.ArrayBuffer : GLOBAL.ArrayBuffer;
-var DataView = GLOBAL.core ? core.DataView : GLOBAL.DataView;
+const { core } = GLOBAL;
+
+const Promise = core ? core.Promise : GLOBAL.Promise;
+const ArrayBuffer = core ? core.ArrayBuffer : GLOBAL.ArrayBuffer;
+const DataView = core ? core.DataView : GLOBAL.DataView;
+
+const ITERATOR = core ? core.Symbol.iterator : GLOBAL.Symbol && GLOBAL.Symbol.iterator;
 
 export function arrayToBuffer(it) {
-  var buffer = new ArrayBuffer(it.length);
-  var view = new DataView(buffer);
-  for (var i = 0, length = it.length; i < length; ++i) {
+  const buffer = new ArrayBuffer(it.length);
+  const view = new DataView(buffer);
+  for (let i = 0, { length } = it; i < length; ++i) {
     view.setUint8(i, it[i]);
   }
   return buffer;
 }
 
 export function bufferToArray(it) {
-  var results = [];
-  var view = new DataView(it);
-  for (var i = 0, byteLength = view.byteLength; i < byteLength; ++i) {
+  const results = [];
+  const view = new DataView(it);
+  for (let i = 0, { byteLength } = view; i < byteLength; ++i) {
     results.push(view.getUint8(i));
   }
   return results;
 }
 
 export function createIterable(elements, methods) {
-  var iterable = {
+  const iterable = {
     called: false,
-    received: false
-  };
-  iterable[GLOBAL.core ? core.Symbol.iterator : GLOBAL.Symbol && Symbol.iterator] = function () {
-    iterable.received = true;
-    var index = 0;
-    var iterator = {
-      next: function () {
-        iterable.called = true;
-        return {
-          value: elements[index++],
-          done: index > elements.length
-        };
-      }
-    };
-    if (methods) for (var key in methods) iterator[key] = methods[key];
-    return iterator;
+    received: false,
+    [ITERATOR]() {
+      iterable.received = true;
+      let index = 0;
+      const iterator = {
+        next() {
+          iterable.called = true;
+          return {
+            value: elements[index++],
+            done: index > elements.length
+          };
+        }
+      };
+      if (methods) for (const key in methods) iterator[key] = methods[key];
+      return iterator;
+    }
   };
   return iterable;
 }
 
-export function includes(target, element) {
-  for (var i = 0, length = target.length; i < length; ++i) if (target[i] === element) return true;
+export function includes(target, wanted) {
+  for (const element of target) if (wanted === element) return true;
   return false;
 }
 
 export function is(a, b) {
+  // eslint-disable-next-line no-self-compare
   return a === b ? a !== 0 || 1 / a === 1 / b : a != a && b != b;
 }
 
-export var nativeSubclass = function () {
+export const nativeSubclass = (() => {
   try {
-    return Function("'use strict';class O extends Object {};return new O instanceof O;")()
-      && Function('F', "'use strict';return class extends F {};");
+    if (Function(`
+      'use strict';
+      class Subclass extends Object { /* empty */ };
+      return new Subclass() instanceof Subclass;
+    `)()) return Function('Parent', `
+      'use strict';
+      return class extends Parent { /* empty */ };
+    `);
   } catch (e) { /* empty */ }
-}();
+})();
 
 export function timeLimitedPromise(time, fn) {
   return Promise.race([
-    new Promise(fn), new Promise(function (resolve, reject) {
+    new Promise(fn), new Promise((resolve, reject) => {
       setTimeout(reject, time);
     })
   ]);

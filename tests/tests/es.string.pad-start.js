@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#padStart', function (assert) {
-  var padStart = String.prototype.padStart;
+QUnit.test('String#padStart', assert => {
+  const { padStart } = String.prototype;
   assert.isFunction(padStart);
   assert.arity(padStart, 1);
   assert.name(padStart, 'padStart');
@@ -15,11 +15,11 @@ QUnit.test('String#padStart', function (assert) {
   assert.strictEqual('foo'.padStart(1), 'foo');
   assert.strictEqual('foo'.padStart(5, ''), 'foo');
   if (STRICT) {
-    assert.throws(function () {
-      padStart.call(null, 0);
+    assert.throws(() => {
+      return padStart.call(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      padStart.call(undefined, 0);
+    assert.throws(() => {
+      return padStart.call(undefined, 0);
     }, TypeError);
   }
 });

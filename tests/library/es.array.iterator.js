@@ -1,11 +1,9 @@
-var Symbol = core.Symbol;
-var keys = core.Array.keys;
-var values = core.Array.values;
-var entries = core.Array.entries;
+const { Symbol } = core;
+const { keys, values, entries } = core.Array;
 
-QUnit.test('Array#@@iterator', function (assert) {
+QUnit.test('Array#@@iterator', assert => {
   assert.isFunction(values);
-  var iterator = core.getIterator(['q', 'w', 'e']);
+  const iterator = core.getIterator(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
@@ -27,9 +25,9 @@ QUnit.test('Array#@@iterator', function (assert) {
   });
 });
 
-QUnit.test('Array#keys', function (assert) {
+QUnit.test('Array#keys', assert => {
   assert.isFunction(keys);
-  var iterator = keys(['q', 'w', 'e']);
+  const iterator = keys(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
@@ -51,9 +49,9 @@ QUnit.test('Array#keys', function (assert) {
   });
 });
 
-QUnit.test('Array#values', function (assert) {
+QUnit.test('Array#values', assert => {
   assert.isFunction(values);
-  var iterator = values(['q', 'w', 'e']);
+  const iterator = values(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
@@ -75,9 +73,9 @@ QUnit.test('Array#values', function (assert) {
   });
 });
 
-QUnit.test('Array#entries', function (assert) {
+QUnit.test('Array#entries', assert => {
   assert.isFunction(entries);
-  var iterator = entries(['q', 'w', 'e']);
+  const iterator = entries(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');

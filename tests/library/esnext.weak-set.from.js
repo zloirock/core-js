@@ -1,31 +1,29 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('WeakSet.from', function (assert) {
-  var WeakSet = core.WeakSet;
-  var from = WeakSet.from;
+QUnit.test('WeakSet.from', assert => {
+  const { WeakSet } = core;
+  const { from } = WeakSet;
   assert.isFunction(from);
   assert.arity(from, 1);
   assert.ok(WeakSet.from() instanceof WeakSet);
-  var array = [];
+  const array = [];
   assert.ok(WeakSet.from([array]).has(array));
   assert.ok(WeakSet.from(createIterable([array])).has(array));
-  var object = {};
-  var context = {};
+  const object = {};
+  const context = {};
   WeakSet.from([object], function (element, index) {
     assert.same(element, object);
     assert.same(index, 0);
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(function () {
-    from({});
+  assert.throws(() => {
+    return from({});
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }
-  from.call(F, createIterable([1, 2, 3]), function (it) {
-    return it ** 2;
-  });
+  from.call(F, createIterable([1, 2, 3]), it => it ** 2);
   assert.deepEqual(arg, [1, 4, 9]);
 });

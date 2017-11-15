@@ -1,10 +1,10 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('core.getIteratorMethod', function (assert) {
-  var getIteratorMethod = core.getIteratorMethod;
+QUnit.test('core.getIteratorMethod', assert => {
+  const { getIteratorMethod } = core;
   assert.isFunction(getIteratorMethod);
-  var iterable = createIterable([]);
-  var iterFn = getIteratorMethod(iterable);
+  const iterable = createIterable([]);
+  const iterFn = getIteratorMethod(iterable);
   assert.isFunction(iterFn);
   assert.isIterator(iterFn.call(iterable));
   assert.isFunction(getIteratorMethod([]));

@@ -1,9 +1,9 @@
-import { GLOBAL, DESCRIPTORS, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint16 conversions', function (assert) {
-  var uint16array = new Uint16Array(1);
-  var uint8array = new Uint8Array(uint16array.buffer);
-  var dataview = new DataView(uint16array.buffer);
+if (DESCRIPTORS) QUnit.test('Uint16 conversions', assert => {
+  const uint16array = new Uint16Array(1);
+  const uint8array = new Uint8Array(uint16array.buffer);
+  const dataview = new DataView(uint16array.buffer);
 
   function viewFrom(it) {
     return new DataView(new Uint8Array(it).buffer);
@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('Uint16 conversions', function (assert) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  let data = [
     [0, 0, [0, 0]],
     [-0, 0, [0, 0]],
     [1, 1, [1, 0]],
@@ -67,23 +67,20 @@ if (DESCRIPTORS) QUnit.test('Uint16 conversions', function (assert) {
       [-9007199254740994, 65534, [254, 255]]
     ]);
   }
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
-    var big = little.slice().reverse();
-    var representation = LITTLE_ENDIAN ? little : big;
+  for (const [value, conversion, little] of data) {
+    const big = little.slice().reverse();
+    const representation = LITTLE_ENDIAN ? little : big;
     uint16array[0] = value;
-    assert.same(uint16array[0], conversion, 'Uint16Array ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, representation, 'Uint16Array ' + toString(value) + ' -> [' + representation + ']');
+    assert.same(uint16array[0], conversion, `Uint16Array ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, representation, `Uint16Array ${ toString(value) } -> [${ representation }]`);
     dataview.setUint16(0, value);
-    assert.arrayEqual(uint8array, big, 'dataview.setUint16(0, ' + toString(value) + ') -> [' + big + ']');
-    assert.same(viewFrom(big).getUint16(0), conversion, 'dataview{' + big + '}.getUint16(0) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setUint16(0, ${ toString(value) }) -> [${ big }]`);
+    assert.same(viewFrom(big).getUint16(0), conversion, `dataview{${ big }}.getUint16(0) -> ${ toString(conversion) }`);
     dataview.setUint16(0, value, false);
-    assert.arrayEqual(uint8array, big, 'dataview.setUint16(0, ' + toString(value) + ', false) -> [' + big + ']');
-    assert.same(viewFrom(big).getUint16(0, false), conversion, 'dataview{' + big + '}.getUint16(0, false) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setUint16(0, ${ toString(value) }, false) -> [${ big }]`);
+    assert.same(viewFrom(big).getUint16(0, false), conversion, `dataview{${ big }}.getUint16(0, false) -> ${ toString(conversion) }`);
     dataview.setUint16(0, value, true);
-    assert.arrayEqual(uint8array, little, 'dataview.setUint16(0, ' + toString(value) + ', true) -> [' + little + ']');
-    assert.same(viewFrom(little).getUint16(0, true), conversion, 'dataview{' + little + '}.getUint16(0, true) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, little, `dataview.setUint16(0, ${ toString(value) }, true) -> [${ little }]`);
+    assert.same(viewFrom(little).getUint16(0, true), conversion, `dataview{${ little }}.getUint16(0, true) -> ${ toString(conversion) }`);
   }
 });

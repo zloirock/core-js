@@ -1,8 +1,8 @@
-QUnit.test('Number.isFinite', function (assert) {
-  var isFinite = core.Number.isFinite;
-  var create = core.Object.create;
+QUnit.test('Number.isFinite', assert => {
+  const { isFinite } = core.Number;
+  const { create } = core.Object;
   assert.isFunction(isFinite);
-  var finite = [
+  const finite = [
     1,
     0.1,
     -1,
@@ -14,11 +14,10 @@ QUnit.test('Number.isFinite', function (assert) {
     2 ** 32 - 1,
     -0
   ];
-  for (var i = 0, length = finite.length; i < length; ++i) {
-    var val = finite[i];
-    assert.ok(isFinite(val), 'isFinite ' + typeof val + ' ' + val);
+  for (const value of finite) {
+    assert.ok(isFinite(value), `isFinite ${ typeof value } ${ value }`);
   }
-  var notFinite = [
+  const notFinite = [
     NaN,
     Infinity,
     'NaN',
@@ -33,9 +32,8 @@ QUnit.test('Number.isFinite', function (assert) {
     {},
     function () { /* empty */ }
   ];
-  for (var i = 0, length = notFinite.length; i < length; ++i) {
-    var val = notFinite[i];
-    assert.ok(!isFinite(val), 'not isFinite ' + typeof val + ' ' + val);
+  for (const value of notFinite) {
+    assert.ok(!isFinite(value), `not isFinite ${ typeof value } ${ value }`);
   }
   assert.ok(!isFinite(create(null)), 'Number.isFinite(Object.create(null)) -> false');
 });

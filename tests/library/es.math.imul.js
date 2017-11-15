@@ -1,5 +1,5 @@
-QUnit.test('Math.imul', function (assert) {
-  var imul = core.Math.imul;
+QUnit.test('Math.imul', assert => {
+  const { imul } = core.Math;
   assert.isFunction(imul);
   assert.same(imul(0, 0), 0);
   assert.strictEqual(imul(123, 456), 56088);

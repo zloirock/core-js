@@ -1,5 +1,5 @@
-QUnit.test('Math.expm1', function (assert) {
-  var expm1 = Math.expm1;
+QUnit.test('Math.expm1', assert => {
+  const { expm1 } = Math;
   assert.isFunction(expm1);
   assert.name(expm1, 'expm1');
   assert.arity(expm1, 1);

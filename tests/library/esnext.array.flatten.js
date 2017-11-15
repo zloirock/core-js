@@ -1,10 +1,11 @@
-import { DESCRIPTORS, STRICT, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#flatten', function (assert) {
-  var flatten = core.Array.flatten;
+QUnit.test('Array#flatten', assert => {
+  const { flatten } = core.Array;
+  const { defineProperty } = core.Object;
   assert.isFunction(flatten);
   assert.deepEqual(flatten([]), []);
-  var array = [1, [2, 3], [4, [5, 6]]];
+  const array = [1, [2, 3], [4, [5, 6]]];
   assert.deepEqual(flatten(array, 0), array);
   assert.deepEqual(flatten(array, 1), [1, 2, 3, 4, [5, 6]]);
   assert.deepEqual(flatten(array), [1, 2, 3, 4, [5, 6]]);
@@ -13,28 +14,22 @@ QUnit.test('Array#flatten', function (assert) {
   assert.deepEqual(flatten(array, -1), array);
   assert.deepEqual(flatten(array, Infinity), [1, 2, 3, 4, 5, 6]);
   if (STRICT) {
-    assert.throws(function () {
-      flatten(null, function (it) {
-        return it;
-      });
+    assert.throws(() => {
+      return flatten(null);
     }, TypeError);
-    assert.throws(function () {
-      flatten(undefined, function (it) {
-        return it;
-      });
+    assert.throws(() => {
+      return flatten(undefined);
     }, TypeError);
   }
-  if (NATIVE && DESCRIPTORS) {
-    assert.ok(function () {
+  if (DESCRIPTORS) {
+    assert.ok((() => {
       try {
-        return false === flatten(core.Object.defineProperty({ length: -1 }, 0, {
-          get: function () {
+        return flatten(defineProperty({ length: -1 }, 0, {
+          get() {
             throw new Error();
           }
-        }), function (it) {
-          return it;
-        });
+        })).length === 0;
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });
