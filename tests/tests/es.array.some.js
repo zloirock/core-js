@@ -1,14 +1,14 @@
-import { STRICT, NATIVE } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#some', function (assert) {
-  var some = Array.prototype.some;
+QUnit.test('Array#some', assert => {
+  const { some } = Array.prototype;
   assert.isFunction(some);
   assert.arity(some, 1);
   assert.name(some, 'some');
   assert.looksNative(some);
   assert.nonEnumerable(Array.prototype, 'some');
-  var array = [1];
-  var context = {};
+  let array = [1];
+  const context = {};
   array.some(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
@@ -16,49 +16,39 @@ QUnit.test('Array#some', function (assert) {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok([1, '2', 3].some(function (value) {
-    return typeof value === 'number';
-  }));
-  assert.ok([1, 2, 3].some(function (value) {
-    return value < 3;
-  }));
-  assert.ok(![1, 2, 3].some(function (value) {
-    return value < 0;
-  }));
-  assert.ok(![1, 2, 3].some(function (value) {
-    return typeof value === 'string';
-  }));
+  assert.ok([1, '2', 3].some(value => typeof value === 'number'));
+  assert.ok([1, 2, 3].some(value => value < 3));
+  assert.ok(![1, 2, 3].some(value => value < 0));
+  assert.ok(![1, 2, 3].some(value => typeof value === 'string'));
   assert.ok(![1, 2, 3].some(function () {
     return +this !== 1;
   }, 1));
-  var result = '';
-  [1, 2, 3].some(function (value, key) {
+  let result = '';
+  [1, 2, 3].some((value, key) => {
     result += key;
     return false;
   });
   assert.ok(result === '012');
   array = [1, 2, 3];
-  assert.ok(!array.some(function (value, key, that) {
-    return that !== array;
-  }));
+  assert.ok(!array.some((value, key, that) => that !== array));
   if (STRICT) {
-    assert.throws(function () {
-      some.call(null, function () { /* empty */ });
+    assert.throws(() => {
+      return some.call(null, () => { /* empty */ });
     }, TypeError);
-    assert.throws(function () {
-      some.call(undefined, function () { /* empty */ });
+    assert.throws(() => {
+      return some.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
   if (NATIVE) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
         return some.call({
           length: -1,
           0: 1
-        }, function () {
+        }, () => {
           throw new Error();
         }) === false;
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });

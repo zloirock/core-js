@@ -1,28 +1,24 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#find', function (assert) {
-  var find = core.Array.find;
+QUnit.test('Array#find', assert => {
+  const { find } = core.Array;
   assert.isFunction(find);
-  var array = [1];
-  var context = {};
+  const array = [1];
+  const context = {};
   find(array, function (value, key, that) {
     assert.strictEqual(this, context);
     assert.strictEqual(value, 1);
     assert.strictEqual(key, 0);
     assert.strictEqual(that, array);
   }, context);
-  assert.strictEqual(find([1, 3, NaN, 42, {}], function (it) {
-    return it === 42;
-  }), 42);
-  assert.strictEqual(find([1, 3, NaN, 42, {}], function (it) {
-    return it === 43;
-  }), undefined);
+  assert.strictEqual(find([1, 3, NaN, 42, {}], it => it === 42), 42);
+  assert.strictEqual(find([1, 3, NaN, 42, {}], it => it === 43), undefined);
   if (STRICT) {
-    assert.throws(function () {
-      find(null, 0);
+    assert.throws(() => {
+      return find(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      find(undefined, 0);
+    assert.throws(() => {
+      return find(undefined, 0);
     }, TypeError);
   }
 });

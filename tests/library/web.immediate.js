@@ -1,59 +1,58 @@
 import { GLOBAL } from '../helpers/constants';
 import { timeLimitedPromise } from '../helpers/helpers';
 
-var setImmediate = core.setImmediate;
-var clearImmediate = core.clearImmediate;
+const { setImmediate, clearImmediate } = core;
 
-QUnit.test('setImmediate / clearImmediate', function (assert) {
-  var called = false;
+QUnit.test('setImmediate / clearImmediate', assert => {
+  let called = false;
   assert.expect(6);
   assert.isFunction(setImmediate, 'setImmediate is function');
   assert.isFunction(clearImmediate, 'clearImmediate is function');
-  timeLimitedPromise(1e3, function (res) {
-    setImmediate(function () {
+  timeLimitedPromise(1e3, res => {
+    setImmediate(() => {
       called = true;
       res();
     });
-  }).then(function () {
+  }).then(() => {
     assert.ok(true, 'setImmediate works');
-  }).catch(function () {
+  }).catch(() => {
     assert.ok(false, 'setImmediate works');
   }).then(assert.async());
   assert.strictEqual(called, false, 'setImmediate is async');
-  timeLimitedPromise(1e3, function (res) {
-    setImmediate(function (a, b) {
+  timeLimitedPromise(1e3, res => {
+    setImmediate((a, b) => {
       res(a + b);
     }, 'a', 'b');
-  }).then(function (it) {
+  }).then(it => {
     assert.strictEqual(it, 'ab', 'setImmediate works with additional args');
-  }).catch(function () {
+  }).catch(() => {
     assert.ok(false, 'setImmediate works with additional args');
   }).then(assert.async());
-  timeLimitedPromise(50, function (res) {
+  timeLimitedPromise(50, res => {
     clearImmediate(setImmediate(res));
-  }).then(function () {
+  }).then(() => {
     assert.ok(false, 'clearImmediate works');
-  }).catch(function () {
+  }).catch(() => {
     assert.ok(true, 'clearImmediate works');
   }).then(assert.async());
 });
 
-var now = Date.now || function () {
+const now = Date.now || function () {
   return +new Date();
 };
 
 function perf() {
-  setTimeout(function () {
-    var x = 0;
-    var time = now();
+  setTimeout(() => {
+    let x = 0;
+    const time = now();
     function inc() {
-      setImmediate(function () {
+      setImmediate(() => {
         x = x + 1;
         if (now() - time < 5e3) {
           inc();
         } else if (GLOBAL.console) {
           // eslint-disable-next-line no-console
-          console.log('setImmediate: ' + x / 5 + ' per second');
+          console.log(`setImmediate: ${ x / 5 } per second`);
         }
       });
     }

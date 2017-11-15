@@ -1,24 +1,20 @@
-QUnit.test('Object.preventExtensions', function (assert) {
-  var preventExtensions = core.Object.preventExtensions;
-  var keys = core.Object.keys;
-  var getOwnPropertyNames = core.Object.getOwnPropertyNames;
-  var getOwnPropertySymbols = core.Object.getOwnPropertySymbols;
-  var ownKeys = core.Reflect.ownKeys;
+QUnit.test('Object.preventExtensions', assert => {
+  const { preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
+  const { ownKeys } = core.Reflect;
   assert.isFunction(preventExtensions);
   assert.arity(preventExtensions, 1);
-  var data = [42, 'foo', false, null, undefined, {}];
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i];
-    assert.ok(function () {
+  const data = [42, 'foo', false, null, undefined, {}];
+  for (const value of data) {
+    assert.ok((() => {
       try {
         preventExtensions(value);
         return true;
       } catch (e) { /* empty */ }
-    }(), 'accept ' + {}.toString.call(value).slice(8, -1));
-    assert.same(preventExtensions(value), value, 'returns target on ' + {}.toString.call(value).slice(8, -1));
+    })(), `accept ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.same(preventExtensions(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
-  var results = [];
-  for (var key in preventExtensions({})) results.push(key);
+  const results = [];
+  for (const key in preventExtensions({})) results.push(key);
   assert.arrayEqual(results, []);
   assert.arrayEqual(keys(preventExtensions({})), []);
   assert.arrayEqual(getOwnPropertyNames(preventExtensions({})), []);

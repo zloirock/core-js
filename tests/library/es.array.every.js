@@ -1,10 +1,10 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('Array#every', function (assert) {
-  var every = core.Array.every;
+QUnit.test('Array#every', assert => {
+  const { every } = core.Array;
   assert.isFunction(every);
-  var array = [1];
-  var context = {};
+  const array = [1];
+  const context = {};
   every(array, function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
@@ -12,36 +12,24 @@ QUnit.test('Array#every', function (assert) {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok(every([1, 2, 3], function (it) {
-    return typeof it === 'number';
-  }));
-  assert.ok(every([1, 2, 3], function (it) {
-    return it < 4;
-  }));
-  assert.ok(!every([1, 2, 3], function (it) {
-    return it < 3;
-  }));
-  assert.ok(!every([1, 2, 3], function (it) {
-    return typeof it === 'string';
-  }));
+  assert.ok(every([1, 2, 3], it => typeof it === 'number'));
+  assert.ok(every([1, 2, 3], it => it < 4));
+  assert.ok(!every([1, 2, 3], it => it < 3));
+  assert.ok(!every([1, 2, 3], it => typeof it === 'string'));
   assert.ok(every([1, 2, 3], function () {
     return +this === 1;
   }, 1));
-  var rez = '';
-  every([1, 2, 3], function (value, key) {
-    return rez += key;
-  });
+  let rez = '';
+  every([1, 2, 3], (value, key) => rez += key);
   assert.ok(rez === '012');
-  var arr = [1, 2, 3];
-  assert.ok(every(arr, function (value, key, that) {
-    return that === arr;
-  }));
+  const arr = [1, 2, 3];
+  assert.ok(every(arr, (value, key, that) => that === arr));
   if (STRICT) {
-    assert.throws(function () {
-      every(null, function () { /* empty */ });
+    assert.throws(() => {
+      return every(null, () => { /* empty */ });
     }, TypeError);
-    assert.throws(function () {
-      every(undefined, function () { /* empty */ });
+    assert.throws(() => {
+      return every(undefined, () => { /* empty */ });
     }, TypeError);
   }
 });

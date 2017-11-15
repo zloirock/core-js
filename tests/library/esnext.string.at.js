@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#at', function (assert) {
-  var at = core.String.at;
+QUnit.test('String#at', assert => {
+  const { at } = core.String;
   assert.isFunction(at);
   // String that starts with a BMP symbol
   assert.strictEqual(at('abc\uD834\uDF06def', -Infinity), '');
@@ -82,16 +82,16 @@ QUnit.test('String#at', function (assert) {
   assert.strictEqual(at(42, 0), '4');
   assert.strictEqual(at(42, 1), '2');
   assert.strictEqual(at({
-    toString: function () {
+    toString() {
       return 'abc';
     }
   }, 2), 'c');
   if (STRICT) {
-    assert.throws(function () {
-      at(null, 0);
+    assert.throws(() => {
+      return at(null, 0);
     }, TypeError);
-    assert.throws(function () {
-      at(undefined, 0);
+    assert.throws(() => {
+      return at(undefined, 0);
     }, TypeError);
   }
 });

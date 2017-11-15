@@ -1,6 +1,6 @@
-QUnit.test('Math.hypot', function (assert) {
-  var hypot = core.Math.hypot;
-  var sqrt = Math.sqrt;
+QUnit.test('Math.hypot', assert => {
+  const { hypot } = core.Math;
+  const { sqrt } = Math;
   assert.isFunction(hypot);
   assert.strictEqual(hypot(), 0);
   assert.strictEqual(hypot(1), 1);

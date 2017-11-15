@@ -1,5 +1,5 @@
-QUnit.test('String#small', function (assert) {
-  var small = String.prototype.small;
+QUnit.test('String#small', assert => {
+  const { small } = String.prototype;
   assert.isFunction(small);
   assert.arity(small, 0);
   assert.name(small, 'small');

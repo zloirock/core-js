@@ -1,13 +1,11 @@
-import { GLOBAL, DESCRIPTORS, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Int16 conversions', function (assert) {
-  var Int16Array = core.Int16Array;
-  var Uint8Array = core.Uint8Array;
-  var DataView = core.DataView;
+if (DESCRIPTORS) QUnit.test('Int16 conversions', assert => {
+  const { Int16Array, Uint8Array, DataView } = core;
 
-  var int16array = new Int16Array(1);
-  var uint8array = new Uint8Array(int16array.buffer);
-  var dataview = new DataView(int16array.buffer);
+  const int16array = new Int16Array(1);
+  const uint8array = new Uint8Array(int16array.buffer);
+  const dataview = new DataView(int16array.buffer);
 
   function viewFrom(it) {
     return new DataView(new Uint8Array(it).buffer);
@@ -16,7 +14,7 @@ if (DESCRIPTORS) QUnit.test('Int16 conversions', function (assert) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
   }
 
-  var data = [
+  let data = [
     [0, 0, [0, 0]],
     [-0, 0, [0, 0]],
     [1, 1, [1, 0]],
@@ -59,7 +57,7 @@ if (DESCRIPTORS) QUnit.test('Int16 conversions', function (assert) {
     [NaN, 0, [0, 0]]
   ];
   // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
+  if (!/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
     data = data.concat([
       [2147483649, 1, [1, 0]],
       [-2147483649, -1, [255, 255]],
@@ -71,23 +69,20 @@ if (DESCRIPTORS) QUnit.test('Int16 conversions', function (assert) {
       [-9007199254740994, -2, [254, 255]]
     ]);
   }
-  for (var i = 0, length = data.length; i < length; ++i) {
-    var value = data[i][0];
-    var conversion = data[i][1];
-    var little = data[i][2];
-    var big = little.slice().reverse();
-    var representation = LITTLE_ENDIAN ? little : big;
+  for (const [value, conversion, little] of data) {
+    const big = little.slice().reverse();
+    const representation = LITTLE_ENDIAN ? little : big;
     int16array[0] = value;
-    assert.same(int16array[0], conversion, 'Int16Array ' + toString(value) + ' -> ' + toString(conversion));
-    assert.arrayEqual(uint8array, representation, 'Int16Array ' + toString(value) + ' -> [' + representation + ']');
+    assert.same(int16array[0], conversion, `Int16Array ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, representation, `Int16Array ${ toString(value) } -> [${ representation }]`);
     dataview.setInt16(0, value);
-    assert.arrayEqual(uint8array, big, 'dataview.setInt16(0, ' + toString(value) + ') -> [' + big + ']');
-    assert.same(viewFrom(big).getInt16(0), conversion, 'dataview{' + big + '}.getInt16(0) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setInt16(0, ${ toString(value) }) -> [${ big }]`);
+    assert.same(viewFrom(big).getInt16(0), conversion, `dataview{${ big }}.getInt16(0) -> ${ toString(conversion) }`);
     dataview.setInt16(0, value, false);
-    assert.arrayEqual(uint8array, big, 'dataview.setInt16(0, ' + toString(value) + ', false) -> [' + big + ']');
-    assert.same(viewFrom(big).getInt16(0, false), conversion, 'dataview{' + big + '}.getInt16(0, false) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, big, `dataview.setInt16(0, ${ toString(value) }, false) -> [${ big }]`);
+    assert.same(viewFrom(big).getInt16(0, false), conversion, `dataview{${ big }}.getInt16(0, false) -> ${ toString(conversion) }`);
     dataview.setInt16(0, value, true);
-    assert.arrayEqual(uint8array, little, 'dataview.setInt16(0, ' + toString(value) + ', true) -> [' + little + ']');
-    assert.same(viewFrom(little).getInt16(0, true), conversion, 'dataview{' + little + '}.getInt16(0, true) -> ' + toString(conversion));
+    assert.arrayEqual(uint8array, little, `dataview.setInt16(0, ${ toString(value) }, true) -> [${ little }]`);
+    assert.same(viewFrom(little).getInt16(0, true), conversion, `dataview{${ little }}.getInt16(0, true) -> ${ toString(conversion) }`);
   }
 });

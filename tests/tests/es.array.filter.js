@@ -1,14 +1,14 @@
-import { STRICT, NATIVE } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
-QUnit.test('Array#filter', function (assert) {
-  var filter = Array.prototype.filter;
+QUnit.test('Array#filter', assert => {
+  const { filter } = Array.prototype;
   assert.isFunction(filter);
   assert.arity(filter, 1);
   assert.name(filter, 'filter');
   assert.looksNative(filter);
   assert.nonEnumerable(Array.prototype, 'filter');
-  var array = [1];
-  var context = {};
+  const array = [1];
+  const context = {};
   array.filter(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
@@ -16,27 +16,25 @@ QUnit.test('Array#filter', function (assert) {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(function (it) {
-    return typeof it === 'number';
-  }));
+  assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(it => typeof it === 'number'));
   if (STRICT) {
-    assert.throws(function () {
-      filter.call(null, function () { /* empty */ });
+    assert.throws(() => {
+      filter.call(null, () => { /* empty */ });
     }, TypeError);
-    assert.throws(function () {
-      filter.call(undefined, function () { /* empty */ });
+    assert.throws(() => {
+      filter.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
   if (NATIVE) {
-    assert.ok(function () {
+    assert.ok((() => {
       try {
         return filter.call({
           length: -1,
           0: 1
-        }, function () {
+        }, () => {
           throw new Error();
         });
       } catch (e) { /* empty */ }
-    }(), 'uses ToLength');
+    })(), 'uses ToLength');
   }
 });

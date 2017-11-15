@@ -1,15 +1,15 @@
-QUnit.test('Map.of', function (assert) {
-  var Map = core.Map;
-  var of = Map.of;
+QUnit.test('Map.of', assert => {
+  const { Map } = core;
+  const { of } = Map;
   assert.isFunction(of);
   assert.arity(of, 0);
   assert.ok(Map.of() instanceof Map);
   assert.deepEqual(core.Array.from(Map.of([1, 2])), [[1, 2]]);
   assert.deepEqual(core.Array.from(Map.of([1, 2], [2, 3], [1, 4])), [[1, 4], [2, 3]]);
-  assert.throws(function () {
-    of(1);
+  assert.throws(() => {
+    return of(1);
   });
-  var arg = null;
+  let arg = null;
   function F(it) {
     return arg = it;
   }

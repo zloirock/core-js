@@ -1,21 +1,17 @@
 import { STRICT } from '../helpers/constants';
 
-var Observable = core.Observable;
-var Promise = core.Promise;
-var Symbol = core.Symbol;
+const { Observable, Promise, Symbol } = core;
 
-QUnit.test('Observable', function (assert) {
+QUnit.test('Observable', assert => {
   assert.isFunction(Observable);
   assert.arity(Observable, 1);
-  assert.throws(function () {
-    Observable(function () { /* empty */ });
+  assert.throws(() => {
+    Observable(() => { /* empty */ });
   }, 'throws w/o `new`');
-  var obsevable = new Observable(function (subscriptionObserver) {
+  const obsevable = new Observable(function (subscriptionObserver) {
     assert.same(typeof subscriptionObserver, 'object', 'Subscription observer is object');
     assert.same(subscriptionObserver.constructor, Object);
-    var next = subscriptionObserver.next;
-    var error = subscriptionObserver.error;
-    var complete = subscriptionObserver.complete;
+    const { next, error, complete } = subscriptionObserver;
     assert.isFunction(next);
     assert.isFunction(error);
     assert.isFunction(complete);
@@ -30,38 +26,38 @@ QUnit.test('Observable', function (assert) {
   assert.ok(obsevable instanceof Observable);
 });
 
-QUnit.test('Observable#subscribe', function (assert) {
+QUnit.test('Observable#subscribe', assert => {
   assert.isFunction(Observable.prototype.subscribe);
   assert.arity(Observable.prototype.subscribe, 1);
-  var subscription = new Observable(function () { /* empty */ }).subscribe({});
+  const subscription = new Observable(() => { /* empty */ }).subscribe({});
   assert.same(typeof subscription, 'object', 'Subscription is object');
   assert.same(subscription.constructor, Object);
   assert.isFunction(subscription.unsubscribe);
   assert.arity(subscription.unsubscribe, 0);
 });
 
-QUnit.test('Observable#forEach', function (assert) {
+QUnit.test('Observable#forEach', assert => {
   assert.isFunction(Observable.prototype.forEach);
   assert.arity(Observable.prototype.forEach, 1);
-  assert.ok(new Observable(function () { /* empty */ }).forEach(function () { /* empty */ }) instanceof Promise, 'returns Promise');
+  assert.ok(new Observable(() => { /* empty */ }).forEach(() => { /* empty */ }) instanceof Promise, 'returns Promise');
 });
 
-QUnit.test('Observable#constructor', function (assert) {
+QUnit.test('Observable#constructor', assert => {
   assert.same(Observable.prototype.constructor, Observable);
 });
 
-QUnit.test('Observable#@@observable', function (assert) {
+QUnit.test('Observable#@@observable', assert => {
   assert.isFunction(Observable.prototype[Symbol.observable]);
-  var observable = new Observable(function () { /* empty*/ });
+  const observable = new Observable(() => { /* empty*/ });
   assert.same(observable[Symbol.observable](), observable);
 });
 
-QUnit.test('Observable.of', function (assert) {
+QUnit.test('Observable.of', assert => {
   assert.isFunction(Observable.of);
   assert.arity(Observable.of, 0);
 });
 
-QUnit.test('Observable.from', function (assert) {
+QUnit.test('Observable.from', assert => {
   assert.isFunction(Observable.from);
   assert.arity(Observable.from, 1);
 });

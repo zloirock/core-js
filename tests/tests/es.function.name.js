@@ -1,14 +1,14 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
-  QUnit.test('Function#name', function (assert) {
+  QUnit.test('Function#name', assert => {
     assert.ok('name' in Function.prototype);
     assert.nonEnumerable(Function.prototype, 'name');
     function foo() { /* empty */ }
     assert.same(foo.name, 'foo');
     assert.same(function () { /* empty */ }.name, '');
     if (Object.freeze) {
-      assert.same(Object.freeze(function () { /* empty */ }).name, '');
+      assert.same(Object.freeze(() => { /* empty */ }).name, '');
     }
     function bar() { /* empty */ }
     bar.toString = function () {
@@ -20,7 +20,7 @@ if (DESCRIPTORS) {
         return true;
       } catch (e) { /* empty */ }
     }());
-    var baz = Object(function () { /* empty */ });
+    const baz = Object(() => { /* empty */ });
     baz.toString = function () {
       return '';
     };

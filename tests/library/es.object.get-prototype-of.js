@@ -1,13 +1,12 @@
-QUnit.test('Object.getPrototypeOf', function (assert) {
-  var create = core.Object.create;
-  var getPrototypeOf = core.Object.getPrototypeOf;
+QUnit.test('Object.getPrototypeOf', assert => {
+  const { create, getPrototypeOf } = core.Object;
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);
   assert.ok(getPrototypeOf({}) === Object.prototype);
   assert.ok(getPrototypeOf([]) === Array.prototype);
   function F() { /* empty */ }
   assert.ok(getPrototypeOf(new F()) === F.prototype);
-  var object = { q: 1 };
+  const object = { q: 1 };
   assert.ok(getPrototypeOf(create(object)) === object);
   assert.ok(getPrototypeOf(create(null)) === null);
   assert.ok(getPrototypeOf(getPrototypeOf({})) === null);
@@ -17,21 +16,20 @@ QUnit.test('Object.getPrototypeOf', function (assert) {
   Bar.prototype = create(Foo.prototype);
   Bar.prototype.constructor = Bar;
   assert.strictEqual(getPrototypeOf(Bar.prototype).foo, 'foo');
-  var primitives = [42, 'foo', false];
-  for (var i = 0, length = primitives.length; i < length; ++i) {
-    var value = primitives[i];
-    assert.ok(function () {
+  const primitives = [42, 'foo', false];
+  for (const value of primitives) {
+    assert.ok((() => {
       try {
         getPrototypeOf(value);
         return true;
       } catch (e) { /* empty */ }
-    }(), 'accept ' + typeof value);
+    })(), `accept ${ typeof value }`);
   }
-  assert.throws(function () {
-    getPrototypeOf(null);
+  assert.throws(() => {
+    return getPrototypeOf(null);
   }, TypeError, 'throws on null');
-  assert.throws(function () {
-    getPrototypeOf(undefined);
+  assert.throws(() => {
+    return getPrototypeOf(undefined);
   }, TypeError, 'throws on undefined');
   assert.strictEqual(getPrototypeOf('foo'), String.prototype);
 });

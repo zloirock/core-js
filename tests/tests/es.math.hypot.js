@@ -1,6 +1,5 @@
-QUnit.test('Math.hypot', function (assert) {
-  var hypot = Math.hypot;
-  var sqrt = Math.sqrt;
+QUnit.test('Math.hypot', assert => {
+  const { hypot, sqrt } = Math;
   assert.isFunction(hypot);
   assert.name(hypot, 'hypot');
   assert.arity(hypot, 2);
