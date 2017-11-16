@@ -26,6 +26,9 @@ require('./_core').inspectSource = function (it) {
     hide(O, key, val);
   }
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
-})(Function.prototype, TO_STRING, function toString() {
-  return typeof this == 'function' && this[SRC] || $toString.call(this);
+})(Function.prototype, TO_STRING, function toString() {  
+  //MB smtg like this.....
+  try {
+    return typeof this == 'function' && this[SRC] || $toString.call(this);
+  } catch (e) {}
 });
