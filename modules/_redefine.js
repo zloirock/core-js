@@ -27,5 +27,7 @@ require('./_core').inspectSource = function (it) {
   }
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
 })(Function.prototype, TO_STRING, function toString() {
+  //I think we need to add 'try/catch' block here...
+  //On Edge I receive error 'Can not read property......'
   return typeof this == 'function' && this[SRC] || $toString.call(this);
 });
