@@ -1,4 +1,3 @@
-import { GLOBAL } from '../helpers/constants';
 import { timeLimitedPromise } from '../helpers/helpers';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
@@ -36,32 +35,3 @@ QUnit.test('setImmediate / clearImmediate', assert => {
     assert.ok(true, 'clearImmediate works');
   }).then(assert.async());
 });
-
-const now = Date.now || function () {
-  return +new Date();
-};
-
-function perf() {
-  setTimeout(() => {
-    let x = 0;
-    const time = now();
-    function inc() {
-      setImmediate(() => {
-        x = x + 1;
-        if (now() - time < 5e3) {
-          inc();
-        } else if (GLOBAL.console) {
-          // eslint-disable-next-line no-console
-          console.log(`setImmediate: ${ x / 5 } per second`);
-        }
-      });
-    }
-    inc();
-  }, 5e3);
-}
-
-if (typeof window != 'undefined' && window !== null) {
-  window.onload = perf;
-} else {
-  perf();
-}
