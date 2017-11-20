@@ -41,7 +41,7 @@ module.exports = grunt => {
           {
             expand: true,
             cwd: './',
-            src: ['es/**', 'stage/**', 'web/**', 'core/**', 'fn/**', 'index.js'],
+            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
             dest: './library/',
           }, {
             expand: true,
