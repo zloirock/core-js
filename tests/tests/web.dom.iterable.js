@@ -59,9 +59,12 @@ QUnit.test('Iterable DOM collections', assert => {
   for (const name of collections) {
     const Collection = GLOBAL[name];
     if (Collection) {
-      assert.isFunction(Collection.prototype.values, `${ name }::@@values is function`);
-      assert.isFunction(Collection.prototype.keys, `${ name }::@@keys is function`);
-      assert.isFunction(Collection.prototype.entries, `${ name }::@@entries is function`);
+      assert.isFunction(Collection.prototype.values, `${ name }::values is function`);
+      assert.same(Collection.prototype.values, Array.prototype.values, `${ name }::values is equal of Array::values`);
+      assert.isFunction(Collection.prototype.keys, `${ name }::keys is function`);
+      assert.same(Collection.prototype.keys, Array.prototype.keys, `${ name }::keys is equal of Array::keys`);
+      assert.isFunction(Collection.prototype.entries, `${ name }::entries is function`);
+      assert.same(Collection.prototype.entries, Array.prototype.entries, `${ name }::entries is equal of Array::entries`);
     }
   }
 
