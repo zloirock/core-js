@@ -1689,11 +1689,13 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
   #values()  -> iterator
   #keys()    -> iterator
   #entries() -> iterator
+  #forEach(fn(val, index, @), that) -> void
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/web/dom-collections
 core-js(/library)/fn/dom-collections/iterator
+core-js/fn/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js
@@ -1704,6 +1706,8 @@ for (let { id } of document.querySelectorAll('*')) {
 for (let [index, { id }] of document.querySelectorAll('*').entries()) {
   if (id) console.log(index, id);
 }
+
+document.querySelectorAll('*').forEach(it => console.log(it.id));
 ```
 ### Iteration helpers
 Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v3/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
