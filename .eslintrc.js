@@ -305,6 +305,8 @@ module.exports = {
         'comma-dangle': ['error', 'always-multiline'],
         // encourages use of dot notation whenever possible
         'dot-notation': ['error', { allowKeywords: true }],
+        // enforce the location of arrow function bodies
+        'implicit-arrow-linebreak': ['error', 'beside'],
         // require or disallow use of quotes around object literal property names
         'quote-props': ['error', 'as-needed', { keywords: false }],
       },
@@ -331,6 +333,8 @@ module.exports = {
         'arrow-spacing': 'error',
         // encourages use of dot notation whenever possible
         'dot-notation': ['error', { allowKeywords: true }],
+        // enforce the location of arrow function bodies
+        'implicit-arrow-linebreak': ['error', 'beside'],
         // specify the maximum length of a line in your program
         'max-len': ['error', 150, 2],
         // specify the maximum number of statement allowed in a function
