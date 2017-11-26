@@ -41,6 +41,7 @@
     "karma": "^2.0.0",
     "karma-qunit": "^2.1.0",
     "karma-phantomjs-launcher": "1.0.x",
+    "mkdirp": "^0.5.1",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "^2.1.2",
     "qunit": "2.6.x",
