@@ -1376,6 +1376,20 @@ core-js(/library)/fn/string/virtual/trim-right
 ```js
 core-js(/library)/stage/1
 ```
+* `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.description.js)
+```js
+Symbol
+  #description -> string | undefined
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/fn/symbol/description
+```
+[*Examples*](https://goo.gl/MWizfc):
+```js
+Symbol('foo').description; // => 'foo'
+Symbol().description;      // => undefined
+```
 * `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.promise.try.js)
 ```js
 Promise

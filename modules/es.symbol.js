@@ -56,9 +56,11 @@ var setSymbolDesc = DESCRIPTORS && $fails(function () {
   if (protoDesc && it !== ObjectProto) dP(ObjectProto, key, protoDesc);
 } : dP;
 
-var wrap = function (tag) {
+var wrap = function (tag, description) {
   var sym = AllSymbols[tag] = _create($Symbol[PROTOTYPE]);
   sym._k = tag;
+  if (DESCRIPTORS) sym._d = description;
+  else sym.description = description;
   return sym;
 };
 
@@ -132,14 +134,15 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
 if (!USE_NATIVE) {
   $Symbol = function Symbol() {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
-    var tag = uid(arguments.length > 0 ? arguments[0] : undefined);
+    var description = arguments[0] === undefined ? undefined : String(arguments[0]);
+    var tag = uid(description);
     var $set = function (value) {
       if (this === ObjectProto) $set.call(OPSymbols, value);
       if (has(this, HIDDEN) && has(this[HIDDEN], tag)) this[HIDDEN][tag] = false;
       setSymbolDesc(this, tag, createDesc(1, value));
     };
     if (DESCRIPTORS && setter) setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
-    return wrap(tag);
+    return wrap(tag, description);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
     return this._k;
@@ -151,12 +154,20 @@ if (!USE_NATIVE) {
   require('./_object-pie').f = $propertyIsEnumerable;
   require('./_object-gops').f = $getOwnPropertySymbols;
 
-  if (DESCRIPTORS && !require('./_library')) {
-    redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
+  if (DESCRIPTORS) {
+    dP($Symbol[PROTOTYPE], 'description', {
+      configurable: true,
+      get: function description() {
+        return this._d;
+      }
+    });
+    if (!require('./_library')) {
+      redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
+    }
   }
 
   wksExt.f = function (name) {
-    return wrap(wks(name));
+    return wrap(wks(name), name);
   };
 }
 
