@@ -210,6 +210,7 @@ import './esnext.string.match-all';
 import './esnext.string.trim-left';
 import './esnext.string.trim-right';
 import './esnext.symbol.async-iterator';
+import './esnext.symbol.description';
 import './esnext.symbol.observable';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
