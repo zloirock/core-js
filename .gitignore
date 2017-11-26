@@ -6,4 +6,4 @@ node_modules/
 
 library/
 tests/bundles/
-client/library.*
+client/
