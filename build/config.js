@@ -153,6 +153,7 @@ module.exports = {
     'esnext.string.trim-right',
     'esnext.string.match-all',
     'esnext.symbol.async-iterator',
+    'esnext.symbol.description',
     'esnext.symbol.observable',
     'esnext.map.of',
     'esnext.set.of',
@@ -209,6 +210,7 @@ module.exports = {
     'es.number.constructor',
     'es.date.to-string',
     'es.date.to-primitive',
+    'esnext.symbol.description',
     'web.dom.for-each',
   ],
 
