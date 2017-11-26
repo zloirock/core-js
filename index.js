@@ -151,6 +151,7 @@ require('./modules/esnext.string.trim-left');
 require('./modules/esnext.string.trim-right');
 require('./modules/esnext.string.match-all');
 require('./modules/esnext.symbol.async-iterator');
+require('./modules/esnext.symbol.description');
 require('./modules/esnext.symbol.observable');
 require('./modules/esnext.map.of');
 require('./modules/esnext.set.of');
