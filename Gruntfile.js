@@ -1,6 +1,7 @@
 'use strict';
 const build = require('./build');
 const fs = require('fs');
+const mkdirp = require('mkdirp');
 const path = require('path');
 const config = require('./build/config');
 module.exports = grunt => {
@@ -147,8 +148,9 @@ module.exports = grunt => {
       library: !!~['yes', 'on', 'true'].indexOf(grunt.option('library')),
       umd: !~['no', 'off', 'false'].indexOf(grunt.option('umd')),
     }).then(it => {
-      grunt.option('path') || grunt.option('path', './custom');
-      fs.writeFile(grunt.option('path') + '.js', it, done);
+      var filename = `${ grunt.option('path') || './custom' }.js`;
+      mkdirp.sync(path.dirname(filename));
+      fs.writeFile(filename, it, done);
     }).catch(it => {
       // eslint-disable-next-line no-console
       console.error(it);

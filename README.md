@@ -85,7 +85,7 @@ npm i core-js
 // Include all polyfills
 require('core-js');
 ```
-If you need already bundled version of `core-js`, use [`core-js/client/core.js`](https://raw.githack.com/zloirock/core-js/v3/client/core.js) or [`core-js/client/core.min.js`](https://raw.githack.com/zloirock/core-js/v3/client/core.min.js).
+If you need already bundled version of `core-js`, use `core-js/client/core.js` or `core-js/client/core.min.js` from `npm` package.
 
 Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
 
