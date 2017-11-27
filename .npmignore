@@ -1,7 +1,8 @@
 node_modules/
-build/core-js-builder/
-client/library.*
-tests/
+/build/core-js-builder/
+/client/library.*
+/modules/library/
+/tests/
 CHANGELOG.md
 *.log
 .*
