@@ -244,6 +244,7 @@ for (const PATH of ['..', '../library']) {
   ok(typeof require(`${PATH}/fn/date/to-iso-string`)(new Date()) === 'string');
   ok(require(`${PATH}/fn/date/to-json`)(Infinity) === null);
   ok(require(`${PATH}/fn/date`));
+  require(`${PATH}/fn/symbol/description`);
   ok(require(`${PATH}/fn/symbol/has-instance`));
   ok(require(`${PATH}/fn/symbol/is-concat-spreadable`));
   ok(require(`${PATH}/fn/symbol/iterator`));
