@@ -16,7 +16,7 @@
     "grunt-cli": "^1.2.0",
     "grunt-contrib-clean": "^1.1.0",
     "grunt-contrib-copy": "^1.0.0",
-    "grunt-contrib-uglify": "3.1.x",
+    "grunt-contrib-uglify": "3.2.x",
     "grunt-contrib-watch": "^1.0.0",
     "grunt-karma": "^2.0.0",
     "grunt-livescript": "0.6.x",
