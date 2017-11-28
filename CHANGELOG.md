@@ -8,7 +8,7 @@
   - `Reflect.enumerate` (removed from the spec)
   - Unnecessary iteration methods from `CSSRuleList`, `MediaList`, `StyleSheetList`
 - Updated proposals:
-  - `Array#flatten` and `Array#flatMap` updated and moved to the stage 2
+  - `Array#flatten` and `Array#flatMap` updated and moved to the stage 3
   - `Symbol.asyncIterator` moved to the stage 3
 - ES2016 and ES2017 features marked as stable:
   - `Array#includes` and `%TypedArray%#includes`
