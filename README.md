@@ -1283,6 +1283,27 @@ None.
 ```js
 core-js(/library)/stage/3
 ```
+* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
+```js
+Array
+  #flatten(depthArg = 1) -> array
+  #flatMap(fn(val, key, @), that) -> array
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/array/flatten
+core-js(/library)/fn/array/flat-map
+core-js(/library)/fn/array/virtual/flatten
+core-js(/library)/fn/array/virtual/flat-map
+```
+[*Examples*](https://goo.gl/jTXsZi):
+```js
+[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
+[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
+[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
+
+[{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
+```
 * `global` [proposal](https://github.com/tc39/proposal-global) - modules [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.global.js)
 ```js
 global -> object
@@ -1324,27 +1345,6 @@ core-js(/library)/fn/symbol/async-iterator
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(/library)/stage/2
-```
-* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
-```js
-Array
-  #flatten(depthArg = 1) -> array
-  #flatMap(fn(val, key, @), that) -> array
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/array/flatten
-core-js(/library)/fn/array/flat-map
-core-js(/library)/fn/array/virtual/flatten
-core-js(/library)/fn/array/virtual/flat-map
-```
-[*Examples*](https://goo.gl/jTXsZi):
-```js
-[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
-[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
-[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
-
-[{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
