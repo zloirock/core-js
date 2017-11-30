@@ -150,6 +150,7 @@ require('./modules/esnext.array.flatten');
 require('./modules/esnext.string.at');
 require('./modules/esnext.string.trim-left');
 require('./modules/esnext.string.trim-right');
+require('./modules/esnext.string.replace-all');
 require('./modules/esnext.string.match-all');
 require('./modules/esnext.symbol.async-iterator');
 require('./modules/esnext.symbol.description');
