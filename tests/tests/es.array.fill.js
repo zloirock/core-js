@@ -26,11 +26,11 @@ QUnit.test('Array#fill', assert => {
     assert.ok((() => {
       try {
         return fill.call(Object.defineProperty({
-          length: -1
+          length: -1,
         }, 0, {
           set() {
             throw Error();
-          }
+          },
         }));
       } catch (e) { /* empty */ }
     })(), 'uses ToLength');

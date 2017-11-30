@@ -34,7 +34,7 @@ QUnit.test('Array#reduce', assert => {
   assert.same(reduce.call({
     0: 1,
     1: 2,
-    length: 2
+    length: 2,
   }, (a, b) => a + b), 3, 'generic');
   if (STRICT) {
     assert.throws(() => {
@@ -49,7 +49,7 @@ QUnit.test('Array#reduce', assert => {
       try {
         return reduce.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         }, 1);

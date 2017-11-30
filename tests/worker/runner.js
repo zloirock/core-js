@@ -1,11 +1,12 @@
+'use strict';
 importScripts('../../client/core.js');
 
 postMessage(typeof core !== 'undefined');
 
-setImmediate(function () {
+setImmediate(() => {
   postMessage('setImmediate');
 });
 
-Promise.resolve().then(function () {
+Promise.resolve().then(() => {
   postMessage('Promise.resolve');
 });

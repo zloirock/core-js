@@ -52,7 +52,7 @@ if (DESCRIPTORS) QUnit.test('Uint16 conversions', assert => {
     [1.7976931348623157e+308, 0, [0, 0]],
     [5e-324, 0, [0, 0]],
     [-5e-324, 0, [0, 0]],
-    [NaN, 0, [0, 0]]
+    [NaN, 0, [0, 0]],
   ];
   // Android 4.3- bug
   if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
@@ -64,7 +64,7 @@ if (DESCRIPTORS) QUnit.test('Uint16 conversions', assert => {
       [9007199254740991, 65535, [255, 255]],
       [-9007199254740991, 1, [1, 0]],
       [9007199254740994, 2, [2, 0]],
-      [-9007199254740994, 65534, [254, 255]]
+      [-9007199254740994, 65534, [254, 255]],
     ]);
   }
   for (const [value, conversion, little] of data) {

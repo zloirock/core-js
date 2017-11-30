@@ -34,7 +34,7 @@ QUnit.test('Array#reduceRight', assert => {
   assert.same(reduceRight.call({
     0: 1,
     1: 2,
-    length: 2
+    length: 2,
   }, (a, b) => a + b), 3, 'generic');
   if (STRICT) {
     assert.throws(() => {
@@ -50,7 +50,7 @@ QUnit.test('Array#reduceRight', assert => {
         return reduceRight.call({
           length: -1,
           2147483646: 0,
-          4294967294: 0
+          4294967294: 0,
         }, () => {
           throw new Error();
         }, 1);

@@ -20,7 +20,7 @@ QUnit.test('parseInt', assert => {
   const fakeZero = {
     valueOf() {
       return 0;
-    }
+    },
   };
   assert.same(parseInt('08', fakeZero), parseInt('08', 10), 'valueOf #1');
   assert.same(parseInt('0x16', fakeZero), parseInt('0x16', 16), 'valueOf #2');

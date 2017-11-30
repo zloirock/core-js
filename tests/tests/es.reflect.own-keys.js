@@ -11,7 +11,7 @@ QUnit.test('Reflect.ownKeys', assert => {
   assert.nonEnumerable(Reflect, 'ownKeys');
   const object = { a: 1 };
   defineProperty(object, 'b', {
-    value: 2
+    value: 2,
   });
   object[symbol] = 3;
   let keys = ownKeys(object);

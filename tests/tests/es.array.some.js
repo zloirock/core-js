@@ -44,7 +44,7 @@ QUnit.test('Array#some', assert => {
       try {
         return some.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         }) === false;

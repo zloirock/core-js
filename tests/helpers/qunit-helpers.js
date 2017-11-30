@@ -8,7 +8,7 @@ QUnit.assert.arity = function (fn, length, message) {
     result: fn.length === length,
     actual: fn.length,
     expected: length,
-    message: message || `arity is ${ length }`
+    message: message || `arity is ${ length }`,
   });
 };
 
@@ -28,7 +28,7 @@ QUnit.assert.arrayEqual = function (a, b, message) {
     result,
     actual: [].slice.call(a),
     expected: [].slice.call(b),
-    message
+    message,
   });
 };
 
@@ -37,7 +37,7 @@ QUnit.assert.epsilon = function (a, b, E, message) {
     result: Math.abs(a - b) <= (E != null ? E : 1e-11),
     actual: a,
     expected: b,
-    message
+    message,
   });
 };
 
@@ -46,7 +46,7 @@ QUnit.assert.isFunction = function (fn, message) {
     result: typeof fn === 'function' || toString.call(fn).slice(8, -1) === 'Function',
     actual: false,
     expected: true,
-    message: message || 'is function'
+    message: message || 'is function',
   });
 };
 
@@ -56,7 +56,7 @@ QUnit.assert.isIterable = function (it, message) {
     result: GLOBAL.core && core.isIterable ? core.isIterable(it) : !!it[GLOBAL.Symbol && Symbol.iterator],
     actual: false,
     expected: true,
-    message: message || 'is iterable'
+    message: message || 'is iterable',
   });
 };
 
@@ -65,7 +65,7 @@ QUnit.assert.isIterator = function (it, message) {
     result: typeof it === 'object' && typeof it.next === 'function',
     actual: false,
     expected: true,
-    message: message || 'is iterator'
+    message: message || 'is iterator',
   });
 };
 
@@ -74,7 +74,7 @@ QUnit.assert.looksNative = function (fn, message) {
     result: /native code/.test(Function.prototype.toString.call(fn)),
     actual: false,
     expected: true,
-    message: message || 'looks native'
+    message: message || 'looks native',
   });
 };
 
@@ -83,7 +83,7 @@ QUnit.assert.name = function (fn, name, message) {
     result: fn.name === name,
     actual: fn.name,
     expected: name,
-    message: message || `name is '${ name }'`
+    message: message || `name is '${ name }'`,
   });
 };
 
@@ -92,7 +92,7 @@ QUnit.assert.nonEnumerable = function (O, key, message) {
     result: !propertyIsEnumerable.call(O, key),
     actual: false,
     expected: true,
-    message: message || `${ typeof key === 'symbol' ? 'method' : key } is non-enumerable`
+    message: message || `${ typeof key === 'symbol' ? 'method' : key } is non-enumerable`,
   });
 };
 
@@ -101,6 +101,6 @@ QUnit.assert.same = function (a, b, message) {
     result: is(a, b),
     actual: a,
     expected: b,
-    message
+    message,
   });
 };

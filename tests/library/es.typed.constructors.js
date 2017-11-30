@@ -90,7 +90,7 @@ if (DESCRIPTORS) {
         1: 2,
         2: 3,
         3: 4,
-        length: 4
+        length: 4,
       });
       assert.same(array.byteOffset, 0, '#byteOffset, passed array-like');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed array-like');
@@ -173,17 +173,17 @@ if (DESCRIPTORS) {
       const base = {
         writable: descriptor.writable,
         enumerable: true,
-        configurable: descriptor.configurable
+        configurable: descriptor.configurable,
       };
       assert.deepEqual(getOwnPropertyDescriptor(array, 0), assign({
-        value: 0
+        value: 0,
       }, base), 'Object.getOwnPropertyDescriptor');
       try {
         defineProperty(array, 0, {
           value: 2,
           get() {
             return 2;
-          }
+          },
         });
         assert.ok(false, 'Object.defineProperty, invalid descriptor #4');
       } catch (e) {

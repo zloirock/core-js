@@ -84,7 +84,7 @@ QUnit.test('String#at', assert => {
   assert.strictEqual(at({
     toString() {
       return 'abc';
-    }
+    },
   }, 2), 'c');
   if (STRICT) {
     assert.throws(() => {

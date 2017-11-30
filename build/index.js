@@ -14,7 +14,7 @@ const dirname = path.dirname;
 const join = path.join;
 
 function dedent(template) {
-  let result = [];
+  const result = [];
   for (let i = 0; template.length > i;) {
     result.push(template[i++].replace(/\n\s+/gm, '\n'));
     if (i !== template.length) result.push(arguments[i]);
@@ -35,7 +35,7 @@ module.exports = options => {
     for (const ns in modules) {
       if (modules[ns]) {
         for (let i = 0, length = list.length; i < length; ++i) {
-          let name = list[i];
+          const name = list[i];
           if (name.indexOf(`${ ns }.`) === 0) {
             modules[name] = true;
           }
@@ -48,7 +48,7 @@ module.exports = options => {
     for (let i = 0, length1 = blacklist.length; i < length1; ++i) {
       const ns = blacklist[i];
       for (let j = 0, length2 = list.length; j < length2; ++j) {
-        let name = list[j];
+        const name = list[j];
         if (name === ns || name.indexOf(`${ ns }.`) === 0) {
           modules[name] = false;
         }

@@ -34,12 +34,12 @@ QUnit.test('Array#copyWithin', assert => {
       0: 1,
       1: 2,
       2: 3,
-      length: -1
+      length: -1,
     }, 1, 2), {
       0: 1,
       1: 2,
       2: 3,
-      length: -1
+      length: -1,
     }, 'uses ToLength');
   }
   assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
