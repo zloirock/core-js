@@ -41,7 +41,7 @@ QUnit.test('Array#every', assert => {
       try {
         return true === every.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         });

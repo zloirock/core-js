@@ -11,6 +11,6 @@ QUnit.test('Date#toJSON', assert => {
   assert.same(toJSON.call({
     toISOString() {
       return 42;
-    }
+    },
   }), 42, 'generic');
 });

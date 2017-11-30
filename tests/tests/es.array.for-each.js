@@ -56,7 +56,7 @@ QUnit.test('Array#forEach', assert => {
       try {
         return forEach.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         }) === undefined;

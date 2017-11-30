@@ -39,7 +39,7 @@ QUnit.test('Set', assert => {
     new Set(createIterable([null, 1, 2], {
       return() {
         return done = true;
-      }
+      },
     }));
   } catch (e) { /* empty */ }
   Set.prototype.add = add;
@@ -295,19 +295,19 @@ QUnit.test('Set#keys', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -323,19 +323,19 @@ QUnit.test('Set#values', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -351,19 +351,19 @@ QUnit.test('Set#entries', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: ['q', 'q'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['w', 'w'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['e', 'e'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -378,18 +378,18 @@ QUnit.test('Set#@@iterator', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });

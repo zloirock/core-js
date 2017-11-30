@@ -16,27 +16,27 @@ QUnit.test('String#matchAll', assert => {
     assert.deepEqual(iterator.next(), {
       value: assign(['a'], {
         input: 'aabc',
-        index: 0
+        index: 0,
       }),
-      done: false
+      done: false,
     });
     assert.deepEqual(iterator.next(), {
       value: assign(['a'], {
         input: 'aabc',
-        index: 1
+        index: 1,
       }),
-      done: false
+      done: false,
     });
     assert.deepEqual(iterator.next(), {
       value: assign(['c'], {
         input: 'aabc',
-        index: 3
+        index: 3,
       }),
-      done: false
+      done: false,
     });
     assert.deepEqual(iterator.next(), {
       value: null,
-      done: true
+      done: true,
     });
   }
   const iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
@@ -45,27 +45,27 @@ QUnit.test('String#matchAll', assert => {
   assert.deepEqual(iterator.next(), {
     value: assign(['1a', '1', 'a'], {
       input: '1111a2b3cccc',
-      index: 3
+      index: 3,
     }),
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: assign(['2b', '2', 'b'], {
       input: '1111a2b3cccc',
-      index: 5
+      index: 5,
     }),
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: assign(['3c', '3', 'c'], {
       input: '1111a2b3cccc',
-      index: 7
+      index: 7,
     }),
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: null,
-    done: true
+    done: true,
   });
   data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
   for (const target of data) {

@@ -19,7 +19,7 @@ QUnit.test('RegExp#toString', assert => {
   assert.same(String(new RegExp('pattern', 'mgi')), '/pattern/gim');
   assert.same(toString.call({
     source: 'foo',
-    flags: 'bar'
+    flags: 'bar',
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
   if (STRICT) {

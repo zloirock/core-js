@@ -12,16 +12,16 @@ QUnit.test('Reflect.get', assert => {
     const target = create(defineProperty({ z: 3 }, 'w', {
       get() {
         return this;
-      }
+      },
     }), {
       x: {
-        value: 1
+        value: 1,
       },
       y: {
         get() {
           return this;
-        }
-      }
+        },
+      },
     });
     const receiver = {};
     assert.strictEqual(get(target, 'x', receiver), 1, 'get x');

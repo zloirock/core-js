@@ -41,7 +41,7 @@ QUnit.test('Array#slice', assert => {
     }
     assert.deepEqual(slice.call({
       length: -1,
-      0: 1
+      0: 1,
     }, 0, 1), [], 'uses ToLength');
   }
 });

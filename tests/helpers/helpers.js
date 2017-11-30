@@ -38,13 +38,13 @@ export function createIterable(elements, methods) {
           iterable.called = true;
           return {
             value: elements[index++],
-            done: index > elements.length
+            done: index > elements.length,
           };
-        }
+        },
       };
       if (methods) for (const key in methods) iterator[key] = methods[key];
       return iterator;
-    }
+    },
   };
   return iterable;
 }
@@ -76,6 +76,6 @@ export function timeLimitedPromise(time, fn) {
   return Promise.race([
     new Promise(fn), new Promise((resolve, reject) => {
       setTimeout(reject, time);
-    })
+    }),
   ]);
 }

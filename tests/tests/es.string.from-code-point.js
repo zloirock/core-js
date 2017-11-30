@@ -57,7 +57,7 @@ QUnit.test('String.fromCodePoint', assert => {
   assert.strictEqual(fromCodePoint({
     valueOf() {
       return ++number;
-    }
+    },
   }), 'a');
   assert.strictEqual(number, 0x61);
   // one code unit per symbol

@@ -7,7 +7,7 @@ QUnit.test('Object.defineProperty', assert => {
   assert.nonEnumerable(Object, 'defineProperty');
   const source = {};
   const result = defineProperty(source, 'q', {
-    value: 42
+    value: 42,
   });
   assert.same(result, source);
   assert.same(result.q, 42);

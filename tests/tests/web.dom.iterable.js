@@ -35,7 +35,7 @@ QUnit.test('Iterable DOM collections', assert => {
     'StyleSheetList',
     'TextTrackCueList',
     'TextTrackList',
-    'TouchList'
+    'TouchList',
   ];
 
   for (const name of collections) {
@@ -53,7 +53,7 @@ QUnit.test('Iterable DOM collections', assert => {
 
   collections = [
     'NodeList',
-    'DOMTokenList'
+    'DOMTokenList',
   ];
 
   for (const name of collections) {
