@@ -209,6 +209,7 @@ import './esnext.string.at';
 import './esnext.string.match-all';
 import './esnext.string.trim-left';
 import './esnext.string.trim-right';
+import './esnext.string.replace-all';
 import './esnext.symbol.async-iterator';
 import './esnext.symbol.description';
 import './esnext.symbol.observable';
