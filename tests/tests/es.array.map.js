@@ -34,7 +34,7 @@ QUnit.test('Array#map', assert => {
       try {
         return map.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         });

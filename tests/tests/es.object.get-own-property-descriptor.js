@@ -9,7 +9,7 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
     writable: true,
     enumerable: true,
     configurable: true,
-    value: 42
+    value: 42,
   });
   assert.ok(getOwnPropertyDescriptor({}, 'toString') === undefined);
   const primitives = [42, 'foo', false];

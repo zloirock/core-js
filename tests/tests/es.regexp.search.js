@@ -20,18 +20,18 @@ QUnit.test('String#search regression', assert => {
   assert.strictEqual(Object('undefined').search(undefined), 0, 'S15.5.4.12_A1_T6');
   assert.strictEqual('undefined'.search(undefined), 0, 'S15.5.4.12_A1_T7');
   assert.strictEqual(String({
-    toString() { /* empty */ }
+    toString() { /* empty */ },
   }).search(undefined), 0, 'S15.5.4.12_A1_T8');
   assert.strictEqual('ssABB\u0041BABAB'.search({
     toString() {
       return '\u0041B';
-    }
+    },
   }), 2, 'S15.5.4.12_A1_T10');
   try {
     'ABB\u0041BABAB'.search({
       toString() {
         throw new Error('intostr');
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.12_A1_T11 #1 lead to throwing exception');
   } catch (e) {
@@ -44,7 +44,7 @@ QUnit.test('String#search regression', assert => {
       },
       valueOf() {
         throw new Error('intostr');
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.12_A1_T12 #1 lead to throwing exception');
   } catch (e) {
@@ -56,7 +56,7 @@ QUnit.test('String#search regression', assert => {
     },
     valueOf() {
       return 1;
-    }
+    },
   }), 5, 'S15.5.4.12_A1_T13');
   assert.strictEqual('ABB\u0041BABAB\u0037\u0037BBAA'.search(RegExp('77')), 9, 'S15.5.4.12_A1_T14');
   assert.strictEqual(Object('test string').search('string'), 5, 'S15.5.4.12_A2_T1');

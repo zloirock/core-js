@@ -15,14 +15,14 @@ QUnit.test('Array.from', assert => {
       length: '3',
       0: '1',
       1: '2',
-      2: '3'
+      2: '3',
     },
     arguments: function () {
       return arguments;
     }('1', '2', '3'),
     array: ['1', '2', '3'],
     iterable: createIterable(['1', '2', '3']),
-    string: '123'
+    string: '123',
   };
   for (const type in types) {
     const data = types[type];
@@ -32,14 +32,14 @@ QUnit.test('Array.from', assert => {
   types = {
     'array-like': {
       length: 1,
-      0: 1
+      0: 1,
     },
     arguments: function () {
       return arguments;
     }(1),
     array: [1],
     iterable: createIterable([1]),
-    string: '1'
+    string: '1',
   };
   for (const type in types) {
     const data = types[type];
@@ -67,7 +67,7 @@ QUnit.test('Array.from', assert => {
   from(createIterable([1, 2, 3], {
     return() {
       return done = false;
-    }
+    },
   }), () => false);
   assert.ok(done, '.return #default');
   done = false;
@@ -75,7 +75,7 @@ QUnit.test('Array.from', assert => {
     from(createIterable([1, 2, 3], {
       return() {
         return done = true;
-      }
+      },
     }), () => {
       throw new Error();
     });
@@ -88,7 +88,7 @@ QUnit.test('Array.from', assert => {
   instance = from.call(C, {
     0: 1,
     1: 2,
-    length: 2
+    length: 2,
   });
   assert.ok(instance instanceof C, 'generic, array-like case, instanceof');
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
@@ -108,7 +108,7 @@ QUnit.test('Array.from', assert => {
     try {
       return from({
         length: -1,
-        0: 1
+        0: 1,
       }, () => {
         throw new Error();
       });
@@ -135,7 +135,7 @@ QUnit.test('Array.from', assert => {
     defineProperty(C.prototype, 0, {
       set() {
         called = true;
-      }
+      },
     });
     from.call(C, [1, 2, 3]);
     assert.ok(!called, 'Should not call prototype accessors');

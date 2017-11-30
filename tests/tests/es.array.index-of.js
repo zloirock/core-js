@@ -28,11 +28,11 @@ QUnit.test('Array#indexOf', assert => {
     assert.ok((() => {
       try {
         return indexOf.call(Object.defineProperty({
-          length: -1
+          length: -1,
         }, 0, {
           get() {
             throw new Error();
-          }
+          },
         }), 1) === -1;
       } catch (e) { /* empty */ }
     })(), 'uses ToLength');

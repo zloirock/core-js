@@ -17,21 +17,21 @@ QUnit.test('Object.getOwnPropertyDescriptors', assert => {
     enumerable: true,
     configurable: true,
     writable: true,
-    value: 2
+    value: 2,
   });
   if (DESCRIPTORS) {
     assert.deepEqual(descriptors.e, {
       enumerable: false,
       configurable: false,
       writable: false,
-      value: 3
+      value: 3,
     });
   } else {
     assert.deepEqual(descriptors.e, {
       enumerable: true,
       configurable: true,
       writable: true,
-      value: 3
+      value: 3,
     });
   }
   assert.strictEqual(descriptors[symbol].value, 4);

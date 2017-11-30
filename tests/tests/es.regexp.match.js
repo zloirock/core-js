@@ -50,7 +50,7 @@ QUnit.test('String#match regression', assert => {
     },
     valueOf() {
       throw new Error('intostr');
-    }
+    },
   };
   string = 'ABB\u0041BABAB';
   try {
@@ -65,7 +65,7 @@ QUnit.test('String#match regression', assert => {
     },
     valueOf() {
       return 1;
-    }
+    },
   };
   assert.strictEqual('ABB\u0041B\u0031ABAB\u0031BBAA'.match(object)[0], '1', 'S15.5.4.10_A1_T13 #1');
   assert.strictEqual('ABB\u0041B\u0031ABAB\u0031BBAA'.match(object).length, 1, 'S15.5.4.10_A1_T13 #2');

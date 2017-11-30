@@ -21,7 +21,7 @@ QUnit.test('Reflect.set', assert => {
       value: 0,
       writable: true,
       enumerable: false,
-      configurable: true
+      configurable: true,
     });
     set(target, 'bar', 1, receiver);
     assert.strictEqual(receiver.bar, 1, 'receiver.bar === 1');
@@ -30,23 +30,23 @@ QUnit.test('Reflect.set', assert => {
     target = create(defineProperty({ z: 3 }, 'w', {
       set() {
         out = this;
-      }
+      },
     }), {
       x: {
         value: 1,
         writable: true,
-        configurable: true
+        configurable: true,
       },
       y: {
         set() {
           out = this;
-        }
+        },
       },
       c: {
         value: 1,
         writable: false,
-        configurable: false
-      }
+        configurable: false,
+      },
     });
     assert.strictEqual(set(target, 'x', 2, target), true, 'set x');
     assert.strictEqual(target.x, 2, 'set x');
