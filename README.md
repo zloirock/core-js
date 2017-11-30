@@ -1390,6 +1390,19 @@ core-js/fn/symbol/description
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
 ```
+* `String#replaceAll` [proposal](https://github.com/psmarshall/string-replace-all-proposal) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.replace-all.js)
+```js
+String
+  #replaceAll(searchString, replaceString) -> string
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/fn/string/replace-all
+```
+[*Examples*](https://goo.gl/wUXNXN):
+```js
+'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
+```
 * `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.promise.try.js)
 ```js
 Promise

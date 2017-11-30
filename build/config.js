@@ -152,6 +152,7 @@ module.exports = {
     'esnext.string.at',
     'esnext.string.trim-left',
     'esnext.string.trim-right',
+    'esnext.string.replace-all',
     'esnext.string.match-all',
     'esnext.symbol.async-iterator',
     'esnext.symbol.description',
