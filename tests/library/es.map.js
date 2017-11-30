@@ -21,7 +21,7 @@ QUnit.test('Map', assert => {
     new Map(createIterable([null, 1, 2], {
       return() {
         return done = true;
-      }
+      },
     }));
   } catch (e) { /* empty */ }
   assert.ok(done, '.return #throw');
@@ -119,7 +119,7 @@ QUnit.test('Map#forEach', assert => {
     7: 3,
     5: 2,
     4: 1,
-    9: object
+    9: object,
   });
   map = new Map();
   map.set('0', 9);
@@ -305,19 +305,19 @@ QUnit.test('Map#keys', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'a',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 's',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'd',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -333,19 +333,19 @@ QUnit.test('Map#values', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -361,19 +361,19 @@ QUnit.test('Map#entries', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
   assert.deepEqual(iterator.next(), {
     value: ['a', 'q'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['s', 'w'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['d', 'e'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });
 
@@ -388,18 +388,18 @@ QUnit.test('Map#@@iterator', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
   assert.deepEqual(iterator.next(), {
     value: ['a', 'q'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['s', 'w'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: ['d', 'e'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
 });

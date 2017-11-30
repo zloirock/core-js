@@ -50,7 +50,7 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
     [1.7976931348623157e+308, 0, [0]],
     [5e-324, 0, [0]],
     [-5e-324, 0, [0]],
-    [NaN, 0, [0]]
+    [NaN, 0, [0]],
   ];
   // Android 4.3- bug
   if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
@@ -62,7 +62,7 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
       [9007199254740991, 255, [255]],
       [-9007199254740991, 1, [1]],
       [9007199254740994, 2, [2]],
-      [-9007199254740994, 254, [254]]
+      [-9007199254740994, 254, [254]],
     ]);
   }
   for (const [value, conversion, little] of data) {

@@ -8,7 +8,7 @@ const {
   getOwnPropertyNames,
   getOwnPropertySymbols,
   keys,
-  create
+  create,
 } = core.Object;
 const { ownKeys } = core.Reflect;
 
@@ -41,7 +41,7 @@ QUnit.test('Well-known Symbols', assert => {
     'split',
     'toPrimitive',
     'toStringTag',
-    'unscopables'
+    'unscopables',
   ];
   for (const name of wks) {
     assert.ok(name in Symbol, `Symbol.${ name } available`);
@@ -94,10 +94,10 @@ if (JSON) {
       Symbol('foo'),
       false,
       Symbol('bar'),
-      {}
+      {},
     ]), '[1,null,false,null,{}]', 'array value');
     assert.strictEqual(JSON.stringify({
-      symbol: Symbol('symbol')
+      symbol: Symbol('symbol'),
     }), '{}', 'object value');
     if (DESCRIPTORS) {
       const object = { bar: 2 };
@@ -121,29 +121,29 @@ if (DESCRIPTORS) {
     const prototype = { g: 'g' };
     prototype[i] = 'i';
     defineProperty(prototype, 'h', {
-      value: 'h'
+      value: 'h',
     });
     defineProperty(prototype, 'j', {
-      value: 'j'
+      value: 'j',
     });
     const object = create(prototype);
     object.a = 'a';
     object[d] = 'd';
     defineProperty(object, 'b', {
-      value: 'b'
+      value: 'b',
     });
     defineProperty(object, 'c', {
       value: 'c',
-      enumerable: true
+      enumerable: true,
     });
     defineProperty(object, e, {
       configurable: true,
       writable: true,
-      value: 'e'
+      value: 'e',
     });
     const descriptor = {
       value: 'f',
-      enumerable: true
+      enumerable: true,
     };
     defineProperty(object, f, descriptor);
     assert.strictEqual(descriptor.enumerable, true, 'defineProperty not changes descriptor object');
@@ -151,37 +151,37 @@ if (DESCRIPTORS) {
       configurable: true,
       writable: true,
       enumerable: true,
-      value: 'a'
+      value: 'a',
     }, 'getOwnPropertyDescriptor a');
     assert.deepEqual(getOwnPropertyDescriptor(object, 'b'), {
       configurable: false,
       writable: false,
       enumerable: false,
-      value: 'b'
+      value: 'b',
     }, 'getOwnPropertyDescriptor b');
     assert.deepEqual(getOwnPropertyDescriptor(object, 'c'), {
       configurable: false,
       writable: false,
       enumerable: true,
-      value: 'c'
+      value: 'c',
     }, 'getOwnPropertyDescriptor c');
     assert.deepEqual(getOwnPropertyDescriptor(object, d), {
       configurable: true,
       writable: true,
       enumerable: true,
-      value: 'd'
+      value: 'd',
     }, 'getOwnPropertyDescriptor d');
     assert.deepEqual(getOwnPropertyDescriptor(object, e), {
       configurable: true,
       writable: true,
       enumerable: false,
-      value: 'e'
+      value: 'e',
     }, 'getOwnPropertyDescriptor e');
     assert.deepEqual(getOwnPropertyDescriptor(object, f), {
       configurable: false,
       writable: false,
       enumerable: true,
-      value: 'f'
+      value: 'f',
     }, 'getOwnPropertyDescriptor f');
     assert.strictEqual(getOwnPropertyDescriptor(object, 'g'), undefined, 'getOwnPropertyDescriptor g');
     assert.strictEqual(getOwnPropertyDescriptor(object, 'h'), undefined, 'getOwnPropertyDescriptor h');
@@ -200,7 +200,7 @@ if (DESCRIPTORS) {
       configurable: true,
       writable: true,
       enumerable: true,
-      value: 'e'
+      value: 'e',
     }, 'redefined non-enum key');
   });
 
@@ -209,21 +209,21 @@ if (DESCRIPTORS) {
     const d = Symbol('d');
     const descriptors = {
       a: {
-        value: 'a'
-      }
+        value: 'a',
+      },
     };
     descriptors[c] = {
-      value: 'c'
+      value: 'c',
     };
     defineProperty(descriptors, 'b', {
       value: {
-        value: 'b'
-      }
+        value: 'b',
+      },
     });
     defineProperty(descriptors, d, {
       value: {
-        value: 'd'
-      }
+        value: 'd',
+      },
     });
     const object = defineProperties({}, descriptors);
     assert.strictEqual(object.a, 'a', 'a');
@@ -237,21 +237,21 @@ if (DESCRIPTORS) {
     const d = Symbol('d');
     const descriptors = {
       a: {
-        value: 'a'
-      }
+        value: 'a',
+      },
     };
     descriptors[c] = {
-      value: 'c'
+      value: 'c',
     };
     defineProperty(descriptors, 'b', {
       value: {
-        value: 'b'
-      }
+        value: 'b',
+      },
     });
     defineProperty(descriptors, d, {
       value: {
-        value: 'd'
-      }
+        value: 'd',
+      },
     });
     const object = create(null, descriptors);
     assert.strictEqual(object.a, 'a', 'a');

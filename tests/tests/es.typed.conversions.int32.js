@@ -60,7 +60,7 @@ if (DESCRIPTORS) QUnit.test('Int32 conversions', assert => {
     [1.7976931348623157e+308, 0, [0, 0, 0, 0]],
     [5e-324, 0, [0, 0, 0, 0]],
     [-5e-324, 0, [0, 0, 0, 0]],
-    [NaN, 0, [0, 0, 0, 0]]
+    [NaN, 0, [0, 0, 0, 0]],
   ];
   for (const [value, conversion, little] of data) {
     const big = little.slice().reverse();

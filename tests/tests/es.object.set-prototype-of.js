@@ -11,7 +11,7 @@ if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   assert.strictEqual(setPrototypeOf({ a: 2 }, {
     b() {
       return this.a ** 2;
-    }
+    },
   }).b(), 4, 'Child and parent properties in target');
   const object = {};
   assert.strictEqual(setPrototypeOf(object, { a: 1 }), object, 'setPrototypeOf return target');

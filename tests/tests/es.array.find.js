@@ -31,7 +31,7 @@ QUnit.test('Array#find', assert => {
       try {
         return find.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         }) === undefined;

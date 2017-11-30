@@ -28,18 +28,18 @@ QUnit.test('Array#lastIndexOf', assert => {
     assert.ok((() => {
       try {
         return lastIndexOf.call(Object.defineProperties({
-          length: -1
+          length: -1,
         }, {
           2147483646: {
             get() {
               throw new Error();
-            }
+            },
           },
           4294967294: {
             get() {
               throw new Error();
-            }
-          }
+            },
+          },
         }), 1) === -1;
       } catch (e) { /* empty */ }
     })(), 'uses ToLength');

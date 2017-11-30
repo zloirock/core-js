@@ -30,7 +30,7 @@ QUnit.test('WeakMap', assert => {
     new WeakMap(createIterable([null, 1, 2], {
       return() {
         return done = true;
-      }
+      },
     }));
   } catch (e) { /* empty */ }
   assert.ok(done, '.return #throw');

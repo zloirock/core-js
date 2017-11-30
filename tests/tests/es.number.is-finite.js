@@ -16,7 +16,7 @@ QUnit.test('Number.isFinite', assert => {
     2 ** 31 - 1,
     2 ** 32,
     2 ** 32 - 1,
-    -0
+    -0,
   ];
   for (const value of finite) {
     assert.ok(isFinite(value), `isFinite ${ typeof value } ${ value }`);
@@ -34,7 +34,7 @@ QUnit.test('Number.isFinite', assert => {
     undefined,
     null,
     {},
-    function () { /* empty */ }
+    function () { /* empty */ },
   ];
   for (const value of notFinite) {
     assert.ok(!isFinite(value), `not isFinite ${ typeof value } ${ value }`);

@@ -148,7 +148,7 @@ module.exports = grunt => {
       library: !!~['yes', 'on', 'true'].indexOf(grunt.option('library')),
       umd: !~['no', 'off', 'false'].indexOf(grunt.option('umd')),
     }).then(it => {
-      var filename = `${ grunt.option('path') || './custom' }.js`;
+      const filename = `${ grunt.option('path') || './custom' }.js`;
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);
     }).catch(it => {

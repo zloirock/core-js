@@ -99,7 +99,7 @@ if (DESCRIPTORS) {
         1: 2,
         2: 3,
         3: 4,
-        length: 4
+        length: 4,
       });
       assert.same(array.byteOffset, 0, '#byteOffset, passed array-like');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed array-like');
@@ -201,14 +201,14 @@ if (DESCRIPTORS) {
       const base = NATIVE ? {
         writable: true,
         enumerable: true,
-        configurable: false
+        configurable: false,
       } : {
         writable: descriptor.writable,
         enumerable: true,
-        configurable: descriptor.configurable
+        configurable: descriptor.configurable,
       };
       assert.deepEqual(getOwnPropertyDescriptor(array, 0), assign({
-        value: 0
+        value: 0,
       }, base), 'Object.getOwnPropertyDescriptor');
       if (NATIVE) {
         // fails in old WebKit
@@ -221,25 +221,25 @@ if (DESCRIPTORS) {
           value: 1,
           writable: true,
           enumerable: true,
-          configurable: false
+          configurable: false,
         });
         array[0] = array[1] = 2.5;
         assert.deepEqual(getOwnPropertyDescriptor(array, 0), assign({
-          value: array[1]
+          value: array[1],
         }, base), 'Object.defineProperty, valid descriptor #1');
         defineProperty(array, 0, {
-          value: 1
+          value: 1,
         });
         array[0] = array[1] = 3.5;
         assert.deepEqual(getOwnPropertyDescriptor(array, 0), assign({
-          value: array[1]
+          value: array[1],
         }, base), 'Object.defineProperty, valid descriptor #2');
         try {
           defineProperty(array, 0, {
             value: 2,
             writable: false,
             enumerable: true,
-            configurable: false
+            configurable: false,
           });
           assert.ok(false, 'Object.defineProperty, invalid descriptor #1');
         } catch (e) {
@@ -250,7 +250,7 @@ if (DESCRIPTORS) {
             value: 2,
             writable: true,
             enumerable: false,
-            configurable: false
+            configurable: false,
           });
           assert.ok(false, 'Object.defineProperty, invalid descriptor #2');
         } catch (e) {
@@ -260,7 +260,7 @@ if (DESCRIPTORS) {
           defineProperty(array, 0, {
             get() {
               return 2;
-            }
+            },
           });
           assert.ok(false, 'Object.defineProperty, invalid descriptor #3');
         } catch (e) {
@@ -272,7 +272,7 @@ if (DESCRIPTORS) {
           value: 2,
           get() {
             return 2;
-          }
+          },
         });
         assert.ok(false, 'Object.defineProperty, invalid descriptor #4');
       } catch (e) {
