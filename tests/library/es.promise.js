@@ -30,7 +30,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
     then() {
       result += 'A';
       throw Error();
-    }
+    },
   });
   promise1.catch(() => {
     result += 'B';
@@ -47,7 +47,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
     get() {
       result += 'D';
       throw Error();
-    }
+    },
   }));
   result += 'E';
   promise2.catch(() => {
@@ -153,7 +153,7 @@ QUnit.test('Promise#catch', assert => {
   assert.same(Promise.prototype.catch.call({
     then(x, y) {
       return y;
-    }
+    },
   }, 42), 42, 'calling `.then`');
 });
 
@@ -189,7 +189,7 @@ QUnit.test('Promise.all', assert => {
     Promise.all(createIterable([1, 2, 3], {
       return() {
         done = true;
-      }
+      },
     })).catch(() => { /* empty */ });
   } catch (e) { /* empty */ }
   Promise.resolve = resolve;
@@ -249,7 +249,7 @@ QUnit.test('Promise.race', assert => {
     Promise.race(createIterable([1, 2, 3], {
       return() {
         done = true;
-      }
+      },
     })).catch(() => { /* empty */ });
   } catch (e) { /* empty */ }
   Promise.resolve = resolve;

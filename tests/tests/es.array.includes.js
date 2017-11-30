@@ -30,11 +30,11 @@ QUnit.test('Array#includes', assert => {
     assert.ok((() => {
       try {
         return includes.call(Object.defineProperty({
-          length: -1
+          length: -1,
         }, 0, {
           get() {
             throw new Error();
-          }
+          },
         }), 1) === false;
       } catch (e) { /* empty */ }
     })(), 'uses ToLength');

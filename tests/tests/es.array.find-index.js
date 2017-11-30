@@ -27,7 +27,7 @@ QUnit.test('Array#findIndex', assert => {
       try {
         return findIndex.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         }) === -1;

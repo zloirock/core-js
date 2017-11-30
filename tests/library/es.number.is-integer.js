@@ -11,7 +11,7 @@ QUnit.test('Number.isInteger', assert => {
     2 ** 31 - 1,
     2 ** 32,
     2 ** 32 - 1,
-    -0
+    -0,
   ];
   for (const value of integers) {
     assert.ok(isInteger(value), `isInteger ${ typeof value } ${ value }`);
@@ -30,7 +30,7 @@ QUnit.test('Number.isInteger', assert => {
     undefined,
     null,
     {},
-    function () { /* empty */ }
+    function () { /* empty */ },
   ];
   for (const value of notIntegers) {
     assert.ok(!isInteger(value), `not isInteger ${ typeof value } ${ value }`);

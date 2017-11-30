@@ -27,7 +27,7 @@ QUnit.test('Object.assign', assert => {
     assign(object, defineProperty({}, 'bar', {
       get() {
         return this.baz + 1;
-      }
+      },
     }));
     assert.ok(object.bar === undefined, "assign don't copy descriptors");
     object = { a: 'a' };

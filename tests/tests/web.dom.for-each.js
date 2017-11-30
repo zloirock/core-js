@@ -4,7 +4,7 @@ QUnit.test('forEach method on iterable DOM collections', assert => {
   let absent = true;
   const collections = [
     'NodeList',
-    'DOMTokenList'
+    'DOMTokenList',
   ];
 
   for (const name of collections) {

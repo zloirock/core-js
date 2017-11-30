@@ -3,7 +3,7 @@ export const DESCRIPTORS = !!(() => {
     return Object.defineProperty({}, 'a', {
       get() {
         return 7;
-      }
+      },
     }).a === 7;
   } catch (e) { /* empty */ }
 })();
@@ -21,7 +21,7 @@ export const TYPED_ARRAYS = {
   Uint8Array: 1,
   Uint16Array: 2,
   Uint32Array: 4,
-  Uint8ClampedArray: 1
+  Uint8ClampedArray: 1,
 };
 
 export const LITTLE_ENDIAN = (() => {

@@ -38,7 +38,7 @@ QUnit.test('Object#toString', assert => {
     'Uint32Array',
     'Float32Array',
     'Float64Array',
-    'ArrayBuffer'
+    'ArrayBuffer',
   ];
   for (const name of constructors) {
     const Constructor = GLOBAL[name];

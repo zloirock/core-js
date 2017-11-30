@@ -15,26 +15,26 @@ QUnit.test('Array#keys', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: 0,
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 1,
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 2,
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
   if (NATIVE) {
     assert.deepEqual(keys.call({
-      length: -1
+      length: -1,
     }).next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'uses ToLength');
   }
   assert.ok('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
@@ -53,26 +53,26 @@ QUnit.test('Array#values', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
   if (NATIVE) {
     assert.deepEqual(values.call({
-      length: -1
+      length: -1,
     }).next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'uses ToLength');
   }
   assert.ok('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
@@ -91,26 +91,26 @@ QUnit.test('Array#entries', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: [0, 'q'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: [1, 'w'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: [2, 'e'],
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
   if (NATIVE) {
     assert.deepEqual(entries.call({
-      length: -1
+      length: -1,
     }).next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'uses ToLength');
   }
   assert.ok('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
@@ -129,26 +129,26 @@ QUnit.test('Array#@@iterator', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'w',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: 'e',
-    done: false
+    done: false,
   });
   assert.deepEqual(iterator.next(), {
     value: undefined,
-    done: true
+    done: true,
   });
   if (NATIVE) {
     assert.deepEqual(Array.prototype[Symbol.iterator].call({
-      length: -1
+      length: -1,
     }).next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'uses ToLength');
   }
 });

@@ -25,7 +25,7 @@ QUnit.test('Number.isNaN', assert => {
     undefined,
     null,
     {},
-    function () { /* empty */ }
+    function () { /* empty */ },
   ];
   for (const value of notNaNs) {
     assert.ok(!isNaN(value), `not Number.isNaN ${ typeof value } ${ value }`);

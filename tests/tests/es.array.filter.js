@@ -30,7 +30,7 @@ QUnit.test('Array#filter', assert => {
       try {
         return filter.call({
           length: -1,
-          0: 1
+          0: 1,
         }, () => {
           throw new Error();
         });

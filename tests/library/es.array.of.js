@@ -18,7 +18,7 @@ QUnit.test('Array.of', assert => {
     defineProperty(C.prototype, 0, {
       set() {
         called = true;
-      }
+      },
     });
     of.call(C, 1, 2, 3);
     assert.ok(!called, 'Should not call prototype accessors');
