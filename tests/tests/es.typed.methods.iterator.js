@@ -17,19 +17,19 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
     assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 0,
-      done: false
+      done: false,
     }, 'step 1');
     assert.deepEqual(iterator.next(), {
       value: 1,
-      done: false
+      done: false,
     }, 'step 2');
     assert.deepEqual(iterator.next(), {
       value: 2,
-      done: false
+      done: false,
     }, 'step 3');
     assert.deepEqual(iterator.next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'done');
     if (NATIVE) assert.throws(() => {
       return keys.call([1, 2]);
@@ -52,19 +52,19 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
     assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 1,
-      done: false
+      done: false,
     }, 'step 1');
     assert.deepEqual(iterator.next(), {
       value: 2,
-      done: false
+      done: false,
     }, 'step 2');
     assert.deepEqual(iterator.next(), {
       value: 3,
-      done: false
+      done: false,
     }, 'step 3');
     assert.deepEqual(iterator.next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'done');
     if (NATIVE) assert.throws(() => {
       return values.call([1, 2]);
@@ -87,19 +87,19 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
     assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: [0, 1],
-      done: false
+      done: false,
     }, 'step 1');
     assert.deepEqual(iterator.next(), {
       value: [1, 2],
-      done: false
+      done: false,
     }, 'step 2');
     assert.deepEqual(iterator.next(), {
       value: [2, 3],
-      done: false
+      done: false,
     }, 'step 3');
     assert.deepEqual(iterator.next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'done');
     if (NATIVE) assert.throws(() => {
       return entries.call([1, 2]);
@@ -122,19 +122,19 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
     assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 1,
-      done: false
+      done: false,
     }, 'step 1');
     assert.deepEqual(iterator.next(), {
       value: 2,
-      done: false
+      done: false,
     }, 'step 2');
     assert.deepEqual(iterator.next(), {
       value: 3,
-      done: false
+      done: false,
     }, 'step 3');
     assert.deepEqual(iterator.next(), {
       value: undefined,
-      done: true
+      done: true,
     }, 'done');
     if (NATIVE) assert.throws(() => {
       return TypedArray.prototype[Symbol.iterator].call([1, 2]);

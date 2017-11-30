@@ -13,7 +13,7 @@ QUnit.test('Reflect.deleteProperty', assert => {
   assert.ok(keys(object).length === 0);
   if (DESCRIPTORS) {
     assert.strictEqual(deleteProperty(defineProperty({}, 'foo', {
-      value: 42
+      value: 42,
     }), 'foo'), false);
   }
   assert.throws(() => {

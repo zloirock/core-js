@@ -19,27 +19,27 @@ QUnit.test('String#replace regression', assert => {
   assert.strictEqual(Object('undefined').replace(undefined, (a1, a2) => a2 + 42), '42', 'S15.5.4.11_A1_T6');
   assert.strictEqual('undefined'.replace('e', undefined), 'undundefinedfined', 'S15.5.4.11_A1_T7');
   assert.strictEqual(String({
-    toString() { /* empty */ }
+    toString() { /* empty */ },
   }).replace(/e/g, undefined), 'undundefinedfinundefinedd', 'S15.5.4.11_A1_T8');
   assert.strictEqual(new String({
     valueOf() { /* empty */ },
-    toString: undefined
+    toString: undefined,
   }).replace(function () { /* empty */ }(), (a1, a2, a3) => a1 + a2 + a3), 'undefined0undefined', 'S15.5.4.11_A1_T9');
   assert.strictEqual('ABB\u0041BABAB'.replace({
     toString() {
       return '\u0041B';
-    }
+    },
   }, () => { /* empty */ }), 'undefinedBABABAB', 'S15.5.4.11_A1_T10');
   if (NATIVE) {
     try {
       'ABB\u0041BABAB'.replace({
         toString() {
           throw new Error('insearchValue');
-        }
+        },
       }, {
         toString() {
           throw new Error('inreplaceValue');
-        }
+        },
       });
       assert.ok(false, 'S15.5.4.11_A1_T11 #1 lead to throwing exception');
     } catch (e) {
@@ -52,11 +52,11 @@ QUnit.test('String#replace regression', assert => {
         },
         valueOf() {
           throw new Error('insearchValue');
-        }
+        },
       }, {
         toString() {
           throw new Error('inreplaceValue');
-        }
+        },
       });
       assert.ok(false, 'S15.5.4.11_A1_T12 #1 lead to throwing exception');
     } catch (e) {
@@ -70,11 +70,11 @@ QUnit.test('String#replace regression', assert => {
       },
       valueOf() {
         throw new Error('insearchValue');
-      }
+      },
     }, {
       toString() {
         return 1;
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.11_A1_T13 #1 lead to throwing exception');
   } catch (e) {
@@ -87,7 +87,7 @@ QUnit.test('String#replace regression', assert => {
     instance.replace({
       toString() {
         return /77/;
-      }
+      },
     }, 1);
     assert.ok(false, 'S15.5.4.11_A1_T15 #1 lead to throwing exception');
   } catch (e) {
@@ -99,7 +99,7 @@ QUnit.test('String#replace regression', assert => {
     instance.replace(/77/, {
       toString() {
         return (a1, a2) => `${ a2 }z`;
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.11_A1_T16 #1 lead to throwing exception');
   } catch (e) {

@@ -51,18 +51,18 @@ QUnit.test('Number constructor: regression', assert => {
   check(new Boolean(true), 1);
   check({}, NaN);
   check({
-    valueOf: '1.1'
+    valueOf: '1.1',
   }, NaN);
   check({
     valueOf: '1.1',
     toString() {
       return '2.2';
-    }
+    },
   }, 2.2);
   check({
     valueOf() {
       return '1.1';
-    }
+    },
   }, 1.1);
   check({
     valueOf() {
@@ -70,42 +70,42 @@ QUnit.test('Number constructor: regression', assert => {
     },
     toString() {
       return '2.2';
-    }
+    },
   }, 1.1);
   check({
     valueOf() {
       return '-0x1a2b3c';
-    }
+    },
   }, NaN);
   check({
     toString() {
       return '-0x1a2b3c';
-    }
+    },
   }, NaN);
   check({
     valueOf() {
       return 42;
-    }
+    },
   }, 42);
   check({
     valueOf() {
       return '42';
-    }
+    },
   }, 42);
   check({
     valueOf() {
       return null;
-    }
+    },
   }, 0);
   check({
     toString() {
       return 42;
-    }
+    },
   }, 42);
   check({
     toString() {
       return '42';
-    }
+    },
   }, 42);
   check({
     valueOf() {
@@ -113,40 +113,40 @@ QUnit.test('Number constructor: regression', assert => {
     },
     toString() {
       return 2;
-    }
+    },
   }, 1);
   check({
     valueOf: 1,
     toString() {
       return 2;
-    }
+    },
   }, 2);
   let number = 1;
   assert.strictEqual(Number({
     valueOf() {
       return ++number;
-    }
+    },
   }), 2, 'Number call valueOf only once #1');
   assert.strictEqual(number, 2, 'Number call valueOf only once #2');
   number = 1;
   assert.strictEqual(Number({
     toString() {
       return ++number;
-    }
+    },
   }), 2, 'Number call toString only once #1');
   assert.strictEqual(number, 2, 'Number call toString only once #2');
   number = 1;
   assert.strictEqual(new Number({
     valueOf() {
       return ++number;
-    }
+    },
   }).valueOf(), 2, 'new Number call valueOf only once #1');
   assert.strictEqual(number, 2, 'new Number call valueOf only once #2');
   number = 1;
   assert.strictEqual(new Number({
     toString() {
       return ++number;
-    }
+    },
   }).valueOf(), 2, 'new Number call toString only once #1');
   assert.strictEqual(number, 2, 'new Number call toString only once #2');
   assert.throws(() => {
@@ -155,7 +155,7 @@ QUnit.test('Number constructor: regression', assert => {
   assert.throws(() => {
     return Number({
       valueOf: 1,
-      toString: 2
+      toString: 2,
     });
   }, TypeError, 'Number assert.throws on object then valueOf and toString are not functions');
   assert.throws(() => {
@@ -164,7 +164,7 @@ QUnit.test('Number constructor: regression', assert => {
   assert.throws(() => {
     return new Number({
       valueOf: 1,
-      toString: 2
+      toString: 2,
     });
   }, TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
   number = new Number(42);
@@ -204,22 +204,22 @@ QUnit.test('Number constructor: binary', assert => {
   check({
     valueOf() {
       return '0b11';
-    }
+    },
   }, 3);
   check({
     toString() {
       return '0b111';
-    }
+    },
   }, 7);
   check({
     valueOf() {
       return '0b101010';
-    }
+    },
   }, 42);
   check({
     toString() {
       return '0b101010';
-    }
+    },
   }, 42);
   check(`${ whitespaces }0b11`, 3);
   check(`0b11${ whitespaces }`, 3);
@@ -247,22 +247,22 @@ QUnit.test('Number constructor: octal', assert => {
   check({
     valueOf() {
       return '0o77';
-    }
+    },
   }, 63);
   check({
     toString() {
       return '0o777';
-    }
+    },
   }, 511);
   check({
     valueOf() {
       return '0o12345';
-    }
+    },
   }, 5349);
   check({
     toString() {
       return '0o12345';
-    }
+    },
   }, 5349);
   check(`${ whitespaces }0o11`, 9);
   check(`0o11${ whitespaces }`, 9);

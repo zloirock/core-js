@@ -110,7 +110,7 @@ QUnit.test('String#split regression', assert => {
     assert.strictEqual(split.length, 1, 'S15.5.4.14_A1_T7 #3');
     assert.strictEqual(split[0], 'undefinedd', 'S15.5.4.14_A1_T7 #4');
     split = String({
-      toString() { /* empty */ }
+      toString() { /* empty */ },
     }).split(undefined);
     assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T8 #1');
     assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T8 #2');
@@ -119,7 +119,7 @@ QUnit.test('String#split regression', assert => {
   }
   split = new String({
     valueOf() { /* empty */ },
-    toString: undefined
+    toString: undefined,
   }).split(() => { /* empty */ });
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T9 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T9 #2');
@@ -128,11 +128,11 @@ QUnit.test('String#split regression', assert => {
   split = 'ABB\u0041BABAB'.split({
     toString() {
       return '\u0042B';
-    }
+    },
   }, {
     valueOf() {
       return true;
-    }
+    },
   });
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T10 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T10 #2');
@@ -142,11 +142,11 @@ QUnit.test('String#split regression', assert => {
     'ABB\u0041BABAB'.split({
       toString() {
         return '\u0041B';
-      }
+      },
     }, {
       valueOf() {
         throw new Error('intointeger');
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.14_A1_T11 #1 lead to throwing exception');
   } catch (e) {
@@ -157,14 +157,14 @@ QUnit.test('String#split regression', assert => {
       new String('ABB\u0041BABAB').split({
         toString() {
           return '\u0041B';
-        }
+        },
       }, {
         valueOf() {
           return {};
         },
         toString() {
           throw new Error('intointeger');
-        }
+        },
       });
       assert.ok(false, 'S15.5.4.14_A1_T12 #1 lead to throwing exception');
     } catch (e) {
@@ -174,14 +174,14 @@ QUnit.test('String#split regression', assert => {
   split = 'ABB\u0041BABAB\u0042cc^^\u0042Bvv%%B\u0042xxx'.split({
     toString() {
       return '\u0042\u0042';
-    }
+    },
   }, {
     valueOf() {
       return {};
     },
     toString() {
       return '2';
-    }
+    },
   });
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T13 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T13 #2');
@@ -195,11 +195,11 @@ QUnit.test('String#split regression', assert => {
       instance.split({
         toString() {
           throw new Error('intostr');
-        }
+        },
       }, {
         valueOf() {
           throw new Error('intoint');
-        }
+        },
       });
       assert.ok(false, 'S15.5.4.14_A1_T14 #1 lead to throwing exception');
     } catch (e) {
@@ -224,11 +224,11 @@ QUnit.test('String#split regression', assert => {
         },
         valueOf() {
           throw new Error('intostr');
-        }
+        },
       }, {
         valueOf() {
           throw new Error('intoint');
-        }
+        },
       });
       assert.ok(false, 'S15.5.4.14_A1_T15 #1 lead to throwing exception');
     } catch (e) {
@@ -239,7 +239,7 @@ QUnit.test('String#split regression', assert => {
     String.prototype.split.call(6776767677.006771122677555, {
       toString() {
         return /\u0037\u0037/g;
-      }
+      },
     });
     assert.ok(false, 'S15.5.4.14_A1_T16 #1 lead to throwing exception');
   } catch (e) {
@@ -527,7 +527,7 @@ QUnit.test('String#split regression', assert => {
   split = String.prototype.split.call({
     toString() {
       return 'function(){}';
-    }
+    },
   });
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A3_T3 #1');
   assert.strictEqual(split.length, 1, 'S15.5.4.14_A3_T3 #2');

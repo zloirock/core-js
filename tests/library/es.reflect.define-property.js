@@ -15,21 +15,21 @@ QUnit.test('Reflect.defineProperty', assert => {
     object = {};
     defineProperty(object, 'foo', {
       value: 123,
-      enumerable: true
+      enumerable: true,
     });
     assert.deepEqual(getOwnPropertyDescriptor(object, 'foo'), {
       value: 123,
       enumerable: true,
       configurable: false,
-      writable: false
+      writable: false,
     });
     assert.strictEqual(defineProperty(object, 'foo', {
-      value: 42
+      value: 42,
     }), false);
   }
   assert.throws(() => {
     return defineProperty(42, 'foo', {
-      value: 42
+      value: 42,
     });
   }, TypeError, 'throws on primitive');
   assert.throws(() => {

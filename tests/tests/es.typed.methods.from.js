@@ -16,7 +16,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
       0: 1,
       1: 2,
       2: 3,
-      length: 3
+      length: 3,
     });
     assert.ok(instance instanceof TypedArray, 'correct instance with array-like');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with array-like');
@@ -42,7 +42,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
         try {
           return TypedArray.from({
             length: -1,
-            0: 1
+            0: 1,
           }, () => {
             throw new Error();
           });

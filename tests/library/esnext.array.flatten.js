@@ -27,7 +27,7 @@ QUnit.test('Array#flatten', assert => {
         return flatten(defineProperty({ length: -1 }, 0, {
           get() {
             throw new Error();
-          }
+          },
         })).length === 0;
       } catch (e) { /* empty */ }
     })(), 'uses ToLength');

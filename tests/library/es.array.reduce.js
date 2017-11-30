@@ -30,7 +30,7 @@ QUnit.test('Array#reduce', assert => {
   assert.same(reduce({
     0: 1,
     1: 2,
-    length: 2
+    length: 2,
   }, (a, b) => a + b), 3, 'generic');
   if (STRICT) {
     assert.throws(() => {
