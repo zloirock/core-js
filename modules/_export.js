@@ -30,7 +30,6 @@ var $export = function (type, name, source) {
     if (IS_PROTO && expProto[key] != out) expProto[key] = out;
   }
 };
-global.core = core;
 // type bitmap
 $export.F = 1;   // forced
 $export.G = 2;   // global
