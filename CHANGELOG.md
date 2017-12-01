@@ -1,5 +1,9 @@
 ## Changelog
 ##### 3.0.0
+- Added new features:
+  - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
+  - `Symbol#description` ([stage 1 proposal](https://tc39.github.io/proposal-Symbol-description/))
+  - `String#replaceAll` ([stage 1 proposal](https://github.com/psmarshall/string-replace-all-proposal))
 - Removed obsolete features:
   - `Error.isError` (withdrawn)
   - `System.global` (replaced by `global`)
