@@ -171,31 +171,32 @@ Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob
 
 [ES2017 Annex B](https://tc39.github.io/ecma262/#sec-object.prototype.__defineGetter__) - modules [`es.object.define-setter`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.define-setter.js), [`es.object.define-getter`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.define-getter.js), [`es.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.lookup-setter.js) and [`es.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.lookup-getter.js)
 ```js
-Object
-  .assign(target, ...src)                -> target
-  .is(a, b)                              -> bool
-  .setPrototypeOf(target, proto | null)  -> target (required __proto__ - IE11+)
-  .create(object | null, descriptors?)   -> object
-  .getPrototypeOf(var)                   -> object | null
-  .defineProperty(object, key, desc)     -> target
-  .defineProperties(object, descriptors) -> target
-  .getOwnPropertyDescriptor(var, key)    -> desc | undefined
-  .getOwnPropertyDescriptors(object)     -> object
-  .keys(var)                             -> array
-  .values(var)                           -> array
-  .entries(var)                          -> array
-  .getOwnPropertyNames(var)              -> array
-  .freeze(var)                           -> var
-  .seal(var)                             -> var
-  .preventExtensions(var)                -> var
-  .isFrozen(var)                         -> bool
-  .isSealed(var)                         -> bool
-  .isExtensible(var)                     -> bool
-  #toString()                            -> string, ES2015 fix: @@toStringTag support
-  #__defineSetter__(key, fn)             -> void
-  #__defineGetter__(key, fn)             -> void
-  #__lookupSetter__(key)                 -> fn | void
-  #__lookupGetter__(key)                 -> fn | void
+class Object {
+  toString(): string; // ES2015+ fix: @@toStringTag support
+  __defineGetter__(property: PropertyKey, getter: Function): void;
+  __defineSetter__(property: PropertyKey, setter: Function): void;
+  __lookupGetter__(property: PropertyKey): Function | void;
+  __lookupSetter__(property: PropertyKey): Function | void;
+  static assign(target: Object, ...sources: Array<Object>): Object;
+  static create(prototype: Object | null, properties?: { [property: PropertyKey]: PropertyDescriptor }): Object;
+  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;
+  static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
+  static entries(object: Object): Array<[string, mixed]>;
+  static freeze(object: any): any;
+  static getOwnPropertyDescriptor(object: any, property: PropertyKey): PropertyDescriptor | void;
+  static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
+  static getOwnPropertyNames(object: any): Array<string>;
+  static getPrototypeOf(object: any): Object | null;
+  static is(value1: any, value2: any): boolean;
+  static isExtensible(object: any): boolean;
+  static isFrozen(object: any): boolean;
+  static isSealed(object: any): boolean;
+  static keys(object: any): Array<string>;
+  static preventExtensions(object: any): any;
+  static seal(object: any): any;
+  static setPrototypeOf(target: any, prototype: Object | null): any; // required __proto__ - IE11+
+  static values(object: any): Array<mixed>;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -266,10 +267,11 @@ Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
 #### ECMAScript: Function
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/v3/modules/es.function.bind.js).
 ```js
-Function
-  #bind(object, ...args) -> boundFn(...args)
-  #name                  -> string (IE9+)
-  #@@hasInstance(var)    -> bool
+class Function {
+  name: string;
+  bind(thisArg: any, ...args: Array<mixed>): Function;
+  @@hasInstance(value: any): boolean;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -288,34 +290,37 @@ console.log.bind(console, 42)(43); // => 42 43
 #### ECMAScript: Array
 Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.reduce-right.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/v3/modules/es.array.sort.js)
 ```js
-Array
-  .from(iterable | array-like, mapFn(val, index)?, that) -> array
-  .isArray(var)                                          -> bool
-  .of(...args)                                           -> array
-  #copyWithin(target = 0, start = 0, end = @length)      -> @
-  #entries()                                             -> iterator
-  #every(fn(val, index, @), that)                        -> bool
-  #fill(val, start = 0, end = @length)                   -> @
-  #filter(fn(val, index, @), that)                       -> array
-  #find(fn(val, index, @), that)                         -> val
-  #forEach(fn(val, index, @), that)                      -> void
-  #findIndex(fn(val, index, @), that)                    -> index | -1
-  #includes(var, from?)                                  -> bool
-  #indexOf(var, from?)                                   -> index | -1
-  #join(string = ',')                                    -> string, fix for ie7-
-  #keys()                                                -> iterator
-  #lastIndexOf(var, from?)                               -> index | -1
-  #map(fn(val, index, @), that)                          -> array
-  #reduce(fn(memo, val, index, @), memo?)                -> var
-  #reduceRight(fn(memo, val, index, @), memo?)           -> var
-  #slice(start?, end?)                                   -> array, fix for ie7-
-  #some(fn(val, index, @), that)                         -> bool
-  #sort(fn?)                                             -> @, invalid arguments fix
-  #values()                                              -> iterator
-  #@@iterator()                                          -> iterator (values)
-  #@@unscopables                                         -> object (cap)
-Arguments
-  #@@iterator() -> iterator (values, available only in core-js methods)
+class Array {
+  copyWithin(target: number, start: number, end?: number): this;
+  entries(): Iterator<[index, value]>;
+  every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
+  fill(value: any, start?: number, end?: number): this;
+  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
+  find(callbackfn: (value: any, index: number, target: any) => boolean), thisArg?: any): any;
+  findIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): number;
+  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
+  includes(searchElement: any, from?: number): boolean;
+  indexOf(searchElement: any, from?: number): number;
+  join(separator: string = ','): string;
+  keys(): Iterator<index>;
+  lastIndexOf(searchElement: any, from?: number): number;
+  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>;
+  reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
+  reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
+  slice(start?: number, end?: number): Array<mixed>;
+  some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
+  sort(comparefn?: (a: any, b: any) => number): this;
+  values(): Iterator<value>;
+  @@iterator(): Iterator<value>;
+  @@unscopables: { [newMethodNames: string]: true };
+  static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
+  static isArray(value: any): boolean;
+  static of(...args: Array<mixed>): Array<mixed>;
+}
+
+class Arguments {
+  @@iterator(): Iterator<value>; // available only in core-js methods
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -414,32 +419,33 @@ Modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v
 
 Annex B HTML methods. Ugly, but it's also the part of the spec. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.sub.js) and [`es.string.sup`](https://github.com/zloirock/core-js/blob/v3/modules/es.string.sup.js).
 ```js
-String
-  .fromCodePoint(...codePoints)    -> str
-  .raw({raw}, ...substitutions)    -> str
-  #split(separator, limit)         -> array
-  #includes(str, from?)            -> bool
-  #startsWith(str, from?)          -> bool
-  #endsWith(str, from?)            -> bool
-  #repeat(num)                     -> str
-  #padStart(length, fillStr = ' ') -> string
-  #padEnd(length, fillStr = ' ')   -> string
-  #codePointAt(pos)                -> uint
-  #trim()                          -> str
-  #anchor(name)                    -> str
-  #big()                           -> str
-  #blink()                         -> str
-  #bold()                          -> str
-  #fixed()                         -> str
-  #fontcolor(color)                -> str
-  #fontsize(size)                  -> str
-  #italics()                       -> str
-  #link(url)                       -> str
-  #small()                         -> str
-  #strike()                        -> str
-  #sub()                           -> str
-  #sup()                           -> str
-  #@@iterator()                    -> iterator (code points)
+class String {
+  static fromCodePoint(...codePoints: Array<number>): string;
+  static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
+  split(separator: string, limit?: number): Array<string>;
+  includes(searchString: string, position?: number): boolean;
+  startsWith(searchString: string, position?: number): boolean;
+  endsWith(searchString: string, position?: number): boolean;
+  repeat(count: number): string;
+  padStart(length: number, fillStr?: string = ' '): string;
+  padEnd(length: number, fillStr?: string = ' '): string;
+  codePointAt(pos: number): number | void;
+  trim(): string;
+  anchor(name: string): string;
+  big(): string;
+  blink(): string;
+  bold(): string;
+  fixed(): string;
+  fontcolor(color: string): string;
+  fontsize(size: any): string;
+  italics(): string;
+  link(url: string): string;
+  small(): string;
+  strike(): string;
+  sub(): string;
+  sup(): string;
+  @@iterator(): Iterator<characters>;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -526,19 +532,23 @@ String.raw({ raw: 'test' }, 0, 1, 2); // => 't0e1s2t'
 Modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.constructor.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.flags.js).
 
 Support well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es.regexp.match`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.match.js), [`es.regexp.replace`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.replace.js), [`es.regexp.search`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.search.js) and [`es.regexp.split`](https://github.com/zloirock/core-js/blob/v3/modules/es.regexp.split.js).
-```
-[new] RegExp(pattern, flags?) -> regexp, ES2015 fix: can alter flags (IE9+)
-  #flags -> str (IE9+)
-  #toString()               -> str, ES2015 fixes
-  #@@match(str)             -> array | null
-  #@@replace(str, replacer) -> string
-  #@@search(str)            -> index
-  #@@split(str, limit)      -> array
-String
-  #match(tpl)             -> var, ES2015 fix for support @@match
-  #replace(tpl, replacer) -> var, ES2015 fix for support @@replace
-  #search(tpl)            -> var, ES2015 fix for support @@search
-  #split(tpl, limit)      -> var, ES2015 fix for support @@split, some fixes for old engines
+```js
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp; // ES2015+ fix - can alter flags (IE9+)
+  toString(): string; // ES2015+ fix - generic
+  @@match(string: string): Array | null;
+  @@replace(string: string, replaceValue: Function | string): string;
+  @@search(string: string): number;
+  @@split(string: string, limit: number): Array<string>;
+  get flags: string; // IE9+
+}
+
+class String {
+  match(template: any): any; // ES2015+ fix for support @@match
+  replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
+  search(template: any): any; // ES2015+ fix for support @@search
+  split(template: any, limit: any): any; // ES2015+ fix for support @@split, some fixes for old engines
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -573,20 +583,23 @@ Number('0o7654321'); // => 2054353
 ```
 Modules [`es.number.epsilon`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.epsilon.js), [`es.number.is-finite`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.is-finite.js), [`es.number.is-integer`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.is-integer.js), [`es.number.is-nan`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.is-nan.js), [`es.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.is-safe-integer.js), [`es.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.max-safe-integer.js), [`es.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.min-safe-integer.js), [`es.number.parse-float`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.parse-float.js), [`es.number.parse-int`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.parse-int.js), [`es.number.to-fixed`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.to-fixed.js), [`es.number.to-precision`](https://github.com/zloirock/core-js/blob/v3/modules/es.number.to-precision.js), [`es.parse-int`](https://github.com/zloirock/core-js/blob/v3/modules/es.parse-int.js), [`es.parse-float`](https://github.com/zloirock/core-js/blob/v3/modules/es.parse-float.js).
 ```js
-[new] Number(var)         -> number | number object
-  .isFinite(num)          -> bool
-  .isNaN(num)             -> bool
-  .isInteger(num)         -> bool
-  .isSafeInteger(num)     -> bool
-  .parseFloat(str)        -> num
-  .parseInt(str)          -> int
-  .EPSILON                -> num
-  .MAX_SAFE_INTEGER       -> int
-  .MIN_SAFE_INTEGER       -> int
-  #toFixed(digits)        -> string, fixes
-  #toPrecision(precision) -> string, fixes
-parseFloat(str)           -> num, fixes
-parseInt(str)             -> int, fixes
+class Number {
+  constructor(value: any): number;
+  toFixed(digits: number): string;
+  toPrecision(precision: number): string;
+  static isFinite(number: any): boolean;
+  static isNaN(number: any): boolean;
+  static isInteger(number: any): boolean;
+  static isSafeInteger(number: any): boolean;
+  static parseFloat(string: string): number;
+  static parseInt(string: string, radix?: number = 10): number;
+  static EPSILON: number;
+  static MAX_SAFE_INTEGER: number;
+  static MIN_SAFE_INTEGER: number;
+}
+
+function parseFloat(string: string): number;
+function parseInt(string: string, radix?: number = 10): number;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -609,24 +622,25 @@ core-js(/library)/fn/parse-int
 #### ECMAScript: Math
 Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.fround.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.trunc.js).
 ```js
-Math
-  .acosh(num)     -> num
-  .asinh(num)     -> num
-  .atanh(num)     -> num
-  .cbrt(num)      -> num
-  .clz32(num)     -> uint
-  .cosh(num)      -> num
-  .expm1(num)     -> num
-  .fround(num)    -> num
-  .hypot(...args) -> num
-  .imul(num, num) -> int
-  .log1p(num)     -> num
-  .log10(num)     -> num
-  .log2(num)      -> num
-  .sign(num)      -> 1 | -1 | 0 | -0 | NaN
-  .sinh(num)      -> num
-  .tanh(num)      -> num
-  .trunc(num)     -> num
+namespace Math {
+  acosh(number: number): number;
+  asinh(number: number): number;
+  atanh(number: number): number;
+  cbrt(number: number): number;
+  clz32(number: number): number;
+  cosh(number: number): number;
+  expm1(number: number): number;
+  fround(number: number): number;
+  hypot(...args: Array<number>): number;
+  imul(number1: number, number2: number): number;
+  log1p(number: number): number;
+  log10(number: number): number;
+  log2(number: number): number;
+  sign(number: number): 1 | -1 | 0 | -0 | NaN;
+  sinh(number: number): number;
+  tanh(number: number): number;
+  trunc(number: number): number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -652,12 +666,13 @@ core-js(/library)/fn/math/trunc
 #### ECMAScript: Date
 Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-primitive.js).
 ```js
-Date
-  .now()               -> int
-  #toISOString()       -> string
-  #toJSON()            -> string
-  #toString()          -> string
-  #@@toPrimitive(hint) -> primitive
+class Date {
+  toISOString(): string;
+  toJSON(): string;
+  toString(): string;
+  @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
+  static now(): number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -676,13 +691,15 @@ new Date(NaN).toString(); // => 'Invalid Date'
 #### ECMAScript: Promise
 Module [`es.promise`](https://github.com/zloirock/core-js/blob/v3/modules/es.promise.js).
 ```js
-new Promise(executor(resolve(var), reject(var))) -> promise
-  #then(resolved(var), rejected(var))            -> promise
-  #catch(rejected(var))                          -> promise
-  .resolve(promise | var)                        -> promise
-  .reject(var)                                   -> promise
-  .all(iterable)                                 -> promise
-  .race(iterable)                                -> promise
+class Promise {
+  constructor(executor: (resolve: Function, reject: Function) => void): Promise;
+  then(onFulfilled: Function, onRejected: Function): Promise;
+  catch(onRejected: Function): Promise;
+  static resolve(x: any): Promise;
+  static reject(r: any): Promise;
+  static all(iterable: Iterable): Promise;
+  static race(iterable: Iterable): Promise;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -797,36 +814,43 @@ setTimeout(() => promise.catch(() => {}), 1e3);
 #### ECMAScript: Symbol
 Module [`es.symbol`](https://github.com/zloirock/core-js/blob/v3/modules/es.symbol.js).
 ```js
-Symbol(description?)  -> symbol
-  .hasInstance        -> @@hasInstance
-  .isConcatSpreadable -> @@isConcatSpreadable
-  .iterator           -> @@iterator
-  .match              -> @@match
-  .replace            -> @@replace
-  .search             -> @@search
-  .species            -> @@species
-  .split              -> @@split
-  .toPrimitive        -> @@toPrimitive
-  .toStringTag        -> @@toStringTag
-  .unscopables        -> @@unscopables
-  .for(key)           -> symbol
-  .keyFor(symbol)     -> key
-  .useSimple()        -> void
-  .useSetter()        -> void
-Object
-  .getOwnPropertySymbols(object) -> array
+class Symbol {
+  constructor(description?): symbol;
+  static hasInstance: @@hasInstance;
+  static isConcatSpreadable: @@isConcatSpreadable;
+  static iterator: @@iterator;
+  static match: @@match;
+  static replace: @@replace;
+  static search: @@search;
+  static species: @@species;
+  static split: @@split;
+  static toPrimitive: @@toPrimitive;
+  static toStringTag: @@toStringTag;
+  static unscopables: @@unscopables;
+  static for(key: string): symbol;
+  static keyFor(sym: symbol): string;
+  static useSimple(): void;
+  static useSetter(): void;
+}
+
+class Object {
+  static getOwnPropertySymbols(object: any): Array<symbol>;
+}
 ```
 Also wrapped some methods for correct work with `Symbol` polyfill.
 ```js
-Object
-  .create(proto | null, descriptors?)    -> object
-  .defineProperty(target, key, desc)     -> target
-  .defineProperties(target, descriptors) -> target
-  .getOwnPropertyDescriptor(var, key)    -> desc | undefined
-  .getOwnPropertyNames(var)              -> array
-  #propertyIsEnumerable(key)             -> bool
-JSON
-  .stringify(target, replacer?, space?) -> string | undefined
+class Object {
+  static create(prototype: Object | null, properties?: { [property: PropertyKey]: PropertyDescriptor }): Object;
+  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;
+  static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
+  static getOwnPropertyDescriptor(object: any, property: PropertyKey): PropertyDescriptor | void;
+  static getOwnPropertyNames(object: any): Array<string>;
+  propertyIsEnumerable(key: PropertyKey): boolean;
+}
+
+namespace JSON {
+  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -910,18 +934,20 @@ for (let key in object2) console.log(key); // nothing
 #### Map
 Module [`es.map`](https://github.com/zloirock/core-js/blob/v3/modules/es.map.js).
 ```js
-new Map(iterable (entries) ?)     -> map
-  #clear()                        -> void
-  #delete(key)                    -> bool
-  #forEach(fn(val, key, @), that) -> void
-  #get(key)                       -> val
-  #has(key)                       -> bool
-  #set(key, val)                  -> @
-  #size                           -> uint
-  #values()                       -> iterator
-  #keys()                         -> iterator
-  #entries()                      -> iterator
-  #@@iterator()                   -> iterator (entries)
+class Map {
+  constructor(iterable?: Iterable<[key, value]>): Map;
+  clear(): void;
+  delete(key: any): boolean;
+  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
+  get(key: any): any;
+  has(key: any): boolean;
+  set(key: any, val: any): this;
+  values(): Iterator<value>;
+  keys(): Iterator<key>;
+  entries(): Iterator<[key, value]>;
+  @@iterator(): Iterator<[key, value]>;
+  get size: number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -964,17 +990,19 @@ for (let [key, value] of map.entries()) {
 #### Set
 Module [`es.set`](https://github.com/zloirock/core-js/blob/v3/modules/es.set.js).
 ```js
-new Set(iterable?)              -> set
-  #add(key)                     -> @
-  #clear()                      -> void
-  #delete(key)                  -> bool
-  #forEach(fn(el, el, @), that) -> void
-  #has(key)                     -> bool
-  #size                         -> uint
-  #values()                     -> iterator
-  #keys()                       -> iterator
-  #entries()                    -> iterator
-  #@@iterator()                 -> iterator (values)
+class Set {
+  constructor(iterable?: Iterable<value>): Set;
+  add(key: any): this;
+  clear(): void;
+  delete(key: any): boolean;
+  forEach((value: any, key: any, target: any) => void, thisArg: any): void;
+  has(key: any): boolean;
+  values(): Iterator<value>;
+  keys(): Iterator<value>;
+  entries(): Iterator<[value, value]>;
+  @@iterator(): Iterator<value>;
+  get size: number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -1008,11 +1036,13 @@ for (let [key, value] of set.entries()) {
 #### WeakMap
 Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/v3/modules/es.weak-map.js).
 ```js
-new WeakMap(iterable (entries) ?) -> weakmap
-  #delete(key)                    -> bool
-  #get(key)                       -> val
-  #has(key)                       -> bool
-  #set(key, val)                  -> @
+class WeakMap {
+  constructor(iterable?: Iterable<[key, value]>): WeakMap;
+  delete(key: Object): boolean;
+  get(key: Object): any;
+  has(key: Object): boolean;
+  set(key: Object, val: any): this;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -1053,10 +1083,12 @@ for (let key in person) console.log(key); // => only 'getName'
 #### WeakSet
 Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/v3/modules/es.weak-set.js).
 ```js
-new WeakSet(iterable?) -> weakset
-  #add(key)            -> @
-  #delete(key)         -> bool
-  #has(key)            -> bool
+class WeakSet {
+  constructor(iterable?: Iterable<value>): WeakSet;
+  add(key: Object): this;
+  delete(key: Object): boolean;
+  has(key: Object): boolean;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -1085,33 +1117,37 @@ Implementations and fixes `ArrayBuffer`, `DataView`, typed arrays constructors, 
 
 Modules [`es.typed.array-buffer`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.array-buffer.js), [`es.typed.data-view`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.data-view.js), [`es.typed.int8-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.int8-array.js), [`es.typed.uint8-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.uint8-array.js), [`es.typed.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.uint8-clamped-array.js), [`es.typed.int16-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.int16-array.js), [`es.typed.uint16-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.uint16-array.js), [`es.typed.int32-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.int32-array.js), [`es.typed.uint32-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.uint32-array.js), [`es.typed.float32-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.float32-array.js) and [`es.typed.float64-array`](https://github.com/zloirock/core-js/blob/v3/modules/es.typed.float64-array.js).
 ```js
-new ArrayBuffer(length) -> buffer
-  .isView(var) -> bool
-  #slice(start = 0, end = @length) -> buffer
-  #byteLength -> uint
+class ArrayBuffer {
+  constructor(length: any): ArrayBuffer;
+  slice(start: any, end: any): ArrayBuffer;
+  get byteLength: number;
+  static isView(arg: any): boolean;
+}
 
-new DataView(buffer, byteOffset = 0, byteLength = buffer.byteLength - byteOffset) -> view
-  #getInt8(offset)                          -> int8
-  #getUint8(offset)                         -> uint8
-  #getInt16(offset, littleEndian = false)   -> int16
-  #getUint16(offset, littleEndian = false)  -> uint16
-  #getInt32(offset, littleEndian = false)   -> int32
-  #getUint32(offset, littleEndian = false)  -> uint32
-  #getFloat32(offset, littleEndian = false) -> float32
-  #getFloat64(offset, littleEndian = false) -> float64
-  #setInt8(offset, value)                          -> void
-  #setUint8(offset, value)                         -> void
-  #setInt16(offset, value, littleEndian = false)   -> void
-  #setUint16(offset, value, littleEndian = false)  -> void
-  #setInt32(offset, value, littleEndian = false)   -> void
-  #setUint32(offset, value, littleEndian = false)  -> void
-  #setFloat32(offset, value, littleEndian = false) -> void
-  #setFloat64(offset, value, littleEndian = false) -> void
-  #buffer     -> buffer
-  #byteLength -> uint
-  #byteOffset -> uint
+class DataView {
+  constructor(buffer: ArrayBuffer, byteOffset?: number, byteLength?: number): DataView;
+  getInt8(offset: any): int8;
+  getUint8(offset: any): uint8
+  getInt16(offset: any, littleEndian?: boolean = false): int16;
+  getUint16(offset: any, littleEndian?: boolean = false): uint16;
+  getInt32(offset: any, littleEndian?: boolean = false): int32;
+  getUint32(offset: any, littleEndian?: boolean = false): uint32;
+  getFloat32(offset: any, littleEndian?: boolean = false): float32;
+  getFloat64(offset: any, littleEndian?: boolean = false): float64;
+  setInt8(offset: any, value: any): void;
+  setUint8(offset: any, value: any): void;
+  setInt16(offset: any, value: any, littleEndian?: boolean = false): void;
+  setUint16(offset: any, value: any, littleEndian?: boolean = false): void;
+  setInt32(offset: any, value: any, littleEndian?: boolean = false): void;
+  setUint32(offset: any, value: any, littleEndian?: boolean = false): void;
+  setFloat32(offset: any, value: any, littleEndian?: boolean = false): void;
+  setFloat64(offset: any, value: any, littleEndian?: boolean = false): void;
+  get buffer: ArrayBuffer;
+  get byteLength: number;
+  get byteOffset: number;
+}
 
-{
+class [
   Int8Array,
   Uint8Array,
   Uint8ClampedArray,
@@ -1120,47 +1156,46 @@ new DataView(buffer, byteOffset = 0, byteLength = buffer.byteLength - byteOffset
   Int32Array,
   Uint32Array,
   Float32Array,
-  Float64Array
+  Float64Array,
+] {
+  constructor(length: number): %TypedArray%;
+  constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
+  constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
+  copyWithin(target: number, start: number, end?: number): this;
+  every(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): boolean;
+  fill(value: number, start?: number, end?: number): this;
+  filter(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): %TypedArray%;
+  find(callbackfn: (value: number, index: number, target: any) => boolean), thisArg?: any): any;
+  findIndex(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): number;
+  forEach(callbackfn: (value: number, index: number, target: any) => void, thisArg?: any): void;
+  includes(searchElement: any, from?: number): boolean;
+  indexOf(searchElement: any, from?: number): number;
+  join(separator: string = ','): string;
+  lastIndexOf(searchElement: any, from?: number): number;
+  map(mapFn: (value: number, index: number, target: any) => number, thisArg?: any): %TypedArray%;
+  reduce(callbackfn: (memo: any, value: number, index: number, target: any) => any, initialValue?: any): any;
+  reduceRight(callbackfn: (memo: any, value: number, index: number, target: any) => any, initialValue?: any): any;
+  reverse(): this;
+  set(array: ArrayLike, offset?: number): void;
+  slice(start?: number, end?: number): %TypedArray%;
+  some(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): boolean;
+  sort(comparefn?: (a: number, b: number) => number): this;
+  subarray(begin?: number, end?: number): %TypedArray%;
+  toString(): string;
+  toLocaleString(): string;
+  values(): Iterator<value>;
+  keys(): Iterator<index>;
+  entries(): Iterator<[index, value]>;
+  @@iterator(): Iterator<value>;
+  get buffer: ArrayBuffer;
+  get byteLength: number;
+  get byteOffset: number;
+  get length: number;
+  BYTES_PER_ELEMENT: number;
+  static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): %TypedArray%;
+  static of(...args: Array<mixed>): %TypedArray%;
+  static BYTES_PER_ELEMENT: number;
 }
-  new %TypedArray%(length)    -> typed
-  new %TypedArray%(typed)     -> typed
-  new %TypedArray%(arrayLike) -> typed
-  new %TypedArray%(iterable)  -> typed
-  new %TypedArray%(buffer, byteOffset = 0, length = (buffer.byteLength - byteOffset) / @BYTES_PER_ELEMENT) -> typed
-  .BYTES_PER_ELEMENT -> uint
-  .from(arrayLike | iterable, mapFn(val, index)?, that) -> typed
-  .of(...args) -> typed
-  #BYTES_PER_ELEMENT -> uint
-  #copyWithin(target = 0, start = 0, end = @length) -> @
-  #every(fn(val, index, @), that) -> bool
-  #fill(val, start = 0, end = @length) -> @
-  #filter(fn(val, index, @), that) -> typed
-  #find(fn(val, index, @), that) -> val
-  #findIndex(fn(val, index, @), that) -> index
-  #forEach(fn(val, index, @), that) -> void
-  #includes(var, from?) -> bool
-  #indexOf(var, from?) -> int
-  #join(string = ',') -> string
-  #lastIndexOf(var, from?) -> int
-  #map(fn(val, index, @), that) -> typed
-  #reduce(fn(memo, val, index, @), memo?) -> var
-  #reduceRight(fn(memo, val, index, @), memo?) -> var
-  #reverse() -> @
-  #set(arrayLike, offset = 0) -> void
-  #slice(start = 0, end = @length) -> typed
-  #some(fn(val, index, @), that) -> bool
-  #sort(fn(a, b)?) -> @
-  #subarray(start = 0, end = @length) -> typed
-  #toString() -> string
-  #toLocaleString() -> string
-  #values()     -> iterator
-  #keys()       -> iterator
-  #entries()    -> iterator
-  #@@iterator() -> iterator (values)
-  #buffer     -> buffer
-  #byteLength -> uint
-  #byteOffset -> uint
-  #length     -> uint
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -1219,20 +1254,21 @@ for (let [key, value] of typed.entries()) {
 #### ECMAScript: Reflect
 Modules [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.set-prototype-of.js).
 ```js
-Reflect
-  .apply(target, thisArgument, argumentsList) -> var
-  .construct(target, argumentsList, newTarget?) -> object
-  .defineProperty(target, propertyKey, attributes) -> bool
-  .deleteProperty(target, propertyKey) -> bool
-  .get(target, propertyKey, receiver?) -> var
-  .getOwnPropertyDescriptor(target, propertyKey) -> desc
-  .getPrototypeOf(target) -> object | null
-  .has(target, propertyKey) -> bool
-  .isExtensible(target) -> bool
-  .ownKeys(target) -> array
-  .preventExtensions(target) -> bool
-  .set(target, propertyKey, V, receiver?) -> bool
-  .setPrototypeOf(target, proto) -> bool (required __proto__ - IE11+)
+namespace Reflect {
+  apply(target: Function, thisArgument: any, argumentsList: Array<mixed>): any;
+  construct(target: Function, argumentsList: Array<mixed>, newTarget?: Function): Object;
+  defineProperty(target: Object, propertyKey: PropertyKey, attributes: PropertyDescriptor): boolean;
+  deleteProperty(target: Object, propertyKey: PropertyKey): boolean;
+  get(target: Object, propertyKey: PropertyKey, receiver?: any): any;
+  getOwnPropertyDescriptor(target: Object, propertyKey: PropertyKey): PropertyDescriptor | void;
+  getPrototypeOf(target: Object): Object | null;
+  has(target: Object, propertyKey: PropertyKey): boolean;
+  isExtensible(target: Object): boolean;
+  ownKeys(target: Object): Array<string | symbol>;
+  preventExtensions(target: Object): boolean;
+  set(target: Object, propertyKey: PropertyKey, V: any, receiver?: any): boolean;
+  setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
@@ -1285,9 +1321,10 @@ core-js(/library)/stage/3
 ```
 * `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
 ```js
-Array
-  #flatten(depthArg = 1) -> array
-  #flatMap(fn(val, key, @), that) -> array
+class Array {
+  flatten(depthArg?: number = 1): Array<mixed>;
+  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1306,7 +1343,7 @@ core-js(/library)/fn/array/virtual/flat-map
 ```
 * `global` [proposal](https://github.com/tc39/proposal-global) - modules [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.global.js)
 ```js
-global -> object
+let global: Object;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1318,8 +1355,9 @@ global.Array === Array; // => true
 ```
 * `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`esnext.promise.finally`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.promise.finally.js)
 ```js
-Promise
-  #finally(onFinally()) -> promise
+class Promise {
+  finally(onFinally: Function): promise;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1333,8 +1371,9 @@ Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
 * `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.async-iterator.js)
 ```js
-Symbol
-  .asyncIterator -> @@asyncIterator
+class Symbol {
+  static asyncIterator: @@asyncIterator;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1348,11 +1387,12 @@ core-js(/library)/stage/2
 ```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
-String
-  #trimLeft()  -> string
-  #trimRight() -> string
-  #trimStart() -> string
-  #trimEnd()   -> string
+class String {
+  trimLeft(): string;
+  trimRight(): string;
+  trimStart(): string;
+  trimEnd(): string;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1378,8 +1418,9 @@ core-js(/library)/stage/1
 ```
 * `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.description.js)
 ```js
-Symbol
-  #description -> string | undefined
+class Symbol {
+  get description: string | void;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1392,8 +1433,9 @@ Symbol().description;      // => undefined
 ```
 * `String#replaceAll` [proposal](https://github.com/psmarshall/string-replace-all-proposal) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.replace-all.js)
 ```js
-String
-  #replaceAll(searchString, replaceString) -> string
+class String {
+  replaceAll(searchString: string, replaceString: string): string;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1405,8 +1447,9 @@ core-js/fn/string/replace-all
 ```
 * `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.promise.try.js)
 ```js
-Promise
-  .try(function()) -> promise
+class Promise {
+  static try(callbackfn: Function): promise;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1420,18 +1463,25 @@ Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as $
 ```
 * `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.weak-map.from.js)
 ```js
-Set
-  .of(...args) -> set
-  .from(iterable, mapFn(val, index)?, that?) -> set
-Map
-  .of(...args) -> map
-  .from(iterable, mapFn(val, index)?, that?) -> map
-WeakSet
-  .of(...args) -> weakset
-  .from(iterable, mapFn(val, index)?, that?) -> weakset
-WeakMap
-  .of(...args) -> weakmap
-  .from(iterable, mapFn(val, index)?, that?) -> weakmap
+class Set {
+  static of(...args: Array<mixed>): Set;
+  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => any, thisArg?: any): Set;
+}
+
+class Map {
+  static of(...args: Array<[key, value]>): Map;
+  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
+}
+
+class WeakSet {
+  static of(...args: Array<mixed>): WeakSet;
+  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => Object, thisArg?: any): WeakSet;
+}
+
+class WeakMap {
+  static of(...args: Array<[key, value]>): WeakMap;
+  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: Object, value: any], thisArg?: any): WeakMap;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1452,8 +1502,9 @@ Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map 
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.match-all.js)
 ```js
-String
-  #matchAll(regexp) -> iterator
+class String {
+  matchAll(regexp: RegExp): Iterator;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1468,15 +1519,19 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)) {
 ```
 * `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.observable.js)
 ```js
-new Observable(fn)             -> observable
-  #subscribe(observer)         -> subscription
-  #forEach(fn)                 -> promise
-  #@@observable()              -> @
-  .of(...items)                -> observable
-  .from(observable | iterable) -> observable
-  .@@species                   -> @
-Symbol
-  .observable                  -> @@observable
+class Observable {
+  constructor(fn: Function): Observable
+  subscribe(observer: Observer): Subscription;
+  forEach(fn: Function): Promise;
+  @@observable(): this;
+  static of(...items: Aray<mixed>): Observable
+  static from(x: Observable | Iterable): Observable
+  static get @@species: this;
+}
+
+class Symbol {
+  static observable: @@observable;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1502,14 +1557,15 @@ new Observable(observer => {
   [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.radians.js) and
   [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.scale.js)
 ```js
-Math
-  .DEG_PER_RAD -> number
-  .RAD_PER_DEG -> number
-  .clamp(x, lower, upper) -> number
-  .degrees(radians) -> number
-  .fscale(x, inLow, inHigh, outLow, outHigh) -> number
-  .radians(degrees) -> number
-  .scale(x, inLow, inHigh, outLow, outHigh) -> number
+namespace Math {
+  DEG_PER_RAD: number;
+  RAD_PER_DEG: number;
+  clamp(x: number, lower: number, upper: number): number;
+  degrees(radians: number): number;
+  fscale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+  radians(degrees: number): number;
+  scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1523,8 +1579,9 @@ core-js(/library)/fn/math/scale
 ```
 * `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.signbit.js)
 ```js
-Math
-  .signbit(x) -> bool
+namespace Math {
+  signbit(x: number): boolean;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1546,8 +1603,9 @@ core-js(/library)/stage/0
 ```
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.at.js)
 ```js
-String
-  #at(index) -> string
+class String {
+  at(index: number): string;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1561,11 +1619,12 @@ core-js(/library)/fn/string/virtual/at
 ```
 * `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.umulh.js)
 ```js
-Math
-  .iaddh(lo0, hi0, lo1, hi1) -> int32
-  .isubh(lo0, hi0, lo1, hi1) -> int32
-  .imulh(a, b) -> int32
-  .umulh(a, b) -> uint32
+namespace Math {
+  iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
+  isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
+  imulh(a: number, b: number): number;
+  umulh(a: number, b: number): number;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1576,7 +1635,7 @@ core-js(/library)/fn/math/umulh
 ```
 * `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`esnext.asap`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.asap.js)
 ```js
-asap(fn) -> void
+function asap(fn: Function): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1594,16 +1653,17 @@ core-js(/library)/stage/pre
 ```
 * `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.metadata.js).
 ```js
-Reflect
-  .defineMetadata(metadataKey, metadataValue, target, propertyKey?) -> void
-  .getMetadata(metadataKey, target, propertyKey?) -> var
-  .getOwnMetadata(metadataKey, target, propertyKey?) -> var
-  .hasMetadata(metadataKey, target, propertyKey?) -> bool
-  .hasOwnMetadata(metadataKey, target, propertyKey?) -> bool
-  .deleteMetadata(metadataKey, target, propertyKey?) -> bool
-  .getMetadataKeys(target, propertyKey?) -> array
-  .getOwnMetadataKeys(target, propertyKey?) -> array
-  .metadata(metadataKey, metadataValue) -> decorator(target, targetKey?) -> void
+namespace Reflect {
+  defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
+  getMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
+  getOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
+  hasMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
+  hasOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
+  deleteMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
+  getMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
+  getOwnMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
+  metadata(metadataKey: any, metadataValue: any): decorator(target: Object, targetKey?: PropertyKey) => void;
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1634,8 +1694,8 @@ core-js(/library)/web
 #### setTimeout / setInterval
 Module [`web.timers`](https://github.com/zloirock/core-js/blob/v3/modules/web.timers.js). Additional arguments fix for IE9-.
 ```js
-setTimeout(fn(...args), time, ...args) -> id
-setInterval(fn(...args), time, ...args) -> id
+function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
+function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1652,8 +1712,8 @@ setTimeout(log, 1000, 42);
 #### setImmediate
 Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v3/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```js
-setImmediate(fn(...args), ...args) -> id
-clearImmediate(id) -> void
+function setImmediate(callback: any, ...args: Array<mixed>): number;
+function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1674,14 +1734,13 @@ clearImmediate(setImmediate(() => {
 #### Iterable DOM collections
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That mean they should have `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Module [`web.dom.iterable`](https://github.com/zloirock/core-js/blob/v3/modules/web.dom.iterable.js):
 ```js
-{
+class [
   CSSRuleList,
   CSSStyleDeclaration,
   CSSValueList,
   ClientRectList,
   DOMRectList,
   DOMStringList,
-  DOMTokenList,
   DataTransferItemList,
   FileList,
   HTMLAllCollection,
@@ -1691,7 +1750,6 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
   MediaList,
   MimeTypeArray,
   NamedNodeMap,
-  NodeList,
   PaintRequestList,
   Plugin,
   PluginArray,
@@ -1705,18 +1763,18 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
   StyleSheetList,
   TextTrackCueList,
   TextTrackList,
-  TouchList
+  TouchList,
+] {
+  @@iterator(): Iterator<value>;
 }
-  #@@iterator() -> iterator (values)
 
-{
-  DOMTokenList,
-  NodeList
+class [DOMTokenList, NodeList] {
+  entries(): Iterator<[key, value]>;
+  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  keys(): Iterator<key>;
+  values(): Iterator<value>;
+  @@iterator(): Iterator<value>;
 }
-  #values()  -> iterator
-  #keys()    -> iterator
-  #entries() -> iterator
-  #forEach(fn(val, index, @), that) -> void
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
@@ -1739,10 +1797,9 @@ document.querySelectorAll('*').forEach(it => console.log(it.id));
 ### Iteration helpers
 Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v3/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
 ```js
-core
-  .isIterable(var) -> bool
-  .getIterator(iterable) -> iterator
-  .getIteratorMethod(var) -> function | undefined
+function isIterable(value: any): boolean;
+function getIterator(value: any): Object;
+function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
