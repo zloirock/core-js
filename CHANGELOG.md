@@ -35,6 +35,7 @@
 - Changed namespaces:
   - All features from ES5, ES2015, ES2016 and ES2017 moved to one ES namespace - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
   - Prefix for ES proposals changed from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
+  - `web.dom.iterable` module renamed to `web.dom-collections.iterator`.
 - Finally removed `bower.json`
 
 ##### 2.5.3 - 2017.12.12
