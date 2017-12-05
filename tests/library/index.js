@@ -181,7 +181,7 @@ import './esnext.weak-set.from';
 import './esnext.weak-set.of';
 
 QUnit.module('Web');
-import './web.dom.iterable';
+import './web.dom-collections.iterator';
 import './web.immediate';
 import './web.timers';
 
