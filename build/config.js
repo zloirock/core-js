@@ -192,8 +192,8 @@ module.exports = {
     'esnext.asap',
     'esnext.observable',
     'web.immediate',
-    'web.dom.for-each',
-    'web.dom.iterable',
+    'web.dom-collections.for-each',
+    'web.dom-collections.iterator',
     'web.timers',
     'core.get-iterator-method',
     'core.get-iterator',
@@ -213,7 +213,7 @@ module.exports = {
     'es.date.to-string',
     'es.date.to-primitive',
     'esnext.symbol.description',
-    'web.dom.for-each',
+    'web.dom-collections.for-each',
   ],
   /* eslint-disable prefer-template */
   banner: '/**\n' +
