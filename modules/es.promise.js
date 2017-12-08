@@ -14,6 +14,7 @@ var microtask = require('./_microtask')();
 var newPromiseCapabilityModule = require('./_new-promise-capability');
 var perform = require('./_perform');
 var promiseResolve = require('./_promise-resolve');
+var hostReportErrors = require('./_host-report-errors');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
@@ -90,16 +91,14 @@ var onUnhandled = function (promise) {
   task.call(global, function () {
     var value = promise._v;
     var unhandled = isUnhandled(promise);
-    var result, handler, console;
+    var result, handler;
     if (unhandled) {
       result = perform(function () {
         if (isNode) {
           process.emit('unhandledRejection', value, promise);
         } else if (handler = global.onunhandledrejection) {
           handler({ promise: promise, reason: value });
-        } else if ((console = global.console) && console.error) {
-          console.error('Unhandled promise rejection', value);
-        }
+        } else hostReportErrors('Unhandled promise rejection', value);
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
       promise._h = isNode || isUnhandled(promise) ? 2 : 1;

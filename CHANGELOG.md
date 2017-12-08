@@ -12,6 +12,7 @@
   - `Reflect.enumerate` (removed from the spec)
   - Unnecessary iteration methods from `CSSRuleList`, `MediaList`, `StyleSheetList`
 - Updated proposals:
+  - [`Observable`](https://github.com/tc39/proposal-observable) ([#257](https://github.com/zloirock/core-js/issues/257), [#276](https://github.com/zloirock/core-js/issues/276), etc.)
   - `Array#flatten` and `Array#flatMap` updated and moved to the stage 3
   - `Symbol.asyncIterator` moved to the stage 3
 - ES2016 and ES2017 features marked as stable:
