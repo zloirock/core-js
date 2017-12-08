@@ -8,7 +8,7 @@ QUnit.test('Observable', assert => {
   assert.throws(() => {
     Observable(() => { /* empty */ });
   }, 'throws w/o `new`');
-  const obsevable = new Observable(function (subscriptionObserver) {
+  const observable = new Observable(function (subscriptionObserver) {
     assert.same(typeof subscriptionObserver, 'object', 'Subscription observer is object');
     assert.same(subscriptionObserver.constructor, Object);
     const { next, error, complete } = subscriptionObserver;
@@ -17,13 +17,13 @@ QUnit.test('Observable', assert => {
     assert.isFunction(complete);
     assert.arity(next, 1);
     assert.arity(error, 1);
-    assert.arity(complete, 1);
+    assert.arity(complete, 0);
     if (STRICT) {
       assert.same(this, undefined, 'correct executor context');
     }
   });
-  obsevable.subscribe({});
-  assert.ok(obsevable instanceof Observable);
+  observable.subscribe({});
+  assert.ok(observable instanceof Observable);
 });
 
 QUnit.test('Observable#subscribe', assert => {
@@ -36,14 +36,6 @@ QUnit.test('Observable#subscribe', assert => {
   assert.same(subscription.constructor, Object);
   assert.isFunction(subscription.unsubscribe);
   assert.arity(subscription.unsubscribe, 0);
-});
-
-QUnit.test('Observable#forEach', assert => {
-  assert.isFunction(Observable.prototype.forEach);
-  assert.arity(Observable.prototype.forEach, 1);
-  assert.name(Observable.prototype.forEach, 'forEach');
-  assert.looksNative(Observable.prototype.forEach);
-  assert.ok(new Observable(() => { /* empty */ }).forEach(() => { /* empty */ }) instanceof Promise, 'returns Promise');
 });
 
 QUnit.test('Observable#constructor', assert => {

@@ -8,6 +8,7 @@
   },
   "main": "index.js",
   "devDependencies": {
+    "babel-cli": "^6.26.0",
     "babel-core": "^6.26.0",
     "babel-loader": "^7.1.2",
     "babel-plugin-check-es2015-constants": "^6.22.0",
@@ -27,7 +28,7 @@
     "babel-plugin-transform-es3-property-literals": "^6.22.0",
     "babel-plugin-transform-exponentiation-operator": "^6.24.1",
     "babel-plugin-transform-for-of-as-array": "^1.0.4",
-    "es-observable-tests": "0.2.x",
+    "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
     "eslint": "4.19.x",
     "eslint-plugin-import": "2.12.x",
     "grunt": "^1.0.2",
@@ -42,6 +43,7 @@
     "karma-qunit": "^2.1.0",
     "karma-phantomjs-launcher": "1.0.x",
     "mkdirp": "^0.5.1",
+    "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "^2.1.2",
     "qunit": "2.6.x",
@@ -53,7 +55,7 @@
     "lint": "eslint ./",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
     "bundle-promises-tests": "npm run grunt webpack:promises-aplus-tests",
-    "observables-tests": "node tests/observables/adapter && node tests/observables/adapter-library",
+    "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ --plugins=transform-es2015-modules-commonjs && node tests/observables/adapter && node tests/observables/adapter-library",
     "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack:helpers webpack:tests client karma:default && npm run grunt webpack:library library karma:library && npm run promises-tests && npm run observables-tests && node tests/commonjs"
   },
   "license": "MIT",
