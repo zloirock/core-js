@@ -1,16 +1,18 @@
 'use strict';
 // https://github.com/zenparsing/es-observable
 var $export = require('./_export');
-var global = require('./_global');
-var core = require('./_core');
-var microtask = require('./_microtask')();
-var OBSERVABLE = require('./_wks')('observable');
 var aFunction = require('./_a-function');
 var anObject = require('./_an-object');
+var isObject = require('./_is-object');
 var anInstance = require('./_an-instance');
 var redefineAll = require('./_redefine-all');
 var hide = require('./_hide');
+var getIterator = require('./core.get-iterator');
 var forOf = require('./_for-of');
+var hostReportErrors = require('./_host-report-errors');
+var dP = require('./_object-dp').f;
+var DESCRIPTORS = require('./_descriptors');
+var OBSERVABLE = require('./_wks')('observable');
 var RETURN = forOf.RETURN;
 
 var getMethod = function (fn) {
@@ -21,7 +23,11 @@ var cleanupSubscription = function (subscription) {
   var cleanup = subscription._c;
   if (cleanup) {
     subscription._c = undefined;
-    cleanup();
+    try {
+      cleanup();
+    } catch (e) {
+      hostReportErrors(e);
+    }
   }
 };
 
@@ -31,26 +37,39 @@ var subscriptionClosed = function (subscription) {
 
 var closeSubscription = function (subscription) {
   if (!subscriptionClosed(subscription)) {
-    subscription._o = undefined;
+    close(subscription);
     cleanupSubscription(subscription);
   }
 };
 
+var close = function (subscription) {
+  if (!DESCRIPTORS) {
+    subscription.closed = true;
+    var subscriptionObserver = subscription._s;
+    if (subscriptionObserver) subscriptionObserver.closed = true;
+  } subscription._o = undefined;
+};
+
 var Subscription = function (observer, subscriber) {
-  anObject(observer);
+  var start;
+  if (!DESCRIPTORS) this.closed = false;
   this._c = undefined;
-  this._o = observer;
-  observer = new SubscriptionObserver(this);
+  this._o = anObject(observer);
   try {
-    var cleanup = subscriber(observer);
-    var subscription = cleanup;
-    if (cleanup != null) {
-      if (typeof cleanup.unsubscribe === 'function') cleanup = function () { subscription.unsubscribe(); };
-      else aFunction(cleanup);
-      this._c = cleanup;
-    }
+    if (start = getMethod(observer.start)) start.call(observer, this);
   } catch (e) {
-    observer.error(e);
+    hostReportErrors(e);
+  }
+  if (subscriptionClosed(this)) return;
+  var subscriptionObserver = this._s = new SubscriptionObserver(this);
+  try {
+    var cleanup = subscriber(subscriptionObserver);
+    var subscription = cleanup;
+    if (cleanup != null) this._c = typeof cleanup.unsubscribe === 'function'
+      ? function () { subscription.unsubscribe(); }
+      : aFunction(cleanup);
+  } catch (e) {
+    subscriptionObserver.error(e);
     return;
   } if (subscriptionClosed(this)) cleanupSubscription(this);
 };
@@ -59,8 +78,16 @@ Subscription.prototype = redefineAll({}, {
   unsubscribe: function unsubscribe() { closeSubscription(this); }
 });
 
+if (DESCRIPTORS) dP(Subscription.prototype, 'closed', {
+  configurable: true,
+  get: function () {
+    return subscriptionClosed(this);
+  }
+});
+
 var SubscriptionObserver = function (subscription) {
   this._s = subscription;
+  if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
@@ -70,51 +97,45 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscription._o;
       try {
         var m = getMethod(observer.next);
-        if (m) return m.call(observer, value);
+        if (m) m.call(observer, value);
       } catch (e) {
-        try {
-          closeSubscription(subscription);
-        } finally {
-          throw e;
-        }
+        hostReportErrors(e);
       }
     }
   },
   error: function error(value) {
     var subscription = this._s;
-    if (subscriptionClosed(subscription)) throw value;
-    var observer = subscription._o;
-    subscription._o = undefined;
-    try {
-      var m = getMethod(observer.error);
-      if (!m) throw value;
-      value = m.call(observer, value);
-    } catch (e) {
+    if (!subscriptionClosed(subscription)) {
+      var observer = subscription._o;
+      close(subscription);
       try {
-        cleanupSubscription(subscription);
-      } finally {
-        throw e;
-      }
-    } cleanupSubscription(subscription);
-    return value;
+        var m = getMethod(observer.error);
+        if (m) m.call(observer, value);
+        else hostReportErrors(value);
+      } catch (e) {
+        hostReportErrors(e);
+      } cleanupSubscription(subscription);
+    }
   },
-  complete: function complete(value) {
+  complete: function complete() {
     var subscription = this._s;
     if (!subscriptionClosed(subscription)) {
       var observer = subscription._o;
-      subscription._o = undefined;
+      close(subscription);
       try {
         var m = getMethod(observer.complete);
-        value = m ? m.call(observer, value) : undefined;
+        if (m) m.call(observer);
       } catch (e) {
-        try {
-          cleanupSubscription(subscription);
-        } finally {
-          throw e;
-        }
+        hostReportErrors(e);
       } cleanupSubscription(subscription);
-      return value;
     }
+  }
+});
+
+if (DESCRIPTORS) dP(SubscriptionObserver.prototype, 'closed', {
+  configurable: true,
+  get: function () {
+    return subscriptionClosed(this._s);
   }
 });
 
@@ -124,25 +145,11 @@ var $Observable = function Observable(subscriber) {
 
 redefineAll($Observable.prototype, {
   subscribe: function subscribe(observer) {
-    return new Subscription(observer, this._f);
-  },
-  forEach: function forEach(fn) {
-    var that = this;
-    return new (core.Promise || global.Promise)(function (resolve, reject) {
-      aFunction(fn);
-      var subscription = that.subscribe({
-        next: function (value) {
-          try {
-            return fn(value);
-          } catch (e) {
-            reject(e);
-            subscription.unsubscribe();
-          }
-        },
-        error: reject,
-        complete: resolve
-      });
-    });
+    return new Subscription(typeof observer === 'function' ? {
+      next: observer,
+      error: arguments.length > 1 ? arguments[1] : undefined,
+      complete: arguments.length > 2 ? arguments[2] : undefined
+    } : isObject(observer) ? observer : {}, this._f);
   }
 });
 
@@ -156,38 +163,22 @@ redefineAll($Observable, {
         return observable.subscribe(observer);
       });
     }
+    var iterator = getIterator(x);
     return new C(function (observer) {
-      var done = false;
-      microtask(function () {
-        if (!done) {
-          try {
-            if (forOf(x, false, function (it) {
-              observer.next(it);
-              if (done) return RETURN;
-            }) === RETURN) return;
-          } catch (e) {
-            if (done) throw e;
-            observer.error(e);
-            return;
-          } observer.complete();
-        }
-      });
-      return function () { done = true; };
+      forOf(iterator, false, function (it) {
+        observer.next(it);
+        if (observer.closed) return RETURN;
+      }, undefined, true);
+      observer.complete();
     });
   },
   of: function of() {
     for (var i = 0, l = arguments.length, items = new Array(l); i < l;) items[i] = arguments[i++];
     return new (typeof this === 'function' ? this : $Observable)(function (observer) {
-      var done = false;
-      microtask(function () {
-        if (!done) {
-          for (var j = 0; j < items.length; ++j) {
-            observer.next(items[j]);
-            if (done) return;
-          } observer.complete();
-        }
-      });
-      return function () { done = true; };
+      for (var j = 0; j < items.length; ++j) {
+        observer.next(items[j]);
+        if (observer.closed) return;
+      } observer.complete();
     });
   }
 });
