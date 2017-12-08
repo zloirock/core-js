@@ -108,6 +108,7 @@ if (JSON) {
     if (typeof Symbol() === 'symbol') {
       assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
     }
+    assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
   });
 }
 
