@@ -1,5 +1,6 @@
-delete global.Observable;
-var core = require('../../library');
+'use strict';
+const core = require('../../library');
 global.Promise = core.Promise;
 global.Symbol = core.Symbol;
-require('es-observable-tests').runTests(core.Observable);
+// eslint-disable-next-line import/no-unresolved
+require('../bundles/observables-tests/default').runTests(core.Observable);

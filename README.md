@@ -1520,12 +1520,11 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)) {
 * `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.observable.js)
 ```js
 class Observable {
-  constructor(fn: Function): Observable
-  subscribe(observer: Observer): Subscription;
-  forEach(fn: Function): Promise;
+  constructor(subscriber: Function): Observable;
+  subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
   @@observable(): this;
-  static of(...items: Aray<mixed>): Observable
-  static from(x: Observable | Iterable): Observable
+  static of(...items: Aray<mixed>): Observable;
+  static from(x: Observable | Iterable): Observable;
   static get @@species: this;
 }
 
@@ -1544,8 +1543,10 @@ new Observable(observer => {
   observer.next('hello');
   observer.next('world');
   observer.complete();
-}).forEach(it => console.log(it))
-  .then(() => console.log('!'));
+}).subscribe({
+  next(it) { console.log(it); },
+  complete() { console.log('!'); }
+});
 ```
 * `Math.{clamp, DEG_PER_RAD, degrees, fscale, rad-per-deg, radians, scale}` 
   [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules 
