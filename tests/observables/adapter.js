@@ -1,3 +1,5 @@
+'use strict';
 delete global.Observable;
 require('../../');
-require('es-observable-tests').runTests(global.Observable);
+// eslint-disable-next-line import/no-unresolved
+require('../bundles/observables-tests/default').runTests(global.Observable);
