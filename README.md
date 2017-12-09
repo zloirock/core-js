@@ -1448,16 +1448,6 @@ core-js(/library)/fn/promise/finally
 Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
-```
-* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.symbol.async-iterator.js)
-```js
-Symbol
-  .asyncIterator -> @@asyncIterator
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(/library)/fn/symbol/async-iterator
-```
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1487,6 +1477,16 @@ core-js(/library)/fn/string/virtual/trim-right
 ```js
 '   hello   '.trimLeft();  // => 'hello   '
 '   hello   '.trimRight(); // => '   hello'
+```
+```
+* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`es7.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v2.5.1/modules/es7.symbol.async-iterator.js)
+```js
+Symbol
+  .asyncIterator -> @@asyncIterator
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(/library)/fn/symbol/async-iterator
 ```
 
 #### Stage 1 proposals
