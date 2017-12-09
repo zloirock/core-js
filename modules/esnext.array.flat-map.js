@@ -10,9 +10,9 @@ var arraySpeciesCreate = require('./_array-species-create');
 $export($export.P, 'Array', {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
-    var sourceLen, A;
+    var sourceLen = toLength(O.length);
+    var A;
     aFunction(callbackfn);
-    sourceLen = toLength(O.length);
     A = arraySpeciesCreate(O, 0);
     A.length = flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments[1]);
     return A;
