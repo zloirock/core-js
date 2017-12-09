@@ -18,11 +18,15 @@ var hostReportErrors = require('./_host-report-errors');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
+var document = global.document;
 var $Promise = global[PROMISE];
 var isNode = classof(process) == 'process';
 var empty = function () { /* empty */ };
 var Internal, newGenericPromiseCapability, OwnPromiseCapability, Wrapper;
 var newPromiseCapability = newGenericPromiseCapability = newPromiseCapabilityModule.f;
+var DISPATCH_EVENT = !!(document && document.createEvent && global.dispatchEvent);
+var UNHANDLED_REJECTION = 'unhandledrejection';
+var REJECTION_HANDLED = 'rejectionhandled';
 
 var USE_NATIVE = !!function () {
   try {
@@ -87,18 +91,28 @@ var notify = function (promise, isReject) {
     if (isReject && !promise._h) onUnhandled(promise);
   });
 };
+var dispatchEvent = function (name, promise, reason) {
+  var event, handler;
+  if (DISPATCH_EVENT) {
+    event = document.createEvent('Event');
+    event.promise = promise;
+    event.reason = reason;
+    event.initEvent(name, false, true);
+    global.dispatchEvent(event);
+  } else event = { promise: promise, reason: reason };
+  if (handler = global['on' + name]) handler(event);
+  else if (name === UNHANDLED_REJECTION) hostReportErrors('Unhandled promise rejection', reason);
+};
 var onUnhandled = function (promise) {
   task.call(global, function () {
     var value = promise._v;
     var unhandled = isUnhandled(promise);
-    var result, handler;
+    var result;
     if (unhandled) {
       result = perform(function () {
         if (isNode) {
           process.emit('unhandledRejection', value, promise);
-        } else if (handler = global.onunhandledrejection) {
-          handler({ promise: promise, reason: value });
-        } else hostReportErrors('Unhandled promise rejection', value);
+        } else dispatchEvent(UNHANDLED_REJECTION, promise, value);
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
       promise._h = isNode || isUnhandled(promise) ? 2 : 1;
@@ -111,12 +125,9 @@ var isUnhandled = function (promise) {
 };
 var onHandleUnhandled = function (promise) {
   task.call(global, function () {
-    var handler;
     if (isNode) {
       process.emit('rejectionHandled', promise);
-    } else if (handler = global.onrejectionhandled) {
-      handler({ promise: promise, reason: promise._v });
-    }
+    } else dispatchEvent(REJECTION_HANDLED, promise, promise._v);
   });
 };
 var $reject = function (value) {
