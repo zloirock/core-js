@@ -1,4 +1,9 @@
 ## Changelog
+##### 2.5.2 - 2017.12.09
+- `MutationObserver` no longer used for microtask implementation in iOS Safari because of bug with scrolling, [#339](https://github.com/zloirock/core-js/issues/339)
+- Fixed `JSON.stringify(undefined, replacer)` case in the wrapper from the `Symbol` polyfill, [#345](https://github.com/zloirock/core-js/issues/345)
+- `Array()` calls changed to `new Array()` for V8 optimisation
+
 ##### 2.5.1 - 2017.09.01
 - Updated `Promise#finally` per [tc39/proposal-promise-finally#37](https://github.com/tc39/proposal-promise-finally/issues/37)
 - Optimized usage of some internal helpers for reducing size of `shim` version
