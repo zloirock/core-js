@@ -1,5 +1,5 @@
 /**
- * core-js 2.5.1
+ * core-js 2.5.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2017 Denis Pushkarev
@@ -281,7 +281,7 @@ module.exports = function (it) {
 /* 12 */
 /***/ (function(module, exports) {
 
-var core = module.exports = { version: '2.5.1' };
+var core = module.exports = { version: '2.5.2' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
@@ -2312,8 +2312,8 @@ module.exports = function () {
     notify = function () {
       process.nextTick(flush);
     };
-  // browsers with MutationObserver
-  } else if (Observer) {
+  // browsers with MutationObserver, except iOS Safari - https://github.com/zloirock/core-js/issues/339
+  } else if (Observer && !(global.navigator && global.navigator.standalone)) {
     var toggle = true;
     var node = document.createTextNode('');
     new Observer(flush).observe(node, { characterData: true }); // eslint-disable-line no-new
@@ -3903,6 +3903,7 @@ var wksDefine = __webpack_require__(63);
 var enumKeys = __webpack_require__(127);
 var isArray = __webpack_require__(52);
 var anObject = __webpack_require__(1);
+var isObject = __webpack_require__(3);
 var toIObject = __webpack_require__(11);
 var toPrimitive = __webpack_require__(27);
 var createDesc = __webpack_require__(28);
@@ -4095,14 +4096,13 @@ $JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
   return _stringify([S]) != '[null]' || _stringify({ a: S }) != '{}' || _stringify(Object(S)) != '{}';
 })), 'JSON', {
   stringify: function stringify(it) {
-    if (it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
     var args = [it];
     var i = 1;
     var replacer, $replacer;
     while (arguments.length > i) args.push(arguments[i++]);
-    replacer = args[1];
-    if (typeof replacer == 'function') $replacer = replacer;
-    if ($replacer || !isArray(replacer)) replacer = function (key, value) {
+    $replacer = replacer = args[1];
+    if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
+    if (!isArray(replacer)) replacer = function (key, value) {
       if ($replacer) value = $replacer.call(this, key, value);
       if (!isSymbol(value)) return value;
     };
