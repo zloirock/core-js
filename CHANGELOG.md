@@ -4,6 +4,7 @@
   - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - `Symbol#description` ([stage 1 proposal](https://tc39.github.io/proposal-Symbol-description/))
   - `String#replaceAll` ([stage 1 proposal](https://github.com/psmarshall/string-replace-all-proposal))
+  - Triggering unhandled `Promise` rejection events (instead of only global handlers) [#205](https://github.com/zloirock/core-js/issues/205)
 - Removed obsolete features:
   - `Error.isError` (withdrawn)
   - `System.global` (replaced by `global`)

@@ -801,6 +801,9 @@ setTimeout(() => promise.catch(() => {}), 1e3);
 ```
 In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](http://goo.gl/Wozskl):
 ```js
+window.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
+window.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
+// or
 window.onunhandledrejection = e => console.log('unhandled', e.reason, e.promise);
 window.onrejectionhandled = e => console.log('handled', e.reason, e.promise);
 

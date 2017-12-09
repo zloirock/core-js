@@ -414,7 +414,21 @@ QUnit.test('Unhandled rejection tracking', assert => {
     process.on('unhandledRejection', onunhandledrejection);
     process.on('rejectionHandled', onrejectionhandled);
   } else {
-    assert.expect(4);
+    if (GLOBAL.addEventListener) {
+      assert.expect(8);
+      function onunhandledrejection(it) {
+        assert.same(it.promise, $promise, 'addEventListener(unhandledrejection), promise');
+        assert.same(it.reason, 42, 'addEventListener(unhandledrejection), reason');
+        GLOBAL.removeEventListener('unhandledrejection', onunhandledrejection);
+      }
+      GLOBAL.addEventListener('rejectionhandled', onunhandledrejection);
+      function onrejectionhandled(it) {
+        assert.same(it.promise, $promise, 'addEventListener(rejectionhandled), promise');
+        assert.same(it.reason, 42, 'addEventListener(rejectionhandled), reason');
+        GLOBAL.removeEventListener('rejectionhandled', onrejectionhandled);
+      }
+      GLOBAL.addEventListener('rejectionhandled', onrejectionhandled);
+    } else assert.expect(4);
     GLOBAL.onunhandledrejection = function (it) {
       assert.same(it.promise, $promise, 'onunhandledrejection, promise');
       assert.same(it.reason, 42, 'onunhandledrejection, reason');
