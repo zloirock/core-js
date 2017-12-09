@@ -9,8 +9,8 @@
   "main": "index.js",
   "dependencies": {
     "core-js": "2.5.1",
-    "webpack": "3.4.x",
-    "temp": "0.8.x"
+    "temp": "^0.8.3",
+    "webpack": "^3.10.0"
   },
   "license": "MIT"
 }
