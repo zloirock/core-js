@@ -216,7 +216,7 @@ $JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
     $replacer = replacer = args[1];
     if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
     if (!isArray(replacer)) replacer = function (key, value) {
-      if ($replacer) value = $replacer.call(this, key, value);
+      if (typeof $replacer == 'function') value = $replacer.call(this, key, value);
       if (!isSymbol(value)) return value;
     };
     args[1] = replacer;
