@@ -18,23 +18,15 @@ QUnit.test('Array#filter', assert => {
   }, context);
   assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filter(it => typeof it === 'number'));
   if (STRICT) {
-    assert.throws(() => {
-      filter.call(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      filter.call(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return filter.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        });
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => filter.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }), 'uses ToLength');
   }
 });

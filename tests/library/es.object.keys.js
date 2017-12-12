@@ -17,17 +17,8 @@ QUnit.test('Object.keys', assert => {
   assert.ok(!includes(keys(Array.prototype), 'push'));
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
-    assert.ok((() => {
-      try {
-        keys(value);
-        return true;
-      } catch (e) { /* empty */ }
-    })(), `accept ${ typeof value }`);
+    assert.notThrows(() => keys(value), `accept ${ typeof value }`);
   }
-  assert.throws(() => {
-    return keys(null);
-  }, TypeError, 'throws on null');
-  assert.throws(() => {
-    return keys(undefined);
-  }, TypeError, 'throws on undefined');
+  assert.throws(() => keys(null), TypeError, 'throws on null');
+  assert.throws(() => keys(undefined), TypeError, 'throws on undefined');
 });

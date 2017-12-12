@@ -40,11 +40,7 @@ QUnit.test('Array#forEach', assert => {
   });
   assert.ok(result === '5');
   if (STRICT) {
-    assert.throws(() => {
-      forEach(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      forEach(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => forEach(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => forEach(undefined, () => { /* empty */ }), TypeError);
   }
 });

@@ -7,12 +7,8 @@ QUnit.test('Reflect.metadata', assert => {
   assert.isFunction(metadata('key', 'value'));
   assert.nonEnumerable(Reflect, 'metadata');
   const decorator = metadata('key', 'value');
-  assert.throws(() => {
-    return decorator(undefined, 'name');
-  }, TypeError);
-  assert.throws(() => {
-    return decorator({}, undefined);
-  }, TypeError);
+  assert.throws(() => decorator(undefined, 'name'), TypeError);
+  assert.throws(() => decorator({}, undefined), TypeError);
   let target = function () { /* empty */ };
   decorator(target);
   assert.same(hasOwnMetadata('key', target, undefined), true);

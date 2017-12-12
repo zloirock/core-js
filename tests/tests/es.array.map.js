@@ -22,23 +22,15 @@ QUnit.test('Array#map', assert => {
     return +this;
   }, 2));
   if (STRICT) {
-    assert.throws(() => {
-      return map.call(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return map.call(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return map.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        });
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => map.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }).length === 0, 'uses ToLength');
   }
 });

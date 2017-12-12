@@ -13,15 +13,9 @@ QUnit.test('DataView', assert => {
   dataview = new DataView(new ArrayBuffer(24), 8, 8);
   assert.same(dataview.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length');
   assert.same(dataview.byteLength, 8, '#byteLength, passed buffer, byteOffset and length');
-  assert.throws(() => {
-    return new DataView(new ArrayBuffer(8), -1);
-  }, 'If offset < 0, throw a RangeError exception');
-  assert.throws(() => {
-    return new DataView(new ArrayBuffer(8), 16);
-  }, 'If newByteLength < 0, throw a RangeError exception');
-  assert.throws(() => {
-    return new DataView(new ArrayBuffer(24), 8, 24);
-  }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+  assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
+  assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
+  assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
   dataview = new DataView(new ArrayBuffer(8));
   dataview.setUint32(0, 0x12345678);
   assert.same(dataview.getUint32(0), 0x12345678, 'big endian/big endian');
@@ -31,16 +25,8 @@ QUnit.test('DataView', assert => {
   assert.same(dataview.getUint32(0), 0x78563412, 'little endian/big endian');
   dataview.setUint32(0, 0x12345678);
   assert.same(dataview.getUint32(0, true), 0x78563412, 'big endian/little endian');
-  assert.throws(() => {
-    return new DataView({});
-  }, 'non-ArrayBuffer argument');
-  assert.ok((() => {
-    try {
-      new DataView('foo');
-    } catch (e) {
-      return e;
-    }
-  })(), 'non-ArrayBuffer argument');
+  assert.throws(() => new DataView({}), 'non-ArrayBuffer argument, object');
+  assert.throws(() => new DataView('foo'), 'non-ArrayBuffer argument, string');
 });
 
 if (DESCRIPTORS) {
@@ -83,65 +69,31 @@ if (DESCRIPTORS) {
     let dataview = new DataView(buffer);
     assert.same(dataview.byteLength, 8, 'buffer');
     assert.same(dataview.byteOffset, 0, 'buffer');
-    assert.throws(() => {
-      return dataview.getUint8(-2);
-    });
-    assert.throws(() => {
-      return dataview.getUint8(8);
-    }, 'bounds for buffer');
-    assert.throws(() => {
-      return dataview.setUint8(-2, 0);
-    }, 'bounds for buffer');
-    assert.throws(() => {
-      return dataview.setUint8(8, 0);
-    }, 'bounds for buffer');
+    assert.throws(() => dataview.getUint8(-2));
+    assert.throws(() => dataview.getUint8(8), 'bounds for buffer');
+    assert.throws(() => dataview.setUint8(-2, 0), 'bounds for buffer');
+    assert.throws(() => dataview.setUint8(8, 0), 'bounds for buffer');
     dataview = new DataView(buffer, 2);
     assert.same(dataview.byteLength, 6, 'buffer, byteOffset');
     assert.same(dataview.byteOffset, 2, 'buffer, byteOffset');
     assert.same(dataview.getUint8(5), 7, 'buffer, byteOffset');
-    assert.throws(() => {
-      return dataview.getUint8(-2);
-    }, 'bounds for buffer, byteOffset');
-    assert.throws(() => {
-      return dataview.getUint8(6);
-    }, 'bounds for buffer, byteOffset');
-    assert.throws(() => {
-      return dataview.setUint8(-2, 0);
-    }, 'bounds for buffer, byteOffset');
-    assert.throws(() => {
-      return dataview.setUint8(6, 0);
-    }, 'bounds for buffer, byteOffset');
-    assert.throws(() => {
-      return new DataView(buffer, -1);
-    }, 'invalid byteOffset');
-    assert.throws(() => {
-      return new DataView(buffer, 9);
-    }, 'invalid byteOffset');
+    assert.throws(() => dataview.getUint8(-2), 'bounds for buffer, byteOffset');
+    assert.throws(() => dataview.getUint8(6), 'bounds for buffer, byteOffset');
+    assert.throws(() => dataview.setUint8(-2, 0), 'bounds for buffer, byteOffset');
+    assert.throws(() => dataview.setUint8(6, 0), 'bounds for buffer, byteOffset');
+    assert.throws(() => new DataView(buffer, -1), 'invalid byteOffset');
+    assert.throws(() => new DataView(buffer, 9), 'invalid byteOffset');
     dataview = new DataView(buffer, 2, 4);
     assert.same(dataview.byteLength, 4, 'buffer, byteOffset, length');
     assert.same(dataview.byteOffset, 2, 'buffer, byteOffset, length');
     assert.same(dataview.getUint8(3), 5, 'buffer, byteOffset, length');
-    assert.throws(() => {
-      return dataview.getUint8(-2);
-    }, 'bounds for buffer, byteOffset, length');
-    assert.throws(() => {
-      return dataview.getUint8(4);
-    }, 'bounds for buffer, byteOffset, length');
-    assert.throws(() => {
-      return dataview.setUint8(-2, 0);
-    }, 'bounds for buffer, byteOffset, length');
-    assert.throws(() => {
-      return dataview.setUint8(4, 0);
-    }, 'bounds for buffer, byteOffset, length');
-    assert.throws(() => {
-      return new DataView(buffer, 0, 9);
-    }, 'invalid byteOffset+length');
-    assert.throws(() => {
-      return new DataView(buffer, 8, 1);
-    }, 'invalid byteOffset+length');
-    assert.throws(() => {
-      return new DataView(buffer, 9, -1);
-    }, 'invalid byteOffset+length');
+    assert.throws(() => dataview.getUint8(-2), 'bounds for buffer, byteOffset, length');
+    assert.throws(() => dataview.getUint8(4), 'bounds for buffer, byteOffset, length');
+    assert.throws(() => dataview.setUint8(-2, 0), 'bounds for buffer, byteOffset, length');
+    assert.throws(() => dataview.setUint8(4, 0), 'bounds for buffer, byteOffset, length');
+    assert.throws(() => new DataView(buffer, 0, 9), 'invalid byteOffset+length');
+    assert.throws(() => new DataView(buffer, 8, 1), 'invalid byteOffset+length');
+    assert.throws(() => new DataView(buffer, 9, -1), 'invalid byteOffset+length');
   });
 }
 

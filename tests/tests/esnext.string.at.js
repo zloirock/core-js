@@ -91,11 +91,7 @@ QUnit.test('String#at', assert => {
     },
   }, 2), 'c');
   if (STRICT) {
-    assert.throws(() => {
-      return at.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return at.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => at.call(null, 0), TypeError);
+    assert.throws(() => at.call(undefined, 0), TypeError);
   }
 });

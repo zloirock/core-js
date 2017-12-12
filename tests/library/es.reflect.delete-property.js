@@ -16,7 +16,5 @@ QUnit.test('Reflect.deleteProperty', assert => {
       value: 42,
     }), 'foo'), false);
   }
-  assert.throws(() => {
-    return deleteProperty(42, 'foo');
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => deleteProperty(42, 'foo'), TypeError, 'throws on primitive');
 });

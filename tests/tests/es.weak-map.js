@@ -81,11 +81,7 @@ QUnit.test('WeakMap#delete', assert => {
   assert.ok(weakmap.has(a) && weakmap.has(b), 'WeakMap has values before .delete()');
   weakmap.delete(a);
   assert.ok(!weakmap.has(a) && weakmap.has(b), 'WeakMap hasn`t value after .delete()');
-  assert.ok((() => {
-    try {
-      return !weakmap.delete(1);
-    } catch (e) { /* empty */ }
-  })(), 'return false on primitive');
+  assert.notThrows(() => !weakmap.delete(1), 'return false on primitive');
 });
 
 QUnit.test('WeakMap#get', assert => {
@@ -101,11 +97,7 @@ QUnit.test('WeakMap#get', assert => {
   assert.strictEqual(weakmap.get(object), 42, 'WeakMap .get() return value');
   weakmap.delete(object);
   assert.strictEqual(weakmap.get(object), undefined, 'WeakMap .get() after .delete() return undefined');
-  assert.ok((() => {
-    try {
-      return weakmap.get(1) === undefined;
-    } catch (e) { /* empty */ }
-  })(), 'return undefined on primitive');
+  assert.notThrows(() => weakmap.get(1) === undefined, 'return undefined on primitive');
 });
 
 QUnit.test('WeakMap#has', assert => {
@@ -121,11 +113,7 @@ QUnit.test('WeakMap#has', assert => {
   assert.ok(weakmap.has(object), 'WeakMap .has() return true');
   weakmap.delete(object);
   assert.ok(!weakmap.has(object), 'WeakMap .has() after .delete() return false');
-  assert.ok((() => {
-    try {
-      return !weakmap.has(1);
-    } catch (e) { /* empty */ }
-  })(), 'return false on primitive');
+  assert.notThrows(() => !weakmap.has(1), 'return false on primitive');
 });
 
 QUnit.test('WeakMap#set', assert => {
@@ -139,13 +127,7 @@ QUnit.test('WeakMap#set', assert => {
   weakmap.set(object, 33);
   assert.same(weakmap.get(object), 33, 'works with object as keys');
   assert.ok(weakmap.set({}, 42) === weakmap, 'chaining');
-  assert.ok((() => {
-    try {
-      new WeakMap().set(42, 42);
-    } catch (e) {
-      return true;
-    }
-  })(), 'throws with primitive keys');
+  assert.throws(() => new WeakMap().set(42, 42), 'throws with primitive keys');
 });
 
 QUnit.test('WeakMap#@@toStringTag', assert => {

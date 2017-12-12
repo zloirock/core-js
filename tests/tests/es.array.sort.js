@@ -7,23 +7,11 @@ QUnit.test('Array#sort', assert => {
   assert.name(sort, 'sort');
   assert.looksNative(sort);
   assert.nonEnumerable(Array.prototype, 'sort');
-  assert.ok((() => {
-    try {
-      return [1, 2, 3].sort(undefined);
-    } catch (e) { /* empty */ }
-  })(), 'works with undefined');
-  assert.throws(() => {
-    [1, 2, 3].sort(null);
-  }, 'throws on null');
-  assert.throws(() => {
-    [1, 2, 3].sort({});
-  }, 'throws on {}');
+  assert.notThrows(() => [1, 2, 3].sort(undefined).length === 3, 'works with undefined');
+  assert.throws(() => [1, 2, 3].sort(null), 'throws on null');
+  assert.throws(() => [1, 2, 3].sort({}), 'throws on {}');
   if (STRICT) {
-    assert.throws(() => {
-      return sort.call(null);
-    }, TypeError, 'ToObject(this)');
-    assert.throws(() => {
-      return sort.call(undefined);
-    }, TypeError, 'ToObject(this)');
+    assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
+    assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');
   }
 });

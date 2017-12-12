@@ -7,25 +7,11 @@ QUnit.test('Number#toPrecision', assert => {
   assert.same(toPrecision(NaN, 1), 'NaN', 'If x is NaN, return the String "NaN".');
   assert.same(toPrecision(123.456), '123.456', 'If precision is undefined, return ! ToString(x).');
   assert.same(toPrecision(123.456, undefined), '123.456', 'If precision is undefined, return ! ToString(x).');
-  assert.throws(() => {
-    return toPrecision(0.9, 0);
-  }, RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
-  assert.throws(() => {
-    return toPrecision(0.9, 101);
-  }, RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
-  assert.throws(() => {
-    return toPrecision({}, 1);
-  }, TypeError, '? thisNumberValue(this value)');
-  assert.throws(() => {
-    return toPrecision('123', 1);
-  }, TypeError, '? thisNumberValue(this value)');
-  assert.throws(() => {
-    return toPrecision(false, 1);
-  }, TypeError, '? thisNumberValue(this value)');
-  assert.throws(() => {
-    return toPrecision(null, 1);
-  }, TypeError, '? thisNumberValue(this value)');
-  assert.throws(() => {
-    return toPrecision(undefined, 1);
-  }, TypeError, '? thisNumberValue(this value)');
+  assert.throws(() => toPrecision(0.9, 0), RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
+  assert.throws(() => toPrecision(0.9, 101), RangeError, 'If p < 1 or p > 21, throw a RangeError exception.');
+  assert.throws(() => toPrecision({}, 1), TypeError, '? thisNumberValue(this value)');
+  assert.throws(() => toPrecision('123', 1), TypeError, '? thisNumberValue(this value)');
+  assert.throws(() => toPrecision(false, 1), TypeError, '? thisNumberValue(this value)');
+  assert.throws(() => toPrecision(null, 1), TypeError, '? thisNumberValue(this value)');
+  assert.throws(() => toPrecision(undefined, 1), TypeError, '? thisNumberValue(this value)');
 });

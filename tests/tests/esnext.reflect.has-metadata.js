@@ -6,9 +6,7 @@ QUnit.test('Reflect.hasMetadata', assert => {
   assert.name(hasMetadata, 'hasMetadata');
   assert.looksNative(hasMetadata);
   assert.nonEnumerable(Reflect, 'hasMetadata');
-  assert.throws(() => {
-    return hasMetadata('key', undefined, undefined);
-  }, TypeError);
+  assert.throws(() => hasMetadata('key', undefined, undefined), TypeError);
   assert.same(hasMetadata('key', {}, undefined), false);
   let object = {};
   defineMetadata('key', 'value', object, undefined);

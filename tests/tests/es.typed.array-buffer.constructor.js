@@ -12,18 +12,8 @@ QUnit.test('ArrayBuffer', assert => {
   if (NATIVE) assert.looksNative(ArrayBuffer);
   assert.same(new ArrayBuffer(123).byteLength, 123, 'length');
   // fails in Safari
-  assert.throws(() => {
-    return new ArrayBuffer(-1);
-  }, RangeError, 'negative length');
-  assert.ok(function () {
-    try {
-      return new ArrayBuffer(0.5);
-    } catch (e) { /* empty */ }
-  }(), 'fractional length');
-  assert.ok(function () {
-    try {
-      return new ArrayBuffer();
-    } catch (e) { /* empty */ }
-  }(), 'missed length');
+  assert.throws(() => new ArrayBuffer(-1), RangeError, 'negative length');
+  assert.notThrows(() => new ArrayBuffer(0.5), 'fractional length');
+  assert.notThrows(() => new ArrayBuffer(), 'missed length');
   if (DESCRIPTORS) assert.same(ArrayBuffer[Symbol.species], ArrayBuffer, '@@species');
 });
