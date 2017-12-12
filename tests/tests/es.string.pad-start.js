@@ -15,11 +15,7 @@ QUnit.test('String#padStart', assert => {
   assert.strictEqual('foo'.padStart(1), 'foo');
   assert.strictEqual('foo'.padStart(5, ''), 'foo');
   if (STRICT) {
-    assert.throws(() => {
-      return padStart.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return padStart.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => padStart.call(null, 0), TypeError);
+    assert.throws(() => padStart.call(undefined, 0), TypeError);
   }
 });

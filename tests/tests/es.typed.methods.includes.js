@@ -14,8 +14,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.includes', assert => {
     assert.same(new TypedArray([1, 2, 3]).includes(2, 1), true);
     assert.same(new TypedArray([1, 2, 3]).includes(2, -1), false);
     assert.same(new TypedArray([1, 2, 3]).includes(2, -2), true);
-    assert.throws(() => {
-      return includes.call([1], 1);
-    }, "isn't generic");
+    assert.throws(() => includes.call([1], 1), "isn't generic");
   }
 });

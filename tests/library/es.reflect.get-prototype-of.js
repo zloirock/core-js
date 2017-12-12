@@ -6,7 +6,5 @@ QUnit.test('Reflect.getPrototypeOf', assert => {
     assert.name(getPrototypeOf, 'getPrototypeOf');
   }
   assert.strictEqual(getPrototypeOf([]), Array.prototype);
-  assert.throws(() => {
-    return getPrototypeOf(42);
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => getPrototypeOf(42), TypeError, 'throws on primitive');
 });

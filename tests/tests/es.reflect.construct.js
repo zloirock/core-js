@@ -17,23 +17,11 @@ QUnit.test('Reflect.construct', assert => {
   }, [], Array);
   assert.strictEqual(instance.x, 42, 'constructor with newTarget');
   assert.ok(instance instanceof Array, 'prototype with newTarget');
-  assert.throws(() => {
-    construct(42, []);
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => construct(42, []), TypeError, 'throws on primitive');
   function B() { /* empty */ }
   B.prototype = 42;
-  assert.ok(function () {
-    try {
-      return getPrototypeOf(construct(B, [])) === Object.prototype;
-    } catch (e) { /* empty */ }
-  }());
-  assert.same(typeof (function () {
-    try {
-      return construct(Date, []).getTime();
-    } catch (e) { /* empty */ }
-  }()), 'number', 'works with native constructors with 2 arguments');
-  assert.throws(() => {
-    return construct(() => { /* empty */ });
-  }, 'throws when the second argument is not an object');
+  assert.notThrows(() => getPrototypeOf(construct(B, [])) === Object.prototype);
+  assert.notThrows(() => typeof construct(Date, []).getTime() == 'number', 'works with native constructors with 2 arguments');
+  assert.throws(() => construct(() => { /* empty */ }), 'throws when the second argument is not an object');
 });
 

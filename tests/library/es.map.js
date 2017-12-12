@@ -145,9 +145,7 @@ QUnit.test('Map#forEach', assert => {
     result += it;
   });
   assert.strictEqual(result, '1');
-  assert.throws(() => {
-    return Map.prototype.forEach.call(new Set(), () => { /* empty */ });
-  }, 'non-generic');
+  assert.throws(() => Map.prototype.forEach.call(new Set(), () => { /* empty */ }), 'non-generic');
 });
 
 QUnit.test('Map#get', assert => {
@@ -236,9 +234,7 @@ QUnit.test('Map#size', assert => {
     const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
     assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
     assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
-    assert.throws(() => {
-      return Map.prototype.size;
-    }, TypeError);
+    assert.throws(() => Map.prototype.size, TypeError);
   }
 });
 

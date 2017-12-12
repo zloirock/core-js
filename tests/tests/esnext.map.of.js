@@ -9,9 +9,7 @@ QUnit.test('Map.of', assert => {
   assert.ok(Map.of() instanceof Map);
   assert.deepEqual(toArray(Map.of([1, 2])), [[1, 2]]);
   assert.deepEqual(toArray(Map.of([1, 2], [2, 3], [1, 4])), [[1, 4], [2, 3]]);
-  assert.throws(() => {
-    of(1);
-  });
+  assert.throws(() => of(1));
   let arg = null;
   function F(it) {
     return arg = it;

@@ -20,9 +20,7 @@ QUnit.test('Set.from', assert => {
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(() => {
-    return from(1);
-  });
+  assert.throws(() => from(1));
   let arg = null;
   function F(it) {
     return arg = it;

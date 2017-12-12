@@ -16,8 +16,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
     assert.arrayEqual(new TypedArray(5).fill(5, 1, 4), [0, 5, 5, 5, 0], 'end index');
     assert.arrayEqual(new TypedArray(5).fill(5, 6, 1), [0, 0, 0, 0, 0], 'start > end');
     assert.arrayEqual(new TypedArray(5).fill(5, -3, 4), [0, 0, 5, 5, 0], 'negative start index');
-    assert.throws(() => {
-      return fill.call([0], 1);
-    }, "isn't generic");
+    assert.throws(() => fill.call([0], 1), "isn't generic");
   }
 });

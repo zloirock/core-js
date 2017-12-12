@@ -28,8 +28,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.find', assert => {
     });
     assert.same(values, '123');
     assert.same(keys, '012');
-    assert.throws(() => {
-      return find.call([0], () => { /* empty */ });
-    }, "isn't generic");
+    assert.throws(() => find.call([0], () => { /* empty */ }), "isn't generic");
   }
 });

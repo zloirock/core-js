@@ -53,11 +53,7 @@ QUnit.test('String#codePointAt', assert => {
   assert.strictEqual(codePointAt('\uDF06abc', null), 0xDF06);
   assert.strictEqual(codePointAt('\uDF06abc', undefined), 0xDF06);
   if (STRICT) {
-    assert.throws(() => {
-      return codePointAt(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return codePointAt(undefined, 0);
-    }, TypeError);
+    assert.throws(() => codePointAt(null, 0), TypeError);
+    assert.throws(() => codePointAt(undefined, 0), TypeError);
   }
 });

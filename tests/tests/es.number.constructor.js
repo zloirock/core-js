@@ -149,24 +149,16 @@ QUnit.test('Number constructor: regression', assert => {
     },
   }).valueOf(), 2, 'new Number call toString only once #1');
   assert.strictEqual(number, 2, 'new Number call toString only once #2');
-  assert.throws(() => {
-    return Number(Object.create(null));
-  }, TypeError, 'Number assert.throws on object w/o valueOf and toString');
-  assert.throws(() => {
-    return Number({
-      valueOf: 1,
-      toString: 2,
-    });
-  }, TypeError, 'Number assert.throws on object then valueOf and toString are not functions');
-  assert.throws(() => {
-    return new Number(Object.create(null));
-  }, TypeError, 'new Number assert.throws on object w/o valueOf and toString');
-  assert.throws(() => {
-    return new Number({
-      valueOf: 1,
-      toString: 2,
-    });
-  }, TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
+  assert.throws(() => Number(Object.create(null)), TypeError, 'Number assert.throws on object w/o valueOf and toString');
+  assert.throws(() => Number({
+    valueOf: 1,
+    toString: 2,
+  }), TypeError, 'Number assert.throws on object then valueOf and toString are not functions');
+  assert.throws(() => new Number(Object.create(null)), TypeError, 'new Number assert.throws on object w/o valueOf and toString');
+  assert.throws(() => new Number({
+    valueOf: 1,
+    toString: 2,
+  }), TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
   number = new Number(42);
   assert.strictEqual(typeof number.constructor(number), 'number');
   check(`${ whitespaces }42`, 42);

@@ -15,25 +15,17 @@ QUnit.test('Array#fill', assert => {
   assert.deepEqual(Array(5).fill(5, 6, 1), [undefined, undefined, undefined, undefined, undefined]);
   assert.deepEqual(Array(5).fill(5, -3, 4), [undefined, undefined, 5, 5, undefined]);
   if (STRICT) {
-    assert.throws(() => {
-      return fill.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return fill.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => fill.call(null, 0), TypeError);
+    assert.throws(() => fill.call(undefined, 0), TypeError);
   }
   if (NATIVE && DESCRIPTORS) {
-    assert.ok((() => {
-      try {
-        return fill.call(Object.defineProperty({
-          length: -1,
-        }, 0, {
-          set() {
-            throw Error();
-          },
-        }));
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => fill.call(Object.defineProperty({
+      length: -1,
+    }, 0, {
+      set() {
+        throw Error();
+      },
+    })), 'uses ToLength');
   }
   assert.ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

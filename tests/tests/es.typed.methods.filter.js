@@ -29,8 +29,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.filter', assert => {
     });
     assert.same(values, '123');
     assert.same(keys, '012');
-    assert.throws(() => {
-      return filter.call([0], () => { /* empty */ });
-    }, "isn't generic");
+    assert.throws(() => filter.call([0], () => { /* empty */ }), "isn't generic");
   }
 });

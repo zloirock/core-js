@@ -27,18 +27,10 @@ QUnit.test('Reflect.defineProperty', assert => {
       value: 42,
     }), false);
   }
-  assert.throws(() => {
-    return defineProperty(42, 'foo', {
-      value: 42,
-    });
-  }, TypeError, 'throws on primitive');
-  assert.throws(() => {
-    return defineProperty(42, 1, {});
-  });
-  assert.throws(() => {
-    return defineProperty({}, create(null), {});
-  });
-  assert.throws(() => {
-    return defineProperty({}, 1, 1);
-  });
+  assert.throws(() => defineProperty(42, 'foo', {
+    value: 42,
+  }), TypeError, 'throws on primitive');
+  assert.throws(() => defineProperty(42, 1, {}));
+  assert.throws(() => defineProperty({}, create(null), {}));
+  assert.throws(() => defineProperty({}, 1, 1));
 });

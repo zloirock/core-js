@@ -10,11 +10,7 @@ QUnit.test('String#trim', assert => {
   assert.strictEqual(trim(whitespaces), '', 'removes all whitespaces');
   assert.strictEqual(trim('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert.throws(() => {
-      return trim(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return trim(undefined, 0);
-    }, TypeError);
+    assert.throws(() => trim(null, 0), TypeError);
+    assert.throws(() => trim(undefined, 0), TypeError);
   }
 });

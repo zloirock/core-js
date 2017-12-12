@@ -13,7 +13,5 @@ QUnit.test('Reflect.preventExtensions', assert => {
   if (DESCRIPTORS) {
     assert.ok(!isExtensible(object));
   }
-  assert.throws(() => {
-    return preventExtensions(42);
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => preventExtensions(42), TypeError, 'throws on primitive');
 });

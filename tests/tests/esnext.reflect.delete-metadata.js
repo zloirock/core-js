@@ -6,9 +6,7 @@ QUnit.test('Reflect.deleteMetadata', assert => {
   assert.name(deleteMetadata, 'deleteMetadata');
   assert.looksNative(deleteMetadata);
   assert.nonEnumerable(Reflect, 'deleteMetadata');
-  assert.throws(() => {
-    return deleteMetadata('key', undefined, undefined);
-  }, TypeError);
+  assert.throws(() => deleteMetadata('key', undefined, undefined), TypeError);
   assert.same(deleteMetadata('key', {}, undefined), false);
   let object = {};
   defineMetadata('key', 'value', object, undefined);

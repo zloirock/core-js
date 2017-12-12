@@ -9,35 +9,15 @@ QUnit.test('String#includes', assert => {
   assert.ok(includes('abcd', 'b', 1));
   assert.ok(!includes('abcd', 'b', 2));
   if (STRICT) {
-    assert.throws(() => {
-      includes(null, '.');
-    }, TypeError);
-    assert.throws(() => {
-      includes(undefined, '.');
-    }, TypeError);
+    assert.throws(() => includes(null, '.'), TypeError);
+    assert.throws(() => includes(undefined, '.'), TypeError);
   }
   const re = /./;
-  assert.throws(() => {
-    includes('/./', re);
-  }, TypeError);
+  assert.throws(() => includes('/./', re), TypeError);
   re[Symbol.match] = false;
-  assert.ok(function () {
-    try {
-      return includes('/./', re);
-    } catch (e) {
-      return false;
-    }
-  }());
+  assert.notThrows(() => includes('/./', re));
   const O = {};
-  assert.ok(function () {
-    try {
-      return includes('[object Object]', O);
-    } catch (e) {
-      return false;
-    }
-  }());
+  assert.notThrows(() => includes('[object Object]', O));
   O[Symbol.match] = true;
-  assert.throws(() => {
-    return includes('[object Object]', O);
-  }, TypeError);
+  assert.throws(() => includes('[object Object]', O), TypeError);
 });

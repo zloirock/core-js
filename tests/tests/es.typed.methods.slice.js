@@ -19,8 +19,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.slice', assert => {
     assert.arrayEqual(array.slice(1, -1), [2, 3, 4]);
     assert.arrayEqual(array.slice(-2, -1), [4]);
     assert.arrayEqual(array.slice(-2, -3), []);
-    assert.throws(() => {
-      return slice.call([1, 2], 1);
-    }, "isn't generic");
+    assert.throws(() => slice.call([1, 2], 1), "isn't generic");
   }
 });

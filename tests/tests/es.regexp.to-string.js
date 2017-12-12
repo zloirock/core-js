@@ -23,20 +23,10 @@ QUnit.test('RegExp#toString', assert => {
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
   if (STRICT) {
-    assert.throws(() => {
-      return toString.call(7);
-    });
-    assert.throws(() => {
-      return toString.call('a');
-    });
-    assert.throws(() => {
-      return toString.call(false);
-    });
-    assert.throws(() => {
-      return toString.call(null);
-    });
-    assert.throws(() => {
-      return toString.call(undefined);
-    });
+    assert.throws(() => toString.call(7));
+    assert.throws(() => toString.call('a'));
+    assert.throws(() => toString.call(false));
+    assert.throws(() => toString.call(null));
+    assert.throws(() => toString.call(undefined));
   }
 });
