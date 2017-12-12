@@ -72,11 +72,7 @@ QUnit.test('String#matchAll', assert => {
     }, TypeError, `Throws on ${ target } as first argument`);
   }
   if (STRICT) {
-    assert.throws(() => {
-      return matchAll(null, /./);
-    }, TypeError, 'Throws on null as `this`');
-    assert.throws(() => {
-      return matchAll(undefined, /./);
-    }, TypeError, 'Throws on undefined as `this`');
+    assert.throws(() => matchAll(null, /./), TypeError, 'Throws on null as `this`');
+    assert.throws(() => matchAll(undefined, /./), TypeError, 'Throws on undefined as `this`');
   }
 });

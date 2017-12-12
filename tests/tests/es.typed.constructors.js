@@ -21,75 +21,65 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 0, `${ name }#byteOffset, passed number`);
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed number');
       assert.arrayEqual(array, [0, 0, 0, 0], 'correct values, passed number');
-      try {
+      assert.notThrows(() => {
         // throws in IE / Edge / FF
         array = new TypedArray('0x4');
         assert.same(array.byteOffset, 0, '#byteOffset, passed string');
         assert.same(array.byteLength, 4 * bytes, '#byteLength, passed string');
         assert.arrayEqual(array, [0, 0, 0, 0], 'correct values, passed string');
-      } catch (e) {
-        assert.same(e, [0, 0, 0, 0], 'passed string');
-      }
-      try {
+        return true;
+      }, 'passed string');
+      assert.notThrows(() => {
         // throws in IE / Edge / FF
         array = new TypedArray(true);
         assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
         assert.same(array.byteLength, 1 * bytes, '#byteLength, passed boolean');
         assert.arrayEqual(array, [0], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [0], 'passed boolean');
-      }
-      try {
+        return true;
+      }, 'passed boolean');
+      assert.notThrows(() => {
         array = new TypedArray();
-        assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
-        assert.same(array.byteLength, 0, '#byteLength, passed boolean');
-        assert.arrayEqual(array, [], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [], 'passed boolean');
-      }
-      try {
+        assert.same(array.byteOffset, 0, '#byteOffset, without arguments');
+        assert.same(array.byteLength, 0, '#byteLength, without arguments');
+        assert.arrayEqual(array, [], 'correct values, without arguments');
+        return true;
+      }, 'without arguments');
+      assert.notThrows(() => {
         array = new TypedArray(undefined);
-        assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
-        assert.same(array.byteLength, 0, '#byteLength, passed boolean');
-        assert.arrayEqual(array, [], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [], 'passed boolean');
-      }
-      try {
+        assert.same(array.byteOffset, 0, '#byteOffset, passed undefined');
+        assert.same(array.byteLength, 0, '#byteLength, passed undefined');
+        assert.arrayEqual(array, [], 'correct values, passed undefined');
+        return true;
+      }, 'passed undefined');
+      assert.notThrows(() => {
         array = new TypedArray(-0);
-        assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
-        assert.same(array.byteLength, 0, '#byteLength, passed boolean');
-        assert.arrayEqual(array, [], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [], 'passed boolean');
-      }
-      try {
+        assert.same(array.byteOffset, 0, '#byteOffset, passed -0');
+        assert.same(array.byteLength, 0, '#byteLength, passed -0');
+        assert.arrayEqual(array, [], 'correct values, passed -0');
+        return true;
+      }, 'passed -0');
+      assert.notThrows(() => {
         array = new TypedArray(NaN);
-        assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
-        assert.same(array.byteLength, 0, '#byteLength, passed boolean');
-        assert.arrayEqual(array, [], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [], 'passed boolean');
-      }
-      try {
+        assert.same(array.byteOffset, 0, '#byteOffset, passed NaN');
+        assert.same(array.byteLength, 0, '#byteLength, passed NaN');
+        assert.arrayEqual(array, [], 'correct values, passed NaN');
+        return true;
+      }, 'passed NaN');
+      assert.notThrows(() => {
         array = new TypedArray(1.5);
-        assert.same(array.byteOffset, 0, '#byteOffset, passed boolean');
-        assert.same(array.byteLength, 1 * bytes, '#byteLength, passed boolean');
-        assert.arrayEqual(array, [0], 'correct values, passed boolean');
-      } catch (e) {
-        assert.same(e, [0], 'passed boolean');
-      }
-      if (NATIVE) assert.throws(() => {
-        new TypedArray(-1);
-      }, RangeError, 'throws on -1');
-      try {
+        assert.same(array.byteOffset, 0, '#byteOffset, passed 1.5');
+        assert.same(array.byteLength, 1 * bytes, '#byteLength, passed 1.5');
+        assert.arrayEqual(array, [0], 'correct values, passed 1.5');
+        return true;
+      }, 'passed 1.5');
+      if (NATIVE) assert.throws(() => new TypedArray(-1), RangeError, 'throws on -1');
+      assert.notThrows(() => {
         array = new TypedArray(null);
         assert.same(array.byteOffset, 0, '#byteOffset, passed null');
         assert.same(array.byteLength, 0, '#byteLength, passed null');
         assert.arrayEqual(array, [], 'correct values, passed null');
-      } catch (e) {
-        assert.same(e, [], 'passed null');
-      }
+        return true;
+      }, 'passed null');
       array = new TypedArray([1, 2, 3, 4]);
       assert.same(array.byteOffset, 0, '#byteOffset, passed array');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed array');
@@ -104,23 +94,21 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 0, '#byteOffset, passed array-like');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed array-like');
       assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed array-like');
-      try {
+      assert.notThrows(() => {
         // throws in IE / Edge
         array = new TypedArray({});
         assert.same(array.byteOffset, 0, '#byteOffset, passed empty object (also array-like case)');
         assert.same(array.byteLength, 0, '#byteLength, passed empty object (also array-like case)');
         assert.arrayEqual(array, [], 'correct values, passed empty object (also array-like case)');
-      } catch (e) {
-        assert.same(e, [], 'passed empty object (also array-like case)');
-      }
-      try {
+        return true;
+      }, 'passed empty object (also array-like case)');
+      assert.notThrows(() => {
         array = new TypedArray(createIterable([1, 2, 3, 4]));
         assert.same(array.byteOffset, 0, '#byteOffset, passed iterable');
         assert.same(array.byteLength, 4 * bytes, '#byteLength, passed iterable');
         assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed iterable');
-      } catch (e) {
-        assert.same(e, [1, 2, 3, 4], 'passed iterable');
-      }
+        return true;
+      }, 'passed iterable');
       array = new TypedArray(new TypedArray([1, 2, 3, 4]));
       assert.same(array.byteOffset, 0, '#byteOffset, passed typed array');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed typed array');
@@ -158,40 +146,24 @@ if (DESCRIPTORS) {
       assert.same(array.byteOffset, 8, '#byteOffset, passed buffer and byteOffset with buffer length');
       assert.same(array.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
       assert.arrayEqual(array, [], 'correct values, passed buffer and byteOffset with buffer length');
-      assert.throws(() => {
-        // FF bug - TypeError instead of RangeError
-        return new TypedArray(new ArrayBuffer(8), -1);
-      }, RangeError, 'If offset < 0, throw a RangeError exception');
+      // FF bug - TypeError instead of RangeError
+      assert.throws(() => new TypedArray(new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception');
       if (bytes !== 1) {
-        assert.throws(() => {
-          // FF bug - TypeError instead of RangeError
-          return new TypedArray(new ArrayBuffer(8), 3);
-        }, RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
+        // FF bug - TypeError instead of RangeError
+        assert.throws(() => new TypedArray(new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
       }
       if (NATIVE) {
         if (bytes !== 1) {
-          assert.throws(() => {
-            // fails in Opera 12
-            return new TypedArray(new ArrayBuffer(9));
-          }, RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
+          // fails in Opera 12
+          assert.throws(() => new TypedArray(new ArrayBuffer(9)), RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
         }
-        assert.throws(() => {
-          return new TypedArray(new ArrayBuffer(8), 16);
-        }, RangeError, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(() => {
-          return new TypedArray(new ArrayBuffer(24), 8, 24);
-        }, RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+        assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception');
+        assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       } else { // FF bug - TypeError instead of RangeError
-        assert.throws(() => {
-          return new TypedArray(new ArrayBuffer(8), 16);
-        }, 'If newByteLength < 0, throw a RangeError exception');
-        assert.throws(() => {
-          return new TypedArray(new ArrayBuffer(24), 8, 24);
-        }, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+        assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
+        assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       }
-      assert.throws(() => {
-        return TypedArray(1);
-      }, TypeError, 'throws without `new`');
+      assert.throws(() => TypedArray(1), TypeError, 'throws without `new`');
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
     });
 
@@ -234,50 +206,30 @@ if (DESCRIPTORS) {
         assert.deepEqual(getOwnPropertyDescriptor(array, 0), assign({
           value: array[1],
         }, base), 'Object.defineProperty, valid descriptor #2');
-        try {
-          defineProperty(array, 0, {
-            value: 2,
-            writable: false,
-            enumerable: true,
-            configurable: false,
-          });
-          assert.ok(false, 'Object.defineProperty, invalid descriptor #1');
-        } catch (e) {
-          assert.ok(true, 'Object.defineProperty, invalid descriptor #1');
-        }
-        try {
-          defineProperty(array, 0, {
-            value: 2,
-            writable: true,
-            enumerable: false,
-            configurable: false,
-          });
-          assert.ok(false, 'Object.defineProperty, invalid descriptor #2');
-        } catch (e) {
-          assert.ok(true, 'Object.defineProperty, invalid descriptor #2');
-        }
-        try {
-          defineProperty(array, 0, {
-            get() {
-              return 2;
-            },
-          });
-          assert.ok(false, 'Object.defineProperty, invalid descriptor #3');
-        } catch (e) {
-          assert.ok(true, 'Object.defineProperty, invalid descriptor #3');
-        }
-      }
-      try {
-        defineProperty(array, 0, {
+        assert.throws(() => defineProperty(array, 0, {
           value: 2,
+          writable: false,
+          enumerable: true,
+          configurable: false,
+        }), 'Object.defineProperty, invalid descriptor #1');
+        assert.throws(() => defineProperty(array, 0, {
+          value: 2,
+          writable: true,
+          enumerable: false,
+          configurable: false,
+        }), 'Object.defineProperty, invalid descriptor #2');
+        assert.throws(() => defineProperty(array, 0, {
           get() {
             return 2;
           },
-        });
-        assert.ok(false, 'Object.defineProperty, invalid descriptor #4');
-      } catch (e) {
-        assert.ok(true, 'Object.defineProperty, invalid descriptor #4');
+        }), 'Object.defineProperty, invalid descriptor #3');
       }
+      assert.throws(() => defineProperty(array, 0, {
+        value: 2,
+        get() {
+          return 2;
+        },
+      }), 'Object.defineProperty, invalid descriptor #4');
     });
   }
 }

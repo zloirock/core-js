@@ -19,24 +19,16 @@ QUnit.test('Array#find', assert => {
   assert.same([1, 3, NaN, 42, {}].find(it => it === 42), 42);
   assert.same([1, 3, NaN, 42, {}].find(it => it === 43), undefined);
   if (STRICT) {
-    assert.throws(() => {
-      return find.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return find.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => find.call(null, 0), TypeError);
+    assert.throws(() => find.call(undefined, 0), TypeError);
   }
   if (NATIVE && DESCRIPTORS) {
-    assert.ok((() => {
-      try {
-        return find.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        }) === undefined;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => find.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }) === undefined, 'uses ToLength');
   }
   assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

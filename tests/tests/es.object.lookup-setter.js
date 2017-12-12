@@ -18,12 +18,8 @@ if (DESCRIPTORS) {
     assert.same(create(object).__lookupSetter__('key'), setter, 'proto getter');
     assert.same(create(object).__lookupSetter__('foo'), undefined, 'empty proto');
     if (STRICT) {
-      assert.throws(() => {
-        return __lookupSetter__.call(null, 1, () => { /* empty */ });
-      }, TypeError, 'Throws on null as `this`');
-      assert.throws(() => {
-        return __lookupSetter__.call(undefined, 1, () => { /* empty */ });
-      }, TypeError, 'Throws on undefined as `this`');
+      assert.throws(() => __lookupSetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
+      assert.throws(() => __lookupSetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
     }
   });
 }

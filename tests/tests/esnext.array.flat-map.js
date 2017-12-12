@@ -22,19 +22,11 @@ QUnit.test('Array#flatMap', assert => {
     return value;
   }, context);
   if (STRICT) {
-    assert.throws(() => {
-      return flatMap.call(null, it => it);
-    }, TypeError);
-    assert.throws(() => {
-      return flatMap.call(undefined, it => it);
-    }, TypeError);
+    assert.throws(() => flatMap.call(null, it => it), TypeError);
+    assert.throws(() => flatMap.call(undefined, it => it), TypeError);
   }
-  assert.ok((() => {
-    try {
-      return flatMap.call({ length: -1 }, () => {
-        throw new Error();
-      }).length === 0;
-    } catch (e) { /* empty */ }
-  })(), 'uses ToLength');
+  assert.notThrows(() => flatMap.call({ length: -1 }, () => {
+    throw new Error();
+  }).length === 0, 'uses ToLength');
   assert.ok('flatMap' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

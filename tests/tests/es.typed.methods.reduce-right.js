@@ -33,8 +33,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.reduceRight', assert => {
     }, 0);
     assert.same(values, '321', 'correct order #1');
     assert.same(keys, '210', 'correct order #2');
-    assert.throws(() => {
-      return reduceRight.call([0], () => { /* empty */ });
-    }, "isn't generic");
+    assert.throws(() => reduceRight.call([0], () => { /* empty */ }), "isn't generic");
   }
 });

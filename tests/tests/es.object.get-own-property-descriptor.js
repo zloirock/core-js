@@ -14,17 +14,8 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.ok(getOwnPropertyDescriptor({}, 'toString') === undefined);
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
-    assert.ok((() => {
-      try {
-        getOwnPropertyDescriptor(value);
-        return true;
-      } catch (e) { /* empty */ }
-    })(), `accept ${ typeof value }`);
+    assert.notThrows(() => getOwnPropertyDescriptor(value) || true, `accept ${ typeof value }`);
   }
-  assert.throws(() => {
-    return getOwnPropertyDescriptor(null);
-  }, TypeError, 'throws on null');
-  assert.throws(() => {
-    return getOwnPropertyDescriptor(undefined);
-  }, TypeError, 'throws on undefined');
+  assert.throws(() => getOwnPropertyDescriptor(null), TypeError, 'throws on null');
+  assert.throws(() => getOwnPropertyDescriptor(undefined), TypeError, 'throws on undefined');
 });

@@ -14,31 +14,15 @@ QUnit.test('String#includes', assert => {
   assert.ok('abcd'.includes('b', 1));
   assert.ok(!'abcd'.includes('b', 2));
   if (STRICT) {
-    assert.throws(() => {
-      return String.prototype.includes.call(null, '.');
-    }, TypeError);
-    assert.throws(() => {
-      return String.prototype.includes.call(undefined, '.');
-    }, TypeError);
+    assert.throws(() => includes.call(null, '.'), TypeError);
+    assert.throws(() => includes.call(undefined, '.'), TypeError);
   }
   const regexp = /./;
-  assert.throws(() => {
-    return '/./'.includes(regexp);
-  }, TypeError);
+  assert.throws(() => '/./'.includes(regexp), TypeError);
   regexp[Symbol.match] = false;
-  assert.ok((() => {
-    try {
-      return '/./'.includes(regexp);
-    } catch (e) { /* empty */ }
-  })());
+  assert.notThrows(() => '/./'.includes(regexp));
   const object = {};
-  assert.ok((() => {
-    try {
-      return '[object Object]'.includes(object);
-    } catch (e) { /* empty */ }
-  })());
+  assert.notThrows(() => '[object Object]'.includes(object));
   object[Symbol.match] = true;
-  assert.throws(() => {
-    return '[object Object]'.includes(object);
-  }, TypeError);
+  assert.throws(() => '[object Object]'.includes(object), TypeError);
 });

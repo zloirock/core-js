@@ -53,12 +53,8 @@ QUnit.test('Array.from', assert => {
   for (const primitive of primitives) {
     assert.arrayEqual(from(primitive), [], `Works with ${ primitive }`);
   }
-  assert.throws(() => {
-    return from(null);
-  }, TypeError, 'Throws on null');
-  assert.throws(() => {
-    return from(undefined);
-  }, TypeError, 'Throws on undefined');
+  assert.throws(() => from(null), TypeError, 'Throws on null');
+  assert.throws(() => from(undefined), TypeError, 'Throws on undefined');
   assert.arrayEqual(from('𠮷𠮷𠮷'), ['𠮷', '𠮷', '𠮷'], 'Uses correct string iterator');
   let done = true;
   from(createIterable([1, 2, 3], {
@@ -101,32 +97,18 @@ QUnit.test('Array.from', assert => {
   array = [1, 2, 3];
   delete array[1];
   assert.arrayEqual(from(array, String), ['1', 'undefined', '3'], 'Ignores holes');
-  assert.ok((() => {
-    try {
-      return from({
-        length: -1,
-        0: 1,
-      }, () => {
-        throw new Error();
-      });
-    } catch (e) { /* empty */ }
-  })(), 'Uses ToLength');
+  assert.notThrows(() => from({
+    length: -1,
+    0: 1,
+  }, () => {
+    throw new Error();
+  }), 'Uses ToLength');
   assert.arrayEqual(from([], undefined), [], 'Works with undefined as asecond argument');
-  assert.throws(() => {
-    return from([], null);
-  }, TypeError, 'Throws with null as second argument');
-  assert.throws(() => {
-    return from([], 0);
-  }, TypeError, 'Throws with 0 as second argument');
-  assert.throws(() => {
-    return from([], '');
-  }, TypeError, 'Throws with "" as second argument');
-  assert.throws(() => {
-    return from([], false);
-  }, TypeError, 'Throws with false as second argument');
-  assert.throws(() => {
-    return from([], {});
-  }, TypeError, 'Throws with {} as second argument');
+  assert.throws(() => from([], null), TypeError, 'Throws with null as second argument');
+  assert.throws(() => from([], 0), TypeError, 'Throws with 0 as second argument');
+  assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
+  assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
+  assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
   if (DESCRIPTORS) {
     let called = false;
     defineProperty(C.prototype, 0, {

@@ -14,11 +14,7 @@ QUnit.test('Array#find', assert => {
   assert.strictEqual(find([1, 3, NaN, 42, {}], it => it === 42), 42);
   assert.strictEqual(find([1, 3, NaN, 42, {}], it => it === 43), undefined);
   if (STRICT) {
-    assert.throws(() => {
-      return find(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return find(undefined, 0);
-    }, TypeError);
+    assert.throws(() => find(null, 0), TypeError);
+    assert.throws(() => find(undefined, 0), TypeError);
   }
 });

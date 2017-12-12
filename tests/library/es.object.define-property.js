@@ -8,13 +8,7 @@ QUnit.test('Object.defineProperty', assert => {
   });
   assert.same(result, source);
   assert.same(result.q, 42);
-  assert.throws(() => {
-    return defineProperty(42, 1, {});
-  });
-  assert.throws(() => {
-    return defineProperty({}, create(null), {});
-  });
-  assert.throws(() => {
-    return defineProperty({}, 1, 1);
-  });
+  assert.throws(() => defineProperty(42, 1, {}));
+  assert.throws(() => defineProperty({}, create(null), {}));
+  assert.throws(() => defineProperty({}, 1, 1));
 });

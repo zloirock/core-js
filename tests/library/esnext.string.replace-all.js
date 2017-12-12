@@ -9,31 +9,15 @@ QUnit.test('String#replaceAll', assert => {
   assert.same(replaceAll('[object Object]x[object Object]', {}, 'y'), 'yxy');
   assert.same(replaceAll({}, 'bject', 'lolo'), '[ololo Ololo]');
   if (STRICT) {
-    assert.throws(() => {
-      return replaceAll(null, 'a', 'b');
-    }, TypeError);
-    assert.throws(() => {
-      return replaceAll(undefined, 'a', 'b');
-    }, TypeError);
+    assert.throws(() => replaceAll(null, 'a', 'b'), TypeError);
+    assert.throws(() => replaceAll(undefined, 'a', 'b'), TypeError);
   }
   const regexp = /./;
-  assert.throws(() => {
-    return replaceAll('/./', regexp, 'a');
-  }, TypeError);
+  assert.throws(() => replaceAll('/./', regexp, 'a'), TypeError);
   regexp[Symbol.match] = false;
-  assert.ok((() => {
-    try {
-      return replaceAll('/./', regexp, 'a') === 'a';
-    } catch (e) { /* empty */ }
-  })());
+  assert.notThrows(() => replaceAll('/./', regexp, 'a') === 'a');
   const object = {};
-  assert.ok(function () {
-    try {
-      return replaceAll('[object Object]', object, 'a') === 'a';
-    } catch (e) { /* empty */ }
-  }());
+  assert.notThrows(() => replaceAll('[object Object]', object, 'a') === 'a');
   object[Symbol.match] = true;
-  assert.throws(() => {
-    return replaceAll('[object Object]', object, 'a');
-  }, TypeError);
+  assert.throws(() => replaceAll('[object Object]', object, 'a'), TypeError);
 });

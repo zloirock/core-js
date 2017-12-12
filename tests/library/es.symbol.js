@@ -55,9 +55,7 @@ QUnit.test('Global symbol registry', assert => {
   const symbol = Symbol.for('foo');
   assert.strictEqual(Symbol.for('foo'), symbol);
   assert.strictEqual(Symbol.keyFor(symbol), 'foo');
-  assert.throws(() => {
-    return Symbol.keyFor('foo');
-  }, 'throws on non-symbol');
+  assert.throws(() => Symbol.keyFor('foo'), 'throws on non-symbol');
 });
 
 QUnit.test('Symbol#@@toPrimitive', assert => {

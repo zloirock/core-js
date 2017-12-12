@@ -13,8 +13,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.reverse', assert => {
     assert.same(array.reverse(), array, 'return this');
     assert.arrayEqual(new TypedArray([1, 2, 3, 4]).reverse(), [4, 3, 2, 1], 'works #1');
     assert.arrayEqual(new TypedArray([1, 2, 3]).reverse(), [3, 2, 1], 'works #2');
-    assert.throws(() => {
-      return reverse.call([1, 2]);
-    }, "isn't generic");
+    assert.throws(() => reverse.call([1, 2]), "isn't generic");
   }
 });

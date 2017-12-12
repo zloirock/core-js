@@ -11,11 +11,7 @@ QUnit.test('Array#join', assert => {
   assert.strictEqual(join.call('123'), '1,2,3');
   assert.strictEqual(join.call('123', '|'), '1|2|3');
   if (STRICT) {
-    assert.throws(() => {
-      return join.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return join.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => join.call(null, 0), TypeError);
+    assert.throws(() => join.call(undefined, 0), TypeError);
   }
 });
