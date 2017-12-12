@@ -9,12 +9,7 @@ QUnit.test('Object.isFrozen', assert => {
   assert.nonEnumerable(Object, 'isFrozen');
   const primitives = [42, 'string', false, null, undefined];
   for (const value of primitives) {
-    assert.ok((() => {
-      try {
-        isFrozen(value);
-        return true;
-      } catch (e) { /* empty */ }
-    })(), `accept ${ value }`);
+    assert.notThrows(() => isFrozen(value) || true, `accept ${ value }`);
     assert.same(isFrozen(value), true, `returns true on ${ value }`);
   }
   assert.same(isFrozen({}), false);

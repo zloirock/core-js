@@ -269,9 +269,7 @@ QUnit.test('Map#size', assert => {
     const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
     assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
     assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
-    assert.throws(() => {
-      return Map.prototype.size;
-    }, TypeError);
+    assert.throws(() => Map.prototype.size, TypeError);
   }
 });
 

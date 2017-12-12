@@ -17,12 +17,8 @@ if (DESCRIPTORS) {
     object.key = 44;
     assert.ok(object.key === 42 && object.foo === 43, 'works with setter');
     if (STRICT) {
-      assert.throws(() => {
-        return __defineGetter__(null, 1, () => { /* empty */ });
-      }, TypeError, 'Throws on null as `this`');
-      assert.throws(() => {
-        return __defineGetter__(undefined, 1, () => { /* empty */ });
-      }, TypeError, 'Throws on undefined as `this`');
+      assert.throws(() => __defineGetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
+      assert.throws(() => __defineGetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
     }
   });
 }

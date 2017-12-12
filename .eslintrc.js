@@ -343,7 +343,7 @@ const babel = {
   // enforces return statements in callbacks of array's methods
   'array-callback-return': 'off',
   // specify the maximum length of a line in your program
-  'max-len': ['error', 150, 2],
+  'max-len': ['error', 180, 2],
   // specify the maximum number of statement allowed in a function
   'max-statements': 'off',
   // disallow function declarations and expressions inside loop statements

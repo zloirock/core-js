@@ -25,11 +25,7 @@ QUnit.test('Array#every', assert => {
   const arr = [1, 2, 3];
   assert.ok(every(arr, (value, key, that) => that === arr));
   if (STRICT) {
-    assert.throws(() => {
-      return every(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return every(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => every(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => every(undefined, () => { /* empty */ }), TypeError);
   }
 });

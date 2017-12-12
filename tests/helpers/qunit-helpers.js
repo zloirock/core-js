@@ -96,6 +96,23 @@ QUnit.assert.nonEnumerable = function (O, key, message) {
   });
 };
 
+QUnit.assert.notThrows = function (fn, message) {
+  let throws, result, error;
+  try {
+    result = fn();
+    throws = false;
+  } catch (e) {
+    throws = true;
+    error = e;
+  }
+  this.pushResult({
+    result: !throws && result,
+    actual: throws ? error : result,
+    expected: throws ? undefined : true,
+    message: message || 'does not throw',
+  });
+};
+
 QUnit.assert.same = function (a, b, message) {
   this.pushResult({
     result: is(a, b),

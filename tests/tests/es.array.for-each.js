@@ -52,15 +52,11 @@ QUnit.test('Array#forEach', assert => {
     }, TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return forEach.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        }) === undefined;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => forEach.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }) === undefined, 'uses ToLength');
   }
 });

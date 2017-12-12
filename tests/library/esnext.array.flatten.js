@@ -14,22 +14,14 @@ QUnit.test('Array#flatten', assert => {
   assert.deepEqual(flatten(array, -1), array);
   assert.deepEqual(flatten(array, Infinity), [1, 2, 3, 4, 5, 6]);
   if (STRICT) {
-    assert.throws(() => {
-      return flatten(null);
-    }, TypeError);
-    assert.throws(() => {
-      return flatten(undefined);
-    }, TypeError);
+    assert.throws(() => flatten(null), TypeError);
+    assert.throws(() => flatten(undefined), TypeError);
   }
   if (DESCRIPTORS) {
-    assert.ok((() => {
-      try {
-        return flatten(defineProperty({ length: -1 }, 0, {
-          get() {
-            throw new Error();
-          },
-        })).length === 0;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => flatten(defineProperty({ length: -1 }, 0, {
+      get() {
+        throw new Error();
+      },
+    })).length === 0, 'uses ToLength');
   }
 });

@@ -23,16 +23,12 @@ QUnit.test('Array#findIndex', assert => {
     assert.throws(() => findIndex.call(undefined, 0), TypeError);
   }
   if (NATIVE && DESCRIPTORS) {
-    assert.ok((() => {
-      try {
-        return findIndex.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        }) === -1;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => findIndex.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }) === -1, 'uses ToLength');
   }
   assert.ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

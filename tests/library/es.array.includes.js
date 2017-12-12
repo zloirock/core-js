@@ -15,11 +15,7 @@ QUnit.test('Array#includes', assert => {
   assert.ok(includes(Array(1), undefined));
   assert.ok(includes([NaN], NaN));
   if (STRICT) {
-    assert.throws(() => {
-      return includes(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return includes(undefined, 0);
-    }, TypeError);
+    assert.throws(() => includes(null, 0), TypeError);
+    assert.throws(() => includes(undefined, 0), TypeError);
   }
 });

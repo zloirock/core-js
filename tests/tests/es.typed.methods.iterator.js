@@ -31,9 +31,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
       value: undefined,
       done: true,
     }, 'done');
-    if (NATIVE) assert.throws(() => {
-      return keys.call([1, 2]);
-    }, "isn't generic");
+    if (NATIVE) assert.throws(() => keys.call([1, 2]), "isn't generic");
   }
 });
 
@@ -66,9 +64,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
       value: undefined,
       done: true,
     }, 'done');
-    if (NATIVE) assert.throws(() => {
-      return values.call([1, 2]);
-    }, "isn't generic");
+    if (NATIVE) assert.throws(() => values.call([1, 2]), "isn't generic");
   }
 });
 
@@ -101,9 +97,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
       value: undefined,
       done: true,
     }, 'done');
-    if (NATIVE) assert.throws(() => {
-      return entries.call([1, 2]);
-    }, "isn't generic");
+    if (NATIVE) assert.throws(() => entries.call([1, 2]), "isn't generic");
   }
 });
 
@@ -136,8 +130,6 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
       value: undefined,
       done: true,
     }, 'done');
-    if (NATIVE) assert.throws(() => {
-      return TypedArray.prototype[Symbol.iterator].call([1, 2]);
-    }, "isn't generic");
+    if (NATIVE) assert.throws(() => TypedArray.prototype[Symbol.iterator].call([1, 2]), "isn't generic");
   }
 });

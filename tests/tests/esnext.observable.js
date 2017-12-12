@@ -5,9 +5,7 @@ QUnit.test('Observable', assert => {
   assert.arity(Observable, 1);
   assert.name(Observable, 'Observable');
   assert.looksNative(Observable);
-  assert.throws(() => {
-    Observable(() => { /* empty */ });
-  }, 'throws w/o `new`');
+  assert.throws(() => Observable(() => { /* empty */ }), 'throws w/o `new`');
   const observable = new Observable(function (subscriptionObserver) {
     assert.same(typeof subscriptionObserver, 'object', 'Subscription observer is object');
     assert.same(subscriptionObserver.constructor, Object);

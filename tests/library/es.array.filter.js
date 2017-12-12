@@ -14,11 +14,7 @@ QUnit.test('Array#filter', assert => {
   }, context);
   assert.deepEqual([1, 2, 3, 4, 5], filter([1, 2, 3, 'q', {}, 4, true, 5], it => typeof it === 'number'));
   if (STRICT) {
-    assert.throws(() => {
-      return filter(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return filter(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => filter(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => filter(undefined, () => { /* empty */ }), TypeError);
   }
 });

@@ -17,18 +17,10 @@ QUnit.test('Array#flatMap', assert => {
     assert.same(this, context);
   }, context);
   if (STRICT) {
-    assert.throws(() => {
-      return flatMap(null, it => it);
-    }, TypeError);
-    assert.throws(() => {
-      return flatMap(undefined, it => it);
-    }, TypeError);
+    assert.throws(() => flatMap(null, it => it), TypeError);
+    assert.throws(() => flatMap(undefined, it => it), TypeError);
   }
-  assert.ok((() => {
-    try {
-      return flatMap({ length: -1 }, () => {
-        throw new Error();
-      }).length === 0;
-    } catch (e) { /* empty */ }
-  })(), 'uses ToLength');
+  assert.notThrows(() => flatMap({ length: -1 }, () => {
+    throw new Error();
+  }).length === 0, 'uses ToLength');
 });

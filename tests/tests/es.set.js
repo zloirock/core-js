@@ -254,9 +254,7 @@ QUnit.test('Set#size', assert => {
     const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
     assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
     assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
-    assert.throws(() => {
-      return Set.prototype.size;
-    }, TypeError);
+    assert.throws(() => Set.prototype.size, TypeError);
   }
 });
 

@@ -14,45 +14,19 @@ QUnit.test('String.fromCodePoint', assert => {
   assert.strictEqual(fromCodePoint(0x61, 0x62, 0x1D307), 'ab\uD834\uDF07');
   assert.strictEqual(fromCodePoint(false), '\0');
   assert.strictEqual(fromCodePoint(null), '\0');
-  assert.throws(() => {
-    return fromCodePoint('_');
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint('+Infinity');
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint('-Infinity');
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(-1);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(0x10FFFF + 1);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(3.14);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(3e-2);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(-Infinity);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(Infinity);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(NaN);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(undefined);
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint({});
-  }, RangeError);
-  assert.throws(() => {
-    return fromCodePoint(/./);
-  }, RangeError);
+  assert.throws(() => fromCodePoint('_'), RangeError);
+  assert.throws(() => fromCodePoint('+Infinity'), RangeError);
+  assert.throws(() => fromCodePoint('-Infinity'), RangeError);
+  assert.throws(() => fromCodePoint(-1), RangeError);
+  assert.throws(() => fromCodePoint(0x10FFFF + 1), RangeError);
+  assert.throws(() => fromCodePoint(3.14), RangeError);
+  assert.throws(() => fromCodePoint(3e-2), RangeError);
+  assert.throws(() => fromCodePoint(-Infinity), RangeError);
+  assert.throws(() => fromCodePoint(Infinity), RangeError);
+  assert.throws(() => fromCodePoint(NaN), RangeError);
+  assert.throws(() => fromCodePoint(undefined), RangeError);
+  assert.throws(() => fromCodePoint({}), RangeError);
+  assert.throws(() => fromCodePoint(/./), RangeError);
   let number = 0x60;
   assert.strictEqual(fromCodePoint({
     valueOf() {

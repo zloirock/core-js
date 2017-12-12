@@ -62,7 +62,5 @@ QUnit.test('Reflect.set', assert => {
     assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
     assert.strictEqual(target.c, 1, 'set c');
   }
-  assert.throws(() => {
-    return set(42, 'q', 42);
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 });
