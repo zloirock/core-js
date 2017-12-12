@@ -23,31 +23,15 @@ QUnit.test('String#endsWith', assert => {
   assert.ok(!'abc'.endsWith('c', 'x'));
   assert.ok(!'abc'.endsWith('a', 'x'));
   if (STRICT) {
-    assert.throws(() => {
-      return endsWith.call(null, '.');
-    }, TypeError);
-    assert.throws(() => {
-      return endsWith.call(undefined, '.');
-    }, TypeError);
+    assert.throws(() => endsWith.call(null, '.'), TypeError);
+    assert.throws(() => endsWith.call(undefined, '.'), TypeError);
   }
   const regexp = /./;
-  assert.throws(() => {
-    return '/./'.endsWith(regexp);
-  }, TypeError);
+  assert.throws(() => '/./'.endsWith(regexp), TypeError);
   regexp[Symbol.match] = false;
-  assert.ok((() => {
-    try {
-      return '/./'.endsWith(regexp);
-    } catch (e) { /* empty */ }
-  })());
+  assert.notThrows(() => '/./'.endsWith(regexp));
   const object = {};
-  assert.ok((() => {
-    try {
-      return '[object Object]'.endsWith(object);
-    } catch (e) { /* empty */ }
-  })());
+  assert.notThrows(() => '[object Object]'.endsWith(object));
   object[Symbol.match] = true;
-  assert.throws(() => {
-    return '[object Object]'.endsWith(object);
-  }, TypeError);
+  assert.throws(() => '[object Object]'.endsWith(object), TypeError);
 });

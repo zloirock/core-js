@@ -5,12 +5,7 @@ QUnit.test('Object.seal', assert => {
   assert.arity(seal, 1);
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
-    assert.ok((() => {
-      try {
-        seal(value);
-        return true;
-      } catch (e) { /* empty */ }
-    })(), `accept ${ {}.toString.call(value).slice(8, -1) }`);
+    assert.notThrows(() => seal(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
     assert.same(seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
   const results = [];

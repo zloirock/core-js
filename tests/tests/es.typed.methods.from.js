@@ -31,23 +31,15 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
       assert.same(key, 0, 'correct index in callback');
       assert.same(this, context, 'correct callback context');
     }, context);
-    assert.throws(() => {
-      return TypedArray.from.call(undefined, []);
-    }, "isn't generic #1");
+    assert.throws(() => TypedArray.from.call(undefined, []), "isn't generic #1");
     if (NATIVE) {
-      assert.throws(() => {
-        return TypedArray.from.call(Array, []);
-      }, "isn't generic #2");
-      assert.ok(function () {
-        try {
-          return TypedArray.from({
-            length: -1,
-            0: 1,
-          }, () => {
-            throw new Error();
-          });
-        } catch (e) { /* empty */ }
-      }(), 'uses ToLength');
+      assert.throws(() => TypedArray.from.call(Array, []), "isn't generic #2");
+      assert.notThrows(() => TypedArray.from({
+        length: -1,
+        0: 1,
+      }, () => {
+        throw new Error();
+      }), 'uses ToLength');
     }
   }
 });

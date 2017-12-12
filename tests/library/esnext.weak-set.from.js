@@ -17,9 +17,7 @@ QUnit.test('WeakSet.from', assert => {
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(() => {
-    return from({});
-  });
+  assert.throws(() => from({}));
   let arg = null;
   function F(it) {
     return arg = it;

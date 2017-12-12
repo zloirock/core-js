@@ -69,16 +69,10 @@ QUnit.test('String#matchAll', assert => {
   });
   data = [null, undefined, 'qwe', NaN, 42, new Date(), {}, []];
   for (const target of data) {
-    assert.throws(() => {
-      return ''.matchAll(target);
-    }, TypeError, `Throws on ${ target } as first argument`);
+    assert.throws(() => ''.matchAll(target), TypeError, `Throws on ${ target } as first argument`);
   }
   if (STRICT) {
-    assert.throws(() => {
-      return matchAll.call(null, /./);
-    }, TypeError, 'Throws on null as `this`');
-    assert.throws(() => {
-      return matchAll.call(undefined, /./);
-    }, TypeError, 'Throws on undefined as `this`');
+    assert.throws(() => matchAll.call(null, /./), TypeError, 'Throws on null as `this`');
+    assert.throws(() => matchAll.call(undefined, /./), TypeError, 'Throws on undefined as `this`');
   }
 });

@@ -32,23 +32,15 @@ QUnit.test('Array#some', assert => {
   array = [1, 2, 3];
   assert.ok(!array.some((value, key, that) => that !== array));
   if (STRICT) {
-    assert.throws(() => {
-      return some.call(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return some.call(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return some.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        }) === false;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => some.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }) === false, 'uses ToLength');
   }
 });

@@ -9,9 +9,7 @@ QUnit.test('Set.of', assert => {
   assert.ok(Set.of() instanceof Set);
   assert.deepEqual(toArray(Set.of(1)), [1]);
   assert.deepEqual(toArray(Set.of(1, 2, 3, 2, 1)), [1, 2, 3]);
-  assert.throws(() => {
-    return of(1);
-  });
+  assert.throws(() => of(1));
   let arg = null;
   function F(it) {
     return arg = it;

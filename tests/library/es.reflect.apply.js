@@ -11,13 +11,7 @@ QUnit.test('Reflect.apply', assert => {
   }
   F.apply = 42;
   assert.strictEqual(apply(F, null, ['foo', 'bar', 'baz']), 'foobarbaz', 'works with redefined apply');
-  assert.throws(() => {
-    return apply(42, null, []);
-  }, TypeError, 'throws on primitive');
-  assert.throws(() => {
-    return apply(() => { /* empty */ }, null);
-  }, TypeError, 'throws without third argument');
-  assert.throws(() => {
-    return apply(() => { /* empty */ }, null, '123');
-  }, TypeError, 'throws on primitive as third argument');
+  assert.throws(() => apply(42, null, []), TypeError, 'throws on primitive');
+  assert.throws(() => apply(() => { /* empty */ }, null), TypeError, 'throws without third argument');
+  assert.throws(() => apply(() => { /* empty */ }, null, '123'), TypeError, 'throws on primitive as third argument');
 });

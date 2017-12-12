@@ -14,16 +14,12 @@ QUnit.test('Date#@@toPrimitive', assert => {
   assert.same(toPrimitive.call(Object(2), 'default'), '2', 'generic, hint "default"');
   let data = [undefined, '', 'foo', { toString() { return 'string'; } }];
   for (const value of data) {
-    assert.throws(() => {
-      return new Date()[Symbol.toPrimitive](value);
-    }, TypeError, `throws on ${ value } as a hint`);
+    assert.throws(() => new Date()[Symbol.toPrimitive](value), TypeError, `throws on ${ value } as a hint`);
   }
   if (STRICT) {
     data = [1, false, 'string', null, undefined];
     for (const value of data) {
-      assert.throws(() => {
-        return toPrimitive.call(value, 'string');
-      }, TypeError, `throws on ${ value } as \`this\``);
+      assert.throws(() => toPrimitive.call(value, 'string'), TypeError, `throws on ${ value } as \`this\``);
     }
   }
 });

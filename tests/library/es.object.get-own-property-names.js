@@ -25,29 +25,18 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'constructor'));
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
-    assert.ok(() => {
-      try {
-        getOwnPropertyNames(value);
-        return true;
-      } catch (e) { /* empty */ }
-    }, `accept ${ typeof value }`);
+    assert.notThrows(() => getOwnPropertyNames(value), `accept ${ typeof value }`);
   }
-  assert.throws(() => {
-    return getOwnPropertyNames(null);
-  }, TypeError, 'throws on null');
-  assert.throws(() => {
-    return getOwnPropertyNames(undefined);
-  }, TypeError, 'throws on undefined');
+  assert.throws(() => getOwnPropertyNames(null), TypeError, 'throws on null');
+  assert.throws(() => getOwnPropertyNames(undefined), TypeError, 'throws on undefined');
   if (GLOBAL.document) {
-    assert.ok((() => {
-      try {
-        const iframe = document.createElement('iframe');
-        iframe.src = 'http://example.com';
-        document.documentElement.appendChild(iframe);
-        const window = iframe.contentWindow;
-        document.documentElement.removeChild(iframe);
-        return getOwnPropertyNames(window);
-      } catch (e) { /* empty */ }
-    })(), 'IE11 bug with iframe and window');
+    assert.notThrows(() => {
+      const iframe = document.createElement('iframe');
+      iframe.src = 'http://example.com';
+      document.documentElement.appendChild(iframe);
+      const window = iframe.contentWindow;
+      document.documentElement.removeChild(iframe);
+      return getOwnPropertyNames(window);
+    }, 'IE11 bug with iframe and window');
   }
 });
