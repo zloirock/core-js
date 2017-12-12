@@ -18,23 +18,15 @@ QUnit.test('Array#flatten', assert => {
   assert.deepEqual(array.flatten(-1), array);
   assert.deepEqual(array.flatten(Infinity), [1, 2, 3, 4, 5, 6]);
   if (STRICT) {
-    assert.throws(() => {
-      return flatten.call(null);
-    }, TypeError);
-    assert.throws(() => {
-      return flatten.call(undefined);
-    }, TypeError);
+    assert.throws(() => flatten.call(null), TypeError);
+    assert.throws(() => flatten.call(undefined), TypeError);
   }
   if (DESCRIPTORS) {
-    assert.ok((() => {
-      try {
-        return flatten.call(defineProperty({ length: -1 }, 0, {
-          get() {
-            throw new Error();
-          },
-        })).length === 0;
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => flatten.call(defineProperty({ length: -1 }, 0, {
+      get() {
+        throw new Error();
+      },
+    })).length === 0, 'uses ToLength');
   }
   assert.ok('flatten' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

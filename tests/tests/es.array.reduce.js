@@ -37,23 +37,15 @@ QUnit.test('Array#reduce', assert => {
     length: 2,
   }, (a, b) => a + b), 3, 'generic');
   if (STRICT) {
-    assert.throws(() => {
-      return reduce.call(null, () => { /* empty */ }, 1);
-    }, TypeError);
-    assert.throws(() => {
-      return reduce.call(undefined, () => { /* empty */ }, 1);
-    }, TypeError);
+    assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
+    assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return reduce.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        }, 1);
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => reduce.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }, 1) === undefined, 'uses ToLength');
   }
 });

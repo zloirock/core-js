@@ -10,12 +10,8 @@ QUnit.test('String#trimRight', assert => {
   assert.strictEqual(trimRight(whitespaces), '', 'removes all whitespaces');
   assert.strictEqual(trimRight('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert.throws(() => {
-      return trimRight(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return trimRight(undefined, 0);
-    }, TypeError);
+    assert.throws(() => trimRight(null, 0), TypeError);
+    assert.throws(() => trimRight(undefined, 0), TypeError);
   }
 });
 
@@ -26,11 +22,7 @@ QUnit.test('String#trimEnd', assert => {
   assert.strictEqual(trimEnd(whitespaces), '', 'removes all whitespaces');
   assert.strictEqual(trimEnd('\u200b\u0085'), '\u200b\u0085', "shouldn't remove this symbols");
   if (STRICT) {
-    assert.throws(() => {
-      return trimEnd(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return trimEnd(undefined, 0);
-    }, TypeError);
+    assert.throws(() => trimEnd(null, 0), TypeError);
+    assert.throws(() => trimEnd(undefined, 0), TypeError);
   }
 });

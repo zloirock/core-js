@@ -13,11 +13,7 @@ QUnit.test('Array#findIndex', assert => {
   }, context);
   assert.strictEqual(findIndex([1, 3, NaN, 42, {}], it => it === 42), 3);
   if (STRICT) {
-    assert.throws(() => {
-      return findIndex(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return findIndex(undefined, 0);
-    }, TypeError);
+    assert.throws(() => findIndex(null, 0), TypeError);
+    assert.throws(() => findIndex(undefined, 0), TypeError);
   }
 });

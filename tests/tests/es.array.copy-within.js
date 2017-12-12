@@ -22,12 +22,8 @@ QUnit.test('Array#copyWithin', assert => {
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
   if (STRICT) {
-    assert.throws(() => {
-      return copyWithin.call(null, 0);
-    }, TypeError);
-    assert.throws(() => {
-      return copyWithin.call(undefined, 0);
-    }, TypeError);
+    assert.throws(() => copyWithin.call(null, 0), TypeError);
+    assert.throws(() => copyWithin.call(undefined, 0), TypeError);
   }
   if (NATIVE) {
     assert.deepEqual(copyWithin.call({

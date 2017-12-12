@@ -28,11 +28,7 @@ QUnit.test('Array#some', assert => {
   array = [1, 2, 3];
   assert.ok(!some(array, (value, key, that) => that !== array));
   if (STRICT) {
-    assert.throws(() => {
-      return some(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return some(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => some(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => some(undefined, () => { /* empty */ }), TypeError);
   }
 });

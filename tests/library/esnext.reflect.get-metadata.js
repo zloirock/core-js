@@ -3,9 +3,7 @@ QUnit.test('Reflect.getMetadata', assert => {
   const { create } = core.Object;
   assert.isFunction(getMetadata);
   assert.arity(getMetadata, 2);
-  assert.throws(() => {
-    return getMetadata('key', undefined, undefined);
-  }, TypeError);
+  assert.throws(() => getMetadata('key', undefined, undefined), TypeError);
   assert.same(getMetadata('key', {}, undefined), undefined);
   let object = {};
   defineMetadata('key', 'value', object, undefined);

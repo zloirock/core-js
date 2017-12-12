@@ -29,23 +29,15 @@ QUnit.test('Array#every', assert => {
   array = [1, 2, 3];
   assert.ok(array.every((value, key, that) => that === array));
   if (STRICT) {
-    assert.throws(() => {
-      return every.call(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return every.call(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
   }
   if (NATIVE) {
-    assert.ok((() => {
-      try {
-        return true === every.call({
-          length: -1,
-          0: 1,
-        }, () => {
-          throw new Error();
-        });
-      } catch (e) { /* empty */ }
-    })(), 'uses ToLength');
+    assert.notThrows(() => every.call({
+      length: -1,
+      0: 1,
+    }, () => {
+      throw new Error();
+    }), 'uses ToLength');
   }
 });

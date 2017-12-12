@@ -9,7 +9,5 @@ QUnit.test('Reflect.has', assert => {
   assert.strictEqual(has(object, 'qux'), true);
   assert.strictEqual(has(object, 'qwe'), false);
   assert.strictEqual(has(object, 'toString'), true);
-  assert.throws(() => {
-    return has(42, 'constructor');
-  }, TypeError, 'throws on primitive');
+  assert.throws(() => has(42, 'constructor'), TypeError, 'throws on primitive');
 });

@@ -18,11 +18,7 @@ QUnit.test('Array#map', assert => {
     return +this;
   }, 2));
   if (STRICT) {
-    assert.throws(() => {
-      return map(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      return map(undefined, () => { /* empty */ });
-    }, TypeError);
+    assert.throws(() => map(null, () => { /* empty */ }), TypeError);
+    assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);
   }
 });

@@ -12,12 +12,8 @@ QUnit.test('Object.assign', assert => {
   assert.strictEqual(object.bar, 2, 'assign define properties');
   assert.deepEqual(assign({}, { q: 1 }, { w: 2 }), { q: 1, w: 2 });
   assert.deepEqual(assign({}, 'qwe'), { 0: 'q', 1: 'w', 2: 'e' });
-  assert.throws(() => {
-    return assign(null, { q: 1 });
-  }, TypeError);
-  assert.throws(() => {
-    return assign(undefined, { q: 1 });
-  }, TypeError);
+  assert.throws(() => assign(null, { q: 1 }), TypeError);
+  assert.throws(() => assign(undefined, { q: 1 }), TypeError);
   let string = assign('qwe', { q: 1 });
   assert.strictEqual(typeof string, 'object');
   assert.strictEqual(String(string), 'qwe');

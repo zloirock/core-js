@@ -62,13 +62,7 @@ QUnit.test('WeakSet#add', assert => {
   assert.isFunction(WeakSet.prototype.add);
   const weakset = new WeakSet();
   assert.ok(weakset.add({}) === weakset, 'chaining');
-  assert.ok((() => {
-    try {
-      new WeakSet().add(42);
-    } catch (e) {
-      return true;
-    }
-  })(), 'throws with primitive keys');
+  assert.throws(() => new WeakSet().add(42), 'throws with primitive keys');
 });
 
 QUnit.test('WeakSet#delete', assert => {
@@ -79,11 +73,7 @@ QUnit.test('WeakSet#delete', assert => {
   assert.ok(weakset.has(a) && weakset.has(b), 'WeakSet has values before .delete()');
   weakset.delete(a);
   assert.ok(!weakset.has(a) && weakset.has(b), 'WeakSet has`nt value after .delete()');
-  assert.ok((() => {
-    try {
-      return !weakset.delete(1);
-    } catch (e) { /* empty */ }
-  })(), 'return false on primitive');
+  assert.notThrows(() => !weakset.delete(1), 'return false on primitive');
 });
 
 QUnit.test('WeakSet#has', assert => {
@@ -95,11 +85,7 @@ QUnit.test('WeakSet#has', assert => {
   assert.ok(weakset.has(object), 'WeakSet has value after .add()');
   weakset.delete(object);
   assert.ok(!weakset.has(object), 'WeakSet hasn`t value after .delete()');
-  assert.ok((() => {
-    try {
-      return !weakset.has(1);
-    } catch (e) { /* empty */ }
-  })(), 'return false on primitive');
+  assert.notThrows(() => !weakset.has(1), 'return false on primitive');
 });
 
 QUnit.test('WeakSet::@@toStringTag', assert => {

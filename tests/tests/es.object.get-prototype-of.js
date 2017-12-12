@@ -21,18 +21,9 @@ QUnit.test('Object.getPrototypeOf', assert => {
   assert.strictEqual(getPrototypeOf(Bar.prototype).foo, 'foo');
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
-    assert.ok((() => {
-      try {
-        getPrototypeOf(value);
-        return true;
-      } catch (e) { /* empty */ }
-    })(), `accept ${ typeof value }`);
+    assert.notThrows(() => getPrototypeOf(value), `accept ${ typeof value }`);
   }
-  assert.throws(() => {
-    return getPrototypeOf(null);
-  }, TypeError, 'throws on null');
-  assert.throws(() => {
-    return getPrototypeOf(undefined);
-  }, TypeError, 'throws on undefined');
+  assert.throws(() => getPrototypeOf(null), TypeError, 'throws on null');
+  assert.throws(() => getPrototypeOf(undefined), TypeError, 'throws on undefined');
   assert.strictEqual(getPrototypeOf('foo'), String.prototype);
 });
