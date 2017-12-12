@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 if (DESCRIPTORS) {
