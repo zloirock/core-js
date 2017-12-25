@@ -3,7 +3,7 @@
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](http://npm-stat.com/charts.html?package=core-js&author=&from=2014-11-18) [![Build Status](https://travis-ci.org/zloirock/core-js.svg)](https://travis-ci.org/zloirock/core-js) [![devDependency status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js?type=dev)
 #### As advertising: the author is looking for a good job :)
 
-Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2015, 2016, 2017](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C ECMAScript-related features and proposals](#web-standards) like [setImmediate](#setimmediate). You can load only required features or use it without global namespace pollution.
+Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2015, 2016, 2017](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C ECMAScript-related features and proposals](#web-standards) like [setImmediate](#setimmediate). You can load only required features or use it without global namespace pollution as a ponyfill.
 
 [*Example*](http://goo.gl/a2xexl):
 ```js
@@ -26,12 +26,12 @@ Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
-*Or use it without global namespace pollution*:
+*Or use it without global namespace pollution as a ponyfill*:
 ```js
-import from from 'core-js/library/fn/array/from';
-import flatten from 'core-js/library/fn/array/flatten';
-import Set from 'core-js/library/fn/set';
-import Promise from 'core-js/library/fn/promise';
+import from from 'core-js/ponyfill/fn/array/from';
+import flatten from 'core-js/ponyfill/fn/array/flatten';
+import Set from 'core-js/ponyfill/fn/set';
+import Promise from 'core-js/ponyfill/fn/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
 flatten([1, [2, 3], [4, [5]]], 2);             // => [1, 2, 3, 4, 5]
@@ -90,7 +90,7 @@ If you need already bundled version of `core-js`, use `core-js/client/core.js` o
 Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
 
 ### CommonJS
-You can require only needed modules, like in examples in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js/library/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js/library/es`) contains all ES features.
+You can require only needed modules, like in examples in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js/ponyfill/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js/ponyfill/es`) contains all ES features.
 
 ##### Caveats when using CommonJS API:
 
@@ -98,16 +98,16 @@ You can require only needed modules, like in examples in examples at the top of 
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution
-In the `library` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. `babel` `runtime` transformer also can't transform them. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
+In the `ponyfill` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. `babel` `runtime` transformer also can't transform them. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
 ```js
-import fill from 'core-js/library/fn/array/virtual/fill';
-import findIndex from 'core-js/library/fn/array/virtual/find-index';
+import fill from 'core-js/ponyfill/fn/array/virtual/fill';
+import findIndex from 'core-js/ponyfill/fn/array/virtual/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 
 // or
 
-import { fill, findIndex } from 'core-js/library/fn/array/virtual';
+import { fill, findIndex } from 'core-js/ponyfill/fn/array/virtual';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 
@@ -116,9 +116,9 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 ### Custom build (from the command-line)
 ```
 npm i core-js && cd node_modules/core-js && npm i
-npm run grunt build:es,web -- --blacklist=es.reflect,es.math --library=on --path=custom uglify
+npm run grunt build:es,web -- --blacklist=es.reflect,es.math --ponyfill=on --path=custom uglify
 ```
-Where `es` and `web` are modules (namespaces) names, which will be added to the build, `es.reflect` and `es.math` are modules (namespaces) names, which will be excluded from the build, `--library=on` is flag for build without global namespace pollution and `custom` is target file name.
+Where `es` and `web` are modules (namespaces) names, which will be added to the build, `es.reflect` and `es.math` are modules (namespaces) names, which will be excluded from the build, `--ponyfill=on` is flag for build without global namespace pollution and `custom` is target file name.
 
 Available namespaces: for example, `es.array` contains [ES `Array` features](#ecmascript-array), `es` contains all modules whose names start with `es`.
 
@@ -130,7 +130,7 @@ Available namespaces: for example, `es.array` contains [ES `Array` features](#ec
 require('core-js-builder')({
   modules: ['es', 'web'],    // modules / namespaces
   blacklist: ['es.reflect'], // blacklist of modules / namespaces, by default - empty list
-  library: false,            // flag for build without global namespace pollution, by default - false
+  ponyfill: false,           // flag for build without global namespace pollution, by default - false
   umd: true,                 // use UMD wrapper for export `core` object, by default - true
 }).then(code => {
   // ...
@@ -156,13 +156,13 @@ require('core-js-builder')({
 ## Features:
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)
+core-js(/ponyfill)
 ```
 
 ### ECMAScript
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es
+core-js(/ponyfill)/es
 ```
 #### ECMAScript: Object
 Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3/modules/es.object.get-own-property-names.js).
@@ -200,31 +200,31 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/object
-core-js(/library)/fn/object/assign
-core-js(/library)/fn/object/is
-core-js(/library)/fn/object/set-prototype-of
-core-js(/library)/fn/object/get-prototype-of
-core-js(/library)/fn/object/create
-core-js(/library)/fn/object/define-property
-core-js(/library)/fn/object/define-properties
-core-js(/library)/fn/object/get-own-property-descriptor
-core-js(/library)/fn/object/get-own-property-descriptors
-core-js(/library)/fn/object/keys
-core-js(/library)/fn/object/values
-core-js(/library)/fn/object/entries
-core-js(/library)/fn/object/get-own-property-names
-core-js(/library)/fn/object/freeze
-core-js(/library)/fn/object/seal
-core-js(/library)/fn/object/prevent-extensions
-core-js(/library)/fn/object/is-frozen
-core-js(/library)/fn/object/is-sealed
-core-js(/library)/fn/object/is-extensible
+core-js(/ponyfill)/es/object
+core-js(/ponyfill)/fn/object/assign
+core-js(/ponyfill)/fn/object/is
+core-js(/ponyfill)/fn/object/set-prototype-of
+core-js(/ponyfill)/fn/object/get-prototype-of
+core-js(/ponyfill)/fn/object/create
+core-js(/ponyfill)/fn/object/define-property
+core-js(/ponyfill)/fn/object/define-properties
+core-js(/ponyfill)/fn/object/get-own-property-descriptor
+core-js(/ponyfill)/fn/object/get-own-property-descriptors
+core-js(/ponyfill)/fn/object/keys
+core-js(/ponyfill)/fn/object/values
+core-js(/ponyfill)/fn/object/entries
+core-js(/ponyfill)/fn/object/get-own-property-names
+core-js(/ponyfill)/fn/object/freeze
+core-js(/ponyfill)/fn/object/seal
+core-js(/ponyfill)/fn/object/prevent-extensions
+core-js(/ponyfill)/fn/object/is-frozen
+core-js(/ponyfill)/fn/object/is-sealed
+core-js(/ponyfill)/fn/object/is-extensible
 core-js/fn/object/to-string
-core-js(/library)/fn/object/define-getter
-core-js(/library)/fn/object/define-setter
-core-js(/library)/fn/object/lookup-getter
-core-js(/library)/fn/object/lookup-setter
+core-js(/ponyfill)/fn/object/define-getter
+core-js(/ponyfill)/fn/object/define-setter
+core-js(/ponyfill)/fn/object/lookup-getter
+core-js(/ponyfill)/fn/object/lookup-setter
 ```
 [*Examples*](https://goo.gl/sqY5mD):
 ```js
@@ -324,53 +324,53 @@ class Arguments {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/array
-core-js(/library)/fn/array/from
-core-js(/library)/fn/array/of
-core-js(/library)/fn/array/is-array
-core-js(/library)/fn/array/includes
-core-js(/library)/fn/array/iterator
-core-js(/library)/fn/array/copy-within
-core-js(/library)/fn/array/fill
-core-js(/library)/fn/array/find
-core-js(/library)/fn/array/find-index
-core-js(/library)/fn/array/includes
-core-js(/library)/fn/array/values
-core-js(/library)/fn/array/keys
-core-js(/library)/fn/array/entries
-core-js(/library)/fn/array/slice
-core-js(/library)/fn/array/join
-core-js(/library)/fn/array/index-of
-core-js(/library)/fn/array/last-index-of
-core-js(/library)/fn/array/every
-core-js(/library)/fn/array/some
-core-js(/library)/fn/array/for-each
-core-js(/library)/fn/array/map
-core-js(/library)/fn/array/filter
-core-js(/library)/fn/array/reduce
-core-js(/library)/fn/array/reduce-right
-core-js(/library)/fn/array/sort
-core-js(/library)/fn/array/virtual/iterator
-core-js(/library)/fn/array/virtual/copy-within
-core-js(/library)/fn/array/virtual/fill
-core-js(/library)/fn/array/virtual/find
-core-js(/library)/fn/array/virtual/find-index
-core-js(/library)/fn/array/virtual/includes
-core-js(/library)/fn/array/virtual/values
-core-js(/library)/fn/array/virtual/keys
-core-js(/library)/fn/array/virtual/entries
-core-js(/library)/fn/array/virtual/slice
-core-js(/library)/fn/array/virtual/join
-core-js(/library)/fn/array/virtual/index-of
-core-js(/library)/fn/array/virtual/last-index-of
-core-js(/library)/fn/array/virtual/every
-core-js(/library)/fn/array/virtual/some
-core-js(/library)/fn/array/virtual/for-each
-core-js(/library)/fn/array/virtual/map
-core-js(/library)/fn/array/virtual/filter
-core-js(/library)/fn/array/virtual/reduce
-core-js(/library)/fn/array/virtual/reduce-right
-core-js(/library)/fn/array/virtual/sort
+core-js(/ponyfill)/es/array
+core-js(/ponyfill)/fn/array/from
+core-js(/ponyfill)/fn/array/of
+core-js(/ponyfill)/fn/array/is-array
+core-js(/ponyfill)/fn/array/includes
+core-js(/ponyfill)/fn/array/iterator
+core-js(/ponyfill)/fn/array/copy-within
+core-js(/ponyfill)/fn/array/fill
+core-js(/ponyfill)/fn/array/find
+core-js(/ponyfill)/fn/array/find-index
+core-js(/ponyfill)/fn/array/includes
+core-js(/ponyfill)/fn/array/values
+core-js(/ponyfill)/fn/array/keys
+core-js(/ponyfill)/fn/array/entries
+core-js(/ponyfill)/fn/array/slice
+core-js(/ponyfill)/fn/array/join
+core-js(/ponyfill)/fn/array/index-of
+core-js(/ponyfill)/fn/array/last-index-of
+core-js(/ponyfill)/fn/array/every
+core-js(/ponyfill)/fn/array/some
+core-js(/ponyfill)/fn/array/for-each
+core-js(/ponyfill)/fn/array/map
+core-js(/ponyfill)/fn/array/filter
+core-js(/ponyfill)/fn/array/reduce
+core-js(/ponyfill)/fn/array/reduce-right
+core-js(/ponyfill)/fn/array/sort
+core-js(/ponyfill)/fn/array/virtual/iterator
+core-js(/ponyfill)/fn/array/virtual/copy-within
+core-js(/ponyfill)/fn/array/virtual/fill
+core-js(/ponyfill)/fn/array/virtual/find
+core-js(/ponyfill)/fn/array/virtual/find-index
+core-js(/ponyfill)/fn/array/virtual/includes
+core-js(/ponyfill)/fn/array/virtual/values
+core-js(/ponyfill)/fn/array/virtual/keys
+core-js(/ponyfill)/fn/array/virtual/entries
+core-js(/ponyfill)/fn/array/virtual/slice
+core-js(/ponyfill)/fn/array/virtual/join
+core-js(/ponyfill)/fn/array/virtual/index-of
+core-js(/ponyfill)/fn/array/virtual/last-index-of
+core-js(/ponyfill)/fn/array/virtual/every
+core-js(/ponyfill)/fn/array/virtual/some
+core-js(/ponyfill)/fn/array/virtual/for-each
+core-js(/ponyfill)/fn/array/virtual/map
+core-js(/ponyfill)/fn/array/virtual/filter
+core-js(/ponyfill)/fn/array/virtual/reduce
+core-js(/ponyfill)/fn/array/virtual/reduce-right
+core-js(/ponyfill)/fn/array/virtual/sort
 ```
 [*Examples*](https://goo.gl/Tegvq4):
 ```js
@@ -449,53 +449,53 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/string
-core-js(/library)/fn/string/from-code-point
-core-js(/library)/fn/string/raw
-core-js(/library)/fn/string/includes
-core-js(/library)/fn/string/starts-with
-core-js(/library)/fn/string/ends-with
-core-js(/library)/fn/string/repeat
-core-js(/library)/fn/string/pad-start
-core-js(/library)/fn/string/pad-end
-core-js(/library)/fn/string/code-point-at
-core-js(/library)/fn/string/trim
-core-js(/library)/fn/string/anchor
-core-js(/library)/fn/string/big
-core-js(/library)/fn/string/blink
-core-js(/library)/fn/string/bold
-core-js(/library)/fn/string/fixed
-core-js(/library)/fn/string/fontcolor
-core-js(/library)/fn/string/fontsize
-core-js(/library)/fn/string/italics
-core-js(/library)/fn/string/link
-core-js(/library)/fn/string/small
-core-js(/library)/fn/string/strike
-core-js(/library)/fn/string/sub
-core-js(/library)/fn/string/sup
-core-js(/library)/fn/string/iterator
-core-js(/library)/fn/string/virtual/includes
-core-js(/library)/fn/string/virtual/starts-with
-core-js(/library)/fn/string/virtual/ends-with
-core-js(/library)/fn/string/virtual/repeat
-core-js(/library)/fn/string/virtual/pad-start
-core-js(/library)/fn/string/virtual/pad-end
-core-js(/library)/fn/string/virtual/code-point-at
-core-js(/library)/fn/string/virtual/trim
-core-js(/library)/fn/string/virtual/anchor
-core-js(/library)/fn/string/virtual/big
-core-js(/library)/fn/string/virtual/blink
-core-js(/library)/fn/string/virtual/bold
-core-js(/library)/fn/string/virtual/fixed
-core-js(/library)/fn/string/virtual/fontcolor
-core-js(/library)/fn/string/virtual/fontsize
-core-js(/library)/fn/string/virtual/italics
-core-js(/library)/fn/string/virtual/link
-core-js(/library)/fn/string/virtual/small
-core-js(/library)/fn/string/virtual/strike
-core-js(/library)/fn/string/virtual/sub
-core-js(/library)/fn/string/virtual/sup
-core-js(/library)/fn/string/virtual/iterator
+core-js(/ponyfill)/es/string
+core-js(/ponyfill)/fn/string/from-code-point
+core-js(/ponyfill)/fn/string/raw
+core-js(/ponyfill)/fn/string/includes
+core-js(/ponyfill)/fn/string/starts-with
+core-js(/ponyfill)/fn/string/ends-with
+core-js(/ponyfill)/fn/string/repeat
+core-js(/ponyfill)/fn/string/pad-start
+core-js(/ponyfill)/fn/string/pad-end
+core-js(/ponyfill)/fn/string/code-point-at
+core-js(/ponyfill)/fn/string/trim
+core-js(/ponyfill)/fn/string/anchor
+core-js(/ponyfill)/fn/string/big
+core-js(/ponyfill)/fn/string/blink
+core-js(/ponyfill)/fn/string/bold
+core-js(/ponyfill)/fn/string/fixed
+core-js(/ponyfill)/fn/string/fontcolor
+core-js(/ponyfill)/fn/string/fontsize
+core-js(/ponyfill)/fn/string/italics
+core-js(/ponyfill)/fn/string/link
+core-js(/ponyfill)/fn/string/small
+core-js(/ponyfill)/fn/string/strike
+core-js(/ponyfill)/fn/string/sub
+core-js(/ponyfill)/fn/string/sup
+core-js(/ponyfill)/fn/string/iterator
+core-js(/ponyfill)/fn/string/virtual/includes
+core-js(/ponyfill)/fn/string/virtual/starts-with
+core-js(/ponyfill)/fn/string/virtual/ends-with
+core-js(/ponyfill)/fn/string/virtual/repeat
+core-js(/ponyfill)/fn/string/virtual/pad-start
+core-js(/ponyfill)/fn/string/virtual/pad-end
+core-js(/ponyfill)/fn/string/virtual/code-point-at
+core-js(/ponyfill)/fn/string/virtual/trim
+core-js(/ponyfill)/fn/string/virtual/anchor
+core-js(/ponyfill)/fn/string/virtual/big
+core-js(/ponyfill)/fn/string/virtual/blink
+core-js(/ponyfill)/fn/string/virtual/bold
+core-js(/ponyfill)/fn/string/virtual/fixed
+core-js(/ponyfill)/fn/string/virtual/fontcolor
+core-js(/ponyfill)/fn/string/virtual/fontsize
+core-js(/ponyfill)/fn/string/virtual/italics
+core-js(/ponyfill)/fn/string/virtual/link
+core-js(/ponyfill)/fn/string/virtual/small
+core-js(/ponyfill)/fn/string/virtual/strike
+core-js(/ponyfill)/fn/string/virtual/sub
+core-js(/ponyfill)/fn/string/virtual/sup
+core-js(/ponyfill)/fn/string/virtual/iterator
 ```
 [*Examples*](https://goo.gl/oVvKga):
 ```js
@@ -554,7 +554,7 @@ class String {
 ```
 core-js/es/regexp
 core-js/fn/regexp/constructor
-core-js(/library)/fn/regexp/flags
+core-js(/ponyfill)/fn/regexp/flags
 core-js/fn/regexp/to-string
 core-js/fn/regexp/match
 core-js/fn/regexp/replace
@@ -603,21 +603,21 @@ function parseInt(string: string, radix?: number = 10): number;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/number
+core-js(/ponyfill)/es/number
 core-js/es/number/constructor
-core-js(/library)/fn/number/is-finite
-core-js(/library)/fn/number/is-nan
-core-js(/library)/fn/number/is-integer
-core-js(/library)/fn/number/is-safe-integer
-core-js(/library)/fn/number/parse-float
-core-js(/library)/fn/number/parse-int
-core-js(/library)/fn/number/epsilon
-core-js(/library)/fn/number/max-safe-integer
-core-js(/library)/fn/number/min-safe-integer
-core-js(/library)/fn/number/to-fixed
-core-js(/library)/fn/number/to-precision
-core-js(/library)/fn/parse-float
-core-js(/library)/fn/parse-int
+core-js(/ponyfill)/fn/number/is-finite
+core-js(/ponyfill)/fn/number/is-nan
+core-js(/ponyfill)/fn/number/is-integer
+core-js(/ponyfill)/fn/number/is-safe-integer
+core-js(/ponyfill)/fn/number/parse-float
+core-js(/ponyfill)/fn/number/parse-int
+core-js(/ponyfill)/fn/number/epsilon
+core-js(/ponyfill)/fn/number/max-safe-integer
+core-js(/ponyfill)/fn/number/min-safe-integer
+core-js(/ponyfill)/fn/number/to-fixed
+core-js(/ponyfill)/fn/number/to-precision
+core-js(/ponyfill)/fn/parse-float
+core-js(/ponyfill)/fn/parse-int
 ```
 #### ECMAScript: Math
 Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.fround.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/v3/modules/es.math.trunc.js).
@@ -644,24 +644,24 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/math
-core-js(/library)/fn/math/acosh
-core-js(/library)/fn/math/asinh
-core-js(/library)/fn/math/atanh
-core-js(/library)/fn/math/cbrt
-core-js(/library)/fn/math/clz32
-core-js(/library)/fn/math/cosh
-core-js(/library)/fn/math/expm1
-core-js(/library)/fn/math/fround
-core-js(/library)/fn/math/hypot
-core-js(/library)/fn/math/imul
-core-js(/library)/fn/math/log1p
-core-js(/library)/fn/math/log10
-core-js(/library)/fn/math/log2
-core-js(/library)/fn/math/sign
-core-js(/library)/fn/math/sinh
-core-js(/library)/fn/math/tanh
-core-js(/library)/fn/math/trunc
+core-js(/ponyfill)/es/math
+core-js(/ponyfill)/fn/math/acosh
+core-js(/ponyfill)/fn/math/asinh
+core-js(/ponyfill)/fn/math/atanh
+core-js(/ponyfill)/fn/math/cbrt
+core-js(/ponyfill)/fn/math/clz32
+core-js(/ponyfill)/fn/math/cosh
+core-js(/ponyfill)/fn/math/expm1
+core-js(/ponyfill)/fn/math/fround
+core-js(/ponyfill)/fn/math/hypot
+core-js(/ponyfill)/fn/math/imul
+core-js(/ponyfill)/fn/math/log1p
+core-js(/ponyfill)/fn/math/log10
+core-js(/ponyfill)/fn/math/log2
+core-js(/ponyfill)/fn/math/sign
+core-js(/ponyfill)/fn/math/sinh
+core-js(/ponyfill)/fn/math/tanh
+core-js(/ponyfill)/fn/math/trunc
 ```
 #### ECMAScript: Date
 Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/v3/modules/es.date.to-primitive.js).
@@ -678,10 +678,10 @@ class Date {
 ```
 core-js/es/date
 core-js/fn/date/to-string
-core-js(/library)/fn/date/now
-core-js(/library)/fn/date/to-iso-string
-core-js(/library)/fn/date/to-json
-core-js(/library)/fn/date/to-primitive
+core-js(/ponyfill)/fn/date/now
+core-js(/ponyfill)/fn/date/to-iso-string
+core-js(/ponyfill)/fn/date/to-json
+core-js(/ponyfill)/fn/date/to-primitive
 ```
 [*Example*](http://goo.gl/haeHLR):
 ```js
@@ -703,8 +703,8 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/promise
-core-js(/library)/fn/promise
+core-js(/ponyfill)/es/promise
+core-js(/ponyfill)/fn/promise
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
@@ -857,21 +857,21 @@ namespace JSON {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/symbol
-core-js(/library)/fn/symbol
-core-js(/library)/fn/symbol/has-instance
-core-js(/library)/fn/symbol/is-concat-spreadable
-core-js(/library)/fn/symbol/iterator
-core-js(/library)/fn/symbol/match
-core-js(/library)/fn/symbol/replace
-core-js(/library)/fn/symbol/search
-core-js(/library)/fn/symbol/species
-core-js(/library)/fn/symbol/split
-core-js(/library)/fn/symbol/to-primitive
-core-js(/library)/fn/symbol/to-string-tag
-core-js(/library)/fn/symbol/unscopables
-core-js(/library)/fn/symbol/for
-core-js(/library)/fn/symbol/key-for
+core-js(/ponyfill)/es/symbol
+core-js(/ponyfill)/fn/symbol
+core-js(/ponyfill)/fn/symbol/has-instance
+core-js(/ponyfill)/fn/symbol/is-concat-spreadable
+core-js(/ponyfill)/fn/symbol/iterator
+core-js(/ponyfill)/fn/symbol/match
+core-js(/ponyfill)/fn/symbol/replace
+core-js(/ponyfill)/fn/symbol/search
+core-js(/ponyfill)/fn/symbol/species
+core-js(/ponyfill)/fn/symbol/split
+core-js(/ponyfill)/fn/symbol/to-primitive
+core-js(/ponyfill)/fn/symbol/to-string-tag
+core-js(/ponyfill)/fn/symbol/unscopables
+core-js(/ponyfill)/fn/symbol/for
+core-js(/ponyfill)/fn/symbol/key-for
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
@@ -954,8 +954,8 @@ class Map {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/map
-core-js(/library)/fn/map
+core-js(/ponyfill)/es/map
+core-js(/ponyfill)/fn/map
 ```
 [*Examples*](http://goo.gl/GWR7NI):
 ```js
@@ -1009,8 +1009,8 @@ class Set {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/set
-core-js(/library)/fn/set
+core-js(/ponyfill)/es/set
+core-js(/ponyfill)/fn/set
 ```
 [*Examples*](http://goo.gl/bmhLwg):
 ```js
@@ -1049,8 +1049,8 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/weak-map
-core-js(/library)/fn/weak-map
+core-js(/ponyfill)/es/weak-map
+core-js(/ponyfill)/fn/weak-map
 ```
 [*Examples*](http://goo.gl/SILXyw):
 ```js
@@ -1095,8 +1095,8 @@ class WeakSet {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/weak-set
-core-js(/library)/fn/weak-set
+core-js(/ponyfill)/es/weak-set
+core-js(/ponyfill)/fn/weak-set
 ```
 [*Examples*](http://goo.gl/TdFbEx):
 ```js
@@ -1202,19 +1202,19 @@ class [
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/typed
-core-js(/library)/fn/typed
-core-js(/library)/fn/typed/array-buffer
-core-js(/library)/fn/typed/data-view
-core-js(/library)/fn/typed/int8-array
-core-js(/library)/fn/typed/uint8-array
-core-js(/library)/fn/typed/uint8-clamped-array
-core-js(/library)/fn/typed/int16-array
-core-js(/library)/fn/typed/uint16-array
-core-js(/library)/fn/typed/int32-array
-core-js(/library)/fn/typed/uint32-array
-core-js(/library)/fn/typed/float32-array
-core-js(/library)/fn/typed/float64-array
+core-js(/ponyfill)/es/typed
+core-js(/ponyfill)/fn/typed
+core-js(/ponyfill)/fn/typed/array-buffer
+core-js(/ponyfill)/fn/typed/data-view
+core-js(/ponyfill)/fn/typed/int8-array
+core-js(/ponyfill)/fn/typed/uint8-array
+core-js(/ponyfill)/fn/typed/uint8-clamped-array
+core-js(/ponyfill)/fn/typed/int16-array
+core-js(/ponyfill)/fn/typed/uint16-array
+core-js(/ponyfill)/fn/typed/int32-array
+core-js(/ponyfill)/fn/typed/uint32-array
+core-js(/ponyfill)/fn/typed/float32-array
+core-js(/ponyfill)/fn/typed/float64-array
 ```
 [*Examples*](http://goo.gl/yla75z):
 ```js
@@ -1252,7 +1252,7 @@ for (let [key, value] of typed.entries()) {
 
 * Typed Arrays polyfills works completely how should work by the spec, but because of internal use getter / setters on each instance, is slow and consumes significant memory. However, typed arrays polyfills required mainly for IE9 (and for `Uint8ClampedArray` in IE10 and early IE11), all modern engines have native typed arrays and requires only constructors fixes and methods.
 * The current version hasn't special entry points for methods, they can be added only with constructors. It can be added in the future.
-* In the `library` version we can't pollute native prototypes, so prototype methods available as constructors static.
+* In the `ponyfill` version we can't pollute native prototypes, so prototype methods available as constructors static.
 
 #### ECMAScript: Reflect
 Modules [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3/modules/es.reflect.set-prototype-of.js).
@@ -1275,21 +1275,21 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js(/library)/es/reflect
-core-js(/library)/fn/reflect
-core-js(/library)/fn/reflect/apply
-core-js(/library)/fn/reflect/construct
-core-js(/library)/fn/reflect/define-property
-core-js(/library)/fn/reflect/delete-property
-core-js(/library)/fn/reflect/get
-core-js(/library)/fn/reflect/get-own-property-descriptor
-core-js(/library)/fn/reflect/get-prototype-of
-core-js(/library)/fn/reflect/has
-core-js(/library)/fn/reflect/is-extensible
-core-js(/library)/fn/reflect/own-keys
-core-js(/library)/fn/reflect/prevent-extensions
-core-js(/library)/fn/reflect/set
-core-js(/library)/fn/reflect/set-prototype-of
+core-js(/ponyfill)/es/reflect
+core-js(/ponyfill)/fn/reflect
+core-js(/ponyfill)/fn/reflect/apply
+core-js(/ponyfill)/fn/reflect/construct
+core-js(/ponyfill)/fn/reflect/define-property
+core-js(/ponyfill)/fn/reflect/delete-property
+core-js(/ponyfill)/fn/reflect/get
+core-js(/ponyfill)/fn/reflect/get-own-property-descriptor
+core-js(/ponyfill)/fn/reflect/get-prototype-of
+core-js(/ponyfill)/fn/reflect/has
+core-js(/ponyfill)/fn/reflect/is-extensible
+core-js(/ponyfill)/fn/reflect/own-keys
+core-js(/ponyfill)/fn/reflect/prevent-extensions
+core-js(/ponyfill)/fn/reflect/set
+core-js(/ponyfill)/fn/reflect/set-prototype-of
 ```
 [*Examples*](http://goo.gl/gVT0cH):
 ```js
@@ -1313,14 +1313,14 @@ instance.c; // => 42
 
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/4
+core-js(/ponyfill)/stage/4
 ```
 None.
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/3
+core-js(/ponyfill)/stage/3
 ```
 * `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.array.flat-map.js)
 ```js
@@ -1331,10 +1331,10 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/array/flatten
-core-js(/library)/fn/array/flat-map
-core-js(/library)/fn/array/virtual/flatten
-core-js(/library)/fn/array/virtual/flat-map
+core-js(/ponyfill)/fn/array/flatten
+core-js(/ponyfill)/fn/array/flat-map
+core-js(/ponyfill)/fn/array/virtual/flatten
+core-js(/ponyfill)/fn/array/virtual/flat-map
 ```
 [*Examples*](https://goo.gl/jTXsZi):
 ```js
@@ -1350,7 +1350,7 @@ let global: Object;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/global
+core-js(/ponyfill)/fn/global
 ```
 [*Examples*](http://goo.gl/gEqMl7):
 ```js
@@ -1364,7 +1364,7 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/promise/finally
+core-js(/ponyfill)/fn/promise/finally
 ```
 [*Examples*](https://goo.gl/AhyBbJ):
 ```js
@@ -1380,13 +1380,13 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/symbol/async-iterator
+core-js(/ponyfill)/fn/symbol/async-iterator
 ```
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/2
+core-js(/ponyfill)/stage/2
 ```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
@@ -1399,14 +1399,14 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/string/trim-start
-core-js(/library)/fn/string/trim-end
-core-js(/library)/fn/string/trim-left
-core-js(/library)/fn/string/trim-right
-core-js(/library)/fn/string/virtual/trim-start
-core-js(/library)/fn/string/virtual/trim-end
-core-js(/library)/fn/string/virtual/trim-left
-core-js(/library)/fn/string/virtual/trim-right
+core-js(/ponyfill)/fn/string/trim-start
+core-js(/ponyfill)/fn/string/trim-end
+core-js(/ponyfill)/fn/string/trim-left
+core-js(/ponyfill)/fn/string/trim-right
+core-js(/ponyfill)/fn/string/virtual/trim-start
+core-js(/ponyfill)/fn/string/virtual/trim-end
+core-js(/ponyfill)/fn/string/virtual/trim-left
+core-js(/ponyfill)/fn/string/virtual/trim-right
 ```
 [*Examples*](http://goo.gl/Er5lMJ):
 ```js
@@ -1417,7 +1417,7 @@ core-js(/library)/fn/string/virtual/trim-right
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/1
+core-js(/ponyfill)/stage/1
 ```
 * `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.symbol.description.js)
 ```js
@@ -1456,7 +1456,7 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/promise/try
+core-js(/ponyfill)/fn/promise/try
 ```
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
@@ -1488,14 +1488,14 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/set/of
-core-js(/library)/fn/set/from
-core-js(/library)/fn/map/of
-core-js(/library)/fn/map/from
-core-js(/library)/fn/weak-set/of
-core-js(/library)/fn/weak-set/from
-core-js(/library)/fn/weak-map/of
-core-js(/library)/fn/weak-map/from
+core-js(/ponyfill)/fn/set/of
+core-js(/ponyfill)/fn/set/from
+core-js(/ponyfill)/fn/map/of
+core-js(/ponyfill)/fn/map/from
+core-js(/ponyfill)/fn/weak-set/of
+core-js(/ponyfill)/fn/weak-set/from
+core-js(/ponyfill)/fn/weak-map/of
+core-js(/ponyfill)/fn/weak-map/from
 ```
 [*Examples*](https://goo.gl/mSC7eU):
 ```js
@@ -1511,8 +1511,8 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/string/match-all
-core-js(/library)/fn/string/virtual/match-all
+core-js(/ponyfill)/fn/string/match-all
+core-js(/ponyfill)/fn/string/virtual/match-all
 ```
 [*Examples*](http://goo.gl/6kp9EB):
 ```js
@@ -1537,8 +1537,8 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/observable
-core-js(/library)/fn/symbol/observable
+core-js(/ponyfill)/fn/observable
+core-js(/ponyfill)/fn/symbol/observable
 ```
 [*Examples*](http://goo.gl/1LDywi):
 ```js
@@ -1573,13 +1573,13 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/math/clamp
-core-js(/library)/fn/math/deg-per-rad
-core-js(/library)/fn/math/degrees
-core-js(/library)/fn/math/fscale
-core-js(/library)/fn/math/rad-per-deg
-core-js(/library)/fn/math/radians
-core-js(/library)/fn/math/scale
+core-js(/ponyfill)/fn/math/clamp
+core-js(/ponyfill)/fn/math/deg-per-rad
+core-js(/ponyfill)/fn/math/degrees
+core-js(/ponyfill)/fn/math/fscale
+core-js(/ponyfill)/fn/math/rad-per-deg
+core-js(/ponyfill)/fn/math/radians
+core-js(/ponyfill)/fn/math/scale
 ```
 * `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.math.signbit.js)
 ```js
@@ -1589,7 +1589,7 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/math/signbit
+core-js(/ponyfill)/fn/math/signbit
 ```
 [*Examples*](http://es.zloirock.ru/):
 ```js
@@ -1603,7 +1603,7 @@ Math.signbit(-0);  // => false
 #### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/0
+core-js(/ponyfill)/stage/0
 ```
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.at.js)
 ```js
@@ -1613,8 +1613,8 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/string/at
-core-js(/library)/fn/string/virtual/at
+core-js(/ponyfill)/fn/string/at
+core-js(/ponyfill)/fn/string/virtual/at
 ```
 [*Examples*](http://goo.gl/XluXI8):
 ```js
@@ -1632,10 +1632,10 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/math/iaddh
-core-js(/library)/fn/math/isubh
-core-js(/library)/fn/math/imulh
-core-js(/library)/fn/math/umulh
+core-js(/ponyfill)/fn/math/iaddh
+core-js(/ponyfill)/fn/math/isubh
+core-js(/ponyfill)/fn/math/imulh
+core-js(/ponyfill)/fn/math/umulh
 ```
 * `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`esnext.asap`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.asap.js)
 ```js
@@ -1643,7 +1643,7 @@ function asap(fn: Function): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/asap
+core-js(/ponyfill)/fn/asap
 ```
 [*Examples*](http://goo.gl/tx3SRK):
 ```js
@@ -1653,7 +1653,7 @@ asap(() => console.log('called as microtask'));
 #### Pre-stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/stage/pre
+core-js(/ponyfill)/stage/pre
 ```
 * `Reflect` metadata [proposal](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.reflect.metadata.js).
 ```js
@@ -1671,15 +1671,15 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/fn/reflect/define-metadata
-core-js(/library)/fn/reflect/delete-metadata
-core-js(/library)/fn/reflect/get-metadata
-core-js(/library)/fn/reflect/get-metadata-keys
-core-js(/library)/fn/reflect/get-own-metadata
-core-js(/library)/fn/reflect/get-own-metadata-keys
-core-js(/library)/fn/reflect/has-metadata
-core-js(/library)/fn/reflect/has-own-metadata
-core-js(/library)/fn/reflect/metadata
+core-js(/ponyfill)/fn/reflect/define-metadata
+core-js(/ponyfill)/fn/reflect/delete-metadata
+core-js(/ponyfill)/fn/reflect/get-metadata
+core-js(/ponyfill)/fn/reflect/get-metadata-keys
+core-js(/ponyfill)/fn/reflect/get-own-metadata
+core-js(/ponyfill)/fn/reflect/get-own-metadata-keys
+core-js(/ponyfill)/fn/reflect/has-metadata
+core-js(/ponyfill)/fn/reflect/has-own-metadata
+core-js(/ponyfill)/fn/reflect/metadata
 ```
 [*Examples*](http://goo.gl/KCo3PS):
 ```js
@@ -1693,7 +1693,7 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 ### Web standards
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/web
+core-js(/ponyfill)/web
 ```
 #### setTimeout / setInterval
 Module [`web.timers`](https://github.com/zloirock/core-js/blob/v3/modules/web.timers.js). Additional arguments fix for IE9-.
@@ -1703,9 +1703,9 @@ function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/web/timers
-core-js(/library)/fn/set-timeout
-core-js(/library)/fn/set-interval
+core-js(/ponyfill)/web/timers
+core-js(/ponyfill)/fn/set-timeout
+core-js(/ponyfill)/fn/set-interval
 ```
 ```js
 // Before:
@@ -1721,9 +1721,9 @@ function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/web/immediate
-core-js(/library)/fn/set-immediate
-core-js(/library)/fn/clear-immediate
+core-js(/ponyfill)/web/immediate
+core-js(/ponyfill)/fn/set-immediate
+core-js(/ponyfill)/fn/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
@@ -1782,8 +1782,8 @@ class [DOMTokenList, NodeList] {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(/library)/web/dom-collections
-core-js(/library)/fn/dom-collections/iterator
+core-js(/ponyfill)/web/dom-collections
+core-js(/ponyfill)/fn/dom-collections/iterator
 core-js/fn/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
@@ -1799,7 +1799,7 @@ for (let [index, { id }] of document.querySelectorAll('*').entries()) {
 document.querySelectorAll('*').forEach(it => console.log(it.id));
 ```
 ### Iteration helpers
-Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v3/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `library` version or, for example, for `arguments` object:
+Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/v3/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/v3/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `ponyfill` version or, for example, for `arguments` object:
 ```js
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
@@ -1807,15 +1807,15 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/library/fn/is-iterable
-core-js/library/fn/get-iterator
-core-js/library/fn/get-iterator-method
+core-js/ponyfill/fn/is-iterable
+core-js/ponyfill/fn/get-iterator
+core-js/ponyfill/fn/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js
-import isIterable from 'core-js/library/fn/is-iterable';
-import getIterator from 'core-js/library/fn/get-iterator';
-import getIteratorMethod from 'core-js/library/fn/get-iterator-method';
+import isIterable from 'core-js/ponyfill/fn/is-iterable';
+import getIterator from 'core-js/ponyfill/fn/get-iterator';
+import getIteratorMethod from 'core-js/ponyfill/fn/get-iterator-method';
 
 let list = (function () {
   return arguments;
