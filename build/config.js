@@ -199,7 +199,7 @@ module.exports = {
     'core.get-iterator',
     'core.is-iterable',
   ],
-  libraryBlacklist: [
+  ponyfillBlacklist: [
     'es.object.to-string',
     'es.function.name',
     'es.regexp.constructor',

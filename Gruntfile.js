@@ -35,7 +35,7 @@ module.exports = grunt => {
         },
       },
     },
-    clean: ['./library'],
+    clean: ['./ponyfill'],
     copy: {
       lib: {
         files: [
@@ -43,18 +43,18 @@ module.exports = grunt => {
             expand: true,
             cwd: './',
             src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
-            dest: './library/',
+            dest: './ponyfill/',
           }, {
             expand: true,
             cwd: './',
             src: ['modules/*'],
-            dest: './library/',
+            dest: './ponyfill/',
             filter: 'isFile',
           }, {
             expand: true,
-            cwd: './modules/library/',
+            cwd: './modules/ponyfill/',
             src: '*',
-            dest: './library/modules/',
+            dest: './ponyfill/modules/',
           },
         ],
       },
@@ -73,11 +73,11 @@ module.exports = grunt => {
           'tests/bundles/tests.js',
         ].map(it => ({ src: it })),
       },
-      library: {
+      ponyfill: {
         files: [
-          'client/library.js',
+          'client/ponyfill.js',
           'tests/bundles/qunit-helpers.js',
-          'tests/bundles/library.js',
+          'tests/bundles/ponyfill.js',
         ].map(it => ({ src: it })),
       },
     },
@@ -126,9 +126,9 @@ module.exports = grunt => {
         entry: './tests/helpers/qunit-helpers.js',
         output: { filename: 'qunit-helpers.js' },
       },
-      library: {
-        entry: './tests/library/index.js',
-        output: { filename: 'library.js' },
+      ponyfill: {
+        entry: './tests/ponyfill/index.js',
+        output: { filename: 'ponyfill.js' },
       },
       tests: {
         entry: './tests/tests/index.js',
@@ -145,7 +145,7 @@ module.exports = grunt => {
     return build({
       modules: (options || 'es,esnext,web,core').split(','),
       blacklist: (grunt.option('blacklist') || '').split(','),
-      library: !!~['yes', 'on', 'true'].indexOf(grunt.option('library')),
+      ponyfill: !!~['yes', 'on', 'true'].indexOf(grunt.option('ponyfill')),
       umd: !~['no', 'off', 'false'].indexOf(grunt.option('umd')),
     }).then(it => {
       const filename = `${ grunt.option('path') || './custom' }.js`;
@@ -158,14 +158,14 @@ module.exports = grunt => {
     });
   });
   grunt.registerTask('client', () => {
-    grunt.option('library', '');
+    grunt.option('ponyfill', '');
     grunt.option('path', './client/core');
     return grunt.task.run(['build:es,esnext,web', 'uglify']);
   });
-  grunt.registerTask('library', () => {
-    grunt.option('library', 'true');
-    grunt.option('path', './client/library');
+  grunt.registerTask('ponyfill', () => {
+    grunt.option('ponyfill', 'true');
+    grunt.option('path', './client/ponyfill');
     return grunt.task.run(['build:es,esnext,web,core', 'uglify']);
   });
-  return grunt.registerTask('default', ['clean', 'copy', 'client', 'library']);
+  return grunt.registerTask('default', ['clean', 'copy', 'client', 'ponyfill']);
 };

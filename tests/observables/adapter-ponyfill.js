@@ -1,5 +1,5 @@
 'use strict';
-const core = require('../../library');
+const core = require('../../ponyfill');
 global.Promise = core.Promise;
 global.Symbol = core.Symbol;
 // eslint-disable-next-line import/no-unresolved

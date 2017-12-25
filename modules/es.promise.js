@@ -1,5 +1,5 @@
 'use strict';
-var LIBRARY = require('./_library');
+var IS_PONYFILL = require('./_is-ponyfill');
 var global = require('./_global');
 var ctx = require('./_ctx');
 var classof = require('./_classof');
@@ -235,10 +235,10 @@ $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
     return capability.promise;
   }
 });
-$export($export.S + $export.F * (LIBRARY || !USE_NATIVE), PROMISE, {
+$export($export.S + $export.F * (IS_PONYFILL || !USE_NATIVE), PROMISE, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x) {
-    return promiseResolve(LIBRARY && this === Wrapper ? $Promise : this, x);
+    return promiseResolve(IS_PONYFILL && this === Wrapper ? $Promise : this, x);
   }
 });
 $export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function (iter) {
