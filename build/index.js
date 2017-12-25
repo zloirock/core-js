@@ -5,7 +5,7 @@ const path = require('path');
 const webpack = require('webpack');
 const temp = require('temp');
 const list = config.list;
-const libraryBlacklist = config.libraryBlacklist;
+const ponyfillBlacklist = config.ponyfillBlacklist;
 const banner = config.banner;
 const readFile = fs.readFile;
 const unlink = fs.unlink;
@@ -23,7 +23,7 @@ function dedent(template) {
 }
 
 module.exports = options => {
-  const library = options.library || false;
+  const ponyfill = options.ponyfill || false;
   const umd = options.umd != null ? options.umd : true;
   let modules = options.modules || [];
   let blacklist = options.blacklist || [];
@@ -42,8 +42,8 @@ module.exports = options => {
         }
       }
     }
-    if (library) {
-      blacklist = blacklist.concat(libraryBlacklist);
+    if (ponyfill) {
+      blacklist = blacklist.concat(ponyfillBlacklist);
     }
     for (let i = 0, length1 = blacklist.length; i < length1; ++i) {
       const ns = blacklist[i];
@@ -65,8 +65,8 @@ module.exports = options => {
       },
       entry: list
         .filter(it => modules[it])
-        .map(it => library
-          ? join(__dirname, '..', 'library', 'modules', it)
+        .map(it => ponyfill
+          ? join(__dirname, '..', 'ponyfill', 'modules', it)
           : join(__dirname, '..', 'modules', it)
         ),
       output: {
