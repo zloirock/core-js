@@ -5,6 +5,6 @@ node_modules/
 *.bak
 *.swp
 
-/library/
+/ponyfill/
 /tests/bundles/
 /client/

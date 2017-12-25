@@ -1,7 +1,7 @@
 'use strict';
 var global = require('./_global');
 var DESCRIPTORS = require('./_descriptors');
-var LIBRARY = require('./_library');
+var IS_PONYFILL = require('./_is-ponyfill');
 var $typed = require('./_typed');
 var hide = require('./_hide');
 var redefineAll = require('./_redefine-all');
@@ -253,7 +253,7 @@ if (!$typed.ABV) {
     for (var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;) {
       if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, BaseBuffer[key]);
     }
-    if (!LIBRARY) ArrayBufferProto.constructor = $ArrayBuffer;
+    if (!IS_PONYFILL) ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
   var view = new $DataView(new $ArrayBuffer(2));

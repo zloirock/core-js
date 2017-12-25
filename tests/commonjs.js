@@ -2,7 +2,7 @@
 'use strict';
 const ok = require('assert').ok;
 
-for (const PATH of ['..', '../library']) {
+for (const PATH of ['..', '../ponyfill']) {
   let O;
   ok(require(`${ PATH }/fn/object/assign`)({ q: 1 }, { w: 2 }).w === 2);
   ok(require(`${ PATH }/fn/object/create`)(Array.prototype) instanceof Array);
