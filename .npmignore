@@ -1,7 +1,7 @@
 node_modules/
 /build/core-js-builder/
-/client/library.*
-/modules/library/
+/client/ponyfill.*
+/modules/ponyfill/
 /tests/
 CHANGELOG.md
 *.log
