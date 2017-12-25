@@ -378,7 +378,7 @@ module.exports = {
       files: [
         'es/**',
         'fn/**',
-        'library/**',
+        'ponyfill/**',
         'modules/**',
         'stage/**',
         'tests/promises-aplus/**',
@@ -392,7 +392,7 @@ module.exports = {
     {
       files: [
         'tests/helpers/**',
-        'tests/library/**',
+        'tests/ponyfill/**',
         'tests/tests/**',
       ],
       parserOptions: {
@@ -418,7 +418,7 @@ module.exports = {
     },
     {
       files: [
-        'tests/library/**',
+        'tests/ponyfill/**',
       ],
       globals: {
         core: true,

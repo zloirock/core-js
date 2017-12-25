@@ -27,7 +27,7 @@ var $export = function (type, name, source) {
     exports[key] = IS_GLOBAL && typeof target[key] != 'function' ? source[key]
     // bind timers to global for call from export context
     : IS_BIND && own ? ctx(out, global)
-    // wrap global constructors for prevent change them in library
+    // wrap global constructors for prevent change them in ponyfill
     : IS_WRAP && target[key] == out ? (function (C) {
       var F = function (a, b, c) {
         if (this instanceof C) {
@@ -58,5 +58,5 @@ $export.P = 8;   // proto
 $export.B = 16;  // bind
 $export.W = 32;  // wrap
 $export.U = 64;  // safe
-$export.R = 128; // real proto method for `library`
+$export.R = 128; // real proto method for `ponyfill`
 module.exports = $export;
