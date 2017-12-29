@@ -130,7 +130,6 @@ Available namespaces: for example, `es.array` contains [ES `Array` features](#ec
 require('core-js-builder')({
   modules: ['es', 'web'],    // modules / namespaces
   blacklist: ['es.reflect'], // blacklist of modules / namespaces, by default - empty list
-  umd: true,                 // use UMD wrapper for export `core` object, by default - true
 }).then(code => {
   // ...
 }).catch(error => {
