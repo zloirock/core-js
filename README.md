@@ -116,9 +116,9 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 ### Custom build (from the command-line)
 ```
 npm i core-js && cd node_modules/core-js && npm i
-npm run grunt build:es,web -- --blacklist=es.reflect,es.math --ponyfill=on --path=custom uglify
+npm run grunt build:es,web -- --blacklist=es.reflect,es.math --path=custom uglify
 ```
-Where `es` and `web` are modules (namespaces) names, which will be added to the build, `es.reflect` and `es.math` are modules (namespaces) names, which will be excluded from the build, `--ponyfill=on` is flag for build without global namespace pollution and `custom` is target file name.
+Where `es` and `web` are modules (namespaces) names, which will be added to the build, `es.reflect` and `es.math` are modules (namespaces) names, which will be excluded from the build and `custom` is target file name.
 
 Available namespaces: for example, `es.array` contains [ES `Array` features](#ecmascript-array), `es` contains all modules whose names start with `es`.
 
@@ -130,7 +130,6 @@ Available namespaces: for example, `es.array` contains [ES `Array` features](#ec
 require('core-js-builder')({
   modules: ['es', 'web'],    // modules / namespaces
   blacklist: ['es.reflect'], // blacklist of modules / namespaces, by default - empty list
-  ponyfill: false,           // flag for build without global namespace pollution, by default - false
   umd: true,                 // use UMD wrapper for export `core` object, by default - true
 }).then(code => {
   // ...
