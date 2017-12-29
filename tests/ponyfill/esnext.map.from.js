@@ -1,15 +1,17 @@
 import { createIterable } from '../helpers/helpers';
 
+import Map from '../../ponyfill/fn/map';
+import toArray from '../../ponyfill/fn/array/from';
+
 QUnit.test('Map.from', assert => {
-  const { Map } = core;
   const { from } = Map;
   assert.isFunction(from);
   assert.arity(from, 1);
   assert.ok(Map.from() instanceof Map);
-  assert.deepEqual(core.Array.from(Map.from([])), []);
-  assert.deepEqual(core.Array.from(Map.from([[1, 2]])), [[1, 2]]);
-  assert.deepEqual(core.Array.from(Map.from([[1, 2], [2, 3], [1, 4]])), [[1, 4], [2, 3]]);
-  assert.deepEqual(core.Array.from(Map.from(createIterable([[1, 2], [2, 3], [1, 4]]))), [[1, 4], [2, 3]]);
+  assert.deepEqual(toArray(Map.from([])), []);
+  assert.deepEqual(toArray(Map.from([[1, 2]])), [[1, 2]]);
+  assert.deepEqual(toArray(Map.from([[1, 2], [2, 3], [1, 4]])), [[1, 4], [2, 3]]);
+  assert.deepEqual(toArray(Map.from(createIterable([[1, 2], [2, 3], [1, 4]]))), [[1, 4], [2, 3]]);
   const pair = [1, 2];
   const context = {};
   Map.from([pair], function (element, index) {

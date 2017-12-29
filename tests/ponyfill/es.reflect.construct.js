@@ -1,6 +1,7 @@
+import construct from '../../ponyfill/fn/reflect/construct';
+import getPrototypeOf from '../../ponyfill/fn/object/get-prototype-of';
+
 QUnit.test('Reflect.construct', assert => {
-  const { getPrototypeOf } = core.Object;
-  const { construct } = core.Reflect;
   assert.isFunction(construct);
   assert.arity(construct, 2);
   if ('name' in construct) {

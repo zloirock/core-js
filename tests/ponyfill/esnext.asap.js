@@ -1,5 +1,6 @@
+import asap from '../../ponyfill/fn/asap';
+
 QUnit.test('asap', assert => {
-  const { asap } = core;
   assert.expect(3);
   assert.isFunction(asap);
   assert.arity(asap, 1);

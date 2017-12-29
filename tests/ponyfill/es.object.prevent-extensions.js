@@ -1,6 +1,7 @@
+import { preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
+
 QUnit.test('Object.preventExtensions', assert => {
-  const { preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-  const { ownKeys } = core.Reflect;
   assert.isFunction(preventExtensions);
   assert.arity(preventExtensions, 1);
   const data = [42, 'foo', false, null, undefined, {}];

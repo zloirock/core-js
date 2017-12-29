@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import isExtensible from '../../ponyfill/fn/reflect/is-extensible';
+import preventExtensions from '../../ponyfill/fn/object/prevent-extensions';
+
 QUnit.test('Reflect.isExtensible', assert => {
-  const { isExtensible } = core.Reflect;
-  const { preventExtensions } = core.Object;
   assert.isFunction(isExtensible);
   assert.arity(isExtensible, 1);
   if ('name' in isExtensible) {

@@ -1,5 +1,6 @@
+import { metadata, hasOwnMetadata } from '../../ponyfill/fn/reflect';
+
 QUnit.test('Reflect.metadata', assert => {
-  const { metadata, hasOwnMetadata } = core.Reflect;
   assert.isFunction(metadata);
   assert.arity(metadata, 2);
   assert.isFunction(metadata('key', 'value'));

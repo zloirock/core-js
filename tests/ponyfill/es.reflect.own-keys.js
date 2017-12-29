@@ -1,9 +1,10 @@
 import { includes } from '../helpers/helpers';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
+import { defineProperty, create } from '../../ponyfill/fn/object';
+
 QUnit.test('Reflect.ownKeys', assert => {
-  const { ownKeys } = core.Reflect;
-  const { defineProperty, create } = core.Object;
-  const symbol = core.Symbol('c');
   assert.isFunction(ownKeys);
   assert.arity(ownKeys, 1);
   if ('name' in ownKeys) {
@@ -13,7 +14,7 @@ QUnit.test('Reflect.ownKeys', assert => {
   defineProperty(object, 'b', {
     value: 2,
   });
-  object[symbol] = 3;
+  object[Symbol('c')] = 3;
   let keys = ownKeys(object);
   assert.strictEqual(keys.length, 3, 'ownKeys return all own keys');
   assert.ok(includes(keys, 'a'), 'ownKeys return all own keys: simple');

@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-const { ArrayBuffer, DataView, Uint8Array } = core;
+import { ArrayBuffer, DataView, Uint8Array } from '../../ponyfill';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object');

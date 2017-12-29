@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import at from '../../ponyfill/fn/string/at';
+
 QUnit.test('String#at', assert => {
-  const { at } = core.String;
   assert.isFunction(at);
   // String that starts with a BMP symbol
   assert.strictEqual(at('abc\uD834\uDF06def', -Infinity), '');

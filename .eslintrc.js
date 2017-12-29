@@ -301,8 +301,6 @@ const base = {
   'prefer-template': 'error',
   // enforce spacing between rest and spread operators and their expressions
   'rest-spread-spacing': 'error',
-  // enforce sorted import declarations within modules
-  'sort-imports': 'error',
   // require or disallow spacing around embedded expressions of template strings
   'template-curly-spacing': ['error', 'always'],
 
@@ -412,14 +410,6 @@ module.exports = {
       globals: {
         asap: true,
         Observable: true,
-      },
-    },
-    {
-      files: [
-        'tests/ponyfill/**',
-      ],
-      globals: {
-        core: true,
       },
     },
   ],

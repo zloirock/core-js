@@ -1,6 +1,7 @@
+import isFinite from '../../ponyfill/fn/number/is-finite';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Number.isFinite', assert => {
-  const { isFinite } = core.Number;
-  const { create } = core.Object;
   assert.isFunction(isFinite);
   const finite = [
     1,

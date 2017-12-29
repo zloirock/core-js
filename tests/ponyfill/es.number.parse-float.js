@@ -1,8 +1,8 @@
+import parseFloat from '../../ponyfill/fn/number/parse-float';
+
 QUnit.test('Number.parseFloat', assert => {
-  const { parseFloat } = core.Number;
   assert.isFunction(parseFloat);
   assert.arity(parseFloat, 1);
-  assert.same(parseFloat, core.parseFloat);
   assert.same(parseFloat('0'), 0);
   assert.same(parseFloat(' 0'), 0);
   assert.same(parseFloat('+0'), 0);

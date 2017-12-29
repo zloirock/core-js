@@ -1,10 +1,10 @@
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-const { Set, Map, Symbol } = core;
-const { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-const { ownKeys } = core.Reflect;
-const { from } = core.Array;
+import { getIterator, getIteratorMethod, Set, Map, Symbol } from '../../ponyfill';
+import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
+import from from '../../ponyfill/fn/array/from';
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);
@@ -49,7 +49,7 @@ QUnit.test('Set', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   new Set(array);
   assert.ok(done);
@@ -372,7 +372,7 @@ QUnit.test('Set#@@iterator', assert => {
   set.add('q');
   set.add('w');
   set.add('e');
-  const iterator = core.getIterator(set);
+  const iterator = getIterator(set);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');

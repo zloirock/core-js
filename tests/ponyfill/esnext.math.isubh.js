@@ -1,5 +1,6 @@
+import isubh from '../../ponyfill/fn/math/isubh';
+
 QUnit.test('Math.isubh', assert => {
-  const { isubh } = core.Math;
   assert.isFunction(isubh);
   assert.arity(isubh, 4);
   assert.same(isubh(0, 2, 1, 0), 1);

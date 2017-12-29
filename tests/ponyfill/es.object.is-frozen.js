@@ -1,5 +1,6 @@
+import isFrozen from '../../ponyfill/fn/object/is-frozen';
+
 QUnit.test('Object.isFrozen', assert => {
-  const { isFrozen } = core.Object;
   assert.isFunction(isFrozen);
   assert.arity(isFrozen, 1);
   const primitives = [42, 'string', false, null, undefined];

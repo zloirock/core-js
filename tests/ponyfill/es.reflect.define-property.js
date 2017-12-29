@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import defineProperty from '../../ponyfill/fn/reflect/define-property';
+import { getOwnPropertyDescriptor, create } from '../../ponyfill/fn/object';
+
 QUnit.test('Reflect.defineProperty', assert => {
-  const { defineProperty } = core.Reflect;
-  const { getOwnPropertyDescriptor, create } = core.Object;
   assert.isFunction(defineProperty);
   assert.arity(defineProperty, 3);
   if ('name' in defineProperty) {

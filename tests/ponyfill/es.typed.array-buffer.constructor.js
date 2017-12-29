@@ -1,7 +1,8 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import { ArrayBuffer, Symbol } from '../../ponyfill';
+
 QUnit.test('ArrayBuffer', assert => {
-  const { ArrayBuffer, Symbol } = core;
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');
   assert.same(new ArrayBuffer(123).byteLength, 123, 'length');
   assert.throws(() => new ArrayBuffer(-1), RangeError, 'negative length');

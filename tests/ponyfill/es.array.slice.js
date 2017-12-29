@@ -1,7 +1,8 @@
 import { GLOBAL } from '../helpers/constants';
 
+import { slice, isArray } from '../../ponyfill/fn/array';
+
 QUnit.test('Array#slice', assert => {
-  const { slice, isArray } = core.Array;
   assert.isFunction(slice);
   const array = ['1', '2', '3', '4', '5'];
   assert.deepEqual(slice(array), array);

@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import of from '../../ponyfill/fn/array/of';
+import defineProperty from '../../ponyfill/fn/object/define-property';
+
 QUnit.test('Array.of', assert => {
-  const { of } = core.Array;
-  const { defineProperty } = core.Object;
   assert.isFunction(of);
   assert.arity(of, 0);
   assert.deepEqual(of(1), [1]);

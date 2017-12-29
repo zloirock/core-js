@@ -1,5 +1,6 @@
+import getOwnPropertyDescriptor from '../../ponyfill/fn/object/get-own-property-descriptor';
+
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
-  const { getOwnPropertyDescriptor } = core.Object;
   assert.isFunction(getOwnPropertyDescriptor);
   assert.arity(getOwnPropertyDescriptor, 2);
   assert.deepEqual(getOwnPropertyDescriptor({ q: 42 }, 'q'), {

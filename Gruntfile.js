@@ -75,7 +75,6 @@ module.exports = grunt => {
       },
       ponyfill: {
         files: [
-          'client/ponyfill.js',
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/ponyfill.js',
         ].map(it => ({ src: it })),
@@ -86,6 +85,7 @@ module.exports = grunt => {
         module: {
           loaders: [{
             test: /\.js$/,
+            exclude: /modules/,
             loader: 'babel-loader',
             options: {
               // use transforms which does not use es5+ builtins

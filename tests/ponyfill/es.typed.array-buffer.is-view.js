@@ -1,7 +1,8 @@
 import { TYPED_ARRAYS } from '../helpers/constants';
 
+import core, { ArrayBuffer, DataView } from '../../ponyfill';
+
 QUnit.test('ArrayBuffer.isView', assert => {
-  const { ArrayBuffer, DataView } = core;
   const { isView } = ArrayBuffer;
   assert.isFunction(isView);
   assert.arity(isView, 1);
