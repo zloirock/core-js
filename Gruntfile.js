@@ -145,7 +145,6 @@ module.exports = grunt => {
     return build({
       modules: (options || 'es,esnext,web,core').split(','),
       blacklist: (grunt.option('blacklist') || '').split(','),
-      umd: !~['no', 'off', 'false'].indexOf(grunt.option('umd')),
     }).then(it => {
       const filename = `${ grunt.option('path') || './custom' }.js`;
       mkdirp.sync(path.dirname(filename));
