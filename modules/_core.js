@@ -1,2 +1,9 @@
-var core = module.exports = { version: '2.5.1' };
-if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
+var version = [
+  '2.5.1',
+  require('./_is-ponyfill') ? 'ponyfill' : 'global',
+  '© 2017 Denis Pushkarev (zloirock.ru)'
+];
+
+require('./_shared')('versions', []).push(version);
+
+module.exports = { version: version };

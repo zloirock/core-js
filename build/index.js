@@ -6,17 +6,7 @@ const webpack = require('webpack');
 const temp = require('temp');
 const list = config.list;
 
-function dedent(template) {
-  const result = [];
-  for (let i = 0; template.length > i;) {
-    result.push(template[i++].replace(/\n\s+/gm, '\n'));
-    if (i !== template.length) result.push(arguments[i]);
-  }
-  return result.join('').trim();
-}
-
 module.exports = options => {
-  const umd = options.umd != null ? options.umd : true;
   const blacklist = options.blacklist || [];
   let modules = options.modules || [];
   return new Promise((resolve, reject) => {
@@ -65,21 +55,7 @@ module.exports = options => {
         if (err2) return reject(err2);
         fs.unlink(TARGET, err3 => {
           if (err3) return reject(err3);
-          resolve(dedent`
-            ${ config.banner }
-            !function (__e, __g, undefined) {
-            'use strict';
-            ${ script }
-            ${ umd ? dedent`
-            // CommonJS export
-            if (typeof module != 'undefined' && module.exports) module.exports = __e;
-            // RequireJS export
-            else if (typeof define == 'function' && define.amd) define(function () { return __e; });
-            // Export to global object
-            else __g.core = __e;
-            ` : '' }
-            }(1, 1);
-          `);
+          resolve(`${ config.banner }\n!function (undefined) { 'use strict'; ${ script } }();`);
         });
       });
     });
