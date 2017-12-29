@@ -6,9 +6,9 @@ var TO_STRING = 'toString';
 var $toString = Function[TO_STRING];
 var TPL = ('' + $toString).split(TO_STRING);
 
-require('./_core').inspectSource = function (it) {
+require('./_shared')('inspectSource', function (it) {
   return $toString.call(it);
-};
+});
 
 (module.exports = function (O, key, val, safe) {
   var isFunction = typeof val == 'function';
