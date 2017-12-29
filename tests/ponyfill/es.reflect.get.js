@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import get from '../../ponyfill/fn/reflect/get';
+import { defineProperty, create } from '../../ponyfill/fn/object';
+
 QUnit.test('Reflect.get', assert => {
-  const { defineProperty, create } = core.Object;
-  const { get } = core.Reflect;
   assert.isFunction(get);
   if ('name' in get) {
     assert.name(get, 'get');

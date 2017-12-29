@@ -1,5 +1,6 @@
+import iaddh from '../../ponyfill/fn/math/iaddh';
+
 QUnit.test('Math.iaddh', assert => {
-  const { iaddh } = core.Math;
   assert.isFunction(iaddh);
   assert.arity(iaddh, 4);
   assert.same(iaddh(0, 2, 1, 0), 2);

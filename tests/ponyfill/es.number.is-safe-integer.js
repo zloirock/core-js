@@ -1,6 +1,7 @@
+import isSafeInteger from '../../ponyfill/fn/number/is-safe-integer';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Number.isSafeInteger', assert => {
-  const { isSafeInteger } = core.Number;
-  const { create } = core.Object;
   assert.isFunction(isSafeInteger);
   const safeIntegers = [
     1,

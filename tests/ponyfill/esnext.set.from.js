@@ -1,15 +1,17 @@
 import { createIterable } from '../helpers/helpers';
 
+import Set from '../../ponyfill/fn/set';
+import toArray from '../../ponyfill/fn/array/from';
+
 QUnit.test('Set.from', assert => {
-  const { Set } = core;
   const { from } = Set;
   assert.isFunction(from);
   assert.arity(from, 1);
   assert.ok(Set.from() instanceof Set);
-  assert.deepEqual(core.Array.from(Set.from([])), []);
-  assert.deepEqual(core.Array.from(Set.from([1])), [1]);
-  assert.deepEqual(core.Array.from(Set.from([1, 2, 3, 2, 1])), [1, 2, 3]);
-  assert.deepEqual(core.Array.from(Set.from(createIterable([1, 2, 3, 2, 1]))), [1, 2, 3]);
+  assert.deepEqual(toArray(Set.from([])), []);
+  assert.deepEqual(toArray(Set.from([1])), [1]);
+  assert.deepEqual(toArray(Set.from([1, 2, 3, 2, 1])), [1, 2, 3]);
+  assert.deepEqual(toArray(Set.from(createIterable([1, 2, 3, 2, 1]))), [1, 2, 3]);
   const context = {};
   Set.from([1], function (element, index) {
     assert.same(element, 1);

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import fill from '../../ponyfill/fn/array/fill';
+
 QUnit.test('Array#fill', assert => {
-  const { fill } = core.Array;
   assert.isFunction(fill);
   const array = fill(Array(5), 5);
   assert.strictEqual(array, array);

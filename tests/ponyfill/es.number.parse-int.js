@@ -1,8 +1,8 @@
+import parseInt from '../../ponyfill/fn/number/parse-int';
+
 QUnit.test('Number.parseInt', assert => {
-  const { parseInt } = core.Number;
   assert.isFunction(parseInt);
   assert.arity(parseInt, 2);
-  assert.same(parseInt, core.parseInt);
   for (let radix = 2; radix <= 36; ++radix) {
     assert.same(parseInt('10', radix), radix, `radix ${ radix }`);
   }

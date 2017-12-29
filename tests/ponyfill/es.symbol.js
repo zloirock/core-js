@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-const { Symbol, JSON } = core;
-const {
+import core, { Symbol, JSON } from '../../ponyfill';
+import {
   defineProperty,
   defineProperties,
   getOwnPropertyDescriptor,
@@ -9,8 +9,8 @@ const {
   getOwnPropertySymbols,
   keys,
   create,
-} = core.Object;
-const { ownKeys } = core.Reflect;
+} from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);

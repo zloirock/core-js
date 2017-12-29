@@ -1,8 +1,9 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
+import { __lookupSetter__, __defineSetter__, create } from '../../ponyfill/fn/object';
+
 if (DESCRIPTORS) {
   QUnit.test('Object#__lookupSetter__', assert => {
-    const { __lookupSetter__, __defineSetter__, create } = core.Object;
     assert.isFunction(__lookupSetter__);
     assert.same(__lookupSetter__({}, 'key'), undefined, 'empty object');
     assert.same(__lookupSetter__({ key: 42 }, 'key'), undefined, 'data descriptor');

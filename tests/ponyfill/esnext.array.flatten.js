@@ -1,8 +1,9 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
+import flatten from '../../ponyfill/fn/array/flatten';
+import defineProperty from '../../ponyfill/fn/object/define-property';
+
 QUnit.test('Array#flatten', assert => {
-  const { flatten } = core.Array;
-  const { defineProperty } = core.Object;
   assert.isFunction(flatten);
   assert.deepEqual(flatten([]), []);
   const array = [1, [2, 3], [4, [5, 6]]];

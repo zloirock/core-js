@@ -1,5 +1,6 @@
+import cosh from '../../ponyfill/fn/math/cosh';
+
 QUnit.test('Math.cosh', assert => {
-  const { cosh } = core.Math;
   assert.isFunction(cosh);
   assert.same(cosh(NaN), NaN);
   assert.strictEqual(cosh(0), 1);

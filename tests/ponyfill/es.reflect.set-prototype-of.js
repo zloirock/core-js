@@ -1,7 +1,8 @@
 import { PROTO } from '../helpers/constants';
 
+import setPrototypeOf from '../../ponyfill/fn/reflect/set-prototype-of';
+
 if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
-  const { setPrototypeOf } = core.Reflect;
   assert.isFunction(setPrototypeOf);
   if ('name' in setPrototypeOf) {
     assert.name(setPrototypeOf, 'setPrototypeOf');

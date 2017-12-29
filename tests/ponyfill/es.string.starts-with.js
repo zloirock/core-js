@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import startsWith from '../../ponyfill/fn/string/starts-with';
+
 QUnit.test('String#startsWith', assert => {
-  const { startsWith } = core.String;
-  const { Symbol } = core;
   assert.isFunction(startsWith);
   assert.ok(startsWith('undefined'));
   assert.ok(!startsWith('undefined', null));

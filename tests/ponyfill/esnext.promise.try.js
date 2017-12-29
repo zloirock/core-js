@@ -1,4 +1,4 @@
-const { Promise } = core;
+import Promise from '../../ponyfill/fn/promise';
 
 QUnit.test('Promise.try', assert => {
   assert.isFunction(Promise.try);

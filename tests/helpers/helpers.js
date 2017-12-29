@@ -1,30 +1,5 @@
-import { GLOBAL } from './constants';
-
-const { core } = GLOBAL;
-
-const Promise = core ? core.Promise : GLOBAL.Promise;
-const ArrayBuffer = core ? core.ArrayBuffer : GLOBAL.ArrayBuffer;
-const DataView = core ? core.DataView : GLOBAL.DataView;
-
-const ITERATOR = core ? core.Symbol.iterator : GLOBAL.Symbol && GLOBAL.Symbol.iterator;
-
-export function arrayToBuffer(it) {
-  const buffer = new ArrayBuffer(it.length);
-  const view = new DataView(buffer);
-  for (let i = 0, { length } = it; i < length; ++i) {
-    view.setUint8(i, it[i]);
-  }
-  return buffer;
-}
-
-export function bufferToArray(it) {
-  const results = [];
-  const view = new DataView(it);
-  for (let i = 0, { byteLength } = view; i < byteLength; ++i) {
-    results.push(view.getUint8(i));
-  }
-  return results;
-}
+import Promise from '../../ponyfill/es/promise';
+import ITERATOR from '../../ponyfill/fn/symbol/iterator';
 
 export function createIterable(elements, methods) {
   const iterable = {

@@ -1,5 +1,6 @@
+import toPrecision from '../../ponyfill/fn/number/to-precision';
+
 QUnit.test('Number#toPrecision', assert => {
-  const { toPrecision } = core.Number;
   assert.isFunction(toPrecision);
   assert.same(toPrecision(0.00008, 3), '0.0000800', '0.00008.toPrecision(3)');
   assert.same(toPrecision(1.255, 2), '1.3', '1.255.toPrecision(2)');

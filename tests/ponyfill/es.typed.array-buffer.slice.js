@@ -1,7 +1,24 @@
-import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
+import { ArrayBuffer, DataView } from '../../ponyfill';
 
 QUnit.test('ArrayBuffer#slice', assert => {
-  const { ArrayBuffer } = core;
+  function arrayToBuffer(it) {
+    const buffer = new ArrayBuffer(it.length);
+    const view = new DataView(buffer);
+    for (let i = 0, { length } = it; i < length; ++i) {
+      view.setUint8(i, it[i]);
+    }
+    return buffer;
+  }
+
+  function bufferToArray(it) {
+    const results = [];
+    const view = new DataView(it);
+    for (let i = 0, { byteLength } = view; i < byteLength; ++i) {
+      results.push(view.getUint8(i));
+    }
+    return results;
+  }
+
   const { slice } = ArrayBuffer;
   assert.isFunction(slice);
   const buffer = arrayToBuffer([1, 2, 3, 4, 5]);
