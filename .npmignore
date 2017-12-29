@@ -3,5 +3,6 @@ node_modules/
 /modules/ponyfill/
 /tests/
 CHANGELOG.md
+CONTRIBUTING.md
 *.log
 .*
