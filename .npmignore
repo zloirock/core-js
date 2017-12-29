@@ -1,6 +1,5 @@
 node_modules/
 /build/core-js-builder/
-/client/ponyfill.*
 /modules/ponyfill/
 /tests/
 CHANGELOG.md

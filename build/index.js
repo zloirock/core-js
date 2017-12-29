@@ -5,13 +5,6 @@ const path = require('path');
 const webpack = require('webpack');
 const temp = require('temp');
 const list = config.list;
-const ponyfillBlacklist = config.ponyfillBlacklist;
-const banner = config.banner;
-const readFile = fs.readFile;
-const unlink = fs.unlink;
-const basename = path.basename;
-const dirname = path.dirname;
-const join = path.join;
 
 function dedent(template) {
   const result = [];
@@ -23,10 +16,9 @@ function dedent(template) {
 }
 
 module.exports = options => {
-  const ponyfill = options.ponyfill || false;
   const umd = options.umd != null ? options.umd : true;
+  const blacklist = options.blacklist || [];
   let modules = options.modules || [];
-  let blacklist = options.blacklist || [];
   return new Promise((resolve, reject) => {
     modules = modules.reduce((memo, it) => {
       memo[it] = true;
@@ -41,9 +33,6 @@ module.exports = options => {
           }
         }
       }
-    }
-    if (ponyfill) {
-      blacklist = blacklist.concat(ponyfillBlacklist);
     }
     for (let i = 0, length1 = blacklist.length; i < length1; ++i) {
       const ns = blacklist[i];
@@ -65,22 +54,19 @@ module.exports = options => {
       },
       entry: list
         .filter(it => modules[it])
-        .map(it => ponyfill
-          ? join(__dirname, '..', 'ponyfill', 'modules', it)
-          : join(__dirname, '..', 'modules', it)
-        ),
+        .map(it => path.join(__dirname, '..', 'modules', it)),
       output: {
-        path: dirname(TARGET),
-        filename: basename(`./${ TARGET }`),
+        path: path.dirname(TARGET),
+        filename: path.basename(`./${ TARGET }`),
       },
     }, err1 => {
       if (err1) return reject(err1);
-      readFile(TARGET, (err2, script) => {
+      fs.readFile(TARGET, (err2, script) => {
         if (err2) return reject(err2);
-        unlink(TARGET, err3 => {
+        fs.unlink(TARGET, err3 => {
           if (err3) return reject(err3);
           resolve(dedent`
-            ${ banner }
+            ${ config.banner }
             !function (__e, __g, undefined) {
             'use strict';
             ${ script }
