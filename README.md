@@ -72,6 +72,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
+- [Contributing](./CONTRIBUTING.md)
 - [Changelog](./CHANGELOG.md)
 
 ## Usage
