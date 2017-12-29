@@ -1,5 +1,6 @@
+import getOwnPropertyDescriptor from '../../ponyfill/fn/reflect/get-own-property-descriptor';
+
 QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
-  const { getOwnPropertyDescriptor } = core.Reflect;
   assert.isFunction(getOwnPropertyDescriptor);
   assert.arity(getOwnPropertyDescriptor, 2);
   if ('name' in getOwnPropertyDescriptor) {

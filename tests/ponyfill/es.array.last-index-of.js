@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import lastIndexOf from '../../ponyfill/fn/array/last-index-of';
+
 QUnit.test('Array#lastIndexOf', assert => {
-  const { lastIndexOf } = core.Array;
   assert.isFunction(lastIndexOf);
   assert.same(2, lastIndexOf([1, 1, 1], 1));
   assert.same(-1, lastIndexOf([1, 2, 3], 3, 1));

@@ -1,5 +1,6 @@
+import WeakMap from '../../ponyfill/fn/weak-map';
+
 QUnit.test('WeakMap.of', assert => {
-  const { WeakMap } = core;
   const { of } = WeakMap;
   assert.isFunction(of);
   assert.arity(of, 0);

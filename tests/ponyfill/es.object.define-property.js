@@ -1,5 +1,6 @@
+import { defineProperty, create } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.defineProperty', assert => {
-  const { defineProperty, create } = core.Object;
   assert.isFunction(defineProperty);
   assert.arity(defineProperty, 3);
   const source = {};

@@ -1,5 +1,6 @@
+import { values, create, assign } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.values', assert => {
-  const { values, create, assign } = core.Object;
   assert.isFunction(values);
   assert.arity(values, 1);
   if ('name' in values) assert.name(values, 'values');

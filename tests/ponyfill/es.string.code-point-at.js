@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import codePointAt from '../../ponyfill/fn/string/code-point-at';
+
 QUnit.test('String#codePointAt', assert => {
-  const { codePointAt } = core.String;
   assert.isFunction(codePointAt);
   assert.strictEqual(codePointAt('abc\uD834\uDF06def', ''), 0x61);
   assert.strictEqual(codePointAt('abc\uD834\uDF06def', '_'), 0x61);

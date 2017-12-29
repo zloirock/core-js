@@ -1,9 +1,9 @@
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-const { Map, Set, Symbol } = core;
-const { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-const { ownKeys } = core.Reflect;
+import { getIterator, getIteratorMethod, Map, Set, Symbol } from '../../ponyfill';
+import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
 
 QUnit.test('Map', assert => {
   assert.isFunction(Map);
@@ -30,7 +30,7 @@ QUnit.test('Map', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   new Map(array);
   assert.ok(done);
@@ -378,7 +378,7 @@ QUnit.test('Map#@@iterator', assert => {
   map.set('a', 'q');
   map.set('s', 'w');
   map.set('d', 'e');
-  const iterator = core.getIterator(map);
+  const iterator = getIterator(map);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');

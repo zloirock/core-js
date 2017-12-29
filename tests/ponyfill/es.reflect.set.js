@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import set from '../../ponyfill/fn/reflect/set';
+import { defineProperty, getOwnPropertyDescriptor, create } from '../../ponyfill/fn/object';
+
 QUnit.test('Reflect.set', assert => {
-  const { set } = core.Reflect;
-  const { defineProperty, getOwnPropertyDescriptor, create } = core.Object;
   assert.isFunction(set);
   if ('name' in set) {
     assert.name(set, 'set');

@@ -1,5 +1,6 @@
+import signbit from '../../ponyfill/fn/math/signbit';
+
 QUnit.test('Math.signbit', assert => {
-  const { signbit } = core.Math;
   assert.isFunction(signbit);
   assert.same(signbit(NaN), NaN);
   assert.same(signbit(), NaN);

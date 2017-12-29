@@ -1,6 +1,7 @@
+import { defineMetadata, hasOwnMetadata, deleteMetadata } from '../../ponyfill/fn/reflect';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Reflect.deleteMetadata', assert => {
-  const { defineMetadata, hasOwnMetadata, deleteMetadata } = core.Reflect;
-  const { create } = core.Object;
   assert.isFunction(deleteMetadata);
   assert.arity(deleteMetadata, 2);
   assert.throws(() => deleteMetadata('key', undefined, undefined), TypeError);

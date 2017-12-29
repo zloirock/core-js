@@ -1,5 +1,6 @@
+import imulh from '../../ponyfill/fn/math/imulh';
+
 QUnit.test('Math.imulh', assert => {
-  const { imulh } = core.Math;
   assert.isFunction(imulh);
   assert.arity(imulh, 2);
   assert.same(imulh(0xffffffff, 7), -1);

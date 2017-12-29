@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import repeat from '../../ponyfill/fn/string/repeat';
+
 QUnit.test('String#repeat', assert => {
-  const { repeat } = core.String;
   assert.isFunction(repeat);
   assert.strictEqual(repeat('qwe', 3), 'qweqweqwe');
   assert.strictEqual(repeat('qwe', 2.5), 'qweqwe');

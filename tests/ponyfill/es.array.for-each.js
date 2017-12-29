@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import forEach from '../../ponyfill/fn/array/for-each';
+
 QUnit.test('Array#forEach', assert => {
-  const { forEach } = core.Array;
   assert.isFunction(forEach);
   let array = [1];
   const context = {};

@@ -1,9 +1,9 @@
 import { DESCRIPTORS, GLOBAL, PROTO } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-const { Promise, Symbol } = core;
-const { bind } = core.Function;
-const { setPrototypeOf, create } = core.Object;
+import { getIteratorMethod, Promise, Symbol } from '../../ponyfill';
+import { setPrototypeOf, create } from '../../ponyfill/fn/object';
+import bind from '../../ponyfill/fn/function/bind';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);
@@ -174,7 +174,7 @@ QUnit.test('Promise.all', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   Promise.all(array);
   assert.ok(done);
@@ -234,7 +234,7 @@ QUnit.test('Promise.race', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   Promise.race(array);
   assert.ok(done);

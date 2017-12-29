@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import indexOf from '../../ponyfill/fn/array/index-of';
+
 QUnit.test('Array#indexOf', assert => {
-  const { indexOf } = core.Array;
   assert.isFunction(indexOf);
   assert.same(0, indexOf([1, 1, 1], 1));
   assert.same(-1, indexOf([1, 2, 3], 1, 1));

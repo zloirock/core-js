@@ -1,5 +1,6 @@
+import fromCodePoint from '../../ponyfill/fn/string/from-code-point';
+
 QUnit.test('String.fromCodePoint', assert => {
-  const { fromCodePoint } = core.String;
   assert.isFunction(fromCodePoint);
   assert.arity(fromCodePoint, 1);
   if ('name' in fromCodePoint) {

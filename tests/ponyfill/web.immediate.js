@@ -1,6 +1,6 @@
 import { timeLimitedPromise } from '../helpers/helpers';
 
-const { setImmediate, clearImmediate } = core;
+import { setImmediate, clearImmediate } from '../../ponyfill';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
   let called = false;

@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-const { Observable, Symbol } = core;
+import { Observable, Symbol } from '../../ponyfill';
 
 QUnit.test('Observable', assert => {
   assert.isFunction(Observable);

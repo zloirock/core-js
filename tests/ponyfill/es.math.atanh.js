@@ -1,5 +1,6 @@
+import atanh from '../../ponyfill/fn/math/atanh';
+
 QUnit.test('Math.atanh', assert => {
-  const { atanh } = core.Math;
   assert.isFunction(atanh);
   assert.same(atanh(NaN), NaN);
   assert.same(atanh(-2), NaN);
