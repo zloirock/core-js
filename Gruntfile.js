@@ -145,7 +145,6 @@ module.exports = grunt => {
     return build({
       modules: (options || 'es,esnext,web,core').split(','),
       blacklist: (grunt.option('blacklist') || '').split(','),
-      ponyfill: !!~['yes', 'on', 'true'].indexOf(grunt.option('ponyfill')),
       umd: !~['no', 'off', 'false'].indexOf(grunt.option('umd')),
     }).then(it => {
       const filename = `${ grunt.option('path') || './custom' }.js`;
@@ -158,14 +157,8 @@ module.exports = grunt => {
     });
   });
   grunt.registerTask('client', () => {
-    grunt.option('ponyfill', '');
     grunt.option('path', './client/core');
     return grunt.task.run(['build:es,esnext,web', 'uglify']);
   });
-  grunt.registerTask('ponyfill', () => {
-    grunt.option('ponyfill', 'true');
-    grunt.option('path', './client/ponyfill');
-    return grunt.task.run(['build:es,esnext,web,core', 'uglify']);
-  });
-  return grunt.registerTask('default', ['clean', 'copy', 'client', 'ponyfill']);
+  return grunt.registerTask('default', ['clean', 'copy', 'client']);
 };

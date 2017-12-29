@@ -199,22 +199,6 @@ module.exports = {
     'core.get-iterator',
     'core.is-iterable',
   ],
-  ponyfillBlacklist: [
-    'es.object.to-string',
-    'es.function.name',
-    'es.regexp.constructor',
-    'es.regexp.to-string',
-    'es.regexp.flags',
-    'es.regexp.match',
-    'es.regexp.replace',
-    'es.regexp.search',
-    'es.regexp.split',
-    'es.number.constructor',
-    'es.date.to-string',
-    'es.date.to-primitive',
-    'esnext.symbol.description',
-    'web.dom-collections.for-each',
-  ],
   /* eslint-disable prefer-template */
   banner: '/**\n' +
           ' * core-js ' + require('../package').version + '\n' +
