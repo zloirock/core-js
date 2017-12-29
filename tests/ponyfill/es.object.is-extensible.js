@@ -1,5 +1,6 @@
+import isExtensible from '../../ponyfill/fn/object/is-extensible';
+
 QUnit.test('Object.isExtensible', assert => {
-  const { isExtensible } = core.Object;
   assert.isFunction(isExtensible);
   assert.arity(isExtensible, 1);
   const primitives = [42, 'string', false, null, undefined];

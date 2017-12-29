@@ -1,8 +1,8 @@
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
-  const { Uint8Array, DataView } = core;
+import { Uint8Array, DataView } from '../../ponyfill';
 
+if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
   const uint8array = new Uint8Array(1);
   const dataview = new DataView(uint8array.buffer);
 

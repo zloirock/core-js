@@ -1,5 +1,6 @@
+import apply from '../../ponyfill/fn/reflect/apply';
+
 QUnit.test('Reflect.apply', assert => {
-  const { apply } = core.Reflect;
   assert.isFunction(apply);
   assert.arity(apply, 3);
   if ('name' in apply) {

@@ -1,8 +1,8 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
-  const { Uint8ClampedArray, Uint8Array } = core;
+import { Uint8ClampedArray, Uint8Array } from '../../ponyfill';
 
+if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
   const uint8clamped = new Uint8ClampedArray(1);
   const uint8array = new Uint8Array(uint8clamped.buffer);
 

@@ -1,10 +1,11 @@
 import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
+import { getIteratorMethod, Symbol } from '../../ponyfill';
+import from from '../../ponyfill/fn/array/from';
+import defineProperty from '../../ponyfill/fn/object/define-property';
+
 QUnit.test('Array.from', assert => {
-  const { from } = core.Array;
-  const { Symbol } = core;
-  const { defineProperty } = core.Object;
   assert.isFunction(from);
   assert.arity(from, 1);
   let types = {
@@ -90,7 +91,7 @@ QUnit.test('Array.from', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   assert.arrayEqual(from(array), [1, 2, 3], 'Array with custom iterator, elements');
   assert.ok(done, 'call @@iterator in Array with custom iterator');

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import findIndex from '../../ponyfill/fn/array/find-index';
+
 QUnit.test('Array#findIndex', assert => {
-  const { findIndex } = core.Array;
   assert.isFunction(findIndex);
   const array = [1];
   const context = {};

@@ -1,8 +1,8 @@
 import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-const { ArrayBuffer, Symbol } = core;
-const { getOwnPropertyDescriptor, defineProperty, assign } = core.Object;
+import core, { ArrayBuffer, Symbol } from '../../ponyfill';
+import { getOwnPropertyDescriptor, defineProperty, assign } from '../../ponyfill/fn/object';
 
 if (DESCRIPTORS) {
   for (const name in TYPED_ARRAYS) {

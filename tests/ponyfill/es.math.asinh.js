@@ -1,5 +1,6 @@
+import asinh from '../../ponyfill/fn/math/asinh';
+
 QUnit.test('Math.asinh', assert => {
-  const { asinh } = core.Math;
   assert.isFunction(asinh);
   assert.same(asinh(NaN), NaN);
   assert.same(asinh(0), 0);

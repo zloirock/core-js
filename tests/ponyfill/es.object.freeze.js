@@ -1,6 +1,7 @@
+import { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
+
 QUnit.test('Object.freeze', assert => {
-  const { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-  const { ownKeys } = core.Reflect;
   assert.isFunction(freeze);
   assert.arity(freeze, 1);
   const data = [42, 'foo', false, null, undefined, {}];

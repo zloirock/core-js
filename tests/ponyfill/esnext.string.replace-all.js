@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import replaceAll from '../../ponyfill/fn/string/replace-all';
+
 QUnit.test('String#replaceAll', assert => {
-  const { replaceAll } = core.String;
-  const { Symbol } = core;
   assert.isFunction(replaceAll);
   assert.same(replaceAll('q=query+string+parameters', '+', ' '), 'q=query string parameters');
   assert.same(replaceAll('foo', 'o', {}), 'f[object Object][object Object]');

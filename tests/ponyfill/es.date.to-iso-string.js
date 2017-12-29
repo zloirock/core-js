@@ -1,5 +1,6 @@
+import toISOString from '../../ponyfill/fn/date/to-iso-string';
+
 QUnit.test('Date#toISOString', assert => {
-  const { toISOString } = core.Date;
   assert.isFunction(toISOString);
   assert.strictEqual(toISOString(new Date(0)), '1970-01-01T00:00:00.000Z');
   assert.strictEqual(toISOString(new Date(1e12 + 1)), '2001-09-09T01:46:40.001Z');

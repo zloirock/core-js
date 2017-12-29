@@ -1,5 +1,6 @@
+import getPrototypeOf from '../../ponyfill/fn/reflect/get-prototype-of';
+
 QUnit.test('Reflect.getPrototypeOf', assert => {
-  const { getPrototypeOf } = core.Reflect;
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);
   if ('name' in getPrototypeOf) {

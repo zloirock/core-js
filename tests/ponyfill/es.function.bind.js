@@ -1,5 +1,6 @@
+import bind from '../../ponyfill/fn/function/bind';
+
 QUnit.test('Function#bind', assert => {
-  const { bind } = core.Function;
   assert.isFunction(bind);
   const object = { a: 42 };
   assert.ok(bind(function () {

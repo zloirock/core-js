@@ -1,6 +1,7 @@
+import isNaN from '../../ponyfill/fn/number/is-nan';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Number.isNaN', assert => {
-  const { isNaN } = core.Number;
-  const { create } = core.Object;
   assert.isFunction(isNaN);
   assert.ok(isNaN(NaN), 'Number.isNaN NaN');
   const notNaNs = [

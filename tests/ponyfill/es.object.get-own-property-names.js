@@ -1,8 +1,9 @@
 import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
+import getOwnPropertyNames from '../../ponyfill/fn/object/get-own-property-names';
+
 QUnit.test('Object.getOwnPropertyNames', assert => {
-  const { getOwnPropertyNames } = core.Object;
   assert.isFunction(getOwnPropertyNames);
   assert.arity(getOwnPropertyNames, 1);
   function F1() {
