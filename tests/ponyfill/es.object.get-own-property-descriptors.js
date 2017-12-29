@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import { create, getOwnPropertyDescriptors } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.getOwnPropertyDescriptors', assert => {
-  const { Symbol } = core;
-  const { create, getOwnPropertyDescriptors } = core.Object;
   assert.isFunction(getOwnPropertyDescriptors);
   const object = create({ q: 1 }, { e: { value: 3 } });
   object.w = 2;

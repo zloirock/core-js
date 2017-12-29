@@ -1,5 +1,6 @@
+import hypot from '../../ponyfill/fn/math/hypot';
+
 QUnit.test('Math.hypot', assert => {
-  const { hypot } = core.Math;
   const { sqrt } = Math;
   assert.isFunction(hypot);
   assert.strictEqual(hypot(), 0);

@@ -1,7 +1,8 @@
 import { PROTO } from '../helpers/constants';
 
+import setPrototypeOf from '../../ponyfill/fn/object/set-prototype-of';
+
 if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
-  const { setPrototypeOf } = core.Object;
   assert.isFunction(setPrototypeOf);
   assert.ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
   assert.strictEqual(setPrototypeOf({ a: 2 }, {

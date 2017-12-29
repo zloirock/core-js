@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import flatMap from '../../ponyfill/fn/array/flat-map';
+
 QUnit.test('Array#flatMap', assert => {
-  const { flatMap } = core.Array;
   assert.isFunction(flatMap);
   assert.deepEqual(flatMap([], it => it), []);
   assert.deepEqual(flatMap([1, 2, 3], it => it), [1, 2, 3]);

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import every from '../../ponyfill/fn/array/every';
+
 QUnit.test('Array#every', assert => {
-  const { every } = core.Array;
   assert.isFunction(every);
   const array = [1];
   const context = {};

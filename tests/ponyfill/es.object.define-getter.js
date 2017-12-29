@@ -1,8 +1,9 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
+import { __defineGetter__, __defineSetter__ } from '../../ponyfill/fn/object';
+
 if (DESCRIPTORS) {
   QUnit.test('Object#__defineGetter__', assert => {
-    const { __defineGetter__, __defineSetter__ } = core.Object;
     assert.isFunction(__defineGetter__);
     const object = {};
     assert.same(__defineGetter__(object, 'key', () => 42), undefined, 'void');

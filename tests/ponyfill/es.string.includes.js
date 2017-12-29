@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import includes from '../../ponyfill/fn/string/includes';
+
 QUnit.test('String#includes', assert => {
-  const { includes } = core.String;
-  const { Symbol } = core;
   assert.isFunction(includes);
   assert.ok(!includes('abc'));
   assert.ok(includes('aundefinedb'));

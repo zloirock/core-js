@@ -1,6 +1,7 @@
+import { defineMetadata, getOwnMetadataKeys } from '../../ponyfill/fn/reflect';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Reflect.getOwnMetadataKeys', assert => {
-  const { defineMetadata, getOwnMetadataKeys } = core.Reflect;
-  const { create } = core.Object;
   assert.isFunction(getOwnMetadataKeys);
   assert.arity(getOwnMetadataKeys, 1);
   assert.throws(() => getOwnMetadataKeys(undefined, undefined), TypeError);

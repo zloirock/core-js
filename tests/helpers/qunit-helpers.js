@@ -1,4 +1,5 @@
-import { DESCRIPTORS, GLOBAL } from './constants';
+import { DESCRIPTORS } from './constants';
+import ITERATOR from '../../ponyfill/fn/symbol/iterator';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
@@ -52,8 +53,7 @@ QUnit.assert.isFunction = function (fn, message) {
 
 QUnit.assert.isIterable = function (it, message) {
   this.pushResult({
-    // eslint-disable-next-line no-undef
-    result: GLOBAL.core && core.isIterable ? core.isIterable(it) : !!it[GLOBAL.Symbol && Symbol.iterator],
+    result: typeof it[ITERATOR] === 'function',
     actual: false,
     expected: true,
     message: message || 'is iterable',

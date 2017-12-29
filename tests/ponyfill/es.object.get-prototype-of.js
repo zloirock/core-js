@@ -1,5 +1,6 @@
+import { create, getPrototypeOf } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.getPrototypeOf', assert => {
-  const { create, getPrototypeOf } = core.Object;
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);
   assert.ok(getPrototypeOf({}) === Object.prototype);

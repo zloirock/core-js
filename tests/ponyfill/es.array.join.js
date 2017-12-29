@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import join from '../../ponyfill/fn/array/join';
+
 QUnit.test('Array#join', assert => {
-  const { join } = core.Array;
   assert.isFunction(join);
   assert.strictEqual(join([1, 2, 3], undefined), '1,2,3');
   assert.strictEqual(join('123'), '1,2,3');

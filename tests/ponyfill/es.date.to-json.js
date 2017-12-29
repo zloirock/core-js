@@ -1,5 +1,6 @@
+import { toJSON, toISOString } from '../../ponyfill/fn/date';
+
 QUnit.test('Date#toJSON', assert => {
-  const { toJSON, toISOString } = core.Date;
   assert.isFunction(toJSON);
   if (Date.prototype.toISOString) {
     const date = new Date();

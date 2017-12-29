@@ -1,5 +1,6 @@
+import { create, getPrototypeOf, getOwnPropertyNames } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.create', assert => {
-  const { create, getPrototypeOf, getOwnPropertyNames } = core.Object;
   function getPropertyNames(object) {
     let result = [];
     do {

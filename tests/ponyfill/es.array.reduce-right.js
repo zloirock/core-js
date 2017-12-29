@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import reduceRight from '../../ponyfill/fn/array/reduce-right';
+
 QUnit.test('Array#reduceRight', assert => {
-  const { reduceRight } = core.Array;
   assert.isFunction(reduceRight);
   const array = [1];
   const accumulator = {};

@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
+import matchAll from '../../ponyfill/fn/string/match-all';
+import assign from '../../ponyfill/fn/object/assign';
+
 QUnit.test('String#matchAll', assert => {
-  const { matchAll } = core.String;
-  const { assign } = core.Object;
   assert.isFunction(matchAll);
   let data = ['aabc', { toString() {
     return 'aabc';

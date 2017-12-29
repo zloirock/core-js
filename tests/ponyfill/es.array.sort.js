@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import sort from '../../ponyfill/fn/array/sort';
+
 QUnit.test('Array#sort', assert => {
-  const { sort } = core.Array;
   assert.isFunction(sort);
   assert.notThrows(() => sort([1, 2, 3], undefined), 'works with undefined');
   assert.throws(() => sort([1, 2, 3], null), 'throws on null');

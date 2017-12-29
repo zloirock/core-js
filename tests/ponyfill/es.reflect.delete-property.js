@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import deleteProperty from '../../ponyfill/fn/reflect/delete-property';
+import { defineProperty, keys } from '../../ponyfill/fn/object';
+
 QUnit.test('Reflect.deleteProperty', assert => {
-  const { deleteProperty } = core.Reflect;
-  const { defineProperty, keys } = core.Object;
   assert.isFunction(deleteProperty);
   assert.arity(deleteProperty, 2);
   if ('name' in deleteProperty) {

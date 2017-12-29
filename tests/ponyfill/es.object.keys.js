@@ -1,7 +1,8 @@
 import { includes } from '../helpers/helpers';
 
+import keys from '../../ponyfill/fn/object/keys';
+
 QUnit.test('Object.keys', assert => {
-  const { keys } = core.Object;
   assert.isFunction(keys);
   assert.arity(keys, 1);
   function F1() {

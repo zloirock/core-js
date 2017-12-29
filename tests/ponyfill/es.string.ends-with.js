@@ -1,8 +1,9 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import endsWith from '../../ponyfill/fn/string/ends-with';
+
 QUnit.test('String#endsWith', assert => {
-  const { endsWith } = core.String;
-  const { Symbol } = core;
   assert.isFunction(endsWith);
   assert.ok(endsWith('undefined'));
   assert.ok(!endsWith('undefined', null));

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import filter from '../../ponyfill/fn/array/filter';
+
 QUnit.test('Array#filter', assert => {
-  const { filter } = core.Array;
   assert.isFunction(filter);
   const array = [1];
   const context = {};
