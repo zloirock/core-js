@@ -1343,7 +1343,7 @@ core-js(/ponyfill)/fn/array/virtual/flat-map
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
-* `global` [proposal](https://github.com/tc39/proposal-global) - modules [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.global.js)
+* `global` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.global.js). **Warning! Due to [web compatibility concerns](https://github.com/tc39/proposal-global/issues/20), this object will be added to the spec under a different name.**
 ```js
 let global: Object;
 ```
