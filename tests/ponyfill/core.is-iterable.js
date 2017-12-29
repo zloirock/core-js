@@ -1,7 +1,8 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('core.isIterable', assert => {
-  const { isIterable } = core;
+import isIterable from '../../ponyfill/fn/is-iterable';
+
+QUnit.test('isIterable helper', assert => {
   assert.isFunction(isIterable);
   assert.ok(isIterable(createIterable([])));
   assert.ok(isIterable([]));

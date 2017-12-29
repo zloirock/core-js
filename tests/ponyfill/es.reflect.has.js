@@ -1,5 +1,6 @@
+import has from '../../ponyfill/fn/reflect/has';
+
 QUnit.test('Reflect.has', assert => {
-  const { has } = core.Reflect;
   assert.isFunction(has);
   assert.arity(has, 2);
   if ('name' in has) {

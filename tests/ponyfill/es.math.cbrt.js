@@ -1,5 +1,6 @@
+import cbrt from '../../ponyfill/fn/math/cbrt';
+
 QUnit.test('Math.cbrt', assert => {
-  const { cbrt } = core.Math;
   assert.isFunction(cbrt);
   assert.same(cbrt(NaN), NaN);
   assert.same(cbrt(0), 0);

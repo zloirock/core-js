@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import padEnd from '../../ponyfill/fn/string/pad-end';
+
 QUnit.test('String#padEnd', assert => {
-  const { padEnd } = core.String;
   assert.isFunction(padEnd);
   assert.strictEqual(padEnd('abc', 5), 'abc  ');
   assert.strictEqual(padEnd('abc', 4, 'de'), 'abcd');

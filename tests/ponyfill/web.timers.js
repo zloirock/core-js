@@ -1,6 +1,6 @@
 import { timeLimitedPromise } from '../helpers/helpers';
 
-const { setTimeout, setInterval } = core;
+import { setTimeout, setInterval } from '../../ponyfill';
 
 QUnit.test('setTimeout / clearTimeout', assert => {
   assert.expect(2);

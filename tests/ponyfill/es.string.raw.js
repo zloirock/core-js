@@ -1,5 +1,6 @@
+import raw from '../../ponyfill/fn/string/raw';
+
 QUnit.test('String.raw', assert => {
-  const { raw } = core.String;
   assert.isFunction(raw);
   assert.arity(raw, 1);
   if ('name' in raw) {

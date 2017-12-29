@@ -1,9 +1,9 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-const { WeakMap, Symbol } = core;
-const { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-const { ownKeys } = core.Reflect;
+import { getIteratorMethod, WeakMap, Symbol } from '../../ponyfill';
+import { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
 
 QUnit.test('WeakMap', assert => {
   assert.isFunction(WeakMap);
@@ -40,7 +40,7 @@ QUnit.test('WeakMap', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return core.getIteratorMethod([]).call(this);
+    return getIteratorMethod([]).call(this);
   };
   new WeakMap(array);
   assert.ok(done);

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import map from '../../ponyfill/fn/array/map';
+
 QUnit.test('Array#map', assert => {
-  const { map } = core.Array;
   assert.isFunction(map);
   const array = [1];
   const context = {};

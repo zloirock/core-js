@@ -1,5 +1,6 @@
+import WeakSet from '../../ponyfill/fn/weak-set';
+
 QUnit.test('WeakSet.of', assert => {
-  const { WeakSet } = core;
   const { of } = WeakSet;
   assert.isFunction(of);
   assert.arity(of, 0);

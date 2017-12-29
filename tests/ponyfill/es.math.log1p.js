@@ -1,5 +1,6 @@
+import log1p from '../../ponyfill/fn/math/log1p';
+
 QUnit.test('Math.log1p', assert => {
-  const { log1p } = core.Math;
   assert.isFunction(log1p);
   assert.same(log1p(''), log1p(0));
   assert.same(log1p(NaN), NaN);

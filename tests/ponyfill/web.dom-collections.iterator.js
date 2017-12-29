@@ -1,6 +1,6 @@
 import { GLOBAL } from '../helpers/constants';
 
-const { Symbol } = core;
+import { getIteratorMethod, Symbol } from '../../ponyfill';
 
 QUnit.test('Iterable DOM collections', assert => {
   let absent = true;
@@ -42,13 +42,13 @@ QUnit.test('Iterable DOM collections', assert => {
     const Collection = GLOBAL[name];
     if (Collection) {
       assert.same(Collection.prototype[Symbol.toStringTag], name, `${ name }::@@toStringTag is '${ name }'`);
-      assert.isFunction(core.getIteratorMethod(Collection.prototype), `${ name }::@@iterator is function`);
+      assert.isFunction(getIteratorMethod(Collection.prototype), `${ name }::@@iterator is function`);
       absent = false;
     }
   }
 
   if (GLOBAL.NodeList && GLOBAL.document && document.querySelectorAll && document.querySelectorAll('div') instanceof NodeList) {
-    assert.isFunction(core.getIteratorMethod(document.querySelectorAll('div')), 'works with document.querySelectorAll');
+    assert.isFunction(getIteratorMethod(document.querySelectorAll('div')), 'works with document.querySelectorAll');
   }
 
   if (absent) {

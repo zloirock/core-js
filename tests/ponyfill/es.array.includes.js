@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import includes from '../../ponyfill/fn/array/includes';
+
 QUnit.test('Array#includes', assert => {
-  const { includes } = core.Array;
   assert.isFunction(includes);
   const object = {};
   const array = [1, 2, 3, -0, object];

@@ -1,7 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
+import copyWithin from '../../ponyfill/fn/array/copy-within';
+
 QUnit.test('Array#copyWithin', assert => {
-  const { copyWithin } = core.Array;
   assert.isFunction(copyWithin);
   const array = [1];
   assert.strictEqual(copyWithin(array, 0), array);

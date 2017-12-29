@@ -1,5 +1,6 @@
+import fround from '../../ponyfill/fn/math/fround';
+
 QUnit.test('Math.fround', assert => {
-  const { fround } = core.Math;
   assert.isFunction(fround);
   assert.same(fround(undefined), NaN);
   assert.same(fround(NaN), NaN);

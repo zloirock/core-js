@@ -1,5 +1,6 @@
+import parseInt from '../../ponyfill/fn/parse-int';
+
 QUnit.test('parseInt', assert => {
-  const { parseInt } = core;
   assert.isFunction(parseInt);
   assert.arity(parseInt, 2);
   for (let radix = 2; radix <= 36; ++radix) {

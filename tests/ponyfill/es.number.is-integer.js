@@ -1,6 +1,7 @@
+import isInteger from '../../ponyfill/fn/number/is-integer';
+import create from '../../ponyfill/fn/object/create';
+
 QUnit.test('Number.isInteger', assert => {
-  const { isInteger } = core.Number;
-  const { create } = core.Object;
   assert.isFunction(isInteger);
   const integers = [
     1,

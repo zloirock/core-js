@@ -1,7 +1,8 @@
 import { createIterable } from '../helpers/helpers';
 
-QUnit.test('core.getIteratorMethod', assert => {
-  const { getIteratorMethod } = core;
+import getIteratorMethod from '../../ponyfill/fn/get-iterator-method';
+
+QUnit.test('getIteratorMethod helper', assert => {
   assert.isFunction(getIteratorMethod);
   const iterable = createIterable([]);
   const iterFn = getIteratorMethod(iterable);

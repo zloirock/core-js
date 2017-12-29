@@ -1,5 +1,6 @@
+import scale from '../../ponyfill/fn/math/scale';
+
 QUnit.test('Math.scale', assert => {
-  const { scale } = core.Math;
   assert.isFunction(scale);
   assert.arity(scale, 5);
   assert.same(scale(3, 1, 2, 1, 2), 3);

@@ -1,5 +1,7 @@
+import acosh from '../../ponyfill/fn/math/acosh';
+import EPSILON from '../../ponyfill/fn/number/epsilon';
+
 QUnit.test('Math.acosh', assert => {
-  const { acosh } = core.Math;
   assert.isFunction(acosh);
   assert.same(acosh(NaN), NaN);
   assert.same(acosh(0.5), NaN);
@@ -11,5 +13,5 @@ QUnit.test('Math.acosh', assert => {
   assert.epsilon(acosh(8.88), 2.8737631531629235);
   assert.epsilon(acosh(1e+160), 369.10676205960726);
   assert.epsilon(acosh(Number.MAX_VALUE), 710.475860073944);
-  assert.epsilon(acosh(1 + core.Number.EPSILON), 2.1073424255447017e-8);
+  assert.epsilon(acosh(1 + EPSILON), 2.1073424255447017e-8);
 });

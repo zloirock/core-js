@@ -1,7 +1,8 @@
 import { createIterable } from '../helpers/helpers';
 
+import WeakSet from '../../ponyfill/fn/weak-set';
+
 QUnit.test('WeakSet.from', assert => {
-  const { WeakSet } = core;
   const { from } = WeakSet;
   assert.isFunction(from);
   assert.arity(from, 1);

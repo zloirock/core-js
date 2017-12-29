@@ -1,6 +1,7 @@
+import { seal, keys, getOwnPropertyNames, getOwnPropertySymbols } from '../../ponyfill/fn/object';
+import ownKeys from '../../ponyfill/fn/reflect/own-keys';
+
 QUnit.test('Object.seal', assert => {
-  const { seal, keys, getOwnPropertyNames, getOwnPropertySymbols } = core.Object;
-  const { ownKeys } = core.Reflect;
   assert.isFunction(seal);
   assert.arity(seal, 1);
   const data = [42, 'foo', false, null, undefined, {}];

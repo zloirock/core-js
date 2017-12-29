@@ -1,8 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
+import Symbol from '../../ponyfill/fn/symbol';
+import { assign, keys, defineProperty } from '../../ponyfill/fn/object';
+
 QUnit.test('Object.assign', assert => {
-  const { Symbol } = core;
-  const { assign, keys, defineProperty } = core.Object;
   assert.isFunction(assign);
   let object = { q: 1 };
   assert.strictEqual(object, assign(object, { bar: 2 }), 'assign return target');

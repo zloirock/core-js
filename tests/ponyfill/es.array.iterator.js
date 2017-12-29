@@ -1,9 +1,9 @@
-const { Symbol } = core;
-const { keys, values, entries } = core.Array;
+import { keys, values, entries } from '../../ponyfill/fn/array';
+import { getIterator, Symbol } from '../../ponyfill';
 
 QUnit.test('Array#@@iterator', assert => {
   assert.isFunction(values);
-  const iterator = core.getIterator(['q', 'w', 'e']);
+  const iterator = getIterator(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
