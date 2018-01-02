@@ -1,14 +1,14 @@
 {
   "name": "core-js-builder",
   "description": "core-js builder",
-  "version": "2.5.1",
+  "version": "3.0.0-alpha.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
   "dependencies": {
-    "core-js": "2.5.1",
+    "core-js": "3.0.0-alpha.1",
     "temp": "^0.8.3",
     "webpack": "^3.11.0"
   },
