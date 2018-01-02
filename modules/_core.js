@@ -1,5 +1,5 @@
 var version = [
-  '2.5.1',
+  '3.0.0-alpha.1',
   require('./_is-ponyfill') ? 'ponyfill' : 'global',
   '© 2018 Denis Pushkarev (zloirock.ru)'
 ];
