@@ -49,11 +49,14 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "grunt": "grunt",
-    "lint": "eslint ./",
+    "build": "grunt",
+    "lint": "grunt clean copy && eslint ./",
+    "unit-tests": "grunt clean copy webpack:helpers webpack:tests bundle uglify karma:tests",
+    "unit-tests-pure": "grunt clean copy webpack:helpers webpack:pure karma:pure",
+    "bundle-promises-tests": "grunt webpack:promises-aplus-tests",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
-    "bundle-promises-tests": "npm run grunt webpack:promises-aplus-tests",
     "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-pure",
-    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack:helpers webpack:tests bundle uglify karma:tests && npm run grunt webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && node tests/commonjs"
+    "commonjs-tests": "node tests/commonjs",
+    "test": "grunt clean copy && eslint ./ && grunt webpack:helpers webpack:tests bundle karma:tests && npm run unit-tests-pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests"
   }
 }
