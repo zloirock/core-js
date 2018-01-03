@@ -1,6 +1,6 @@
 'use strict';
 if (require('./_descriptors')) {
-  var IS_PONYFILL = require('./_is-ponyfill');
+  var IS_PURE = require('./_is-pure');
   var global = require('./_global');
   var fails = require('./_fails');
   var $export = require('./_export');
@@ -422,7 +422,7 @@ if (require('./_descriptors')) {
         if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
-      if (!IS_PONYFILL) TypedArrayPrototype.constructor = TypedArray;
+      if (!IS_PURE) TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     var CORRECT_ITER_NAME = !!$nativeIterator
@@ -462,7 +462,7 @@ if (require('./_descriptors')) {
 
     $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
 
-    if (!IS_PONYFILL && TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
+    if (!IS_PURE && TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
 
     $export($export.P + $export.F * fails(function () {
       new TypedArray(1).slice();
@@ -475,6 +475,6 @@ if (require('./_descriptors')) {
     })), NAME, { toLocaleString: $toLocaleString });
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
-    if (!IS_PONYFILL && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
+    if (!IS_PURE && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function () { /* empty */ };
