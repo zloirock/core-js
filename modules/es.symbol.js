@@ -161,7 +161,7 @@ if (!USE_NATIVE) {
         return this._d;
       }
     });
-    if (!require('./_is-ponyfill')) {
+    if (!require('./_is-pure')) {
       redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
     }
   }

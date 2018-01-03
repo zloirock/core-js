@@ -1,6 +1,6 @@
 delete global.Promise;
 
-var Promise = require('../../').Promise;
+var Promise = require('../../packages/core-js').Promise;
 var assert = require('assert');
 
 module.exports = {

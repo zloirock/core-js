@@ -1,5 +1,5 @@
 'use strict';
-importScripts('../../client/core.js');
+importScripts('../../packages/core-js/client/core.js');
 
 postMessage(typeof core !== 'undefined');
 

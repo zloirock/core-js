@@ -1,5 +1,6 @@
-node_modules/**
-/client/**
-/modules/ponyfill/**
-/tests/bundles/**
+node_modules/
+/client/
+/modules-pure/
+/packages/core-js/
+/tests/bundles/
 !**/.eslintrc.js
