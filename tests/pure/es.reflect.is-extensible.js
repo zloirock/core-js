@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import isExtensible from '../../packages/core-js-pure/fn/reflect/is-extensible';
-import preventExtensions from '../../packages/core-js-pure/fn/object/prevent-extensions';
+import isExtensible from 'core-js-pure/fn/reflect/is-extensible';
+import preventExtensions from 'core-js-pure/fn/object/prevent-extensions';
 
 QUnit.test('Reflect.isExtensible', assert => {
   assert.isFunction(isExtensible);

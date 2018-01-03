@@ -1,7 +1,7 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
-import flatten from '../../packages/core-js-pure/fn/array/flatten';
-import defineProperty from '../../packages/core-js-pure/fn/object/define-property';
+import flatten from 'core-js-pure/fn/array/flatten';
+import defineProperty from 'core-js-pure/fn/object/define-property';
 
 QUnit.test('Array#flatten', assert => {
   assert.isFunction(flatten);

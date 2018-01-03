@@ -1,9 +1,9 @@
 import { DESCRIPTORS, GLOBAL, PROTO } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-import { getIteratorMethod, Promise, Symbol } from '../../packages/core-js-pure';
-import { setPrototypeOf, create } from '../../packages/core-js-pure/fn/object';
-import bind from '../../packages/core-js-pure/fn/function/bind';
+import { getIteratorMethod, Promise, Symbol } from 'core-js-pure';
+import { setPrototypeOf, create } from 'core-js-pure/fn/object';
+import bind from 'core-js-pure/fn/function/bind';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);

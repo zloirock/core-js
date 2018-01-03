@@ -1,4 +1,4 @@
-import { ArrayBuffer, DataView } from '../../packages/core-js-pure';
+import { ArrayBuffer, DataView } from 'core-js-pure';
 
 QUnit.test('ArrayBuffer#slice', assert => {
   function arrayToBuffer(it) {

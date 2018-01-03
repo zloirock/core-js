@@ -1,4 +1,4 @@
-import hypot from '../../packages/core-js-pure/fn/math/hypot';
+import hypot from 'core-js-pure/fn/math/hypot';
 
 QUnit.test('Math.hypot', assert => {
   const { sqrt } = Math;

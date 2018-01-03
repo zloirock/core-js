@@ -118,42 +118,7 @@ module.exports = grunt => {
         ].map(it => ({ src: it })),
       },
     },
-    webpack: {
-      options: {
-        module: {
-          loaders: [{
-            test: /\.js$/,
-            exclude: /modules/,
-            loader: 'babel-loader',
-          }],
-        },
-        node: {
-          global: false,
-          process: false,
-          setImmediate: false,
-        },
-        stats: false,
-        output: {
-          path: path.resolve(__dirname, 'tests/bundles'),
-        },
-      },
-      helpers: {
-        entry: './tests/helpers/qunit-helpers.js',
-        output: { filename: 'qunit-helpers.js' },
-      },
-      pure: {
-        entry: './tests/pure/index.js',
-        output: { filename: 'pure.js' },
-      },
-      tests: {
-        entry: './tests/tests/index.js',
-        output: { filename: 'tests.js' },
-      },
-      'promises-aplus-tests': {
-        entry: 'promises-aplus-tests/lib/testFiles.js',
-        output: { filename: 'promises-aplus.js' },
-      },
-    },
+    webpack: require('./.webpack.config.js'),
   });
   grunt.registerTask('bundle', function () {
     const done = this.async();

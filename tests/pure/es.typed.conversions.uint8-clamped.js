@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { Uint8ClampedArray, Uint8Array } from '../../packages/core-js-pure';
+import { Uint8ClampedArray, Uint8Array } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
   const uint8clamped = new Uint8ClampedArray(1);

@@ -1,4 +1,4 @@
-import { create, getPrototypeOf } from '../../packages/core-js-pure/fn/object';
+import { create, getPrototypeOf } from 'core-js-pure/fn/object';
 
 QUnit.test('Object.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);

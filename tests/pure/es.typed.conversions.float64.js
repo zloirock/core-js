@@ -1,6 +1,6 @@
 import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
 
-import { Float64Array, Uint8Array, DataView } from '../../packages/core-js-pure';
+import { Float64Array, Uint8Array, DataView } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Float64 conversions', assert => {
   const float64array = new Float64Array(1);
