@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import { Observable, Symbol } from '../../packages/core-js-pure';
+import { Observable, Symbol } from 'core-js-pure';
 
 QUnit.test('Observable', assert => {
   assert.isFunction(Observable);

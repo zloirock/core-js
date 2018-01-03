@@ -1,4 +1,4 @@
-import log1p from '../../packages/core-js-pure/fn/math/log1p';
+import log1p from 'core-js-pure/fn/math/log1p';
 
 QUnit.test('Math.log1p', assert => {
   assert.isFunction(log1p);

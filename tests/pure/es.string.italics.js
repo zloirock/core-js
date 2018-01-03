@@ -1,4 +1,4 @@
-import italics from '../../packages/core-js-pure/fn/string/italics';
+import italics from 'core-js-pure/fn/string/italics';
 
 QUnit.test('String#italics', assert => {
   assert.isFunction(italics);

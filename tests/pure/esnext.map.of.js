@@ -1,5 +1,5 @@
-import Map from '../../packages/core-js-pure/fn/map';
-import toArray from '../../packages/core-js-pure/fn/array/from';
+import Map from 'core-js-pure/fn/map';
+import toArray from 'core-js-pure/fn/array/from';
 
 QUnit.test('Map.of', assert => {
   const { of } = Map;

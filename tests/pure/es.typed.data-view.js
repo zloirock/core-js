@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { ArrayBuffer, DataView, Uint8Array } from '../../packages/core-js-pure';
+import { ArrayBuffer, DataView, Uint8Array } from 'core-js-pure';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object');

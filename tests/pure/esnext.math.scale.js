@@ -1,4 +1,4 @@
-import scale from '../../packages/core-js-pure/fn/math/scale';
+import scale from 'core-js-pure/fn/math/scale';
 
 QUnit.test('Math.scale', assert => {
   assert.isFunction(scale);

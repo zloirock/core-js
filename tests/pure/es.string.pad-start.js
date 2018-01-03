@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import padStart from '../../packages/core-js-pure/fn/string/pad-start';
+import padStart from 'core-js-pure/fn/string/pad-start';
 
 QUnit.test('String#padStart', assert => {
   assert.isFunction(padStart);

@@ -1,6 +1,6 @@
 import { TYPED_ARRAYS } from '../helpers/constants';
 
-import core, { ArrayBuffer, DataView } from '../../packages/core-js-pure';
+import core, { ArrayBuffer, DataView } from 'core-js-pure';
 
 QUnit.test('ArrayBuffer.isView', assert => {
   const { isView } = ArrayBuffer;

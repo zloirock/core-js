@@ -1,6 +1,6 @@
 import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
 
-import { Float32Array, Uint8Array, DataView } from '../../packages/core-js-pure';
+import { Float32Array, Uint8Array, DataView } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
   const float32array = new Float32Array(1);
