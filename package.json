@@ -1,12 +1,4 @@
 {
-  "name": "core-js",
-  "description": "Standard library",
-  "version": "3.0.0-alpha.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/zloirock/core-js.git"
-  },
-  "main": "index.js",
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-core": "^6.26.0",
@@ -50,42 +42,17 @@
     "temp": "^0.8.3",
     "webpack": "^3.11.0"
   },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zloirock/core-js.git"
+  },
   "scripts": {
     "grunt": "grunt",
     "lint": "eslint ./",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter",
     "bundle-promises-tests": "npm run grunt webpack:promises-aplus-tests",
-    "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-ponyfill",
-    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack:helpers webpack:tests client karma:default && npm run grunt webpack:ponyfill karma:ponyfill && npm run promises-tests && npm run observables-tests && node tests/commonjs"
-  },
-  "license": "MIT",
-  "keywords": [
-    "ES3",
-    "ES5",
-    "ES6",
-    "ES7",
-    "ES2015",
-    "ES2016",
-    "ES2017",
-    "ECMAScript 3",
-    "ECMAScript 5",
-    "ECMAScript 6",
-    "ECMAScript 7",
-    "ECMAScript 2015",
-    "ECMAScript 2016",
-    "ECMAScript 2017",
-    "Harmony",
-    "Strawman",
-    "Map",
-    "Set",
-    "WeakMap",
-    "WeakSet",
-    "Promise",
-    "Symbol",
-    "TypedArray",
-    "setImmediate",
-    "Dict",
-    "polyfill",
-    "shim"
-  ]
+    "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-pure",
+    "test": "npm run grunt clean copy && npm run lint && npm run grunt webpack:helpers webpack:tests bundle uglify karma:tests && npm run grunt webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && node tests/commonjs"
+  }
 }

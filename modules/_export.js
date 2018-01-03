@@ -38,5 +38,5 @@ $export.P = 8;   // proto
 $export.B = 16;  // bind
 $export.W = 32;  // wrap
 $export.U = 64;  // safe
-$export.R = 128; // real proto method for `ponyfill`
+$export.R = 128; // real proto method for the `pure` version
 module.exports = $export;

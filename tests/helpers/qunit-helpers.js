@@ -1,5 +1,5 @@
 import { DESCRIPTORS } from './constants';
-import ITERATOR from '../../ponyfill/fn/symbol/iterator';
+import ITERATOR from '../../packages/core-js-pure/fn/symbol/iterator';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
