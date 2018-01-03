@@ -376,7 +376,7 @@ module.exports = {
       files: [
         'es/**',
         'fn/**',
-        'ponyfill/**',
+        'packages/core-js-pure/**',
         'modules/**',
         'stage/**',
         'tests/promises-aplus/**',
@@ -390,7 +390,7 @@ module.exports = {
     {
       files: [
         'tests/helpers/**',
-        'tests/ponyfill/**',
+        'tests/pure/**',
         'tests/tests/**',
       ],
       parserOptions: {

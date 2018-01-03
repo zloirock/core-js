@@ -1,9 +1,9 @@
 'use strict';
-const build = require('./build');
+const build = require('./packages/core-js-builder');
 const fs = require('fs');
 const mkdirp = require('mkdirp');
 const path = require('path');
-const config = require('./build/config');
+const config = require('./packages/core-js-builder/config');
 module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
@@ -16,7 +16,7 @@ module.exports = grunt => {
     uglify: {
       build: {
         files: {
-          '<%=grunt.option("path")%>.min.js': '<%=grunt.option("path")%>.js',
+          './packages/core-js/client/core.js.min.js': './packages/core-js/client/core.js',
         },
         options: {
           mangle: {
@@ -35,26 +35,64 @@ module.exports = grunt => {
         },
       },
     },
-    clean: ['./ponyfill'],
+    clean: {
+      'core-js': [
+        './packages/core-js/*',
+        '!./packages/core-js/.npmignore',
+        '!./packages/core-js/package.json',
+        '!./packages/core-js/README.md',
+      ],
+      'core-js-pure': [
+        './packages/core-js-pure/*',
+        '!./packages/core-js-pure/.npmignore',
+        '!./packages/core-js-pure/package.json',
+        '!./packages/core-js-pure/README.md',
+      ],
+      'core-js-builder': [
+        './packages/core-js-builder/LICENSE',
+      ],
+      tests: [
+        './tests/bundles/*',
+      ],
+    },
     copy: {
-      lib: {
+      'core-js': {
         files: [
           {
             expand: true,
-            cwd: './',
-            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
-            dest: './ponyfill/',
+            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js', 'LICENSE'],
+            dest: './packages/core-js/',
           }, {
             expand: true,
-            cwd: './',
-            src: ['modules/*'],
-            dest: './ponyfill/',
-            filter: 'isFile',
+            src: 'modules/*',
+            dest: './packages/core-js/',
+          },
+        ],
+      },
+      'core-js-pure': {
+        files: [
+          {
+            expand: true,
+            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js', 'LICENSE'],
+            dest: './packages/core-js-pure/',
           }, {
             expand: true,
-            cwd: './modules/ponyfill/',
+            src: 'modules/*',
+            dest: './packages/core-js-pure/',
+          }, {
+            expand: true,
+            cwd: './modules-pure/',
             src: '*',
-            dest: './ponyfill/modules/',
+            dest: './packages/core-js-pure/modules',
+          },
+        ],
+      },
+      'core-js-builder': {
+        files: [
+          {
+            expand: true,
+            src: ['LICENSE'],
+            dest: './packages/core-js-builder/',
           },
         ],
       },
@@ -66,17 +104,17 @@ module.exports = grunt => {
         browsers: ['PhantomJS'],
         singleRun: true,
       },
-      default: {
+      tests: {
         files: [
-          'client/core.js',
+          'packages/core-js/client/core.js',
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/tests.js',
         ].map(it => ({ src: it })),
       },
-      ponyfill: {
+      pure: {
         files: [
           'tests/bundles/qunit-helpers.js',
-          'tests/bundles/ponyfill.js',
+          'tests/bundles/pure.js',
         ].map(it => ({ src: it })),
       },
     },
@@ -103,9 +141,9 @@ module.exports = grunt => {
         entry: './tests/helpers/qunit-helpers.js',
         output: { filename: 'qunit-helpers.js' },
       },
-      ponyfill: {
-        entry: './tests/ponyfill/index.js',
-        output: { filename: 'ponyfill.js' },
+      pure: {
+        entry: './tests/pure/index.js',
+        output: { filename: 'pure.js' },
       },
       tests: {
         entry: './tests/tests/index.js',
@@ -117,13 +155,13 @@ module.exports = grunt => {
       },
     },
   });
-  grunt.registerTask('build', function (options) {
+  grunt.registerTask('bundle', function () {
     const done = this.async();
     return build({
-      modules: (options || 'es,esnext,web,core').split(','),
-      blacklist: (grunt.option('blacklist') || '').split(','),
+      source: '../../packages/core-js',
+      modules: ['es', 'esnext', 'web'],
     }).then(it => {
-      const filename = `${ grunt.option('path') || './custom' }.js`;
+      const filename = './packages/core-js/client/core.js';
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);
     }).catch(it => {
@@ -132,9 +170,5 @@ module.exports = grunt => {
       process.exit(1);
     });
   });
-  grunt.registerTask('client', () => {
-    grunt.option('path', './client/core');
-    return grunt.task.run(['build:es,esnext,web', 'uglify']);
-  });
-  return grunt.registerTask('default', ['clean', 'copy', 'client']);
+  return grunt.registerTask('default', ['clean', 'copy', 'bundle', 'uglify']);
 };

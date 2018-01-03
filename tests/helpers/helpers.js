@@ -1,5 +1,5 @@
-import Promise from '../../ponyfill/es/promise';
-import ITERATOR from '../../ponyfill/fn/symbol/iterator';
+import Promise from '../../packages/core-js-pure/es/promise';
+import ITERATOR from '../../packages/core-js-pure/fn/symbol/iterator';
 
 export function createIterable(elements, methods) {
   const iterable = {
