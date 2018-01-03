@@ -1,8 +1,0 @@
-node_modules/
-/build/core-js-builder/
-/modules/ponyfill/
-/tests/
-CHANGELOG.md
-CONTRIBUTING.md
-*.log
-.*

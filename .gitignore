@@ -4,6 +4,21 @@ node_modules/
 *.bak
 *.swp
 
-/ponyfill/
+/packages/core-js/client/
+/packages/core-js/es/
+/packages/core-js/fn/
+/packages/core-js/modules
+/packages/core-js/stage/
+/packages/core-js/web/
+/packages/core-js/index.js
+/packages/core-js/LICENSE
+/packages/core-js-pure/es/
+/packages/core-js-pure/fn/
+/packages/core-js-pure/modules
+/packages/core-js-pure/stage/
+/packages/core-js-pure/web/
+/packages/core-js-pure/index.js
+/packages/core-js-pure/LICENSE
+/packages/core-js-builder/LICENSE
 /tests/bundles/
 /client/
