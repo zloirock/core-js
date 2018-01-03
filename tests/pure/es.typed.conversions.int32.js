@@ -1,6 +1,6 @@
 import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
 
-import { Int32Array, Uint8Array, DataView } from '../../packages/core-js-pure';
+import { Int32Array, Uint8Array, DataView } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Int32 conversions', assert => {
   const int32array = new Int32Array(1);

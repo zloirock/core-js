@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import join from '../../packages/core-js-pure/fn/array/join';
+import join from 'core-js-pure/fn/array/join';
 
 QUnit.test('Array#join', assert => {
   assert.isFunction(join);

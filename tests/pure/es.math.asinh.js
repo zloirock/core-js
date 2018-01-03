@@ -1,4 +1,4 @@
-import asinh from '../../packages/core-js-pure/fn/math/asinh';
+import asinh from 'core-js-pure/fn/math/asinh';
 
 QUnit.test('Math.asinh', assert => {
   assert.isFunction(asinh);

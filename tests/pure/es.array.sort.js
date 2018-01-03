@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import sort from '../../packages/core-js-pure/fn/array/sort';
+import sort from 'core-js-pure/fn/array/sort';
 
 QUnit.test('Array#sort', assert => {
   assert.isFunction(sort);

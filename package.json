@@ -22,6 +22,7 @@
     "babel-plugin-transform-for-of-as-array": "^1.0.4",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
     "eslint": "4.19.x",
+    "eslint-import-resolver-webpack": "^0.8.3",
     "eslint-plugin-import": "2.12.x",
     "grunt": "^1.0.2",
     "grunt-cli": "^1.2.0",

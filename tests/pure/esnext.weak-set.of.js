@@ -1,4 +1,4 @@
-import WeakSet from '../../packages/core-js-pure/fn/weak-set';
+import WeakSet from 'core-js-pure/fn/weak-set';
 
 QUnit.test('WeakSet.of', assert => {
   const { of } = WeakSet;

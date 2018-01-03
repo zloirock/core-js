@@ -1,6 +1,6 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
-import { __lookupSetter__, __defineSetter__, create } from '../../packages/core-js-pure/fn/object';
+import { __lookupSetter__, __defineSetter__, create } from 'core-js-pure/fn/object';
 
 if (DESCRIPTORS) {
   QUnit.test('Object#__lookupSetter__', assert => {

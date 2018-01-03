@@ -1,4 +1,4 @@
-import clamp from '../../packages/core-js-pure/fn/math/clamp';
+import clamp from 'core-js-pure/fn/math/clamp';
 
 QUnit.test('Math.clamp', assert => {
   assert.isFunction(clamp);
