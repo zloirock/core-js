@@ -1,6 +1,6 @@
 import { GLOBAL } from '../helpers/constants';
 
-import { slice, isArray } from '../../packages/core-js-pure/fn/array';
+import { slice, isArray } from 'core-js-pure/fn/array';
 
 QUnit.test('Array#slice', assert => {
   assert.isFunction(slice);

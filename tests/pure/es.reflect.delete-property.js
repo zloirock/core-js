@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import deleteProperty from '../../packages/core-js-pure/fn/reflect/delete-property';
-import { defineProperty, keys } from '../../packages/core-js-pure/fn/object';
+import deleteProperty from 'core-js-pure/fn/reflect/delete-property';
+import { defineProperty, keys } from 'core-js-pure/fn/object';
 
 QUnit.test('Reflect.deleteProperty', assert => {
   assert.isFunction(deleteProperty);

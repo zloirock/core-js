@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import lastIndexOf from '../../packages/core-js-pure/fn/array/last-index-of';
+import lastIndexOf from 'core-js-pure/fn/array/last-index-of';
 
 QUnit.test('Array#lastIndexOf', assert => {
   assert.isFunction(lastIndexOf);

@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import includes from '../../packages/core-js-pure/fn/array/includes';
+import includes from 'core-js-pure/fn/array/includes';
 
 QUnit.test('Array#includes', assert => {
   assert.isFunction(includes);

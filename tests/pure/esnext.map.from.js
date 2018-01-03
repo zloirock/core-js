@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
-import Map from '../../packages/core-js-pure/fn/map';
-import toArray from '../../packages/core-js-pure/fn/array/from';
+import Map from 'core-js-pure/fn/map';
+import toArray from 'core-js-pure/fn/array/from';
 
 QUnit.test('Map.from', assert => {
   const { from } = Map;

@@ -1,4 +1,4 @@
-import sinh from '../../packages/core-js-pure/fn/math/sinh';
+import sinh from 'core-js-pure/fn/math/sinh';
 
 QUnit.test('Math.sinh', assert => {
   assert.isFunction(sinh);

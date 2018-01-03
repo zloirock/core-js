@@ -1,5 +1,5 @@
-import { keys, values, entries } from '../../packages/core-js-pure/fn/array';
-import { getIterator, Symbol } from '../../packages/core-js-pure';
+import { keys, values, entries } from 'core-js-pure/fn/array';
+import { getIterator, Symbol } from 'core-js-pure';
 
 QUnit.test('Array#@@iterator', assert => {
   assert.isFunction(values);

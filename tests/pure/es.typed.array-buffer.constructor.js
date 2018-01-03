@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { ArrayBuffer, Symbol } from '../../packages/core-js-pure';
+import { ArrayBuffer, Symbol } from 'core-js-pure';
 
 QUnit.test('ArrayBuffer', assert => {
   assert.same(ArrayBuffer, Object(ArrayBuffer), 'is object');

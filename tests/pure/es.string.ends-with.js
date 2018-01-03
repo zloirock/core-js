@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from '../../packages/core-js-pure/fn/symbol';
-import endsWith from '../../packages/core-js-pure/fn/string/ends-with';
+import Symbol from 'core-js-pure/fn/symbol';
+import endsWith from 'core-js-pure/fn/string/ends-with';
 
 QUnit.test('String#endsWith', assert => {
   assert.isFunction(endsWith);

@@ -1,4 +1,4 @@
-import { create, getPrototypeOf, getOwnPropertyNames } from '../../packages/core-js-pure/fn/object';
+import { create, getPrototypeOf, getOwnPropertyNames } from 'core-js-pure/fn/object';
 
 QUnit.test('Object.create', assert => {
   function getPropertyNames(object) {
