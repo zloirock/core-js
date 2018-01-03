@@ -1,4 +1,4 @@
-import isSealed from '../../packages/core-js-pure/fn/object/is-sealed';
+import isSealed from 'core-js-pure/fn/object/is-sealed';
 
 QUnit.test('Object.isSealed', assert => {
   assert.isFunction(isSealed);

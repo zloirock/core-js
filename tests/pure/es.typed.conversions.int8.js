@@ -1,6 +1,6 @@
 import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN } from '../helpers/constants';
 
-import { Int8Array, Uint8Array, DataView } from '../../packages/core-js-pure';
+import { Int8Array, Uint8Array, DataView } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
   const int8array = new Int8Array(1);

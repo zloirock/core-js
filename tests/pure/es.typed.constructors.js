@@ -1,8 +1,8 @@
 import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-import core, { ArrayBuffer, Symbol } from '../../packages/core-js-pure';
-import { getOwnPropertyDescriptor, defineProperty, assign } from '../../packages/core-js-pure/fn/object';
+import core, { ArrayBuffer, Symbol } from 'core-js-pure';
+import { getOwnPropertyDescriptor, defineProperty, assign } from 'core-js-pure/fn/object';
 
 if (DESCRIPTORS) {
   for (const name in TYPED_ARRAYS) {

@@ -1,6 +1,6 @@
 import { timeLimitedPromise } from '../helpers/helpers';
 
-import { setTimeout, setInterval } from '../../packages/core-js-pure';
+import { setTimeout, setInterval } from 'core-js-pure';
 
 QUnit.test('setTimeout / clearTimeout', assert => {
   assert.expect(2);

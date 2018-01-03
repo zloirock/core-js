@@ -1,4 +1,4 @@
-import fontsize from '../../packages/core-js-pure/fn/string/fontsize';
+import fontsize from 'core-js-pure/fn/string/fontsize';
 
 QUnit.test('String#fontsize', assert => {
   assert.isFunction(fontsize);

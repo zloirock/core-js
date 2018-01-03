@@ -1,4 +1,4 @@
-import fround from '../../packages/core-js-pure/fn/math/fround';
+import fround from 'core-js-pure/fn/math/fround';
 
 QUnit.test('Math.fround', assert => {
   assert.isFunction(fround);

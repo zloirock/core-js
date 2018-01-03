@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import copyWithin from '../../packages/core-js-pure/fn/array/copy-within';
+import copyWithin from 'core-js-pure/fn/array/copy-within';
 
 QUnit.test('Array#copyWithin', assert => {
   assert.isFunction(copyWithin);

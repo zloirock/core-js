@@ -1,4 +1,4 @@
-import apply from '../../packages/core-js-pure/fn/reflect/apply';
+import apply from 'core-js-pure/fn/reflect/apply';
 
 QUnit.test('Reflect.apply', assert => {
   assert.isFunction(apply);

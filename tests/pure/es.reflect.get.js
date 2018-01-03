@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import get from '../../packages/core-js-pure/fn/reflect/get';
-import { defineProperty, create } from '../../packages/core-js-pure/fn/object';
+import get from 'core-js-pure/fn/reflect/get';
+import { defineProperty, create } from 'core-js-pure/fn/object';
 
 QUnit.test('Reflect.get', assert => {
   assert.isFunction(get);

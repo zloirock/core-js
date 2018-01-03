@@ -1,7 +1,7 @@
 import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
-import getOwnPropertyNames from '../../packages/core-js-pure/fn/object/get-own-property-names';
+import getOwnPropertyNames from 'core-js-pure/fn/object/get-own-property-names';
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.isFunction(getOwnPropertyNames);
