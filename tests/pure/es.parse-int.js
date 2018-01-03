@@ -1,4 +1,4 @@
-import parseInt from '../../packages/core-js-pure/fn/parse-int';
+import parseInt from 'core-js-pure/fn/parse-int';
 
 QUnit.test('parseInt', assert => {
   assert.isFunction(parseInt);

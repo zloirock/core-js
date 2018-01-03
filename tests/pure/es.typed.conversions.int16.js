@@ -1,6 +1,6 @@
 import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN } from '../helpers/constants';
 
-import { Int16Array, Uint8Array, DataView } from '../../packages/core-js-pure';
+import { Int16Array, Uint8Array, DataView } from 'core-js-pure';
 
 if (DESCRIPTORS) QUnit.test('Int16 conversions', assert => {
   const int16array = new Int16Array(1);

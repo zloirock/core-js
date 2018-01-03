@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import core, { Symbol, JSON } from '../../packages/core-js-pure';
+import core, { Symbol, JSON } from 'core-js-pure';
 import {
   defineProperty,
   defineProperties,
@@ -9,8 +9,8 @@ import {
   getOwnPropertySymbols,
   keys,
   create,
-} from '../../packages/core-js-pure/fn/object';
-import ownKeys from '../../packages/core-js-pure/fn/reflect/own-keys';
+} from 'core-js-pure/fn/object';
+import ownKeys from 'core-js-pure/fn/reflect/own-keys';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);

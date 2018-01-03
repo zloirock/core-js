@@ -1,6 +1,6 @@
 import { createIterable } from '../helpers/helpers';
 
-import WeakMap from '../../packages/core-js-pure/fn/weak-map';
+import WeakMap from 'core-js-pure/fn/weak-map';
 
 QUnit.test('WeakMap.from', assert => {
   const { from } = WeakMap;

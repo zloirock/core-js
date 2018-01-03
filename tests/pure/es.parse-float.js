@@ -1,4 +1,4 @@
-import parseFloat from '../../packages/core-js-pure/fn/parse-float';
+import parseFloat from 'core-js-pure/fn/parse-float';
 
 QUnit.test('parseFloat', assert => {
   assert.isFunction(parseFloat);

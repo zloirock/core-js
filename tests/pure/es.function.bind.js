@@ -1,4 +1,4 @@
-import bind from '../../packages/core-js-pure/fn/function/bind';
+import bind from 'core-js-pure/fn/function/bind';
 
 QUnit.test('Function#bind', assert => {
   assert.isFunction(bind);

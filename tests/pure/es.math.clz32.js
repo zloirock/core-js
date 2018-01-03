@@ -1,4 +1,4 @@
-import clz32 from '../../packages/core-js-pure/fn/math/clz32';
+import clz32 from 'core-js-pure/fn/math/clz32';
 
 QUnit.test('Math.clz32', assert => {
   assert.isFunction(clz32);
