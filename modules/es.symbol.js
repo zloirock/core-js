@@ -5,7 +5,7 @@ var has = require('./_has');
 var DESCRIPTORS = require('./_descriptors');
 var $export = require('./_export');
 var redefine = require('./_redefine');
-var META = require('./_meta').KEY;
+var hiddenKeys = require('./_hidden-keys');
 var $fails = require('./_fails');
 var shared = require('./_shared');
 var setToStringTag = require('./_set-to-string-tag');
@@ -25,6 +25,7 @@ var gOPNExt = require('./_object-gopn-ext');
 var $GOPD = require('./_object-gopd');
 var $DP = require('./_object-dp');
 var $keys = require('./_object-keys');
+var HIDDEN = require('./_shared-key')('hidden');
 var gOPD = $GOPD.f;
 var dP = $DP.f;
 var gOPN = gOPNExt.f;
@@ -32,7 +33,6 @@ var $Symbol = global.Symbol;
 var $JSON = global.JSON;
 var _stringify = $JSON && $JSON.stringify;
 var PROTOTYPE = 'prototype';
-var HIDDEN = wks('_hidden');
 var TO_PRIMITIVE = wks('toPrimitive');
 var isEnum = {}.propertyIsEnumerable;
 var SymbolRegistry = shared('symbol-registry');
@@ -43,6 +43,8 @@ var USE_NATIVE = typeof $Symbol == 'function';
 var QObject = global.QObject;
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var setter = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
+
+hiddenKeys[HIDDEN] = true;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDesc = DESCRIPTORS && $fails(function () {
@@ -116,7 +118,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it) {
   var i = 0;
   var key;
   while (names.length > i) {
-    if (!has(AllSymbols, key = names[i++]) && key != HIDDEN && key != META) result.push(key);
+    if (!has(AllSymbols, key = names[i++]) && !has(hiddenKeys, key)) result.push(key);
   } return result;
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
