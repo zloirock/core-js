@@ -44,10 +44,12 @@ var onFreeze = function (it) {
   if (FREEZE && meta.NEED && isExtensible(it) && !has(it, META)) setMeta(it);
   return it;
 };
+
 var meta = module.exports = {
-  KEY: META,
   NEED: false,
   fastKey: fastKey,
   getWeak: getWeak,
   onFreeze: onFreeze
 };
+
+require('./_hidden-keys')[META] = true;
