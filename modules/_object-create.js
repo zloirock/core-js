@@ -39,3 +39,5 @@ module.exports = Object.create || function create(O, Properties) {
   } else result = createDict();
   return Properties === undefined ? result : dPs(result, Properties);
 };
+
+require('./_hidden-keys')[IE_PROTO] = true;
