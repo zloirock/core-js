@@ -26,6 +26,7 @@ var $GOPD = require('./_object-gopd');
 var $DP = require('./_object-dp');
 var $keys = require('./_object-keys');
 var HIDDEN = require('./_shared-key')('hidden');
+var $ = require('./_state');
 var gOPD = $GOPD.f;
 var dP = $DP.f;
 var gOPN = gOPNExt.f;
@@ -59,11 +60,13 @@ var setSymbolDesc = DESCRIPTORS && $fails(function () {
 } : dP;
 
 var wrap = function (tag, description) {
-  var sym = AllSymbols[tag] = _create($Symbol[PROTOTYPE]);
-  sym._k = tag;
-  if (DESCRIPTORS) sym._d = description;
-  else sym.description = description;
-  return sym;
+  var symbol = AllSymbols[tag] = _create($Symbol[PROTOTYPE]);
+  $(symbol, {
+    tag: tag,
+    description: description
+  });
+  if (!DESCRIPTORS) symbol.description = description;
+  return symbol;
 };
 
 var isSymbol = USE_NATIVE && typeof $Symbol.iterator == 'symbol' ? function (it) {
@@ -147,7 +150,7 @@ if (!USE_NATIVE) {
     return wrap(tag, description);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
-    return this._k;
+    return $(this).tag;
   });
 
   $GOPD.f = $getOwnPropertyDescriptor;
@@ -160,7 +163,7 @@ if (!USE_NATIVE) {
     dP($Symbol[PROTOTYPE], 'description', {
       configurable: true,
       get: function description() {
-        return this._d;
+        return $(this).description;
       }
     });
     if (!require('./_is-pure')) {
