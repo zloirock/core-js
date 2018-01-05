@@ -11,6 +11,7 @@ var getIterator = require('./core.get-iterator');
 var forOf = require('./_for-of');
 var hostReportErrors = require('./_host-report-errors');
 var dP = require('./_object-dp').f;
+var $ = require('./_state');
 var DESCRIPTORS = require('./_descriptors');
 var OBSERVABLE = require('./_wks')('observable');
 var RETURN = forOf.RETURN;
@@ -140,7 +141,8 @@ if (DESCRIPTORS) dP(SubscriptionObserver.prototype, 'closed', {
 });
 
 var $Observable = function Observable(subscriber) {
-  anInstance(this, $Observable, 'Observable', '_f')._f = aFunction(subscriber);
+  anInstance(this, $Observable, 'Observable');
+  $(this, { subscriber: aFunction(subscriber) });
 };
 
 redefineAll($Observable.prototype, {
@@ -149,7 +151,7 @@ redefineAll($Observable.prototype, {
       next: observer,
       error: arguments.length > 1 ? arguments[1] : undefined,
       complete: arguments.length > 2 ? arguments[2] : undefined
-    } : isObject(observer) ? observer : {}, this._f);
+    } : isObject(observer) ? observer : {}, $(this).subscriber);
   }
 });
 
