@@ -11,6 +11,7 @@ var setSpecies = require('./_set-species');
 var DESCRIPTORS = require('./_descriptors');
 var fastKey = require('./_meta').fastKey;
 var validate = require('./_validate-collection');
+var $ = require('./_state');
 var SIZE = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function (that, key) {
@@ -117,19 +118,21 @@ module.exports = {
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
     $iterDefine(C, NAME, function (iterated, kind) {
-      this._t = validate(iterated, NAME); // target
-      this._k = kind;                     // kind
-      this._l = undefined;                // previous
+      $(this, {
+        target: validate(iterated, NAME),
+        kind: kind,
+        last: undefined
+      });
     }, function () {
-      var that = this;
-      var kind = that._k;
-      var entry = that._l;
+      var state = $(this);
+      var kind = state.kind;
+      var entry = state.last;
       // revert to the last existing entry
       while (entry && entry.r) entry = entry.p;
       // get next entry
-      if (!that._t || !(that._l = entry = entry ? entry.n : that._t._f)) {
+      if (!state.target || !(state.last = entry = entry ? entry.n : state.target._f)) {
         // or finish the iteration
-        that._t = undefined;
+        state.target = undefined;
         return step(1);
       }
       // return step by kind
