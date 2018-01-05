@@ -87,13 +87,13 @@ if (DESCRIPTORS) dP(Subscription.prototype, 'closed', {
 });
 
 var SubscriptionObserver = function (subscription) {
-  this._s = subscription;
+  $(this, { subscription: subscription });
   if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
   next: function next(value) {
-    var subscription = this._s;
+    var subscription = $(this).subscription;
     if (!subscriptionClosed(subscription)) {
       var observer = subscription._o;
       try {
@@ -105,7 +105,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   error: function error(value) {
-    var subscription = this._s;
+    var subscription = $(this).subscription;
     if (!subscriptionClosed(subscription)) {
       var observer = subscription._o;
       close(subscription);
@@ -119,7 +119,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   complete: function complete() {
-    var subscription = this._s;
+    var subscription = $(this).subscription;
     if (!subscriptionClosed(subscription)) {
       var observer = subscription._o;
       close(subscription);
@@ -136,7 +136,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
 if (DESCRIPTORS) dP(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(this._s);
+    return subscriptionClosed($(this).subscription);
   }
 });
 
