@@ -14,6 +14,7 @@ var gOPN = require('./_object-gopn').f;
 var dP = require('./_object-dp').f;
 var arrayFill = require('./_array-fill');
 var setToStringTag = require('./_set-to-string-tag');
+var $ = require('./_state');
 var ARRAY_BUFFER = 'ArrayBuffer';
 var DATA_VIEW = 'DataView';
 var PROTOTYPE = 'prototype';
@@ -31,12 +32,6 @@ var pow = Math.pow;
 var floor = Math.floor;
 var log = Math.log;
 var LN2 = Math.LN2;
-var BUFFER = 'buffer';
-var BYTE_LENGTH = 'byteLength';
-var BYTE_OFFSET = 'byteOffset';
-var $BUFFER = DESCRIPTORS ? '_b' : BUFFER;
-var $LENGTH = DESCRIPTORS ? '_l' : BYTE_LENGTH;
-var $OFFSET = DESCRIPTORS ? '_o' : BYTE_OFFSET;
 
 // IEEE754 conversions based on https://github.com/feross/ieee754
 function packIEEE754(value, mLen, nBytes) {
@@ -131,55 +126,67 @@ function packF32(it) {
   return packIEEE754(it, 23, 4);
 }
 
-function addGetter(C, key, internal) {
-  dP(C[PROTOTYPE], key, { get: function () { return this[internal]; } });
+function addGetter(C, key) {
+  dP(C[PROTOTYPE], key, { get: function () { return $(this)[key]; } });
 }
 
-function get(view, bytes, index, isLittleEndian) {
+function get(view, count, index, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
-  if (intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
-  var store = view[$BUFFER]._b;
-  var start = intIndex + view[$OFFSET];
-  var pack = store.slice(start, start + bytes);
+  var store = $(view);
+  if (intIndex + count > store.byteLength) throw RangeError(WRONG_INDEX);
+  var bytes = $(store.buffer).bytes;
+  var start = intIndex + store.byteOffset;
+  var pack = bytes.slice(start, start + count);
   return isLittleEndian ? pack : pack.reverse();
 }
-function set(view, bytes, index, conversion, value, isLittleEndian) {
+function set(view, count, index, conversion, value, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
-  if (intIndex + bytes > view[$LENGTH]) throw RangeError(WRONG_INDEX);
-  var store = view[$BUFFER]._b;
-  var start = intIndex + view[$OFFSET];
+  var store = $(view);
+  if (intIndex + count > store.byteLength) throw RangeError(WRONG_INDEX);
+  var bytes = $(store.buffer).bytes;
+  var start = intIndex + store.byteOffset;
   var pack = conversion(+value);
-  for (var i = 0; i < bytes; i++) store[start + i] = pack[isLittleEndian ? i : bytes - i - 1];
+  for (var i = 0; i < count; i++) bytes[start + i] = pack[isLittleEndian ? i : count - i - 1];
 }
 
 if (!$typed.ABV) {
   $ArrayBuffer = function ArrayBuffer(length) {
     anInstance(this, $ArrayBuffer, ARRAY_BUFFER);
     var byteLength = toIndex(length);
-    this._b = arrayFill.call(new Array(byteLength), 0);
-    this[$LENGTH] = byteLength;
+    $(this, {
+      bytes: arrayFill.call(new Array(byteLength), 0),
+      byteLength: byteLength
+    });
+    if (!DESCRIPTORS) this.byteLength = byteLength;
   };
 
   $DataView = function DataView(buffer, byteOffset, byteLength) {
     anInstance(this, $DataView, DATA_VIEW);
     anInstance(buffer, $ArrayBuffer, DATA_VIEW);
-    var bufferLength = buffer[$LENGTH];
+    var bufferLength = $(buffer).byteLength;
     var offset = toInteger(byteOffset);
     if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset!');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
     if (offset + byteLength > bufferLength) throw RangeError(WRONG_LENGTH);
-    this[$BUFFER] = buffer;
-    this[$OFFSET] = offset;
-    this[$LENGTH] = byteLength;
+    $(this, {
+      buffer: buffer,
+      byteLength: byteLength,
+      byteOffset: offset
+    });
+    if (!DESCRIPTORS) {
+      this.buffer = buffer;
+      this.byteLength = byteLength;
+      this.byteOffset = offset;
+    }
   };
 
   if (DESCRIPTORS) {
-    addGetter($ArrayBuffer, BYTE_LENGTH, '_l');
-    addGetter($DataView, BUFFER, '_b');
-    addGetter($DataView, BYTE_LENGTH, '_l');
-    addGetter($DataView, BYTE_OFFSET, '_o');
+    addGetter($ArrayBuffer, 'byteLength');
+    addGetter($DataView, 'buffer');
+    addGetter($DataView, 'byteLength');
+    addGetter($DataView, 'byteOffset');
   }
 
   redefineAll($DataView[PROTOTYPE], {
