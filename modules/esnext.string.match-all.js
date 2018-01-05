@@ -5,15 +5,19 @@ var defined = require('./_defined');
 var toLength = require('./_to-length');
 var isRegExp = require('./_is-regexp');
 var getFlags = require('./_flags');
+var $ = require('./_state');
 var RegExpProto = RegExp.prototype;
 
 var $RegExpStringIterator = function (regexp, string) {
-  this._r = regexp;
-  this._s = string;
+  $(this, {
+    regexp: regexp,
+    string: string
+  });
 };
 
 require('./_iter-create')($RegExpStringIterator, 'RegExp String', function next() {
-  var match = this._r.exec(this._s);
+  var state = $(this);
+  var match = state.regexp.exec(state.string);
   return { value: match, done: match === null };
 });
 
