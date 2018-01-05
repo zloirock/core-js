@@ -38,6 +38,7 @@ if (require('./_descriptors')) {
   var arrayCopyWithin = require('./_array-copy-within');
   var $DP = require('./_object-dp');
   var $GOPD = require('./_object-gopd');
+  var $ = require('./_state');
   var dP = $DP.f;
   var gOPD = $GOPD.f;
   var RangeError = global.RangeError;
@@ -120,8 +121,8 @@ if (require('./_descriptors')) {
     return result;
   };
 
-  var addGetter = function (it, key, internal) {
-    dP(it, key, { get: function () { return this._d[internal]; } });
+  var addGetter = function (it, key) {
+    dP(it, key, { get: function () { return $(this)[key]; } });
   };
 
   var $from = function from(source /* , mapfn, thisArg */) {
@@ -313,10 +314,10 @@ if (require('./_descriptors')) {
     toString: arrayToString,
     toLocaleString: $toLocaleString
   });
-  addGetter($TypedArrayPrototype$, 'buffer', 'b');
-  addGetter($TypedArrayPrototype$, 'byteOffset', 'o');
-  addGetter($TypedArrayPrototype$, 'byteLength', 'l');
-  addGetter($TypedArrayPrototype$, 'length', 'e');
+  addGetter($TypedArrayPrototype$, 'buffer');
+  addGetter($TypedArrayPrototype$, 'byteOffset');
+  addGetter($TypedArrayPrototype$, 'byteLength');
+  addGetter($TypedArrayPrototype$, 'length');
   dP($TypedArrayPrototype$, TAG, {
     get: function () { return this[TYPED_ARRAY]; }
   });
@@ -334,13 +335,13 @@ if (require('./_descriptors')) {
     var O = {};
     var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var getter = function (that, index) {
-      var data = that._d;
-      return data.v[GETTER](index * BYTES + data.o, LITTLE_ENDIAN);
+      var data = $(that);
+      return data.view[GETTER](index * BYTES + data.byteOffset, LITTLE_ENDIAN);
     };
     var setter = function (that, index, value) {
-      var data = that._d;
+      var data = $(that);
       if (CLAMPED) value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
-      data.v[SETTER](index * BYTES + data.o, value, LITTLE_ENDIAN);
+      data.view[SETTER](index * BYTES + data.byteOffset, value, LITTLE_ENDIAN);
     };
     var addElement = function (that, index) {
       dP(that, index, {
@@ -354,10 +355,10 @@ if (require('./_descriptors')) {
       });
     };
     if (FORCED) {
-      TypedArray = wrapper(function (that, data, $offset, $length) {
-        anInstance(that, TypedArray, NAME, '_d');
+      TypedArray = wrapper(function (that, data, offset, $length) {
+        anInstance(that, TypedArray, NAME);
         var index = 0;
-        var offset = 0;
+        var byteOffset = 0;
         var buffer, byteLength, length, klass;
         if (!isObject(data)) {
           length = toIndex(data);
@@ -365,15 +366,15 @@ if (require('./_descriptors')) {
           buffer = new $ArrayBuffer(byteLength);
         } else if (data instanceof $ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER) {
           buffer = data;
-          offset = toOffset($offset, BYTES);
+          byteOffset = toOffset(offset, BYTES);
           var $len = data.byteLength;
           if ($length === undefined) {
             if ($len % BYTES) throw RangeError(WRONG_LENGTH);
-            byteLength = $len - offset;
+            byteLength = $len - byteOffset;
             if (byteLength < 0) throw RangeError(WRONG_LENGTH);
           } else {
             byteLength = toLength($length) * BYTES;
-            if (byteLength + offset > $len) throw RangeError(WRONG_LENGTH);
+            if (byteLength + byteOffset > $len) throw RangeError(WRONG_LENGTH);
           }
           length = byteLength / BYTES;
         } else if (TYPED_ARRAY in data) {
@@ -381,12 +382,12 @@ if (require('./_descriptors')) {
         } else {
           return $from.call(TypedArray, data);
         }
-        hide(that, '_d', {
-          b: buffer,
-          o: offset,
-          l: byteLength,
-          e: length,
-          v: new $DataView(buffer)
+        $(that, {
+          buffer: buffer,
+          byteOffset: byteOffset,
+          byteLength: byteLength,
+          length: length,
+          view: new $DataView(buffer)
         });
         while (index < length) addElement(that, index++);
       });
