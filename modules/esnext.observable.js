@@ -20,10 +20,10 @@ var getMethod = function (fn) {
   return fn == null ? undefined : aFunction(fn);
 };
 
-var cleanupSubscription = function (subscription) {
-  var cleanup = subscription._c;
+var cleanupSubscription = function (subscriptionState) {
+  var cleanup = subscriptionState.cleanup;
   if (cleanup) {
-    subscription._c = undefined;
+    subscriptionState.cleanup = undefined;
     try {
       cleanup();
     } catch (e) {
@@ -32,57 +32,59 @@ var cleanupSubscription = function (subscription) {
   }
 };
 
-var subscriptionClosed = function (subscription) {
-  return subscription._o === undefined;
+var subscriptionClosed = function (subscriptionState) {
+  return subscriptionState.observer === undefined;
 };
 
-var closeSubscription = function (subscription) {
-  if (!subscriptionClosed(subscription)) {
-    close(subscription);
-    cleanupSubscription(subscription);
-  }
-};
-
-var close = function (subscription) {
+var close = function (subscription, subscriptionState) {
   if (!DESCRIPTORS) {
     subscription.closed = true;
-    var subscriptionObserver = subscription._s;
+    var subscriptionObserver = subscriptionState.subscriptionObserver;
     if (subscriptionObserver) subscriptionObserver.closed = true;
-  } subscription._o = undefined;
+  } subscriptionState.observer = undefined;
 };
 
 var Subscription = function (observer, subscriber) {
+  var subscriptionState = $(this, {
+    cleanup: undefined,
+    observer: anObject(observer),
+    subscriptionObserver: undefined
+  });
   var start;
   if (!DESCRIPTORS) this.closed = false;
-  this._c = undefined;
-  this._o = anObject(observer);
   try {
     if (start = getMethod(observer.start)) start.call(observer, this);
   } catch (e) {
     hostReportErrors(e);
   }
-  if (subscriptionClosed(this)) return;
-  var subscriptionObserver = this._s = new SubscriptionObserver(this);
+  if (subscriptionClosed(subscriptionState)) return;
+  var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(this);
   try {
     var cleanup = subscriber(subscriptionObserver);
     var subscription = cleanup;
-    if (cleanup != null) this._c = typeof cleanup.unsubscribe === 'function'
+    if (cleanup != null) subscriptionState.cleanup = typeof cleanup.unsubscribe === 'function'
       ? function () { subscription.unsubscribe(); }
       : aFunction(cleanup);
   } catch (e) {
     subscriptionObserver.error(e);
     return;
-  } if (subscriptionClosed(this)) cleanupSubscription(this);
+  } if (subscriptionClosed(subscriptionState)) cleanupSubscription(subscriptionState);
 };
 
 Subscription.prototype = redefineAll({}, {
-  unsubscribe: function unsubscribe() { closeSubscription(this); }
+  unsubscribe: function unsubscribe() {
+    var subscriptionState = $(this);
+    if (!subscriptionClosed(subscriptionState)) {
+      close(this, subscriptionState);
+      cleanupSubscription(subscriptionState);
+    }
+  }
 });
 
 if (DESCRIPTORS) dP(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(this);
+    return subscriptionClosed($(this));
   }
 });
 
@@ -93,9 +95,9 @@ var SubscriptionObserver = function (subscription) {
 
 SubscriptionObserver.prototype = redefineAll({}, {
   next: function next(value) {
-    var subscription = $(this).subscription;
-    if (!subscriptionClosed(subscription)) {
-      var observer = subscription._o;
+    var subscriptionState = $($(this).subscription);
+    if (!subscriptionClosed(subscriptionState)) {
+      var observer = subscriptionState.observer;
       try {
         var m = getMethod(observer.next);
         if (m) m.call(observer, value);
@@ -106,29 +108,31 @@ SubscriptionObserver.prototype = redefineAll({}, {
   },
   error: function error(value) {
     var subscription = $(this).subscription;
-    if (!subscriptionClosed(subscription)) {
-      var observer = subscription._o;
-      close(subscription);
+    var subscriptionState = $(subscription);
+    if (!subscriptionClosed(subscriptionState)) {
+      var observer = subscriptionState.observer;
+      close(subscription, subscriptionState);
       try {
         var m = getMethod(observer.error);
         if (m) m.call(observer, value);
         else hostReportErrors(value);
       } catch (e) {
         hostReportErrors(e);
-      } cleanupSubscription(subscription);
+      } cleanupSubscription(subscriptionState);
     }
   },
   complete: function complete() {
     var subscription = $(this).subscription;
-    if (!subscriptionClosed(subscription)) {
-      var observer = subscription._o;
-      close(subscription);
+    var subscriptionState = $(subscription);
+    if (!subscriptionClosed(subscriptionState)) {
+      var observer = subscriptionState.observer;
+      close(subscription, subscriptionState);
       try {
         var m = getMethod(observer.complete);
         if (m) m.call(observer);
       } catch (e) {
         hostReportErrors(e);
-      } cleanupSubscription(subscription);
+      } cleanupSubscription(subscriptionState);
     }
   }
 });
@@ -136,7 +140,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
 if (DESCRIPTORS) dP(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed($(this).subscription);
+    return subscriptionClosed($($(this).subscription));
   }
 });
 
@@ -147,10 +151,11 @@ var $Observable = function Observable(subscriber) {
 
 redefineAll($Observable.prototype, {
   subscribe: function subscribe(observer) {
+    var argumentsLength = arguments.length;
     return new Subscription(typeof observer === 'function' ? {
       next: observer,
-      error: arguments.length > 1 ? arguments[1] : undefined,
-      complete: arguments.length > 2 ? arguments[2] : undefined
+      error: argumentsLength > 1 ? arguments[1] : undefined,
+      complete: argumentsLength > 2 ? arguments[2] : undefined
     } : isObject(observer) ? observer : {}, $(this).subscriber);
   }
 });
@@ -175,7 +180,9 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    for (var i = 0, l = arguments.length, items = new Array(l); i < l;) items[i] = arguments[i++];
+    for (var i = 0, argumentsLength = arguments.length, items = new Array(argumentsLength); i < argumentsLength;) {
+      items[i] = arguments[i++];
+    }
     return new (typeof this === 'function' ? this : $Observable)(function (observer) {
       for (var j = 0; j < items.length; ++j) {
         observer.next(items[j]);
