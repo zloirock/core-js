@@ -116,12 +116,12 @@ var onUnhandled = function (promise) {
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
       promise._h = isNode || isUnhandled(promise) ? 2 : 1;
-    } promise._a = undefined;
+    }
     if (unhandled && result.e) throw result.v;
   });
 };
 var isUnhandled = function (promise) {
-  return promise._h !== 1 && (promise._a || promise._c).length === 0;
+  return promise._h !== 1 && !promise._p;
 };
 var onHandleUnhandled = function (promise) {
   task.call(global, function () {
@@ -137,7 +137,6 @@ var $reject = function (value) {
   promise = promise._w || promise; // unwrap
   promise._v = value;
   promise._s = 2;
-  if (!promise._a) promise._a = promise._c.slice();
   notify(promise, true);
 };
 var $resolve = function (value) {
@@ -183,7 +182,7 @@ if (!USE_NATIVE) {
   // eslint-disable-next-line no-unused-vars
   Internal = function Promise(executor) {
     this._c = [];             // <- awaiting reactions
-    this._a = undefined;      // <- checked in isUnhandled reactions
+    this._p = false;          // <- has children
     this._s = 0;              // <- state
     this._d = false;          // <- done
     this._v = undefined;      // <- value
@@ -197,8 +196,8 @@ if (!USE_NATIVE) {
       reaction.ok = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
       reaction.domain = isNode ? process.domain : undefined;
+      this._p = true;
       this._c.push(reaction);
-      if (this._a) this._a.push(reaction);
       if (this._s) notify(this, false);
       return reaction.promise;
     },
