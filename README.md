@@ -1378,7 +1378,7 @@ core-js(-pure)/fn/symbol/async-iterator
 ```js
 core-js(-pure)/stage/2
 ```
-* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
+* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.trim-right.js)
 ```js
 class String {
   trimLeft(): string;
