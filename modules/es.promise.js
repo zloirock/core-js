@@ -1,7 +1,6 @@
 'use strict';
 var IS_PURE = require('./_is-pure');
 var global = require('./_global');
-var ctx = require('./_ctx');
 var classof = require('./_classof');
 var $export = require('./_export');
 var isObject = require('./_is-object');
@@ -130,8 +129,12 @@ var onHandleUnhandled = function (promise) {
     } else dispatchEvent(REJECTION_HANDLED, promise, promise._v);
   });
 };
-var $reject = function (value) {
-  var promise = this;
+var bind = function (fn, promise) {
+  return function (value) {
+    fn(promise, value);
+  };
+};
+var $reject = function (promise, value) {
   if (promise._d) return;
   promise._d = true;
   promise = promise._w || promise; // unwrap
@@ -139,21 +142,20 @@ var $reject = function (value) {
   promise._s = 2;
   notify(promise, true);
 };
-var $resolve = function (value) {
-  var promise = this;
-  var then;
+var $resolve = function (promise, value) {
   if (promise._d) return;
   promise._d = true;
   promise = promise._w || promise; // unwrap
   try {
     if (promise === value) throw TypeError("Promise can't be resolved itself");
-    if (then = isThenable(value)) {
+    var then = isThenable(value);
+    if (then) {
       microtask(function () {
         var wrapper = { _w: promise, _d: false }; // wrap
         try {
-          then.call(value, ctx($resolve, wrapper, 1), ctx($reject, wrapper, 1));
+          then.call(value, bind($resolve, wrapper), bind($reject, wrapper));
         } catch (e) {
-          $reject.call(wrapper, e);
+          $reject(wrapper, e);
         }
       });
     } else {
@@ -162,7 +164,7 @@ var $resolve = function (value) {
       notify(promise, false);
     }
   } catch (e) {
-    $reject.call({ _w: promise, _d: false }, e); // wrap
+    $reject({ _w: promise, _d: false }, e); // wrap
   }
 };
 
@@ -174,9 +176,9 @@ if (!USE_NATIVE) {
     aFunction(executor);
     Internal.call(this);
     try {
-      executor(ctx($resolve, this, 1), ctx($reject, this, 1));
+      executor(bind($resolve, this), bind($reject, this));
     } catch (err) {
-      $reject.call(this, err);
+      $reject(this, err);
     }
   };
   // eslint-disable-next-line no-unused-vars
@@ -209,8 +211,8 @@ if (!USE_NATIVE) {
   OwnPromiseCapability = function () {
     var promise = new Internal();
     this.promise = promise;
-    this.resolve = ctx($resolve, promise, 1);
-    this.reject = ctx($reject, promise, 1);
+    this.resolve = bind($resolve, promise);
+    this.reject = bind($reject, promise);
   };
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
     return C === $Promise || C === Wrapper
