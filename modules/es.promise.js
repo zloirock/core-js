@@ -14,6 +14,7 @@ var newPromiseCapabilityModule = require('./_new-promise-capability');
 var perform = require('./_perform');
 var promiseResolve = require('./_promise-resolve');
 var hostReportErrors = require('./_host-report-errors');
+var $ = require('./_state');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
@@ -24,6 +25,11 @@ var empty = function () { /* empty */ };
 var Internal, newGenericPromiseCapability, OwnPromiseCapability, Wrapper;
 var newPromiseCapability = newGenericPromiseCapability = newPromiseCapabilityModule.f;
 var DISPATCH_EVENT = !!(document && document.createEvent && global.dispatchEvent);
+var PENDING = 0;
+var FULFILLED = 1;
+var REJECTED = 2;
+var HANDLED = 1;
+var UNHANDLED = 2;
 var UNHANDLED_REJECTION = 'unhandledrejection';
 var REJECTION_HANDLED = 'rejectionhandled';
 
@@ -44,13 +50,13 @@ var isThenable = function (it) {
   var then;
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
 };
-var notify = function (promise, isReject) {
-  if (promise._n) return;
-  promise._n = true;
-  var chain = promise._c;
+var notify = function (promise, $promise, isReject) {
+  if ($promise.notified) return;
+  $promise.notified = true;
+  var chain = $promise.reactions;
   microtask(function () {
-    var value = promise._v;
-    var ok = promise._s == 1;
+    var value = $promise.value;
+    var ok = $promise.state == FULFILLED;
     var i = 0;
     var run = function (reaction) {
       var handler = ok ? reaction.ok : reaction.fail;
@@ -61,8 +67,8 @@ var notify = function (promise, isReject) {
       try {
         if (handler) {
           if (!ok) {
-            if (promise._h == 2) onHandleUnhandled(promise);
-            promise._h = 1;
+            if ($promise.rejection === UNHANDLED) onHandleUnhandled(promise, $promise);
+            $promise.rejection = HANDLED;
           }
           if (handler === true) result = value;
           else {
@@ -85,9 +91,9 @@ var notify = function (promise, isReject) {
       }
     };
     while (chain.length > i) run(chain[i++]); // variable length - can't use forEach
-    promise._c = [];
-    promise._n = false;
-    if (isReject && !promise._h) onUnhandled(promise);
+    $promise.reactions = [];
+    $promise.notified = false;
+    if (isReject && !$promise.rejection) onUnhandled(promise, $promise);
   });
 };
 var dispatchEvent = function (name, promise, reason) {
@@ -102,10 +108,10 @@ var dispatchEvent = function (name, promise, reason) {
   if (handler = global['on' + name]) handler(event);
   else if (name === UNHANDLED_REJECTION) hostReportErrors('Unhandled promise rejection', reason);
 };
-var onUnhandled = function (promise) {
+var onUnhandled = function (promise, $promise) {
   task.call(global, function () {
-    var value = promise._v;
-    var unhandled = isUnhandled(promise);
+    var value = $promise.value;
+    var unhandled = isUnhandled($promise);
     var result;
     if (unhandled) {
       result = perform(function () {
@@ -114,57 +120,57 @@ var onUnhandled = function (promise) {
         } else dispatchEvent(UNHANDLED_REJECTION, promise, value);
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
-      promise._h = isNode || isUnhandled(promise) ? 2 : 1;
+      $promise.rejection = isNode || isUnhandled($promise) ? UNHANDLED : HANDLED;
     }
     if (unhandled && result.e) throw result.v;
   });
 };
-var isUnhandled = function (promise) {
-  return promise._h !== 1 && !promise._p;
+var isUnhandled = function ($promise) {
+  return $promise.rejection !== HANDLED && !$promise.parent;
 };
-var onHandleUnhandled = function (promise) {
+var onHandleUnhandled = function (promise, $promise) {
   task.call(global, function () {
     if (isNode) {
       process.emit('rejectionHandled', promise);
-    } else dispatchEvent(REJECTION_HANDLED, promise, promise._v);
+    } else dispatchEvent(REJECTION_HANDLED, promise, $promise.value);
   });
 };
-var bind = function (fn, promise) {
+var bind = function (fn, promise, $promise, unwrap) {
   return function (value) {
-    fn(promise, value);
+    fn(promise, $promise, value, unwrap);
   };
 };
-var $reject = function (promise, value) {
-  if (promise._d) return;
-  promise._d = true;
-  promise = promise._w || promise; // unwrap
-  promise._v = value;
-  promise._s = 2;
-  notify(promise, true);
+var $reject = function (promise, $promise, value, unwrap) {
+  if ($promise.done) return;
+  $promise.done = true;
+  if (unwrap) $promise = unwrap;
+  $promise.value = value;
+  $promise.state = REJECTED;
+  notify(promise, $promise, true);
 };
-var $resolve = function (promise, value) {
-  if (promise._d) return;
-  promise._d = true;
-  promise = promise._w || promise; // unwrap
+var $resolve = function (promise, $promise, value, unwrap) {
+  if ($promise.done) return;
+  $promise.done = true;
+  if (unwrap) $promise = unwrap;
   try {
     if (promise === value) throw TypeError("Promise can't be resolved itself");
     var then = isThenable(value);
     if (then) {
       microtask(function () {
-        var wrapper = { _w: promise, _d: false }; // wrap
+        var wrapper = { done: false };
         try {
-          then.call(value, bind($resolve, wrapper), bind($reject, wrapper));
+          then.call(value, bind($resolve, promise, wrapper, $promise), bind($reject, promise, wrapper, $promise));
         } catch (e) {
-          $reject(wrapper, e);
+          $reject(promise, wrapper, e, $promise);
         }
       });
     } else {
-      promise._v = value;
-      promise._s = 1;
-      notify(promise, false);
+      $promise.value = value;
+      $promise.state = FULFILLED;
+      notify(promise, $promise, false);
     }
   } catch (e) {
-    $reject({ _w: promise, _d: false }, e); // wrap
+    $reject(promise, { done: false }, e, $promise);
   }
 };
 
@@ -172,35 +178,39 @@ var $resolve = function (promise, value) {
 if (!USE_NATIVE) {
   // 25.4.3.1 Promise(executor)
   $Promise = function Promise(executor) {
-    anInstance(this, $Promise, PROMISE, '_h');
+    anInstance(this, $Promise, PROMISE);
     aFunction(executor);
     Internal.call(this);
+    var $promise = $(this);
     try {
-      executor(bind($resolve, this), bind($reject, this));
+      executor(bind($resolve, this, $promise), bind($reject, this, $promise));
     } catch (err) {
-      $reject(this, err);
+      $reject(this, $promise, err);
     }
   };
   // eslint-disable-next-line no-unused-vars
   Internal = function Promise(executor) {
-    this._c = [];             // <- awaiting reactions
-    this._p = false;          // <- has children
-    this._s = 0;              // <- state
-    this._d = false;          // <- done
-    this._v = undefined;      // <- value
-    this._h = 0;              // <- rejection state, 0 - default, 1 - handled, 2 - unhandled
-    this._n = false;          // <- notify
+    $(this, {
+      done: false,
+      notified: false,
+      parent: false,
+      reactions: [],
+      rejection: false,
+      state: PENDING,
+      value: undefined
+    });
   };
   Internal.prototype = require('./_redefine-all')($Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected) {
+      var $promise = $(this);
       var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
       reaction.ok = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
       reaction.domain = isNode ? process.domain : undefined;
-      this._p = true;
-      this._c.push(reaction);
-      if (this._s) notify(this, false);
+      $promise.parent = true;
+      $promise.reactions.push(reaction);
+      if ($promise.state != PENDING) notify(this, $promise, false);
       return reaction.promise;
     },
     // 25.4.5.1 Promise.prototype.catch(onRejected)
@@ -210,9 +220,10 @@ if (!USE_NATIVE) {
   });
   OwnPromiseCapability = function () {
     var promise = new Internal();
+    var $promise = $(promise);
     this.promise = promise;
-    this.resolve = bind($resolve, promise);
-    this.reject = bind($reject, promise);
+    this.resolve = bind($resolve, promise, $promise);
+    this.reject = bind($reject, promise, $promise);
   };
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
     return C === $Promise || C === Wrapper
