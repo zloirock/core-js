@@ -2,7 +2,6 @@
 var global = require('./_global');
 var $export = require('./_export');
 var redefine = require('./_redefine');
-var redefineAll = require('./_redefine-all');
 var meta = require('./_meta');
 var forOf = require('./_for-of');
 var anInstance = require('./_an-instance');
@@ -12,7 +11,7 @@ var $iterDetect = require('./_iter-detect');
 var setToStringTag = require('./_set-to-string-tag');
 var inheritIfRequired = require('./_inherit-if-required');
 
-module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
+module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var Base = global[NAME];
   var C = Base;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -36,7 +35,6 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
   }))) {
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    redefineAll(C.prototype, methods);
     meta.NEED = true;
   } else {
     var instance = new C();
