@@ -4,7 +4,6 @@ var $export = require('./_export');
 var meta = require('./_meta');
 var fails = require('./_fails');
 var hide = require('./_hide');
-var redefineAll = require('./_redefine-all');
 var forOf = require('./_for-of');
 var anInstance = require('./_an-instance');
 var isObject = require('./_is-object');
@@ -13,7 +12,7 @@ var dP = require('./_object-dp').f;
 var each = require('./_array-methods')(0);
 var DESCRIPTORS = require('./_descriptors');
 
-module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
+module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var Base = global[NAME];
   var C = Base;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -24,7 +23,6 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
   }))) {
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    redefineAll(C.prototype, methods);
     meta.NEED = true;
   } else {
     C = wrapper(function (target, iterable) {
