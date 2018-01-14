@@ -17,10 +17,10 @@ var uncaughtFrozenStore = function (that) {
   return that._l || (that._l = new UncaughtFrozenStore());
 };
 var UncaughtFrozenStore = function () {
-  this.a = [];
+  this.entries = [];
 };
 var findUncaughtFrozen = function (store, key) {
-  return arrayFind(store.a, function (it) {
+  return arrayFind(store.entries, function (it) {
     return it[0] === key;
   });
 };
@@ -35,13 +35,13 @@ UncaughtFrozenStore.prototype = {
   set: function (key, value) {
     var entry = findUncaughtFrozen(this, key);
     if (entry) entry[1] = value;
-    else this.a.push([key, value]);
+    else this.entries.push([key, value]);
   },
   'delete': function (key) {
-    var index = arrayFindIndex(this.a, function (it) {
+    var index = arrayFindIndex(this.entries, function (it) {
       return it[0] === key;
     });
-    if (~index) this.a.splice(index, 1);
+    if (~index) this.entries.splice(index, 1);
     return !!~index;
   }
 };
@@ -55,6 +55,15 @@ module.exports = {
       that._l = undefined; // leak store for uncaught frozen objects
       if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
+
+    var define = function (that, key, value) {
+      validate(that, NAME);
+      var data = getWeak(anObject(key), true);
+      if (data === true) uncaughtFrozenStore(that).set(key, value);
+      else data[that._i] = value;
+      return that;
+    };
+
     redefineAll(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
@@ -73,13 +82,25 @@ module.exports = {
         return data && $has(data, this._i);
       }
     });
+    redefineAll(C.prototype, IS_MAP ? {
+      // 23.3.3.3 WeakMap.prototype.get(key)
+      get: function get(key) {
+        if (isObject(key)) {
+          var data = getWeak(key);
+          if (data === true) return uncaughtFrozenStore(validate(this, NAME)).get(key);
+          return data ? data[this._i] : undefined;
+        }
+      },
+      // 23.3.3.5 WeakMap.prototype.set(key, value)
+      set: function set(key, value) {
+        return define(this, key, value);
+      }
+    } : {
+      // 23.4.3.1 WeakSet.prototype.add(value)
+      add: function add(value) {
+        return define(this, value, true);
+      }
+    });
     return C;
-  },
-  def: function (that, key, value) {
-    var data = getWeak(anObject(key), true);
-    if (data === true) uncaughtFrozenStore(that).set(key, value);
-    else data[that._i] = value;
-    return that;
-  },
-  ufstore: uncaughtFrozenStore
+  }
 };
