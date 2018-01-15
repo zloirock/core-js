@@ -1,5 +1,9 @@
 var isObject = require('./_is-object');
+var $ = require('./_state');
+
 module.exports = function (it, TYPE) {
-  if (!isObject(it) || it._t !== TYPE) throw TypeError('Incompatible receiver, ' + TYPE + ' required!');
-  return it;
+  var state;
+  if (!isObject(it) || (state = $(it)).type !== TYPE) {
+    throw TypeError('Incompatible receiver, ' + TYPE + ' required!');
+  } return state;
 };

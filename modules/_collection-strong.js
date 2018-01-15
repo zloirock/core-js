@@ -12,91 +12,104 @@ var DESCRIPTORS = require('./_descriptors');
 var fastKey = require('./_meta').fastKey;
 var validate = require('./_validate-collection');
 var $ = require('./_state');
-var SIZE = DESCRIPTORS ? '_s' : 'size';
-
-var getEntry = function (that, key) {
-  // fast case
-  var index = fastKey(key);
-  var entry;
-  if (index !== 'F') return that._i[index];
-  // frozen object case
-  for (entry = that._f; entry; entry = entry.next) {
-    if (entry.key == key) return entry;
-  }
-};
 
 module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
-      anInstance(that, C, NAME, '_i');
-      that._t = NAME;         // collection type
-      that._i = create(null); // index
-      that._f = undefined;    // first entry
-      that._l = undefined;    // last entry
-      that[SIZE] = 0;         // size
+      anInstance(that, C, NAME);
+      $(that, {
+        type: NAME,
+        index: create(null),
+        first: undefined,
+        last: undefined,
+        size: 0
+      });
+      if (!DESCRIPTORS) that.size = 0;
       if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
 
     var define = function (that, key, value) {
-      var entry = getEntry(validate(that, NAME), key);
-      var prev, index;
+      var state = validate(that, NAME);
+      var entry = getEntry(that, key);
+      var previous, index;
       // change existing entry
       if (entry) {
         entry.value = value;
       // create new entry
       } else {
-        that._l = entry = {
+        state.last = entry = {
           index: index = fastKey(key, true),
           key: key,
           value: value,
-          previous: prev = that._l,
+          previous: previous = state.last,
           next: undefined,
           removed: false
         };
-        if (!that._f) that._f = entry;
-        if (prev) prev.next = entry;
-        that[SIZE]++;
+        if (!state.first) state.first = entry;
+        if (previous) previous.next = entry;
+        if (DESCRIPTORS) state.size++;
+        else that.size++;
         // add to index
-        if (index !== 'F') that._i[index] = entry;
+        if (index !== 'F') state.index[index] = entry;
       } return that;
+    };
+
+    var getEntry = function (that, key) {
+      var state = validate(that, NAME);
+      // fast case
+      var index = fastKey(key);
+      var entry;
+      if (index !== 'F') return state.index[index];
+      // frozen object case
+      for (entry = state.first; entry; entry = entry.next) {
+        if (entry.key == key) return entry;
+      }
     };
 
     redefineAll(C.prototype, {
       // 23.1.3.1 Map.prototype.clear()
       // 23.2.3.2 Set.prototype.clear()
       clear: function clear() {
-        for (var that = validate(this, NAME), data = that._i, entry = that._f; entry; entry = entry.next) {
+        var that = this;
+        var state = validate(that, NAME);
+        var data = state.index;
+        var entry = state.first;
+        while (entry) {
           entry.removed = true;
           if (entry.previous) entry.previous = entry.previous.next = undefined;
           delete data[entry.index];
+          entry = entry.next;
         }
-        that._f = that._l = undefined;
-        that[SIZE] = 0;
+        state.first = state.last = undefined;
+        if (DESCRIPTORS) state.size = 0;
+        else that.size = 0;
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
       'delete': function (key) {
-        var that = validate(this, NAME);
+        var that = this;
+        var state = validate(that, NAME);
         var entry = getEntry(that, key);
         if (entry) {
           var next = entry.next;
           var prev = entry.previous;
-          delete that._i[entry.index];
+          delete state.index[entry.index];
           entry.removed = true;
           if (prev) prev.next = next;
           if (next) next.previous = prev;
-          if (that._f == entry) that._f = next;
-          if (that._l == entry) that._l = prev;
-          that[SIZE]--;
+          if (state.first == entry) state.first = next;
+          if (state.last == entry) state.last = prev;
+          if (DESCRIPTORS) state.size--;
+          else that.size--;
         } return !!entry;
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
-        validate(this, NAME);
+        var state = validate(this, NAME);
         var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
         var entry;
-        while (entry = entry ? entry.next : this._f) {
+        while (entry = entry ? entry.next : state.first) {
           f(entry.value, entry.key, this);
           // revert to the last existing entry
           while (entry && entry.removed) entry = entry.previous;
@@ -105,13 +118,13 @@ module.exports = {
       // 23.1.3.7 Map.prototype.has(key)
       // 23.2.3.7 Set.prototype.has(value)
       has: function has(key) {
-        return !!getEntry(validate(this, NAME), key);
+        return !!getEntry(this, key);
       }
     });
     redefineAll(C.prototype, IS_MAP ? {
       // 23.1.3.6 Map.prototype.get(key)
       get: function get(key) {
-        var entry = getEntry(validate(this, NAME), key);
+        var entry = getEntry(this, key);
         return entry && entry.value;
       },
       // 23.1.3.9 Map.prototype.set(key, value)
@@ -126,7 +139,7 @@ module.exports = {
     });
     if (DESCRIPTORS) dP(C.prototype, 'size', {
       get: function () {
-        return validate(this, NAME)[SIZE];
+        return validate(this, NAME).size;
       }
     });
     return C;
@@ -136,7 +149,8 @@ module.exports = {
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
     $iterDefine(C, NAME, function (iterated, kind) {
       $(this, {
-        target: validate(iterated, NAME),
+        target: iterated,
+        state: validate(iterated, NAME),
         kind: kind,
         last: undefined
       });
@@ -147,7 +161,7 @@ module.exports = {
       // revert to the last existing entry
       while (entry && entry.removed) entry = entry.previous;
       // get next entry
-      if (!state.target || !(state.last = entry = entry ? entry.next : state.target._f)) {
+      if (!state.target || !(state.last = entry = entry ? entry.next : state.state.first)) {
         // or finish the iteration
         state.target = undefined;
         return step(1);
