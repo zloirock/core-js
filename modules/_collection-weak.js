@@ -8,13 +8,14 @@ var forOf = require('./_for-of');
 var createArrayMethod = require('./_array-methods');
 var $has = require('./_has');
 var validate = require('./_validate-collection');
+var $ = require('./_state');
 var arrayFind = createArrayMethod(5);
 var arrayFindIndex = createArrayMethod(6);
 var id = 0;
 
 // fallback for uncaught frozen keys
-var uncaughtFrozenStore = function (that) {
-  return that._l || (that._l = new UncaughtFrozenStore());
+var uncaughtFrozenStore = function (store) {
+  return store.frozen || (store.frozen = new UncaughtFrozenStore());
 };
 var UncaughtFrozenStore = function () {
   this.entries = [];
@@ -49,18 +50,20 @@ UncaughtFrozenStore.prototype = {
 module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
-      anInstance(that, C, NAME, '_i');
-      that._t = NAME;      // collection type
-      that._i = id++;      // collection id
-      that._l = undefined; // leak store for uncaught frozen objects
+      anInstance(that, C, NAME);
+      $(that, {
+        type: NAME,
+        id: id++,
+        frozen: undefined
+      });
       if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
     });
 
     var define = function (that, key, value) {
-      validate(that, NAME);
+      var store = validate(that, NAME);
       var data = getWeak(anObject(key), true);
-      if (data === true) uncaughtFrozenStore(that).set(key, value);
-      else data[that._i] = value;
+      if (data === true) uncaughtFrozenStore(store).set(key, value);
+      else data[store.id] = value;
       return that;
     };
 
@@ -68,27 +71,30 @@ module.exports = {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function (key) {
+        var store = validate(this, NAME);
         if (!isObject(key)) return false;
         var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(validate(this, NAME))['delete'](key);
-        return data && $has(data, this._i) && delete data[this._i];
+        if (data === true) return uncaughtFrozenStore(store)['delete'](key);
+        return data && $has(data, store.id) && delete data[store.id];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key) {
+        var store = validate(this, NAME);
         if (!isObject(key)) return false;
         var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(validate(this, NAME)).has(key);
-        return data && $has(data, this._i);
+        if (data === true) return uncaughtFrozenStore(store).has(key);
+        return data && $has(data, store.id);
       }
     });
     redefineAll(C.prototype, IS_MAP ? {
       // 23.3.3.3 WeakMap.prototype.get(key)
       get: function get(key) {
+        var store = validate(this, NAME);
         if (isObject(key)) {
           var data = getWeak(key);
-          if (data === true) return uncaughtFrozenStore(validate(this, NAME)).get(key);
-          return data ? data[this._i] : undefined;
+          if (data === true) return uncaughtFrozenStore(store).get(key);
+          return data ? data[store.id] : undefined;
         }
       },
       // 23.3.3.5 WeakMap.prototype.set(key, value)
