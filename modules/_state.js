@@ -8,14 +8,17 @@ var exports;
 
 if (typeof WeakMap == 'function' && /native code/.test(WeakMap)) {
   var store = new WeakMap();
+  var wmget = store.get;
+  var wmhas = store.has;
+  var wmset = store.set;
   exports = module.exports = function (object, forced) {
-    if (!forced || store.has(object)) return store.get(object) || {};
+    if (!forced || wmhas.call(store, object)) return wmget.call(store, object) || {};
     var metadata = typeof forced == 'object' ? forced : {};
-    store.set(object, metadata);
+    wmset.call(store, object, metadata);
     return metadata;
   };
   exports.has = function (object) {
-    return store.has(object);
+    return wmhas.call(store, object);
   };
 } else {
   var STATE = sharedKey('state');
