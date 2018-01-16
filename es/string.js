@@ -26,4 +26,5 @@ require('../modules/es.regexp.match');
 require('../modules/es.regexp.replace');
 require('../modules/es.regexp.search');
 require('../modules/es.regexp.split');
-module.exports = require('../modules/_core').String;
+
+module.exports = require('../modules/_path').String;

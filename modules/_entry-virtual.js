@@ -1,5 +1,5 @@
-var core = require('./_core');
+var global = require('./_global');
+
 module.exports = function (CONSTRUCTOR) {
-  var C = core[CONSTRUCTOR];
-  return (C.virtual || C.prototype);
+  return global[CONSTRUCTOR].prototype;
 };

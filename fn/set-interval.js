@@ -1,2 +1,3 @@
 require('../modules/web.timers');
-module.exports = require('../modules/_core').setInterval;
+
+module.exports = require('../modules/_path').setInterval;

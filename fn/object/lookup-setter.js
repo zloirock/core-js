@@ -1,2 +1,3 @@
 require('../../modules/es.object.lookup-setter');
-module.exports = require('../../modules/_core').Object.__lookupSetter__;
+
+module.exports = require('../../modules/_entry-unbind')('Object', '__lookupSetter__');

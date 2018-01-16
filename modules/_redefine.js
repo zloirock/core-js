@@ -11,10 +11,10 @@ require('./_shared')('inspectSource', function (it) {
 });
 
 (module.exports = function (O, key, val, safe) {
-  var isFunction = typeof val == 'function';
-  if (isFunction && !has(val, 'name')) hide(val, 'name', key);
-  if (O[key] === val) return;
-  if (isFunction) $(val, true).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
+  if (typeof val == 'function') {
+    if (!has(val, 'name')) hide(val, 'name', key);
+    $(val, true).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
+  }
   if (O === global) {
     O[key] = val;
   } else if (!safe) {
