@@ -1,5 +1,4 @@
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
-var $export = require('./_export');
 var create = require('./_object-create');
 var aFunction = require('./_a-function');
 var anObject = require('./_an-object');
@@ -18,7 +17,7 @@ var ARGS_BUG = !fails(function () {
   rConstruct(function () { /* empty */ });
 });
 
-$export($export.S + $export.F * (NEW_TARGET_BUG || ARGS_BUG), 'Reflect', {
+require('./_export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || ARGS_BUG }, {
   construct: function construct(Target, args /* , newTarget */) {
     aFunction(Target);
     anObject(args);

@@ -1,12 +1,11 @@
 'use strict';
-var $export = require('./_export');
 var toIObject = require('./_to-iobject');
 var toInteger = require('./_to-integer');
 var toLength = require('./_to-length');
 var $native = [].lastIndexOf;
 var NEGATIVE_ZERO = !!$native && 1 / [1].lastIndexOf(1, -0) < 0;
 
-$export($export.P + $export.F * (NEGATIVE_ZERO || !require('./_strict-method')($native)), 'Array', {
+require('./_export')({ target: 'Array', proto: true, forced: NEGATIVE_ZERO || !require('./_strict-method')($native) }, {
   // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
   lastIndexOf: function lastIndexOf(searchElement /* , fromIndex = @[*-1] */) {
     // convert -0 to +0

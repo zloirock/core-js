@@ -1,6 +1,5 @@
 'use strict';
 var ctx = require('./_ctx');
-var $export = require('./_export');
 var toObject = require('./_to-object');
 var call = require('./_iter-call');
 var isArrayIter = require('./_is-array-iter');
@@ -8,7 +7,10 @@ var toLength = require('./_to-length');
 var createProperty = require('./_create-property');
 var getIterFn = require('./core.get-iterator-method');
 
-$export($export.S + $export.F * !require('./_iter-detect')(function (iter) { Array.from(iter); }), 'Array', {
+require('./_export')({
+  target: 'Array', stat: true,
+  forced: !require('./_iter-detect')(function (iter) { Array.from(iter); })
+}, {
   // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
   from: function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
     var O = toObject(arrayLike);

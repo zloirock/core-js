@@ -1,9 +1,8 @@
 // 26.1.12 Reflect.preventExtensions(target)
-var $export = require('./_export');
 var anObject = require('./_an-object');
 var $preventExtensions = Object.preventExtensions;
 
-$export($export.S, 'Reflect', {
+require('./_export')({ target: 'Reflect', stat: true }, {
   preventExtensions: function preventExtensions(target) {
     anObject(target);
     try {

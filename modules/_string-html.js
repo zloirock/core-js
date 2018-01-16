@@ -10,10 +10,10 @@ var createHTML = function (string, tag, attribute, value) {
   return p1 + '>' + S + '</' + tag + '>';
 };
 module.exports = function (NAME, exec) {
-  var O = {};
-  O[NAME] = exec(createHTML);
-  $export($export.P + $export.F * fails(function () {
+  var exported = {};
+  exported[NAME] = exec(createHTML);
+  $export({ target: 'String', proto: true, forced: fails(function () {
     var test = ''[NAME]('"');
     return test !== test.toLowerCase() || test.split('"').length > 3;
-  }), 'String', O);
+  }) }, exported);
 };

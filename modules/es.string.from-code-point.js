@@ -1,10 +1,9 @@
-var $export = require('./_export');
 var toAbsoluteIndex = require('./_to-absolute-index');
 var fromCharCode = String.fromCharCode;
 var $fromCodePoint = String.fromCodePoint;
 
 // length should be 1, old FF problem
-$export($export.S + $export.F * (!!$fromCodePoint && $fromCodePoint.length != 1), 'String', {
+require('./_export')({ target: 'String', stat: true, forced: !!$fromCodePoint && $fromCodePoint.length != 1 }, {
   // 21.1.2.2 String.fromCodePoint(...codePoints)
   fromCodePoint: function fromCodePoint(x) { // eslint-disable-line no-unused-vars
     var res = [];

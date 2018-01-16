@@ -176,7 +176,7 @@ if (!USE_NATIVE) {
   };
 }
 
-$export($export.G + $export.W + $export.F * !USE_NATIVE, { Symbol: $Symbol });
+$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Symbol: $Symbol });
 
 for (var es6Symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14
@@ -185,7 +185,7 @@ for (var es6Symbols = (
 
 for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;) wksDefine(wellKnownSymbols[k++]);
 
-$export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
+$export({ target: 'Symbol', stat: true, forced: !USE_NATIVE }, {
   // 19.4.2.1 Symbol.for(key)
   'for': function (key) {
     return has(SymbolRegistry, key += '')
@@ -201,7 +201,7 @@ $export($export.S + $export.F * !USE_NATIVE, 'Symbol', {
   useSimple: function () { setter = false; }
 });
 
-$export($export.S + $export.F * !USE_NATIVE, 'Object', {
+$export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
   // 19.1.2.2 Object.create(O [, Properties])
   create: $create,
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
@@ -217,13 +217,13 @@ $export($export.S + $export.F * !USE_NATIVE, 'Object', {
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
-$JSON && $export($export.S + $export.F * (!USE_NATIVE || $fails(function () {
+$JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || $fails(function () {
   var S = $Symbol();
   // MS Edge converts symbol values to JSON as {}
   // WebKit converts symbol values to JSON as null
   // V8 throws on boxed symbols
   return _stringify([S]) != '[null]' || _stringify({ a: S }) != '{}' || _stringify(Object(S)) != '{}';
-})), 'JSON', {
+}) }, {
   stringify: function stringify(it) {
     var args = [it];
     var i = 1;
