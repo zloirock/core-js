@@ -1,6 +1,5 @@
 'use strict';
 // https://github.com/zenparsing/es-observable
-var $export = require('./_export');
 var aFunction = require('./_a-function');
 var anObject = require('./_an-object');
 var isObject = require('./_is-object');
@@ -194,6 +193,6 @@ redefineAll($Observable, {
 
 hide($Observable.prototype, OBSERVABLE, function () { return this; });
 
-$export($export.G, { Observable: $Observable });
+require('./_export')({ global: true }, { Observable: $Observable });
 
 require('./_set-species')('Observable');

@@ -64,7 +64,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
     };
     if (FORCED) for (key in methods) {
       if (!(key in proto)) redefine(proto, key, methods[key]);
-    } else $export($export.P + $export.F * (BUGGY || VALUES_BUG), NAME, methods);
+    } else $export({ target: NAME, proto: true, forced: BUGGY || VALUES_BUG }, methods);
   }
   return methods;
 };

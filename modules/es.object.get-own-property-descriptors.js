@@ -1,11 +1,10 @@
 // 19.1.2.8 Object.getOwnPropertyDescriptors(O)
-var $export = require('./_export');
 var ownKeys = require('./_own-keys');
 var toIObject = require('./_to-iobject');
 var gOPD = require('./_object-gopd');
 var createProperty = require('./_create-property');
 
-$export($export.S, 'Object', {
+require('./_export')({ target: 'Object', stat: true }, {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object) {
     var O = toIObject(object);
     var getDesc = gOPD.f;

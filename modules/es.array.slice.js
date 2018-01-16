@@ -1,5 +1,4 @@
 'use strict';
-var $export = require('./_export');
 var html = require('./_html');
 var cof = require('./_cof');
 var toAbsoluteIndex = require('./_to-absolute-index');
@@ -7,9 +6,9 @@ var toLength = require('./_to-length');
 var arraySlice = [].slice;
 
 // fallback for not array-like ES3 strings and DOM objects
-$export($export.P + $export.F * require('./_fails')(function () {
+require('./_export')({ target: 'Array', proto: true, forced: require('./_fails')(function () {
   if (html) arraySlice.call(html);
-}), 'Array', {
+}) }, {
   slice: function slice(begin, end) {
     var len = toLength(this.length);
     var klass = cof(this);

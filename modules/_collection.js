@@ -16,7 +16,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var C = Base;
   var ADDER = IS_MAP ? 'set' : 'add';
   var proto = C && C.prototype;
-  var O = {};
+  var exported = {};
   var fixMethod = function (KEY) {
     var fn = proto[KEY];
     redefine(proto, KEY,
@@ -74,8 +74,8 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
 
   setToStringTag(C, NAME);
 
-  O[NAME] = C;
-  $export($export.G + $export.W + $export.F * (C != Base), O);
+  exported[NAME] = C;
+  $export({ global: true, wrap: true, forced: C != Base }, exported);
 
   if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
 
