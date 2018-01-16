@@ -10,4 +10,5 @@ require('../../modules/es.number.parse-float');
 require('../../modules/es.number.parse-int');
 require('../../modules/es.number.to-fixed');
 require('../../modules/es.number.to-precision');
-module.exports = require('../../modules/_core').Number;
+
+module.exports = require('../../modules/_path').Number;

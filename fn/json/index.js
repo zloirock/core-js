@@ -1,2 +1,3 @@
-var core = require('../../modules/_core');
-module.exports = core.JSON || (core.JSON = { stringify: JSON.stringify });
+var path = require('../../modules/_path');
+
+module.exports = path.JSON || (path.JSON = { stringify: JSON.stringify });

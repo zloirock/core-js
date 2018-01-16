@@ -23,4 +23,5 @@ require('../../modules/es.object.define-getter');
 require('../../modules/es.object.define-setter');
 require('../../modules/es.object.lookup-getter');
 require('../../modules/es.object.lookup-setter');
-module.exports = require('../../modules/_core').Object;
+
+module.exports = require('../../modules/_path').Object;

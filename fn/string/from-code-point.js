@@ -1,2 +1,3 @@
 require('../../modules/es.string.from-code-point');
-module.exports = require('../../modules/_core').String.fromCodePoint;
+
+module.exports = require('../../modules/_path').String.fromCodePoint;

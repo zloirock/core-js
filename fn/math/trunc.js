@@ -1,2 +1,3 @@
 require('../../modules/es.math.trunc');
-module.exports = require('../../modules/_core').Math.trunc;
+
+module.exports = require('../../modules/_path').Math.trunc;
