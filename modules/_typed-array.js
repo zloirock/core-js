@@ -293,7 +293,7 @@ if (require('./_descriptors')) {
     $DP.f = $setDesc;
   }
 
-  $export($export.S + $export.F * !ALL_CONSTRUCTORS, 'Object', {
+  $export({ target: 'Object', stat: true, forced: !ALL_CONSTRUCTORS }, {
     getOwnPropertyDescriptor: $getDesc,
     defineProperty: $setDesc
   });
@@ -332,7 +332,7 @@ if (require('./_descriptors')) {
     var Base = TypedArray || {};
     var TAC = TypedArray && getPrototypeOf(TypedArray);
     var FORCED = !TypedArray || !$typed.ABV;
-    var O = {};
+    var exported = {};
     var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var getter = function (that, index) {
       var data = $(that);
@@ -440,40 +440,40 @@ if (require('./_descriptors')) {
       });
     }
 
-    O[NAME] = TypedArray;
+    exported[NAME] = TypedArray;
 
-    $export($export.G + $export.W + $export.F * (TypedArray != Base), O);
+    $export({ global: true, wrap: true, forced: TypedArray != Base }, exported);
 
-    $export($export.S, NAME, {
+    $export({ target: NAME, stat: true }, {
       BYTES_PER_ELEMENT: BYTES
     });
 
-    $export($export.S + $export.F * fails(function () { Base.of.call(TypedArray, 1); }), NAME, {
+    $export({ target: NAME, stat: true, forced: fails(function () { Base.of.call(TypedArray, 1); }) }, {
       from: $from,
       of: $of
     });
 
     if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
-    $export($export.P, NAME, proto);
+    $export({ target: NAME, proto: true }, proto);
 
     setSpecies(NAME);
 
-    $export($export.P + $export.F * FORCED_SET, NAME, { set: $set });
+    $export({ target: NAME, proto: true, forced: FORCED_SET }, { set: $set });
 
-    $export($export.P + $export.F * !CORRECT_ITER_NAME, NAME, $iterators);
+    $export({ target: NAME, proto: true, forced: !CORRECT_ITER_NAME }, $iterators);
 
     if (!IS_PURE && TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
 
-    $export($export.P + $export.F * fails(function () {
+    $export({ target: NAME, proto: true, forced: fails(function () {
       new TypedArray(1).slice();
-    }), NAME, { slice: $slice });
+    }) }, { slice: $slice });
 
-    $export($export.P + $export.F * (fails(function () {
+    $export({ target: NAME, proto: true, forced: fails(function () {
       return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString();
     }) || !fails(function () {
       TypedArrayPrototype.toLocaleString.call([1, 2]);
-    })), NAME, { toLocaleString: $toLocaleString });
+    }) }, { toLocaleString: $toLocaleString });
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
     if (!IS_PURE && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);

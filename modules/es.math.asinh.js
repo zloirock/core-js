@@ -1,5 +1,4 @@
 // 20.2.2.5 Math.asinh(x)
-var $export = require('./_export');
 var $asinh = Math.asinh;
 
 function asinh(x) {
@@ -7,4 +6,4 @@ function asinh(x) {
 }
 
 // Tor Browser bug: Math.asinh(0) -> -0
-$export($export.S + $export.F * !($asinh && 1 / $asinh(0) > 0), 'Math', { asinh: asinh });
+require('./_export')({ target: 'Math', stat: true, forced: !($asinh && 1 / $asinh(0) > 0) }, { asinh: asinh });

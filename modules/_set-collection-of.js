@@ -3,7 +3,7 @@
 var $export = require('./_export');
 
 module.exports = function (COLLECTION) {
-  $export($export.S, COLLECTION, { of: function of() {
+  $export({ target: COLLECTION, stat: true }, { of: function of() {
     var length = arguments.length;
     var A = new Array(length);
     while (length--) A[length] = arguments[length];
