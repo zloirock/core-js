@@ -232,13 +232,13 @@ if (!USE_NATIVE) {
   };
 }
 
-$export($export.G + $export.W + $export.F * !USE_NATIVE, { Promise: $Promise });
+$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: $Promise });
 require('./_set-to-string-tag')($Promise, PROMISE);
 require('./_set-species')(PROMISE);
 Wrapper = require('./_path')[PROMISE];
 
 // statics
-$export($export.S + $export.F * !USE_NATIVE, PROMISE, {
+$export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
   // 25.4.4.5 Promise.reject(r)
   reject: function reject(r) {
     var capability = newPromiseCapability(this);
@@ -247,15 +247,15 @@ $export($export.S + $export.F * !USE_NATIVE, PROMISE, {
     return capability.promise;
   }
 });
-$export($export.S + $export.F * (IS_PURE || !USE_NATIVE), PROMISE, {
+$export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x) {
     return promiseResolve(IS_PURE && this === Wrapper ? $Promise : this, x);
   }
 });
-$export($export.S + $export.F * !(USE_NATIVE && require('./_iter-detect')(function (iter) {
+$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('./_iter-detect')(function (iter) {
   $Promise.all(iter)['catch'](empty);
-})), PROMISE, {
+})) }, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable) {
     var C = this;

@@ -3,7 +3,6 @@ var dP = require('./_object-dp');
 var gOPD = require('./_object-gopd');
 var getPrototypeOf = require('./_object-gpo');
 var has = require('./_has');
-var $export = require('./_export');
 var createDesc = require('./_property-desc');
 var anObject = require('./_an-object');
 var isObject = require('./_is-object');
@@ -28,4 +27,4 @@ function set(target, propertyKey, V /* , receiver */) {
   return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);
 }
 
-$export($export.S, 'Reflect', { set: set });
+require('./_export')({ target: 'Reflect', stat: true }, { set: set });

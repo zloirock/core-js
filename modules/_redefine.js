@@ -10,14 +10,14 @@ require('./_shared')('inspectSource', function (it) {
   return $toString.call(it);
 });
 
-(module.exports = function (O, key, val, safe) {
+(module.exports = function (O, key, val, unsafe) {
   if (typeof val == 'function') {
     if (!has(val, 'name')) hide(val, 'name', key);
     $(val, true).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
   }
   if (O === global) {
     O[key] = val;
-  } else if (!safe) {
+  } else if (!unsafe) {
     delete O[key];
     hide(O, key, val);
   } else if (O[key]) {

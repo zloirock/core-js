@@ -2,7 +2,6 @@
 var gOPD = require('./_object-gopd');
 var getPrototypeOf = require('./_object-gpo');
 var has = require('./_has');
-var $export = require('./_export');
 var isObject = require('./_is-object');
 var anObject = require('./_an-object');
 
@@ -18,4 +17,4 @@ function get(target, propertyKey /* , receiver */) {
   if (isObject(proto = getPrototypeOf(target))) return get(proto, propertyKey, receiver);
 }
 
-$export($export.S, 'Reflect', { get: get });
+require('./_export')({ target: 'Reflect', stat: true }, { get: get });

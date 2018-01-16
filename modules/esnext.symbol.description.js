@@ -1,7 +1,6 @@
 // https://tc39.github.io/proposal-Symbol-description/
 'use strict';
 var DESCRIPTORS = require('./_descriptors');
-var $export = require('./_export');
 var has = require('./_has');
 var isObject = require('./_is-object');
 var gOPN = require('./_object-gopn').f;
@@ -40,5 +39,5 @@ if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototyp
     }
   });
 
-  $export($export.G + $export.F, { Symbol: $Symbol });
+  require('./_export')({ global: true, forced: true }, { Symbol: $Symbol });
 }

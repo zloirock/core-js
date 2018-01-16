@@ -1,6 +1,5 @@
 'use strict';
 // https://tc39.github.io/String.prototype.matchAll/
-var $export = require('./_export');
 var defined = require('./_defined');
 var toLength = require('./_to-length');
 var isRegExp = require('./_is-regexp');
@@ -21,7 +20,7 @@ require('./_iter-create')($RegExpStringIterator, 'RegExp String', function next(
   return { value: match, done: match === null };
 });
 
-$export($export.P, 'String', {
+require('./_export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     defined(this);
     if (!isRegExp(regexp)) throw TypeError(regexp + ' is not a regexp!');

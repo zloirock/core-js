@@ -8,13 +8,13 @@ var ltrim = RegExp('^' + space + space + '*');
 var rtrim = RegExp(space + space + '*$');
 
 var exporter = function (KEY, exec, ALIAS) {
-  var exp = {};
-  var FORCE = fails(function () {
+  var exported = {};
+  var FORCED = fails(function () {
     return !!spaces[KEY]() || non[KEY]() != non;
   });
-  var fn = exp[KEY] = FORCE ? exec(trim) : spaces[KEY];
-  if (ALIAS) exp[ALIAS] = fn;
-  $export($export.P + $export.F * FORCE, 'String', exp);
+  var fn = exported[KEY] = FORCED ? exec(trim) : spaces[KEY];
+  if (ALIAS) exported[ALIAS] = fn;
+  $export({ target: 'String', proto: true, forced: FORCED }, exported);
 };
 
 // 1 -> String#trimLeft

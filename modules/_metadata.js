@@ -35,8 +35,8 @@ var ordinaryOwnMetadataKeys = function (target, targetKey) {
 var toMetaKey = function (it) {
   return it === undefined || typeof it == 'symbol' ? it : String(it);
 };
-var exp = function (O) {
-  $export($export.S, 'Reflect', O);
+var exp = function (exported) {
+  $export({ target: 'Reflect', stat: true }, exported);
 };
 
 module.exports = {
