@@ -1,2 +1,3 @@
 require('../../modules/esnext.math.isubh');
-module.exports = require('../../modules/_core').Math.isubh;
+
+module.exports = require('../../modules/_path').Math.isubh;

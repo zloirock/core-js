@@ -89,7 +89,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/array/virtual/includes`).call([1, 2, 3], 2));
   ok('next' in require(`${ PATH }/fn/array/virtual/iterator`).call([]));
   ok(require(`${ PATH }/fn/array/virtual`).includes.call([1, 2, 3], 2));
-  ok('keys' in require(`${ PATH }/fn/array`));
+  ok('from' in require(`${ PATH }/fn/array`));
   ok(require(`${ PATH }/fn/array/concat`)([1, 2, 3], [4, 5, 6]).length === 6);
   ok(require(`${ PATH }/fn/array/pop`)([1, 2, 3]) === 3);
   ok(require(`${ PATH }/fn/array/push`)([1, 2, 3], 4) === 4);
@@ -300,7 +300,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/is-iterable`)([]));
   ok(typeof require(`${ PATH }/fn/get-iterator-method`)([]) === 'function');
   ok('next' in require(`${ PATH }/fn/get-iterator`)([]));
-  ok('map' in require(`${ PATH }/es/array`));
+  ok('from' in require(`${ PATH }/es/array`));
   require(`${ PATH }/es/function`);
   ok(typeof require(`${ PATH }/es/map`) === 'function');
   ok(typeof require(`${ PATH }/es/set`) === 'function');

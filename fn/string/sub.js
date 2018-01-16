@@ -1,2 +1,3 @@
 require('../../modules/es.string.sub');
-module.exports = require('../../modules/_core').String.sub;
+
+module.exports = require('../../modules/_entry-unbind')('String', 'sub');

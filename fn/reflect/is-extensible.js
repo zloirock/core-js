@@ -1,2 +1,3 @@
 require('../../modules/es.reflect.is-extensible');
-module.exports = require('../../modules/_core').Reflect.isExtensible;
+
+module.exports = require('../../modules/_path').Reflect.isExtensible;

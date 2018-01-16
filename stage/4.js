@@ -1,1 +1,1 @@
-module.exports = require('../modules/_core');
+module.exports = require('../modules/_path');

@@ -1,2 +1,3 @@
 require('../../modules/es.string.fixed');
-module.exports = require('../../modules/_core').String.fixed;
+
+module.exports = require('../../modules/_entry-unbind')('String', 'fixed');
