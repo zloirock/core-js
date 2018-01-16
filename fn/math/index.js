@@ -27,4 +27,5 @@ require('../../modules/esnext.math.radians');
 require('../../modules/esnext.math.scale');
 require('../../modules/esnext.math.umulh');
 require('../../modules/esnext.math.signbit');
-module.exports = require('../../modules/_core').Math;
+
+module.exports = require('../../modules/_path').Math;

@@ -6,29 +6,30 @@ var has = require('./_has');
 var PROTOTYPE = 'prototype';
 
 var $export = function (type, name, source) {
-  var IS_FORCED = type & $export.F;
-  var IS_GLOBAL = type & $export.G;
-  var IS_STATIC = type & $export.S;
-  var IS_PROTO = type & $export.P;
-  var IS_BIND = type & $export.B;
-  var IS_WRAP = type & $export.W;
-  var exports = IS_GLOBAL ? core : core[name] || (core[name] = {});
+  var FORCED = type & $export.F;
+  var GLOBAL = type & $export.G;
+  var STATIC = type & $export.S;
+  var PROTO = type & $export.P;
+  var BIND = type & $export.B;
+  var WRAP = type & $export.W;
+  var REAL_PROTO = type & $export.R;
+  var exports = GLOBAL ? core : core[name] || (core[name] = {});
   var expProto = exports[PROTOTYPE];
-  var target = IS_GLOBAL ? global : IS_STATIC ? global[name] : (global[name] || {})[PROTOTYPE];
+  var target = GLOBAL ? global : STATIC ? global[name] : (global[name] || {})[PROTOTYPE];
   var key, own, out;
-  if (IS_GLOBAL) source = name;
+  if (GLOBAL) source = name;
   for (key in source) {
     // contains in native
-    own = !IS_FORCED && target && target[key] !== undefined;
+    own = !FORCED && target && target[key] !== undefined;
     if (own && has(exports, key)) continue;
     // export native or passed
     out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
-    exports[key] = IS_GLOBAL && typeof target[key] != 'function' ? source[key]
+    exports[key] = GLOBAL && typeof target[key] != 'function' ? source[key]
     // bind timers to global for call from export context
-    : IS_BIND && own ? ctx(out, global)
+    : BIND && own ? ctx(out, global)
     // wrap global constructors for prevent change them in the `pure` version
-    : IS_WRAP && target[key] == out ? (function (C) {
+    : WRAP && target[key] == out ? (function (C) {
       var F = function (a, b, c) {
         if (this instanceof C) {
           switch (arguments.length) {
@@ -41,15 +42,16 @@ var $export = function (type, name, source) {
       F[PROTOTYPE] = C[PROTOTYPE];
       return F;
     // make static versions for prototype methods
-    })(out) : IS_PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
+    })(out) : PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
     // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
-    if (IS_PROTO) {
+    if (PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
       // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
-      if (type & $export.R && expProto && !expProto[key]) hide(expProto, key, out);
+      if (REAL_PROTO && expProto && !expProto[key]) hide(expProto, key, out);
     }
   }
 };
+
 // type bitmap
 $export.F = 1;   // forced
 $export.G = 2;   // global
@@ -57,6 +59,7 @@ $export.S = 4;   // static
 $export.P = 8;   // proto
 $export.B = 16;  // bind
 $export.W = 32;  // wrap
-$export.U = 64;  // safe
+$export.U = 64;  // unsafe
 $export.R = 128; // real proto method for the `pure` version
+
 module.exports = $export;

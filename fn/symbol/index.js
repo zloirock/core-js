@@ -3,4 +3,5 @@ require('../../modules/es.object.to-string');
 require('../../modules/esnext.symbol.async-iterator');
 require('../../modules/esnext.symbol.description');
 require('../../modules/esnext.symbol.observable');
-module.exports = require('../../modules/_core').Symbol;
+
+module.exports = require('../../modules/_path').Symbol;

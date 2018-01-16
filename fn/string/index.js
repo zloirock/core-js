@@ -31,4 +31,5 @@ require('../../modules/esnext.string.trim-left');
 require('../../modules/esnext.string.trim-right');
 require('../../modules/esnext.string.replace-all');
 require('../../modules/esnext.string.match-all');
-module.exports = require('../../modules/_core').String;
+
+module.exports = require('../../modules/_path').String;

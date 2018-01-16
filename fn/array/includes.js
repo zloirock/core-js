@@ -1,2 +1,3 @@
 require('../../modules/es.array.includes');
-module.exports = require('../../modules/_core').Array.includes;
+
+module.exports = require('../../modules/_entry-unbind')('Array', 'includes');
