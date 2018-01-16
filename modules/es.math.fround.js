@@ -1,4 +1,2 @@
 // 20.2.2.16 Math.fround(x)
-var $export = require('./_export');
-
-$export($export.S, 'Math', { fround: require('./_math-fround') });
+require('./_export')({ target: 'Math', stat: true }, { fround: require('./_math-fround') });

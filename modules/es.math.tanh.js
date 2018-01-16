@@ -1,9 +1,8 @@
 // 20.2.2.33 Math.tanh(x)
-var $export = require('./_export');
 var expm1 = require('./_math-expm1');
 var exp = Math.exp;
 
-$export($export.S, 'Math', {
+require('./_export')({ target: 'Math', stat: true }, {
   tanh: function tanh(x) {
     var a = expm1(x = +x);
     var b = expm1(-x);

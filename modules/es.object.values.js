@@ -1,8 +1,7 @@
 // 19.1.2.21 Object.values(O)
-var $export = require('./_export');
 var $values = require('./_object-to-array')(false);
 
-$export($export.S, 'Object', {
+require('./_export')({ target: 'Object', stat: true }, {
   values: function values(O) {
     return $values(O);
   }

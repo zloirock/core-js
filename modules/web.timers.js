@@ -1,6 +1,5 @@
 // ie9- setTimeout & setInterval additional parameters fix
 var global = require('./_global');
-var $export = require('./_export');
 var userAgent = require('./_user-agent');
 var slice = [].slice;
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
@@ -14,7 +13,8 @@ var wrap = function (set) {
     } : fn, time);
   };
 };
-$export($export.G + $export.B + $export.F * MSIE, {
+
+require('./_export')({ global: true, bind: true, forced: MSIE }, {
   setTimeout: wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });

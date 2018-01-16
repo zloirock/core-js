@@ -4,7 +4,7 @@ var path = require('./_path');
 var fails = require('./_fails');
 module.exports = function (KEY, exec) {
   var fn = (path.Object || {})[KEY] || Object[KEY];
-  var exp = {};
-  exp[KEY] = exec(fn);
-  $export($export.S + $export.F * fails(function () { fn(1); }), 'Object', exp);
+  var exported = {};
+  exported[KEY] = exec(fn);
+  $export({ target: 'Object', stat: true, forced: fails(function () { fn(1); }) }, exported);
 };
