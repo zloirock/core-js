@@ -6,7 +6,7 @@ var ctx = require('./_ctx');
 var forOf = require('./_for-of');
 
 module.exports = function (COLLECTION) {
-  $export($export.S, COLLECTION, { from: function from(source /* , mapFn, thisArg */) {
+  $export({ target: COLLECTION, stat: true }, { from: function from(source /* , mapFn, thisArg */) {
     var mapFn = arguments[1];
     var mapping, A, n, cb;
     aFunction(this);

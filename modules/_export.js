@@ -1,36 +1,31 @@
 var global = require('./_global');
 var redefine = require('./_redefine');
 
-var $export = function (type, name, source) {
-  var FORCED = type & $export.F;
-  var GLOBAL = type & $export.G;
-  var STATIC = type & $export.S;
-  var UNSAFE = type & $export.U;
+/*
+  options.target - name of the target object
+  options.global - target is the global object
+  options.stat   - export as static methods of target
+  options.proto  - export as prototype methods of target
+  options.real   - real prototype method for the `pure` version
+  options.forced - export even if the native feature is available
+  options.bind   - bind methods to the target, required for the `pure` version
+  options.wrap   - wrap constructors to preventing global pollution, required for the `pure` version
+  options.unsafe - use the simple assignment of property instead of delete + defineProperty
+*/
+module.exports = function (options, source) {
+  var name = options.target;
   var target, key;
-  if (GLOBAL) {
-    source = name;
+  if (options.global) {
     target = global;
-  } else if (STATIC) {
+  } else if (options.stat) {
     target = global[name] || (global[name] = {});
   } else {
     target = (global[name] || {}).prototype;
   }
   if (target) for (key in source) {
     // contains in native
-    if (!FORCED && target[key] !== undefined) continue;
+    if (!options.forced && target[key] !== undefined) continue;
     // extend global
-    redefine(target, key, source[key], UNSAFE);
+    redefine(target, key, source[key], options.unsafe);
   }
 };
-
-// type bitmap
-$export.F = 1;   // forced
-$export.G = 2;   // global
-$export.S = 4;   // static
-$export.P = 8;   // proto
-$export.B = 16;  // bind
-$export.W = 32;  // wrap
-$export.U = 64;  // unsafe
-$export.R = 128; // real proto method for the `pure` version
-
-module.exports = $export;

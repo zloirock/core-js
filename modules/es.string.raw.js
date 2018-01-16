@@ -1,8 +1,7 @@
-var $export = require('./_export');
 var toIObject = require('./_to-iobject');
 var toLength = require('./_to-length');
 
-$export($export.S, 'String', {
+require('./_export')({ target: 'String', stat: true }, {
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   raw: function raw(callSite) {
     var tpl = toIObject(callSite.raw);

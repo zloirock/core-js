@@ -1,4 +1,2 @@
 // 20.2.2.28 Math.sign(x)
-var $export = require('./_export');
-
-$export($export.S, 'Math', { sign: require('./_math-sign') });
+require('./_export')({ target: 'Math', stat: true }, { sign: require('./_math-sign') });

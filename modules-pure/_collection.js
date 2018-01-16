@@ -17,7 +17,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var C = Base;
   var ADDER = IS_MAP ? 'set' : 'add';
   var proto = C && C.prototype;
-  var O = {};
+  var exported = {};
   if (!DESCRIPTORS || typeof C != 'function' || !(IS_WEAK || proto.forEach && !fails(function () {
     new C().entries().next();
   }))) {
@@ -48,8 +48,8 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
 
   setToStringTag(C, NAME);
 
-  O[NAME] = C;
-  $export($export.G + $export.W + $export.F, O);
+  exported[NAME] = C;
+  $export({ global: true, wrap: true, forced: true }, exported);
 
   if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
 

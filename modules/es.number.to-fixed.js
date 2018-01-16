@@ -1,5 +1,4 @@
 'use strict';
-var $export = require('./_export');
 var toInteger = require('./_to-integer');
 var aNumberValue = require('./_a-number-value');
 var repeat = require('./_string-repeat');
@@ -52,8 +51,7 @@ var log = function (x) {
     x2 /= 2;
   } return n;
 };
-
-$export($export.P + $export.F * (!!$toFixed && (
+require('./_export')({ target: 'Number', proto: true, forced: $toFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
@@ -61,7 +59,7 @@ $export($export.P + $export.F * (!!$toFixed && (
 ) || !require('./_fails')(function () {
   // V8 ~ Android 4.3-
   $toFixed.call({});
-})), 'Number', {
+}) }, {
   toFixed: function toFixed(fractionDigits) {
     var x = aNumberValue(this, ERROR);
     var f = toInteger(fractionDigits);
