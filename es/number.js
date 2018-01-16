@@ -10,4 +10,5 @@ require('../modules/es.number.max-safe-integer');
 require('../modules/es.number.min-safe-integer');
 require('../modules/es.number.parse-float');
 require('../modules/es.number.parse-int');
-module.exports = require('../modules/_core').Number;
+
+module.exports = require('../modules/_path').Number;

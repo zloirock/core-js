@@ -23,4 +23,5 @@ require('../../modules/es.array.iterator');
 require('../../modules/es.array.includes');
 require('../../modules/esnext.array.flat-map');
 require('../../modules/esnext.array.flatten');
-module.exports = require('../../modules/_core').Array;
+
+module.exports = require('../../modules/_path').Array;

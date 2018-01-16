@@ -1,2 +1,3 @@
 require('../../modules/es.typed.float32-array');
-module.exports = require('../../modules/_core').Float32Array;
+
+module.exports = require('../../modules/_path').Float32Array;

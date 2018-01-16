@@ -235,7 +235,7 @@ if (!USE_NATIVE) {
 $export($export.G + $export.W + $export.F * !USE_NATIVE, { Promise: $Promise });
 require('./_set-to-string-tag')($Promise, PROMISE);
 require('./_set-species')(PROMISE);
-Wrapper = require('./_core')[PROMISE];
+Wrapper = require('./_path')[PROMISE];
 
 // statics
 $export($export.S + $export.F * !USE_NATIVE, PROMISE, {

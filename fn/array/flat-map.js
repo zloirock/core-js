@@ -1,2 +1,3 @@
 require('../../modules/esnext.array.flat-map');
-module.exports = require('../../modules/_core').Array.flatMap;
+
+module.exports = require('../../modules/_entry-unbind')('Array', 'flatMap');

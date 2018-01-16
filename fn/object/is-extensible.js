@@ -1,2 +1,3 @@
 require('../../modules/es.object.is-extensible');
-module.exports = require('../../modules/_core').Object.isExtensible;
+
+module.exports = require('../../modules/_path').Object.isExtensible;

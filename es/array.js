@@ -21,4 +21,5 @@ require('../modules/es.array.find');
 require('../modules/es.array.find-index');
 require('../modules/es.array.species');
 require('../modules/es.array.iterator');
-module.exports = require('../modules/_core').Array;
+
+module.exports = require('../modules/_path').Array;

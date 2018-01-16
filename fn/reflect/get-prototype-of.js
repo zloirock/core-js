@@ -1,2 +1,3 @@
 require('../../modules/es.reflect.get-prototype-of');
-module.exports = require('../../modules/_core').Reflect.getPrototypeOf;
+
+module.exports = require('../../modules/_path').Reflect.getPrototypeOf;

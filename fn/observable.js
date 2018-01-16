@@ -4,4 +4,5 @@ require('../modules/web.dom-collections.iterator');
 require('../modules/es.promise');
 require('../modules/esnext.symbol.observable');
 require('../modules/esnext.observable');
-module.exports = require('../modules/_core').Observable;
+
+module.exports = require('../modules/_path').Observable;
