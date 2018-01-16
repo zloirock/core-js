@@ -1,2 +1,3 @@
 require('../../modules/es.typed.int16-array');
-module.exports = require('../../modules/_core').Int16Array;
+
+module.exports = require('../../modules/_path').Int16Array;

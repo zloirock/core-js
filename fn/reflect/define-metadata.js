@@ -1,2 +1,3 @@
 require('../../modules/esnext.reflect.define-metadata');
-module.exports = require('../../modules/_core').Reflect.defineMetadata;
+
+module.exports = require('../../modules/_path').Reflect.defineMetadata;
