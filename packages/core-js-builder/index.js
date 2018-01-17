@@ -7,7 +7,6 @@ const temp = require('temp');
 const list = config.list;
 
 module.exports = options => {
-  const source = options.source || 'core-js';
   const blacklist = options.blacklist || [];
   let modules = options.modules || [];
   return new Promise((resolve, reject) => {
@@ -45,7 +44,7 @@ module.exports = options => {
       },
       entry: list
         .filter(it => modules[it])
-        .map(it => require.resolve(`${ source }/modules/${ it }`)),
+        .map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
         path: path.dirname(TARGET),
         filename: path.basename(`./${ TARGET }`),
