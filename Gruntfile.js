@@ -123,7 +123,6 @@ module.exports = grunt => {
   grunt.registerTask('bundle', function () {
     const done = this.async();
     build({
-      source: '../../packages/core-js',
       modules: ['es', 'esnext', 'web'],
     }).then(it => {
       const filename = './packages/core-js/client/core.js';
@@ -135,5 +134,4 @@ module.exports = grunt => {
       process.exit(1);
     });
   });
-  grunt.registerTask('default', ['clean', 'copy', 'bundle', 'uglify']);
 };
