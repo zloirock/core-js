@@ -1493,7 +1493,7 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
 ```
-* `String#matchAll` [proposal](https://github.com/tc39/String.prototype.matchAll) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.match-all.js)
+* `String#matchAll` [proposal](https://tc39.github.io/proposal-string-matchall/) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/modules/esnext.string.match-all.js)
 ```js
 class String {
   matchAll(regexp: RegExp): Iterator;
@@ -1504,9 +1504,9 @@ class String {
 core-js(-pure)/fn/string/match-all
 core-js(-pure)/fn/string/virtual/match-all
 ```
-[*Examples*](http://goo.gl/6kp9EB):
+[*Examples*](https://goo.gl/AxSqHT):
 ```js
-for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/)) {
+for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
   console.log(d, D); // => 1 a, 2 b, 3 c
 }
 ```
