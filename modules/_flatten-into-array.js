@@ -14,7 +14,7 @@ function flattenIntoArray(target, original, source, sourceLen, start, depth, map
     if (sourceIndex in source) {
       element = mapFn ? mapFn(source[sourceIndex], sourceIndex, original) : source[sourceIndex];
 
-      if (isArray(element) && depth > 0) {
+      if (depth > 0 && isArray(element)) {
         targetIndex = flattenIntoArray(target, original, element, toLength(element.length), targetIndex, depth - 1) - 1;
       } else {
         if (targetIndex >= 0x1fffffffffffff) throw TypeError();
