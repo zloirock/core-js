@@ -129,6 +129,29 @@ QUnit.test('String#matchAll', assert => {
     value: null,
     done: true,
   });
+  if ('unicode' in RegExp.prototype) {
+    iterator = matchAll('𠮷𠮷𠮷', new RegExp('\\B', 'gu'));
+    assert.isIterator(iterator);
+    assert.isIterable(iterator);
+    assert.deepEqual(iterator.next(), {
+      value: assign([''], {
+        input: '𠮷𠮷𠮷',
+        index: 2,
+      }),
+      done: false,
+    });
+    assert.deepEqual(iterator.next(), {
+      value: assign([''], {
+        input: '𠮷𠮷𠮷',
+        index: 4,
+      }),
+      done: false,
+    });
+    assert.deepEqual(iterator.next(), {
+      value: null,
+      done: true,
+    });
+  }
   data = [null, undefined, NaN, 42, {}, []];
   for (const target of data) {
     assert.notThrows(() => matchAll('', target), `Not throws on ${ target } as the first argument`);
