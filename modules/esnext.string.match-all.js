@@ -26,8 +26,7 @@ var matchAllIterator = function (R, O) {
 };
 
 var advanceStringIndex = function (S, index, unicode) {
-  if (!unicode) return index + 1;
-  return index + at(S, index).length;
+  return index + (unicode ? at(S, index).length : 1);
 };
 
 var $RegExpStringIterator = function (regexp, string, global, fullUnicode) {
