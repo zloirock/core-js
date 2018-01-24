@@ -1,6 +1,5 @@
 node_modules/
-/client/
-/modules-pure/
-/packages/core-js/
+/packages/core-js/client/
+/packages/core-js-pure/modules-pure/
 /tests/bundles/
 !**/.eslintrc.js

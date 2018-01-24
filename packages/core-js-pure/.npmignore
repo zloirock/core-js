@@ -1,2 +1,5 @@
+node_modules/
 *.log
 .*
+
+/modules-pure/
