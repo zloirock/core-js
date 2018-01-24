@@ -1,7 +1,7 @@
 'use strict';
 var toIObject = require('./_to-iobject');
-var toInteger = require('./_to-integer');
-var toLength = require('./_to-length');
+var toInteger = require('core-js-internals/to-integer');
+var toLength = require('core-js-internals/to-length');
 var $native = [].lastIndexOf;
 var NEGATIVE_ZERO = !!$native && 1 / [1].lastIndexOf(1, -0) < 0;
 

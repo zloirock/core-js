@@ -1,6 +1,6 @@
-var META = require('./_uid')('meta');
-var isObject = require('./_is-object');
-var has = require('./_has');
+var META = require('core-js-internals/uid')('meta');
+var isObject = require('core-js-internals/is-object');
+var has = require('core-js-internals/has');
 var setDesc = require('./_object-dp').f;
 var id = 0;
 var isExtensible = Object.isExtensible || function () {

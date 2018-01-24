@@ -1,8 +1,8 @@
 // 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 'use strict';
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var toAbsoluteIndex = require('./_to-absolute-index');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 module.exports = function fill(value /* , start = 0, end = @length */) {
   var O = toObject(this);
   var length = toLength(O.length);

@@ -1,6 +1,6 @@
 // https://rwaldron.github.io/proposal-math-extensions/
-var scale = require('./_math-scale');
-var fround = require('./_math-fround');
+var scale = require('core-js-internals/math-scale');
+var fround = require('core-js-internals/math-fround');
 
 require('./_export')({ target: 'Math', stat: true }, {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {

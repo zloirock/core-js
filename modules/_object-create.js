@@ -1,5 +1,5 @@
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var dPs = require('./_object-dps');
 var enumBugKeys = require('./_enum-bug-keys');
 var IE_PROTO = require('./_shared-key')('IE_PROTO');
@@ -15,7 +15,7 @@ var createDict = function () {
   var gt = '>';
   var iframeDocument;
   iframe.style.display = 'none';
-  require('./_html').appendChild(iframe);
+  require('core-js-internals/html').appendChild(iframe);
   iframe.src = 'javascript:'; // eslint-disable-line no-script-url
   // createDict = iframe.contentWindow.Object;
   // html.removeChild(iframe);

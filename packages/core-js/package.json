@@ -7,6 +7,9 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
+  "dependencies": {
+    "core-js-internals": "3.0.0-alpha.1"
+  },
   "license": "MIT",
   "keywords": [
     "ES3",

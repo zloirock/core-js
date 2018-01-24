@@ -1,6 +1,6 @@
 // https://tc39.github.io/ecma262/#sec-toindex
-var toInteger = require('./_to-integer');
-var toLength = require('./_to-length');
+var toInteger = require('core-js-internals/to-integer');
+var toLength = require('core-js-internals/to-length');
 module.exports = function (it) {
   if (it === undefined) return 0;
   var number = toInteger(it);

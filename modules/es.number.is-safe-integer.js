@@ -1,5 +1,5 @@
 // 20.1.2.5 Number.isSafeInteger(number)
-var isInteger = require('./_is-integer');
+var isInteger = require('core-js-internals/is-integer');
 var abs = Math.abs;
 
 require('./_export')({ target: 'Number', stat: true }, {

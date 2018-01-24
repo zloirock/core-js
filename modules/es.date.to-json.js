@@ -1,5 +1,5 @@
 'use strict';
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var toPrimitive = require('./_to-primitive');
 
 require('./_export')({ target: 'Date', proto: true, forced: require('./_fails')(function () {

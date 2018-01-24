@@ -1,6 +1,6 @@
 // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var context = require('./_string-context');
 var STARTS_WITH = 'startsWith';
 var $startsWith = ''[STARTS_WITH];
