@@ -1367,6 +1367,31 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
   console.log(d, D); // => 1 a, 2 b, 3 c
 }
 ```
+* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js)
+```js
+class String {
+  trimLeft(): string;
+  trimRight(): string;
+  trimStart(): string;
+  trimEnd(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/fn/string/trim-start
+core-js(-pure)/fn/string/trim-end
+core-js(-pure)/fn/string/trim-left
+core-js(-pure)/fn/string/trim-right
+core-js(-pure)/fn/string/virtual/trim-start
+core-js(-pure)/fn/string/virtual/trim-end
+core-js(-pure)/fn/string/virtual/trim-left
+core-js(-pure)/fn/string/virtual/trim-right
+```
+[*Examples*](http://goo.gl/Er5lMJ):
+```js
+'   hello   '.trimLeft();  // => 'hello   '
+'   hello   '.trimRight(); // => '   hello'
+```
 * `global` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.global.js). **Warning! Due to [web compatibility concerns](https://github.com/tc39/proposal-global/issues/20), this object will be added to the spec under a different name.**
 ```js
 let global: Object;
@@ -1409,31 +1434,6 @@ core-js/fn/symbol/description
 ```js
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
-```
-* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js)
-```js
-class String {
-  trimLeft(): string;
-  trimRight(): string;
-  trimStart(): string;
-  trimEnd(): string;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/fn/string/trim-start
-core-js(-pure)/fn/string/trim-end
-core-js(-pure)/fn/string/trim-left
-core-js(-pure)/fn/string/trim-right
-core-js(-pure)/fn/string/virtual/trim-start
-core-js(-pure)/fn/string/virtual/trim-end
-core-js(-pure)/fn/string/virtual/trim-left
-core-js(-pure)/fn/string/virtual/trim-right
-```
-[*Examples*](http://goo.gl/Er5lMJ):
-```js
-'   hello   '.trimLeft();  // => 'hello   '
-'   hello   '.trimRight(); // => '   hello'
 ```
 
 #### Stage 1 proposals
