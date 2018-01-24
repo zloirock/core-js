@@ -379,14 +379,10 @@ module.exports = {
   overrides: [
     {
       files: [
-        'es/**',
-        'fn/**',
+        'packages/core-js/**',
         'packages/core-js-internals/**',
         'packages/core-js-pure/**',
-        'modules/**',
-        'stage/**',
         'tests/promises-aplus/**',
-        'web/**',
       ],
       parserOptions: {
         ecmaVersion: 3,
