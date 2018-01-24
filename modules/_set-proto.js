@@ -1,7 +1,7 @@
 // Works with __proto__ only. Old v8 can't work with null proto objects.
 /* eslint-disable no-proto */
-var isObject = require('./_is-object');
-var anObject = require('./_an-object');
+var isObject = require('core-js-internals/is-object');
+var anObject = require('core-js-internals/an-object');
 var check = function (O, proto) {
   anObject(O);
   if (!isObject(proto) && proto !== null) throw TypeError(proto + ": can't set as prototype!");

@@ -1,11 +1,11 @@
 // 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var create = require('./_object-create');
-var aFunction = require('./_a-function');
-var anObject = require('./_an-object');
-var isObject = require('./_is-object');
+var aFunction = require('core-js-internals/a-function');
+var anObject = require('core-js-internals/an-object');
+var isObject = require('core-js-internals/is-object');
 var fails = require('./_fails');
-var bind = require('./_bind');
-var rConstruct = (require('./_global').Reflect || {}).construct;
+var bind = require('core-js-internals/function-bind');
+var rConstruct = (require('core-js-internals/global').Reflect || {}).construct;
 
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it

@@ -1,6 +1,6 @@
 var store = require('./_shared')('wks');
-var uid = require('./_uid');
-var Symbol = require('./_global').Symbol;
+var uid = require('core-js-internals/uid');
+var Symbol = require('core-js-internals/global').Symbol;
 var USE_SYMBOL = typeof Symbol == 'function';
 
 var $exports = module.exports = function (name) {

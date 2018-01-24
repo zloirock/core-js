@@ -1,5 +1,5 @@
 'use strict';
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var toPrimitive = require('./_to-primitive');
 var NUMBER = 'number';
 

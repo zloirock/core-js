@@ -1,7 +1,7 @@
 'use strict';
 // https://tc39.github.io/proposal-setmap-offrom/
 var $export = require('./_export');
-var aFunction = require('./_a-function');
+var aFunction = require('core-js-internals/a-function');
 var ctx = require('./_ctx');
 var forOf = require('./_for-of');
 

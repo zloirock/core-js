@@ -1,6 +1,6 @@
 'use strict';
-var toObject = require('./_to-object');
-var aFunction = require('./_a-function');
+var toObject = require('core-js-internals/to-object');
+var aFunction = require('core-js-internals/a-function');
 var $defineProperty = require('./_object-dp');
 
 // B.2.2.2 Object.prototype.__defineGetter__(P, getter)

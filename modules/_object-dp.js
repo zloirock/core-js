@@ -1,4 +1,4 @@
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var IE8_DOM_DEFINE = require('./_ie8-dom-define');
 var toPrimitive = require('./_to-primitive');
 var dP = Object.defineProperty;

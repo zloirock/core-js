@@ -1,5 +1,5 @@
 var $export = require('./_export');
-var defined = require('./_defined');
+var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var fails = require('./_fails');
 var spaces = require('./_string-ws');
 var space = '[' + spaces + ']';
@@ -21,7 +21,7 @@ var exporter = function (KEY, exec, ALIAS) {
 // 2 -> String#trimRight
 // 3 -> String#trim
 var trim = exporter.trim = function (string, TYPE) {
-  string = String(defined(string));
+  string = String(requireObjectCoercible(string));
   if (TYPE & 1) string = string.replace(ltrim, '');
   if (TYPE & 2) string = string.replace(rtrim, '');
   return string;

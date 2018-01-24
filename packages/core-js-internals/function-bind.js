@@ -1,7 +1,6 @@
 'use strict';
-var aFunction = require('./_a-function');
-var isObject = require('./_is-object');
-var invoke = require('./_invoke');
+var aFunction = require('./a-function');
+var isObject = require('./is-object');
 var arraySlice = [].slice;
 var factories = {};
 
@@ -18,7 +17,7 @@ module.exports = Function.bind || function bind(that /* , ...args */) {
   var partArgs = arraySlice.call(arguments, 1);
   var bound = function (/* args... */) {
     var args = partArgs.concat(arraySlice.call(arguments));
-    return this instanceof bound ? construct(fn, args.length, args) : invoke(fn, args, that);
+    return this instanceof bound ? construct(fn, args.length, args) : fn.apply(that, args);
   };
   if (isObject(fn.prototype)) bound.prototype = fn.prototype;
   return bound;

@@ -1,4 +1,4 @@
-var $parseFloat = require('./_global').parseFloat;
+var $parseFloat = require('core-js-internals/global').parseFloat;
 var $trim = require('./_string-trim').trim;
 
 module.exports = 1 / $parseFloat(require('./_string-ws') + '-0') !== -Infinity ? function parseFloat(str) {

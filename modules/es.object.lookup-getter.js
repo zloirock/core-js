@@ -1,5 +1,5 @@
 'use strict';
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var toPrimitive = require('./_to-primitive');
 var getPrototypeOf = require('./_object-gpo');
 var getOwnPropertyDescriptor = require('./_object-gopd').f;

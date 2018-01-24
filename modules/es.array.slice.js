@@ -1,8 +1,8 @@
 'use strict';
-var html = require('./_html');
-var cof = require('./_cof');
+var html = require('core-js-internals/html');
+var cof = require('core-js-internals/classof-raw');
 var toAbsoluteIndex = require('./_to-absolute-index');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var arraySlice = [].slice;
 
 // fallback for not array-like ES3 strings and DOM objects

@@ -1,4 +1,4 @@
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 var $ = require('./_state');
 
 module.exports = function (it, TYPE) {

@@ -1,8 +1,7 @@
 var ctx = require('./_ctx');
-var invoke = require('./_invoke');
-var html = require('./_html');
+var html = require('core-js-internals/html');
 var cel = require('./_dom-create');
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var process = global.process;
 var setTask = global.setImmediate;
 var clearTask = global.clearImmediate;
@@ -32,7 +31,7 @@ if (!setTask || !clearTask) {
     while (arguments.length > i) args.push(arguments[i++]);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func
-      invoke(typeof fn == 'function' ? fn : Function(fn), args);
+      (typeof fn == 'function' ? fn : Function(fn)).apply(undefined, args);
     };
     defer(counter);
     return counter;
@@ -41,7 +40,7 @@ if (!setTask || !clearTask) {
     delete queue[id];
   };
   // Node.js 0.8-
-  if (require('./_cof')(process) == 'process') {
+  if (require('core-js-internals/classof-raw')(process) == 'process') {
     defer = function (id) {
       process.nextTick(ctx(run, id, 1));
     };

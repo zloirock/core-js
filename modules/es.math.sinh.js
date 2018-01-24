@@ -1,5 +1,5 @@
 // 20.2.2.30 Math.sinh(x)
-var expm1 = require('./_math-expm1');
+var expm1 = require('core-js-internals/math-expm1');
 var exp = Math.exp;
 
 // V8 near Chromium 38 has a problem with very small numbers
