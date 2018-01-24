@@ -1,10 +1,10 @@
-var toInteger = require('./_to-integer');
-var defined = require('./_defined');
+var toInteger = require('core-js-internals/to-integer');
+var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 // true  -> String#at
 // false -> String#codePointAt
 module.exports = function (TO_STRING) {
   return function (that, pos) {
-    var s = String(defined(that));
+    var s = String(requireObjectCoercible(that));
     var i = toInteger(pos);
     var l = s.length;
     var a, b;

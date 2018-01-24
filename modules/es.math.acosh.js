@@ -1,5 +1,5 @@
 // 20.2.2.3 Math.acosh(x)
-var log1p = require('./_math-log1p');
+var log1p = require('core-js-internals/math-log1p');
 var sqrt = Math.sqrt;
 var $acosh = Math.acosh;
 

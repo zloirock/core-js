@@ -1,8 +1,8 @@
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var core = require('./_core');
 var ctx = require('./_ctx');
 var hide = require('./_hide');
-var has = require('./_has');
+var has = require('core-js-internals/has');
 var PROTOTYPE = 'prototype';
 
 /*

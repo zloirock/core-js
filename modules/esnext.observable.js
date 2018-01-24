@@ -1,8 +1,8 @@
 'use strict';
 // https://github.com/zenparsing/es-observable
-var aFunction = require('./_a-function');
-var anObject = require('./_an-object');
-var isObject = require('./_is-object');
+var aFunction = require('core-js-internals/a-function');
+var anObject = require('core-js-internals/an-object');
+var isObject = require('core-js-internals/is-object');
 var anInstance = require('./_an-instance');
 var redefineAll = require('./_redefine-all');
 var hide = require('./_hide');

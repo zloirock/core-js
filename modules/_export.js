@@ -1,4 +1,4 @@
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var redefine = require('./_redefine');
 
 /*

@@ -1,7 +1,7 @@
-var aFunction = require('./_a-function');
-var toObject = require('./_to-object');
+var aFunction = require('core-js-internals/a-function');
+var toObject = require('core-js-internals/to-object');
 var IObject = require('./_iobject');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 
 module.exports = function (that, callbackfn, aLen, memo, isRight) {
   aFunction(callbackfn);

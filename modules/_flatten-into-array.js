@@ -1,7 +1,7 @@
 'use strict';
 // https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
 var isArray = require('./_is-array');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var ctx = require('./_ctx');
 
 function flattenIntoArray(target, original, source, sourceLen, start, depth, mapper, thisArg) {

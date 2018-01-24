@@ -1,5 +1,5 @@
 // getting tag from 19.1.3.6 Object.prototype.toString()
-var cof = require('./_cof');
+var cof = require('core-js-internals/classof-raw');
 var TAG = require('./_wks')('toStringTag');
 // ES3 wrong here
 var ARG = cof(function () { return arguments; }()) == 'Arguments';

@@ -7,8 +7,8 @@
 // 6 -> Array#findIndex
 var ctx = require('./_ctx');
 var IObject = require('./_iobject');
-var toObject = require('./_to-object');
-var toLength = require('./_to-length');
+var toObject = require('core-js-internals/to-object');
+var toLength = require('core-js-internals/to-length');
 var asc = require('./_array-species-create');
 module.exports = function (TYPE, $create) {
   var IS_MAP = TYPE == 1;

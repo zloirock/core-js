@@ -1,5 +1,5 @@
 var dP = require('./_object-dp');
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var getKeys = require('./_object-keys');
 
 module.exports = require('./_descriptors') ? Object.defineProperties : function defineProperties(O, Properties) {

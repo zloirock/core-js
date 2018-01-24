@@ -2,12 +2,12 @@
 var hide = require('./_hide');
 var redefine = require('./_redefine');
 var fails = require('./_fails');
-var defined = require('./_defined');
+var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var wks = require('./_wks');
 
 module.exports = function (KEY, length, exec) {
   var SYMBOL = wks(KEY);
-  var fns = exec(defined, SYMBOL, ''[KEY]);
+  var fns = exec(requireObjectCoercible, SYMBOL, ''[KEY]);
   var strfn = fns[0];
   var rxfn = fns[1];
   if (fails(function () {

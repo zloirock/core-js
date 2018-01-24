@@ -1,4 +1,4 @@
-var has = require('./_has');
+var has = require('core-js-internals/has');
 var toIObject = require('./_to-iobject');
 var arrayIndexOf = require('./_array-includes')(false);
 var hiddenKeys = require('./_hidden-keys');

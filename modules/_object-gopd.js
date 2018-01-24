@@ -2,7 +2,7 @@ var pIE = require('./_object-pie');
 var createDesc = require('./_property-desc');
 var toIObject = require('./_to-iobject');
 var toPrimitive = require('./_to-primitive');
-var has = require('./_has');
+var has = require('core-js-internals/has');
 var IE8_DOM_DEFINE = require('./_ie8-dom-define');
 var gOPD = Object.getOwnPropertyDescriptor;
 

@@ -1,7 +1,7 @@
 'use strict';
 // ECMAScript 6 symbols shim
-var global = require('./_global');
-var has = require('./_has');
+var global = require('core-js-internals/global');
+var has = require('core-js-internals/has');
 var DESCRIPTORS = require('./_descriptors');
 var $export = require('./_export');
 var redefine = require('./_redefine');
@@ -9,14 +9,14 @@ var hiddenKeys = require('./_hidden-keys');
 var $fails = require('./_fails');
 var shared = require('./_shared');
 var setToStringTag = require('./_set-to-string-tag');
-var uid = require('./_uid');
+var uid = require('core-js-internals/uid');
 var wks = require('./_wks');
 var wksExt = require('./_wks-ext');
 var wksDefine = require('./_wks-define');
 var enumKeys = require('./_enum-keys');
 var isArray = require('./_is-array');
-var anObject = require('./_an-object');
-var isObject = require('./_is-object');
+var anObject = require('core-js-internals/an-object');
+var isObject = require('core-js-internals/is-object');
 var toIObject = require('./_to-iobject');
 var toPrimitive = require('./_to-primitive');
 var createDesc = require('./_property-desc');

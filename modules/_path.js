@@ -1,1 +1,1 @@
-module.exports = require('./_global');
+module.exports = require('core-js-internals/global');

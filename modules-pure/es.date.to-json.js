@@ -1,5 +1,5 @@
 'use strict';
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var toPrimitive = require('./_to-primitive');
 var toISOString = require('./_date-to-iso-string');
 var classof = require('./_classof');
