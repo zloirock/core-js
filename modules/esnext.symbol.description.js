@@ -1,12 +1,12 @@
 // https://tc39.github.io/proposal-Symbol-description/
 'use strict';
 var DESCRIPTORS = require('./_descriptors');
-var has = require('./_has');
-var isObject = require('./_is-object');
+var has = require('core-js-internals/has');
+var isObject = require('core-js-internals/is-object');
 var gOPN = require('./_object-gopn').f;
 var gOPD = require('./_object-gopd').f;
 var dP = require('./_object-dp').f;
-var Base = require('./_global').Symbol;
+var Base = require('core-js-internals/global').Symbol;
 
 if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototype)) {
   var emptyStringDescriptionStore = {};

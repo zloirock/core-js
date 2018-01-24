@@ -1,6 +1,6 @@
 // 7.2.8 IsRegExp(argument)
-var isObject = require('./_is-object');
-var cof = require('./_cof');
+var isObject = require('core-js-internals/is-object');
+var cof = require('core-js-internals/classof-raw');
 var MATCH = require('./_wks')('match');
 module.exports = function (it) {
   var isRegExp;

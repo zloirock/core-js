@@ -1,7 +1,7 @@
 'use strict';
-var global = require('./_global');
-var has = require('./_has');
-var cof = require('./_cof');
+var global = require('core-js-internals/global');
+var has = require('core-js-internals/has');
+var cof = require('core-js-internals/classof-raw');
 var inheritIfRequired = require('./_inherit-if-required');
 var toPrimitive = require('./_to-primitive');
 var fails = require('./_fails');

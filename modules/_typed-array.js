@@ -1,7 +1,7 @@
 'use strict';
 if (require('./_descriptors')) {
   var IS_PURE = require('./_is-pure');
-  var global = require('./_global');
+  var global = require('core-js-internals/global');
   var fails = require('./_fails');
   var $export = require('./_export');
   var $typed = require('./_typed');
@@ -11,21 +11,21 @@ if (require('./_descriptors')) {
   var propertyDesc = require('./_property-desc');
   var hide = require('./_hide');
   var redefineAll = require('./_redefine-all');
-  var toInteger = require('./_to-integer');
-  var toLength = require('./_to-length');
+  var toInteger = require('core-js-internals/to-integer');
+  var toLength = require('core-js-internals/to-length');
   var toIndex = require('./_to-index');
   var toAbsoluteIndex = require('./_to-absolute-index');
   var toPrimitive = require('./_to-primitive');
-  var has = require('./_has');
+  var has = require('core-js-internals/has');
   var classof = require('./_classof');
-  var isObject = require('./_is-object');
-  var toObject = require('./_to-object');
+  var isObject = require('core-js-internals/is-object');
+  var toObject = require('core-js-internals/to-object');
   var isArrayIter = require('./_is-array-iter');
   var create = require('./_object-create');
   var getPrototypeOf = require('./_object-gpo');
   var gOPN = require('./_object-gopn').f;
   var getIterFn = require('./core.get-iterator-method');
-  var uid = require('./_uid');
+  var uid = require('core-js-internals/uid');
   var wks = require('./_wks');
   var createArrayMethod = require('./_array-methods');
   var createArrayIncludes = require('./_array-includes');

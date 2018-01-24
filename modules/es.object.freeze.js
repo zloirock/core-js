@@ -1,5 +1,5 @@
 // 19.1.2.5 Object.freeze(O)
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 var meta = require('./_meta').onFreeze;
 
 require('./_object-sap')('freeze', function ($freeze) {

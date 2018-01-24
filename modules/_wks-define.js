@@ -1,4 +1,4 @@
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var path = require('./_path');
 var IS_PURE = require('./_is-pure');
 var wksExt = require('./_wks-ext');

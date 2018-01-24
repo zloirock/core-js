@@ -1,5 +1,5 @@
 // optional / simple context binding
-var aFunction = require('./_a-function');
+var aFunction = require('core-js-internals/a-function');
 module.exports = function (fn, that, length) {
   aFunction(fn);
   if (that === undefined) return fn;

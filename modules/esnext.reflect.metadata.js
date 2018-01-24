@@ -1,6 +1,6 @@
 var $metadata = require('./_metadata');
-var anObject = require('./_an-object');
-var aFunction = require('./_a-function');
+var anObject = require('core-js-internals/an-object');
+var aFunction = require('core-js-internals/a-function');
 var toMetaKey = $metadata.key;
 var ordinaryDefineOwnMetadata = $metadata.set;
 

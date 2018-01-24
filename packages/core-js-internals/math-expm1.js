@@ -1,5 +1,6 @@
 // 20.2.2.14 Math.expm1(x)
 var $expm1 = Math.expm1;
+
 module.exports = (!$expm1
   // Old FF bug
   || $expm1(10) > 22025.465794806719 || $expm1(10) < 22025.4657948067165168

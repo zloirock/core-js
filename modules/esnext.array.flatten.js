@@ -1,9 +1,9 @@
 'use strict';
 // https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatten
 var flattenIntoArray = require('./_flatten-into-array');
-var toObject = require('./_to-object');
-var toLength = require('./_to-length');
-var toInteger = require('./_to-integer');
+var toObject = require('core-js-internals/to-object');
+var toLength = require('core-js-internals/to-length');
+var toInteger = require('core-js-internals/to-integer');
 var arraySpeciesCreate = require('./_array-species-create');
 
 require('./_export')({ target: 'Array', proto: true }, {

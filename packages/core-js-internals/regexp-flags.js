@@ -1,6 +1,6 @@
 'use strict';
 // 21.2.5.3 get RegExp.prototype.flags
-var anObject = require('./_an-object');
+var anObject = require('./an-object');
 module.exports = function () {
   var that = anObject(this);
   var result = '';

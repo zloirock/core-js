@@ -1,7 +1,7 @@
 'use strict';
 require('./es.regexp.flags');
-var anObject = require('./_an-object');
-var $flags = require('./_flags');
+var anObject = require('core-js-internals/an-object');
+var $flags = require('core-js-internals/regexp-flags');
 var DESCRIPTORS = require('./_descriptors');
 var TO_STRING = 'toString';
 var $toString = /./[TO_STRING];

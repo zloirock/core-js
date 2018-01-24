@@ -1,6 +1,6 @@
 require('./es.array.iterator');
 var DOMIterables = require('./_dom-iterables');
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var hide = require('./_hide');
 var Iterators = require('./_iterators');
 var TO_STRING_TAG = require('./_wks')('toStringTag');

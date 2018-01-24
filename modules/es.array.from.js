@@ -1,9 +1,9 @@
 'use strict';
 var ctx = require('./_ctx');
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var call = require('./_iter-call');
 var isArrayIter = require('./_is-array-iter');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var createProperty = require('./_create-property');
 var getIterFn = require('./core.get-iterator-method');
 

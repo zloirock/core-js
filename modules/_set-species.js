@@ -1,5 +1,5 @@
 'use strict';
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var dP = require('./_object-dp');
 var DESCRIPTORS = require('./_descriptors');
 var SPECIES = require('./_wks')('species');

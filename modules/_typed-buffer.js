@@ -1,5 +1,5 @@
 'use strict';
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var DESCRIPTORS = require('./_descriptors');
 var IS_PURE = require('./_is-pure');
 var $typed = require('./_typed');
@@ -7,8 +7,8 @@ var hide = require('./_hide');
 var redefineAll = require('./_redefine-all');
 var fails = require('./_fails');
 var anInstance = require('./_an-instance');
-var toInteger = require('./_to-integer');
-var toLength = require('./_to-length');
+var toInteger = require('core-js-internals/to-integer');
+var toLength = require('core-js-internals/to-length');
 var toIndex = require('./_to-index');
 var gOPN = require('./_object-gopn').f;
 var dP = require('./_object-dp').f;

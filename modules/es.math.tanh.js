@@ -1,5 +1,5 @@
 // 20.2.2.33 Math.tanh(x)
-var expm1 = require('./_math-expm1');
+var expm1 = require('core-js-internals/math-expm1');
 var exp = Math.exp;
 
 require('./_export')({ target: 'Math', stat: true }, {

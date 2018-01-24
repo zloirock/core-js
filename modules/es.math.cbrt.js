@@ -1,5 +1,5 @@
 // 20.2.2.9 Math.cbrt(x)
-var sign = require('./_math-sign');
+var sign = require('core-js-internals/math-sign');
 
 require('./_export')({ target: 'Math', stat: true }, {
   cbrt: function cbrt(x) {

@@ -1,7 +1,7 @@
 // https://github.com/tc39/proposal-promise-finally
 'use strict';
 var path = require('./_path');
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var speciesConstructor = require('./_species-constructor');
 var promiseResolve = require('./_promise-resolve');
 

@@ -1,10 +1,10 @@
 // https://github.com/tc39/proposal-string-pad-start-end
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var repeat = require('./_string-repeat');
-var defined = require('./_defined');
+var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 
 module.exports = function (that, maxLength, fillString, left) {
-  var S = String(defined(that));
+  var S = String(requireObjectCoercible(that));
   var stringLength = S.length;
   var fillStr = fillString === undefined ? ' ' : String(fillString);
   var intMaxLength = toLength(maxLength);

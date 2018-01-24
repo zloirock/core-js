@@ -1,4 +1,4 @@
-var $parseInt = require('./_global').parseInt;
+var $parseInt = require('core-js-internals/global').parseInt;
 var $trim = require('./_string-trim').trim;
 var ws = require('./_string-ws');
 var hex = /^[-+]?0[xX]/;

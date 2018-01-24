@@ -1,2 +1,3 @@
-var document = require('./_global').document;
+var document = require('./global').document;
+
 module.exports = document && document.documentElement;
