@@ -1378,6 +1378,21 @@ core-js(-pure)/fn/symbol/async-iterator
 ```js
 core-js(-pure)/stage/2
 ```
+* `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.description.js)
+```js
+class Symbol {
+  get description: string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/fn/symbol/description
+```
+[*Examples*](https://goo.gl/MWizfc):
+```js
+Symbol('foo').description; // => 'foo'
+Symbol().description;      // => undefined
+```
 * `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.trim-right.js)
 ```js
 class String {
@@ -1408,21 +1423,6 @@ core-js(-pure)/fn/string/virtual/trim-right
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/stage/1
-```
-* `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.description.js)
-```js
-class Symbol {
-  get description: string | void;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/fn/symbol/description
-```
-[*Examples*](https://goo.gl/MWizfc):
-```js
-Symbol('foo').description; // => 'foo'
-Symbol().description;      // => undefined
 ```
 * `String#replaceAll` [proposal](https://github.com/psmarshall/string-replace-all-proposal) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
