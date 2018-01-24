@@ -4,12 +4,12 @@ Contributions are always welcome. If you don't know what how you can help, you c
 
 ## How to add a new polyfill
 
-- The polyfill implementation should be added to the [`modules`](./tree/v3/modules) directory.
-- If the implementation for the `pure` version should differ from the global version, it should be added to [`modules-pure`](./tree/v3/modules-pure) directory.
+- The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
+- If the implementation for the `pure` version should differ from the global version, it should be added to [`packages/core-js-pure/modules-pure`](./packages/core-js-pure/modules-pure) directory.
 - For export the polyfill, in almost all cases should be used `_export` helper.
-- The polyfill should be added to the [list of polyfills](./tree/v3/build/config.js) and to entry points, where it's required: [`index.js`](./index.js), directories [`fn`](./tree/v3/fn), [`es`](./tree/v3/es), [`esnext`](./tree/v3/esnext) and [`web`](./tree/v3/web).
-- Unit tests for the polyfill should be added to [`tests/tests`](./tree/v3/tests/tests) and [`tests/pure`](./tree/v3/tests/pure).
-- All new entry points should be added to [the test of entry points](./tree/v3/tests/commonjs).
+- The polyfill should be added to the [list of polyfills](./packages/core-js-builder/config.js) and to entry points, where it's required: [`packages/core-js/index.js`](./packages/core-js/index.js), directories [`packages/core-js/fn`](./packages/core-js/fn), [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/esnext`](./packages/core-js/esnext) and [`packages/core-js/web`](./packages/core-js/web).
+- Unit tests for the polyfill should be added to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
+- All new entry points should be added to [the test of entry points](./tests/commonjs).
 - Add it to [README.md](./README.md).
 
 ## Style and standards
