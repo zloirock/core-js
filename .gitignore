@@ -5,12 +5,6 @@ node_modules/
 *.swp
 
 /packages/core-js/client/
-/packages/core-js/es/
-/packages/core-js/fn/
-/packages/core-js/modules/
-/packages/core-js/stage/
-/packages/core-js/web/
-/packages/core-js/index.js
 /packages/core-js/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/fn/

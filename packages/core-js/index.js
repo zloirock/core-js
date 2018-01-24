@@ -1,4 +1,3 @@
-'use strict';
 require('./modules/es.symbol');
 require('./modules/es.object.create');
 require('./modules/es.object.define-property');
