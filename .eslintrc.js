@@ -370,12 +370,20 @@ module.exports = {
     worker: true,
   },
   plugins: ['import'],
+  settings: {
+    'import/resolver': {
+      webpack: {
+        config: require('./.webpack.config.js').options,
+      },
+    },
+  },
   rules: base,
   overrides: [
     {
       files: [
         'es/**',
         'fn/**',
+        'packages/core-js-internals/**',
         'packages/core-js-pure/**',
         'modules/**',
         'stage/**',
@@ -388,13 +396,6 @@ module.exports = {
       rules: es3,
     },
     {
-      settings: {
-        'import/resolver': {
-          webpack: {
-            config: require('./.webpack.config.js').options,
-          },
-        },
-      },
       files: [
         'tests/helpers/**',
         'tests/pure/**',

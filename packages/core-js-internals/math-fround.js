@@ -1,5 +1,5 @@
 // 20.2.2.16 Math.fround(x)
-var sign = require('./_math-sign');
+var sign = require('./math-sign');
 var pow = Math.pow;
 var EPSILON = pow(2, -52);
 var EPSILON32 = pow(2, -23);

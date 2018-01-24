@@ -5,5 +5,5 @@ module.exports = require('./_is-pure') || !require('./_fails')(function () {
   // In FF throws only define methods
   // eslint-disable-next-line no-undef, no-useless-call
   __defineSetter__.call(null, K, function () { /* empty */ });
-  delete require('./_global')[K];
+  delete require('core-js-internals/global')[K];
 });

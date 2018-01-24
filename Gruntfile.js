@@ -48,6 +48,9 @@ module.exports = grunt => {
         '!./packages/core-js-pure/package.json',
         '!./packages/core-js-pure/README.md',
       ],
+      'core-js-internals': [
+        './packages/core-js-internals/LICENSE',
+      ],
       'core-js-builder': [
         './packages/core-js-builder/LICENSE',
       ],
@@ -84,6 +87,15 @@ module.exports = grunt => {
             cwd: './modules-pure/',
             src: '*',
             dest: './packages/core-js-pure/modules',
+          },
+        ],
+      },
+      'core-js-internals': {
+        files: [
+          {
+            expand: true,
+            src: ['LICENSE'],
+            dest: './packages/core-js-internals/',
           },
         ],
       },

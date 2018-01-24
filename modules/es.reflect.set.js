@@ -2,10 +2,10 @@
 var dP = require('./_object-dp');
 var gOPD = require('./_object-gopd');
 var getPrototypeOf = require('./_object-gpo');
-var has = require('./_has');
+var has = require('core-js-internals/has');
 var createDesc = require('./_property-desc');
-var anObject = require('./_an-object');
-var isObject = require('./_is-object');
+var anObject = require('core-js-internals/an-object');
+var isObject = require('core-js-internals/is-object');
 
 function set(target, propertyKey, V /* , receiver */) {
   var receiver = arguments.length < 4 ? target : arguments[3];

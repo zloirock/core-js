@@ -1,7 +1,7 @@
 'use strict';
 // 21.1.3.14 String.prototype.padStart(maxLength [ , fillString ])
 var $pad = require('./_string-pad');
-var userAgent = require('./_user-agent');
+var userAgent = require('core-js-internals/user-agent');
 
 // https://github.com/zloirock/core-js/issues/280
 require('./_export')({ target: 'String', proto: true, forced: /Version\/10\.\d+(\.\d+)? Safari\//.test(userAgent) }, {

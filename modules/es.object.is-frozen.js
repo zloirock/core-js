@@ -1,5 +1,5 @@
 // 19.1.2.12 Object.isFrozen(O)
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 
 require('./_object-sap')('isFrozen', function ($isFrozen) {
   return function isFrozen(it) {

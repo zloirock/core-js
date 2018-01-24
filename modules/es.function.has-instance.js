@@ -1,5 +1,5 @@
 'use strict';
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 var getPrototypeOf = require('./_object-gpo');
 var HAS_INSTANCE = require('./_wks')('hasInstance');
 var FunctionProto = Function.prototype;

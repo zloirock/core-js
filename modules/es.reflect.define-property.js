@@ -1,6 +1,6 @@
 // 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
 var dP = require('./_object-dp');
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var toPrimitive = require('./_to-primitive');
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false

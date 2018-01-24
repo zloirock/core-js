@@ -1,5 +1,5 @@
 'use strict';
-var toInteger = require('./_to-integer');
+var toInteger = require('core-js-internals/to-integer');
 var aNumberValue = require('./_a-number-value');
 var repeat = require('./_string-repeat');
 var $toFixed = 1.0.toFixed;

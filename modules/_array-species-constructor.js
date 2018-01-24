@@ -1,4 +1,4 @@
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 var isArray = require('./_is-array');
 var SPECIES = require('./_wks')('species');
 

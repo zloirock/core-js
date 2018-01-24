@@ -1,11 +1,11 @@
 'use strict';
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var $export = require('./_export');
 var redefine = require('./_redefine');
 var meta = require('./_meta');
 var forOf = require('./_for-of');
 var anInstance = require('./_an-instance');
-var isObject = require('./_is-object');
+var isObject = require('core-js-internals/is-object');
 var fails = require('./_fails');
 var $iterDetect = require('./_iter-detect');
 var setToStringTag = require('./_set-to-string-tag');
