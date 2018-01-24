@@ -37,13 +37,12 @@ module.exports = grunt => {
     },
     clean: {
       'core-js': [
-        './packages/core-js/*',
-        '!./packages/core-js/.npmignore',
-        '!./packages/core-js/package.json',
-        '!./packages/core-js/README.md',
+        './packages/core-js/client',
+        './packages/core-js/LICENSE',
       ],
       'core-js-pure': [
         './packages/core-js-pure/*',
+        '!./packages/core-js-pure/modules-pure',
         '!./packages/core-js-pure/.npmignore',
         '!./packages/core-js-pure/package.json',
         '!./packages/core-js-pure/README.md',
@@ -63,11 +62,7 @@ module.exports = grunt => {
         files: [
           {
             expand: true,
-            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js', 'LICENSE'],
-            dest: './packages/core-js/',
-          }, {
-            expand: true,
-            src: 'modules/*',
+            src: ['LICENSE'],
             dest: './packages/core-js/',
           },
         ],
@@ -76,15 +71,16 @@ module.exports = grunt => {
         files: [
           {
             expand: true,
-            src: ['es/**', 'stage/**', 'web/**', 'fn/**', 'index.js', 'LICENSE'],
+            src: ['LICENSE'],
             dest: './packages/core-js-pure/',
           }, {
             expand: true,
-            src: 'modules/*',
+            cwd: './packages/core-js/',
+            src: ['modules/**', 'es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
             dest: './packages/core-js-pure/',
           }, {
             expand: true,
-            cwd: './modules-pure/',
+            cwd: './packages/core-js-pure/modules-pure/',
             src: '*',
             dest: './packages/core-js-pure/modules',
           },
