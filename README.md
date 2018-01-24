@@ -1350,6 +1350,23 @@ core-js(-pure)/fn/array/virtual/flat-map
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
+* `String#matchAll` [proposal](https://tc39.github.io/proposal-string-matchall/) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.match-all.js)
+```js
+class String {
+  matchAll(regexp: RegExp): Iterator;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/fn/string/match-all
+core-js(-pure)/fn/string/virtual/match-all
+```
+[*Examples*](https://goo.gl/AxSqHT):
+```js
+for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
+  console.log(d, D); // => 1 a, 2 b, 3 c
+}
+```
 * `global` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.global.js). **Warning! Due to [web compatibility concerns](https://github.com/tc39/proposal-global/issues/20), this object will be added to the spec under a different name.**
 ```js
 let global: Object;
@@ -1492,23 +1509,6 @@ core-js(-pure)/fn/weak-map/from
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
-```
-* `String#matchAll` [proposal](https://tc39.github.io/proposal-string-matchall/) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.match-all.js)
-```js
-class String {
-  matchAll(regexp: RegExp): Iterator;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/fn/string/match-all
-core-js(-pure)/fn/string/virtual/match-all
-```
-[*Examples*](https://goo.gl/AxSqHT):
-```js
-for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
-  console.log(d, D); // => 1 a, 2 b, 3 c
-}
 ```
 * `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.observable.js)
 ```js
