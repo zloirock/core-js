@@ -1,9 +1,9 @@
 'use strict';
 // https://tc39.github.io/proposal-string-matchall/
-var defined = require('./_defined');
-var toLength = require('./_to-length');
+var requireObjectCoercible = require('core-js-internals/require-object-coercible');
+var toLength = require('core-js-internals/to-length');
 var isRegExp = require('./_is-regexp');
-var getFlags = require('./_flags');
+var getFlags = require('core-js-internals/regexp-flags');
 var hide = require('./_hide');
 var speciesConstructor = require('./_species-constructor');
 var at = require('./_string-at')(true);
@@ -66,7 +66,7 @@ require('./_iter-create')($RegExpStringIterator, 'RegExp String', function next(
 
 require('./_export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
-    var O = defined(this);
+    var O = requireObjectCoercible(this);
     var R = isRegExp(regexp) ? regexp : new $RegExp(regexp, 'g');
     var matcher = R[MATCH_ALL];
     return matcher === undefined ? matchAllIterator(R, O) : matcher.call(R, O);

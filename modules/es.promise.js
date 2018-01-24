@@ -1,10 +1,10 @@
 'use strict';
 var IS_PURE = require('./_is-pure');
-var global = require('./_global');
+var global = require('core-js-internals/global');
 var classof = require('./_classof');
 var $export = require('./_export');
-var isObject = require('./_is-object');
-var aFunction = require('./_a-function');
+var isObject = require('core-js-internals/is-object');
+var aFunction = require('core-js-internals/a-function');
 var anInstance = require('./_an-instance');
 var forOf = require('./_for-of');
 var speciesConstructor = require('./_species-constructor');

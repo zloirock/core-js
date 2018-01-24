@@ -1,7 +1,7 @@
 // false -> Array#indexOf
 // true  -> Array#includes
 var toIObject = require('./_to-iobject');
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var toAbsoluteIndex = require('./_to-absolute-index');
 module.exports = function (IS_INCLUDES) {
   return function ($this, el, fromIndex) {

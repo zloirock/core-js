@@ -1,12 +1,12 @@
 'use strict';
 var redefineAll = require('./_redefine-all');
 var getWeak = require('./_meta').getWeak;
-var anObject = require('./_an-object');
-var isObject = require('./_is-object');
+var anObject = require('core-js-internals/an-object');
+var isObject = require('core-js-internals/is-object');
 var anInstance = require('./_an-instance');
 var forOf = require('./_for-of');
 var createArrayMethod = require('./_array-methods');
-var $has = require('./_has');
+var $has = require('core-js-internals/has');
 var validate = require('./_validate-collection');
 var $ = require('./_state');
 var arrayFind = createArrayMethod(5);

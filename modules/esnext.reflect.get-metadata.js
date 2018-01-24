@@ -1,5 +1,5 @@
 var metadata = require('./_metadata');
-var anObject = require('./_an-object');
+var anObject = require('core-js-internals/an-object');
 var getPrototypeOf = require('./_object-gpo');
 var ordinaryHasOwnMetadata = metadata.has;
 var ordinaryGetOwnMetadata = metadata.get;

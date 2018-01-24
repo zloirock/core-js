@@ -1,6 +1,6 @@
 // 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
 'use strict';
-var toLength = require('./_to-length');
+var toLength = require('core-js-internals/to-length');
 var context = require('./_string-context');
 var ENDS_WITH = 'endsWith';
 var $endsWith = ''[ENDS_WITH];

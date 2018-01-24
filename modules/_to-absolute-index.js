@@ -1,4 +1,4 @@
-var toInteger = require('./_to-integer');
+var toInteger = require('core-js-internals/to-integer');
 var max = Math.max;
 var min = Math.min;
 module.exports = function (index, length) {

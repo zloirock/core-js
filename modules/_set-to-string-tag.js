@@ -1,5 +1,5 @@
 var def = require('./_object-dp').f;
-var has = require('./_has');
+var has = require('core-js-internals/has');
 var TAG = require('./_wks')('toStringTag');
 
 module.exports = function (it, tag, stat) {

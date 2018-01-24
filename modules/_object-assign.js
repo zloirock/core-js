@@ -3,7 +3,7 @@
 var getKeys = require('./_object-keys');
 var gOPS = require('./_object-gops');
 var pIE = require('./_object-pie');
-var toObject = require('./_to-object');
+var toObject = require('core-js-internals/to-object');
 var IObject = require('./_iobject');
 var $assign = Object.assign;
 

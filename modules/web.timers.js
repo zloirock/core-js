@@ -1,6 +1,6 @@
 // ie9- setTimeout & setInterval additional parameters fix
-var global = require('./_global');
-var userAgent = require('./_user-agent');
+var global = require('core-js-internals/global');
+var userAgent = require('core-js-internals/user-agent');
 var slice = [].slice;
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
 var wrap = function (set) {
