@@ -1305,7 +1305,23 @@ instance.c; // => 42
 ```js
 core-js(-pure)/stage/4
 ```
-None.
+
+* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`esnext.promise.finally`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.promise.finally.js)
+```js
+class Promise {
+  finally(onFinally: Function): promise;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/fn/promise/finally
+```
+[*Examples*](https://goo.gl/AhyBbJ):
+```js
+Promise.resolve(42).finally(() => console.log('You will see it anyway'));
+
+Promise.reject(42).finally(() => console.log('You will see it anyway'));
+```
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1345,22 +1361,6 @@ core-js(-pure)/fn/global
 [*Examples*](http://goo.gl/gEqMl7):
 ```js
 global.Array === Array; // => true
-```
-* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`esnext.promise.finally`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.promise.finally.js)
-```js
-class Promise {
-  finally(onFinally: Function): promise;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/fn/promise/finally
-```
-[*Examples*](https://goo.gl/AhyBbJ):
-```js
-Promise.resolve(42).finally(() => console.log('You will see it anyway'));
-
-Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
 * `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.async-iterator.js)
 ```js
