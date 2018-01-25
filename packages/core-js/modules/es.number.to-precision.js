@@ -1,6 +1,6 @@
 'use strict';
 var $fails = require('./_fails');
-var aNumberValue = require('./_a-number-value');
+var thisNumberValue = require('core-js-internals/this-number-value');
 var $toPrecision = 1.0.toPrecision;
 
 require('./_export')({ target: 'Number', proto: true, forced: $fails(function () {
@@ -11,7 +11,7 @@ require('./_export')({ target: 'Number', proto: true, forced: $fails(function ()
   $toPrecision.call({});
 }) }, {
   toPrecision: function toPrecision(precision) {
-    var that = aNumberValue(this, 'Number#toPrecision: incorrect invocation!');
+    var that = thisNumberValue(this);
     return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision);
   }
 });

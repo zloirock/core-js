@@ -2,8 +2,8 @@
 var dP = require('./_object-dp').f;
 var create = require('./_object-create');
 var redefineAll = require('./_redefine-all');
-var ctx = require('./_ctx');
-var anInstance = require('./_an-instance');
+var bind = require('core-js-internals/bind-context');
+var anInstance = require('core-js-internals/an-instance');
 var forOf = require('./_for-of');
 var $iterDefine = require('./_iter-define');
 var step = require('./_iter-step');
@@ -107,7 +107,7 @@ module.exports = {
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
         var state = validate(this, NAME);
-        var f = ctx(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+        var f = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
         var entry;
         while (entry = entry ? entry.next : state.first) {
           f(entry.value, entry.key, this);

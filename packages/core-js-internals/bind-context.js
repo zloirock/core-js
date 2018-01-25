@@ -1,9 +1,13 @@
+var aFunction = require('./a-function');
+
 // optional / simple context binding
-var aFunction = require('core-js-internals/a-function');
 module.exports = function (fn, that, length) {
   aFunction(fn);
   if (that === undefined) return fn;
   switch (length) {
+    case 0: return function () {
+      return fn.call(that);
+    };
     case 1: return function (a) {
       return fn.call(that, a);
     };

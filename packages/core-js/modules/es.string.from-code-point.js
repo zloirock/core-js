@@ -1,4 +1,4 @@
-var toAbsoluteIndex = require('./_to-absolute-index');
+var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
 var fromCharCode = String.fromCharCode;
 var $fromCodePoint = String.fromCodePoint;
 

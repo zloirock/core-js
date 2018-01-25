@@ -1,9 +1,10 @@
-var global = require('core-js-internals/global');
-var macrotask = require('./_task').set;
+var global = require('./global');
+var classof = require('./classof-raw');
+var macrotask = require('./task').set;
 var Observer = global.MutationObserver || global.WebKitMutationObserver;
 var process = global.process;
 var Promise = global.Promise;
-var isNode = require('core-js-internals/classof-raw')(process) == 'process';
+var isNode = classof(process) == 'process';
 
 module.exports = function () {
   var head, last, notify;

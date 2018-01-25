@@ -1,7 +1,7 @@
 var global = require('core-js-internals/global');
 var hide = require('./_hide');
 var has = require('core-js-internals/has');
-var sharedKey = require('./_shared-key');
+var sharedKey = require('core-js-internals/shared-key');
 var hiddenKeys = require('./_hidden-keys');
 var WeakMap = global.WeakMap;
 var exports;

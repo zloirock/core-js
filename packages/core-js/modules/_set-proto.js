@@ -4,22 +4,25 @@ var isObject = require('core-js-internals/is-object');
 var anObject = require('core-js-internals/an-object');
 var check = function (O, proto) {
   anObject(O);
-  if (!isObject(proto) && proto !== null) throw TypeError(proto + ": can't set as prototype!");
+  if (!isObject(proto) && proto !== null) throw TypeError(proto + ": can't set as a prototype!");
 };
 module.exports = {
   set: Object.setPrototypeOf || ('__proto__' in {} ? // eslint-disable-line
-    function (test, buggy, set) {
+    function () {
+      var test = {};
+      var correctSetter = true;
+      var setter;
       try {
-        set = require('./_ctx')(Function.call, require('./_object-gopd').f(Object.prototype, '__proto__').set, 2);
-        set(test, []);
-        buggy = !(test instanceof Array);
-      } catch (e) { buggy = true; }
+        setter = Object.getOwnPropertyDescriptor(Object.prototype, '__proto__').set;
+        setter.call(test, []);
+        correctSetter = test instanceof Array;
+      } catch (e) { correctSetter = false; }
       return function setPrototypeOf(O, proto) {
         check(O, proto);
-        if (buggy) O.__proto__ = proto;
-        else set(O, proto);
+        if (correctSetter) setter.call(O, proto);
+        else O.__proto__ = proto;
         return O;
       };
-    }({}, false) : undefined),
+    }() : undefined),
   check: check
 };
