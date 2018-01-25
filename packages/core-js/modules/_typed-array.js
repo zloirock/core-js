@@ -6,15 +6,15 @@ if (require('./_descriptors')) {
   var $export = require('./_export');
   var $typed = require('./_typed');
   var $buffer = require('./_typed-buffer');
-  var ctx = require('./_ctx');
-  var anInstance = require('./_an-instance');
+  var bind = require('core-js-internals/bind-context');
+  var anInstance = require('core-js-internals/an-instance');
   var propertyDesc = require('./_property-desc');
   var hide = require('./_hide');
   var redefineAll = require('./_redefine-all');
   var toInteger = require('core-js-internals/to-integer');
   var toLength = require('core-js-internals/to-length');
-  var toIndex = require('./_to-index');
-  var toAbsoluteIndex = require('./_to-absolute-index');
+  var toIndex = require('core-js-internals/to-index');
+  var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
   var toPrimitive = require('./_to-primitive');
   var has = require('core-js-internals/has');
   var classof = require('./_classof');
@@ -34,8 +34,8 @@ if (require('./_descriptors')) {
   var Iterators = require('./_iterators');
   var $iterDetect = require('./_iter-detect');
   var setSpecies = require('./_set-species');
-  var arrayFill = require('./_array-fill');
-  var arrayCopyWithin = require('./_array-copy-within');
+  var arrayFill = require('core-js-internals/array-fill');
+  var arrayCopyWithin = require('core-js-internals/array-copy-within');
   var $DP = require('./_object-dp');
   var $GOPD = require('./_object-gopd');
   var $ = require('./_state');
@@ -137,7 +137,7 @@ if (require('./_descriptors')) {
         values.push(step.value);
       } O = values;
     }
-    if (mapping && aLen > 2) mapfn = ctx(mapfn, arguments[2], 2);
+    if (mapping && aLen > 2) mapfn = bind(mapfn, arguments[2], 2);
     for (i = 0, length = toLength(O.length), result = allocate(this, length); length > i; i++) {
       result[i] = mapping ? mapfn(O[i], i) : O[i];
     }

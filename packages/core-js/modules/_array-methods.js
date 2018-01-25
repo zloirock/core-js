@@ -5,7 +5,7 @@
 // 4 -> Array#every
 // 5 -> Array#find
 // 6 -> Array#findIndex
-var ctx = require('./_ctx');
+var bind = require('core-js-internals/bind-context');
 var IObject = require('./_iobject');
 var toObject = require('core-js-internals/to-object');
 var toLength = require('core-js-internals/to-length');
@@ -21,7 +21,7 @@ module.exports = function (TYPE, $create) {
   return function ($this, callbackfn, that) {
     var O = toObject($this);
     var self = IObject(O);
-    var f = ctx(callbackfn, that, 3);
+    var f = bind(callbackfn, that, 3);
     var length = toLength(self.length);
     var index = 0;
     var result = IS_MAP ? create($this, length) : IS_FILTER ? create($this, 0) : undefined;

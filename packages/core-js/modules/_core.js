@@ -4,6 +4,6 @@ var version = [
   '© 2018 Denis Pushkarev (zloirock.ru)'
 ];
 
-require('./_shared')('versions', []).push(version);
+require('core-js-internals/shared')('versions', []).push(version);
 
 module.exports = { version: version };

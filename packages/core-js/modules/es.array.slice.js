@@ -1,7 +1,7 @@
 'use strict';
 var html = require('core-js-internals/html');
 var cof = require('core-js-internals/classof-raw');
-var toAbsoluteIndex = require('./_to-absolute-index');
+var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
 var toLength = require('core-js-internals/to-length');
 var arraySlice = [].slice;
 

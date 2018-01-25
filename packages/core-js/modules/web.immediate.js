@@ -1,6 +1,6 @@
-var $task = require('./_task');
+var task = require('core-js-internals/task');
 
 require('./_export')({ global: true, bind: true }, {
-  setImmediate: $task.set,
-  clearImmediate: $task.clear
+  setImmediate: task.set,
+  clearImmediate: task.clear
 });
