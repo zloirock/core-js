@@ -1,11 +1,10 @@
 'use strict';
 var toInteger = require('core-js-internals/to-integer');
-var aNumberValue = require('./_a-number-value');
-var repeat = require('./_string-repeat');
+var thisNumberValue = require('core-js-internals/this-number-value');
+var repeat = require('core-js-internals/string-repeat');
 var $toFixed = 1.0.toFixed;
 var floor = Math.floor;
 var data = [0, 0, 0, 0, 0, 0];
-var ERROR = 'Number.toFixed: incorrect invocation!';
 var ZERO = '0';
 
 var multiply = function (n, c) {
@@ -61,12 +60,12 @@ require('./_export')({ target: 'Number', proto: true, forced: $toFixed && (
   $toFixed.call({});
 }) }, {
   toFixed: function toFixed(fractionDigits) {
-    var x = aNumberValue(this, ERROR);
+    var x = thisNumberValue(this);
     var f = toInteger(fractionDigits);
     var s = '';
     var m = ZERO;
     var e, z, j, k;
-    if (f < 0 || f > 20) throw RangeError(ERROR);
+    if (f < 0 || f > 20) throw RangeError('Incorrect fraction digits!');
     // eslint-disable-next-line no-self-compare
     if (x != x) return 'NaN';
     if (x <= -1e21 || x >= 1e21) return String(x);

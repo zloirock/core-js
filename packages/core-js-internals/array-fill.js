@@ -1,9 +1,11 @@
-// 22.1.3.6 Array.prototype.fill(value, start = 0, end = this.length)
 'use strict';
-var toObject = require('core-js-internals/to-object');
-var toAbsoluteIndex = require('./_to-absolute-index');
-var toLength = require('core-js-internals/to-length');
-module.exports = function fill(value /* , start = 0, end = @length */) {
+var toObject = require('./to-object');
+var toAbsoluteIndex = require('./to-absolute-index');
+var toLength = require('./to-length');
+
+// `Array.prototype.fill` method implementation
+// https://tc39.github.io/ecma262/#sec-array.prototype.fill
+module.exports = [].fill || function fill(value /* , start = 0, end = @length */) {
   var O = toObject(this);
   var length = toLength(O.length);
   var aLen = arguments.length;

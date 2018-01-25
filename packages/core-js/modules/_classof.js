@@ -1,8 +1,7 @@
-// getting tag from 19.1.3.6 Object.prototype.toString()
 var cof = require('core-js-internals/classof-raw');
-var TAG = require('./_wks')('toStringTag');
+var TO_STRING_TAG = require('./_wks')('toStringTag');
 // ES3 wrong here
-var ARG = cof(function () { return arguments; }()) == 'Arguments';
+var CORRECT_ARGUMENTS = cof(function () { return arguments; }()) == 'Arguments';
 
 // fallback for IE11 Script Access Denied error
 var tryGet = function (it, key) {
@@ -11,13 +10,14 @@ var tryGet = function (it, key) {
   } catch (e) { /* empty */ }
 };
 
+// getting tag from ES6+ `Object.prototype.toString`
 module.exports = function (it) {
-  var O, T, B;
+  var O, tag, result;
   return it === undefined ? 'Undefined' : it === null ? 'Null'
     // @@toStringTag case
-    : typeof (T = tryGet(O = Object(it), TAG)) == 'string' ? T
+    : typeof (tag = tryGet(O = Object(it), TO_STRING_TAG)) == 'string' ? tag
     // builtinTag case
-    : ARG ? cof(O)
+    : CORRECT_ARGUMENTS ? cof(O)
     // ES3 arguments fallback
-    : (B = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : B;
+    : (result = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : result;
 };

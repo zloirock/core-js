@@ -6,7 +6,7 @@ var TO_STRING = 'toString';
 var $toString = Function[TO_STRING];
 var TEMPLATE = ('' + $toString).split(TO_STRING);
 
-require('./_shared')('inspectSource', function (it) {
+require('core-js-internals/shared')('inspectSource', function (it) {
   return $toString.call(it);
 });
 
