@@ -1,4 +1,4 @@
-var ctx = require('./_ctx');
+var bind = require('core-js-internals/bind-context');
 var call = require('./_iter-call');
 var isArrayIter = require('./_is-array-iter');
 var anObject = require('core-js-internals/an-object');
@@ -8,7 +8,7 @@ var BREAK = {};
 var RETURN = {};
 var exports = module.exports = function (iterable, entries, fn, that, ITERATOR) {
   var iterFn = ITERATOR ? function () { return iterable; } : getIterFn(iterable);
-  var f = ctx(fn, that, entries ? 2 : 1);
+  var f = bind(fn, that, entries ? 2 : 1);
   var index = 0;
   var length, step, iterator, result;
   if (typeof iterFn != 'function') throw TypeError(iterable + ' is not iterable!');
