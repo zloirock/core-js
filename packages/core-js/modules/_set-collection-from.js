@@ -2,7 +2,7 @@
 // https://tc39.github.io/proposal-setmap-offrom/
 var $export = require('./_export');
 var aFunction = require('core-js-internals/a-function');
-var ctx = require('./_ctx');
+var bind = require('core-js-internals/bind-context');
 var forOf = require('./_for-of');
 
 module.exports = function (COLLECTION) {
@@ -16,7 +16,7 @@ module.exports = function (COLLECTION) {
     A = [];
     if (mapping) {
       n = 0;
-      cb = ctx(mapFn, arguments[2], 2);
+      cb = bind(mapFn, arguments[2], 2);
       forOf(source, false, function (nextItem) {
         A.push(cb(nextItem, n++));
       });

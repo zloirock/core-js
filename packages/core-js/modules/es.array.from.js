@@ -1,5 +1,5 @@
 'use strict';
-var ctx = require('./_ctx');
+var bind = require('core-js-internals/bind-context');
 var toObject = require('core-js-internals/to-object');
 var call = require('./_iter-call');
 var isArrayIter = require('./_is-array-iter');
@@ -21,7 +21,7 @@ require('./_export')({
     var index = 0;
     var iterFn = getIterFn(O);
     var length, result, step, iterator;
-    if (mapping) mapfn = ctx(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
+    if (mapping) mapfn = bind(mapfn, aLen > 2 ? arguments[2] : undefined, 2);
     // if object isn't iterable or it's array with default iterator - use simple case
     if (iterFn != undefined && !(C == Array && isArrayIter(iterFn))) {
       for (iterator = iterFn.call(O), result = new C(); !(step = iterator.next()).done; index++) {

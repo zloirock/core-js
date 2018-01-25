@@ -1,6 +1,6 @@
 var global = require('core-js-internals/global');
 var core = require('./_core');
-var ctx = require('./_ctx');
+var bind = require('core-js-internals/bind-context');
 var hide = require('./_hide');
 var has = require('core-js-internals/has');
 var PROTOTYPE = 'prototype';
@@ -33,7 +33,7 @@ module.exports = function (options, source) {
     // prevent global pollution for namespaces
     exports[key] = GLOBAL && typeof target[key] != 'function' ? source[key]
     // bind timers to global for call from export context
-    : options.bind && own ? ctx(out, global)
+    : options.bind && own ? bind(out, global)
     // wrap global constructors for prevent change them in the `pure` version
     : options.wrap && target[key] == out ? (function (C) {
       var F = function (a, b, c) {
@@ -48,7 +48,7 @@ module.exports = function (options, source) {
       F[PROTOTYPE] = C[PROTOTYPE];
       return F;
     // make static versions for prototype methods
-    })(out) : PROTO && typeof out == 'function' ? ctx(Function.call, out) : out;
+    })(out) : PROTO && typeof out == 'function' ? bind(Function.call, out) : out;
     // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
     if (PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
