@@ -1,5 +1,5 @@
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
-var microtask = require('./_microtask')();
+var microtask = require('core-js-internals/microtask')();
 var process = require('core-js-internals/global').process;
 var isNode = require('core-js-internals/classof-raw')(process) == 'process';
 

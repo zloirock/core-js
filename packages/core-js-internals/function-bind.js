@@ -12,6 +12,8 @@ var construct = function (F, len, args) {
   } return factories[len](F, args);
 };
 
+// `Function.prototype.bind` method implementation
+// https://tc39.github.io/ecma262/#sec-function.prototype.bind
 module.exports = Function.bind || function bind(that /* , ...args */) {
   var fn = aFunction(this);
   var partArgs = arraySlice.call(arguments, 1);

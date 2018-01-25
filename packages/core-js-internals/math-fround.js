@@ -1,4 +1,3 @@
-// 20.2.2.16 Math.fround(x)
 var sign = require('./math-sign');
 var pow = Math.pow;
 var EPSILON = pow(2, -52);
@@ -10,6 +9,8 @@ var roundTiesToEven = function (n) {
   return n + 1 / EPSILON - 1 / EPSILON;
 };
 
+// `Math.fround` method implementation
+// https://tc39.github.io/ecma262/#sec-math.fround
 module.exports = Math.fround || function fround(x) {
   var $abs = Math.abs(x);
   var $sign = sign(x);

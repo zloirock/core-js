@@ -2,14 +2,14 @@
 var anObject = require('core-js-internals/an-object');
 var dPs = require('./_object-dps');
 var enumBugKeys = require('./_enum-bug-keys');
-var IE_PROTO = require('./_shared-key')('IE_PROTO');
+var IE_PROTO = require('core-js-internals/shared-key')('IE_PROTO');
 var Empty = function () { /* empty */ };
 var PROTOTYPE = 'prototype';
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
 var createDict = function () {
   // Thrash, waste and sodomy: IE GC bug
-  var iframe = require('./_dom-create')('iframe');
+  var iframe = require('core-js-internals/document-create-element')('iframe');
   var i = enumBugKeys.length;
   var lt = '<';
   var gt = '>';

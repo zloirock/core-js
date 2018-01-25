@@ -1,4 +1,4 @@
-var store = require('./_shared')('wks');
+var store = require('core-js-internals/shared')('wks');
 var uid = require('core-js-internals/uid');
 var Symbol = require('core-js-internals/global').Symbol;
 var USE_SYMBOL = typeof Symbol == 'function';

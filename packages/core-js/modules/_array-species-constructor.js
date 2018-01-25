@@ -1,5 +1,5 @@
 var isObject = require('core-js-internals/is-object');
-var isArray = require('./_is-array');
+var isArray = require('core-js-internals/is-array');
 var SPECIES = require('./_wks')('species');
 
 module.exports = function (original) {
