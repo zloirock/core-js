@@ -1,6 +1,6 @@
 'use strict';
 // Forced replacement prototype accessors methods
-module.exports = require('./_is-pure') || !require('./_fails')(function () {
+module.exports = require('./_is-pure') || !require('core-js-internals/fails')(function () {
   var K = Math.random();
   // In FF throws only define methods
   // eslint-disable-next-line no-undef, no-useless-call

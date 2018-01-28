@@ -11,7 +11,7 @@ var forOf = require('./_for-of');
 var hostReportErrors = require('./_host-report-errors');
 var dP = require('./_object-dp').f;
 var $ = require('./_state');
-var DESCRIPTORS = require('./_descriptors');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var OBSERVABLE = require('./_wks')('observable');
 var RETURN = forOf.RETURN;
 

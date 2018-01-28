@@ -6,7 +6,7 @@ var id = 0;
 var isExtensible = Object.isExtensible || function () {
   return true;
 };
-var FREEZE = !require('./_fails')(function () {
+var FREEZE = !require('core-js-internals/fails')(function () {
   return isExtensible(Object.preventExtensions({}));
 });
 var setMeta = function (it) {

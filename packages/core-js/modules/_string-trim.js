@@ -1,6 +1,6 @@
 var $export = require('./_export');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var spaces = require('core-js-internals/whitespaces');
 var space = '[' + spaces + ']';
 var non = '\u200b\u0085';
