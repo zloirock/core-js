@@ -12,7 +12,7 @@ var re2 = /a/g;
 // "new" creates a new object, old webkit buggy here
 var CORRECT_NEW = new $RegExp(re1) !== re1;
 
-if (require('./_descriptors') && (!CORRECT_NEW || require('./_fails')(function () {
+if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-js-internals/fails')(function () {
   re2[require('./_wks')('match')] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';

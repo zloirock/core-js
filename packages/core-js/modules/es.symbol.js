@@ -2,11 +2,11 @@
 // ECMAScript 6 symbols shim
 var global = require('core-js-internals/global');
 var has = require('core-js-internals/has');
-var DESCRIPTORS = require('./_descriptors');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var $export = require('./_export');
 var redefine = require('./_redefine');
 var hiddenKeys = require('./_hidden-keys');
-var $fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var shared = require('core-js-internals/shared');
 var setToStringTag = require('./_set-to-string-tag');
 var uid = require('core-js-internals/uid');
@@ -17,7 +17,7 @@ var enumKeys = require('./_enum-keys');
 var isArray = require('core-js-internals/is-array');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
-var toIObject = require('./_to-iobject');
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var toPrimitive = require('./_to-primitive');
 var createDesc = require('./_property-desc');
 var _create = require('./_object-create');
@@ -48,7 +48,7 @@ var setter = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 hiddenKeys[HIDDEN] = true;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
-var setSymbolDesc = DESCRIPTORS && $fails(function () {
+var setSymbolDesc = DESCRIPTORS && fails(function () {
   return _create(dP({}, 'a', {
     get: function () { return dP(this, 'a', { value: 7 }).a; }
   })).a != 7;
@@ -92,7 +92,7 @@ var $defineProperty = function defineProperty(it, key, D) {
 };
 var $defineProperties = function defineProperties(it, P) {
   anObject(it);
-  var keys = enumKeys(P = toIObject(P));
+  var keys = enumKeys(P = toIndexedObject(P));
   var i = 0;
   var l = keys.length;
   var key;
@@ -108,7 +108,7 @@ var $propertyIsEnumerable = function propertyIsEnumerable(key) {
   return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key] ? E : true;
 };
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
-  it = toIObject(it);
+  it = toIndexedObject(it);
   key = toPrimitive(key, true);
   if (it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return;
   var D = gOPD(it, key);
@@ -116,7 +116,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   return D;
 };
 var $getOwnPropertyNames = function getOwnPropertyNames(it) {
-  var names = gOPN(toIObject(it));
+  var names = gOPN(toIndexedObject(it));
   var result = [];
   var i = 0;
   var key;
@@ -126,7 +126,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it) {
 };
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
   var IS_OP = it === ObjectProto;
-  var names = gOPN(IS_OP ? OPSymbols : toIObject(it));
+  var names = gOPN(IS_OP ? OPSymbols : toIndexedObject(it));
   var result = [];
   var i = 0;
   var key;
@@ -217,7 +217,7 @@ $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
-$JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || $fails(function () {
+$JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
   var S = $Symbol();
   // MS Edge converts symbol values to JSON as {}
   // WebKit converts symbol values to JSON as null

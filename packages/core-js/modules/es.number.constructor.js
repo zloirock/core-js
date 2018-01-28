@@ -4,7 +4,7 @@ var has = require('core-js-internals/has');
 var cof = require('core-js-internals/classof-raw');
 var inheritIfRequired = require('./_inherit-if-required');
 var toPrimitive = require('./_to-primitive');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var gOPN = require('./_object-gopn').f;
 var gOPD = require('./_object-gopd').f;
 var dP = require('./_object-dp').f;
@@ -52,7 +52,7 @@ if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
       && (BROKEN_COF ? fails(function () { proto.valueOf.call(that); }) : cof(that) != NUMBER)
         ? inheritIfRequired(new Base(toNumber(it)), that, $Number) : toNumber(it);
   };
-  for (var keys = require('./_descriptors') ? gOPN(Base) : (
+  for (var keys = require('core-js-internals/descriptors') ? gOPN(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES2015 (in case, if modules with ES2015 Number statics required before):

@@ -1,10 +1,10 @@
 var has = require('core-js-internals/has');
-var toIObject = require('./_to-iobject');
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var arrayIndexOf = require('./_array-includes')(false);
 var hiddenKeys = require('./_hidden-keys');
 
 module.exports = function (object, names) {
-  var O = toIObject(object);
+  var O = toIndexedObject(object);
   var i = 0;
   var result = [];
   var key;

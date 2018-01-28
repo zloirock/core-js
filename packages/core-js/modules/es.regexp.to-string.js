@@ -1,8 +1,8 @@
 'use strict';
-require('./es.regexp.flags');
 var anObject = require('core-js-internals/an-object');
-var $flags = require('core-js-internals/regexp-flags');
-var DESCRIPTORS = require('./_descriptors');
+var fails = require('core-js-internals/fails');
+var flags = require('core-js-internals/regexp-flags');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var TO_STRING = 'toString';
 var $toString = /./[TO_STRING];
 
@@ -11,11 +11,11 @@ var define = function (fn) {
 };
 
 // 21.2.5.14 RegExp.prototype.toString()
-if (require('./_fails')(function () { return $toString.call({ source: 'a', flags: 'b' }) != '/a/b'; })) {
+if (fails(function () { return $toString.call({ source: 'a', flags: 'b' }) != '/a/b'; })) {
   define(function toString() {
     var R = anObject(this);
     return '/'.concat(R.source, '/',
-      'flags' in R ? R.flags : !DESCRIPTORS && R instanceof RegExp ? $flags.call(R) : undefined);
+      'flags' in R ? R.flags : !DESCRIPTORS && R instanceof RegExp ? flags.call(R) : undefined);
   });
 // FF44- RegExp#toString has a wrong name
 } else if ($toString.name != TO_STRING) {
