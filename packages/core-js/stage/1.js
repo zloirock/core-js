@@ -1,3 +1,4 @@
+require('../modules/esnext.array.end');
 require('../modules/esnext.map.of');
 require('../modules/esnext.set.of');
 require('../modules/esnext.weak-map.of');

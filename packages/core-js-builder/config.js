@@ -147,6 +147,7 @@ module.exports = {
     'es.typed.uint32-array',
     'es.typed.float32-array',
     'es.typed.float64-array',
+    'esnext.array.end',
     'esnext.array.flat-map',
     'esnext.array.flatten',
     'esnext.string.at',
