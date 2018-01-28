@@ -60,6 +60,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(typeof require(`${ PATH }/fn/array/last-index-of`) === 'function');
   ok(require(`${ PATH }/fn/array/copy-within`)([1, 2, 3, 4, 5], 0, 3)[0] === 4);
   ok('next' in require(`${ PATH }/fn/array/entries`)([]));
+  require(`${ PATH }/fn/array/end`);
   ok(require(`${ PATH }/fn/array/fill`)(Array(5), 2)[0] === 2);
   ok(require(`${ PATH }/fn/array/find`)([2, 3, 4], it => it % 2) === 3);
   ok(require(`${ PATH }/fn/array/find-index`)([2, 3, 4], it => it % 2) === 1);

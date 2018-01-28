@@ -1441,6 +1441,26 @@ Symbol().description;      // => undefined
 ```js
 core-js(-pure)/stage/1
 ```
+* `Array#end` [proposal](https://github.com/keithamus/proposal-array-last) - module [`esnext.array.end`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.end.js)
+```js
+class Array {
+  get end: value;
+  set end(value);
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/fn/array/end
+```
+[*Examples*](https://goo.gl/STnWBT):
+```js
+[1, 2, 3].end; // => 3
+
+const array = [1, 2, 3];
+array.end = 4;
+
+array; // => [1, 2, 4]
+```
 * `String#replaceAll` [proposal](https://github.com/psmarshall/string-replace-all-proposal) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
