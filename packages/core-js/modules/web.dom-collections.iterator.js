@@ -1,4 +1,4 @@
-var DOMIterables = require('./_dom-iterables');
+var DOMIterables = require('core-js-internals/dom-iterables');
 var $iterators = require('./es.array.iterator');
 var redefine = require('./_redefine');
 var global = require('core-js-internals/global');

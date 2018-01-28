@@ -5,7 +5,7 @@ var getPrototypeOf = require('./_object-gpo');
 var getOwnPropertyDescriptor = require('./_object-gopd').f;
 
 // B.2.2.5 Object.prototype.__lookupSetter__(P)
-if (require('./_descriptors')) {
+if (require('core-js-internals/descriptors')) {
   require('./_export')({ target: 'Object', proto: true, forced: require('./_object-forced-pam') }, {
     __lookupSetter__: function __lookupSetter__(P) {
       var O = toObject(this);

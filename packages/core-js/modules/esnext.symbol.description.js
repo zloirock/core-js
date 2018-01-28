@@ -1,6 +1,6 @@
 // https://tc39.github.io/proposal-Symbol-description/
 'use strict';
-var DESCRIPTORS = require('./_descriptors');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var has = require('core-js-internals/has');
 var isObject = require('core-js-internals/is-object');
 var gOPN = require('./_object-gopn').f;

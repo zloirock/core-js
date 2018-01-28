@@ -2,7 +2,7 @@
 var createProperty = require('./_create-property');
 
 // WebKit Array.of isn't generic
-require('./_export')({ target: 'Array', stat: true, forced: require('./_fails')(function () {
+require('./_export')({ target: 'Array', stat: true, forced: require('core-js-internals/fails')(function () {
   function F() { /* empty */ }
   return !(Array.of.call(F) instanceof F);
 }) }, {

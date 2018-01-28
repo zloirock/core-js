@@ -1,8 +1,8 @@
 'use strict';
-if (require('./_descriptors')) {
+if (require('core-js-internals/descriptors')) {
   var IS_PURE = require('./_is-pure');
   var global = require('core-js-internals/global');
-  var fails = require('./_fails');
+  var fails = require('core-js-internals/fails');
   var $export = require('./_export');
   var $typed = require('./_typed');
   var $buffer = require('./_typed-buffer');

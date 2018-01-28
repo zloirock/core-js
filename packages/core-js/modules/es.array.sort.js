@@ -1,7 +1,7 @@
 'use strict';
 var aFunction = require('core-js-internals/a-function');
 var toObject = require('core-js-internals/to-object');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var $sort = [].sort;
 var test = [1, 2, 3];
 

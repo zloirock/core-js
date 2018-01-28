@@ -1,8 +1,9 @@
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var dP = require('./_object-dp');
 var anObject = require('core-js-internals/an-object');
 var getKeys = require('./_object-keys');
 
-module.exports = require('./_descriptors') ? Object.defineProperties : function defineProperties(O, Properties) {
+module.exports = DESCRIPTORS ? Object.defineProperties : function defineProperties(O, Properties) {
   anObject(O);
   var keys = getKeys(Properties);
   var length = keys.length;
