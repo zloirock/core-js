@@ -1,5 +1,5 @@
 require('./es.array.iterator');
-var DOMIterables = require('./_dom-iterables');
+var DOMIterables = require('core-js-internals/dom-iterables');
 var global = require('core-js-internals/global');
 var hide = require('./_hide');
 var Iterators = require('./_iterators');

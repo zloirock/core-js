@@ -4,7 +4,7 @@ var anObject = require('core-js-internals/an-object');
 var toPrimitive = require('./_to-primitive');
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
-require('./_export')({ target: 'Reflect', stat: true, forced: require('./_fails')(function () {
+require('./_export')({ target: 'Reflect', stat: true, forced: require('core-js-internals/fails')(function () {
   // eslint-disable-next-line no-undef
   Reflect.defineProperty(dP.f({}, 1, { value: 1 }), 1, { value: 2 });
 }) }, {

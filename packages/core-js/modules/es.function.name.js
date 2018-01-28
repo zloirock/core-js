@@ -4,7 +4,7 @@ var nameRE = /^\s*function ([^ (]*)/;
 var NAME = 'name';
 
 // 19.2.4.2 name
-NAME in FProto || require('./_descriptors') && dP(FProto, NAME, {
+NAME in FProto || require('core-js-internals/descriptors') && dP(FProto, NAME, {
   configurable: true,
   get: function () {
     try {

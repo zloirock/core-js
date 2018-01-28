@@ -1,9 +1,9 @@
 var getKeys = require('./_object-keys');
-var toIObject = require('./_to-iobject');
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var isEnum = require('./_object-pie').f;
 module.exports = function (isEntries) {
   return function (it) {
-    var O = toIObject(it);
+    var O = toIndexedObject(it);
     var keys = getKeys(O);
     var length = keys.length;
     var i = 0;

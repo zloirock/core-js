@@ -3,7 +3,7 @@ var create = require('./_object-create');
 var aFunction = require('core-js-internals/a-function');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var bind = require('core-js-internals/function-bind');
 var rConstruct = (require('core-js-internals/global').Reflect || {}).construct;
 

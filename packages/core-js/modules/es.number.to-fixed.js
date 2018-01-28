@@ -55,7 +55,7 @@ require('./_export')({ target: 'Number', proto: true, forced: $toFixed && (
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
   1000000000000000128.0.toFixed(0) !== '1000000000000000128'
-) || !require('./_fails')(function () {
+) || !require('core-js-internals/fails')(function () {
   // V8 ~ Android 4.3-
   $toFixed.call({});
 }) }, {
