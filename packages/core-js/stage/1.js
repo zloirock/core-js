@@ -16,6 +16,7 @@ require('../modules/esnext.math.radians');
 require('../modules/esnext.math.scale');
 require('../modules/esnext.math.signbit');
 require('../modules/esnext.promise.try');
+require('../modules/esnext.string.code-points');
 require('../modules/esnext.string.replace-all');
 require('../modules/esnext.symbol.observable');
 require('../modules/esnext.observable');
