@@ -4,11 +4,11 @@ var getKeys = require('./_object-keys');
 var gOPS = require('./_object-gops');
 var pIE = require('./_object-pie');
 var toObject = require('core-js-internals/to-object');
-var IObject = require('./_iobject');
+var IndexedObject = require('core-js-internals/indexed-object');
 var $assign = Object.assign;
 
 // should work with symbols and should have deterministic property order (V8 bug)
-module.exports = !$assign || require('./_fails')(function () {
+module.exports = !$assign || require('core-js-internals/fails')(function () {
   var A = {};
   var B = {};
   // eslint-disable-next-line no-undef
@@ -24,7 +24,7 @@ module.exports = !$assign || require('./_fails')(function () {
   var getSymbols = gOPS.f;
   var isEnum = pIE.f;
   while (aLen > index) {
-    var S = IObject(arguments[index++]);
+    var S = IndexedObject(arguments[index++]);
     var keys = getSymbols ? getKeys(S).concat(getSymbols(S)) : getKeys(S);
     var length = keys.length;
     var j = 0;

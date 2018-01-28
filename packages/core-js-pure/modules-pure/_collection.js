@@ -2,7 +2,7 @@
 var global = require('core-js-internals/global');
 var $export = require('./_export');
 var meta = require('./_meta');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var hide = require('./_hide');
 var forOf = require('./_for-of');
 var anInstance = require('core-js-internals/an-instance');
@@ -10,7 +10,7 @@ var isObject = require('core-js-internals/is-object');
 var setToStringTag = require('./_set-to-string-tag');
 var dP = require('./_object-dp').f;
 var each = require('./_array-methods')(0);
-var DESCRIPTORS = require('./_descriptors');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 
 module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var Base = global[NAME];

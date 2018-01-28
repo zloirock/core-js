@@ -3,7 +3,7 @@ var expm1 = require('core-js-internals/math-expm1');
 var exp = Math.exp;
 
 // V8 near Chromium 38 has a problem with very small numbers
-require('./_export')({ target: 'Math', stat: true, forced: require('./_fails')(function () {
+require('./_export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
   return !Math.sinh(-2e-17) != -2e-17;
 }) }, {
   sinh: function sinh(x) {

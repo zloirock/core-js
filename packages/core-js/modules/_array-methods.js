@@ -6,7 +6,7 @@
 // 5 -> Array#find
 // 6 -> Array#findIndex
 var bind = require('core-js-internals/bind-context');
-var IObject = require('./_iobject');
+var IndexedObject = require('core-js-internals/indexed-object');
 var toObject = require('core-js-internals/to-object');
 var toLength = require('core-js-internals/to-length');
 var asc = require('./_array-species-create');
@@ -20,7 +20,7 @@ module.exports = function (TYPE, $create) {
   var create = $create || asc;
   return function ($this, callbackfn, that) {
     var O = toObject($this);
-    var self = IObject(O);
+    var self = IndexedObject(O);
     var f = bind(callbackfn, that, 3);
     var length = toLength(self.length);
     var index = 0;

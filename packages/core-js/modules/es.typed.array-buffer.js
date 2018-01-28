@@ -24,7 +24,7 @@ $export({ target: ARRAY_BUFFER, stat: true, forced: !$typed.CONSTR }, {
   }
 });
 
-$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('./_fails')(function () {
+$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('core-js-internals/fails')(function () {
   return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
 }) }, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)

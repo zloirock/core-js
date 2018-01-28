@@ -1,7 +1,7 @@
 'use strict';
 var hide = require('./_hide');
 var redefine = require('./_redefine');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var wks = require('./_wks');
 

@@ -1,10 +1,10 @@
-var toIObject = require('./_to-iobject');
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var toLength = require('core-js-internals/to-length');
 
 require('./_export')({ target: 'String', stat: true }, {
   // 21.1.2.4 String.raw(callSite, ...substitutions)
   raw: function raw(callSite) {
-    var tpl = toIObject(callSite.raw);
+    var tpl = toIndexedObject(callSite.raw);
     var len = toLength(tpl.length);
     var aLen = arguments.length;
     var res = [];

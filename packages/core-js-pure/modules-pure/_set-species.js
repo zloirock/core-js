@@ -2,7 +2,7 @@
 var global = require('core-js-internals/global');
 var core = require('./_core');
 var dP = require('./_object-dp');
-var DESCRIPTORS = require('./_descriptors');
+var DESCRIPTORS = require('core-js-internals/descriptors');
 var SPECIES = require('./_wks')('species');
 
 module.exports = function (KEY) {
