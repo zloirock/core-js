@@ -148,6 +148,7 @@ require('./modules/esnext.array.end');
 require('./modules/esnext.array.flat-map');
 require('./modules/esnext.array.flatten');
 require('./modules/esnext.string.at');
+require('./modules/esnext.string.code-points');
 require('./modules/esnext.string.trim-left');
 require('./modules/esnext.string.trim-right');
 require('./modules/esnext.string.replace-all');

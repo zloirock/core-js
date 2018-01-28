@@ -151,6 +151,7 @@ module.exports = {
     'esnext.array.flat-map',
     'esnext.array.flatten',
     'esnext.string.at',
+    'esnext.string.code-points',
     'esnext.string.trim-left',
     'esnext.string.trim-right',
     'esnext.string.replace-all',

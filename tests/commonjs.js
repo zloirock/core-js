@@ -193,6 +193,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(typeof require(`${ PATH }/fn/string/sub`) === 'function');
   ok(typeof require(`${ PATH }/fn/string/sup`) === 'function');
   ok(require(`${ PATH }/fn/string/at`)('a', 0) === 'a');
+  ok('next' in require(`${ PATH }/fn/string/code-points`)('a'));
   ok(require(`${ PATH }/fn/string/pad-start`)('a', 3) === '  a');
   ok(require(`${ PATH }/fn/string/pad-end`)('a', 3) === 'a  ');
   ok(require(`${ PATH }/fn/string/trim-start`)(' a ') === 'a ');
@@ -220,6 +221,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(typeof require(`${ PATH }/fn/string/virtual/sub`) === 'function');
   ok(typeof require(`${ PATH }/fn/string/virtual/sup`) === 'function');
   ok(require(`${ PATH }/fn/string/virtual/at`).call('a', 0) === 'a');
+  ok('next' in require(`${ PATH }/fn/string/virtual/code-points`).call('a'));
   ok(require(`${ PATH }/fn/string/virtual/pad-start`).call('a', 3) === '  a');
   ok(require(`${ PATH }/fn/string/virtual/pad-end`).call('a', 3) === 'a  ');
   ok(require(`${ PATH }/fn/string/virtual/trim-start`).call(' a ') === 'a ');

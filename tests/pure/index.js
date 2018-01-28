@@ -170,6 +170,7 @@ import './esnext.reflect.metadata';
 import './esnext.set.from';
 import './esnext.set.of';
 import './esnext.string.at';
+import './esnext.string.code-points';
 import './esnext.string.match-all';
 import './esnext.string.trim-left';
 import './esnext.string.trim-right';
