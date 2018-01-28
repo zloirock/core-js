@@ -144,6 +144,7 @@ require('./modules/es.reflect.own-keys');
 require('./modules/es.reflect.prevent-extensions');
 require('./modules/es.reflect.set');
 require('./modules/es.reflect.set-prototype-of');
+require('./modules/esnext.array.end');
 require('./modules/esnext.array.flat-map');
 require('./modules/esnext.array.flatten');
 require('./modules/esnext.string.at');
