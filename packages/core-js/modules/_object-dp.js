@@ -1,9 +1,10 @@
+var DESCRIPTORS = require('core-js-internals/descriptors');
+var IE8_DOM_DEFINE = require('core-js-internals/ie8-dom-define');
 var anObject = require('core-js-internals/an-object');
-var IE8_DOM_DEFINE = require('./_ie8-dom-define');
 var toPrimitive = require('./_to-primitive');
 var dP = Object.defineProperty;
 
-exports.f = require('./_descriptors') ? Object.defineProperty : function defineProperty(O, P, Attributes) {
+exports.f = DESCRIPTORS ? Object.defineProperty : function defineProperty(O, P, Attributes) {
   anObject(O);
   P = toPrimitive(P, true);
   anObject(Attributes);

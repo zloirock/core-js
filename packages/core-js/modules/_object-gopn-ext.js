@@ -1,5 +1,5 @@
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
-var toIObject = require('./_to-iobject');
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var gOPN = require('./_object-gopn').f;
 var toString = {}.toString;
 
@@ -15,5 +15,5 @@ var getWindowNames = function (it) {
 };
 
 module.exports.f = function getOwnPropertyNames(it) {
-  return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIObject(it));
+  return windowNames && toString.call(it) == '[object Window]' ? getWindowNames(it) : gOPN(toIndexedObject(it));
 };

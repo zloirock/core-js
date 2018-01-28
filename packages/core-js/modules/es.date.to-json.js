@@ -2,7 +2,7 @@
 var toObject = require('core-js-internals/to-object');
 var toPrimitive = require('./_to-primitive');
 
-require('./_export')({ target: 'Date', proto: true, forced: require('./_fails')(function () {
+require('./_export')({ target: 'Date', proto: true, forced: require('core-js-internals/fails')(function () {
   return new Date(NaN).toJSON() !== null
     || Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) !== 1;
 }) }, {

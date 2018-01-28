@@ -1,8 +1,8 @@
 'use strict';
+var toIndexedObject = require('core-js-internals/to-indexed-object');
 var addToUnscopables = require('./_add-to-unscopables');
 var step = require('./_iter-step');
 var Iterators = require('./_iterators');
-var toIObject = require('./_to-iobject');
 var $ = require('./_state');
 
 // 22.1.3.4 Array.prototype.entries()
@@ -11,9 +11,9 @@ var $ = require('./_state');
 // 22.1.3.30 Array.prototype[@@iterator]()
 module.exports = require('./_iter-define')(Array, 'Array', function (iterated, kind) {
   $(this, {
-    target: toIObject(iterated), // target
-    index: 0,                    // next index
-    kind: kind                   // kind
+    target: toIndexedObject(iterated), // target
+    index: 0,                          // next index
+    kind: kind                         // kind
   });
 // 22.1.5.2.1 %ArrayIteratorPrototype%.next()
 }, function () {

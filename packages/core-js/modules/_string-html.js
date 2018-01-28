@@ -1,5 +1,5 @@
 var $export = require('./_export');
-var fails = require('./_fails');
+var fails = require('core-js-internals/fails');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var quot = /"/g;
 // B.2.3.2.1 CreateHTML(string, tag, attribute, value)

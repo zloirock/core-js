@@ -6,7 +6,7 @@ var toLength = require('core-js-internals/to-length');
 var arraySlice = [].slice;
 
 // fallback for not array-like ES3 strings and DOM objects
-require('./_export')({ target: 'Array', proto: true, forced: require('./_fails')(function () {
+require('./_export')({ target: 'Array', proto: true, forced: require('core-js-internals/fails')(function () {
   if (html) arraySlice.call(html);
 }) }, {
   slice: function slice(begin, end) {
