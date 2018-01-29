@@ -1,7 +1,7 @@
-var cof = require('core-js-internals/classof-raw');
-var TO_STRING_TAG = require('./_wks')('toStringTag');
+var classofRaw = require('./classof-raw');
+var TO_STRING_TAG = require('./well-known-symbol')('toStringTag');
 // ES3 wrong here
-var CORRECT_ARGUMENTS = cof(function () { return arguments; }()) == 'Arguments';
+var CORRECT_ARGUMENTS = classofRaw(function () { return arguments; }()) == 'Arguments';
 
 // fallback for IE11 Script Access Denied error
 var tryGet = function (it, key) {
@@ -17,7 +17,7 @@ module.exports = function (it) {
     // @@toStringTag case
     : typeof (tag = tryGet(O = Object(it), TO_STRING_TAG)) == 'string' ? tag
     // builtinTag case
-    : CORRECT_ARGUMENTS ? cof(O)
+    : CORRECT_ARGUMENTS ? classofRaw(O)
     // ES3 arguments fallback
-    : (result = cof(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : result;
+    : (result = classofRaw(O)) == 'Object' && typeof O.callee == 'function' ? 'Arguments' : result;
 };

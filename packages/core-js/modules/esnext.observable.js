@@ -12,7 +12,7 @@ var hostReportErrors = require('./_host-report-errors');
 var dP = require('./_object-dp').f;
 var $ = require('./_state');
 var DESCRIPTORS = require('core-js-internals/descriptors');
-var OBSERVABLE = require('./_wks')('observable');
+var OBSERVABLE = require('core-js-internals/well-known-symbol')('observable');
 var RETURN = forOf.RETURN;
 
 var getMethod = function (fn) {

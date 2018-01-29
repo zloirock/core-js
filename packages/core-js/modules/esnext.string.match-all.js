@@ -2,12 +2,12 @@
 // https://tc39.github.io/proposal-string-matchall/
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var toLength = require('core-js-internals/to-length');
-var isRegExp = require('./_is-regexp');
+var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
 var hide = require('./_hide');
-var speciesConstructor = require('./_species-constructor');
+var speciesConstructor = require('core-js-internals/species-constructor');
 var at = require('./_string-at')(true);
-var MATCH_ALL = require('./_wks')('matchAll');
+var MATCH_ALL = require('core-js-internals/well-known-symbol')('matchAll');
 var IS_PURE = require('./_is-pure');
 var $ = require('./_state');
 var $RegExp = RegExp;
