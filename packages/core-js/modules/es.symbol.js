@@ -10,7 +10,7 @@ var fails = require('core-js-internals/fails');
 var shared = require('core-js-internals/shared');
 var setToStringTag = require('./_set-to-string-tag');
 var uid = require('core-js-internals/uid');
-var wks = require('./_wks');
+var wellKnownSymbol = require('core-js-internals/well-known-symbol');
 var wksExt = require('./_wks-ext');
 var wksDefine = require('./_wks-define');
 var enumKeys = require('./_enum-keys');
@@ -34,11 +34,12 @@ var $Symbol = global.Symbol;
 var $JSON = global.JSON;
 var _stringify = $JSON && $JSON.stringify;
 var PROTOTYPE = 'prototype';
-var TO_PRIMITIVE = wks('toPrimitive');
+var TO_PRIMITIVE = wellKnownSymbol('toPrimitive');
 var isEnum = {}.propertyIsEnumerable;
 var SymbolRegistry = shared('symbol-registry');
 var AllSymbols = shared('symbols');
 var OPSymbols = shared('op-symbols');
+var WellKnownSymbolsStore = shared('wks');
 var ObjectProto = Object[PROTOTYPE];
 var USE_NATIVE = typeof $Symbol == 'function';
 var QObject = global.QObject;
@@ -172,7 +173,7 @@ if (!USE_NATIVE) {
   }
 
   wksExt.f = function (name) {
-    return wrap(wks(name), name);
+    return wrap(wellKnownSymbol(name), name);
   };
 }
 
@@ -181,9 +182,11 @@ $export({ global: true, wrap: true, forced: !USE_NATIVE }, { Symbol: $Symbol });
 for (var es6Symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
-).split(','), j = 0; es6Symbols.length > j;)wks(es6Symbols[j++]);
+).split(','), j = 0; es6Symbols.length > j;) wellKnownSymbol(es6Symbols[j++]);
 
-for (var wellKnownSymbols = $keys(wks.store), k = 0; wellKnownSymbols.length > k;) wksDefine(wellKnownSymbols[k++]);
+for (var wellKnownSymbols = $keys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
+  wksDefine(wellKnownSymbols[k++]);
+}
 
 $export({ target: 'Symbol', stat: true, forced: !USE_NATIVE }, {
   // 19.4.2.1 Symbol.for(key)

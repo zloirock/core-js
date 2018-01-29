@@ -9,7 +9,7 @@ var bind = require('core-js-internals/bind-context');
 var IndexedObject = require('core-js-internals/indexed-object');
 var toObject = require('core-js-internals/to-object');
 var toLength = require('core-js-internals/to-length');
-var asc = require('./_array-species-create');
+var asc = require('core-js-internals/array-species-create');
 module.exports = function (TYPE, $create) {
   var IS_MAP = TYPE == 1;
   var IS_FILTER = TYPE == 2;
