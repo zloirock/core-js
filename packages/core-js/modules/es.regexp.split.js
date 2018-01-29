@@ -1,7 +1,7 @@
 // @@split logic
 require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
   'use strict';
-  var isRegExp = require('./_is-regexp');
+  var isRegExp = require('core-js-internals/is-regexp');
   var _split = $split;
   var $push = [].push;
   var $SPLIT = 'split';
