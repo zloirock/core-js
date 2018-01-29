@@ -13,7 +13,10 @@ if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototyp
   // wrap Symbol constructor for correct work with undefined description
   var $Symbol = function Symbol() {
     var description = arguments.length < 1 || arguments[0] === undefined ? undefined : String(arguments[0]);
-    var result = this instanceof $Symbol ? new Base(description) : Base(description);
+    var result = this instanceof $Symbol
+      ? new Base(description)
+      // in Edge 13, String(Symbol(undefined)) === 'Symbol(undefined)'
+      : description === undefined ? Base() : Base(description);
     if (description === '') emptyStringDescriptionStore[result] = true;
     return result;
   };
