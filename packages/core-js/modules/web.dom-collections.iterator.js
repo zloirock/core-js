@@ -4,9 +4,9 @@ var redefine = require('./_redefine');
 var global = require('core-js-internals/global');
 var hide = require('./_hide');
 var Iterators = require('./_iterators');
-var wks = require('./_wks');
-var ITERATOR = wks('iterator');
-var TO_STRING_TAG = wks('toStringTag');
+var wellKnownSymbol = require('core-js-internals/well-known-symbol');
+var ITERATOR = wellKnownSymbol('iterator');
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ArrayValues = Iterators.Array;
 
 for (var NAME in DOMIterables) {

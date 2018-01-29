@@ -1,1 +1,1 @@
-exports.f = require('./_wks');
+exports.f = require('core-js-internals/well-known-symbol');

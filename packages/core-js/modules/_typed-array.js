@@ -17,7 +17,7 @@ if (require('core-js-internals/descriptors')) {
   var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
   var toPrimitive = require('./_to-primitive');
   var has = require('core-js-internals/has');
-  var classof = require('./_classof');
+  var classof = require('core-js-internals/classof');
   var isObject = require('core-js-internals/is-object');
   var toObject = require('core-js-internals/to-object');
   var isArrayIter = require('./_is-array-iter');
@@ -26,10 +26,10 @@ if (require('core-js-internals/descriptors')) {
   var gOPN = require('./_object-gopn').f;
   var getIterFn = require('./core.get-iterator-method');
   var uid = require('core-js-internals/uid');
-  var wks = require('./_wks');
+  var wellKnownSymbol = require('core-js-internals/well-known-symbol');
   var createArrayMethod = require('./_array-methods');
   var createArrayIncludes = require('./_array-includes');
-  var speciesConstructor = require('./_species-constructor');
+  var speciesConstructor = require('core-js-internals/species-constructor');
   var ArrayIterators = require('./es.array.iterator');
   var Iterators = require('./_iterators');
   var $iterDetect = require('./_iter-detect');
@@ -70,8 +70,8 @@ if (require('core-js-internals/descriptors')) {
   var arraySlice = ArrayProto.slice;
   var arrayToString = ArrayProto.toString;
   var arrayToLocaleString = ArrayProto.toLocaleString;
-  var ITERATOR = wks('iterator');
-  var TAG = wks('toStringTag');
+  var ITERATOR = wellKnownSymbol('iterator');
+  var TAG = wellKnownSymbol('toStringTag');
   var TYPED_CONSTRUCTOR = uid('typed_constructor');
   var DEF_CONSTRUCTOR = uid('def_constructor');
   var ALL_CONSTRUCTORS = $typed.CONSTR;
