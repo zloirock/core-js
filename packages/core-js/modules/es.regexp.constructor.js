@@ -2,8 +2,8 @@ var global = require('core-js-internals/global');
 var inheritIfRequired = require('./_inherit-if-required');
 var dP = require('./_object-dp').f;
 var gOPN = require('./_object-gopn').f;
-var isRegExp = require('./_is-regexp');
-var $flags = require('core-js-internals/regexp-flags');
+var isRegExp = require('core-js-internals/is-regexp');
+var getFlags = require('core-js-internals/regexp-flags');
 var $RegExp = global.RegExp;
 var Base = $RegExp;
 var proto = $RegExp.prototype;
@@ -13,7 +13,7 @@ var re2 = /a/g;
 var CORRECT_NEW = new $RegExp(re1) !== re1;
 
 if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-js-internals/fails')(function () {
-  re2[require('./_wks')('match')] = false;
+  re2[require('core-js-internals/well-known-symbol')('match')] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';
 }))) {
@@ -24,7 +24,7 @@ if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-j
     return !tiRE && piRE && p.constructor === $RegExp && fiU ? p
       : inheritIfRequired(CORRECT_NEW
         ? new Base(piRE && !fiU ? p.source : p, f)
-        : Base((piRE = p instanceof $RegExp) ? p.source : p, piRE && fiU ? $flags.call(p) : f)
+        : Base((piRE = p instanceof $RegExp) ? p.source : p, piRE && fiU ? getFlags.call(p) : f)
       , tiRE ? this : proto, $RegExp);
   };
   var proxy = function (key) {

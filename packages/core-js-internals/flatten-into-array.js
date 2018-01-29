@@ -1,10 +1,11 @@
 'use strict';
-// https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
-var isArray = require('core-js-internals/is-array');
-var toLength = require('core-js-internals/to-length');
-var bind = require('core-js-internals/bind-context');
+var isArray = require('./is-array');
+var toLength = require('./to-length');
+var bind = require('./bind-context');
 
-function flattenIntoArray(target, original, source, sourceLen, start, depth, mapper, thisArg) {
+// `FlattenIntoArray` abstract operation
+// https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
+var flattenIntoArray = function (target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
   var mapFn = mapper ? bind(mapper, thisArg, 3) : false;
@@ -26,6 +27,6 @@ function flattenIntoArray(target, original, source, sourceLen, start, depth, map
     sourceIndex++;
   }
   return targetIndex;
-}
+};
 
 module.exports = flattenIntoArray;

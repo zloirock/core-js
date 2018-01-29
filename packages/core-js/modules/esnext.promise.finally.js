@@ -2,7 +2,7 @@
 'use strict';
 var path = require('./_path');
 var global = require('core-js-internals/global');
-var speciesConstructor = require('./_species-constructor');
+var speciesConstructor = require('core-js-internals/species-constructor');
 var promiseResolve = require('./_promise-resolve');
 
 require('./_export')({ target: 'Promise', proto: true, real: true }, { 'finally': function (onFinally) {

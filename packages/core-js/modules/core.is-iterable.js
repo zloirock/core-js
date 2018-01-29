@@ -1,5 +1,5 @@
-var classof = require('./_classof');
-var ITERATOR = require('./_wks')('iterator');
+var classof = require('core-js-internals/classof');
+var ITERATOR = require('core-js-internals/well-known-symbol')('iterator');
 var Iterators = require('./_iterators');
 module.exports = require('./_core').isIterable = function (it) {
   var O = Object(it);
