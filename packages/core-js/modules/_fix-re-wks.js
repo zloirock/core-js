@@ -3,10 +3,10 @@ var hide = require('./_hide');
 var redefine = require('./_redefine');
 var fails = require('core-js-internals/fails');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
-var wks = require('./_wks');
+var wellKnownSymbol = require('core-js-internals/well-known-symbol');
 
 module.exports = function (KEY, length, exec) {
-  var SYMBOL = wks(KEY);
+  var SYMBOL = wellKnownSymbol(KEY);
   var fns = exec(requireObjectCoercible, SYMBOL, ''[KEY]);
   var strfn = fns[0];
   var rxfn = fns[1];

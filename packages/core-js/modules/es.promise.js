@@ -1,13 +1,13 @@
 'use strict';
 var IS_PURE = require('./_is-pure');
 var global = require('core-js-internals/global');
-var classof = require('./_classof');
+var classof = require('core-js-internals/classof-raw');
 var $export = require('./_export');
 var isObject = require('core-js-internals/is-object');
 var aFunction = require('core-js-internals/a-function');
 var anInstance = require('core-js-internals/an-instance');
 var forOf = require('./_for-of');
-var speciesConstructor = require('./_species-constructor');
+var speciesConstructor = require('core-js-internals/species-constructor');
 var task = require('core-js-internals/task').set;
 var microtask = require('core-js-internals/microtask')();
 var newPromiseCapabilityModule = require('./_new-promise-capability');
@@ -15,6 +15,7 @@ var perform = require('./_perform');
 var promiseResolve = require('./_promise-resolve');
 var hostReportErrors = require('./_host-report-errors');
 var $ = require('./_state');
+var SPECIES = require('core-js-internals/well-known-symbol')('species');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
 var process = global.process;
@@ -37,7 +38,7 @@ var USE_NATIVE = !!function () {
   try {
     // correct subclassing with @@species support
     var promise = $Promise.resolve(1);
-    var FakePromise = (promise.constructor = {})[require('./_wks')('species')] = function (exec) {
+    var FakePromise = (promise.constructor = {})[SPECIES] = function (exec) {
       exec(empty, empty);
     };
     // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
