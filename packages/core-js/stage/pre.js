@@ -1,4 +1,5 @@
 require('../modules/esnext.set.filter');
+require('../modules/esnext.set.find');
 require('../modules/esnext.set.map');
 require('../modules/esnext.reflect.define-metadata');
 require('../modules/esnext.reflect.delete-metadata');
