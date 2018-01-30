@@ -5,5 +5,6 @@ require('../../modules/es.set');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.from');
 require('../../modules/esnext.set.filter');
+require('../../modules/esnext.set.map');
 
 module.exports = require('../../modules/_path').Set;

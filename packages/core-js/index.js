@@ -165,6 +165,7 @@ require('./modules/esnext.set.from');
 require('./modules/esnext.weak-map.from');
 require('./modules/esnext.weak-set.from');
 require('./modules/esnext.set.filter');
+require('./modules/esnext.set.map');
 require('./modules/esnext.global');
 require('./modules/esnext.math.clamp');
 require('./modules/esnext.math.deg-per-rad');
