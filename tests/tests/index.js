@@ -204,6 +204,7 @@ import './esnext.reflect.get-own-metadata-keys';
 import './esnext.reflect.has-metadata';
 import './esnext.reflect.has-own-metadata';
 import './esnext.reflect.metadata';
+import './esnext.set.filter';
 import './esnext.set.from';
 import './esnext.set.of';
 import './esnext.string.at';
