@@ -207,6 +207,7 @@ import './esnext.reflect.metadata';
 import './esnext.set.filter';
 import './esnext.set.find';
 import './esnext.set.from';
+import './esnext.set.join';
 import './esnext.set.map';
 import './esnext.set.of';
 import './esnext.string.at';
