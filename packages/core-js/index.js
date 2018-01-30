@@ -166,6 +166,7 @@ require('./modules/esnext.weak-map.from');
 require('./modules/esnext.weak-set.from');
 require('./modules/esnext.set.filter');
 require('./modules/esnext.set.find');
+require('./modules/esnext.set.join');
 require('./modules/esnext.set.map');
 require('./modules/esnext.global');
 require('./modules/esnext.math.clamp');
