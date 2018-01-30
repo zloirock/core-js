@@ -277,6 +277,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/set/from`)([1, 2, 3, 2, 1]) instanceof require(`${ PATH }/fn/set`));
   ok(require(`${ PATH }/fn/weak-map/from`)([[{}, 1], [[], 2]]) instanceof require(`${ PATH }/fn/weak-map`));
   ok(require(`${ PATH }/fn/weak-set/from`)([{}, []]) instanceof require(`${ PATH }/fn/weak-set`));
+  ok(require(`${ PATH }/fn/set/filter`)(new (require(`${ PATH }/fn/set`))([1, 2, 3]), it => it % 2).size === 2);
   ok(typeof require(`${ PATH }/fn/typed/array-buffer`) === 'function');
   ok(typeof require(`${ PATH }/fn/typed/data-view`) === 'function');
   ok(typeof require(`${ PATH }/fn/typed/int8-array`) === 'function');
