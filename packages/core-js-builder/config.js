@@ -167,6 +167,7 @@ module.exports = {
     'esnext.set.from',
     'esnext.weak-map.from',
     'esnext.weak-set.from',
+    'esnext.set.filter',
     'esnext.global',
     'esnext.math.clamp',
     'esnext.math.deg-per-rad',
