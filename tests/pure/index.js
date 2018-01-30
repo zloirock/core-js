@@ -168,6 +168,7 @@ import './esnext.reflect.has-metadata';
 import './esnext.reflect.has-own-metadata';
 import './esnext.reflect.metadata';
 import './esnext.set.filter';
+import './esnext.set.find';
 import './esnext.set.from';
 import './esnext.set.map';
 import './esnext.set.of';
