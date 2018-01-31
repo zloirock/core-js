@@ -282,6 +282,10 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/weak-map/from`)([[{}, 1], [[], 2]]) instanceof WeakMap);
   ok(require(`${ PATH }/fn/weak-set/from`)([{}, []]) instanceof WeakSet);
   ok(require(`${ PATH }/fn/map/filter`)(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
+  ok(require(`${ PATH }/fn/map/map-keys`)(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
+  ok(require(`${ PATH }/fn/map/map-values`)(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
+  ok(require(`${ PATH }/fn/set/add-all`)(new Set([1, 2, 3]), 4, 5).size === 5);
+  ok(require(`${ PATH }/fn/set/delete-all`)(new Set([1, 2, 3]), 4, 5) === false);
   ok(require(`${ PATH }/fn/set/every`)(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(require(`${ PATH }/fn/set/filter`)(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(require(`${ PATH }/fn/set/find`)(new Set([2, 3, 4]), it => it % 2) === 3);
