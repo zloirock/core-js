@@ -12,6 +12,7 @@ require('../modules/esnext.set.filter');
 require('../modules/esnext.set.find');
 require('../modules/esnext.set.join');
 require('../modules/esnext.set.map');
+require('../modules/esnext.set.reduce');
 require('../modules/esnext.set.some');
 require('../modules/esnext.math.clamp');
 require('../modules/esnext.math.deg-per-rad');

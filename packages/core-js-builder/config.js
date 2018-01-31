@@ -172,6 +172,7 @@ module.exports = {
     'esnext.set.find',
     'esnext.set.join',
     'esnext.set.map',
+    'esnext.set.reduce',
     'esnext.set.some',
     'esnext.global',
     'esnext.math.clamp',
