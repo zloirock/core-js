@@ -169,6 +169,7 @@ require('./modules/esnext.set.filter');
 require('./modules/esnext.set.find');
 require('./modules/esnext.set.join');
 require('./modules/esnext.set.map');
+require('./modules/esnext.set.reduce');
 require('./modules/esnext.set.some');
 require('./modules/esnext.global');
 require('./modules/esnext.math.clamp');
