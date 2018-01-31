@@ -19,6 +19,8 @@ QUnit.test('Set#map', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
 
+  assert.ok(new Set().map(it => it) instanceof Set);
+
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it ** 2)), [1, 4, 9]);
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it % 2)), [1, 0]);
 

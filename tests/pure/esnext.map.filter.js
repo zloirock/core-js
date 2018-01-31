@@ -36,6 +36,8 @@ QUnit.test('Map#filter', assert => {
     [4, 5],
   ]);
 
+  assert.ok(new Map().filter(it => it) instanceof Map);
+
   assert.throws(() => filter.call(new Set(), () => { /* empty */ }), TypeError);
   assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
