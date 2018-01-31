@@ -1,6 +1,4 @@
-import { STRICT } from '../helpers/constants';
-
-import Set from 'core-js-pure/fn/set';
+import { Map, Set } from 'core-js-pure';
 
 QUnit.test('Set#join', assert => {
   const { join } = Set.prototype;
@@ -14,10 +12,9 @@ QUnit.test('Set#join', assert => {
   assert.strictEqual(new Set([1, 2, 3]).join(undefined), '1,2,3');
   assert.strictEqual(new Set([1, 2, 3]).join('|'), '1|2|3');
 
-  assert.throws(() => join.call({}, ''), TypeError);
-
-  if (STRICT) {
-    assert.throws(() => join.call(null, 0), TypeError);
-    assert.throws(() => join.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => join.call(new Map()), TypeError);
+  assert.throws(() => join.call({}), TypeError);
+  assert.throws(() => join.call([]), TypeError);
+  assert.throws(() => join.call(undefined), TypeError);
+  assert.throws(() => join.call(null), TypeError);
 });
