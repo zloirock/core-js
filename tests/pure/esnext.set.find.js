@@ -21,6 +21,7 @@ QUnit.test('Set#find', assert => {
   }, context);
 
   assert.same(new Set([2, 3, 4]).find(it => it % 2), 3);
+  assert.same(new Set().find(it => it === 42), undefined);
 
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
 
