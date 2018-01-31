@@ -170,6 +170,8 @@ import './esnext.reflect.metadata';
 import './esnext.map.filter';
 import './esnext.map.map-keys';
 import './esnext.map.map-values';
+import './esnext.set.add-all';
+import './esnext.set.delete-all';
 import './esnext.set.every';
 import './esnext.set.filter';
 import './esnext.set.find';
