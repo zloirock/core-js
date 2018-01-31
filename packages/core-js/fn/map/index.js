@@ -5,5 +5,7 @@ require('../../modules/es.map');
 require('../../modules/esnext.map.of');
 require('../../modules/esnext.map.from');
 require('../../modules/esnext.map.filter');
+require('../../modules/esnext.map.map-keys');
+require('../../modules/esnext.map.map-values');
 
 module.exports = require('../../modules/_path').Map;
