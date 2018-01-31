@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants';
-
 QUnit.test('Set#map', assert => {
   const { map } = Set.prototype;
   const { from } = Array;
@@ -23,10 +21,9 @@ QUnit.test('Set#map', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it ** 2)), [1, 4, 9]);
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it % 2)), [1, 0]);
 
+  assert.throws(() => map.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => map.call({}, () => { /* empty */ }), TypeError);
-
-  if (STRICT) {
-    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => map.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
 });

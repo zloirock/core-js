@@ -1,6 +1,4 @@
-import { STRICT } from '../helpers/constants';
-
-import Set from 'core-js-pure/fn/set';
+import { Map, Set } from 'core-js-pure';
 
 QUnit.test('Set#find', assert => {
   const { find } = Set.prototype;
@@ -23,10 +21,9 @@ QUnit.test('Set#find', assert => {
   assert.same(new Set([2, 3, 4]).find(it => it % 2), 3);
   assert.same(new Set().find(it => it === 42), undefined);
 
+  assert.throws(() => find.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
-
-  if (STRICT) {
-    assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
 });
