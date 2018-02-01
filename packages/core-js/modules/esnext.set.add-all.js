@@ -2,7 +2,7 @@
 var anObject = require('core-js-internals/an-object');
 var aFunction = require('core-js-internals/a-function');
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Set', proto: true, real: true, forced: require('./_is-pure') }, {
   addAll: function addAll(/* ...elements */) {
     var set = anObject(this);
