@@ -10,6 +10,7 @@ require('../modules/esnext.weak-set.from');
 require('../modules/esnext.map.filter');
 require('../modules/esnext.map.map-keys');
 require('../modules/esnext.map.map-values');
+require('../modules/esnext.map.merge');
 require('../modules/esnext.set.add-all');
 require('../modules/esnext.set.delete-all');
 require('../modules/esnext.set.every');

@@ -3,7 +3,7 @@ var global = require('core-js-internals/global');
 var $export = require('./_export');
 var redefine = require('./_redefine');
 var meta = require('./_meta');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var anInstance = require('core-js-internals/an-instance');
 var isObject = require('core-js-internals/is-object');
 var fails = require('core-js-internals/fails');
@@ -56,7 +56,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
       C = wrapper(function (target, iterable) {
         anInstance(target, C, NAME);
         var that = inheritIfRequired(new Base(), target, C);
-        if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
+        if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
         return that;
       });
       C.prototype = proto;

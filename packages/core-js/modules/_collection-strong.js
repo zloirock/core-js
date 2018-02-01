@@ -4,7 +4,7 @@ var create = require('./_object-create');
 var redefineAll = require('./_redefine-all');
 var bind = require('core-js-internals/bind-context');
 var anInstance = require('core-js-internals/an-instance');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var $iterDefine = require('./_iter-define');
 var step = require('./_iter-step');
 var setSpecies = require('./_set-species');
@@ -25,7 +25,7 @@ module.exports = {
         size: 0
       });
       if (!DESCRIPTORS) that.size = 0;
-      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
     });
 
     var define = function (that, key, value) {
