@@ -296,6 +296,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/set/map`)(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(require(`${ PATH }/fn/set/reduce`)(new Set([1, 2, 3]), (it, v) => it + v) === 6);
   ok(require(`${ PATH }/fn/set/some`)(new Set([1, 2, 3]), it => typeof it == 'number'));
+  ok(require(`${ PATH }/fn/set/union`)(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
   ok(typeof require(`${ PATH }/fn/typed/array-buffer`) === 'function');
   ok(typeof require(`${ PATH }/fn/typed/data-view`) === 'function');
   ok(typeof require(`${ PATH }/fn/typed/int8-array`) === 'function');

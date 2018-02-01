@@ -175,6 +175,7 @@ require('./modules/esnext.set.map');
 require('./modules/esnext.set.of');
 require('./modules/esnext.set.reduce');
 require('./modules/esnext.set.some');
+require('./modules/esnext.set.union');
 require('./modules/esnext.weak-map.from');
 require('./modules/esnext.weak-map.of');
 require('./modules/esnext.weak-set.from');

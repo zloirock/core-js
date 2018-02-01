@@ -13,7 +13,7 @@ require('./_export')({ target: 'Set', proto: true, real: true, forced: require('
     var set = anObject(this);
     var iterator = values.call(set);
     var boundFn = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
-    var newSet = new (speciesConstructor(this, Set))();
+    var newSet = new (speciesConstructor(set, Set))();
     var adder = aFunction(newSet.add);
     var step, value;
     while (!(step = iterator.next()).done) {
