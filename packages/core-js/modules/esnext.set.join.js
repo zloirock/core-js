@@ -4,7 +4,7 @@ var anObject = require('core-js-internals/an-object');
 var Set = path.Set;
 var values = Set.prototype.values;
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Set', proto: true, real: true, forced: require('./_is-pure') }, {
   join: function join(separator) {
     var set = anObject(this);
