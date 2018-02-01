@@ -7,7 +7,7 @@ var speciesConstructor = require('core-js-internals/species-constructor');
 var Map = path.Map;
 var entries = Map.prototype.entries;
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Map', proto: true, real: true, forced: require('./_is-pure') }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var map = anObject(this);

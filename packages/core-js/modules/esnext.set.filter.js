@@ -7,7 +7,7 @@ var speciesConstructor = require('core-js-internals/species-constructor');
 var Set = path.Set;
 var values = Set.prototype.values;
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Set', proto: true, real: true, forced: require('./_is-pure') }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var set = anObject(this);
