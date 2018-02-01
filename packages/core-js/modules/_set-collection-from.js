@@ -3,7 +3,7 @@
 var $export = require('./_export');
 var aFunction = require('core-js-internals/a-function');
 var bind = require('core-js-internals/bind-context');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 
 module.exports = function (COLLECTION) {
   $export({ target: COLLECTION, stat: true }, { from: function from(source /* , mapFn, thisArg */) {
@@ -17,11 +17,11 @@ module.exports = function (COLLECTION) {
     if (mapping) {
       n = 0;
       cb = bind(mapFn, arguments[2], 2);
-      forOf(source, false, function (nextItem) {
+      iterate(source, false, function (nextItem) {
         A.push(cb(nextItem, n++));
       });
     } else {
-      forOf(source, false, A.push, A);
+      iterate(source, false, A.push, A);
     }
     return new this(A);
   } });
