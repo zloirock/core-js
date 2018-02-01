@@ -13,5 +13,6 @@ require('../../modules/esnext.set.map');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.reduce');
 require('../../modules/esnext.set.some');
+require('../../modules/esnext.set.union');
 
 module.exports = require('../../modules/_path').Set;

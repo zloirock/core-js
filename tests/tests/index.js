@@ -221,6 +221,7 @@ import './esnext.set.map';
 import './esnext.set.of';
 import './esnext.set.reduce';
 import './esnext.set.some';
+import './esnext.set.union';
 import './esnext.string.at';
 import './esnext.string.code-points';
 import './esnext.string.match-all';
