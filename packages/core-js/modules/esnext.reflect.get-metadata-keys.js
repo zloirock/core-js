@@ -2,13 +2,13 @@ var Set = require('./es.set');
 var metadata = require('./_metadata');
 var anObject = require('core-js-internals/an-object');
 var getPrototypeOf = require('./_object-gpo');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var ordinaryOwnMetadataKeys = metadata.keys;
 var toMetaKey = metadata.key;
 
 var from = function (iter) {
   var result = [];
-  forOf(iter, false, result.push, result);
+  iterate(iter, false, result.push, result);
   return result;
 };
 

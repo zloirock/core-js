@@ -7,13 +7,13 @@ var anInstance = require('core-js-internals/an-instance');
 var redefineAll = require('./_redefine-all');
 var hide = require('./_hide');
 var getIterator = require('./core.get-iterator');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var hostReportErrors = require('./_host-report-errors');
 var dP = require('./_object-dp').f;
 var $ = require('./_state');
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var OBSERVABLE = require('core-js-internals/well-known-symbol')('observable');
-var RETURN = forOf.RETURN;
+var BREAK = iterate.BREAK;
 
 var getMethod = function (fn) {
   return fn == null ? undefined : aFunction(fn);
@@ -171,9 +171,9 @@ redefineAll($Observable, {
     }
     var iterator = getIterator(x);
     return new C(function (observer) {
-      forOf(iterator, false, function (it) {
+      iterate(iterator, false, function (it) {
         observer.next(it);
-        if (observer.closed) return RETURN;
+        if (observer.closed) return BREAK;
       }, undefined, true);
       observer.complete();
     });
