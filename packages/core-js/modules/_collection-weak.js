@@ -4,7 +4,7 @@ var getWeak = require('./_meta').getWeak;
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
 var anInstance = require('core-js-internals/an-instance');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var createArrayMethod = require('./_array-methods');
 var $has = require('core-js-internals/has');
 var validate = require('./_validate-collection');
@@ -56,7 +56,7 @@ module.exports = {
         id: id++,
         frozen: undefined
       });
-      if (iterable != undefined) forOf(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
     });
 
     var define = function (that, key, value) {
