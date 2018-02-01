@@ -5,7 +5,7 @@ var bind = require('core-js-internals/bind-context');
 var Set = path.Set;
 var values = Set.prototype.values;
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Set', proto: true, real: true, forced: require('./_is-pure') }, {
   find: function find(callbackfn /* , thisArg */) {
     var set = anObject(this);

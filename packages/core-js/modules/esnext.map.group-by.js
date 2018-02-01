@@ -1,7 +1,7 @@
 'use strict';
 var iterate = require('./_iterate');
 
-// https://github.com/Ginden/collection-methods
+// https://github.com/tc39/collection-methods
 require('./_export')({ target: 'Map', stat: true, forced: require('./_is-pure') }, {
   groupBy: function groupBy(iterable, keyDerivative) {
     var newMap = new this();
