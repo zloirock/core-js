@@ -6,7 +6,7 @@ var $export = require('./_export');
 var isObject = require('core-js-internals/is-object');
 var aFunction = require('core-js-internals/a-function');
 var anInstance = require('core-js-internals/an-instance');
-var forOf = require('./_for-of');
+var iterate = require('./_iterate');
 var speciesConstructor = require('core-js-internals/species-constructor');
 var task = require('core-js-internals/task').set;
 var microtask = require('core-js-internals/microtask')();
@@ -267,7 +267,7 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('./_iter-
       var values = [];
       var index = 0;
       var remaining = 1;
-      forOf(iterable, false, function (promise) {
+      iterate(iterable, false, function (promise) {
         var $index = index++;
         var alreadyCalled = false;
         values.push(undefined);
@@ -290,7 +290,7 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('./_iter-
     var capability = newPromiseCapability(C);
     var reject = capability.reject;
     var result = perform(function () {
-      forOf(iterable, false, function (promise) {
+      iterate(iterable, false, function (promise) {
         C.resolve(promise).then(capability.resolve, reject);
       });
     });
