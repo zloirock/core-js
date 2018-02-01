@@ -178,6 +178,7 @@ module.exports = {
     'esnext.set.of',
     'esnext.set.reduce',
     'esnext.set.some',
+    'esnext.set.union',
     'esnext.weak-map.from',
     'esnext.weak-map.of',
     'esnext.weak-set.from',

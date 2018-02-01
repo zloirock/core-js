@@ -13,7 +13,7 @@ require('./_export')({ target: 'Map', proto: true, real: true, forced: require('
     var map = anObject(this);
     var iterator = entries.call(map);
     var boundFn = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
-    var newMap = new (speciesConstructor(this, Map))();
+    var newMap = new (speciesConstructor(map, Map))();
     var setter = aFunction(newMap.set);
     var step, entry, key;
     while (!(step = iterator.next()).done) {
