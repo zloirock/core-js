@@ -179,6 +179,7 @@ import './esnext.set.every';
 import './esnext.set.filter';
 import './esnext.set.find';
 import './esnext.set.from';
+import './esnext.set.intersect';
 import './esnext.set.join';
 import './esnext.set.map';
 import './esnext.set.of';
