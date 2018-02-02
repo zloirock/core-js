@@ -292,6 +292,7 @@ for (const PATH of ['../packages/core-js', '../packages/core-js-pure']) {
   ok(require(`${ PATH }/fn/set/every`)(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(require(`${ PATH }/fn/set/filter`)(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(require(`${ PATH }/fn/set/find`)(new Set([2, 3, 4]), it => it % 2) === 3);
+  ok(require(`${ PATH }/fn/set/intersect`)(new Set([1, 2, 3]), [1, 3, 4]).size === 2);
   ok(require(`${ PATH }/fn/set/join`)(new Set([1, 2, 3])) === '1,2,3');
   ok(require(`${ PATH }/fn/set/map`)(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(require(`${ PATH }/fn/set/reduce`)(new Set([1, 2, 3]), (it, v) => it + v) === 6);
