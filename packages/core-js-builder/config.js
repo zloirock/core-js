@@ -173,6 +173,7 @@ module.exports = {
     'esnext.set.filter',
     'esnext.set.find',
     'esnext.set.from',
+    'esnext.set.intersect',
     'esnext.set.join',
     'esnext.set.map',
     'esnext.set.of',
