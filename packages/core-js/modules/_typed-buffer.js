@@ -1,7 +1,6 @@
 'use strict';
 var global = require('core-js-internals/global');
 var DESCRIPTORS = require('core-js-internals/descriptors');
-var IS_PURE = require('./_is-pure');
 var $typed = require('./_typed');
 var hide = require('./_hide');
 var redefineAll = require('./_redefine-all');
@@ -260,7 +259,7 @@ if (!$typed.ABV) {
     for (var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;) {
       if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, BaseBuffer[key]);
     }
-    if (!IS_PURE) ArrayBufferProto.constructor = $ArrayBuffer;
+    ArrayBufferProto.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
   var view = new $DataView(new $ArrayBuffer(2));
