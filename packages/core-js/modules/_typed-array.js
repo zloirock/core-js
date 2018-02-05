@@ -1,6 +1,5 @@
 'use strict';
 if (require('core-js-internals/descriptors')) {
-  var IS_PURE = require('./_is-pure');
   var global = require('core-js-internals/global');
   var fails = require('core-js-internals/fails');
   var $export = require('./_export');
@@ -423,7 +422,7 @@ if (require('core-js-internals/descriptors')) {
         if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
-      if (!IS_PURE) TypedArrayPrototype.constructor = TypedArray;
+      TypedArrayPrototype.constructor = TypedArray;
     }
     var $nativeIterator = TypedArrayPrototype[ITERATOR];
     var CORRECT_ITER_NAME = !!$nativeIterator
@@ -463,7 +462,7 @@ if (require('core-js-internals/descriptors')) {
 
     $export({ target: NAME, proto: true, forced: !CORRECT_ITER_NAME }, $iterators);
 
-    if (!IS_PURE && TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
+    if (TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
 
     $export({ target: NAME, proto: true, forced: fails(function () {
       new TypedArray(1).slice();
@@ -476,6 +475,6 @@ if (require('core-js-internals/descriptors')) {
     }) }, { toLocaleString: $toLocaleString });
 
     Iterators[NAME] = CORRECT_ITER_NAME ? $nativeIterator : $iterator;
-    if (!IS_PURE && !CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
+    if (!CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function () { /* empty */ };
