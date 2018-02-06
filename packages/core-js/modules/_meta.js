@@ -1,7 +1,7 @@
 var META = require('core-js-internals/uid')('meta');
 var isObject = require('core-js-internals/is-object');
 var has = require('core-js-internals/has');
-var setDesc = require('./_object-dp').f;
+var defineProperty = require('./_object-define-property').f;
 var id = 0;
 var isExtensible = Object.isExtensible || function () {
   return true;
@@ -9,12 +9,14 @@ var isExtensible = Object.isExtensible || function () {
 var FREEZE = !require('core-js-internals/fails')(function () {
   return isExtensible(Object.preventExtensions({}));
 });
+
 var setMeta = function (it) {
-  setDesc(it, META, { value: {
+  defineProperty(it, META, { value: {
     i: 'O' + ++id, // object ID
     w: {}          // weak collections IDs
   } });
 };
+
 var fastKey = function (it, create) {
   // return primitive with prefix
   if (!isObject(it)) return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
@@ -28,6 +30,7 @@ var fastKey = function (it, create) {
   // return object ID
   } return it[META].i;
 };
+
 var getWeak = function (it, create) {
   if (!has(it, META)) {
     // can't set metadata to uncaught frozen object
@@ -39,6 +42,7 @@ var getWeak = function (it, create) {
   // return hash weak collections IDs
   } return it[META].w;
 };
+
 // add metadata on freeze-family methods calling
 var onFreeze = function (it) {
   if (FREEZE && meta.NEED && isExtensible(it) && !has(it, META)) setMeta(it);

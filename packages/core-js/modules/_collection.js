@@ -7,7 +7,7 @@ var iterate = require('./_iterate');
 var anInstance = require('core-js-internals/an-instance');
 var isObject = require('core-js-internals/is-object');
 var fails = require('core-js-internals/fails');
-var $iterDetect = require('./_iter-detect');
+var iterDetect = require('./_iter-detect');
 var setToStringTag = require('./_set-to-string-tag');
 var inheritIfRequired = require('./_inherit-if-required');
 
@@ -43,7 +43,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
     // V8 ~  Chromium 40- weak-collections throws on primitives, but should return false
     var THROWS_ON_PRIMITIVES = fails(function () { instance.has(1); });
     // most early implementations doesn't supports iterables, most modern - not close it correctly
-    var ACCEPT_ITERABLES = $iterDetect(function (iter) { new C(iter); }); // eslint-disable-line no-new
+    var ACCEPT_ITERABLES = iterDetect(function (iter) { new C(iter); }); // eslint-disable-line no-new
     // for early implementations -0 and +0 not the same
     var BUGGY_ZERO = !IS_WEAK && fails(function () {
       // V8 ~ Chromium 42- fails only with 5+ elements

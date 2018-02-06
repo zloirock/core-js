@@ -9,7 +9,7 @@ var hide = require('./_hide');
 var getIterator = require('./core.get-iterator');
 var iterate = require('./_iterate');
 var hostReportErrors = require('./_host-report-errors');
-var dP = require('./_object-dp').f;
+var defineProperty = require('./_object-define-property').f;
 var $ = require('./_state');
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var OBSERVABLE = require('core-js-internals/well-known-symbol')('observable');
@@ -80,7 +80,7 @@ Subscription.prototype = redefineAll({}, {
   }
 });
 
-if (DESCRIPTORS) dP(Subscription.prototype, 'closed', {
+if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed($(this));
@@ -136,7 +136,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
   }
 });
 
-if (DESCRIPTORS) dP(SubscriptionObserver.prototype, 'closed', {
+if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed($($(this).subscription));

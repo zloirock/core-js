@@ -1,10 +1,11 @@
-// all object keys, includes non-enumerable and symbols
-var gOPN = require('./_object-gopn');
-var gOPS = require('./_object-gops');
+var getOwnPropertyNamesModule = require('./_object-get-own-property-names');
+var getOwnPropertySymbolsModule = require('./_object-get-own-property-symbols');
 var anObject = require('core-js-internals/an-object');
 var Reflect = require('core-js-internals/global').Reflect;
+
+// all object keys, includes non-enumerable and symbols
 module.exports = Reflect && Reflect.ownKeys || function ownKeys(it) {
-  var keys = gOPN.f(anObject(it));
-  var getSymbols = gOPS.f;
-  return getSymbols ? keys.concat(getSymbols(it)) : keys;
+  var keys = getOwnPropertyNamesModule.f(anObject(it));
+  var getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
+  return getOwnPropertySymbols ? keys.concat(getOwnPropertySymbols(it)) : keys;
 };

@@ -1,7 +1,7 @@
 var global = require('core-js-internals/global');
 var inheritIfRequired = require('./_inherit-if-required');
-var dP = require('./_object-dp').f;
-var gOPN = require('./_object-gopn').f;
+var defineProperty = require('./_object-define-property').f;
+var getOwnPropertyNames = require('./_object-get-own-property-names').f;
 var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
 var $RegExp = global.RegExp;
@@ -28,13 +28,13 @@ if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-j
       , tiRE ? this : proto, $RegExp);
   };
   var proxy = function (key) {
-    key in $RegExp || dP($RegExp, key, {
+    key in $RegExp || defineProperty($RegExp, key, {
       configurable: true,
       get: function () { return Base[key]; },
       set: function (it) { Base[key] = it; }
     });
   };
-  for (var keys = gOPN(Base), i = 0; keys.length > i;) proxy(keys[i++]);
+  for (var keys = getOwnPropertyNames(Base), i = 0; keys.length > i;) proxy(keys[i++]);
   proto.constructor = $RegExp;
   $RegExp.prototype = proto;
   require('./_redefine')(global, 'RegExp', $RegExp);
