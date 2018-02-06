@@ -1,11 +1,11 @@
 var UNSCOPABLES = require('core-js-internals/well-known-symbol')('unscopables');
-var ObjectCreate = require('./_object-create');
-var ArrayProto = Array.prototype;
+var objectCreate = require('./_object-create');
+var ArrayPrototype = Array.prototype;
 
-if (ArrayProto[UNSCOPABLES] == undefined) require('./_hide')(ArrayProto, UNSCOPABLES, ObjectCreate(null));
+if (ArrayPrototype[UNSCOPABLES] == undefined) require('./_hide')(ArrayPrototype, UNSCOPABLES, objectCreate(null));
 
 // Array.prototype[@@unscopables]
 // https://tc39.github.io/ecma262/#sec-array.prototype-@@unscopables
 module.exports = function (key) {
-  ArrayProto[UNSCOPABLES][key] = true;
+  ArrayPrototype[UNSCOPABLES][key] = true;
 };

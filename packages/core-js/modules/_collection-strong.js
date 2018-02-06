@@ -1,11 +1,11 @@
 'use strict';
-var dP = require('./_object-dp').f;
+var defineProperty = require('./_object-define-property').f;
 var create = require('./_object-create');
 var redefineAll = require('./_redefine-all');
 var bind = require('core-js-internals/bind-context');
 var anInstance = require('core-js-internals/an-instance');
 var iterate = require('./_iterate');
-var $iterDefine = require('./_iter-define');
+var iterDefine = require('./_iter-define');
 var step = require('./_iter-step');
 var setSpecies = require('./_set-species');
 var DESCRIPTORS = require('core-js-internals/descriptors');
@@ -137,7 +137,7 @@ module.exports = {
         return define(this, value = value === 0 ? 0 : value, value);
       }
     });
-    if (DESCRIPTORS) dP(C.prototype, 'size', {
+    if (DESCRIPTORS) defineProperty(C.prototype, 'size', {
       get: function () {
         return validate(this, NAME).size;
       }
@@ -147,7 +147,7 @@ module.exports = {
   setStrong: function (C, NAME, IS_MAP) {
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-    $iterDefine(C, NAME, function (iterated, kind) {
+    iterDefine(C, NAME, function (iterated, kind) {
       $(this, {
         target: iterated,
         state: validate(iterated, NAME),
