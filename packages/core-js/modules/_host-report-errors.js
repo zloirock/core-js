@@ -1,4 +1,5 @@
 var global = require('core-js-internals/global');
+
 module.exports = function (a, b) {
   var console = global.console;
   if (console && console.error) {

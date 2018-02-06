@@ -1,30 +1,30 @@
 // 26.1.13 Reflect.set(target, propertyKey, V [, receiver])
-var dP = require('./_object-dp');
-var gOPD = require('./_object-gopd');
-var getPrototypeOf = require('./_object-gpo');
+var definePropertyModule = require('./_object-define-property');
+var getOwnPropertyDescriptorModule = require('./_object-get-own-property-descriptor');
+var getPrototypeOf = require('./_object-get-prototype-of');
 var has = require('core-js-internals/has');
-var createDesc = require('./_property-desc');
+var propertyDescriptor = require('./_property-desc');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
 
 function set(target, propertyKey, V /* , receiver */) {
   var receiver = arguments.length < 4 ? target : arguments[3];
-  var ownDesc = gOPD.f(anObject(target), propertyKey);
-  var existingDescriptor, proto;
-  if (!ownDesc) {
-    if (isObject(proto = getPrototypeOf(target))) {
-      return set(proto, propertyKey, V, receiver);
+  var ownDescriptor = getOwnPropertyDescriptorModule.f(anObject(target), propertyKey);
+  var existingDescriptor, prototype;
+  if (!ownDescriptor) {
+    if (isObject(prototype = getPrototypeOf(target))) {
+      return set(prototype, propertyKey, V, receiver);
     }
-    ownDesc = createDesc(0);
+    ownDescriptor = propertyDescriptor(0);
   }
-  if (has(ownDesc, 'value')) {
-    if (ownDesc.writable === false || !isObject(receiver)) return false;
-    existingDescriptor = gOPD.f(receiver, propertyKey) || createDesc(0);
+  if (has(ownDescriptor, 'value')) {
+    if (ownDescriptor.writable === false || !isObject(receiver)) return false;
+    existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey) || propertyDescriptor(0);
     existingDescriptor.value = V;
-    dP.f(receiver, propertyKey, existingDescriptor);
+    definePropertyModule.f(receiver, propertyKey, existingDescriptor);
     return true;
   }
-  return ownDesc.set === undefined ? false : (ownDesc.set.call(receiver, V), true);
+  return ownDescriptor.set === undefined ? false : (ownDescriptor.set.call(receiver, V), true);
 }
 
 require('./_export')({ target: 'Reflect', stat: true }, { set: set });

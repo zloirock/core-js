@@ -1,8 +1,9 @@
 var nativeForEach = [].forEach;
-var $forEach = require('./_array-methods')(0);
+var internalForEach = require('./_array-methods')(0);
 var STRICT = require('./_strict-method')(nativeForEach, true);
 
-// 22.1.3.10 Array.prototype.forEach(callbackfn [, thisArg])
+// Array.prototype.forEach(callbackfn [, thisArg])
+// https://tc39.github.io/ecma262/#sec-array.prototype.foreach
 module.exports = STRICT ? nativeForEach : function forEach(callbackfn /* , thisArg */) {
-  return $forEach(this, callbackfn, arguments[1]);
+  return internalForEach(this, callbackfn, arguments[1]);
 };

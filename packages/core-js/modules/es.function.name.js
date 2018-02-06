@@ -1,10 +1,10 @@
-var dP = require('./_object-dp').f;
-var FProto = Function.prototype;
+var defineProperty = require('./_object-define-property').f;
+var FunctionPrototype = Function.prototype;
 var nameRE = /^\s*function ([^ (]*)/;
 var NAME = 'name';
 
 // 19.2.4.2 name
-NAME in FProto || require('core-js-internals/descriptors') && dP(FProto, NAME, {
+NAME in FunctionPrototype || require('core-js-internals/descriptors') && defineProperty(FunctionPrototype, NAME, {
   configurable: true,
   get: function () {
     try {
