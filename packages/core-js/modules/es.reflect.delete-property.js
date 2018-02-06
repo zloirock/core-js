@@ -1,10 +1,10 @@
 // 26.1.4 Reflect.deleteProperty(target, propertyKey)
-var gOPD = require('./_object-gopd').f;
+var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
 var anObject = require('core-js-internals/an-object');
 
 require('./_export')({ target: 'Reflect', stat: true }, {
   deleteProperty: function deleteProperty(target, propertyKey) {
-    var desc = gOPD(anObject(target), propertyKey);
-    return desc && !desc.configurable ? false : delete target[propertyKey];
+    var descriptor = getOwnPropertyDescriptor(anObject(target), propertyKey);
+    return descriptor && !descriptor.configurable ? false : delete target[propertyKey];
   }
 });

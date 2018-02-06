@@ -9,8 +9,8 @@ var anInstance = require('core-js-internals/an-instance');
 var toInteger = require('core-js-internals/to-integer');
 var toLength = require('core-js-internals/to-length');
 var toIndex = require('core-js-internals/to-index');
-var gOPN = require('./_object-gopn').f;
-var dP = require('./_object-dp').f;
+var getOwnPropertyNames = require('./_object-get-own-property-names').f;
+var defineProperty = require('./_object-define-property').f;
 var arrayFill = require('core-js-internals/array-fill');
 var setToStringTag = require('./_set-to-string-tag');
 var $ = require('./_state');
@@ -126,7 +126,7 @@ function packF32(it) {
 }
 
 function addGetter(C, key) {
-  dP(C[PROTOTYPE], key, { get: function () { return $(this)[key]; } });
+  defineProperty(C[PROTOTYPE], key, { get: function () { return $(this)[key]; } });
 }
 
 function get(view, count, index, isLittleEndian) {
@@ -256,7 +256,7 @@ if (!$typed.ABV) {
       return new BaseBuffer(toIndex(length));
     };
     var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for (var keys = gOPN(BaseBuffer), j = 0, key; keys.length > j;) {
+    for (var keys = getOwnPropertyNames(BaseBuffer), j = 0, key; keys.length > j;) {
       if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, BaseBuffer[key]);
     }
     ArrayBufferProto.constructor = $ArrayBuffer;

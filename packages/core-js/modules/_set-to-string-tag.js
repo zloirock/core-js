@@ -1,7 +1,9 @@
-var def = require('./_object-dp').f;
+var defineProperty = require('./_object-define-property').f;
 var has = require('core-js-internals/has');
-var TAG = require('core-js-internals/well-known-symbol')('toStringTag');
+var TO_STRING_TAG = require('core-js-internals/well-known-symbol')('toStringTag');
 
 module.exports = function (it, tag, stat) {
-  if (it && !has(it = stat ? it : it.prototype, TAG)) def(it, TAG, { configurable: true, value: tag });
+  if (it && !has(it = stat ? it : it.prototype, TO_STRING_TAG)) {
+    defineProperty(it, TO_STRING_TAG, { configurable: true, value: tag });
+  }
 };

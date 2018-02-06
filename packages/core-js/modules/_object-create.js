@@ -1,6 +1,6 @@
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
 var anObject = require('core-js-internals/an-object');
-var dPs = require('./_object-dps');
+var defineProperties = require('./_object-define-properties');
 var enumBugKeys = require('./_enum-bug-keys');
 var IE_PROTO = require('core-js-internals/shared-key')('IE_PROTO');
 var Empty = function () { /* empty */ };
@@ -37,7 +37,7 @@ module.exports = Object.create || function create(O, Properties) {
     // add "__proto__" for Object.getPrototypeOf polyfill
     result[IE_PROTO] = O;
   } else result = createDict();
-  return Properties === undefined ? result : dPs(result, Properties);
+  return Properties === undefined ? result : defineProperties(result, Properties);
 };
 
 require('./_hidden-keys')[IE_PROTO] = true;
