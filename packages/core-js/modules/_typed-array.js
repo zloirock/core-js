@@ -21,8 +21,8 @@ if (require('core-js-internals/descriptors')) {
   var toObject = require('core-js-internals/to-object');
   var isArrayIter = require('./_is-array-iter');
   var create = require('./_object-create');
-  var getPrototypeOf = require('./_object-gpo');
-  var gOPN = require('./_object-gopn').f;
+  var getPrototypeOf = require('./_object-get-prototype-of');
+  var getOwnPropertyNames = require('./_object-get-own-property-names').f;
   var getIterFn = require('./core.get-iterator-method');
   var uid = require('core-js-internals/uid');
   var wellKnownSymbol = require('core-js-internals/well-known-symbol');
@@ -35,11 +35,11 @@ if (require('core-js-internals/descriptors')) {
   var setSpecies = require('./_set-species');
   var arrayFill = require('core-js-internals/array-fill');
   var arrayCopyWithin = require('core-js-internals/array-copy-within');
-  var $DP = require('./_object-dp');
-  var $GOPD = require('./_object-gopd');
+  var definePropertyModule = require('./_object-define-property');
+  var getOwnPropertyDescriptorModule = require('./_object-get-own-property-descriptor');
   var $ = require('./_state');
-  var dP = $DP.f;
-  var gOPD = $GOPD.f;
+  var nativeDefineProperty = definePropertyModule.f;
+  var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
   var TypeError = global.TypeError;
   var Uint8Array = global.Uint8Array;
@@ -121,7 +121,7 @@ if (require('core-js-internals/descriptors')) {
   };
 
   var addGetter = function (it, key) {
-    dP(it, key, { get: function () { return $(this)[key]; } });
+    nativeDefineProperty(it, key, { get: function () { return $(this)[key]; } });
   };
 
   var $from = function from(source /* , mapfn, thisArg */) {
@@ -266,12 +266,12 @@ if (require('core-js-internals/descriptors')) {
       && key in target
       && String(+key) == String(key);
   };
-  var $getDesc = function getOwnPropertyDescriptor(target, key) {
+  var getOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
     return isTAIndex(target, key = toPrimitive(key, true))
       ? propertyDesc(2, target[key])
-      : gOPD(target, key);
+      : nativeGetOwnPropertyDescriptor(target, key);
   };
-  var $setDesc = function defineProperty(target, key, desc) {
+  var defineProperty = function defineProperty(target, key, desc) {
     if (isTAIndex(target, key = toPrimitive(key, true))
       && isObject(desc)
       && has(desc, 'value')
@@ -284,17 +284,17 @@ if (require('core-js-internals/descriptors')) {
     ) {
       target[key] = desc.value;
       return target;
-    } return dP(target, key, desc);
+    } return nativeDefineProperty(target, key, desc);
   };
 
   if (!ALL_CONSTRUCTORS) {
-    $GOPD.f = $getDesc;
-    $DP.f = $setDesc;
+    getOwnPropertyDescriptorModule.f = getOwnPropertyDescriptor;
+    definePropertyModule.f = defineProperty;
   }
 
   $export({ target: 'Object', stat: true, forced: !ALL_CONSTRUCTORS }, {
-    getOwnPropertyDescriptor: $getDesc,
-    defineProperty: $setDesc
+    getOwnPropertyDescriptor: getOwnPropertyDescriptor,
+    defineProperty: defineProperty
   });
 
   if (fails(function () { arrayToString.call({}); })) {
@@ -317,7 +317,7 @@ if (require('core-js-internals/descriptors')) {
   addGetter($TypedArrayPrototype$, 'byteOffset');
   addGetter($TypedArrayPrototype$, 'byteLength');
   addGetter($TypedArrayPrototype$, 'length');
-  dP($TypedArrayPrototype$, TAG, {
+  nativeDefineProperty($TypedArrayPrototype$, TAG, {
     get: function () { return this[TYPED_ARRAY]; }
   });
 
@@ -343,7 +343,7 @@ if (require('core-js-internals/descriptors')) {
       data.view[SETTER](index * BYTES + data.byteOffset, value, LITTLE_ENDIAN);
     };
     var addElement = function (that, index) {
-      dP(that, index, {
+      nativeDefineProperty(that, index, {
         get: function () {
           return getter(this, index);
         },
@@ -418,7 +418,10 @@ if (require('core-js-internals/descriptors')) {
         if (TYPED_ARRAY in data) return fromList(TypedArray, data);
         return $from.call(TypedArray, data);
       });
-      arrayForEach(TAC !== Function.prototype ? gOPN(Base).concat(gOPN(TAC)) : gOPN(Base), function (key) {
+      arrayForEach(TAC !== Function.prototype
+        ? getOwnPropertyNames(Base).concat(getOwnPropertyNames(TAC))
+        : getOwnPropertyNames(Base)
+      , function (key) {
         if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
@@ -434,7 +437,7 @@ if (require('core-js-internals/descriptors')) {
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
 
     if (CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)) {
-      dP(TypedArrayPrototype, TAG, {
+      nativeDefineProperty(TypedArrayPrototype, TAG, {
         get: function () { return NAME; }
       });
     }

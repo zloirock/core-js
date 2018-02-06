@@ -1,3 +1,9 @@
+var bind = require('core-js-internals/bind-context');
+var IndexedObject = require('core-js-internals/indexed-object');
+var toObject = require('core-js-internals/to-object');
+var toLength = require('core-js-internals/to-length');
+var arraySpeciesCreate = require('core-js-internals/array-species-create');
+
 // 0 -> Array#forEach
 // 1 -> Array#map
 // 2 -> Array#filter
@@ -5,11 +11,6 @@
 // 4 -> Array#every
 // 5 -> Array#find
 // 6 -> Array#findIndex
-var bind = require('core-js-internals/bind-context');
-var IndexedObject = require('core-js-internals/indexed-object');
-var toObject = require('core-js-internals/to-object');
-var toLength = require('core-js-internals/to-length');
-var asc = require('core-js-internals/array-species-create');
 module.exports = function (TYPE, $create) {
   var IS_MAP = TYPE == 1;
   var IS_FILTER = TYPE == 2;
@@ -17,7 +18,7 @@ module.exports = function (TYPE, $create) {
   var IS_EVERY = TYPE == 4;
   var IS_FIND_INDEX = TYPE == 6;
   var NO_HOLES = TYPE == 5 || IS_FIND_INDEX;
-  var create = $create || asc;
+  var create = $create || arraySpeciesCreate;
   return function ($this, callbackfn, that) {
     var O = toObject($this);
     var self = IndexedObject(O);

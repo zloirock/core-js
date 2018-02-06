@@ -5,9 +5,9 @@ var cof = require('core-js-internals/classof-raw');
 var inheritIfRequired = require('./_inherit-if-required');
 var toPrimitive = require('./_to-primitive');
 var fails = require('core-js-internals/fails');
-var gOPN = require('./_object-gopn').f;
-var gOPD = require('./_object-gopd').f;
-var dP = require('./_object-dp').f;
+var getOwnPropertyNames = require('./_object-get-own-property-names').f;
+var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
+var defineProperty = require('./_object-define-property').f;
 var $trim = require('./_string-trim').trim;
 var NUMBER = 'Number';
 var $Number = global[NUMBER];
@@ -52,7 +52,7 @@ if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
       && (BROKEN_COF ? fails(function () { proto.valueOf.call(that); }) : cof(that) != NUMBER)
         ? inheritIfRequired(new Base(toNumber(it)), that, $Number) : toNumber(it);
   };
-  for (var keys = require('core-js-internals/descriptors') ? gOPN(Base) : (
+  for (var keys = require('core-js-internals/descriptors') ? getOwnPropertyNames(Base) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES2015 (in case, if modules with ES2015 Number statics required before):
@@ -60,7 +60,7 @@ if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
     'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
   ).split(','), j = 0, key; keys.length > j; j++) {
     if (has(Base, key = keys[j]) && !has($Number, key)) {
-      dP($Number, key, gOPD(Base, key));
+      defineProperty($Number, key, getOwnPropertyDescriptor(Base, key));
     }
   }
   $Number.prototype = proto;
