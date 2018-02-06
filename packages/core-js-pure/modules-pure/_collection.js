@@ -8,7 +8,7 @@ var iterate = require('./_iterate');
 var anInstance = require('core-js-internals/an-instance');
 var isObject = require('core-js-internals/is-object');
 var setToStringTag = require('./_set-to-string-tag');
-var dP = require('./_object-dp').f;
+var defineProperty = require('./_object-define-property').f;
 var each = require('./_array-methods')(0);
 var DESCRIPTORS = require('core-js-internals/descriptors');
 
@@ -39,7 +39,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
         return IS_ADDER ? this : result;
       });
     });
-    IS_WEAK || dP(C.prototype, 'size', {
+    IS_WEAK || defineProperty(C.prototype, 'size', {
       get: function () {
         return this._c.size;
       }

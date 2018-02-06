@@ -22,13 +22,13 @@ var toPrimitive = require('./_to-primitive');
 var createDesc = require('./_property-desc');
 var _create = require('./_object-create');
 var gOPNExt = require('./_object-gopn-ext');
-var $GOPD = require('./_object-gopd');
-var $DP = require('./_object-dp');
+var getOwnPropertyDescriptorModule = require('./_object-get-own-property-descriptor');
+var definePropertyModule = require('./_object-define-property');
 var $keys = require('./_object-keys');
 var HIDDEN = require('core-js-internals/shared-key')('hidden');
 var $ = require('./_state');
-var gOPD = $GOPD.f;
-var dP = $DP.f;
+var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
+var nativeDefineProperty = definePropertyModule.f;
 var gOPN = gOPNExt.f;
 var $Symbol = global.Symbol;
 var $JSON = global.JSON;
@@ -50,15 +50,15 @@ hiddenKeys[HIDDEN] = true;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDesc = DESCRIPTORS && fails(function () {
-  return _create(dP({}, 'a', {
-    get: function () { return dP(this, 'a', { value: 7 }).a; }
+  return _create(nativeDefineProperty({}, 'a', {
+    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
   })).a != 7;
 }) ? function (it, key, D) {
-  var protoDesc = gOPD(ObjectProto, key);
+  var protoDesc = nativeGetOwnPropertyDescriptor(ObjectProto, key);
   if (protoDesc) delete ObjectProto[key];
-  dP(it, key, D);
-  if (protoDesc && it !== ObjectProto) dP(ObjectProto, key, protoDesc);
-} : dP;
+  nativeDefineProperty(it, key, D);
+  if (protoDesc && it !== ObjectProto) nativeDefineProperty(ObjectProto, key, protoDesc);
+} : nativeDefineProperty;
 
 var wrap = function (tag, description) {
   var symbol = AllSymbols[tag] = _create($Symbol[PROTOTYPE]);
@@ -83,13 +83,13 @@ var $defineProperty = function defineProperty(it, key, D) {
   anObject(D);
   if (has(AllSymbols, key)) {
     if (!D.enumerable) {
-      if (!has(it, HIDDEN)) dP(it, HIDDEN, createDesc(1, {}));
+      if (!has(it, HIDDEN)) nativeDefineProperty(it, HIDDEN, createDesc(1, {}));
       it[HIDDEN][key] = true;
     } else {
       if (has(it, HIDDEN) && it[HIDDEN][key]) it[HIDDEN][key] = false;
       D = _create(D, { enumerable: createDesc(0, false) });
     } return setSymbolDesc(it, key, D);
-  } return dP(it, key, D);
+  } return nativeDefineProperty(it, key, D);
 };
 var $defineProperties = function defineProperties(it, P) {
   anObject(it);
@@ -112,7 +112,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   it = toIndexedObject(it);
   key = toPrimitive(key, true);
   if (it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return;
-  var D = gOPD(it, key);
+  var D = nativeGetOwnPropertyDescriptor(it, key);
   if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key])) D.enumerable = true;
   return D;
 };
@@ -154,14 +154,14 @@ if (!USE_NATIVE) {
     return $(this).tag;
   });
 
-  $GOPD.f = $getOwnPropertyDescriptor;
-  $DP.f = $defineProperty;
-  require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
-  require('./_object-pie').f = $propertyIsEnumerable;
-  require('./_object-gops').f = $getOwnPropertySymbols;
+  getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
+  definePropertyModule.f = $defineProperty;
+  require('./_object-get-own-property-names').f = gOPNExt.f = $getOwnPropertyNames;
+  require('./_object-property-is-enumerable').f = $propertyIsEnumerable;
+  require('./_object-get-own-property-symbols').f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
-    dP($Symbol[PROTOTYPE], 'description', {
+    nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
       configurable: true,
       get: function description() {
         return $(this).description;

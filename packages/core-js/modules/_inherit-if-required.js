@@ -1,5 +1,6 @@
 var isObject = require('core-js-internals/is-object');
 var setPrototypeOf = require('./_set-proto').set;
+
 module.exports = function (that, target, C) {
   var S = target.constructor;
   var P;
