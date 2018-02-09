@@ -3,7 +3,8 @@ var toObject = require('core-js-internals/to-object');
 var aFunction = require('core-js-internals/a-function');
 var definePropertyModule = require('./_object-define-property');
 
-// B.2.2.2 Object.prototype.__defineGetter__(P, getter)
+// `Object.prototype.__defineGetter__` method
+// https://tc39.github.io/ecma262/#sec-object.prototype.__defineGetter__
 if (require('core-js-internals/descriptors')) {
   require('./_export')({ target: 'Object', proto: true, forced: require('./_object-forced-pam') }, {
     __defineGetter__: function __defineGetter__(P, getter) {

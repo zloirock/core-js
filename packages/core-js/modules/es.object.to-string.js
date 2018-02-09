@@ -1,9 +1,13 @@
 'use strict';
-// 19.1.3.6 Object.prototype.toString()
 var classof = require('core-js-internals/classof');
+var TO_STRING_TAG = require('core-js-internals/well-known-symbol')('toStringTag');
 var test = {};
-test[require('core-js-internals/well-known-symbol')('toStringTag')] = 'z';
-if (test + '' != '[object z]') {
+
+test[TO_STRING_TAG] = 'z';
+
+// `Object.prototype.toString` method
+// https://tc39.github.io/ecma262/#sec-object.prototype.tostring
+if (String(test) !== '[object z]') {
   require('./_redefine')(Object.prototype, 'toString', function toString() {
     return '[object ' + classof(this) + ']';
   }, true);

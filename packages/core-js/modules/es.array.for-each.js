@@ -1,5 +1,6 @@
 'use strict';
 var forEach = require('./_array-for-each');
 
-// 22.1.3.10 Array.prototype.forEach(callbackfn [, thisArg])
+// `Array.prototype.forEach` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.foreach
 require('./_export')({ target: 'Array', proto: true, forced: [].forEach != forEach }, { forEach: forEach });

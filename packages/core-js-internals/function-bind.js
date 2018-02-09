@@ -17,10 +17,10 @@ var construct = function (F, len, args) {
 module.exports = Function.bind || function bind(that /* , ...args */) {
   var fn = aFunction(this);
   var partArgs = arraySlice.call(arguments, 1);
-  var bound = function (/* args... */) {
+  var boundFunction = function bound(/* args... */) {
     var args = partArgs.concat(arraySlice.call(arguments));
-    return this instanceof bound ? construct(fn, args.length, args) : fn.apply(that, args);
+    return this instanceof boundFunction ? construct(fn, args.length, args) : fn.apply(that, args);
   };
-  if (isObject(fn.prototype)) bound.prototype = fn.prototype;
-  return bound;
+  if (isObject(fn.prototype)) boundFunction.prototype = fn.prototype;
+  return boundFunction;
 };

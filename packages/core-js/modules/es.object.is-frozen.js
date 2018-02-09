@@ -1,8 +1,9 @@
-// 19.1.2.12 Object.isFrozen(O)
 var isObject = require('core-js-internals/is-object');
 
-require('./_object-sap')('isFrozen', function ($isFrozen) {
+// `Object.isFrozen` method
+// https://tc39.github.io/ecma262/#sec-object.isfrozen
+require('./_object-statics-accept-primitives')('isFrozen', function (nativeIsFrozen) {
   return function isFrozen(it) {
-    return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
+    return isObject(it) ? nativeIsFrozen ? nativeIsFrozen(it) : false : true;
   };
 });

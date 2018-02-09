@@ -1,18 +1,18 @@
 var $export = require('./_export');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var fails = require('core-js-internals/fails');
-var spaces = require('core-js-internals/whitespaces');
-var space = '[' + spaces + ']';
+var whitespaces = require('core-js-internals/whitespaces');
+var space = '[' + whitespaces + ']';
 var non = '\u200b\u0085';
 var ltrim = RegExp('^' + space + space + '*');
 var rtrim = RegExp(space + space + '*$');
 
-var exporter = function (KEY, exec, ALIAS) {
+var exporter = module.exports = function (KEY, exec, ALIAS) {
   var exported = {};
   var FORCED = fails(function () {
-    return !!spaces[KEY]() || non[KEY]() != non;
+    return !!whitespaces[KEY]() || non[KEY]() != non;
   });
-  var fn = exported[KEY] = FORCED ? exec(trim) : spaces[KEY];
+  var fn = exported[KEY] = FORCED ? exec(trim) : whitespaces[KEY];
   if (ALIAS) exported[ALIAS] = fn;
   $export({ target: 'String', proto: true, forced: FORCED }, exported);
 };
@@ -26,5 +26,3 @@ var trim = exporter.trim = function (string, TYPE) {
   if (TYPE & 2) string = string.replace(rtrim, '');
   return string;
 };
-
-module.exports = exporter;

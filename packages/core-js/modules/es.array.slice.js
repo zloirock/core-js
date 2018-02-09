@@ -1,21 +1,23 @@
 'use strict';
 var html = require('core-js-internals/html');
-var cof = require('core-js-internals/classof-raw');
+var classof = require('core-js-internals/classof-raw');
 var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
 var toLength = require('core-js-internals/to-length');
-var arraySlice = [].slice;
+var nativeSlice = [].slice;
 
+// `Array.prototype.slice` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.slice
 // fallback for not array-like ES3 strings and DOM objects
 require('./_export')({ target: 'Array', proto: true, forced: require('core-js-internals/fails')(function () {
-  if (html) arraySlice.call(html);
+  if (html) nativeSlice.call(html);
 }) }, {
   slice: function slice(begin, end) {
-    var len = toLength(this.length);
-    var klass = cof(this);
-    end = end === undefined ? len : end;
-    if (klass == 'Array') return arraySlice.call(this, begin, end);
-    var start = toAbsoluteIndex(begin, len);
-    var upTo = toAbsoluteIndex(end, len);
+    var length = toLength(this.length);
+    var klass = classof(this);
+    end = end === undefined ? length : end;
+    if (klass == 'Array') return nativeSlice.call(this, begin, end);
+    var start = toAbsoluteIndex(begin, length);
+    var upTo = toAbsoluteIndex(end, length);
     var size = toLength(upTo - start);
     var cloned = new Array(size);
     var i = 0;
