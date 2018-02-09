@@ -1,14 +1,16 @@
 'use strict';
-var $indexOf = require('./_array-includes')(false);
-var $native = [].indexOf;
-var NEGATIVE_ZERO = !!$native && 1 / [1].indexOf(1, -0) < 0;
+var internalIndexOf = require('./_array-includes')(false);
+var nativeIndexOf = [].indexOf;
+var NEGATIVE_ZERO = !!nativeIndexOf && 1 / [1].indexOf(1, -0) < 0;
+var FORCED = NEGATIVE_ZERO || !require('./_strict-method')(nativeIndexOf);
 
-require('./_export')({ target: 'Array', proto: true, forced: NEGATIVE_ZERO || !require('./_strict-method')($native) }, {
-  // 22.1.3.11 / 15.4.4.14 Array.prototype.indexOf(searchElement [, fromIndex])
+// `Array.prototype.indexOf` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.indexof
+require('./_export')({ target: 'Array', proto: true, forced: FORCED }, {
   indexOf: function indexOf(searchElement /* , fromIndex = 0 */) {
     return NEGATIVE_ZERO
       // convert -0 to +0
-      ? $native.apply(this, arguments) || 0
-      : $indexOf(this, searchElement, arguments[1]);
+      ? nativeIndexOf.apply(this, arguments) || 0
+      : internalIndexOf(this, searchElement, arguments[1]);
   }
 });

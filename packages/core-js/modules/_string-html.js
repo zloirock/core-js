@@ -2,6 +2,7 @@ var $export = require('./_export');
 var fails = require('core-js-internals/fails');
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
 var quot = /"/g;
+
 // B.2.3.2.1 CreateHTML(string, tag, attribute, value)
 var createHTML = function (string, tag, attribute, value) {
   var S = String(requireObjectCoercible(string));
@@ -9,6 +10,7 @@ var createHTML = function (string, tag, attribute, value) {
   if (attribute !== '') p1 += ' ' + attribute + '="' + String(value).replace(quot, '&quot;') + '"';
   return p1 + '>' + S + '</' + tag + '>';
 };
+
 module.exports = function (NAME, exec) {
   var exported = {};
   exported[NAME] = exec(createHTML);

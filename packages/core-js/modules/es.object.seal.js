@@ -1,9 +1,10 @@
-// 19.1.2.17 Object.seal(O)
 var isObject = require('core-js-internals/is-object');
-var meta = require('./_meta').onFreeze;
+var onFreeze = require('./_meta').onFreeze;
 
-require('./_object-sap')('seal', function ($seal) {
+// `Object.seal` method
+// https://tc39.github.io/ecma262/#sec-object.seal
+require('./_object-statics-accept-primitives')('seal', function (nativeSeal) {
   return function seal(it) {
-    return $seal && isObject(it) ? $seal(meta(it)) : it;
+    return nativeSeal && isObject(it) ? nativeSeal(onFreeze(it)) : it;
   };
 });

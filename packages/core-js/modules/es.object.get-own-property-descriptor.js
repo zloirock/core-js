@@ -1,8 +1,9 @@
-// 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
 var toIndexedObject = require('core-js-internals/to-indexed-object');
 var nativeGetOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
 
-require('./_object-sap')('getOwnPropertyDescriptor', function () {
+// `Object.getOwnPropertyDescriptor` method
+// https://tc39.github.io/ecma262/#sec-object.getownpropertydescriptor
+require('./_object-statics-accept-primitives')('getOwnPropertyDescriptor', function () {
   return function getOwnPropertyDescriptor(it, key) {
     return nativeGetOwnPropertyDescriptor(toIndexedObject(it), key);
   };

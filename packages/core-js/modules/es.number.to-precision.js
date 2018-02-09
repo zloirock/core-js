@@ -1,17 +1,20 @@
 'use strict';
 var fails = require('core-js-internals/fails');
 var thisNumberValue = require('core-js-internals/this-number-value');
-var $toPrecision = 1.0.toPrecision;
+var nativeToPrecision = 1.0.toPrecision;
 
+// `Number.prototype.toPrecision` method
+// https://tc39.github.io/ecma262/#sec-number.prototype.toprecision
 require('./_export')({ target: 'Number', proto: true, forced: fails(function () {
   // IE7-
-  return $toPrecision.call(1, undefined) !== '1';
+  return nativeToPrecision.call(1, undefined) !== '1';
 }) || !fails(function () {
   // V8 ~ Android 4.3-
-  $toPrecision.call({});
+  nativeToPrecision.call({});
 }) }, {
   toPrecision: function toPrecision(precision) {
-    var that = thisNumberValue(this);
-    return precision === undefined ? $toPrecision.call(that) : $toPrecision.call(that, precision);
+    return precision === undefined
+      ? nativeToPrecision.call(thisNumberValue(this))
+      : nativeToPrecision.call(thisNumberValue(this), precision);
   }
 });

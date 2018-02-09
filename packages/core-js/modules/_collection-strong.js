@@ -6,7 +6,6 @@ var bind = require('core-js-internals/bind-context');
 var anInstance = require('core-js-internals/an-instance');
 var iterate = require('./_iterate');
 var iterDefine = require('./_iter-define');
-var step = require('./_iter-step');
 var setSpecies = require('./_set-species');
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var fastKey = require('./_meta').fastKey;
@@ -107,10 +106,10 @@ module.exports = {
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
         var state = validate(this, NAME);
-        var f = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+        var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
         var entry;
         while (entry = entry ? entry.next : state.first) {
-          f(entry.value, entry.key, this);
+          boundFunction(entry.value, entry.key, this);
           // revert to the last existing entry
           while (entry && entry.removed) entry = entry.previous;
         }
@@ -164,12 +163,12 @@ module.exports = {
       if (!state.target || !(state.last = entry = entry ? entry.next : state.state.first)) {
         // or finish the iteration
         state.target = undefined;
-        return step(1);
+        return { value: undefined, done: true };
       }
       // return step by kind
-      if (kind == 'keys') return step(0, entry.key);
-      if (kind == 'values') return step(0, entry.value);
-      return step(0, [entry.key, entry.value]);
+      if (kind == 'keys') return { value: entry.key, done: false };
+      if (kind == 'values') return { value: entry.value, done: false };
+      return { value: [entry.key, entry.value], done: false };
     }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
