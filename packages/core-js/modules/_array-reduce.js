@@ -3,14 +3,14 @@ var toObject = require('core-js-internals/to-object');
 var IndexedObject = require('core-js-internals/indexed-object');
 var toLength = require('core-js-internals/to-length');
 
-module.exports = function (that, callbackfn, aLen, memo, isRight) {
+module.exports = function (that, callbackfn, argumentsLength, memo, isRight) {
   aFunction(callbackfn);
   var O = toObject(that);
   var self = IndexedObject(O);
   var length = toLength(O.length);
   var index = isRight ? length - 1 : 0;
   var i = isRight ? -1 : 1;
-  if (aLen < 2) for (;;) {
+  if (argumentsLength < 2) for (;;) {
     if (index in self) {
       memo = self[index];
       index += i;

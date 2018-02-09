@@ -1,9 +1,10 @@
 'use strict';
-var $filter = require('./_array-methods')(2);
+var internalFilter = require('./_array-methods')(2);
 
+// `Array.prototype.filter` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.filter
 require('./_export')({ target: 'Array', proto: true, forced: !require('./_strict-method')([].filter, true) }, {
-  // 22.1.3.7 / 15.4.4.20 Array.prototype.filter(callbackfn [, thisArg])
   filter: function filter(callbackfn /* , thisArg */) {
-    return $filter(this, callbackfn, arguments[1]);
+    return internalFilter(this, callbackfn, arguments[1]);
   }
 });

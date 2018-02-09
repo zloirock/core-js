@@ -1,9 +1,9 @@
-var bind = require('core-js-internals/bind-context');
-var call = require('./_iter-call');
-var isArrayIterator = require('./_is-array-iter');
 var anObject = require('core-js-internals/an-object');
+var isArrayIterator = require('./_is-array-iter');
 var toLength = require('core-js-internals/to-length');
+var bind = require('core-js-internals/bind-context');
 var getIteratorMethod = require('./core.get-iterator-method');
+var callWithSafeIterationClosing = require('./_call-with-safe-iteration-closing');
 var BREAK = {};
 
 var exports = module.exports = function (iterable, entries, fn, that, ITERATOR) {
@@ -17,7 +17,7 @@ var exports = module.exports = function (iterable, entries, fn, that, ITERATOR) 
     result = entries ? boundFunction(anObject(step = iterable[index])[0], step[1]) : boundFunction(iterable[index]);
     if (result === BREAK) return;
   } else for (iterator = iterFn.call(iterable); !(step = iterator.next()).done;) {
-    result = call(iterator, boundFunction, step.value, entries);
+    result = callWithSafeIterationClosing(iterator, boundFunction, step.value, entries);
     if (result === BREAK) return;
   }
 };

@@ -4,7 +4,8 @@ var toPrimitive = require('./_to-primitive');
 var getPrototypeOf = require('./_object-get-prototype-of');
 var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
 
-// B.2.2.5 Object.prototype.__lookupSetter__(P)
+// `Object.prototype.__lookupSetter__` method
+// https://tc39.github.io/ecma262/#sec-object.prototype.__lookupSetter__
 if (require('core-js-internals/descriptors')) {
   require('./_export')({ target: 'Object', proto: true, forced: require('./_object-forced-pam') }, {
     __lookupSetter__: function __lookupSetter__(P) {

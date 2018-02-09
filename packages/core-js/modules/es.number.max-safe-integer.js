@@ -1,2 +1,3 @@
-// 20.1.2.6 Number.MAX_SAFE_INTEGER
+// `Number.MAX_SAFE_INTEGER` constant
+// https://tc39.github.io/ecma262/#sec-number.max_safe_integer
 require('./_export')({ target: 'Number', stat: true }, { MAX_SAFE_INTEGER: 0x1fffffffffffff });

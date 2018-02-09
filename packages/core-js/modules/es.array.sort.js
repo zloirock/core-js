@@ -2,21 +2,22 @@
 var aFunction = require('core-js-internals/a-function');
 var toObject = require('core-js-internals/to-object');
 var fails = require('core-js-internals/fails');
-var $sort = [].sort;
-var test = [1, 2, 3];
+var nativeSort = [].sort;
+var testData = [1, 2, 3];
 
+// `Array.prototype.sort` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.sort
 require('./_export')({ target: 'Array', proto: true, forced: fails(function () {
   // IE8-
-  test.sort(undefined);
+  testData.sort(undefined);
 }) || !fails(function () {
   // V8 bug
-  test.sort(null);
+  testData.sort(null);
   // Old WebKit
-}) || !require('./_strict-method')($sort) }, {
-  // 22.1.3.25 Array.prototype.sort(comparefn)
+}) || !require('./_strict-method')(nativeSort) }, {
   sort: function sort(comparefn) {
     return comparefn === undefined
-      ? $sort.call(toObject(this))
-      : $sort.call(toObject(this), aFunction(comparefn));
+      ? nativeSort.call(toObject(this))
+      : nativeSort.call(toObject(this), aFunction(comparefn));
   }
 });

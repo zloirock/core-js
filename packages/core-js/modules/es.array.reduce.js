@@ -1,9 +1,10 @@
 'use strict';
-var $reduce = require('./_array-reduce');
+var internalReduce = require('./_array-reduce');
 
+// `Array.prototype.reduce` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.reduce
 require('./_export')({ target: 'Array', proto: true, forced: !require('./_strict-method')([].reduce, true) }, {
-  // 22.1.3.18 / 15.4.4.21 Array.prototype.reduce(callbackfn [, initialValue])
   reduce: function reduce(callbackfn /* , initialValue */) {
-    return $reduce(this, callbackfn, arguments.length, arguments[1], false);
+    return internalReduce(this, callbackfn, arguments.length, arguments[1], false);
   }
 });

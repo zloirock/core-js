@@ -1,17 +1,16 @@
 'use strict';
 var bind = require('core-js-internals/bind-context');
 var toObject = require('core-js-internals/to-object');
-var call = require('./_iter-call');
+var call = require('./_call-with-safe-iteration-closing');
 var isArrayIter = require('./_is-array-iter');
 var toLength = require('core-js-internals/to-length');
 var createProperty = require('./_create-property');
 var getIterFn = require('./core.get-iterator-method');
+var FORCED = !require('./_iter-detect')(function (iter) { Array.from(iter); });
 
-require('./_export')({
-  target: 'Array', stat: true,
-  forced: !require('./_iter-detect')(function (iter) { Array.from(iter); })
-}, {
-  // 22.1.2.1 Array.from(arrayLike, mapfn = undefined, thisArg = undefined)
+// `Array.from` method
+// https://tc39.github.io/ecma262/#sec-array.from
+require('./_export')({ target: 'Array', stat: true, forced: FORCED }, {
   from: function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
     var O = toObject(arrayLike);
     var C = typeof this == 'function' ? this : Array;
