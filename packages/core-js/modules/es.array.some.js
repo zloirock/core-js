@@ -1,9 +1,10 @@
 'use strict';
-var $some = require('./_array-methods')(3);
+var internalSome = require('./_array-methods')(3);
 
+// `Array.prototype.some` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.some
 require('./_export')({ target: 'Array', proto: true, forced: !require('./_strict-method')([].some, true) }, {
-  // 22.1.3.23 / 15.4.4.17 Array.prototype.some(callbackfn [, thisArg])
   some: function some(callbackfn /* , thisArg */) {
-    return $some(this, callbackfn, arguments[1]);
+    return internalSome(this, callbackfn, arguments[1]);
   }
 });

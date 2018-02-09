@@ -8,7 +8,7 @@ var iterate = require('./_iterate');
 module.exports = function (COLLECTION) {
   $export({ target: COLLECTION, stat: true }, { from: function from(source /* , mapFn, thisArg */) {
     var mapFn = arguments[1];
-    var mapping, A, n, cb;
+    var mapping, A, n, boundFunction;
     aFunction(this);
     mapping = mapFn !== undefined;
     if (mapping) aFunction(mapFn);
@@ -16,9 +16,9 @@ module.exports = function (COLLECTION) {
     A = [];
     if (mapping) {
       n = 0;
-      cb = bind(mapFn, arguments[2], 2);
+      boundFunction = bind(mapFn, arguments[2], 2);
       iterate(source, false, function (nextItem) {
-        A.push(cb(nextItem, n++));
+        A.push(boundFunction(nextItem, n++));
       });
     } else {
       iterate(source, false, A.push, A);

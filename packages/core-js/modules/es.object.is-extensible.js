@@ -1,8 +1,9 @@
-// 19.1.2.11 Object.isExtensible(O)
 var isObject = require('core-js-internals/is-object');
 
-require('./_object-sap')('isExtensible', function ($isExtensible) {
+// `Object.isExtensible` method
+// https://tc39.github.io/ecma262/#sec-object.isextensible
+require('./_object-statics-accept-primitives')('isExtensible', function (nativeIsExtensible) {
   return function isExtensible(it) {
-    return isObject(it) ? $isExtensible ? $isExtensible(it) : true : false;
+    return isObject(it) ? nativeIsExtensible ? nativeIsExtensible(it) : true : false;
   };
 });

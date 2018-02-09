@@ -1,9 +1,10 @@
-// 19.1.2.5 Object.freeze(O)
 var isObject = require('core-js-internals/is-object');
-var meta = require('./_meta').onFreeze;
+var onFreeze = require('./_meta').onFreeze;
 
-require('./_object-sap')('freeze', function ($freeze) {
+// `Object.freeze` method
+// https://tc39.github.io/ecma262/#sec-object.freeze
+require('./_object-statics-accept-primitives')('freeze', function (nativeFreeze) {
   return function freeze(it) {
-    return $freeze && isObject(it) ? $freeze(meta(it)) : it;
+    return nativeFreeze && isObject(it) ? nativeFreeze(onFreeze(it)) : it;
   };
 });

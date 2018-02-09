@@ -1,9 +1,10 @@
-// 19.1.2.14 Object.keys(O)
 var toObject = require('core-js-internals/to-object');
-var $keys = require('./_object-keys');
+var nativeKeys = require('./_object-keys');
 
-require('./_object-sap')('keys', function () {
+// `Object.keys` method
+// https://tc39.github.io/ecma262/#sec-object.keys
+require('./_object-statics-accept-primitives')('keys', function () {
   return function keys(it) {
-    return $keys(toObject(it));
+    return nativeKeys(toObject(it));
   };
 });

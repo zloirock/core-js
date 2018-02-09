@@ -1,2 +1,3 @@
-// 19.1.3.19 Object.setPrototypeOf(O, proto)
+// `Object.setPrototypeOf` method
+// https://tc39.github.io/ecma262/#sec-object.setprototypeof
 require('./_export')({ target: 'Object', stat: true }, { setPrototypeOf: require('./_set-proto').set });

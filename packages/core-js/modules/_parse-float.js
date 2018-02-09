@@ -1,9 +1,10 @@
-var $parseFloat = require('core-js-internals/global').parseFloat;
-var $trim = require('./_string-trim').trim;
+var nativeParseFloat = require('core-js-internals/global').parseFloat;
+var internalStringTrim = require('./_string-trim').trim;
 var whitespaces = require('core-js-internals/whitespaces');
+var FORCED = 1 / nativeParseFloat(whitespaces + '-0') !== -Infinity;
 
-module.exports = 1 / $parseFloat(whitespaces + '-0') !== -Infinity ? function parseFloat(str) {
-  var string = $trim(String(str), 3);
-  var result = $parseFloat(string);
+module.exports = FORCED ? function parseFloat(str) {
+  var string = internalStringTrim(String(str), 3);
+  var result = nativeParseFloat(string);
   return result === 0 && string.charAt(0) == '-' ? -0 : result;
-} : $parseFloat;
+} : nativeParseFloat;

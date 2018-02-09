@@ -1,9 +1,10 @@
-// 19.1.2.15 Object.preventExtensions(O)
 var isObject = require('core-js-internals/is-object');
-var meta = require('./_meta').onFreeze;
+var onFreeze = require('./_meta').onFreeze;
 
-require('./_object-sap')('preventExtensions', function ($preventExtensions) {
+// `Object.preventExtensions` method
+// https://tc39.github.io/ecma262/#sec-object.preventextensions
+require('./_object-statics-accept-primitives')('preventExtensions', function (nativePreventExtensions) {
   return function preventExtensions(it) {
-    return $preventExtensions && isObject(it) ? $preventExtensions(meta(it)) : it;
+    return nativePreventExtensions && isObject(it) ? nativePreventExtensions(onFreeze(it)) : it;
   };
 });

@@ -1,8 +1,9 @@
-// 19.1.2.13 Object.isSealed(O)
 var isObject = require('core-js-internals/is-object');
 
-require('./_object-sap')('isSealed', function ($isSealed) {
+// Object.isSealed` method
+// https://tc39.github.io/ecma262/#sec-object.issealed
+require('./_object-statics-accept-primitives')('isSealed', function (nativeIsSealed) {
   return function isSealed(it) {
-    return isObject(it) ? $isSealed ? $isSealed(it) : false : true;
+    return isObject(it) ? nativeIsSealed ? nativeIsSealed(it) : false : true;
   };
 });
