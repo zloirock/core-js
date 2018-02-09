@@ -4,14 +4,15 @@ var requireObjectCoercible = require('core-js-internals/require-object-coercible
 // false -> String#codePointAt
 module.exports = function (TO_STRING) {
   return function (that, pos) {
-    var s = String(requireObjectCoercible(that));
-    var i = toInteger(pos);
-    var l = s.length;
-    var a, b;
-    if (i < 0 || i >= l) return TO_STRING ? '' : undefined;
-    a = s.charCodeAt(i);
-    return a < 0xd800 || a > 0xdbff || i + 1 === l || (b = s.charCodeAt(i + 1)) < 0xdc00 || b > 0xdfff
-      ? TO_STRING ? s.charAt(i) : a
-      : TO_STRING ? s.slice(i, i + 2) : (a - 0xd800 << 10) + (b - 0xdc00) + 0x10000;
+    var S = String(requireObjectCoercible(that));
+    var position = toInteger(pos);
+    var size = S.length;
+    var first, second;
+    if (position < 0 || position >= size) return TO_STRING ? '' : undefined;
+    first = S.charCodeAt(position);
+    return first < 0xd800 || first > 0xdbff || position + 1 === size
+      || (second = S.charCodeAt(position + 1)) < 0xdc00 || second > 0xdfff
+        ? TO_STRING ? S.charAt(position) : first
+        : TO_STRING ? S.slice(position, position + 2) : (first - 0xd800 << 10) + (second - 0xdc00) + 0x10000;
   };
 };

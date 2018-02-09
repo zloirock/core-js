@@ -2,29 +2,29 @@
 var anObject = require('core-js-internals/an-object');
 var defineProperties = require('./_object-define-properties');
 var enumBugKeys = require('./_enum-bug-keys');
+var html = require('core-js-internals/html');
+var documentCreateElement = require('core-js-internals/document-create-element');
 var IE_PROTO = require('core-js-internals/shared-key')('IE_PROTO');
-var Empty = function () { /* empty */ };
 var PROTOTYPE = 'prototype';
+var Empty = function () { /* empty */ };
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
 var createDict = function () {
   // Thrash, waste and sodomy: IE GC bug
-  var iframe = require('core-js-internals/document-create-element')('iframe');
-  var i = enumBugKeys.length;
+  var iframe = documentCreateElement('iframe');
+  var length = enumBugKeys.length;
   var lt = '<';
   var gt = '>';
   var iframeDocument;
   iframe.style.display = 'none';
-  require('core-js-internals/html').appendChild(iframe);
+  html.appendChild(iframe);
   iframe.src = 'javascript:'; // eslint-disable-line no-script-url
-  // createDict = iframe.contentWindow.Object;
-  // html.removeChild(iframe);
   iframeDocument = iframe.contentWindow.document;
   iframeDocument.open();
   iframeDocument.write(lt + 'script' + gt + 'document.F=Object' + lt + '/script' + gt);
   iframeDocument.close();
   createDict = iframeDocument.F;
-  while (i--) delete createDict[PROTOTYPE][enumBugKeys[i]];
+  while (length--) delete createDict[PROTOTYPE][enumBugKeys[length]];
   return createDict();
 };
 

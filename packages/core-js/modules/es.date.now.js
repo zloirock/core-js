@@ -1,2 +1,7 @@
-// 20.3.3.1 / 15.9.4.4 Date.now()
-require('./_export')({ target: 'Date', stat: true }, { now: function () { return new Date().getTime(); } });
+// `Date.now` method
+// https://tc39.github.io/ecma262/#sec-date.now
+require('./_export')({ target: 'Date', stat: true }, {
+  now: function now() {
+    return new Date().getTime();
+  }
+});

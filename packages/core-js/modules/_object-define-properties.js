@@ -8,7 +8,7 @@ module.exports = DESCRIPTORS ? Object.defineProperties : function defineProperti
   var keys = objectKeys(Properties);
   var length = keys.length;
   var i = 0;
-  var P;
-  while (length > i) definePropertyModule.f(O, P = keys[i++], Properties[P]);
+  var key;
+  while (length > i) definePropertyModule.f(O, key = keys[i++], Properties[key]);
   return O;
 };

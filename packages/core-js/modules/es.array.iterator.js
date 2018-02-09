@@ -1,21 +1,27 @@
 'use strict';
 var toIndexedObject = require('core-js-internals/to-indexed-object');
 var addToUnscopables = require('./_add-to-unscopables');
-var step = require('./_iter-step');
 var Iterators = require('./_iterators');
 var $ = require('./_state');
 
-// 22.1.3.4 Array.prototype.entries()
-// 22.1.3.13 Array.prototype.keys()
-// 22.1.3.29 Array.prototype.values()
-// 22.1.3.30 Array.prototype[@@iterator]()
+// `Array.prototype.entries` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.entries
+// `Array.prototype.keys` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.keys
+// `Array.prototype.values` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.values
+// `Array.prototype[@@iterator]` method
+// https://tc39.github.io/ecma262/#sec-array.prototype-@@iterator
+// `CreateArrayIterator` internal method
+// https://tc39.github.io/ecma262/#sec-createarrayiterator
 module.exports = require('./_iter-define')(Array, 'Array', function (iterated, kind) {
   $(this, {
     target: toIndexedObject(iterated), // target
     index: 0,                          // next index
     kind: kind                         // kind
   });
-// 22.1.5.2.1 %ArrayIteratorPrototype%.next()
+// `%ArrayIteratorPrototype%.next` method
+// https://tc39.github.io/ecma262/#sec-%arrayiteratorprototype%.next
 }, function () {
   var state = $(this);
   var target = state.target;
@@ -23,16 +29,19 @@ module.exports = require('./_iter-define')(Array, 'Array', function (iterated, k
   var index = state.index++;
   if (!target || index >= target.length) {
     state.target = undefined;
-    return step(1);
+    return { value: undefined, done: true };
   }
-  if (kind == 'keys') return step(0, index);
-  if (kind == 'values') return step(0, target[index]);
-  return step(0, [index, target[index]]);
+  if (kind == 'keys') return { value: index, done: false };
+  if (kind == 'values') return { value: target[index], done: false };
+  return { value: [index, target[index]], done: false };
 }, 'values');
 
-// argumentsList[@@iterator] is %ArrayProto_values% (9.4.4.6, 9.4.4.7)
+// argumentsList[@@iterator] is %ArrayProto_values%
+// https://tc39.github.io/ecma262/#sec-createunmappedargumentsobject
+// https://tc39.github.io/ecma262/#sec-createmappedargumentsobject
 Iterators.Arguments = Iterators.Array;
 
+// https://tc39.github.io/ecma262/#sec-array.prototype-@@unscopables
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');

@@ -2,14 +2,16 @@
 var toIndexedObject = require('core-js-internals/to-indexed-object');
 var toInteger = require('core-js-internals/to-integer');
 var toLength = require('core-js-internals/to-length');
-var $native = [].lastIndexOf;
-var NEGATIVE_ZERO = !!$native && 1 / [1].lastIndexOf(1, -0) < 0;
+var nativeLastIndexOf = [].lastIndexOf;
+var NEGATIVE_ZERO = !!nativeLastIndexOf && 1 / [1].lastIndexOf(1, -0) < 0;
+var FORCED = NEGATIVE_ZERO || !require('./_strict-method')(nativeLastIndexOf);
 
-require('./_export')({ target: 'Array', proto: true, forced: NEGATIVE_ZERO || !require('./_strict-method')($native) }, {
-  // 22.1.3.14 / 15.4.4.15 Array.prototype.lastIndexOf(searchElement [, fromIndex])
+// `Array.prototype.lastIndexOf` method
+// https://tc39.github.io/ecma262/#sec-array.prototype.lastindexof
+require('./_export')({ target: 'Array', proto: true, forced: FORCED }, {
   lastIndexOf: function lastIndexOf(searchElement /* , fromIndex = @[*-1] */) {
     // convert -0 to +0
-    if (NEGATIVE_ZERO) return $native.apply(this, arguments) || 0;
+    if (NEGATIVE_ZERO) return nativeLastIndexOf.apply(this, arguments) || 0;
     var O = toIndexedObject(this);
     var length = toLength(O.length);
     var index = length - 1;

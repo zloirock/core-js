@@ -2,7 +2,7 @@
 var toObject = require('core-js-internals/to-object');
 var toPrimitive = require('./_to-primitive');
 var toISOString = require('core-js-internals/date-to-iso-string');
-var classof = require('core-js-internals/classof');
+var classof = require('core-js-internals/classof-raw');
 
 require('./_export')({ target: 'Date', proto: true, forced: require('core-js-internals/fails')(function () {
   return new Date(NaN).toJSON() !== null

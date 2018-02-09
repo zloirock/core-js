@@ -1,9 +1,10 @@
-// 20.2.2.18 Math.imul(x, y)
-var $imul = Math.imul;
+var nativeImul = Math.imul;
 
+// `Math.imul` method
+// https://tc39.github.io/ecma262/#sec-math.imul
 // some WebKit versions fails with big numbers, some has wrong arity
 require('./_export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
-  return $imul(0xffffffff, 5) != -5 || $imul.length != 2;
+  return nativeImul(0xffffffff, 5) != -5 || nativeImul.length != 2;
 }) }, {
   imul: function imul(x, y) {
     var UINT16 = 0xffff;
