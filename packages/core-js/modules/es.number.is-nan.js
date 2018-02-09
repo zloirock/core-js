@@ -1,4 +1,5 @@
-// 20.1.2.4 Number.isNaN(number)
+// `Number.isNaN` method
+// https://tc39.github.io/ecma262/#sec-number.isnan
 require('./_export')({ target: 'Number', stat: true }, {
   isNaN: function isNaN(number) {
     // eslint-disable-next-line no-self-compare

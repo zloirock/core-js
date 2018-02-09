@@ -1,3 +1,7 @@
-var $parseFloat = require('./_parse-float');
-// 18.2.4 parseFloat(string)
-require('./_export')({ global: true, forced: parseFloat != $parseFloat }, { parseFloat: $parseFloat });
+var parseFloatImplementation = require('./_parse-float');
+
+// `parseFloat` method
+// https://tc39.github.io/ecma262/#sec-parsefloat-string
+require('./_export')({ global: true, forced: parseFloat != parseFloatImplementation }, {
+  parseFloat: parseFloatImplementation
+});

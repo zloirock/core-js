@@ -1,27 +1,27 @@
 'use strict';
 var global = require('core-js-internals/global');
 var has = require('core-js-internals/has');
-var cof = require('core-js-internals/classof-raw');
+var classof = require('core-js-internals/classof-raw');
 var inheritIfRequired = require('./_inherit-if-required');
 var toPrimitive = require('./_to-primitive');
 var fails = require('core-js-internals/fails');
 var getOwnPropertyNames = require('./_object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
 var defineProperty = require('./_object-define-property').f;
-var $trim = require('./_string-trim').trim;
+var internalTrim = require('./_string-trim').trim;
 var NUMBER = 'Number';
-var $Number = global[NUMBER];
-var Base = $Number;
-var proto = $Number.prototype;
+var NativeNumber = global[NUMBER];
+var NumberPrototype = NativeNumber.prototype;
 // Opera ~12 has broken Object#toString
-var BROKEN_COF = cof(require('./_object-create')(proto)) == NUMBER;
-var TRIM = 'trim' in String.prototype;
+var BROKEN_CLASSOF = classof(require('./_object-create')(NumberPrototype)) == NUMBER;
+var NATIVE_TRIM = 'trim' in String.prototype;
 
-// 7.1.3 ToNumber(argument)
+// `ToNumber` abstract operation
+// https://tc39.github.io/ecma262/#sec-tonumber
 var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
   if (typeof it == 'string' && it.length > 2) {
-    it = TRIM ? it.trim() : $trim(it, 3);
+    it = NATIVE_TRIM ? it.trim() : internalTrim(it, 3);
     var first = it.charCodeAt(0);
     var third, radix, maxCode;
     if (first === 43 || first === 45) {
@@ -29,8 +29,8 @@ var toNumber = function (argument) {
       if (third === 88 || third === 120) return NaN; // Number('+0x1') should be NaN, old V8 fix
     } else if (first === 48) {
       switch (it.charCodeAt(1)) {
-        case 66: case 98: radix = 2; maxCode = 49; break; // fast equal /^0b[01]+$/i
-        case 79: case 111: radix = 8; maxCode = 55; break; // fast equal /^0o[0-7]+$/i
+        case 66: case 98: radix = 2; maxCode = 49; break; // fast equal of /^0b[01]+$/i
+        case 79: case 111: radix = 8; maxCode = 55; break; // fast equal of /^0o[0-7]+$/i
         default: return +it;
       }
       for (var digits = it.slice(2), i = 0, l = digits.length, code; i < l; i++) {
@@ -43,27 +43,29 @@ var toNumber = function (argument) {
   } return +it;
 };
 
-if (!$Number(' 0o1') || !$Number('0b1') || $Number('+0x1')) {
-  $Number = function Number(value) {
+// `Number` constructor
+// https://tc39.github.io/ecma262/#sec-number-constructor
+if (!NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1')) {
+  var NumberWrapper = function Number(value) {
     var it = arguments.length < 1 ? 0 : value;
     var that = this;
-    return that instanceof $Number
+    return that instanceof NumberWrapper
       // check on 1..constructor(foo) case
-      && (BROKEN_COF ? fails(function () { proto.valueOf.call(that); }) : cof(that) != NUMBER)
-        ? inheritIfRequired(new Base(toNumber(it)), that, $Number) : toNumber(it);
+      && (BROKEN_CLASSOF ? fails(function () { NumberPrototype.valueOf.call(that); }) : classof(that) != NUMBER)
+        ? inheritIfRequired(new NativeNumber(toNumber(it)), that, NumberWrapper) : toNumber(it);
   };
-  for (var keys = require('core-js-internals/descriptors') ? getOwnPropertyNames(Base) : (
+  for (var keys = require('core-js-internals/descriptors') ? getOwnPropertyNames(NativeNumber) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES2015 (in case, if modules with ES2015 Number statics required before):
     'EPSILON,isFinite,isInteger,isNaN,isSafeInteger,MAX_SAFE_INTEGER,' +
     'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger'
   ).split(','), j = 0, key; keys.length > j; j++) {
-    if (has(Base, key = keys[j]) && !has($Number, key)) {
-      defineProperty($Number, key, getOwnPropertyDescriptor(Base, key));
+    if (has(NativeNumber, key = keys[j]) && !has(NumberWrapper, key)) {
+      defineProperty(NumberWrapper, key, getOwnPropertyDescriptor(NativeNumber, key));
     }
   }
-  $Number.prototype = proto;
-  proto.constructor = $Number;
-  require('./_redefine')(global, NUMBER, $Number);
+  NumberWrapper.prototype = NumberPrototype;
+  NumberPrototype.constructor = NumberWrapper;
+  require('./_redefine')(global, NUMBER, NumberWrapper);
 }

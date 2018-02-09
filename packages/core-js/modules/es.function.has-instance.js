@@ -5,7 +5,8 @@ var getPrototypeOf = require('./_object-get-prototype-of');
 var HAS_INSTANCE = require('core-js-internals/well-known-symbol')('hasInstance');
 var FunctionPrototype = Function.prototype;
 
-// 19.2.3.6 Function.prototype[@@hasInstance](V)
+// `Function.prototype[@@hasInstance]` method
+// https://tc39.github.io/ecma262/#sec-function.prototype-@@hasinstance
 if (!(HAS_INSTANCE in FunctionPrototype)) {
   definePropertyModule.f(FunctionPrototype, HAS_INSTANCE, { value: function (O) {
     if (typeof this != 'function' || !isObject(O)) return false;
