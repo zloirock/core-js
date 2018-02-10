@@ -1,10 +1,11 @@
-// 26.1.10 Reflect.isExtensible(target)
 var anObject = require('core-js-internals/an-object');
-var $isExtensible = Object.isExtensible;
+var objectIsExtensible = Object.isExtensible;
 
+// `Reflect.isExtensible` method
+// https://tc39.github.io/ecma262/#sec-reflect.isextensible
 require('./_export')({ target: 'Reflect', stat: true }, {
   isExtensible: function isExtensible(target) {
     anObject(target);
-    return $isExtensible ? $isExtensible(target) : true;
+    return objectIsExtensible ? objectIsExtensible(target) : true;
   }
 });

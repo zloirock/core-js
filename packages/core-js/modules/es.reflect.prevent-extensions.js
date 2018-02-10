@@ -1,12 +1,13 @@
-// 26.1.12 Reflect.preventExtensions(target)
 var anObject = require('core-js-internals/an-object');
-var $preventExtensions = Object.preventExtensions;
+var objectPreventExtensions = Object.preventExtensions;
 
+// `Reflect.preventExtensions` method
+// https://tc39.github.io/ecma262/#sec-reflect.preventextensions
 require('./_export')({ target: 'Reflect', stat: true }, {
   preventExtensions: function preventExtensions(target) {
     anObject(target);
     try {
-      if ($preventExtensions) $preventExtensions(target);
+      if (objectPreventExtensions) objectPreventExtensions(target);
       return true;
     } catch (e) {
       return false;

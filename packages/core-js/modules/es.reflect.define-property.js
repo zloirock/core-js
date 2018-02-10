@@ -1,8 +1,9 @@
-// 26.1.3 Reflect.defineProperty(target, propertyKey, attributes)
 var definePropertyModule = require('./_object-define-property');
 var anObject = require('core-js-internals/an-object');
 var toPrimitive = require('./_to-primitive');
 
+// `Reflect.defineProperty` method
+// https://tc39.github.io/ecma262/#sec-reflect.defineproperty
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 require('./_export')({ target: 'Reflect', stat: true, forced: require('core-js-internals/fails')(function () {
   // eslint-disable-next-line no-undef
