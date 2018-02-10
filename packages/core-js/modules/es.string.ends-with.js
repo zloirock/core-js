@@ -1,10 +1,11 @@
-// 21.1.3.6 String.prototype.endsWith(searchString [, endPosition])
 'use strict';
 var toLength = require('core-js-internals/to-length');
 var context = require('./_string-context');
 var ENDS_WITH = 'endsWith';
-var $endsWith = ''[ENDS_WITH];
+var nativeEndsWith = ''[ENDS_WITH];
 
+// `String.prototype.endsWith` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.endswith
 require('./_export')({ target: 'String', proto: true, forced: require('./_fails-is-regexp')(ENDS_WITH) }, {
   endsWith: function endsWith(searchString /* , endPosition = @length */) {
     var that = context(this, searchString, ENDS_WITH);
@@ -12,8 +13,8 @@ require('./_export')({ target: 'String', proto: true, forced: require('./_fails-
     var len = toLength(that.length);
     var end = endPosition === undefined ? len : Math.min(toLength(endPosition), len);
     var search = String(searchString);
-    return $endsWith
-      ? $endsWith.call(that, search, end)
+    return nativeEndsWith
+      ? nativeEndsWith.call(that, search, end)
       : that.slice(end - search.length, end) === search;
   }
 });

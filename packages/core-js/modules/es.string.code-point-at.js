@@ -1,9 +1,10 @@
 'use strict';
-var $at = require('./_string-at')(false);
+var internalCodePointAt = require('./_string-at')(false);
 
+// `String.prototype.codePointAt` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.codepointat
 require('./_export')({ target: 'String', proto: true }, {
-  // 21.1.3.3 String.prototype.codePointAt(pos)
   codePointAt: function codePointAt(pos) {
-    return $at(this, pos);
+    return internalCodePointAt(this, pos);
   }
 });

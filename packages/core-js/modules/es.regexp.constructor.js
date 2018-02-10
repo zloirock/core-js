@@ -4,40 +4,45 @@ var defineProperty = require('./_object-define-property').f;
 var getOwnPropertyNames = require('./_object-get-own-property-names').f;
 var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
-var $RegExp = global.RegExp;
-var Base = $RegExp;
-var proto = $RegExp.prototype;
+var redefine = require('./_redefine');
+var NativeRegExp = global.RegExp;
+var proto = NativeRegExp.prototype;
 var re1 = /a/g;
 var re2 = /a/g;
-// "new" creates a new object, old webkit buggy here
-var CORRECT_NEW = new $RegExp(re1) !== re1;
+// "new" should create a new object, old webkit bug
+var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 
+// `RegExp` constructor
+// https://tc39.github.io/ecma262/#sec-regexp-constructor
 if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-js-internals/fails')(function () {
   re2[require('core-js-internals/well-known-symbol')('match')] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
-  return $RegExp(re1) != re1 || $RegExp(re2) == re2 || $RegExp(re1, 'i') != '/a/i';
+  return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
 }))) {
-  $RegExp = function RegExp(p, f) {
-    var tiRE = this instanceof $RegExp;
-    var piRE = isRegExp(p);
-    var fiU = f === undefined;
-    return !tiRE && piRE && p.constructor === $RegExp && fiU ? p
+  var RegExpWrapper = function RegExp(pattern, flags) {
+    var thisIsRegExp = this instanceof RegExpWrapper;
+    var patternIsRegExp = isRegExp(pattern);
+    var flagsAreUndefined = flags === undefined;
+    return !thisIsRegExp && patternIsRegExp && pattern.constructor === RegExpWrapper && flagsAreUndefined ? pattern
       : inheritIfRequired(CORRECT_NEW
-        ? new Base(piRE && !fiU ? p.source : p, f)
-        : Base((piRE = p instanceof $RegExp) ? p.source : p, piRE && fiU ? getFlags.call(p) : f)
-      , tiRE ? this : proto, $RegExp);
+        ? new NativeRegExp(patternIsRegExp && !flagsAreUndefined ? pattern.source : pattern, flags)
+        : NativeRegExp((patternIsRegExp = pattern instanceof RegExpWrapper)
+          ? pattern.source
+          : pattern, patternIsRegExp && flagsAreUndefined ? getFlags.call(pattern) : flags)
+      , thisIsRegExp ? this : proto, RegExpWrapper);
   };
   var proxy = function (key) {
-    key in $RegExp || defineProperty($RegExp, key, {
+    key in RegExpWrapper || defineProperty(RegExpWrapper, key, {
       configurable: true,
-      get: function () { return Base[key]; },
-      set: function (it) { Base[key] = it; }
+      get: function () { return NativeRegExp[key]; },
+      set: function (it) { NativeRegExp[key] = it; }
     });
   };
-  for (var keys = getOwnPropertyNames(Base), i = 0; keys.length > i;) proxy(keys[i++]);
-  proto.constructor = $RegExp;
-  $RegExp.prototype = proto;
-  require('./_redefine')(global, 'RegExp', $RegExp);
+  for (var keys = getOwnPropertyNames(NativeRegExp), i = 0; keys.length > i;) proxy(keys[i++]);
+  proto.constructor = RegExpWrapper;
+  RegExpWrapper.prototype = proto;
+  redefine(global, 'RegExp', RegExpWrapper);
 }
 
+// https://tc39.github.io/ecma262/#sec-get-regexp-@@species
 require('./_set-species')('RegExp');
