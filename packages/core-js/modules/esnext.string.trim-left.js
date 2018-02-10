@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/ecmascript-string-left-right-trim
-require('./_string-trim')('trimLeft', function ($trim) {
+require('./_string-trim')('trimLeft', function (internalTrim) {
   return function trimLeft() {
-    return $trim(this, 1);
+    return internalTrim(this, 1);
   };
 }, 'trimStart');

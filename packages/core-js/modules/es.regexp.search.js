@@ -1,10 +1,11 @@
 // @@search logic
-require('./_fix-re-wks')('search', 1, function (defined, SEARCH, $search) {
-  // 21.1.3.15 String.prototype.search(regexp)
+require('./_fix-re-wks')('search', 1, function (defined, SEARCH, nativeSearch) {
+  // `String.prototype.search` method
+  // https://tc39.github.io/ecma262/#sec-string.prototype.search
   return [function search(regexp) {
     'use strict';
     var O = defined(this);
-    var fn = regexp == undefined ? undefined : regexp[SEARCH];
-    return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
-  }, $search];
+    var searcher = regexp == undefined ? undefined : regexp[SEARCH];
+    return searcher !== undefined ? searcher.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
+  }, nativeSearch];
 });
