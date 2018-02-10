@@ -11,7 +11,7 @@ var speciesConstructor = require('core-js-internals/species-constructor');
 var $ArrayBuffer = buffer.ArrayBuffer;
 var $DataView = buffer.DataView;
 var $isView = $typed.ABV && ArrayBuffer.isView;
-var $slice = $ArrayBuffer.prototype.slice;
+var nativeArrayBufferSlice = $ArrayBuffer.prototype.slice;
 var VIEW = $typed.VIEW;
 var ARRAY_BUFFER = 'ArrayBuffer';
 
@@ -29,7 +29,9 @@ $export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('core
 }) }, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end) {
-    if ($slice !== undefined && end === undefined) return $slice.call(anObject(this), start); // FF fix
+    if (nativeArrayBufferSlice !== undefined && end === undefined) {
+      return nativeArrayBufferSlice.call(anObject(this), start); // FF fix
+    }
     var len = anObject(this).byteLength;
     var first = toAbsoluteIndex(start, len);
     var final = toAbsoluteIndex(end === undefined ? len : end, len);

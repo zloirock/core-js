@@ -1,7 +1,8 @@
 'use strict';
-// 21.1.3.25 String.prototype.trim()
-require('./_string-trim')('trim', function ($trim) {
+// `String.prototype.trim` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.trim
+require('./_string-trim')('trim', function (internalTrim) {
   return function trim() {
-    return $trim(this, 3);
+    return internalTrim(this, 3);
   };
 });
