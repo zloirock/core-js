@@ -1,5 +1,6 @@
 'use strict';
-// B.2.3.7 String.prototype.fontcolor(color)
+// `String.prototype.fontcolor` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.fontcolor
 require('./_string-html')('fontcolor', function (createHTML) {
   return function fontcolor(color) {
     return createHTML(this, 'font', 'color', color);

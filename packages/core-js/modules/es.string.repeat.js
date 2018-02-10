@@ -1,4 +1,5 @@
+// `String.prototype.repeat` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.repeat
 require('./_export')({ target: 'String', proto: true }, {
-  // 21.1.3.13 String.prototype.repeat(count)
   repeat: require('core-js-internals/string-repeat')
 });

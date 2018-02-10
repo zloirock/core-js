@@ -1,5 +1,6 @@
 'use strict';
-// B.2.3.5 String.prototype.bold()
+// `String.prototype.bold` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.bold
 require('./_string-html')('bold', function (createHTML) {
   return function bold() {
     return createHTML(this, 'b', '', '');
