@@ -1,20 +1,21 @@
-// 26.1.2 Reflect.construct(target, argumentsList [, newTarget])
 var create = require('./_object-create');
 var aFunction = require('core-js-internals/a-function');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
 var fails = require('core-js-internals/fails');
 var bind = require('core-js-internals/function-bind');
-var rConstruct = (require('core-js-internals/global').Reflect || {}).construct;
+var nativeConstruct = (require('core-js-internals/global').Reflect || {}).construct;
 
+// `Reflect.construct` method
+// https://tc39.github.io/ecma262/#sec-reflect.construct
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 var NEW_TARGET_BUG = fails(function () {
   function F() { /* empty */ }
-  return !(rConstruct(function () { /* empty */ }, [], F) instanceof F);
+  return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F);
 });
 var ARGS_BUG = !fails(function () {
-  rConstruct(function () { /* empty */ });
+  nativeConstruct(function () { /* empty */ });
 });
 
 require('./_export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || ARGS_BUG }, {
@@ -22,7 +23,7 @@ require('./_export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || 
     aFunction(Target);
     anObject(args);
     var newTarget = arguments.length < 3 ? Target : aFunction(arguments[2]);
-    if (ARGS_BUG && !NEW_TARGET_BUG) return rConstruct(Target, args, newTarget);
+    if (ARGS_BUG && !NEW_TARGET_BUG) return nativeConstruct(Target, args, newTarget);
     if (Target == newTarget) {
       // w/o altered newTarget, optimization for 0-4 arguments
       switch (args.length) {

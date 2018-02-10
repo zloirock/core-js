@@ -1,5 +1,6 @@
 'use strict';
-// B.2.3.2 String.prototype.anchor(name)
+// `String.prototype.anchor` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.anchor
 require('./_string-html')('anchor', function (createHTML) {
   return function anchor(name) {
     return createHTML(this, 'a', 'name', name);

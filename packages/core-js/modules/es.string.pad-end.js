@@ -1,11 +1,13 @@
 'use strict';
-// 21.1.3.13 String.prototype.padEnd(maxLength [ , fillString ])
-var $pad = require('./_string-pad');
+var internalStringPad = require('./_string-pad');
 var userAgent = require('core-js-internals/user-agent');
-
 // https://github.com/zloirock/core-js/issues/280
-require('./_export')({ target: 'String', proto: true, forced: /Version\/10\.\d+(\.\d+)? Safari\//.test(userAgent) }, {
+var WEBKIT_BUG = /Version\/10\.\d+(\.\d+)? Safari\//.test(userAgent);
+
+// `String.prototype.padEnd` method
+// https://tc39.github.io/ecma262/#sec-string.prototype.padend
+require('./_export')({ target: 'String', proto: true, forced: WEBKIT_BUG }, {
   padEnd: function padEnd(maxLength /* , fillString = ' ' */) {
-    return $pad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
+    return internalStringPad(this, maxLength, arguments.length > 1 ? arguments[1] : undefined, false);
   }
 });
