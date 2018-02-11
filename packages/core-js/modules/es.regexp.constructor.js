@@ -6,7 +6,7 @@ var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
 var redefine = require('../internals/redefine');
 var NativeRegExp = global.RegExp;
-var proto = NativeRegExp.prototype;
+var RegExpPrototype = NativeRegExp.prototype;
 var re1 = /a/g;
 var re2 = /a/g;
 // "new" should create a new object, old webkit bug
@@ -29,7 +29,7 @@ if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-j
         : NativeRegExp((patternIsRegExp = pattern instanceof RegExpWrapper)
           ? pattern.source
           : pattern, patternIsRegExp && flagsAreUndefined ? getFlags.call(pattern) : flags)
-      , thisIsRegExp ? this : proto, RegExpWrapper);
+      , thisIsRegExp ? this : RegExpPrototype, RegExpWrapper);
   };
   var proxy = function (key) {
     key in RegExpWrapper || defineProperty(RegExpWrapper, key, {
@@ -39,8 +39,8 @@ if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-j
     });
   };
   for (var keys = getOwnPropertyNames(NativeRegExp), i = 0; keys.length > i;) proxy(keys[i++]);
-  proto.constructor = RegExpWrapper;
-  RegExpWrapper.prototype = proto;
+  RegExpPrototype.constructor = RegExpWrapper;
+  RegExpWrapper.prototype = RegExpPrototype;
   redefine(global, 'RegExp', RegExpWrapper);
 }
 

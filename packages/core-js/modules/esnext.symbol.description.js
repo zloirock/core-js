@@ -3,33 +3,28 @@
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var has = require('core-js-internals/has');
 var isObject = require('core-js-internals/is-object');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
-var Base = require('core-js-internals/global').Symbol;
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
+var NativeSymbol = require('core-js-internals/global').Symbol;
 
-if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototype)) {
+if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in NativeSymbol.prototype)) {
   var emptyStringDescriptionStore = {};
   // wrap Symbol constructor for correct work with undefined description
-  var $Symbol = function Symbol() {
+  var SymbolWrapper = function Symbol() {
     var description = arguments.length < 1 || arguments[0] === undefined ? undefined : String(arguments[0]);
-    var result = this instanceof $Symbol
-      ? new Base(description)
+    var result = this instanceof SymbolWrapper
+      ? new NativeSymbol(description)
       // in Edge 13, String(Symbol(undefined)) === 'Symbol(undefined)'
-      : description === undefined ? Base() : Base(description);
+      : description === undefined ? NativeSymbol() : NativeSymbol(description);
     if (description === '') emptyStringDescriptionStore[result] = true;
     return result;
   };
-  for (var keys = getOwnPropertyNames(Base), i = 0, key; keys.length > i; i++) {
-    if (!has($Symbol, key = keys[i])) {
-      defineProperty($Symbol, key, getOwnPropertyDescriptor(Base, key));
-    }
-  }
-  var symbolPrototype = $Symbol.prototype = Base.prototype;
-  symbolPrototype.constructor = $Symbol;
+  copyConstructorProperties(SymbolWrapper, NativeSymbol);
+  var symbolPrototype = SymbolWrapper.prototype = NativeSymbol.prototype;
+  symbolPrototype.constructor = SymbolWrapper;
 
   var symbolToString = symbolPrototype.toString;
-  var native = String(Base('test')) == 'Symbol(test)';
+  var native = String(NativeSymbol('test')) == 'Symbol(test)';
   var regexp = /^Symbol\((.*)\)[^)]+$/;
   defineProperty(symbolPrototype, 'description', {
     configurable: true,
@@ -42,5 +37,5 @@ if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototyp
     }
   });
 
-  require('../internals/export')({ global: true, forced: true }, { Symbol: $Symbol });
+  require('../internals/export')({ global: true, forced: true }, { Symbol: SymbolWrapper });
 }
