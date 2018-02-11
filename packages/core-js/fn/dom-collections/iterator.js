@@ -1,3 +1,3 @@
 require('../../modules/web.dom-collections.iterator');
 
-module.exports = require('../../modules/_entry-unbind')('Array', 'values');
+module.exports = require('../../internals/entry-unbind')('Array', 'values');

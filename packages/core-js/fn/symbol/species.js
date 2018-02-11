@@ -1,1 +1,1 @@
-module.exports = require('../../modules/_wks-ext').f('species');
+module.exports = require('../../internals/wks-ext').f('species');

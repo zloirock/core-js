@@ -1,3 +1,3 @@
 require('../../modules/es.function.bind');
 
-module.exports = require('../../modules/_entry-unbind')('Function', 'bind');
+module.exports = require('../../internals/entry-unbind')('Function', 'bind');

@@ -1,1 +1,1 @@
-require('./_wks-define')('asyncIterator');
+require('../internals/wks-define')('asyncIterator');

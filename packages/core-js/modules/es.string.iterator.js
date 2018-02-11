@@ -1,10 +1,10 @@
 'use strict';
-var at = require('./_string-at')(true);
-var $ = require('./_state');
+var at = require('../internals/string-at')(true);
+var $ = require('../internals/state');
 
 // `String.prototype[@@iterator]` method
 // https://tc39.github.io/ecma262/#sec-string.prototype-@@iterator
-require('./_iter-define')(String, 'String', function (iterated) {
+require('../internals/iter-define')(String, 'String', function (iterated) {
   $(this, {
     string: String(iterated),
     index: 0

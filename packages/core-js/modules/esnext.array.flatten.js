@@ -6,7 +6,7 @@ var toLength = require('core-js-internals/to-length');
 var toInteger = require('core-js-internals/to-integer');
 var arraySpeciesCreate = require('core-js-internals/array-species-create');
 
-require('./_export')({ target: 'Array', proto: true }, {
+require('../internals/export')({ target: 'Array', proto: true }, {
   flatten: function flatten(/* depthArg = 1 */) {
     var depthArg = arguments[0];
     var O = toObject(this);
@@ -17,4 +17,4 @@ require('./_export')({ target: 'Array', proto: true }, {
   }
 });
 
-require('./_add-to-unscopables')('flatten');
+require('../internals/add-to-unscopables')('flatten');

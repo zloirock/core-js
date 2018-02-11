@@ -3,7 +3,7 @@ var toLength = require('core-js-internals/to-length');
 
 // `String.raw` method
 // https://tc39.github.io/ecma262/#sec-string.raw
-require('./_export')({ target: 'String', stat: true }, {
+require('../internals/export')({ target: 'String', stat: true }, {
   raw: function raw(template) {
     var rawTemplate = toIndexedObject(template.raw);
     var literalSegments = toLength(rawTemplate.length);

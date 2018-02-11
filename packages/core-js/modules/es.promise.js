@@ -1,20 +1,20 @@
 'use strict';
-var IS_PURE = require('./_is-pure');
+var IS_PURE = require('../internals/is-pure');
 var global = require('core-js-internals/global');
 var classof = require('core-js-internals/classof-raw');
-var $export = require('./_export');
+var $export = require('../internals/export');
 var isObject = require('core-js-internals/is-object');
 var aFunction = require('core-js-internals/a-function');
 var anInstance = require('core-js-internals/an-instance');
-var iterate = require('./_iterate');
+var iterate = require('../internals/iterate');
 var speciesConstructor = require('core-js-internals/species-constructor');
 var task = require('core-js-internals/task').set;
 var microtask = require('core-js-internals/microtask')();
-var newPromiseCapabilityModule = require('./_new-promise-capability');
-var perform = require('./_perform');
-var promiseResolve = require('./_promise-resolve');
-var hostReportErrors = require('./_host-report-errors');
-var $ = require('./_state');
+var newPromiseCapabilityModule = require('../internals/new-promise-capability');
+var perform = require('../internals/perform');
+var promiseResolve = require('../internals/promise-resolve');
+var hostReportErrors = require('../internals/host-report-errors');
+var $ = require('../internals/state');
 var SPECIES = require('core-js-internals/well-known-symbol')('species');
 var PROMISE = 'Promise';
 var TypeError = global.TypeError;
@@ -201,7 +201,7 @@ if (!USE_NATIVE) {
       value: undefined
     });
   };
-  Internal.prototype = require('./_redefine-all')($Promise.prototype, {
+  Internal.prototype = require('../internals/redefine-all')($Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected) {
       var $promise = $(this);
@@ -234,9 +234,9 @@ if (!USE_NATIVE) {
 }
 
 $export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: $Promise });
-require('./_set-to-string-tag')($Promise, PROMISE);
-require('./_set-species')(PROMISE);
-Wrapper = require('./_path')[PROMISE];
+require('../internals/set-to-string-tag')($Promise, PROMISE);
+require('../internals/set-species')(PROMISE);
+Wrapper = require('../internals/path')[PROMISE];
 
 // statics
 $export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
@@ -254,7 +254,7 @@ $export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
     return promiseResolve(IS_PURE && this === Wrapper ? $Promise : this, x);
   }
 });
-$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('./_iter-detect')(function (iter) {
+$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('../internals/iter-detect')(function (iter) {
   $Promise.all(iter)['catch'](empty);
 })) }, {
   // 25.4.4.1 Promise.all(iterable)

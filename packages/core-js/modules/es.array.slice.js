@@ -8,7 +8,7 @@ var nativeSlice = [].slice;
 // `Array.prototype.slice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.slice
 // fallback for not array-like ES3 strings and DOM objects
-require('./_export')({ target: 'Array', proto: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Array', proto: true, forced: require('core-js-internals/fails')(function () {
   if (html) nativeSlice.call(html);
 }) }, {
   slice: function slice(begin, end) {
