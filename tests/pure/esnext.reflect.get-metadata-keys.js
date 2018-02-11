@@ -1,5 +1,5 @@
-import { defineMetadata, getMetadataKeys } from 'core-js-pure/fn/reflect';
-import create from 'core-js-pure/fn/object/create';
+import { defineMetadata, getMetadataKeys } from 'core-js-pure/features/reflect';
+import create from 'core-js-pure/features/object/create';
 
 QUnit.test('Reflect.getMetadataKeys', assert => {
   assert.isFunction(getMetadataKeys);

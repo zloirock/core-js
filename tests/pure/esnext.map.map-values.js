@@ -1,5 +1,5 @@
 import { Map, Set } from 'core-js-pure';
-import from from 'core-js-pure/fn/array/from';
+import from from 'core-js-pure/features/array/from';
 
 QUnit.test('Map#mapValues', assert => {
   const { mapValues } = Map.prototype;

@@ -1,6 +1,6 @@
 import { PROTO } from '../helpers/constants';
 
-import setPrototypeOf from 'core-js-pure/fn/object/set-prototype-of';
+import setPrototypeOf from 'core-js-pure/features/object/set-prototype-of';
 
 if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   assert.isFunction(setPrototypeOf);
