@@ -1,6 +1,6 @@
 import { createIterable } from '../helpers/helpers';
 
-import WeakSet from 'core-js-pure/fn/weak-set';
+import WeakSet from 'core-js-pure/features/weak-set';
 
 QUnit.test('WeakSet.from', assert => {
   const { from } = WeakSet;

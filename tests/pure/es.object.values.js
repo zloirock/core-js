@@ -1,4 +1,4 @@
-import { values, create, assign } from 'core-js-pure/fn/object';
+import { values, create, assign } from 'core-js-pure/features/object';
 
 QUnit.test('Object.values', assert => {
   assert.isFunction(values);

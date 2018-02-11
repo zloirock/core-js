@@ -9,8 +9,8 @@ import {
   getOwnPropertySymbols,
   keys,
   create,
-} from 'core-js-pure/fn/object';
-import ownKeys from 'core-js-pure/fn/reflect/own-keys';
+} from 'core-js-pure/features/object';
+import ownKeys from 'core-js-pure/features/reflect/own-keys';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);

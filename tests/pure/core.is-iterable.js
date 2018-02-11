@@ -1,6 +1,6 @@
 import { createIterable } from '../helpers/helpers';
 
-import isIterable from 'core-js-pure/fn/is-iterable';
+import isIterable from 'core-js-pure/features/is-iterable';
 
 QUnit.test('isIterable helper', assert => {
   assert.isFunction(isIterable);

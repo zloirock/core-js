@@ -1,4 +1,4 @@
-import asap from 'core-js-pure/fn/asap';
+import asap from 'core-js-pure/features/asap';
 
 QUnit.test('asap', assert => {
   assert.expect(3);

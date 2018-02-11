@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import reduceRight from 'core-js-pure/fn/array/reduce-right';
+import reduceRight from 'core-js-pure/features/array/reduce-right';
 
 QUnit.test('Array#reduceRight', assert => {
   assert.isFunction(reduceRight);

@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/fn/symbol';
+import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.test('Symbol.observable', assert => {
   assert.ok('observable' in Symbol, 'Symbol.observable available');

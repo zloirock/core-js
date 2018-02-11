@@ -1,4 +1,4 @@
-import { keys, values, entries } from 'core-js-pure/fn/array';
+import { keys, values, entries } from 'core-js-pure/features/array';
 import { getIterator, Symbol } from 'core-js-pure';
 
 QUnit.test('Array#@@iterator', assert => {

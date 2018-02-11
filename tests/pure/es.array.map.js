@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import map from 'core-js-pure/fn/array/map';
+import map from 'core-js-pure/features/array/map';
 
 QUnit.test('Array#map', assert => {
   assert.isFunction(map);

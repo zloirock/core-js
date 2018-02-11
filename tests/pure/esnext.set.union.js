@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
-import Set from 'core-js-pure/fn/set';
-import from from 'core-js-pure/fn/array/from';
+import Set from 'core-js-pure/features/set';
+import from from 'core-js-pure/features/array/from';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;
