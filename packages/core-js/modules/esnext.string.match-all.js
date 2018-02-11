@@ -4,12 +4,12 @@ var requireObjectCoercible = require('core-js-internals/require-object-coercible
 var toLength = require('core-js-internals/to-length');
 var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
-var hide = require('./_hide');
+var hide = require('../internals/hide');
 var speciesConstructor = require('core-js-internals/species-constructor');
-var at = require('./_string-at')(true);
+var at = require('../internals/string-at')(true);
 var MATCH_ALL = require('core-js-internals/well-known-symbol')('matchAll');
-var IS_PURE = require('./_is-pure');
-var $ = require('./_state');
+var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/state');
 var $RegExp = RegExp;
 var RegExpProto = $RegExp.prototype;
 var regExpBuiltinExec = RegExpProto.exec;
@@ -49,7 +49,7 @@ var regExpExec = function (R, S) {
   } return regExpBuiltinExec.call(R, S);
 };
 
-require('./_iter-create')($RegExpStringIterator, 'RegExp String', function next() {
+require('../internals/iter-create')($RegExpStringIterator, 'RegExp String', function next() {
   var state = $(this);
   if (state.done) return { value: null, done: true };
   var R = state.regexp;
@@ -64,7 +64,7 @@ require('./_iter-create')($RegExpStringIterator, 'RegExp String', function next(
   return { value: match, done: false };
 });
 
-require('./_export')({ target: 'String', proto: true }, {
+require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
     var R = isRegExp(regexp) ? regexp : new $RegExp(regexp, 'g');

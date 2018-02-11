@@ -1,10 +1,10 @@
 var global = require('core-js-internals/global');
-var inheritIfRequired = require('./_inherit-if-required');
-var defineProperty = require('./_object-define-property').f;
-var getOwnPropertyNames = require('./_object-get-own-property-names').f;
+var inheritIfRequired = require('../internals/inherit-if-required');
+var defineProperty = require('../internals/object-define-property').f;
+var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('core-js-internals/is-regexp');
 var getFlags = require('core-js-internals/regexp-flags');
-var redefine = require('./_redefine');
+var redefine = require('../internals/redefine');
 var NativeRegExp = global.RegExp;
 var proto = NativeRegExp.prototype;
 var re1 = /a/g;
@@ -45,4 +45,4 @@ if (require('core-js-internals/descriptors') && (!CORRECT_NEW || require('core-j
 }
 
 // https://tc39.github.io/ecma262/#sec-get-regexp-@@species
-require('./_set-species')('RegExp');
+require('../internals/set-species')('RegExp');

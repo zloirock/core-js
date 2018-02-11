@@ -3,7 +3,7 @@ var microtask = require('core-js-internals/microtask')();
 var process = require('core-js-internals/global').process;
 var isNode = require('core-js-internals/classof-raw')(process) == 'process';
 
-require('./_export')({ global: true }, {
+require('../internals/export')({ global: true }, {
   asap: function asap(fn) {
     var domain = isNode && process.domain;
     microtask(domain ? domain.bind(fn) : fn);

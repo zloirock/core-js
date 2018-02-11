@@ -1,3 +1,3 @@
 require('../../modules/esnext.symbol.observable');
 
-module.exports = require('../../modules/_wks-ext').f('observable');
+module.exports = require('../../internals/wks-ext').f('observable');

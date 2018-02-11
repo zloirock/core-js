@@ -1,3 +1,3 @@
 require('../../modules/esnext.reflect.delete-metadata');
 
-module.exports = require('../../modules/_path').Reflect.deleteMetadata;
+module.exports = require('../../internals/path').Reflect.deleteMetadata;

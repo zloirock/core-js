@@ -1,5 +1,5 @@
 // @@search logic
-require('./_fix-re-wks')('search', 1, function (defined, SEARCH, nativeSearch) {
+require('../internals/fix-re-wks')('search', 1, function (defined, SEARCH, nativeSearch) {
   // `String.prototype.search` method
   // https://tc39.github.io/ecma262/#sec-string.prototype.search
   return [function search(regexp) {

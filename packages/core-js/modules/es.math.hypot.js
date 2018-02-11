@@ -2,7 +2,7 @@ var abs = Math.abs;
 
 // `Math.hypot` method
 // https://tc39.github.io/ecma262/#sec-math.hypot
-require('./_export')({ target: 'Math', stat: true }, {
+require('../internals/export')({ target: 'Math', stat: true }, {
   hypot: function hypot(value1, value2) { // eslint-disable-line no-unused-vars
     var sum = 0;
     var i = 0;

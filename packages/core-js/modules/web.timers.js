@@ -14,7 +14,7 @@ var wrap = function (set) {
   };
 };
 
-require('./_export')({ global: true, bind: true, forced: MSIE }, {
+require('../internals/export')({ global: true, bind: true, forced: MSIE }, {
   setTimeout: wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });

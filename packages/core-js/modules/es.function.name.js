@@ -1,4 +1,4 @@
-var defineProperty = require('./_object-define-property').f;
+var defineProperty = require('../internals/object-define-property').f;
 var FunctionPrototype = Function.prototype;
 var nameRE = /^\s*function ([^ (]*)/;
 var NAME = 'name';

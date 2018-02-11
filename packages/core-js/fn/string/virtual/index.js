@@ -29,4 +29,4 @@ require('../../../modules/esnext.string.trim-left');
 require('../../../modules/esnext.string.trim-right');
 require('../../../modules/esnext.string.match-all');
 
-module.exports = require('../../../modules/_entry-virtual')('String');
+module.exports = require('../../../internals/entry-virtual')('String');

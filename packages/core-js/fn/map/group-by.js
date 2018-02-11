@@ -1,7 +1,7 @@
 'use strict';
 require('../../modules/es.map');
 require('../../modules/esnext.map.group-by');
-var Map = require('../../modules/_path').Map;
+var Map = require('../../internals/path').Map;
 var fn = Map.groupBy;
 
 module.exports = function groupBy(source, iterable, keyDerivative) {

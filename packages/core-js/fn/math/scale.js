@@ -1,3 +1,3 @@
 require('../../modules/esnext.math.scale');
 
-module.exports = require('../../modules/_path').Math.scale;
+module.exports = require('../../internals/path').Math.scale;

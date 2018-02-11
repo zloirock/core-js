@@ -1,3 +1,3 @@
 require('../../modules/esnext.math.degrees');
 
-module.exports = require('../../modules/_path').Math.degrees;
+module.exports = require('../../internals/path').Math.degrees;

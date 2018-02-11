@@ -7,7 +7,7 @@ var getTime = DatePrototype.getTime;
 // `Date.prototype.toString` method
 // https://tc39.github.io/ecma262/#sec-date.prototype.tostring
 if (new Date(NaN) + '' != INVALID_DATE) {
-  require('./_redefine')(DatePrototype, TO_STRING, function toString() {
+  require('../internals/redefine')(DatePrototype, TO_STRING, function toString() {
     var value = getTime.call(this);
     // eslint-disable-next-line no-self-compare
     return value === value ? nativeDateToString.call(this) : INVALID_DATE;

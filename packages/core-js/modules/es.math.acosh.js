@@ -4,7 +4,7 @@ var nativeAcosh = Math.acosh;
 
 // `Math.acosh` method
 // https://tc39.github.io/ecma262/#sec-math.acosh
-require('./_export')({ target: 'Math', stat: true, forced: !(nativeAcosh
+require('../internals/export')({ target: 'Math', stat: true, forced: !(nativeAcosh
   // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
   && Math.floor(nativeAcosh(Number.MAX_VALUE)) == 710
   // Tor Browser bug: Math.acosh(Infinity) -> NaN

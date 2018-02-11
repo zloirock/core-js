@@ -25,4 +25,4 @@ require('../../modules/esnext.array.end');
 require('../../modules/esnext.array.flat-map');
 require('../../modules/esnext.array.flatten');
 
-module.exports = require('../../modules/_path').Array;
+module.exports = require('../../internals/path').Array;

@@ -4,13 +4,13 @@ var aFunction = require('core-js-internals/a-function');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
 var anInstance = require('core-js-internals/an-instance');
-var redefineAll = require('./_redefine-all');
-var hide = require('./_hide');
+var redefineAll = require('../internals/redefine-all');
+var hide = require('../internals/hide');
 var getIterator = require('./core.get-iterator');
-var iterate = require('./_iterate');
-var hostReportErrors = require('./_host-report-errors');
-var defineProperty = require('./_object-define-property').f;
-var $ = require('./_state');
+var iterate = require('../internals/iterate');
+var hostReportErrors = require('../internals/host-report-errors');
+var defineProperty = require('../internals/object-define-property').f;
+var $ = require('../internals/state');
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var OBSERVABLE = require('core-js-internals/well-known-symbol')('observable');
 var BREAK = iterate.BREAK;
@@ -193,6 +193,6 @@ redefineAll($Observable, {
 
 hide($Observable.prototype, OBSERVABLE, function () { return this; });
 
-require('./_export')({ global: true }, { Observable: $Observable });
+require('../internals/export')({ global: true }, { Observable: $Observable });
 
-require('./_set-species')('Observable');
+require('../internals/set-species')('Observable');
