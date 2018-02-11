@@ -1,7 +1,7 @@
 'use strict';
-var toIndexedObject = require('core-js-internals/to-indexed-object');
-var toInteger = require('core-js-internals/to-integer');
-var toLength = require('core-js-internals/to-length');
+var toIndexedObject = require('../internals/to-indexed-object');
+var toInteger = require('../internals/to-integer');
+var toLength = require('../internals/to-length');
 var nativeLastIndexOf = [].lastIndexOf;
 var NEGATIVE_ZERO = !!nativeLastIndexOf && 1 / [1].lastIndexOf(1, -0) < 0;
 var FORCED = NEGATIVE_ZERO || !require('../internals/strict-method')(nativeLastIndexOf);

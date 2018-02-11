@@ -1,5 +1,6 @@
 'use strict';
 const resolve = require('path').resolve;
+
 module.exports = {
   options: {
     module: {
@@ -13,7 +14,6 @@ module.exports = {
       alias: {
         'core-js': resolve(__dirname, './packages/core-js'),
         'core-js-pure': resolve(__dirname, './packages/core-js-pure'),
-        'core-js-internals': resolve(__dirname, './packages/core-js-internals'),
       },
     },
     node: {

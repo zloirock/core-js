@@ -1,6 +1,6 @@
 'use strict';
-var fails = require('core-js-internals/fails');
-var thisNumberValue = require('core-js-internals/this-number-value');
+var fails = require('../internals/fails');
+var thisNumberValue = require('../internals/this-number-value');
 var nativeToPrecision = 1.0.toPrecision;
 
 // `Number.prototype.toPrecision` method

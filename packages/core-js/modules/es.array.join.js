@@ -1,7 +1,7 @@
 'use strict';
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var nativeJoin = [].join;
-var ES3_STRINGS = require('core-js-internals/indexed-object') != Object;
+var ES3_STRINGS = require('../internals/indexed-object') != Object;
 var SLOPPY_METHOD = !require('../internals/strict-method')(nativeJoin);
 
 // `Array.prototype.join` method

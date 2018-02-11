@@ -1,5 +1,5 @@
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 
 // `Reflect.deleteProperty` method
 // https://tc39.github.io/ecma262/#sec-reflect.deleteproperty

@@ -2,12 +2,12 @@
 var $export = require('../internals/export');
 var $typed = require('../internals/typed');
 var buffer = require('../internals/typed-buffer');
-var anObject = require('core-js-internals/an-object');
-var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
-var toLength = require('core-js-internals/to-length');
-var isObject = require('core-js-internals/is-object');
-var ArrayBuffer = require('core-js-internals/global').ArrayBuffer;
-var speciesConstructor = require('core-js-internals/species-constructor');
+var anObject = require('../internals/an-object');
+var toAbsoluteIndex = require('../internals/to-absolute-index');
+var toLength = require('../internals/to-length');
+var isObject = require('../internals/is-object');
+var ArrayBuffer = require('../internals/global').ArrayBuffer;
+var speciesConstructor = require('../internals/species-constructor');
 var $ArrayBuffer = buffer.ArrayBuffer;
 var $DataView = buffer.DataView;
 var $isView = $typed.ABV && ArrayBuffer.isView;
@@ -24,7 +24,7 @@ $export({ target: ARRAY_BUFFER, stat: true, forced: !$typed.CONSTR }, {
   }
 });
 
-$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('core-js-internals/fails')(function () {
+$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('../internals/fails')(function () {
   return !new $ArrayBuffer(2).slice(1, undefined).byteLength;
 }) }, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)

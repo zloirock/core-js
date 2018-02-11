@@ -1,4 +1,4 @@
-var expm1 = require('core-js-internals/math-expm1');
+var expm1 = require('../internals/math-expm1');
 var exp = Math.exp;
 
 // `Math.tanh` method

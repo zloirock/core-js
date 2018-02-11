@@ -1,7 +1,7 @@
 // https://github.com/tc39/proposal-string-pad-start-end
-var toLength = require('core-js-internals/to-length');
-var repeat = require('core-js-internals/string-repeat');
-var requireObjectCoercible = require('core-js-internals/require-object-coercible');
+var toLength = require('../internals/to-length');
+var repeat = require('../internals/string-repeat');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 
 module.exports = function (that, maxLength, fillString, left) {
   var S = String(requireObjectCoercible(that));

@@ -1,11 +1,11 @@
 // https://tc39.github.io/proposal-Symbol-description/
 'use strict';
-var DESCRIPTORS = require('core-js-internals/descriptors');
-var has = require('core-js-internals/has');
-var isObject = require('core-js-internals/is-object');
+var DESCRIPTORS = require('../internals/descriptors');
+var has = require('../internals/has');
+var isObject = require('../internals/is-object');
 var defineProperty = require('../internals/object-define-property').f;
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var NativeSymbol = require('core-js-internals/global').Symbol;
+var NativeSymbol = require('../internals/global').Symbol;
 
 if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in NativeSymbol.prototype)) {
   var emptyStringDescriptionStore = {};

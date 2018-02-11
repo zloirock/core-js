@@ -1,5 +1,5 @@
-var toInteger = require('core-js-internals/to-integer');
-var requireObjectCoercible = require('core-js-internals/require-object-coercible');
+var toInteger = require('../internals/to-integer');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 // true  -> String#at
 // false -> String#codePointAt
 module.exports = function (TO_STRING) {

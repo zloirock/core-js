@@ -1,8 +1,0 @@
-{
-  "name": "core-js-internals",
-  "version": "3.0.0-alpha.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/zloirock/core-js.git"
-  }
-}
