@@ -1,6 +1,6 @@
 import { WHITESPACES } from '../helpers/constants';
 
-import parseInt from 'core-js-pure/fn/number/parse-int';
+import parseInt from 'core-js-pure/features/number/parse-int';
 
 QUnit.test('Number.parseInt', assert => {
   assert.isFunction(parseInt);

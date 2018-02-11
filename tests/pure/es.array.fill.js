@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import fill from 'core-js-pure/fn/array/fill';
+import fill from 'core-js-pure/features/array/fill';
 
 QUnit.test('Array#fill', assert => {
   assert.isFunction(fill);

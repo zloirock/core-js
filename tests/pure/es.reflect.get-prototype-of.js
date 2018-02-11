@@ -1,4 +1,4 @@
-import getPrototypeOf from 'core-js-pure/fn/reflect/get-prototype-of';
+import getPrototypeOf from 'core-js-pure/features/reflect/get-prototype-of';
 
 QUnit.test('Reflect.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);

@@ -1,4 +1,4 @@
-import has from 'core-js-pure/fn/reflect/has';
+import has from 'core-js-pure/features/reflect/has';
 
 QUnit.test('Reflect.has', assert => {
   assert.isFunction(has);

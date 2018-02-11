@@ -1,4 +1,4 @@
-import EPSILON from 'core-js-pure/fn/number/epsilon';
+import EPSILON from 'core-js-pure/features/number/epsilon';
 
 QUnit.test('Number.EPSILON', assert => {
   assert.strictEqual(EPSILON, 2 ** -52, 'Is 2^-52');

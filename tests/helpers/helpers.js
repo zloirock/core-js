@@ -1,5 +1,5 @@
 import Promise from 'core-js-pure/es/promise';
-import ITERATOR from 'core-js-pure/fn/symbol/iterator';
+import ITERATOR from 'core-js-pure/features/symbol/iterator';
 
 export function createIterable(elements, methods) {
   const iterable = {

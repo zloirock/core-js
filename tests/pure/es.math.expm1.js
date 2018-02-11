@@ -1,4 +1,4 @@
-import expm1 from 'core-js-pure/fn/math/expm1';
+import expm1 from 'core-js-pure/features/math/expm1';
 
 QUnit.test('Math.expm1', assert => {
   assert.isFunction(expm1);

@@ -1,4 +1,4 @@
-import isFrozen from 'core-js-pure/fn/object/is-frozen';
+import isFrozen from 'core-js-pure/features/object/is-frozen';
 
 QUnit.test('Object.isFrozen', assert => {
   assert.isFunction(isFrozen);

@@ -1,5 +1,5 @@
-import isNaN from 'core-js-pure/fn/number/is-nan';
-import create from 'core-js-pure/fn/object/create';
+import isNaN from 'core-js-pure/features/number/is-nan';
+import create from 'core-js-pure/features/object/create';
 
 QUnit.test('Number.isNaN', assert => {
   assert.isFunction(isNaN);

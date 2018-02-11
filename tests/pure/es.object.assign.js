@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/fn/symbol';
-import { assign, keys, defineProperty } from 'core-js-pure/fn/object';
+import Symbol from 'core-js-pure/features/symbol';
+import { assign, keys, defineProperty } from 'core-js-pure/features/object';
 
 QUnit.test('Object.assign', assert => {
   assert.isFunction(assign);

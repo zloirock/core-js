@@ -1,4 +1,4 @@
-import cbrt from 'core-js-pure/fn/math/cbrt';
+import cbrt from 'core-js-pure/features/math/cbrt';
 
 QUnit.test('Math.cbrt', assert => {
   assert.isFunction(cbrt);

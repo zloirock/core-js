@@ -1,4 +1,4 @@
-import log10 from 'core-js-pure/fn/math/log10';
+import log10 from 'core-js-pure/features/math/log10';
 
 QUnit.test('Math.log10', assert => {
   assert.isFunction(log10);

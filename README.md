@@ -16,10 +16,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *You can load only required features*:
 ```js
-import 'core-js/fn/array/from';    // <- at the top of your entry point
-import 'core-js/fn/array/flatten'; // <- at the top of your entry point
-import 'core-js/fn/set';           // <- at the top of your entry point
-import 'core-js/fn/promise';       // <- at the top of your entry point
+import 'core-js/features/array/from';    // <- at the top of your entry point
+import 'core-js/features/array/flatten'; // <- at the top of your entry point
+import 'core-js/features/set';           // <- at the top of your entry point
+import 'core-js/features/promise';       // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 [1, [2, 3], [4, [5]]].flatten(2);              // => [1, 2, 3, 4, 5]
@@ -28,10 +28,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *Or use it without global namespace pollution*:
 ```js
-import from from 'core-js-pure/fn/array/from';
-import flatten from 'core-js-pure/fn/array/flatten';
-import Set from 'core-js-pure/fn/set';
-import Promise from 'core-js-pure/fn/promise';
+import from from 'core-js-pure/features/array/from';
+import flatten from 'core-js-pure/features/array/flatten';
+import Set from 'core-js-pure/features/set';
+import Promise from 'core-js-pure/features/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
 flatten([1, [2, 3], [4, [5]]], 2);             // => [1, 2, 3, 4, 5]
@@ -101,14 +101,14 @@ You can require only needed modules, like in examples in examples at the top of 
 #### CommonJS and prototype methods without global namespace pollution
 In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. `babel` `runtime` transformer also can't transform them. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
 ```js
-import fill from 'core-js-pure/fn/array/virtual/fill';
-import findIndex from 'core-js-pure/fn/array/virtual/find-index';
+import fill from 'core-js-pure/features/array/virtual/fill';
+import findIndex from 'core-js-pure/features/array/virtual/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 
 // or
 
-import { fill, findIndex } from 'core-js-pure/fn/array/virtual';
+import { fill, findIndex } from 'core-js-pure/features/array/virtual';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 
@@ -191,30 +191,30 @@ class Object {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/object
-core-js(-pure)/fn/object/assign
-core-js(-pure)/fn/object/is
-core-js(-pure)/fn/object/set-prototype-of
-core-js(-pure)/fn/object/get-prototype-of
-core-js(-pure)/fn/object/create
-core-js(-pure)/fn/object/define-property
-core-js(-pure)/fn/object/define-properties
-core-js(-pure)/fn/object/get-own-property-descriptor
-core-js(-pure)/fn/object/get-own-property-descriptors
-core-js(-pure)/fn/object/keys
-core-js(-pure)/fn/object/values
-core-js(-pure)/fn/object/entries
-core-js(-pure)/fn/object/get-own-property-names
-core-js(-pure)/fn/object/freeze
-core-js(-pure)/fn/object/seal
-core-js(-pure)/fn/object/prevent-extensions
-core-js(-pure)/fn/object/is-frozen
-core-js(-pure)/fn/object/is-sealed
-core-js(-pure)/fn/object/is-extensible
-core-js/fn/object/to-string
-core-js(-pure)/fn/object/define-getter
-core-js(-pure)/fn/object/define-setter
-core-js(-pure)/fn/object/lookup-getter
-core-js(-pure)/fn/object/lookup-setter
+core-js(-pure)/features/object/assign
+core-js(-pure)/features/object/is
+core-js(-pure)/features/object/set-prototype-of
+core-js(-pure)/features/object/get-prototype-of
+core-js(-pure)/features/object/create
+core-js(-pure)/features/object/define-property
+core-js(-pure)/features/object/define-properties
+core-js(-pure)/features/object/get-own-property-descriptor
+core-js(-pure)/features/object/get-own-property-descriptors
+core-js(-pure)/features/object/keys
+core-js(-pure)/features/object/values
+core-js(-pure)/features/object/entries
+core-js(-pure)/features/object/get-own-property-names
+core-js(-pure)/features/object/freeze
+core-js(-pure)/features/object/seal
+core-js(-pure)/features/object/prevent-extensions
+core-js(-pure)/features/object/is-frozen
+core-js(-pure)/features/object/is-sealed
+core-js(-pure)/features/object/is-extensible
+core-js/features/object/to-string
+core-js(-pure)/features/object/define-getter
+core-js(-pure)/features/object/define-setter
+core-js(-pure)/features/object/lookup-getter
+core-js(-pure)/features/object/lookup-setter
 ```
 [*Examples*](https://goo.gl/sqY5mD):
 ```js
@@ -266,10 +266,10 @@ class Function {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js/es/function
-core-js/fn/function/name
-core-js/fn/function/has-instance
-core-js/fn/function/bind
-core-js/fn/function/virtual/bind
+core-js/features/function/name
+core-js/features/function/has-instance
+core-js/features/function/bind
+core-js/features/function/virtual/bind
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
@@ -315,52 +315,52 @@ class Arguments {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/array
-core-js(-pure)/fn/array/from
-core-js(-pure)/fn/array/of
-core-js(-pure)/fn/array/is-array
-core-js(-pure)/fn/array/includes
-core-js(-pure)/fn/array/iterator
-core-js(-pure)/fn/array/copy-within
-core-js(-pure)/fn/array/fill
-core-js(-pure)/fn/array/find
-core-js(-pure)/fn/array/find-index
-core-js(-pure)/fn/array/includes
-core-js(-pure)/fn/array/values
-core-js(-pure)/fn/array/keys
-core-js(-pure)/fn/array/entries
-core-js(-pure)/fn/array/slice
-core-js(-pure)/fn/array/join
-core-js(-pure)/fn/array/index-of
-core-js(-pure)/fn/array/last-index-of
-core-js(-pure)/fn/array/every
-core-js(-pure)/fn/array/some
-core-js(-pure)/fn/array/for-each
-core-js(-pure)/fn/array/map
-core-js(-pure)/fn/array/filter
-core-js(-pure)/fn/array/reduce
-core-js(-pure)/fn/array/reduce-right
-core-js(-pure)/fn/array/sort
-core-js(-pure)/fn/array/virtual/iterator
-core-js(-pure)/fn/array/virtual/copy-within
-core-js(-pure)/fn/array/virtual/fill
-core-js(-pure)/fn/array/virtual/find
-core-js(-pure)/fn/array/virtual/find-index
-core-js(-pure)/fn/array/virtual/includes
-core-js(-pure)/fn/array/virtual/values
-core-js(-pure)/fn/array/virtual/keys
-core-js(-pure)/fn/array/virtual/entries
-core-js(-pure)/fn/array/virtual/slice
-core-js(-pure)/fn/array/virtual/join
-core-js(-pure)/fn/array/virtual/index-of
-core-js(-pure)/fn/array/virtual/last-index-of
-core-js(-pure)/fn/array/virtual/every
-core-js(-pure)/fn/array/virtual/some
-core-js(-pure)/fn/array/virtual/for-each
-core-js(-pure)/fn/array/virtual/map
-core-js(-pure)/fn/array/virtual/filter
-core-js(-pure)/fn/array/virtual/reduce
-core-js(-pure)/fn/array/virtual/reduce-right
-core-js(-pure)/fn/array/virtual/sort
+core-js(-pure)/features/array/from
+core-js(-pure)/features/array/of
+core-js(-pure)/features/array/is-array
+core-js(-pure)/features/array/includes
+core-js(-pure)/features/array/iterator
+core-js(-pure)/features/array/copy-within
+core-js(-pure)/features/array/fill
+core-js(-pure)/features/array/find
+core-js(-pure)/features/array/find-index
+core-js(-pure)/features/array/includes
+core-js(-pure)/features/array/values
+core-js(-pure)/features/array/keys
+core-js(-pure)/features/array/entries
+core-js(-pure)/features/array/slice
+core-js(-pure)/features/array/join
+core-js(-pure)/features/array/index-of
+core-js(-pure)/features/array/last-index-of
+core-js(-pure)/features/array/every
+core-js(-pure)/features/array/some
+core-js(-pure)/features/array/for-each
+core-js(-pure)/features/array/map
+core-js(-pure)/features/array/filter
+core-js(-pure)/features/array/reduce
+core-js(-pure)/features/array/reduce-right
+core-js(-pure)/features/array/sort
+core-js(-pure)/features/array/virtual/iterator
+core-js(-pure)/features/array/virtual/copy-within
+core-js(-pure)/features/array/virtual/fill
+core-js(-pure)/features/array/virtual/find
+core-js(-pure)/features/array/virtual/find-index
+core-js(-pure)/features/array/virtual/includes
+core-js(-pure)/features/array/virtual/values
+core-js(-pure)/features/array/virtual/keys
+core-js(-pure)/features/array/virtual/entries
+core-js(-pure)/features/array/virtual/slice
+core-js(-pure)/features/array/virtual/join
+core-js(-pure)/features/array/virtual/index-of
+core-js(-pure)/features/array/virtual/last-index-of
+core-js(-pure)/features/array/virtual/every
+core-js(-pure)/features/array/virtual/some
+core-js(-pure)/features/array/virtual/for-each
+core-js(-pure)/features/array/virtual/map
+core-js(-pure)/features/array/virtual/filter
+core-js(-pure)/features/array/virtual/reduce
+core-js(-pure)/features/array/virtual/reduce-right
+core-js(-pure)/features/array/virtual/sort
 ```
 [*Examples*](https://goo.gl/Tegvq4):
 ```js
@@ -440,52 +440,52 @@ class String {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/string
-core-js(-pure)/fn/string/from-code-point
-core-js(-pure)/fn/string/raw
-core-js(-pure)/fn/string/includes
-core-js(-pure)/fn/string/starts-with
-core-js(-pure)/fn/string/ends-with
-core-js(-pure)/fn/string/repeat
-core-js(-pure)/fn/string/pad-start
-core-js(-pure)/fn/string/pad-end
-core-js(-pure)/fn/string/code-point-at
-core-js(-pure)/fn/string/trim
-core-js(-pure)/fn/string/anchor
-core-js(-pure)/fn/string/big
-core-js(-pure)/fn/string/blink
-core-js(-pure)/fn/string/bold
-core-js(-pure)/fn/string/fixed
-core-js(-pure)/fn/string/fontcolor
-core-js(-pure)/fn/string/fontsize
-core-js(-pure)/fn/string/italics
-core-js(-pure)/fn/string/link
-core-js(-pure)/fn/string/small
-core-js(-pure)/fn/string/strike
-core-js(-pure)/fn/string/sub
-core-js(-pure)/fn/string/sup
-core-js(-pure)/fn/string/iterator
-core-js(-pure)/fn/string/virtual/includes
-core-js(-pure)/fn/string/virtual/starts-with
-core-js(-pure)/fn/string/virtual/ends-with
-core-js(-pure)/fn/string/virtual/repeat
-core-js(-pure)/fn/string/virtual/pad-start
-core-js(-pure)/fn/string/virtual/pad-end
-core-js(-pure)/fn/string/virtual/code-point-at
-core-js(-pure)/fn/string/virtual/trim
-core-js(-pure)/fn/string/virtual/anchor
-core-js(-pure)/fn/string/virtual/big
-core-js(-pure)/fn/string/virtual/blink
-core-js(-pure)/fn/string/virtual/bold
-core-js(-pure)/fn/string/virtual/fixed
-core-js(-pure)/fn/string/virtual/fontcolor
-core-js(-pure)/fn/string/virtual/fontsize
-core-js(-pure)/fn/string/virtual/italics
-core-js(-pure)/fn/string/virtual/link
-core-js(-pure)/fn/string/virtual/small
-core-js(-pure)/fn/string/virtual/strike
-core-js(-pure)/fn/string/virtual/sub
-core-js(-pure)/fn/string/virtual/sup
-core-js(-pure)/fn/string/virtual/iterator
+core-js(-pure)/features/string/from-code-point
+core-js(-pure)/features/string/raw
+core-js(-pure)/features/string/includes
+core-js(-pure)/features/string/starts-with
+core-js(-pure)/features/string/ends-with
+core-js(-pure)/features/string/repeat
+core-js(-pure)/features/string/pad-start
+core-js(-pure)/features/string/pad-end
+core-js(-pure)/features/string/code-point-at
+core-js(-pure)/features/string/trim
+core-js(-pure)/features/string/anchor
+core-js(-pure)/features/string/big
+core-js(-pure)/features/string/blink
+core-js(-pure)/features/string/bold
+core-js(-pure)/features/string/fixed
+core-js(-pure)/features/string/fontcolor
+core-js(-pure)/features/string/fontsize
+core-js(-pure)/features/string/italics
+core-js(-pure)/features/string/link
+core-js(-pure)/features/string/small
+core-js(-pure)/features/string/strike
+core-js(-pure)/features/string/sub
+core-js(-pure)/features/string/sup
+core-js(-pure)/features/string/iterator
+core-js(-pure)/features/string/virtual/includes
+core-js(-pure)/features/string/virtual/starts-with
+core-js(-pure)/features/string/virtual/ends-with
+core-js(-pure)/features/string/virtual/repeat
+core-js(-pure)/features/string/virtual/pad-start
+core-js(-pure)/features/string/virtual/pad-end
+core-js(-pure)/features/string/virtual/code-point-at
+core-js(-pure)/features/string/virtual/trim
+core-js(-pure)/features/string/virtual/anchor
+core-js(-pure)/features/string/virtual/big
+core-js(-pure)/features/string/virtual/blink
+core-js(-pure)/features/string/virtual/bold
+core-js(-pure)/features/string/virtual/fixed
+core-js(-pure)/features/string/virtual/fontcolor
+core-js(-pure)/features/string/virtual/fontsize
+core-js(-pure)/features/string/virtual/italics
+core-js(-pure)/features/string/virtual/link
+core-js(-pure)/features/string/virtual/small
+core-js(-pure)/features/string/virtual/strike
+core-js(-pure)/features/string/virtual/sub
+core-js(-pure)/features/string/virtual/sup
+core-js(-pure)/features/string/virtual/iterator
 ```
 [*Examples*](https://goo.gl/oVvKga):
 ```js
@@ -543,13 +543,13 @@ class String {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js/es/regexp
-core-js/fn/regexp/constructor
-core-js(-pure)/fn/regexp/flags
-core-js/fn/regexp/to-string
-core-js/fn/regexp/match
-core-js/fn/regexp/replace
-core-js/fn/regexp/search
-core-js/fn/regexp/split
+core-js/features/regexp/constructor
+core-js(-pure)/features/regexp/flags
+core-js/features/regexp/to-string
+core-js/features/regexp/match
+core-js/features/regexp/replace
+core-js/features/regexp/search
+core-js/features/regexp/split
 ```
 [*Examples*](http://goo.gl/PiJxBD):
 ```js
@@ -595,19 +595,19 @@ function parseInt(string: string, radix?: number = 10): number;
 ```
 core-js(-pure)/es/number
 core-js/es/number/constructor
-core-js(-pure)/fn/number/is-finite
-core-js(-pure)/fn/number/is-nan
-core-js(-pure)/fn/number/is-integer
-core-js(-pure)/fn/number/is-safe-integer
-core-js(-pure)/fn/number/parse-float
-core-js(-pure)/fn/number/parse-int
-core-js(-pure)/fn/number/epsilon
-core-js(-pure)/fn/number/max-safe-integer
-core-js(-pure)/fn/number/min-safe-integer
-core-js(-pure)/fn/number/to-fixed
-core-js(-pure)/fn/number/to-precision
-core-js(-pure)/fn/parse-float
-core-js(-pure)/fn/parse-int
+core-js(-pure)/features/number/is-finite
+core-js(-pure)/features/number/is-nan
+core-js(-pure)/features/number/is-integer
+core-js(-pure)/features/number/is-safe-integer
+core-js(-pure)/features/number/parse-float
+core-js(-pure)/features/number/parse-int
+core-js(-pure)/features/number/epsilon
+core-js(-pure)/features/number/max-safe-integer
+core-js(-pure)/features/number/min-safe-integer
+core-js(-pure)/features/number/to-fixed
+core-js(-pure)/features/number/to-precision
+core-js(-pure)/features/parse-float
+core-js(-pure)/features/parse-int
 ```
 #### ECMAScript: Math
 Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.fround.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.math.trunc.js).
@@ -635,23 +635,23 @@ namespace Math {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/math
-core-js(-pure)/fn/math/acosh
-core-js(-pure)/fn/math/asinh
-core-js(-pure)/fn/math/atanh
-core-js(-pure)/fn/math/cbrt
-core-js(-pure)/fn/math/clz32
-core-js(-pure)/fn/math/cosh
-core-js(-pure)/fn/math/expm1
-core-js(-pure)/fn/math/fround
-core-js(-pure)/fn/math/hypot
-core-js(-pure)/fn/math/imul
-core-js(-pure)/fn/math/log1p
-core-js(-pure)/fn/math/log10
-core-js(-pure)/fn/math/log2
-core-js(-pure)/fn/math/sign
-core-js(-pure)/fn/math/sinh
-core-js(-pure)/fn/math/tanh
-core-js(-pure)/fn/math/trunc
+core-js(-pure)/features/math/acosh
+core-js(-pure)/features/math/asinh
+core-js(-pure)/features/math/atanh
+core-js(-pure)/features/math/cbrt
+core-js(-pure)/features/math/clz32
+core-js(-pure)/features/math/cosh
+core-js(-pure)/features/math/expm1
+core-js(-pure)/features/math/fround
+core-js(-pure)/features/math/hypot
+core-js(-pure)/features/math/imul
+core-js(-pure)/features/math/log1p
+core-js(-pure)/features/math/log10
+core-js(-pure)/features/math/log2
+core-js(-pure)/features/math/sign
+core-js(-pure)/features/math/sinh
+core-js(-pure)/features/math/tanh
+core-js(-pure)/features/math/trunc
 ```
 #### ECMAScript: Date
 Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.date.to-primitive.js).
@@ -667,11 +667,11 @@ class Date {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js/es/date
-core-js/fn/date/to-string
-core-js(-pure)/fn/date/now
-core-js(-pure)/fn/date/to-iso-string
-core-js(-pure)/fn/date/to-json
-core-js(-pure)/fn/date/to-primitive
+core-js/features/date/to-string
+core-js(-pure)/features/date/now
+core-js(-pure)/features/date/to-iso-string
+core-js(-pure)/features/date/to-json
+core-js(-pure)/features/date/to-primitive
 ```
 [*Example*](http://goo.gl/haeHLR):
 ```js
@@ -694,7 +694,7 @@ class Promise {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/promise
-core-js(-pure)/fn/promise
+core-js(-pure)/features/promise
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
@@ -848,20 +848,20 @@ namespace JSON {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/symbol
-core-js(-pure)/fn/symbol
-core-js(-pure)/fn/symbol/has-instance
-core-js(-pure)/fn/symbol/is-concat-spreadable
-core-js(-pure)/fn/symbol/iterator
-core-js(-pure)/fn/symbol/match
-core-js(-pure)/fn/symbol/replace
-core-js(-pure)/fn/symbol/search
-core-js(-pure)/fn/symbol/species
-core-js(-pure)/fn/symbol/split
-core-js(-pure)/fn/symbol/to-primitive
-core-js(-pure)/fn/symbol/to-string-tag
-core-js(-pure)/fn/symbol/unscopables
-core-js(-pure)/fn/symbol/for
-core-js(-pure)/fn/symbol/key-for
+core-js(-pure)/features/symbol
+core-js(-pure)/features/symbol/has-instance
+core-js(-pure)/features/symbol/is-concat-spreadable
+core-js(-pure)/features/symbol/iterator
+core-js(-pure)/features/symbol/match
+core-js(-pure)/features/symbol/replace
+core-js(-pure)/features/symbol/search
+core-js(-pure)/features/symbol/species
+core-js(-pure)/features/symbol/split
+core-js(-pure)/features/symbol/to-primitive
+core-js(-pure)/features/symbol/to-string-tag
+core-js(-pure)/features/symbol/unscopables
+core-js(-pure)/features/symbol/for
+core-js(-pure)/features/symbol/key-for
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
@@ -945,7 +945,7 @@ class Map {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/map
-core-js(-pure)/fn/map
+core-js(-pure)/features/map
 ```
 [*Examples*](http://goo.gl/GWR7NI):
 ```js
@@ -1000,7 +1000,7 @@ class Set {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/set
-core-js(-pure)/fn/set
+core-js(-pure)/features/set
 ```
 [*Examples*](http://goo.gl/bmhLwg):
 ```js
@@ -1040,7 +1040,7 @@ class WeakMap {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/weak-map
-core-js(-pure)/fn/weak-map
+core-js(-pure)/features/weak-map
 ```
 [*Examples*](http://goo.gl/SILXyw):
 ```js
@@ -1086,7 +1086,7 @@ class WeakSet {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/weak-set
-core-js(-pure)/fn/weak-set
+core-js(-pure)/features/weak-set
 ```
 [*Examples*](http://goo.gl/TdFbEx):
 ```js
@@ -1193,18 +1193,18 @@ class [
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js/es/typed
-core-js/fn/typed
-core-js/fn/typed/array-buffer
-core-js/fn/typed/data-view
-core-js/fn/typed/int8-array
-core-js/fn/typed/uint8-array
-core-js/fn/typed/uint8-clamped-array
-core-js/fn/typed/int16-array
-core-js/fn/typed/uint16-array
-core-js/fn/typed/int32-array
-core-js/fn/typed/uint32-array
-core-js/fn/typed/float32-array
-core-js/fn/typed/float64-array
+core-js/features/typed
+core-js/features/typed/array-buffer
+core-js/features/typed/data-view
+core-js/features/typed/int8-array
+core-js/features/typed/uint8-array
+core-js/features/typed/uint8-clamped-array
+core-js/features/typed/int16-array
+core-js/features/typed/uint16-array
+core-js/features/typed/int32-array
+core-js/features/typed/uint32-array
+core-js/features/typed/float32-array
+core-js/features/typed/float64-array
 ```
 [*Examples*](http://goo.gl/yla75z):
 ```js
@@ -1266,20 +1266,20 @@ namespace Reflect {
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/reflect
-core-js(-pure)/fn/reflect
-core-js(-pure)/fn/reflect/apply
-core-js(-pure)/fn/reflect/construct
-core-js(-pure)/fn/reflect/define-property
-core-js(-pure)/fn/reflect/delete-property
-core-js(-pure)/fn/reflect/get
-core-js(-pure)/fn/reflect/get-own-property-descriptor
-core-js(-pure)/fn/reflect/get-prototype-of
-core-js(-pure)/fn/reflect/has
-core-js(-pure)/fn/reflect/is-extensible
-core-js(-pure)/fn/reflect/own-keys
-core-js(-pure)/fn/reflect/prevent-extensions
-core-js(-pure)/fn/reflect/set
-core-js(-pure)/fn/reflect/set-prototype-of
+core-js(-pure)/features/reflect
+core-js(-pure)/features/reflect/apply
+core-js(-pure)/features/reflect/construct
+core-js(-pure)/features/reflect/define-property
+core-js(-pure)/features/reflect/delete-property
+core-js(-pure)/features/reflect/get
+core-js(-pure)/features/reflect/get-own-property-descriptor
+core-js(-pure)/features/reflect/get-prototype-of
+core-js(-pure)/features/reflect/has
+core-js(-pure)/features/reflect/is-extensible
+core-js(-pure)/features/reflect/own-keys
+core-js(-pure)/features/reflect/prevent-extensions
+core-js(-pure)/features/reflect/set
+core-js(-pure)/features/reflect/set-prototype-of
 ```
 [*Examples*](http://goo.gl/gVT0cH):
 ```js
@@ -1314,7 +1314,7 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/promise/finally
+core-js(-pure)/features/promise/finally
 ```
 [*Examples*](https://goo.gl/AhyBbJ):
 ```js
@@ -1337,10 +1337,10 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/array/flatten
-core-js(-pure)/fn/array/flat-map
-core-js(-pure)/fn/array/virtual/flatten
-core-js(-pure)/fn/array/virtual/flat-map
+core-js(-pure)/features/array/flatten
+core-js(-pure)/features/array/flat-map
+core-js(-pure)/features/array/virtual/flatten
+core-js(-pure)/features/array/virtual/flat-map
 ```
 [*Examples*](https://goo.gl/jTXsZi):
 ```js
@@ -1358,8 +1358,8 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/string/match-all
-core-js(-pure)/fn/string/virtual/match-all
+core-js(-pure)/features/string/match-all
+core-js(-pure)/features/string/virtual/match-all
 ```
 [*Examples*](https://goo.gl/AxSqHT):
 ```js
@@ -1378,14 +1378,14 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/string/trim-start
-core-js(-pure)/fn/string/trim-end
-core-js(-pure)/fn/string/trim-left
-core-js(-pure)/fn/string/trim-right
-core-js(-pure)/fn/string/virtual/trim-start
-core-js(-pure)/fn/string/virtual/trim-end
-core-js(-pure)/fn/string/virtual/trim-left
-core-js(-pure)/fn/string/virtual/trim-right
+core-js(-pure)/features/string/trim-start
+core-js(-pure)/features/string/trim-end
+core-js(-pure)/features/string/trim-left
+core-js(-pure)/features/string/trim-right
+core-js(-pure)/features/string/virtual/trim-start
+core-js(-pure)/features/string/virtual/trim-end
+core-js(-pure)/features/string/virtual/trim-left
+core-js(-pure)/features/string/virtual/trim-right
 ```
 [*Examples*](http://goo.gl/Er5lMJ):
 ```js
@@ -1398,7 +1398,7 @@ let global: Object;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/global
+core-js(-pure)/features/global
 ```
 [*Examples*](http://goo.gl/gEqMl7):
 ```js
@@ -1412,7 +1412,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/symbol/async-iterator
+core-js(-pure)/features/symbol/async-iterator
 ```
 
 #### Stage 2 proposals
@@ -1428,7 +1428,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/fn/symbol/description
+core-js/features/symbol/description
 ```
 [*Examples*](https://goo.gl/MWizfc):
 ```js
@@ -1450,7 +1450,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/fn/array/end
+core-js/features/array/end
 ```
 [*Examples*](https://goo.gl/STnWBT):
 ```js
@@ -1469,7 +1469,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/fn/string/replace-all
+core-js/features/string/replace-all
 ```
 [*Examples*](https://goo.gl/wUXNXN):
 ```js
@@ -1483,7 +1483,7 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/promise/try
+core-js(-pure)/features/promise/try
 ```
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
@@ -1537,33 +1537,33 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/fn/set/add-all
-core-js/fn/set/delete-all
-core-js/fn/set/difference
-core-js/fn/set/every
-core-js/fn/set/filter
-core-js/fn/set/find
-core-js/fn/set/from
-core-js/fn/set/intersect
-core-js/fn/set/join
-core-js/fn/set/map
-core-js/fn/set/of
-core-js/fn/set/reduce
-core-js/fn/set/some
-core-js/fn/set/symmetric-difference
-core-js/fn/set/union
-core-js/fn/map/filter
-core-js/fn/map/from
-core-js/fn/map/group-by
-core-js/fn/map/key-by
-core-js/fn/map/map-keys
-core-js/fn/map/map-values
-core-js/fn/map/merge
-core-js/fn/map/of
-core-js/fn/weak-set/of
-core-js/fn/weak-set/from
-core-js/fn/weak-map/of
-core-js/fn/weak-map/from
+core-js/features/set/add-all
+core-js/features/set/delete-all
+core-js/features/set/difference
+core-js/features/set/every
+core-js/features/set/filter
+core-js/features/set/find
+core-js/features/set/from
+core-js/features/set/intersect
+core-js/features/set/join
+core-js/features/set/map
+core-js/features/set/of
+core-js/features/set/reduce
+core-js/features/set/some
+core-js/features/set/symmetric-difference
+core-js/features/set/union
+core-js/features/map/filter
+core-js/features/map/from
+core-js/features/map/group-by
+core-js/features/map/key-by
+core-js/features/map/map-keys
+core-js/features/map/map-values
+core-js/features/map/merge
+core-js/features/map/of
+core-js/features/weak-set/of
+core-js/features/weak-set/from
+core-js/features/weak-map/of
+core-js/features/weak-map/from
 ```
 [*Examples*](https://goo.gl/mSC7eU):
 ```js
@@ -1593,8 +1593,8 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/observable
-core-js(-pure)/fn/symbol/observable
+core-js(-pure)/features/observable
+core-js(-pure)/features/symbol/observable
 ```
 [*Examples*](http://goo.gl/1LDywi):
 ```js
@@ -1629,13 +1629,13 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/math/clamp
-core-js(-pure)/fn/math/deg-per-rad
-core-js(-pure)/fn/math/degrees
-core-js(-pure)/fn/math/fscale
-core-js(-pure)/fn/math/rad-per-deg
-core-js(-pure)/fn/math/radians
-core-js(-pure)/fn/math/scale
+core-js(-pure)/features/math/clamp
+core-js(-pure)/features/math/deg-per-rad
+core-js(-pure)/features/math/degrees
+core-js(-pure)/features/math/fscale
+core-js(-pure)/features/math/rad-per-deg
+core-js(-pure)/features/math/radians
+core-js(-pure)/features/math/scale
 ```
 * `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.signbit.js)
 ```js
@@ -1645,7 +1645,7 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/math/signbit
+core-js(-pure)/features/math/signbit
 ```
 [*Examples*](http://es.zloirock.ru/):
 ```js
@@ -1669,8 +1669,8 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/string/at
-core-js(-pure)/fn/string/virtual/at
+core-js(-pure)/features/string/at
+core-js(-pure)/features/string/virtual/at
 ```
 [*Examples*](http://goo.gl/XluXI8):
 ```js
@@ -1688,10 +1688,10 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/math/iaddh
-core-js(-pure)/fn/math/isubh
-core-js(-pure)/fn/math/imulh
-core-js(-pure)/fn/math/umulh
+core-js(-pure)/features/math/iaddh
+core-js(-pure)/features/math/isubh
+core-js(-pure)/features/math/imulh
+core-js(-pure)/features/math/umulh
 ```
 * `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`esnext.asap`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.asap.js)
 ```js
@@ -1699,7 +1699,7 @@ function asap(fn: Function): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/asap
+core-js(-pure)/features/asap
 ```
 [*Examples*](http://goo.gl/tx3SRK):
 ```js
@@ -1727,15 +1727,15 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/fn/reflect/define-metadata
-core-js(-pure)/fn/reflect/delete-metadata
-core-js(-pure)/fn/reflect/get-metadata
-core-js(-pure)/fn/reflect/get-metadata-keys
-core-js(-pure)/fn/reflect/get-own-metadata
-core-js(-pure)/fn/reflect/get-own-metadata-keys
-core-js(-pure)/fn/reflect/has-metadata
-core-js(-pure)/fn/reflect/has-own-metadata
-core-js(-pure)/fn/reflect/metadata
+core-js(-pure)/features/reflect/define-metadata
+core-js(-pure)/features/reflect/delete-metadata
+core-js(-pure)/features/reflect/get-metadata
+core-js(-pure)/features/reflect/get-metadata-keys
+core-js(-pure)/features/reflect/get-own-metadata
+core-js(-pure)/features/reflect/get-own-metadata-keys
+core-js(-pure)/features/reflect/has-metadata
+core-js(-pure)/features/reflect/has-own-metadata
+core-js(-pure)/features/reflect/metadata
 ```
 [*Examples*](http://goo.gl/KCo3PS):
 ```js
@@ -1760,8 +1760,8 @@ function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/web/timers
-core-js(-pure)/fn/set-timeout
-core-js(-pure)/fn/set-interval
+core-js(-pure)/features/set-timeout
+core-js(-pure)/features/set-interval
 ```
 ```js
 // Before:
@@ -1778,8 +1778,8 @@ function clearImmediate(id: number): void;
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/web/immediate
-core-js(-pure)/fn/set-immediate
-core-js(-pure)/fn/clear-immediate
+core-js(-pure)/features/set-immediate
+core-js(-pure)/features/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
@@ -1839,8 +1839,8 @@ class [DOMTokenList, NodeList] {
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/web/dom-collections
-core-js(-pure)/fn/dom-collections/iterator
-core-js/fn/dom-collections/for-each
+core-js(-pure)/features/dom-collections/iterator
+core-js/features/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js
@@ -1863,15 +1863,15 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js-pure/fn/is-iterable
-core-js-pure/fn/get-iterator
-core-js-pure/fn/get-iterator-method
+core-js-pure/features/is-iterable
+core-js-pure/features/get-iterator
+core-js-pure/features/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js
-import isIterable from 'core-js-pure/fn/is-iterable';
-import getIterator from 'core-js-pure/fn/get-iterator';
-import getIteratorMethod from 'core-js-pure/fn/get-iterator-method';
+import isIterable from 'core-js-pure/features/is-iterable';
+import getIterator from 'core-js-pure/features/get-iterator';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 
 let list = (function () {
   return arguments;
