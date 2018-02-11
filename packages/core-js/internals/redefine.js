@@ -1,6 +1,7 @@
 var global = require('core-js-internals/global');
 var hide = require('../internals/hide');
 var has = require('core-js-internals/has');
+var setGlobal = require('../internals/set-global');
 var $ = require('../internals/state');
 var TO_STRING = 'toString';
 var nativeFunctionToString = Function[TO_STRING];
@@ -16,7 +17,7 @@ require('core-js-internals/shared')('inspectSource', function (it) {
     $(value, true).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
   }
   if (O === global) {
-    O[key] = value;
+    setGlobal(key, value);
   } else if (!unsafe) {
     delete O[key];
     hide(O, key, value);
