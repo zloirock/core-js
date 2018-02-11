@@ -2,8 +2,8 @@
 // https://github.com/RReverser/string-prototype-codepoints
 // TODO: unify with String#@@iterator
 var requireObjectCoercible = require('core-js-internals/require-object-coercible');
-var $ = require('./_state');
-var createAt = require('./_string-at');
+var $ = require('../internals/state');
+var createAt = require('../internals/string-at');
 var codePointAt = createAt(false);
 var at = createAt(true);
 
@@ -14,7 +14,7 @@ var StringIterator = function (string) {
   });
 };
 
-require('./_iter-create')(StringIterator, 'String', function next() {
+require('../internals/iter-create')(StringIterator, 'String', function next() {
   var state = $(this);
   var string = state.string;
   var index = state.index;
@@ -25,7 +25,7 @@ require('./_iter-create')(StringIterator, 'String', function next() {
   return { value: codePointAt(point, 0), done: false };
 });
 
-require('./_export')({ target: 'String', proto: true }, {
+require('../internals/export')({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
     return new StringIterator(String(requireObjectCoercible(this)));
   }

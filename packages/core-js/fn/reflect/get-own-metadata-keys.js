@@ -1,3 +1,3 @@
 require('../../modules/esnext.reflect.get-own-metadata-keys');
 
-module.exports = require('../../modules/_path').Reflect.getOwnMetadataKeys;
+module.exports = require('../../internals/path').Reflect.getOwnMetadataKeys;

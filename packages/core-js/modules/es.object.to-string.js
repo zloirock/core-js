@@ -8,7 +8,7 @@ test[TO_STRING_TAG] = 'z';
 // `Object.prototype.toString` method
 // https://tc39.github.io/ecma262/#sec-object.prototype.tostring
 if (String(test) !== '[object z]') {
-  require('./_redefine')(Object.prototype, 'toString', function toString() {
+  require('../internals/redefine')(Object.prototype, 'toString', function toString() {
     return '[object ' + classof(this) + ']';
   }, true);
 }

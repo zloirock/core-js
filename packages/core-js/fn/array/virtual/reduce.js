@@ -1,3 +1,3 @@
 require('../../../modules/es.array.reduce');
 
-module.exports = require('../../../modules/_entry-virtual')('Array').reduce;
+module.exports = require('../../../internals/entry-virtual')('Array').reduce;

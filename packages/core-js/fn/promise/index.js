@@ -5,4 +5,4 @@ require('../../modules/es.promise');
 require('../../modules/esnext.promise.finally');
 require('../../modules/esnext.promise.try');
 
-module.exports = require('../../modules/_path').Promise;
+module.exports = require('../../internals/path').Promise;

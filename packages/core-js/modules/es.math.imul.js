@@ -3,7 +3,7 @@ var nativeImul = Math.imul;
 // `Math.imul` method
 // https://tc39.github.io/ecma262/#sec-math.imul
 // some WebKit versions fails with big numbers, some has wrong arity
-require('./_export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
   return nativeImul(0xffffffff, 5) != -5 || nativeImul.length != 2;
 }) }, {
   imul: function imul(x, y) {

@@ -1,3 +1,3 @@
 require('../modules/esnext.global');
 
-module.exports = require('../modules/_path').global;
+module.exports = require('../internals/path').global;

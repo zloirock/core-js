@@ -1,3 +1,3 @@
 require('../../modules/esnext.string.code-points');
 
-module.exports = require('../../modules/_entry-unbind')('String', 'codePoints');
+module.exports = require('../../internals/entry-unbind')('String', 'codePoints');

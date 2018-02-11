@@ -145,4 +145,4 @@ require('../modules/es.reflect.prevent-extensions');
 require('../modules/es.reflect.set');
 require('../modules/es.reflect.set-prototype-of');
 
-module.exports = require('../modules/_path');
+module.exports = require('../internals/path');

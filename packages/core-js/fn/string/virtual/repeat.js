@@ -1,3 +1,3 @@
 require('../../../modules/es.string.repeat');
 
-module.exports = require('../../../modules/_entry-virtual')('String').repeat;
+module.exports = require('../../../internals/entry-virtual')('String').repeat;

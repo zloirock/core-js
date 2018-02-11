@@ -6,7 +6,7 @@ var toLength = require('core-js-internals/to-length');
 var aFunction = require('core-js-internals/a-function');
 var arraySpeciesCreate = require('core-js-internals/array-species-create');
 
-require('./_export')({ target: 'Array', proto: true }, {
+require('../internals/export')({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
     var sourceLen = toLength(O.length);
@@ -18,4 +18,4 @@ require('./_export')({ target: 'Array', proto: true }, {
   }
 });
 
-require('./_add-to-unscopables')('flatMap');
+require('../internals/add-to-unscopables')('flatMap');

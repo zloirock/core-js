@@ -1,3 +1,3 @@
 require('../../modules/es.number.is-nan');
 
-module.exports = require('../../modules/_path').Number.isNaN;
+module.exports = require('../../internals/path').Number.isNaN;

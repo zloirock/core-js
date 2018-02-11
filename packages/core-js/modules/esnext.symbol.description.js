@@ -3,9 +3,9 @@
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var has = require('core-js-internals/has');
 var isObject = require('core-js-internals/is-object');
-var getOwnPropertyNames = require('./_object-get-own-property-names').f;
-var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
-var defineProperty = require('./_object-define-property').f;
+var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var defineProperty = require('../internals/object-define-property').f;
 var Base = require('core-js-internals/global').Symbol;
 
 if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototype)) {
@@ -42,5 +42,5 @@ if (DESCRIPTORS && typeof Base == 'function' && !('description' in Base.prototyp
     }
   });
 
-  require('./_export')({ global: true, forced: true }, { Symbol: $Symbol });
+  require('../internals/export')({ global: true, forced: true }, { Symbol: $Symbol });
 }

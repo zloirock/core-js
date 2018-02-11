@@ -1,11 +1,11 @@
 'use strict';
-var each = require('./_array-methods')(0);
-var redefine = require('./_redefine');
-var meta = require('./_meta');
-var weak = require('./_collection-weak');
+var each = require('../internals/array-methods')(0);
+var redefine = require('../internals/redefine');
+var meta = require('../internals/meta');
+var weak = require('../internals/collection-weak');
 var isObject = require('core-js-internals/is-object');
 var fails = require('core-js-internals/fails');
-var $ = require('./_state');
+var $ = require('../internals/state');
 var WEAK_MAP = 'WeakMap';
 var isExtensible = Object.isExtensible;
 var tmp = {};
@@ -18,7 +18,7 @@ var wrapper = function (get) {
 };
 
 // 23.3 WeakMap Objects
-var $WeakMap = module.exports = require('./_collection')(WEAK_MAP, wrapper, weak, true, true);
+var $WeakMap = module.exports = require('../internals/collection')(WEAK_MAP, wrapper, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
 if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7; })) {

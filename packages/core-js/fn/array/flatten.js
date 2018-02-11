@@ -1,3 +1,3 @@
 require('../../modules/esnext.array.flatten');
 
-module.exports = require('../../modules/_entry-unbind')('Array', 'flatten');
+module.exports = require('../../internals/entry-unbind')('Array', 'flatten');

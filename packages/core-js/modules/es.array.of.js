@@ -1,10 +1,10 @@
 'use strict';
-var createProperty = require('./_create-property');
+var createProperty = require('../internals/create-property');
 
 // `Array.of` method
 // https://tc39.github.io/ecma262/#sec-array.of
 // WebKit Array.of isn't generic
-require('./_export')({ target: 'Array', stat: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Array', stat: true, forced: require('core-js-internals/fails')(function () {
   function F() { /* empty */ }
   return !(Array.of.call(F) instanceof F);
 }) }, {

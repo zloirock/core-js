@@ -1,1 +1,1 @@
-module.exports = require('../../modules/_wks-ext').f('unscopables');
+module.exports = require('../../internals/wks-ext').f('unscopables');

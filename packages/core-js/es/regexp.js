@@ -6,4 +6,4 @@ require('../modules/es.regexp.replace');
 require('../modules/es.regexp.search');
 require('../modules/es.regexp.split');
 
-module.exports = require('../modules/_path').RegExp;
+module.exports = require('../internals/path').RegExp;
