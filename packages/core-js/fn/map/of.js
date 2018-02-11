@@ -1,7 +1,7 @@
 'use strict';
 require('../../modules/es.map');
 require('../../modules/esnext.map.of');
-var $Map = require('../../modules/_path').Map;
+var $Map = require('../../internals/path').Map;
 var $of = $Map.of;
 
 module.exports = function of() {

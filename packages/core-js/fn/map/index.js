@@ -11,4 +11,4 @@ require('../../modules/esnext.map.map-values');
 require('../../modules/esnext.map.merge');
 require('../../modules/esnext.map.of');
 
-module.exports = require('../../modules/_path').Map;
+module.exports = require('../../internals/path').Map;

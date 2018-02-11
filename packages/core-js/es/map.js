@@ -3,4 +3,4 @@ require('../modules/es.string.iterator');
 require('../modules/web.dom-collections.iterator');
 require('../modules/es.map');
 
-module.exports = require('../modules/_path').Map;
+module.exports = require('../internals/path').Map;

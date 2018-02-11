@@ -1,1 +1,1 @@
-require('./_wks-define')('observable');
+require('../internals/wks-define')('observable');

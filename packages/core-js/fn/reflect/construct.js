@@ -1,3 +1,3 @@
 require('../../modules/es.reflect.construct');
 
-module.exports = require('../../modules/_path').Reflect.construct;
+module.exports = require('../../internals/path').Reflect.construct;

@@ -1,3 +1,3 @@
 require('../../modules/es.typed.uint8-array');
 
-module.exports = require('../../modules/_path').Uint8Array;
+module.exports = require('../../internals/path').Uint8Array;

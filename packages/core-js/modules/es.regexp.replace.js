@@ -1,6 +1,6 @@
 'use strict';
 // @@replace logic
-require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, nativeReplace) {
+require('../internals/fix-re-wks')('replace', 2, function (defined, REPLACE, nativeReplace) {
   // `String.prototype.replace` method
   // https://tc39.github.io/ecma262/#sec-string.prototype.replace
   return [function replace(searchValue, replaceValue) {

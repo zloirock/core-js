@@ -1,3 +1,3 @@
 require('../../modules/esnext.string.at');
 
-module.exports = require('../../modules/_entry-unbind')('String', 'at');
+module.exports = require('../../internals/entry-unbind')('String', 'at');

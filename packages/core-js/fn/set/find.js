@@ -1,4 +1,4 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.find');
 
-module.exports = require('../../modules/_entry-unbind')('Set', 'find');
+module.exports = require('../../internals/entry-unbind')('Set', 'find');

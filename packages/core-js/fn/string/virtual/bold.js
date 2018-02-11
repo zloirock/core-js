@@ -1,3 +1,3 @@
 require('../../../modules/es.string.bold');
 
-module.exports = require('../../../modules/_entry-virtual')('String').bold;
+module.exports = require('../../../internals/entry-virtual')('String').bold;

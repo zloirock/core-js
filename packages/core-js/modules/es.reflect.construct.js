@@ -1,4 +1,4 @@
-var create = require('./_object-create');
+var create = require('../internals/object-create');
 var aFunction = require('core-js-internals/a-function');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
@@ -18,7 +18,7 @@ var ARGS_BUG = !fails(function () {
   nativeConstruct(function () { /* empty */ });
 });
 
-require('./_export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || ARGS_BUG }, {
+require('../internals/export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || ARGS_BUG }, {
   construct: function construct(Target, args /* , newTarget */) {
     aFunction(Target);
     anObject(args);

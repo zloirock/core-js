@@ -1,3 +1,3 @@
 require('../../modules/es.array.some');
 
-module.exports = require('../../modules/_entry-unbind')('Array', 'some');
+module.exports = require('../../internals/entry-unbind')('Array', 'some');

@@ -1,3 +1,3 @@
 require('../../modules/es.object.keys');
 
-module.exports = require('../../modules/_path').Object.keys;
+module.exports = require('../../internals/path').Object.keys;

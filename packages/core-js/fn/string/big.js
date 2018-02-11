@@ -1,3 +1,3 @@
 require('../../modules/es.string.big');
 
-module.exports = require('../../modules/_entry-unbind')('String', 'big');
+module.exports = require('../../internals/entry-unbind')('String', 'big');
