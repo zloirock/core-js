@@ -18,4 +18,4 @@ require('../../modules/esnext.set.some');
 require('../../modules/esnext.set.symmetric-difference');
 require('../../modules/esnext.set.union');
 
-module.exports = require('../../modules/_path').Set;
+module.exports = require('../../internals/path').Set;

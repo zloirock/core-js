@@ -1,8 +1,8 @@
 'use strict';
-var iterate = require('./_iterate');
+var iterate = require('../internals/iterate');
 
 // https://github.com/tc39/collection-methods
-require('./_export')({ target: 'Map', stat: true, forced: require('./_is-pure') }, {
+require('../internals/export')({ target: 'Map', stat: true, forced: require('../internals/is-pure') }, {
   keyBy: function keyBy(iterable, keyDerivative) {
     var newMap = new this();
     iterate(iterable, false, function (element) {

@@ -1,3 +1,3 @@
 require('../../modules/es.number.is-finite');
 
-module.exports = require('../../modules/_path').Number.isFinite;
+module.exports = require('../../internals/path').Number.isFinite;

@@ -1,4 +1,4 @@
 require('../../modules/es.map');
 require('../../modules/esnext.map.map-keys');
 
-module.exports = require('../../modules/_entry-unbind')('Map', 'mapKeys');
+module.exports = require('../../internals/entry-unbind')('Map', 'mapKeys');

@@ -1,3 +1,3 @@
 require('../../modules/es.array.last-index-of');
 
-module.exports = require('../../modules/_entry-unbind')('Array', 'lastIndexOf');
+module.exports = require('../../internals/entry-unbind')('Array', 'lastIndexOf');

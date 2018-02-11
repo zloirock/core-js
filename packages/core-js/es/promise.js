@@ -3,4 +3,4 @@ require('../modules/es.string.iterator');
 require('../modules/web.dom-collections.iterator');
 require('../modules/es.promise');
 
-module.exports = require('../modules/_path').Promise;
+module.exports = require('../internals/path').Promise;

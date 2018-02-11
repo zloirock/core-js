@@ -1,3 +1,3 @@
 require('../../modules/es.array.of');
 
-module.exports = require('../../modules/_path').Array.of;
+module.exports = require('../../internals/path').Array.of;

@@ -4,4 +4,4 @@ require('../../modules/es.date.to-iso-string');
 require('../../modules/es.date.to-string');
 require('../../modules/es.date.to-primitive');
 
-module.exports = require('../../modules/_path').Date;
+module.exports = require('../../internals/path').Date;

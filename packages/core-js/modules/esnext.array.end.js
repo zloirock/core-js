@@ -3,7 +3,7 @@
 var DESCRIPTORS = require('core-js-internals/descriptors');
 var toObject = require('core-js-internals/to-object');
 var toLength = require('core-js-internals/to-length');
-var defineProperty = require('./_object-define-property').f;
+var defineProperty = require('../internals/object-define-property').f;
 
 if (DESCRIPTORS && !('end' in [])) {
   defineProperty(Array.prototype, 'end', {

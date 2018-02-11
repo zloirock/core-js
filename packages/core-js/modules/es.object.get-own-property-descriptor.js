@@ -1,9 +1,9 @@
 var toIndexedObject = require('core-js-internals/to-indexed-object');
-var nativeGetOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
+var nativeGetOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
 // `Object.getOwnPropertyDescriptor` method
 // https://tc39.github.io/ecma262/#sec-object.getownpropertydescriptor
-require('./_object-statics-accept-primitives')('getOwnPropertyDescriptor', function () {
+require('../internals/object-statics-accept-primitives')('getOwnPropertyDescriptor', function () {
   return function getOwnPropertyDescriptor(it, key) {
     return nativeGetOwnPropertyDescriptor(toIndexedObject(it), key);
   };

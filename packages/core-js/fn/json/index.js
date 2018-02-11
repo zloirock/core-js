@@ -1,3 +1,3 @@
-var path = require('../../modules/_path');
+var path = require('../../internals/path');
 
 module.exports = path.JSON || (path.JSON = { stringify: JSON.stringify });

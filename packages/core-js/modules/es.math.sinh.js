@@ -4,7 +4,7 @@ var exp = Math.exp;
 // `Math.sinh` method
 // https://tc39.github.io/ecma262/#sec-math.sinh
 // V8 near Chromium 38 has a problem with very small numbers
-require('./_export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Math', stat: true, forced: require('core-js-internals/fails')(function () {
   return !Math.sinh(-2e-17) != -2e-17;
 }) }, {
   sinh: function sinh(x) {

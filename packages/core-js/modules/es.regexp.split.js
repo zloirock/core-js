@@ -1,6 +1,6 @@
 'use strict';
 // @@split logic
-require('./_fix-re-wks')('split', 2, function (defined, SPLIT, nativeSplit) {
+require('../internals/fix-re-wks')('split', 2, function (defined, SPLIT, nativeSplit) {
   var isRegExp = require('core-js-internals/is-regexp');
   var internalSplit = nativeSplit;
   var arrayPush = [].push;

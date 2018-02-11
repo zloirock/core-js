@@ -3,7 +3,7 @@ var exp = Math.exp;
 
 // `Math.tanh` method
 // https://tc39.github.io/ecma262/#sec-math.tanh
-require('./_export')({ target: 'Math', stat: true }, {
+require('../internals/export')({ target: 'Math', stat: true }, {
   tanh: function tanh(x) {
     var a = expm1(x = +x);
     var b = expm1(-x);

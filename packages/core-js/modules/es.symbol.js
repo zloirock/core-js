@@ -3,30 +3,31 @@
 var global = require('core-js-internals/global');
 var has = require('core-js-internals/has');
 var DESCRIPTORS = require('core-js-internals/descriptors');
-var $export = require('./_export');
-var redefine = require('./_redefine');
-var hiddenKeys = require('./_hidden-keys');
+var $export = require('../internals/export');
+var redefine = require('../internals/redefine');
+var hiddenKeys = require('../internals/hidden-keys');
 var fails = require('core-js-internals/fails');
 var shared = require('core-js-internals/shared');
-var setToStringTag = require('./_set-to-string-tag');
+var setToStringTag = require('../internals/set-to-string-tag');
 var uid = require('core-js-internals/uid');
 var wellKnownSymbol = require('core-js-internals/well-known-symbol');
-var wksExt = require('./_wks-ext');
-var wksDefine = require('./_wks-define');
-var enumKeys = require('./_enum-keys');
+var wksExt = require('../internals/wks-ext');
+var wksDefine = require('../internals/wks-define');
+var enumKeys = require('../internals/enum-keys');
 var isArray = require('core-js-internals/is-array');
 var anObject = require('core-js-internals/an-object');
 var isObject = require('core-js-internals/is-object');
 var toIndexedObject = require('core-js-internals/to-indexed-object');
-var toPrimitive = require('./_to-primitive');
-var createDesc = require('./_property-desc');
-var _create = require('./_object-create');
-var gOPNExt = require('./_object-gopn-ext');
-var getOwnPropertyDescriptorModule = require('./_object-get-own-property-descriptor');
-var definePropertyModule = require('./_object-define-property');
-var $keys = require('./_object-keys');
+var toPrimitive = require('../internals/to-primitive');
+var createDesc = require('../internals/property-desc');
+var _create = require('../internals/object-create');
+var gOPNExt = require('../internals/object-gopn-ext');
+var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
+var definePropertyModule = require('../internals/object-define-property');
+var hide = require('../internals/hide');
+var $keys = require('../internals/object-keys');
 var HIDDEN = require('core-js-internals/shared-key')('hidden');
-var $ = require('./_state');
+var $ = require('../internals/state');
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var gOPN = gOPNExt.f;
@@ -156,9 +157,9 @@ if (!USE_NATIVE) {
 
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
   definePropertyModule.f = $defineProperty;
-  require('./_object-get-own-property-names').f = gOPNExt.f = $getOwnPropertyNames;
-  require('./_object-property-is-enumerable').f = $propertyIsEnumerable;
-  require('./_object-get-own-property-symbols').f = $getOwnPropertySymbols;
+  require('../internals/object-get-own-property-names').f = gOPNExt.f = $getOwnPropertyNames;
+  require('../internals/object-property-is-enumerable').f = $propertyIsEnumerable;
+  require('../internals/object-get-own-property-symbols').f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
     nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
@@ -167,7 +168,7 @@ if (!USE_NATIVE) {
         return $(this).description;
       }
     });
-    if (!require('./_is-pure')) {
+    if (!require('../internals/is-pure')) {
       redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
     }
   }
@@ -244,7 +245,7 @@ $JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(func
 });
 
 // 19.4.3.4 Symbol.prototype[@@toPrimitive](hint)
-$Symbol[PROTOTYPE][TO_PRIMITIVE] || require('./_hide')($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
+$Symbol[PROTOTYPE][TO_PRIMITIVE] || hide($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
 setToStringTag($Symbol, 'Symbol');
 // 20.2.1.9 Math[@@toStringTag]

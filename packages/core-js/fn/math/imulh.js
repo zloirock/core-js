@@ -1,3 +1,3 @@
 require('../../modules/esnext.math.imulh');
 
-module.exports = require('../../modules/_path').Math.imulh;
+module.exports = require('../../internals/path').Math.imulh;

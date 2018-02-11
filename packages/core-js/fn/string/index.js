@@ -32,4 +32,4 @@ require('../../modules/esnext.string.trim-right');
 require('../../modules/esnext.string.replace-all');
 require('../../modules/esnext.string.match-all');
 
-module.exports = require('../../modules/_path').String;
+module.exports = require('../../internals/path').String;

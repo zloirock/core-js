@@ -8,6 +8,7 @@ node_modules/
 /packages/core-js/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/fn/
+/packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
 /packages/core-js-pure/stage/
 /packages/core-js-pure/web/
