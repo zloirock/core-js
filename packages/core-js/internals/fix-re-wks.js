@@ -1,9 +1,9 @@
 'use strict';
 var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
-var fails = require('core-js-internals/fails');
-var requireObjectCoercible = require('core-js-internals/require-object-coercible');
-var wellKnownSymbol = require('core-js-internals/well-known-symbol');
+var fails = require('../internals/fails');
+var requireObjectCoercible = require('../internals/require-object-coercible');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 
 module.exports = function (KEY, length, exec) {
   var SYMBOL = wellKnownSymbol(KEY);

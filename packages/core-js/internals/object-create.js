@@ -1,10 +1,10 @@
 // 19.1.2.2 / 15.2.3.5 Object.create(O [, Properties])
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var defineProperties = require('../internals/object-define-properties');
 var enumBugKeys = require('../internals/enum-bug-keys');
-var html = require('core-js-internals/html');
-var documentCreateElement = require('core-js-internals/document-create-element');
-var IE_PROTO = require('core-js-internals/shared-key')('IE_PROTO');
+var html = require('../internals/html');
+var documentCreateElement = require('../internals/document-create-element');
+var IE_PROTO = require('../internals/shared-key')('IE_PROTO');
 var PROTOTYPE = 'prototype';
 var Empty = function () { /* empty */ };
 

@@ -1,8 +1,8 @@
 // `RegExp.prototype.flags` getter
 // https://tc39.github.io/ecma262/#sec-get-regexp.prototype.flags
-if (require('core-js-internals/descriptors') && /./g.flags != 'g') {
+if (require('../internals/descriptors') && /./g.flags != 'g') {
   require('../internals/object-define-property').f(RegExp.prototype, 'flags', {
     configurable: true,
-    get: require('core-js-internals/regexp-flags')
+    get: require('../internals/regexp-flags')
   });
 }

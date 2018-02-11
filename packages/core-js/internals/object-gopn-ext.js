@@ -1,5 +1,5 @@
 // fallback for IE11 buggy Object.getOwnPropertyNames with iframe and window
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var nativeGetOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var toString = {}.toString;
 

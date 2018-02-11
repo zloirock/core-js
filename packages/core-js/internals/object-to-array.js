@@ -1,5 +1,5 @@
 var objectKeys = require('../internals/object-keys');
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
 module.exports = function (isEntries) {

@@ -1,7 +1,7 @@
 var $export = require('../internals/export');
-var requireObjectCoercible = require('core-js-internals/require-object-coercible');
-var fails = require('core-js-internals/fails');
-var whitespaces = require('core-js-internals/whitespaces');
+var requireObjectCoercible = require('../internals/require-object-coercible');
+var fails = require('../internals/fails');
+var whitespaces = require('../internals/whitespaces');
 var space = '[' + whitespaces + ']';
 var non = '\u200b\u0085';
 var ltrim = RegExp('^' + space + space + '*');

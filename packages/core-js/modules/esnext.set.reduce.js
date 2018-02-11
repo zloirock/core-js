@@ -1,7 +1,7 @@
 'use strict';
 var path = require('../internals/path');
-var anObject = require('core-js-internals/an-object');
-var aFunction = require('core-js-internals/a-function');
+var anObject = require('../internals/an-object');
+var aFunction = require('../internals/a-function');
 var Set = path.Set;
 var values = Set.prototype.values;
 

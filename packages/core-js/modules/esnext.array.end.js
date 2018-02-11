@@ -1,8 +1,8 @@
 // https://github.com/keithamus/proposal-array-last
 'use strict';
-var DESCRIPTORS = require('core-js-internals/descriptors');
-var toObject = require('core-js-internals/to-object');
-var toLength = require('core-js-internals/to-length');
+var DESCRIPTORS = require('../internals/descriptors');
+var toObject = require('../internals/to-object');
+var toLength = require('../internals/to-length');
 var defineProperty = require('../internals/object-define-property').f;
 
 if (DESCRIPTORS && !('end' in [])) {

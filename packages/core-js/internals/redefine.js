@@ -1,13 +1,13 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var hide = require('../internals/hide');
-var has = require('core-js-internals/has');
+var has = require('../internals/has');
 var setGlobal = require('../internals/set-global');
 var $ = require('../internals/state');
 var TO_STRING = 'toString';
 var nativeFunctionToString = Function[TO_STRING];
 var TEMPLATE = String(nativeFunctionToString).split(TO_STRING);
 
-require('core-js-internals/shared')('inspectSource', function (it) {
+require('../internals/shared')('inspectSource', function (it) {
   return nativeFunctionToString.call(it);
 });
 

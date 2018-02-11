@@ -1,10 +1,10 @@
 'use strict';
-var global = require('core-js-internals/global');
-var has = require('core-js-internals/has');
-var classof = require('core-js-internals/classof-raw');
+var global = require('../internals/global');
+var has = require('../internals/has');
+var classof = require('../internals/classof-raw');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var toPrimitive = require('../internals/to-primitive');
-var fails = require('core-js-internals/fails');
+var fails = require('../internals/fails');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
@@ -54,7 +54,7 @@ if (!NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1')) {
       && (BROKEN_CLASSOF ? fails(function () { NumberPrototype.valueOf.call(that); }) : classof(that) != NUMBER)
         ? inheritIfRequired(new NativeNumber(toNumber(it)), that, NumberWrapper) : toNumber(it);
   };
-  for (var keys = require('core-js-internals/descriptors') ? getOwnPropertyNames(NativeNumber) : (
+  for (var keys = require('../internals/descriptors') ? getOwnPropertyNames(NativeNumber) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES2015 (in case, if modules with ES2015 Number statics required before):

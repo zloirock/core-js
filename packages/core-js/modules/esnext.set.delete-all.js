@@ -1,6 +1,6 @@
 'use strict';
-var anObject = require('core-js-internals/an-object');
-var aFunction = require('core-js-internals/a-function');
+var anObject = require('../internals/an-object');
+var aFunction = require('../internals/a-function');
 
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {

@@ -1,1 +1,1 @@
-exports.f = require('core-js-internals/well-known-symbol');
+exports.f = require('../internals/well-known-symbol');

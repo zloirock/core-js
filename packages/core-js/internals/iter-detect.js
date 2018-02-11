@@ -1,4 +1,4 @@
-var ITERATOR = require('core-js-internals/well-known-symbol')('iterator');
+var ITERATOR = require('../internals/well-known-symbol')('iterator');
 var SAFE_CLOSING = false;
 
 try {
