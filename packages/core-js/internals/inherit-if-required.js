@@ -1,4 +1,4 @@
-var isObject = require('core-js-internals/is-object');
+var isObject = require('../internals/is-object');
 var setPrototypeOf = require('../internals/set-proto').set;
 
 module.exports = function (that, target, C) {

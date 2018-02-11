@@ -1,10 +1,10 @@
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var has = require('core-js-internals/has');
+var has = require('../internals/has');
 var propertyDescriptor = require('../internals/property-desc');
-var anObject = require('core-js-internals/an-object');
-var isObject = require('core-js-internals/is-object');
+var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 
 // `Reflect.set` method
 // https://tc39.github.io/ecma262/#sec-reflect.set

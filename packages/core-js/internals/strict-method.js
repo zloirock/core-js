@@ -1,5 +1,5 @@
 'use strict';
-var fails = require('core-js-internals/fails');
+var fails = require('../internals/fails');
 
 module.exports = function (method, arg) {
   return !!method && fails(function () {

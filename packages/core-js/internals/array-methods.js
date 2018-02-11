@@ -1,8 +1,8 @@
-var bind = require('core-js-internals/bind-context');
-var IndexedObject = require('core-js-internals/indexed-object');
-var toObject = require('core-js-internals/to-object');
-var toLength = require('core-js-internals/to-length');
-var arraySpeciesCreate = require('core-js-internals/array-species-create');
+var bind = require('../internals/bind-context');
+var IndexedObject = require('../internals/indexed-object');
+var toObject = require('../internals/to-object');
+var toLength = require('../internals/to-length');
+var arraySpeciesCreate = require('../internals/array-species-create');
 
 // 0 -> Array#forEach
 // 1 -> Array#map

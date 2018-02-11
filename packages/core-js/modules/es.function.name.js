@@ -5,7 +5,7 @@ var NAME = 'name';
 
 // Function instances `.name` property
 // https://tc39.github.io/ecma262/#sec-function-instances-name
-NAME in FunctionPrototype || require('core-js-internals/descriptors') && defineProperty(FunctionPrototype, NAME, {
+NAME in FunctionPrototype || require('../internals/descriptors') && defineProperty(FunctionPrototype, NAME, {
   configurable: true,
   get: function () {
     try {

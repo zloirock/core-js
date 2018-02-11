@@ -1,8 +1,8 @@
 'use strict';
-var isObject = require('core-js-internals/is-object');
+var isObject = require('../internals/is-object');
 var definePropertyModule = require('../internals/object-define-property');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var HAS_INSTANCE = require('core-js-internals/well-known-symbol')('hasInstance');
+var HAS_INSTANCE = require('../internals/well-known-symbol')('hasInstance');
 var FunctionPrototype = Function.prototype;
 
 // `Function.prototype[@@hasInstance]` method

@@ -1,9 +1,9 @@
 'use strict';
-var bind = require('core-js-internals/bind-context');
-var toObject = require('core-js-internals/to-object');
+var bind = require('../internals/bind-context');
+var toObject = require('../internals/to-object');
 var call = require('../internals/call-with-safe-iteration-closing');
 var isArrayIter = require('../internals/is-array-iter');
-var toLength = require('core-js-internals/to-length');
+var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var getIterFn = require('./core.get-iterator-method');
 var FORCED = !require('../internals/iter-detect')(function (iter) { Array.from(iter); });

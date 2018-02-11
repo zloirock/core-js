@@ -1,7 +1,7 @@
-var aFunction = require('core-js-internals/a-function');
-var toObject = require('core-js-internals/to-object');
-var IndexedObject = require('core-js-internals/indexed-object');
-var toLength = require('core-js-internals/to-length');
+var aFunction = require('../internals/a-function');
+var toObject = require('../internals/to-object');
+var IndexedObject = require('../internals/indexed-object');
+var toLength = require('../internals/to-length');
 
 module.exports = function (that, callbackfn, argumentsLength, memo, isRight) {
   aFunction(callbackfn);

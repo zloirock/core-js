@@ -1,6 +1,6 @@
 // 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
-var toLength = require('core-js-internals/to-length');
+var toLength = require('../internals/to-length');
 var context = require('../internals/string-context');
 var STARTS_WITH = 'startsWith';
 var FAILS_IS_REGEXP = require('../internals/fails-is-regexp')(STARTS_WITH);

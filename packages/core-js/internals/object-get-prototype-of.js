@@ -1,7 +1,7 @@
 // 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
-var has = require('core-js-internals/has');
-var toObject = require('core-js-internals/to-object');
-var IE_PROTO = require('core-js-internals/shared-key')('IE_PROTO');
+var has = require('../internals/has');
+var toObject = require('../internals/to-object');
+var IE_PROTO = require('../internals/shared-key')('IE_PROTO');
 var ObjectPrototype = Object.prototype;
 
 module.exports = Object.getPrototypeOf || function (O) {

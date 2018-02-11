@@ -1,4 +1,4 @@
-var isInteger = require('core-js-internals/is-integer');
+var isInteger = require('../internals/is-integer');
 var abs = Math.abs;
 
 // `Number.isSafeInteger` method

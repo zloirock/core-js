@@ -1,6 +1,6 @@
-var nativeParseFloat = require('core-js-internals/global').parseFloat;
+var nativeParseFloat = require('../internals/global').parseFloat;
 var internalStringTrim = require('../internals/string-trim').trim;
-var whitespaces = require('core-js-internals/whitespaces');
+var whitespaces = require('../internals/whitespaces');
 var FORCED = 1 / nativeParseFloat(whitespaces + '-0') !== -Infinity;
 
 module.exports = FORCED ? function parseFloat(str) {
