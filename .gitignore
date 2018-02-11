@@ -14,7 +14,6 @@ node_modules/
 /packages/core-js-pure/web/
 /packages/core-js-pure/index.js
 /packages/core-js-pure/LICENSE
-/packages/core-js-internals/LICENSE
 /packages/core-js-builder/LICENSE
 /tests/bundles/
 /client/

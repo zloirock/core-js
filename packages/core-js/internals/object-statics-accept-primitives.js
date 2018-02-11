@@ -1,6 +1,6 @@
 var $export = require('../internals/export');
 var path = require('../internals/path');
-var fails = require('core-js-internals/fails');
+var fails = require('../internals/fails');
 
 // most Object methods by ES2015+ should accept primitives
 module.exports = function (METHOD_NAME, getWrapper) {

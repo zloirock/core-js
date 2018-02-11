@@ -1,5 +1,5 @@
 var metadata = require('../internals/metadata');
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var ordinaryHasOwnMetadata = metadata.has;
 var toMetaKey = metadata.key;
 

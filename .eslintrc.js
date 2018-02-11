@@ -380,7 +380,6 @@ module.exports = {
     {
       files: [
         'packages/core-js/**',
-        'packages/core-js-internals/**',
         'packages/core-js-pure/**',
         'tests/promises-aplus/**',
       ],

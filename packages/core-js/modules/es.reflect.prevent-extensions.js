@@ -1,4 +1,4 @@
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var objectPreventExtensions = Object.preventExtensions;
 
 // `Reflect.preventExtensions` method

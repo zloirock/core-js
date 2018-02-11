@@ -1,3 +1,3 @@
 require('../../modules/es.function.has-instance');
 
-module.exports = Function[require('core-js-internals/well-known-symbol')('hasInstance')];
+module.exports = Function[require('../../internals/well-known-symbol')('hasInstance')];

@@ -1,8 +1,8 @@
 'use strict';
 // https://tc39.github.io/proposal-setmap-offrom/
 var $export = require('../internals/export');
-var aFunction = require('core-js-internals/a-function');
-var bind = require('core-js-internals/bind-context');
+var aFunction = require('../internals/a-function');
+var bind = require('../internals/bind-context');
 var iterate = require('../internals/iterate');
 
 module.exports = function (COLLECTION) {

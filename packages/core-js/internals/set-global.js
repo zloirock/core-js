@@ -1,4 +1,4 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var hide = require('../internals/hide');
 
 module.exports = function (key, value) {

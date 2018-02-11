@@ -1,9 +1,9 @@
 'use strict';
 var path = require('../internals/path');
-var anObject = require('core-js-internals/an-object');
-var aFunction = require('core-js-internals/a-function');
-var bind = require('core-js-internals/bind-context');
-var speciesConstructor = require('core-js-internals/species-constructor');
+var anObject = require('../internals/an-object');
+var aFunction = require('../internals/a-function');
+var bind = require('../internals/bind-context');
+var speciesConstructor = require('../internals/species-constructor');
 var Set = path.Set;
 var values = Set.prototype.values;
 

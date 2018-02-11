@@ -1,4 +1,4 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var redefine = require('../internals/redefine');
 var setGlobal = require('../internals/set-global');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');

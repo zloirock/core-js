@@ -1,8 +1,8 @@
 // https://github.com/tc39/proposal-promise-finally
 'use strict';
 var path = require('../internals/path');
-var global = require('core-js-internals/global');
-var speciesConstructor = require('core-js-internals/species-constructor');
+var global = require('../internals/global');
+var speciesConstructor = require('../internals/species-constructor');
 var promiseResolve = require('../internals/promise-resolve');
 
 require('../internals/export')({ target: 'Promise', proto: true, real: true }, { 'finally': function (onFinally) {

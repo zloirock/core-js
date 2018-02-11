@@ -1,4 +1,4 @@
-var isObject = require('core-js-internals/is-object');
+var isObject = require('../internals/is-object');
 var onFreeze = require('../internals/meta').onFreeze;
 
 // `Object.preventExtensions` method

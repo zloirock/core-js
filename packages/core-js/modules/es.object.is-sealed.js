@@ -1,4 +1,4 @@
-var isObject = require('core-js-internals/is-object');
+var isObject = require('../internals/is-object');
 
 // Object.isSealed` method
 // https://tc39.github.io/ecma262/#sec-object.issealed

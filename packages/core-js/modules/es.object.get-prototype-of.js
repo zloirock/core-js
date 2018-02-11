@@ -1,4 +1,4 @@
-var toObject = require('core-js-internals/to-object');
+var toObject = require('../internals/to-object');
 var nativeGetPrototypeOf = require('../internals/object-get-prototype-of');
 
 // `Object.getPrototypeOf` method

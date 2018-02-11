@@ -1,6 +1,6 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var hide = require('../internals/hide');
-var uid = require('core-js-internals/uid');
+var uid = require('../internals/uid');
 var TYPED = uid('typed_array');
 var VIEW = uid('view');
 var ABV = !!(global.ArrayBuffer && global.DataView);

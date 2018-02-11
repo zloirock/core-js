@@ -1,10 +1,10 @@
 'use strict';
 // https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatMap
-var flattenIntoArray = require('core-js-internals/flatten-into-array');
-var toObject = require('core-js-internals/to-object');
-var toLength = require('core-js-internals/to-length');
-var aFunction = require('core-js-internals/a-function');
-var arraySpeciesCreate = require('core-js-internals/array-species-create');
+var flattenIntoArray = require('../internals/flatten-into-array');
+var toObject = require('../internals/to-object');
+var toLength = require('../internals/to-length');
+var aFunction = require('../internals/a-function');
+var arraySpeciesCreate = require('../internals/array-species-create');
 
 require('../internals/export')({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {

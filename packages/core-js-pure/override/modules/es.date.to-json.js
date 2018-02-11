@@ -1,10 +1,10 @@
 'use strict';
-var toObject = require('core-js-internals/to-object');
+var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
-var toISOString = require('core-js-internals/date-to-iso-string');
-var classof = require('core-js-internals/classof-raw');
+var toISOString = require('../internals/date-to-iso-string');
+var classof = require('../internals/classof-raw');
 
-require('../internals/export')({ target: 'Date', proto: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Date', proto: true, forced: require('../internals/fails')(function () {
   return new Date(NaN).toJSON() !== null
     || Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) !== 1;
 }) }, {
