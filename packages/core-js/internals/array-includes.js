@@ -1,6 +1,6 @@
-var toIObject = require('core-js-internals/to-indexed-object');
-var toLength = require('core-js-internals/to-length');
-var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
+var toIObject = require('../internals/to-indexed-object');
+var toLength = require('../internals/to-length');
+var toAbsoluteIndex = require('../internals/to-absolute-index');
 
 // false -> Array#indexOf
 // true  -> Array#includes

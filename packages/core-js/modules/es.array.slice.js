@@ -1,14 +1,14 @@
 'use strict';
-var html = require('core-js-internals/html');
-var classof = require('core-js-internals/classof-raw');
-var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
-var toLength = require('core-js-internals/to-length');
+var html = require('../internals/html');
+var classof = require('../internals/classof-raw');
+var toAbsoluteIndex = require('../internals/to-absolute-index');
+var toLength = require('../internals/to-length');
 var nativeSlice = [].slice;
 
 // `Array.prototype.slice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.slice
 // fallback for not array-like ES3 strings and DOM objects
-require('../internals/export')({ target: 'Array', proto: true, forced: require('core-js-internals/fails')(function () {
+require('../internals/export')({ target: 'Array', proto: true, forced: require('../internals/fails')(function () {
   if (html) nativeSlice.call(html);
 }) }, {
   slice: function slice(begin, end) {

@@ -1,9 +1,9 @@
 'use strict';
 // https://github.com/zenparsing/es-observable
-var aFunction = require('core-js-internals/a-function');
-var anObject = require('core-js-internals/an-object');
-var isObject = require('core-js-internals/is-object');
-var anInstance = require('core-js-internals/an-instance');
+var aFunction = require('../internals/a-function');
+var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
+var anInstance = require('../internals/an-instance');
 var redefineAll = require('../internals/redefine-all');
 var hide = require('../internals/hide');
 var getIterator = require('./core.get-iterator');
@@ -11,8 +11,8 @@ var iterate = require('../internals/iterate');
 var hostReportErrors = require('../internals/host-report-errors');
 var defineProperty = require('../internals/object-define-property').f;
 var $ = require('../internals/state');
-var DESCRIPTORS = require('core-js-internals/descriptors');
-var OBSERVABLE = require('core-js-internals/well-known-symbol')('observable');
+var DESCRIPTORS = require('../internals/descriptors');
+var OBSERVABLE = require('../internals/well-known-symbol')('observable');
 var BREAK = iterate.BREAK;
 
 var getMethod = function (fn) {

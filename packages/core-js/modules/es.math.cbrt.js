@@ -1,4 +1,4 @@
-var sign = require('core-js-internals/math-sign');
+var sign = require('../internals/math-sign');
 
 // `Math.cbrt` method
 // https://tc39.github.io/ecma262/#sec-math.cbrt

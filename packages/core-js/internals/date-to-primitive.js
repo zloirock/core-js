@@ -1,5 +1,5 @@
 'use strict';
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var toPrimitive = require('../internals/to-primitive');
 
 module.exports = function (hint) {

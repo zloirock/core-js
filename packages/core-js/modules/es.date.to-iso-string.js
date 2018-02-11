@@ -1,4 +1,4 @@
-var toISOString = require('core-js-internals/date-to-iso-string');
+var toISOString = require('../internals/date-to-iso-string');
 
 // `Date.prototype.toISOString` method
 // https://tc39.github.io/ecma262/#sec-date.prototype.toisostring

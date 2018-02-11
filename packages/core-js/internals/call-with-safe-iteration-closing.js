@@ -1,4 +1,4 @@
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 
 // call something on iterator step with safe closing on error
 module.exports = function (iterator, fn, value, entries) {

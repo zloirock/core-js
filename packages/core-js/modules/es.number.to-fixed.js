@@ -1,7 +1,7 @@
 'use strict';
-var toInteger = require('core-js-internals/to-integer');
-var thisNumberValue = require('core-js-internals/this-number-value');
-var repeat = require('core-js-internals/string-repeat');
+var toInteger = require('../internals/to-integer');
+var thisNumberValue = require('../internals/this-number-value');
+var repeat = require('../internals/string-repeat');
 var nativeToFixed = 1.0.toFixed;
 var floor = Math.floor;
 var data = [0, 0, 0, 0, 0, 0];
@@ -62,7 +62,7 @@ require('../internals/export')({ target: 'Number', proto: true, forced: nativeTo
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
   1000000000000000128.0.toFixed(0) !== '1000000000000000128'
-) || !require('core-js-internals/fails')(function () {
+) || !require('../internals/fails')(function () {
   // V8 ~ Android 4.3-
   nativeToFixed.call({});
 }) }, {

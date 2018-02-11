@@ -1,8 +1,8 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var core = require('../internals/core');
-var bind = require('core-js-internals/bind-context');
+var bind = require('../internals/bind-context');
 var hide = require('../internals/hide');
-var has = require('core-js-internals/has');
+var has = require('../internals/has');
 var PROTOTYPE = 'prototype';
 
 /*

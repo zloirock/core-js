@@ -1,4 +1,4 @@
-var MATCH = require('core-js-internals/well-known-symbol')('match');
+var MATCH = require('../internals/well-known-symbol')('match');
 
 module.exports = function (KEY) {
   var re = /./;

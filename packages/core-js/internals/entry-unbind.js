@@ -1,5 +1,5 @@
-var global = require('core-js-internals/global');
-var bind = require('core-js-internals/bind-context');
+var global = require('../internals/global');
+var bind = require('../internals/bind-context');
 var call = Function.call;
 
 module.exports = function (CONSTRUCTOR, METHOD, length) {

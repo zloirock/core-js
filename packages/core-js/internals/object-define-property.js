@@ -1,6 +1,6 @@
-var DESCRIPTORS = require('core-js-internals/descriptors');
-var IE8_DOM_DEFINE = require('core-js-internals/ie8-dom-define');
-var anObject = require('core-js-internals/an-object');
+var DESCRIPTORS = require('../internals/descriptors');
+var IE8_DOM_DEFINE = require('../internals/ie8-dom-define');
+var anObject = require('../internals/an-object');
 var toPrimitive = require('../internals/to-primitive');
 var nativeDefineProperty = Object.defineProperty;
 

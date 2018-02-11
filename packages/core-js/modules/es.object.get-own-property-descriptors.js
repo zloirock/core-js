@@ -1,5 +1,5 @@
 var ownKeys = require('../internals/own-keys');
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var createProperty = require('../internals/create-property');
 

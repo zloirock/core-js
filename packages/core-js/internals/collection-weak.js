@@ -1,12 +1,12 @@
 'use strict';
 var redefineAll = require('../internals/redefine-all');
 var getWeak = require('../internals/meta').getWeak;
-var anObject = require('core-js-internals/an-object');
-var isObject = require('core-js-internals/is-object');
-var anInstance = require('core-js-internals/an-instance');
+var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
+var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
 var createArrayMethod = require('../internals/array-methods');
-var $has = require('core-js-internals/has');
+var $has = require('../internals/has');
 var validate = require('../internals/validate-collection');
 var $ = require('../internals/state');
 var arrayFind = createArrayMethod(5);

@@ -1,12 +1,12 @@
-var META = require('core-js-internals/uid')('meta');
-var isObject = require('core-js-internals/is-object');
-var has = require('core-js-internals/has');
+var META = require('../internals/uid')('meta');
+var isObject = require('../internals/is-object');
+var has = require('../internals/has');
 var defineProperty = require('../internals/object-define-property').f;
 var id = 0;
 var isExtensible = Object.isExtensible || function () {
   return true;
 };
-var FREEZE = !require('core-js-internals/fails')(function () {
+var FREEZE = !require('../internals/fails')(function () {
   return isExtensible(Object.preventExtensions({}));
 });
 

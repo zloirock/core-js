@@ -1,10 +1,10 @@
 var create = require('../internals/object-create');
-var aFunction = require('core-js-internals/a-function');
-var anObject = require('core-js-internals/an-object');
-var isObject = require('core-js-internals/is-object');
-var fails = require('core-js-internals/fails');
-var bind = require('core-js-internals/function-bind');
-var nativeConstruct = (require('core-js-internals/global').Reflect || {}).construct;
+var aFunction = require('../internals/a-function');
+var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
+var fails = require('../internals/fails');
+var bind = require('../internals/function-bind');
+var nativeConstruct = (require('../internals/global').Reflect || {}).construct;
 
 // `Reflect.construct` method
 // https://tc39.github.io/ecma262/#sec-reflect.construct

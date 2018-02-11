@@ -1,10 +1,10 @@
-var DESCRIPTORS = require('core-js-internals/descriptors');
+var DESCRIPTORS = require('../internals/descriptors');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var propertyDescriptor = require('../internals/property-desc');
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
-var has = require('core-js-internals/has');
-var IE8_DOM_DEFINE = require('core-js-internals/ie8-dom-define');
+var has = require('../internals/has');
+var IE8_DOM_DEFINE = require('../internals/ie8-dom-define');
 var nativeGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 exports.f = DESCRIPTORS ? nativeGetOwnPropertyDescriptor : function getOwnPropertyDescriptor(O, P) {

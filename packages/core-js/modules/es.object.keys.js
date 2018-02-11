@@ -1,4 +1,4 @@
-var toObject = require('core-js-internals/to-object');
+var toObject = require('../internals/to-object');
 var nativeKeys = require('../internals/object-keys');
 
 // `Object.keys` method

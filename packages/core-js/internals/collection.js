@@ -1,12 +1,12 @@
 'use strict';
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
 var meta = require('../internals/meta');
 var iterate = require('../internals/iterate');
-var anInstance = require('core-js-internals/an-instance');
-var isObject = require('core-js-internals/is-object');
-var fails = require('core-js-internals/fails');
+var anInstance = require('../internals/an-instance');
+var isObject = require('../internals/is-object');
+var fails = require('../internals/fails');
 var iterDetect = require('../internals/iter-detect');
 var setToStringTag = require('../internals/set-to-string-tag');
 var inheritIfRequired = require('../internals/inherit-if-required');

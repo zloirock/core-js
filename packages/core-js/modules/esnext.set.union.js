@@ -1,8 +1,8 @@
 'use strict';
 var path = require('../internals/path');
-var anObject = require('core-js-internals/an-object');
-var aFunction = require('core-js-internals/a-function');
-var speciesConstructor = require('core-js-internals/species-constructor');
+var anObject = require('../internals/an-object');
+var aFunction = require('../internals/a-function');
+var speciesConstructor = require('../internals/species-constructor');
 var iterate = require('../internals/iterate');
 var Set = path.Set;
 

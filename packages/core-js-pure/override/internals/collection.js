@@ -1,16 +1,16 @@
 'use strict';
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 var $export = require('./export');
 var meta = require('../internals/meta');
-var fails = require('core-js-internals/fails');
+var fails = require('../internals/fails');
 var hide = require('../internals/hide');
 var iterate = require('../internals/iterate');
-var anInstance = require('core-js-internals/an-instance');
-var isObject = require('core-js-internals/is-object');
+var anInstance = require('../internals/an-instance');
+var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
 var each = require('../internals/array-methods')(0);
-var DESCRIPTORS = require('core-js-internals/descriptors');
+var DESCRIPTORS = require('../internals/descriptors');
 
 module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   var Base = global[NAME];
