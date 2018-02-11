@@ -1,6 +1,7 @@
 var global = require('core-js-internals/global');
 var redefine = require('../internals/redefine');
 var setGlobal = require('../internals/set-global');
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
 /*
   options.target - name of the target object
@@ -15,7 +16,7 @@ var setGlobal = require('../internals/set-global');
 */
 module.exports = function (options, source) {
   var name = options.target;
-  var target, key;
+  var target, key, targetProperty, sourceProperty;
   if (options.global) {
     target = global;
   } else if (options.stat) {
@@ -24,9 +25,14 @@ module.exports = function (options, source) {
     target = (global[name] || {}).prototype;
   }
   if (target) for (key in source) {
-    // contains in native
-    if (!options.forced && target[key] !== undefined) continue;
+    targetProperty = target[key];
+    sourceProperty = source[key];
+    // contained in target
+    if (!options.forced && targetProperty !== undefined) {
+      if (typeof sourceProperty === typeof targetProperty) continue;
+      copyConstructorProperties(sourceProperty, targetProperty);
+    }
     // extend global
-    redefine(target, key, source[key], options.unsafe);
+    redefine(target, key, sourceProperty, options.unsafe);
   }
 };
