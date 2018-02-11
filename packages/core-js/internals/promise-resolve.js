@@ -1,5 +1,5 @@
-var anObject = require('core-js-internals/an-object');
-var isObject = require('core-js-internals/is-object');
+var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 var newPromiseCapability = require('../internals/new-promise-capability');
 
 module.exports = function (C, x) {

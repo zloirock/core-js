@@ -1,8 +1,8 @@
 'use strict';
-var anObject = require('core-js-internals/an-object');
-var fails = require('core-js-internals/fails');
-var flags = require('core-js-internals/regexp-flags');
-var DESCRIPTORS = require('core-js-internals/descriptors');
+var anObject = require('../internals/an-object');
+var fails = require('../internals/fails');
+var flags = require('../internals/regexp-flags');
+var DESCRIPTORS = require('../internals/descriptors');
 var TO_STRING = 'toString';
 var nativeToString = /./[TO_STRING];
 var NOT_GENERIC = fails(function () { return nativeToString.call({ source: 'a', flags: 'b' }) != '/a/b'; });

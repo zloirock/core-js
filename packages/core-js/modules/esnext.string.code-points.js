@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/RReverser/string-prototype-codepoints
 // TODO: unify with String#@@iterator
-var requireObjectCoercible = require('core-js-internals/require-object-coercible');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var $ = require('../internals/state');
 var createAt = require('../internals/string-at');
 var codePointAt = createAt(false);

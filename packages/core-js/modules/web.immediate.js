@@ -1,4 +1,4 @@
-var task = require('core-js-internals/task');
+var task = require('../internals/task');
 
 require('../internals/export')({ global: true, bind: true }, {
   setImmediate: task.set,

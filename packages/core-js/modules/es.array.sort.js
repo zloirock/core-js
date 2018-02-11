@@ -1,7 +1,7 @@
 'use strict';
-var aFunction = require('core-js-internals/a-function');
-var toObject = require('core-js-internals/to-object');
-var fails = require('core-js-internals/fails');
+var aFunction = require('../internals/a-function');
+var toObject = require('../internals/to-object');
+var fails = require('../internals/fails');
 var nativeSort = [].sort;
 var testData = [1, 2, 3];
 

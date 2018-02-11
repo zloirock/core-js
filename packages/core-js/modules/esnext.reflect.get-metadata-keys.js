@@ -1,6 +1,6 @@
 var Set = require('./es.set');
 var metadata = require('../internals/metadata');
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var iterate = require('../internals/iterate');
 var ordinaryOwnMetadataKeys = metadata.keys;

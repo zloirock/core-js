@@ -1,4 +1,4 @@
-var anObject = require('core-js-internals/an-object');
+var anObject = require('../internals/an-object');
 var get = require('./core.get-iterator-method');
 
 module.exports = require('../internals/core').getIterator = function (it) {

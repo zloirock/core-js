@@ -1,4 +1,4 @@
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var nativeGetOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
 // `Object.getOwnPropertyDescriptor` method

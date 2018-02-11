@@ -1,5 +1,5 @@
 'use strict';
-var toLength = require('core-js-internals/to-length');
+var toLength = require('../internals/to-length');
 var context = require('../internals/string-context');
 var ENDS_WITH = 'endsWith';
 var FAILS_IS_REGEXP = require('../internals/fails-is-regexp')(ENDS_WITH);

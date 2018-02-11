@@ -1,5 +1,5 @@
-var toIndexedObject = require('core-js-internals/to-indexed-object');
-var toLength = require('core-js-internals/to-length');
+var toIndexedObject = require('../internals/to-indexed-object');
+var toLength = require('../internals/to-length');
 
 // `String.raw` method
 // https://tc39.github.io/ecma262/#sec-string.raw

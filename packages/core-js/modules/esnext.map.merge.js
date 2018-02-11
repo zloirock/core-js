@@ -1,6 +1,6 @@
 'use strict';
-var anObject = require('core-js-internals/an-object');
-var aFunction = require('core-js-internals/a-function');
+var anObject = require('../internals/an-object');
+var aFunction = require('../internals/a-function');
 var iterate = require('../internals/iterate');
 
 // https://github.com/tc39/collection-methods

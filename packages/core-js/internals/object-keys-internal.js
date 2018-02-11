@@ -1,5 +1,5 @@
-var has = require('core-js-internals/has');
-var toIndexedObject = require('core-js-internals/to-indexed-object');
+var has = require('../internals/has');
+var toIndexedObject = require('../internals/to-indexed-object');
 var arrayIndexOf = require('../internals/array-includes')(false);
 var hiddenKeys = require('../internals/hidden-keys');
 

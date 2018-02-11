@@ -1,4 +1,4 @@
-var log1p = require('core-js-internals/math-log1p');
+var log1p = require('../internals/math-log1p');
 var sqrt = Math.sqrt;
 var nativeAcosh = Math.acosh;
 

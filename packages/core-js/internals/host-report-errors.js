@@ -1,4 +1,4 @@
-var global = require('core-js-internals/global');
+var global = require('../internals/global');
 
 module.exports = function (a, b) {
   var console = global.console;

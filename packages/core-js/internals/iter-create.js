@@ -2,7 +2,7 @@
 var create = require('../internals/object-create');
 var descriptor = require('../internals/property-desc');
 var setToStringTag = require('../internals/set-to-string-tag');
-var ITERATOR = require('core-js-internals/well-known-symbol')('iterator');
+var ITERATOR = require('../internals/well-known-symbol')('iterator');
 var IteratorPrototype = {};
 
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
