@@ -16,7 +16,7 @@ module.exports = grunt => {
     uglify: {
       build: {
         files: {
-          './packages/core-js/client/core.js.min.js': './packages/core-js/client/core.js',
+          './packages/core-js/bundles/core.js.min.js': './packages/core-js/bundles/core.js',
         },
         options: {
           mangle: {
@@ -102,7 +102,7 @@ module.exports = grunt => {
       },
       tests: {
         files: [
-          'packages/core-js/client/core.js',
+          'packages/core-js/bundles/core.js',
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/tests.js',
         ].map(it => ({ src: it })),
@@ -121,7 +121,7 @@ module.exports = grunt => {
     build({
       modules: ['es', 'esnext', 'web'],
     }).then(it => {
-      const filename = './packages/core-js/client/core.js';
+      const filename = './packages/core-js/bundles/core.js';
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);
     }).catch(it => {
