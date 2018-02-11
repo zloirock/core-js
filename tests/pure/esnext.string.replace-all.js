@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/fn/symbol';
-import replaceAll from 'core-js-pure/fn/string/replace-all';
+import Symbol from 'core-js-pure/features/symbol';
+import replaceAll from 'core-js-pure/features/string/replace-all';
 
 QUnit.test('String#replaceAll', assert => {
   assert.isFunction(replaceAll);

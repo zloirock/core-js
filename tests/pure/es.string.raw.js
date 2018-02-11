@@ -1,4 +1,4 @@
-import raw from 'core-js-pure/fn/string/raw';
+import raw from 'core-js-pure/features/string/raw';
 
 QUnit.test('String.raw', assert => {
   assert.isFunction(raw);

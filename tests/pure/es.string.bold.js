@@ -1,4 +1,4 @@
-import bold from 'core-js-pure/fn/string/bold';
+import bold from 'core-js-pure/features/string/bold';
 
 QUnit.test('String#bold', assert => {
   assert.isFunction(bold);

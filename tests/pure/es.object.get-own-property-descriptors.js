@@ -1,7 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/fn/symbol';
-import { create, getOwnPropertyDescriptors } from 'core-js-pure/fn/object';
+import Symbol from 'core-js-pure/features/symbol';
+import { create, getOwnPropertyDescriptors } from 'core-js-pure/features/object';
 
 QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   assert.isFunction(getOwnPropertyDescriptors);

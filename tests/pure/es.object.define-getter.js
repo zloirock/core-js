@@ -1,6 +1,6 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
-import { __defineGetter__, __defineSetter__ } from 'core-js-pure/fn/object';
+import { __defineGetter__, __defineSetter__ } from 'core-js-pure/features/object';
 
 if (DESCRIPTORS) {
   QUnit.test('Object#__defineGetter__', assert => {
