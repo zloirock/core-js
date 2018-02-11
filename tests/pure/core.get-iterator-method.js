@@ -1,6 +1,6 @@
 import { createIterable } from '../helpers/helpers';
 
-import getIteratorMethod from 'core-js-pure/fn/get-iterator-method';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 
 QUnit.test('getIteratorMethod helper', assert => {
   assert.isFunction(getIteratorMethod);

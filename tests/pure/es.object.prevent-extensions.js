@@ -1,5 +1,5 @@
-import { preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/fn/object';
-import ownKeys from 'core-js-pure/fn/reflect/own-keys';
+import { preventExtensions, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
+import ownKeys from 'core-js-pure/features/reflect/own-keys';
 
 QUnit.test('Object.preventExtensions', assert => {
   assert.isFunction(preventExtensions);

@@ -1,4 +1,4 @@
-import radians from 'core-js-pure/fn/math/radians';
+import radians from 'core-js-pure/features/math/radians';
 
 QUnit.test('Math.radians', assert => {
   assert.isFunction(radians);

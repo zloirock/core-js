@@ -1,4 +1,4 @@
-import trunc from 'core-js-pure/fn/math/trunc';
+import trunc from 'core-js-pure/features/math/trunc';
 
 QUnit.test('Math.trunc', assert => {
   assert.isFunction(trunc);

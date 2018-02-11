@@ -1,6 +1,6 @@
 import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
-import { __lookupGetter__, __defineGetter__, create } from 'core-js-pure/fn/object';
+import { __lookupGetter__, __defineGetter__, create } from 'core-js-pure/features/object';
 
 if (DESCRIPTORS) {
   QUnit.test('Object#__lookupGetter__', assert => {

@@ -2,9 +2,9 @@ import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
 import { getIterator, getIteratorMethod, Set, Map, Symbol } from 'core-js-pure';
-import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/fn/object';
-import ownKeys from 'core-js-pure/fn/reflect/own-keys';
-import from from 'core-js-pure/fn/array/from';
+import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
+import ownKeys from 'core-js-pure/features/reflect/own-keys';
+import from from 'core-js-pure/features/array/from';
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);

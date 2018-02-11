@@ -1,5 +1,5 @@
 import { DESCRIPTORS } from './constants';
-import ITERATOR from 'core-js-pure/fn/symbol/iterator';
+import ITERATOR from 'core-js-pure/features/symbol/iterator';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;

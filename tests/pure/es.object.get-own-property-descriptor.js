@@ -1,4 +1,4 @@
-import getOwnPropertyDescriptor from 'core-js-pure/fn/object/get-own-property-descriptor';
+import getOwnPropertyDescriptor from 'core-js-pure/features/object/get-own-property-descriptor';
 
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.isFunction(getOwnPropertyDescriptor);

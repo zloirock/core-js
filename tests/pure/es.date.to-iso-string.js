@@ -1,4 +1,4 @@
-import toISOString from 'core-js-pure/fn/date/to-iso-string';
+import toISOString from 'core-js-pure/features/date/to-iso-string';
 
 QUnit.test('Date#toISOString', assert => {
   assert.isFunction(toISOString);

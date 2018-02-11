@@ -1,4 +1,4 @@
-import fontcolor from 'core-js-pure/fn/string/fontcolor';
+import fontcolor from 'core-js-pure/features/string/fontcolor';
 
 QUnit.test('String#fontcolor', assert => {
   assert.isFunction(fontcolor);
