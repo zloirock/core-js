@@ -1,5 +1,5 @@
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
-require('./_export')({ target: 'Math', stat: true }, {
+require('../internals/export')({ target: 'Math', stat: true }, {
   umulh: function umulh(u, v) {
     var UINT16 = 0xffff;
     var $u = +u;

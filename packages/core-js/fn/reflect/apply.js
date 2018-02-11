@@ -1,3 +1,3 @@
 require('../../modules/es.reflect.apply');
 
-module.exports = require('../../modules/_path').Reflect.apply;
+module.exports = require('../../internals/path').Reflect.apply;

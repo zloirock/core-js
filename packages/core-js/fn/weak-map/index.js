@@ -4,4 +4,4 @@ require('../../modules/es.weak-map');
 require('../../modules/esnext.weak-map.of');
 require('../../modules/esnext.weak-map.from');
 
-module.exports = require('../../modules/_path').WeakMap;
+module.exports = require('../../internals/path').WeakMap;

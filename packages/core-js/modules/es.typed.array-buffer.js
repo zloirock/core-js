@@ -1,7 +1,7 @@
 'use strict';
-var $export = require('./_export');
-var $typed = require('./_typed');
-var buffer = require('./_typed-buffer');
+var $export = require('../internals/export');
+var $typed = require('../internals/typed');
+var buffer = require('../internals/typed-buffer');
 var anObject = require('core-js-internals/an-object');
 var toAbsoluteIndex = require('core-js-internals/to-absolute-index');
 var toLength = require('core-js-internals/to-length');
@@ -45,4 +45,4 @@ $export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('core
   }
 });
 
-require('./_set-species')(ARRAY_BUFFER);
+require('../internals/set-species')(ARRAY_BUFFER);

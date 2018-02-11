@@ -2,18 +2,18 @@
 var global = require('core-js-internals/global');
 var has = require('core-js-internals/has');
 var classof = require('core-js-internals/classof-raw');
-var inheritIfRequired = require('./_inherit-if-required');
-var toPrimitive = require('./_to-primitive');
+var inheritIfRequired = require('../internals/inherit-if-required');
+var toPrimitive = require('../internals/to-primitive');
 var fails = require('core-js-internals/fails');
-var getOwnPropertyNames = require('./_object-get-own-property-names').f;
-var getOwnPropertyDescriptor = require('./_object-get-own-property-descriptor').f;
-var defineProperty = require('./_object-define-property').f;
-var internalTrim = require('./_string-trim').trim;
+var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var defineProperty = require('../internals/object-define-property').f;
+var internalTrim = require('../internals/string-trim').trim;
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 // Opera ~12 has broken Object#toString
-var BROKEN_CLASSOF = classof(require('./_object-create')(NumberPrototype)) == NUMBER;
+var BROKEN_CLASSOF = classof(require('../internals/object-create')(NumberPrototype)) == NUMBER;
 var NATIVE_TRIM = 'trim' in String.prototype;
 
 // `ToNumber` abstract operation
@@ -67,5 +67,5 @@ if (!NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1')) {
   }
   NumberWrapper.prototype = NumberPrototype;
   NumberPrototype.constructor = NumberWrapper;
-  require('./_redefine')(global, NUMBER, NumberWrapper);
+  require('../internals/redefine')(global, NUMBER, NumberWrapper);
 }

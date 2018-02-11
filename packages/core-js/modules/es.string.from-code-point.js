@@ -6,7 +6,7 @@ var INCORRECT_LENGTH = !!nativeFromCodePoint && nativeFromCodePoint.length != 1;
 
 // `String.fromCodePoint` method
 // https://tc39.github.io/ecma262/#sec-string.fromcodepoint
-require('./_export')({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
+require('../internals/export')({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
   fromCodePoint: function fromCodePoint(x) { // eslint-disable-line no-unused-vars
     var elements = [];
     var length = arguments.length;

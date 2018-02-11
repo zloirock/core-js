@@ -1,3 +1,3 @@
 require('../modules/web.timers');
 
-module.exports = require('../modules/_path').setTimeout;
+module.exports = require('../internals/path').setTimeout;

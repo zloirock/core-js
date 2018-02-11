@@ -3,4 +3,4 @@ require('../modules/es.string.iterator');
 require('../modules/web.dom-collections.iterator');
 require('../modules/es.set');
 
-module.exports = require('../modules/_path').Set;
+module.exports = require('../internals/path').Set;

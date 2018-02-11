@@ -21,4 +21,4 @@ require('../../modules/esnext.reflect.has-metadata');
 require('../../modules/esnext.reflect.has-own-metadata');
 require('../../modules/esnext.reflect.metadata');
 
-module.exports = require('../../modules/_path').Reflect;
+module.exports = require('../../internals/path').Reflect;

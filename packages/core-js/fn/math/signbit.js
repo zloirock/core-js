@@ -1,3 +1,3 @@
 require('../../modules/esnext.math.signbit');
 
-module.exports = require('../../modules/_path').Math.signbit;
+module.exports = require('../../internals/path').Math.signbit;

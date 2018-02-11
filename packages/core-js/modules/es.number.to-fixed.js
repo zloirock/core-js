@@ -57,7 +57,7 @@ var log = function (x) {
 
 // `Number.prototype.toFixed` method
 // https://tc39.github.io/ecma262/#sec-number.prototype.tofixed
-require('./_export')({ target: 'Number', proto: true, forced: nativeToFixed && (
+require('../internals/export')({ target: 'Number', proto: true, forced: nativeToFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||

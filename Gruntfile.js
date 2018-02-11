@@ -42,7 +42,7 @@ module.exports = grunt => {
       ],
       'core-js-pure': [
         './packages/core-js-pure/*',
-        '!./packages/core-js-pure/modules-pure',
+        '!./packages/core-js-pure/override',
         '!./packages/core-js-pure/.npmignore',
         '!./packages/core-js-pure/package.json',
         '!./packages/core-js-pure/README.md',
@@ -76,13 +76,13 @@ module.exports = grunt => {
           }, {
             expand: true,
             cwd: './packages/core-js/',
-            src: ['modules/**', 'es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
+            src: ['internals/**', 'modules/**', 'es/**', 'stage/**', 'web/**', 'fn/**', 'index.js'],
             dest: './packages/core-js-pure/',
           }, {
             expand: true,
-            cwd: './packages/core-js-pure/modules-pure/',
-            src: '*',
-            dest: './packages/core-js-pure/modules',
+            cwd: './packages/core-js-pure/override/',
+            src: '**',
+            dest: './packages/core-js-pure',
           },
         ],
       },

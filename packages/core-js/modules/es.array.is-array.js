@@ -1,3 +1,3 @@
 // `Array.isArray` method
 // https://tc39.github.io/ecma262/#sec-array.isarray
-require('./_export')({ target: 'Array', stat: true }, { isArray: require('core-js-internals/is-array') });
+require('../internals/export')({ target: 'Array', stat: true }, { isArray: require('core-js-internals/is-array') });

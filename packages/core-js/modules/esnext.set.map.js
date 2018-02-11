@@ -1,5 +1,5 @@
 'use strict';
-var path = require('./_path');
+var path = require('../internals/path');
 var anObject = require('core-js-internals/an-object');
 var aFunction = require('core-js-internals/a-function');
 var bind = require('core-js-internals/bind-context');
@@ -8,7 +8,7 @@ var Set = path.Set;
 var values = Set.prototype.values;
 
 // https://github.com/tc39/collection-methods
-require('./_export')({ target: 'Set', proto: true, real: true, forced: require('./_is-pure') }, {
+require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   map: function map(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = values.call(set);

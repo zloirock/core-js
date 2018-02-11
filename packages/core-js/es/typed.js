@@ -11,4 +11,4 @@ require('../modules/es.typed.float32-array');
 require('../modules/es.typed.float64-array');
 require('../modules/es.object.to-string');
 
-module.exports = require('../modules/_path');
+module.exports = require('../internals/path');

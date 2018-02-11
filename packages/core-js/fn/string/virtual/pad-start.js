@@ -1,3 +1,3 @@
 require('../../../modules/es.string.pad-start');
 
-module.exports = require('../../../modules/_entry-virtual')('String').padStart;
+module.exports = require('../../../internals/entry-virtual')('String').padStart;

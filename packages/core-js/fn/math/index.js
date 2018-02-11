@@ -28,4 +28,4 @@ require('../../modules/esnext.math.scale');
 require('../../modules/esnext.math.umulh');
 require('../../modules/esnext.math.signbit');
 
-module.exports = require('../../modules/_path').Math;
+module.exports = require('../../internals/path').Math;

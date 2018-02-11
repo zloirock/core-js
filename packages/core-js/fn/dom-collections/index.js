@@ -7,5 +7,5 @@ module.exports = {
   values: $iterators.values,
   entries: $iterators.entries,
   iterator: $iterators.values,
-  forEach: require('../../modules/_array-for-each')
+  forEach: require('../../internals/array-for-each')
 };

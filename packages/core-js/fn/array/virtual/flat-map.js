@@ -1,3 +1,3 @@
 require('../../../modules/esnext.array.flat-map');
 
-module.exports = require('../../../modules/_entry-virtual')('Array').flatMap;
+module.exports = require('../../../internals/entry-virtual')('Array').flatMap;

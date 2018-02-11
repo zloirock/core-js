@@ -1,3 +1,3 @@
 require('../../modules/es.object.is');
 
-module.exports = require('../../modules/_path').Object.is;
+module.exports = require('../../internals/path').Object.is;
