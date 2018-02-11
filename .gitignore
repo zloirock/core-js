@@ -4,7 +4,7 @@ node_modules/
 *.bak
 *.swp
 
-/packages/core-js/client/
+/packages/core-js/bundles/
 /packages/core-js/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/features/
@@ -16,4 +16,3 @@ node_modules/
 /packages/core-js-pure/LICENSE
 /packages/core-js-builder/LICENSE
 /tests/bundles/
-/client/
