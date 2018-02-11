@@ -1,4 +1,4 @@
-import isubh from 'core-js-pure/fn/math/isubh';
+import isubh from 'core-js-pure/features/math/isubh';
 
 QUnit.test('Math.isubh', assert => {
   assert.isFunction(isubh);

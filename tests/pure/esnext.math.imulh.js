@@ -1,4 +1,4 @@
-import imulh from 'core-js-pure/fn/math/imulh';
+import imulh from 'core-js-pure/features/math/imulh';
 
 QUnit.test('Math.imulh', assert => {
   assert.isFunction(imulh);

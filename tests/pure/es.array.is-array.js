@@ -1,4 +1,4 @@
-import isArray from 'core-js-pure/fn/array/is-array';
+import isArray from 'core-js-pure/features/array/is-array';
 
 QUnit.test('Array.isArray', assert => {
   assert.isFunction(isArray);

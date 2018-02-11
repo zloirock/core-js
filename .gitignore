@@ -7,7 +7,7 @@ node_modules/
 /packages/core-js/client/
 /packages/core-js/LICENSE
 /packages/core-js-pure/es/
-/packages/core-js-pure/fn/
+/packages/core-js-pure/features/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
 /packages/core-js-pure/stage/
