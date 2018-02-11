@@ -1,5 +1,6 @@
 var global = require('core-js-internals/global');
 var redefine = require('../internals/redefine');
+var setGlobal = require('../internals/set-global');
 
 /*
   options.target - name of the target object
@@ -18,7 +19,7 @@ module.exports = function (options, source) {
   if (options.global) {
     target = global;
   } else if (options.stat) {
-    target = global[name] || (global[name] = {});
+    target = global[name] || setGlobal(name, {});
   } else {
     target = (global[name] || {}).prototype;
   }
