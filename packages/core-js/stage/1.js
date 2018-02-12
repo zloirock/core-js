@@ -34,6 +34,7 @@ require('../modules/esnext.math.rad-per-deg');
 require('../modules/esnext.math.radians');
 require('../modules/esnext.math.scale');
 require('../modules/esnext.math.signbit');
+require('../modules/esnext.number.from-string');
 require('../modules/esnext.promise.try');
 require('../modules/esnext.string.code-points');
 require('../modules/esnext.string.replace-all');
