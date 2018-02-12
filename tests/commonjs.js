@@ -146,6 +146,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/number/parse-int')('2.1') === 2);
   ok(load('features/number/to-fixed')(1, 1) === '1.0');
   ok(load('features/number/to-precision')(1) === '1');
+  ok(load('features/number/from-string')('12', 3) === 5);
   ok(load('features/parse-float')('1.5') === 1.5);
   ok(load('features/parse-int')('2.1') === 2);
   ok(load('features/number/virtual/to-fixed').call(1, 1) === '1.0');
