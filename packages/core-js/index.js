@@ -196,6 +196,7 @@ require('./modules/esnext.math.radians');
 require('./modules/esnext.math.scale');
 require('./modules/esnext.math.umulh');
 require('./modules/esnext.math.signbit');
+require('./modules/esnext.number.from-string');
 require('./modules/esnext.promise.finally');
 require('./modules/esnext.promise.try');
 require('./modules/esnext.reflect.define-metadata');
