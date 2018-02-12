@@ -44,6 +44,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 - [Usage](#usage)
   - [Basic](#basic)
   - [CommonJS](#commonjs)
+  - [Babel](#babel)
+    - [`@babel/polyfill`](#babelpolyfill)
+    - [`@babel/runtime`](#babelruntime)
+    - [`@babel/preset-env`](#babelpreset-env)
   - [Custom build](#custom-build)
 - [Supported engines](#supported-engines)
 - [Features](#features)
@@ -90,7 +94,7 @@ require('core-js');
 ```
 If you need already bundled version of `core-js`, use `core-js/bundles/core.js` or `core-js/bundles/core.min.js` from `npm` package.
 
-Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the beginning of entry point of your application, otherwise, conflicts may occur.
+Warning: if you use `core-js` with the extension of native objects, require all needed `core-js` modules at the top of entry point of your application, otherwise, you can have conflicts.
 
 ### CommonJS
 You can require only needed modules, like in examples in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js-pure/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js-pure/es`) contains all ES features.
@@ -116,14 +120,76 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 ```
 
+### Babel
+
+`core-js` integrated to some parts of `babel`:
+
+#### `@babel/polyfill`
+
+[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) **IS** `core-js` and  `regenerator-runtime` for generators and async functions, it's just [2 lines](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js#L6-L7), so if you load `@babel/polyfill` - you load the full global version of `core-js`.
+
+#### `@babel/runtime`
+
+[`@babel/runtime`](http://babeljs.io/docs/plugins/transform-runtime/) simplifies work with `core-js-pure`. It automatically replaces usage of modern features from ECMAScript standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+```js
+import from from 'core-js-pure/features/array/from';
+import Set from 'core-js-pure/features/set';
+import Promise from 'core-js-pure/features/promise';
+
+from(new Set([1, 2, 3, 2, 1]));
+Promise.resolve(32).then(x => console.log(x));
+```
+you can write just:
+```js
+Array.from(new Set([1, 2, 3, 2, 1]));
+Promise.resolve(32).then(x => console.log(x));
+```
+At this moment, it does not work with instance methods, only globals and statics.
+
+#### `@babel/preset-env`
+
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes work with polyfill. It works only with stable ECMAScript features, polyfills for ECMAScript proposals you should import separately.
+
+- `useBuiltIns: 'entry'` replaces `import '@babel/polyfill'` or `import 'core-js'` to import only required features for the target environment. So, for example, for enough modern target,
+```js
+import 'core-js';
+```
+will be replaced to something like:
+```js
+import 'core-js/modules/es.promise.finally';
+import 'core-js/modules/es.string.pad-start';
+import 'core-js/modules/es.string.pad-end';
+// ...
+```
+
+- `useBuiltIns: 'usage'` adds at the top of each file imports of polyfills for features used in this file, so for:
+```js
+// first file:
+var set = new Set();
+
+// second file:
+var array = Array.of(1, 2, 3);
+```
+if target contains old environments without support those ECMAScript features we will have:
+```js
+// first file:
+import 'core-js/modules/es.set';
+var set = new Set();
+
+// second file:
+import 'core-js/modules/es.array.of';
+var array = Array.of(1, 2, 3);
+```
+In this case, feature detection is not perfect. Also, import of polyfills not at the top of your entry point can cause problems.
+
 ### Custom build
 
-[`core-js-builder`](https://www.npmjs.com/package/core-js-builder) package exports a function that takes the same parameters as the `build` target from the previous section. This will conditionally include or exclude certain parts of `core-js`:
+For some cases could be useful add a blacklist of features. [`core-js-builder`](https://www.npmjs.com/package/core-js-builder) package exports a function. This will conditionally include or exclude certain parts of `core-js`:
 
 ```js
 require('core-js-builder')({
-  modules: ['es', 'web'],               // modules / namespaces
-  blacklist: ['es.reflect', 'es.math'], // blacklist of modules / namespaces, by default - empty list
+  modules: ['es', 'esnext.reflect', 'web'],        // modules / namespaces
+  blacklist: ['es.math', 'es.number.constructor'], // blacklist of modules / namespaces, by default - empty list
 }).then(code => {
   // ...
 }).catch(error => {
