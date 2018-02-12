@@ -199,6 +199,7 @@ module.exports = {
     'esnext.math.scale',
     'esnext.math.umulh',
     'esnext.math.signbit',
+    'esnext.number.from-string',
     'esnext.promise.finally',
     'esnext.promise.try',
     'esnext.reflect.define-metadata',

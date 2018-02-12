@@ -1723,6 +1723,16 @@ Math.signbit(-1);  // => false
 Math.signbit(0);   // => true
 Math.signbit(-0);  // => false
 ```
+* `Number.fromString` [proposal](https://github.com/mathiasbynens/proposal-number-fromstring) - module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.number.from-string.js)
+```js
+class Number {
+  fromString(string: string, radix: number): number;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/number/from-string
+```
 
 #### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)

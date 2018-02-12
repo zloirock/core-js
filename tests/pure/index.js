@@ -139,6 +139,7 @@ import './esnext.math.radians';
 import './esnext.math.scale';
 import './esnext.math.signbit';
 import './esnext.math.umulh';
+import './esnext.number.from-string';
 import './esnext.observable';
 import './esnext.promise.finally';
 import './esnext.promise.try';
