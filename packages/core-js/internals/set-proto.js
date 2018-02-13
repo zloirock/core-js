@@ -2,10 +2,12 @@
 /* eslint-disable no-proto */
 var isObject = require('../internals/is-object');
 var anObject = require('../internals/an-object');
+
 var check = function (O, proto) {
   anObject(O);
   if (!isObject(proto) && proto !== null) throw TypeError(proto + ": can't set as a prototype!");
 };
+
 module.exports = {
   set: Object.setPrototypeOf || ('__proto__' in {} ? // eslint-disable-line
     function () {

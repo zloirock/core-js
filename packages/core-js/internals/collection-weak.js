@@ -17,14 +17,17 @@ var id = 0;
 var uncaughtFrozenStore = function (store) {
   return store.frozen || (store.frozen = new UncaughtFrozenStore());
 };
+
 var UncaughtFrozenStore = function () {
   this.entries = [];
 };
+
 var findUncaughtFrozen = function (store, key) {
   return arrayFind(store.entries, function (it) {
     return it[0] === key;
   });
 };
+
 UncaughtFrozenStore.prototype = {
   get: function (key) {
     var entry = findUncaughtFrozen(this, key);
@@ -87,6 +90,7 @@ module.exports = {
         return data && $has(data, store.id);
       }
     });
+
     redefineAll(C.prototype, IS_MAP ? {
       // 23.3.3.3 WeakMap.prototype.get(key)
       get: function get(key) {
@@ -107,6 +111,7 @@ module.exports = {
         return define(this, value, true);
       }
     });
+
     return C;
   }
 };
