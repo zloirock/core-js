@@ -19,7 +19,7 @@ if (require('../internals/descriptors')) {
   var classof = require('../internals/classof');
   var isObject = require('../internals/is-object');
   var toObject = require('../internals/to-object');
-  var isArrayIter = require('../internals/is-array-iter');
+  var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
   var create = require('../internals/object-create');
   var getPrototypeOf = require('../internals/object-get-prototype-of');
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
@@ -131,7 +131,7 @@ if (require('../internals/descriptors')) {
     var mapping = mapfn !== undefined;
     var iterFn = getIterFn(O);
     var i, length, values, result, step, iterator;
-    if (iterFn != undefined && !isArrayIter(iterFn)) {
+    if (iterFn != undefined && !isArrayIteratorMethod(iterFn)) {
       for (iterator = iterFn.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
         values.push(step.value);
       } O = values;

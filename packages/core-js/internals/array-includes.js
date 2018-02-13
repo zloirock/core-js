@@ -1,4 +1,4 @@
-var toIObject = require('../internals/to-indexed-object');
+var toIndexedObject = require('../internals/to-indexed-object');
 var toLength = require('../internals/to-length');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 
@@ -6,7 +6,7 @@ var toAbsoluteIndex = require('../internals/to-absolute-index');
 // true  -> Array#includes
 module.exports = function (IS_INCLUDES) {
   return function ($this, el, fromIndex) {
-    var O = toIObject($this);
+    var O = toIndexedObject($this);
     var length = toLength(O.length);
     var index = toAbsoluteIndex(fromIndex, length);
     var value;
