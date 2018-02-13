@@ -3,9 +3,11 @@ var isObject = require('../internals/is-object');
 var has = require('../internals/has');
 var defineProperty = require('../internals/object-define-property').f;
 var id = 0;
+
 var isExtensible = Object.isExtensible || function () {
   return true;
 };
+
 var FREEZE = !require('../internals/fails')(function () {
   return isExtensible(Object.preventExtensions({}));
 });
