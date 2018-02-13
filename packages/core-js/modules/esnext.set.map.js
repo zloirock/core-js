@@ -12,12 +12,12 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
   map: function map(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = values.call(set);
-    var boundFn = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
     var newSet = new (speciesConstructor(set, Set))();
     var adder = aFunction(newSet.add);
     var step, value;
     while (!(step = iterator.next()).done) {
-      adder.call(newSet, boundFn(value = step.value, value, set));
+      adder.call(newSet, boundFunction(value = step.value, value, set));
     }
     return newSet;
   }

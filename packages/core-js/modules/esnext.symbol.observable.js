@@ -1,1 +1,1 @@
-require('../internals/wks-define')('observable');
+require('../internals/define-well-known-symbol')('observable');

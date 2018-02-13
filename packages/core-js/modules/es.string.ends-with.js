@@ -2,12 +2,12 @@
 var toLength = require('../internals/to-length');
 var context = require('../internals/string-context');
 var ENDS_WITH = 'endsWith';
-var FAILS_IS_REGEXP = require('../internals/fails-is-regexp')(ENDS_WITH);
+var CORRECT_IS_REGEXP_LOGIC = require('../internals/correct-is-regexp-logic')(ENDS_WITH);
 var nativeEndsWith = ''[ENDS_WITH];
 
 // `String.prototype.endsWith` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.endswith
-require('../internals/export')({ target: 'String', proto: true, forced: FAILS_IS_REGEXP }, {
+require('../internals/export')({ target: 'String', proto: true, forced: !CORRECT_IS_REGEXP_LOGIC }, {
   endsWith: function endsWith(searchString /* , endPosition = @length */) {
     var that = context(this, searchString, ENDS_WITH);
     var endPosition = arguments.length > 1 ? arguments[1] : undefined;
