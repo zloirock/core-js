@@ -8,7 +8,7 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 var NativeSymbol = require('../internals/global').Symbol;
 
 if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in NativeSymbol.prototype)) {
-  var emptyStringDescriptionStore = {};
+  var EmptyStringDescriptionStore = {};
   // wrap Symbol constructor for correct work with undefined description
   var SymbolWrapper = function Symbol() {
     var description = arguments.length < 1 || arguments[0] === undefined ? undefined : String(arguments[0]);
@@ -16,7 +16,7 @@ if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in Nativ
       ? new NativeSymbol(description)
       // in Edge 13, String(Symbol(undefined)) === 'Symbol(undefined)'
       : description === undefined ? NativeSymbol() : NativeSymbol(description);
-    if (description === '') emptyStringDescriptionStore[result] = true;
+    if (description === '') EmptyStringDescriptionStore[result] = true;
     return result;
   };
   copyConstructorProperties(SymbolWrapper, NativeSymbol);
@@ -31,7 +31,7 @@ if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in Nativ
     get: function description() {
       var symbol = isObject(this) ? this.valueOf() : this;
       var string = symbolToString.call(symbol);
-      if (has(emptyStringDescriptionStore, symbol)) return '';
+      if (has(EmptyStringDescriptionStore, symbol)) return '';
       var desc = native ? string.slice(7, -1) : string.replace(regexp, '$1');
       return desc === '' ? undefined : desc;
     }

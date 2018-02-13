@@ -12,13 +12,13 @@ require('../internals/export')({ target: 'Map', proto: true, real: true, forced:
   mapValues: function mapValues(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = entries.call(map);
-    var boundFn = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
     var newMap = new (speciesConstructor(map, Map))();
     var setter = aFunction(newMap.set);
     var step, entry, key;
     while (!(step = iterator.next()).done) {
       entry = step.value;
-      setter.call(newMap, key = entry[0], boundFn(entry[1], key, map));
+      setter.call(newMap, key = entry[0], boundFunction(entry[1], key, map));
     }
     return newMap;
   }
