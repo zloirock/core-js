@@ -120,6 +120,7 @@ module.exports = {
         return !!getEntry(this, key);
       }
     });
+
     redefineAll(C.prototype, IS_MAP ? {
       // 23.1.3.6 Map.prototype.get(key)
       get: function get(key) {

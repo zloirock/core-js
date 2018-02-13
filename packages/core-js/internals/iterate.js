@@ -1,5 +1,5 @@
 var anObject = require('../internals/an-object');
-var isArrayIterator = require('../internals/is-array-iter');
+var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var bind = require('../internals/bind-context');
 var getIteratorMethod = require('../modules/core.get-iterator-method');
@@ -13,7 +13,7 @@ var exports = module.exports = function (iterable, entries, fn, that, ITERATOR) 
   var length, step, iterator, result;
   if (typeof iterFn != 'function') throw TypeError(iterable + ' is not iterable!');
   // fast case for arrays with default iterator
-  if (isArrayIterator(iterFn)) for (length = toLength(iterable.length); length > index; index++) {
+  if (isArrayIteratorMethod(iterFn)) for (length = toLength(iterable.length); length > index; index++) {
     result = entries ? boundFunction(anObject(step = iterable[index])[0], step[1]) : boundFunction(iterable[index]);
     if (result === BREAK) return;
   } else for (iterator = iterFn.call(iterable); !(step = iterator.next()).done;) {
