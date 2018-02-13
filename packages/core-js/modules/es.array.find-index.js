@@ -1,19 +1,19 @@
 'use strict';
 // 22.1.3.9 Array.prototype.findIndex(predicate, thisArg = undefined)
 var internalFindIndex = require('../internals/array-methods')(6);
-var KEY = 'findIndex';
-var FORCED = true;
+var FIND_INDEX = 'findIndex';
+var SKIPS_HOLES = true;
 
 // Shouldn't skip holes
-if (KEY in []) Array(1)[KEY](function () { FORCED = false; });
+if (FIND_INDEX in []) Array(1)[FIND_INDEX](function () { SKIPS_HOLES = false; });
 
 // `Array.prototype.findIndex` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.findindex
-require('../internals/export')({ target: 'Array', proto: true, forced: FORCED }, {
+require('../internals/export')({ target: 'Array', proto: true, forced: SKIPS_HOLES }, {
   findIndex: function findIndex(callbackfn /* , that = undefined */) {
     return internalFindIndex(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });
 
 // https://tc39.github.io/ecma262/#sec-array.prototype-@@unscopables
-require('../internals/add-to-unscopables')(KEY);
+require('../internals/add-to-unscopables')(FIND_INDEX);
