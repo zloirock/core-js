@@ -12,7 +12,7 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var uid = require('../internals/uid');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var wksExt = require('../internals/wks-ext');
-var wksDefine = require('../internals/wks-define');
+var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
 var enumKeys = require('../internals/enum-keys');
 var isArray = require('../internals/is-array');
 var anObject = require('../internals/an-object');
@@ -186,7 +186,7 @@ for (var es6Symbols = (
 ).split(','), j = 0; es6Symbols.length > j;) wellKnownSymbol(es6Symbols[j++]);
 
 for (var wellKnownSymbols = $keys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
-  wksDefine(wellKnownSymbols[k++]);
+  defineWellKnownSymbol(wellKnownSymbols[k++]);
 }
 
 $export({ target: 'Symbol', stat: true, forced: !USE_NATIVE }, {
