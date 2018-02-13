@@ -1,5 +1,5 @@
 var DOMIterables = require('../internals/dom-iterables');
-var $iterators = require('./es.array.iterator');
+var ArrayIteratorMethods = require('./es.array.iterator');
 var redefine = require('../internals/redefine');
 var global = require('../internals/global');
 var hide = require('../internals/hide');
@@ -9,13 +9,17 @@ var ITERATOR = wellKnownSymbol('iterator');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ArrayValues = Iterators.Array;
 
-for (var NAME in DOMIterables) {
-  var Collection = global[NAME];
-  var proto = Collection && Collection.prototype;
-  if (proto) {
-    if (!proto[ITERATOR]) hide(proto, ITERATOR, ArrayValues);
-    if (!proto[TO_STRING_TAG]) hide(proto, TO_STRING_TAG, NAME);
-    Iterators[NAME] = ArrayValues;
-    if (DOMIterables[NAME]) for (var key in $iterators) if (!proto[key]) redefine(proto, key, $iterators[key], true);
+for (var COLLECTION_NAME in DOMIterables) {
+  var Collection = global[COLLECTION_NAME];
+  var CollectionPrototype = Collection && Collection.prototype;
+  if (CollectionPrototype) {
+    if (!CollectionPrototype[ITERATOR]) hide(CollectionPrototype, ITERATOR, ArrayValues);
+    if (!CollectionPrototype[TO_STRING_TAG]) hide(CollectionPrototype, TO_STRING_TAG, COLLECTION_NAME);
+    Iterators[COLLECTION_NAME] = ArrayValues;
+    if (DOMIterables[COLLECTION_NAME]) for (var METHOD_NAME in ArrayIteratorMethods) {
+      if (!CollectionPrototype[METHOD_NAME]) {
+        redefine(CollectionPrototype, METHOD_NAME, ArrayIteratorMethods[METHOD_NAME], true);
+      }
+    }
   }
 }

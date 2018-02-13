@@ -7,14 +7,14 @@ var createAt = require('../internals/string-at');
 var codePointAt = createAt(false);
 var at = createAt(true);
 
-var StringIterator = function (string) {
+var $StringIterator = function StringIterator(string) {
   $(this, {
     string: string,
     index: 0
   });
 };
 
-require('../internals/iter-create')(StringIterator, 'String', function next() {
+require('../internals/iter-create')($StringIterator, 'String', function next() {
   var state = $(this);
   var string = state.string;
   var index = state.index;
@@ -27,6 +27,6 @@ require('../internals/iter-create')(StringIterator, 'String', function next() {
 
 require('../internals/export')({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
-    return new StringIterator(String(requireObjectCoercible(this)));
+    return new $StringIterator(String(requireObjectCoercible(this)));
   }
 });

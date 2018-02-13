@@ -10,15 +10,14 @@ var at = require('../internals/string-at')(true);
 var MATCH_ALL = require('../internals/well-known-symbol')('matchAll');
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/state');
-var $RegExp = RegExp;
-var RegExpProto = $RegExp.prototype;
-var regExpBuiltinExec = RegExpProto.exec;
+var RegExpPrototype = RegExp.prototype;
+var regExpBuiltinExec = RegExpPrototype.exec;
 
 var matchAllIterator = function (R, O) {
   var S = String(O);
-  var C = speciesConstructor(R, $RegExp);
-  var flags = 'flags' in RegExpProto ? String(R.flags) : getFlags.call(R);
-  var matcher = new C(C === $RegExp ? R.source : R, flags);
+  var C = speciesConstructor(R, RegExp);
+  var flags = 'flags' in RegExpPrototype ? String(R.flags) : getFlags.call(R);
+  var matcher = new C(C === RegExp ? R.source : R, flags);
   var global = !!matcher.global;
   var fullUnicode = !!matcher.unicode;
   matcher.lastIndex = toLength(R.lastIndex);
@@ -29,7 +28,7 @@ var advanceStringIndex = function (S, index, unicode) {
   return index + (unicode ? at(S, index).length : 1);
 };
 
-var $RegExpStringIterator = function (regexp, string, global, fullUnicode) {
+var $RegExpStringIterator = function RegExpStringIterator(regexp, string, global, fullUnicode) {
   $(this, {
     regexp: regexp,
     string: string,
@@ -67,12 +66,12 @@ require('../internals/iter-create')($RegExpStringIterator, 'RegExp String', func
 require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
-    var R = isRegExp(regexp) ? regexp : new $RegExp(regexp, 'g');
+    var R = isRegExp(regexp) ? regexp : new RegExp(regexp, 'g');
     var matcher = R[MATCH_ALL];
     return matcher === undefined ? matchAllIterator(R, O) : matcher.call(R, O);
   }
 });
 
-IS_PURE || MATCH_ALL in RegExpProto || hide(RegExpProto, MATCH_ALL, function (string) {
+IS_PURE || MATCH_ALL in RegExpPrototype || hide(RegExpPrototype, MATCH_ALL, function (string) {
   return matchAllIterator(this, string);
 });
