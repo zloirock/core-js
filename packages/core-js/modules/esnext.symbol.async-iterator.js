@@ -1,1 +1,1 @@
-require('../internals/wks-define')('asyncIterator');
+require('../internals/define-well-known-symbol')('asyncIterator');
