@@ -1,5 +1,5 @@
 var isObject = require('../internals/is-object');
-var setPrototypeOf = require('../internals/set-proto').set;
+var setPrototypeOf = require('../internals/object-set-prototype-of');
 
 module.exports = function (that, target, C) {
   var S = target.constructor;
