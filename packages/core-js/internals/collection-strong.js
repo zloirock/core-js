@@ -5,7 +5,7 @@ var redefineAll = require('../internals/redefine-all');
 var bind = require('../internals/bind-context');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
-var iterDefine = require('../internals/iter-define');
+var defineIterator = require('../internals/define-iterator');
 var setSpecies = require('../internals/set-species');
 var DESCRIPTORS = require('../internals/descriptors');
 var fastKey = require('../internals/meta').fastKey;
@@ -147,7 +147,7 @@ module.exports = {
   setStrong: function (C, NAME, IS_MAP) {
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-    iterDefine(C, NAME, function (iterated, kind) {
+    defineIterator(C, NAME, function (iterated, kind) {
       $(this, {
         target: iterated,
         state: validate(iterated, NAME),

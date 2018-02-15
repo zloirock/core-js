@@ -8,8 +8,8 @@ try {
   Array.from(iteratorWithReturn, function () { throw 2; });
 } catch (e) { /* empty */ }
 
-module.exports = function (exec, skipClosing) {
-  if (!skipClosing && !SAFE_CLOSING) return false;
+module.exports = function (exec, SKIP_CLOSING) {
+  if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
   var safe = false;
   try {
     var array = [7];

@@ -1,3 +1,3 @@
 require('../../modules/es.regexp.search');
 
-module.exports = require('../../internals/wks-ext').f('search');
+module.exports = require('../../internals/wrapped-well-known-symbol').f('search');
