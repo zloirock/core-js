@@ -1,8 +1,11 @@
 var path = require('../internals/path');
-var wksExt = require('../internals/wks-ext');
+var has = require('../internals/has');
+var wrappedWellKnownSymbolModule = require('../internals/wrapped-well-known-symbol');
 var defineProperty = require('../internals/object-define-property').f;
 
-module.exports = function (name) {
+module.exports = function (NAME) {
   var Symbol = path.Symbol || (path.Symbol = {});
-  if (name.charAt(0) != '_' && !(name in Symbol)) defineProperty(Symbol, name, { value: wksExt.f(name) });
+  if (!has(Symbol, NAME)) defineProperty(Symbol, NAME, {
+    value: wrappedWellKnownSymbolModule.f(NAME)
+  });
 };

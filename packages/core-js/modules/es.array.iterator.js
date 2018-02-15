@@ -14,7 +14,7 @@ var $ = require('../internals/state');
 // https://tc39.github.io/ecma262/#sec-array.prototype-@@iterator
 // `CreateArrayIterator` internal method
 // https://tc39.github.io/ecma262/#sec-createarrayiterator
-module.exports = require('../internals/iter-define')(Array, 'Array', function (iterated, kind) {
+module.exports = require('../internals/define-iterator')(Array, 'Array', function (iterated, kind) {
   $(this, {
     target: toIndexedObject(iterated), // target
     index: 0,                          // next index

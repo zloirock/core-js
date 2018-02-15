@@ -1,1 +1,1 @@
-module.exports = require('../../internals/wks-ext').f('unscopables');
+module.exports = require('../../internals/wrapped-well-known-symbol').f('unscopables');
