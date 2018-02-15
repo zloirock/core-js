@@ -1,12 +1,13 @@
-var setProto = require('../internals/set-proto');
+var objectSetPrototypeOf = require('../internals/object-set-prototype-of');
+var validateSetPrototypeOfArguments = require('../internals/validate-set-prototype-of-arguments');
 
 // `Reflect.setPrototypeOf` method
 // https://tc39.github.io/ecma262/#sec-reflect.setprototypeof
-if (setProto) require('../internals/export')({ target: 'Reflect', stat: true }, {
+if (objectSetPrototypeOf) require('../internals/export')({ target: 'Reflect', stat: true }, {
   setPrototypeOf: function setPrototypeOf(target, proto) {
-    setProto.check(target, proto);
+    validateSetPrototypeOfArguments(target, proto);
     try {
-      setProto.set(target, proto);
+      objectSetPrototypeOf(target, proto);
       return true;
     } catch (e) {
       return false;

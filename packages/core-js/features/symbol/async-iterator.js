@@ -1,3 +1,3 @@
 require('../../modules/esnext.symbol.async-iterator');
 
-module.exports = require('../../internals/wks-ext').f('asyncIterator');
+module.exports = require('../../internals/wrapped-well-known-symbol').f('asyncIterator');

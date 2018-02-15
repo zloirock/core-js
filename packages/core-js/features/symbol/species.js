@@ -1,1 +1,1 @@
-module.exports = require('../../internals/wks-ext').f('species');
+module.exports = require('../../internals/wrapped-well-known-symbol').f('species');

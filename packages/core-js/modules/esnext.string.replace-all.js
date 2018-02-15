@@ -1,10 +1,10 @@
 'use strict';
-// https://github.com/psmarshall/string-replace-all-proposal
-var context = require('../internals/string-context');
+var validateArguments = require('../internals/validate-string-method-arguments');
 
+// https://github.com/psmarshall/string-replace-all-proposal
 require('../internals/export')({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
-    return context(this, searchValue, 'replaceAll')
+    return validateArguments(this, searchValue, 'replaceAll')
       .split(String(searchValue))
       .join(replaceValue);
   }
