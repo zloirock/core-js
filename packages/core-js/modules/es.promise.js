@@ -7,6 +7,7 @@ var isObject = require('../internals/is-object');
 var aFunction = require('../internals/a-function');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
+var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 var speciesConstructor = require('../internals/species-constructor');
 var task = require('../internals/task').set;
 var microtask = require('../internals/microtask')();
@@ -254,8 +255,8 @@ $export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
     return promiseResolve(IS_PURE && this === Wrapper ? $Promise : this, x);
   }
 });
-$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && require('../internals/iter-detect')(function (iter) {
-  $Promise.all(iter)['catch'](empty);
+$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessOfIteration(function (iterable) {
+  $Promise.all(iterable)['catch'](empty);
 })) }, {
   // 25.4.4.1 Promise.all(iterable)
   all: function all(iterable) {

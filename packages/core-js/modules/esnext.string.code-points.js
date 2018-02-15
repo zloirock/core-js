@@ -1,20 +1,19 @@
 'use strict';
 // https://github.com/RReverser/string-prototype-codepoints
 // TODO: unify with String#@@iterator
+var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var $ = require('../internals/state');
 var createAt = require('../internals/string-at');
 var codePointAt = createAt(false);
 var at = createAt(true);
 
-var $StringIterator = function StringIterator(string) {
+var $StringIterator = createIteratorConstructor(function StringIterator(string) {
   $(this, {
     string: string,
     index: 0
   });
-};
-
-require('../internals/iter-create')($StringIterator, 'String', function next() {
+}, 'String', function next() {
   var state = $(this);
   var string = state.string;
   var index = state.index;

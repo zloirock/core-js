@@ -11,7 +11,7 @@ var shared = require('../internals/shared');
 var setToStringTag = require('../internals/set-to-string-tag');
 var uid = require('../internals/uid');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var wksExt = require('../internals/wks-ext');
+var wrappedWellKnownSymbolModule = require('../internals/wrapped-well-known-symbol');
 var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
 var enumKeys = require('../internals/enum-keys');
 var isArray = require('../internals/is-array');
@@ -19,50 +19,52 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
-var createDesc = require('../internals/property-desc');
-var _create = require('../internals/object-create');
-var gOPNExt = require('../internals/object-gopn-ext');
+var createPropertyDescriptor = require('../internals/create-property-descriptor');
+var nativeObjectCreate = require('../internals/object-create');
+var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
 var hide = require('../internals/hide');
-var $keys = require('../internals/object-keys');
+var objectKeys = require('../internals/object-keys');
 var HIDDEN = require('../internals/shared-key')('hidden');
 var $ = require('../internals/state');
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
-var gOPN = gOPNExt.f;
+var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var $Symbol = global.Symbol;
-var $JSON = global.JSON;
-var _stringify = $JSON && $JSON.stringify;
+var JSON = global.JSON;
+var nativeJSONStringify = JSON && JSON.stringify;
 var PROTOTYPE = 'prototype';
 var TO_PRIMITIVE = wellKnownSymbol('toPrimitive');
-var isEnum = {}.propertyIsEnumerable;
+var nativePropertyIsEnumerable = {}.propertyIsEnumerable;
 var SymbolRegistry = shared('symbol-registry');
 var AllSymbols = shared('symbols');
-var OPSymbols = shared('op-symbols');
+var ObjectPrototypeSymbols = shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
-var ObjectProto = Object[PROTOTYPE];
+var ObjectPrototype = Object[PROTOTYPE];
 var USE_NATIVE = typeof $Symbol == 'function';
 var QObject = global.QObject;
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
-var setter = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
+var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
 hiddenKeys[HIDDEN] = true;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
-var setSymbolDesc = DESCRIPTORS && fails(function () {
-  return _create(nativeDefineProperty({}, 'a', {
+var setSymbolDescriptor = DESCRIPTORS && fails(function () {
+  return nativeObjectCreate(nativeDefineProperty({}, 'a', {
     get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
   })).a != 7;
 }) ? function (it, key, D) {
-  var protoDesc = nativeGetOwnPropertyDescriptor(ObjectProto, key);
-  if (protoDesc) delete ObjectProto[key];
+  var ObjectPrototypeDescriptor = nativeGetOwnPropertyDescriptor(ObjectPrototype, key);
+  if (ObjectPrototypeDescriptor) delete ObjectPrototype[key];
   nativeDefineProperty(it, key, D);
-  if (protoDesc && it !== ObjectProto) nativeDefineProperty(ObjectProto, key, protoDesc);
+  if (ObjectPrototypeDescriptor && it !== ObjectPrototype) {
+    nativeDefineProperty(ObjectPrototype, key, ObjectPrototypeDescriptor);
+  }
 } : nativeDefineProperty;
 
 var wrap = function (tag, description) {
-  var symbol = AllSymbols[tag] = _create($Symbol[PROTOTYPE]);
+  var symbol = AllSymbols[tag] = nativeObjectCreate($Symbol[PROTOTYPE]);
   $(symbol, {
     tag: tag,
     description: description
@@ -78,20 +80,21 @@ var isSymbol = USE_NATIVE && typeof $Symbol.iterator == 'symbol' ? function (it)
 };
 
 var $defineProperty = function defineProperty(it, key, D) {
-  if (it === ObjectProto) $defineProperty(OPSymbols, key, D);
+  if (it === ObjectPrototype) $defineProperty(ObjectPrototypeSymbols, key, D);
   anObject(it);
   key = toPrimitive(key, true);
   anObject(D);
   if (has(AllSymbols, key)) {
     if (!D.enumerable) {
-      if (!has(it, HIDDEN)) nativeDefineProperty(it, HIDDEN, createDesc(1, {}));
+      if (!has(it, HIDDEN)) nativeDefineProperty(it, HIDDEN, createPropertyDescriptor(1, {}));
       it[HIDDEN][key] = true;
     } else {
       if (has(it, HIDDEN) && it[HIDDEN][key]) it[HIDDEN][key] = false;
-      D = _create(D, { enumerable: createDesc(0, false) });
-    } return setSymbolDesc(it, key, D);
+      D = nativeObjectCreate(D, { enumerable: createPropertyDescriptor(0, false) });
+    } return setSymbolDescriptor(it, key, D);
   } return nativeDefineProperty(it, key, D);
 };
+
 var $defineProperties = function defineProperties(it, P) {
   anObject(it);
   var keys = enumKeys(P = toIndexedObject(P));
@@ -101,24 +104,28 @@ var $defineProperties = function defineProperties(it, P) {
   while (l > i) $defineProperty(it, key = keys[i++], P[key]);
   return it;
 };
+
 var $create = function create(it, P) {
-  return P === undefined ? _create(it) : $defineProperties(_create(it), P);
+  return P === undefined ? nativeObjectCreate(it) : $defineProperties(nativeObjectCreate(it), P);
 };
+
 var $propertyIsEnumerable = function propertyIsEnumerable(key) {
-  var E = isEnum.call(this, key = toPrimitive(key, true));
-  if (this === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return false;
+  var E = nativePropertyIsEnumerable.call(this, key = toPrimitive(key, true));
+  if (this === ObjectPrototype && has(AllSymbols, key) && !has(ObjectPrototypeSymbols, key)) return false;
   return E || !has(this, key) || !has(AllSymbols, key) || has(this, HIDDEN) && this[HIDDEN][key] ? E : true;
 };
+
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(it, key) {
   it = toIndexedObject(it);
   key = toPrimitive(key, true);
-  if (it === ObjectProto && has(AllSymbols, key) && !has(OPSymbols, key)) return;
+  if (it === ObjectPrototype && has(AllSymbols, key) && !has(ObjectPrototypeSymbols, key)) return;
   var D = nativeGetOwnPropertyDescriptor(it, key);
   if (D && has(AllSymbols, key) && !(has(it, HIDDEN) && it[HIDDEN][key])) D.enumerable = true;
   return D;
 };
+
 var $getOwnPropertyNames = function getOwnPropertyNames(it) {
-  var names = gOPN(toIndexedObject(it));
+  var names = nativeGetOwnPropertyNames(toIndexedObject(it));
   var result = [];
   var i = 0;
   var key;
@@ -126,14 +133,15 @@ var $getOwnPropertyNames = function getOwnPropertyNames(it) {
     if (!has(AllSymbols, key = names[i++]) && !has(hiddenKeys, key)) result.push(key);
   } return result;
 };
+
 var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
-  var IS_OP = it === ObjectProto;
-  var names = gOPN(IS_OP ? OPSymbols : toIndexedObject(it));
+  var IS_OP = it === ObjectPrototype;
+  var names = nativeGetOwnPropertyNames(IS_OP ? ObjectPrototypeSymbols : toIndexedObject(it));
   var result = [];
   var i = 0;
   var key;
   while (names.length > i) {
-    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectProto, key) : true)) result.push(AllSymbols[key]);
+    if (has(AllSymbols, key = names[i++]) && (IS_OP ? has(ObjectPrototype, key) : true)) result.push(AllSymbols[key]);
   } return result;
 };
 
@@ -143,12 +151,12 @@ if (!USE_NATIVE) {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
     var description = arguments[0] === undefined ? undefined : String(arguments[0]);
     var tag = uid(description);
-    var $set = function (value) {
-      if (this === ObjectProto) $set.call(OPSymbols, value);
+    var setter = function (value) {
+      if (this === ObjectPrototype) setter.call(ObjectPrototypeSymbols, value);
       if (has(this, HIDDEN) && has(this[HIDDEN], tag)) this[HIDDEN][tag] = false;
-      setSymbolDesc(this, tag, createDesc(1, value));
+      setSymbolDescriptor(this, tag, createPropertyDescriptor(1, value));
     };
-    if (DESCRIPTORS && setter) setSymbolDesc(ObjectProto, tag, { configurable: true, set: $set });
+    if (DESCRIPTORS && USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
     return wrap(tag, description);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
@@ -157,7 +165,7 @@ if (!USE_NATIVE) {
 
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
   definePropertyModule.f = $defineProperty;
-  require('../internals/object-get-own-property-names').f = gOPNExt.f = $getOwnPropertyNames;
+  require('../internals/object-get-own-property-names').f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
   require('../internals/object-property-is-enumerable').f = $propertyIsEnumerable;
   require('../internals/object-get-own-property-symbols').f = $getOwnPropertySymbols;
 
@@ -169,11 +177,11 @@ if (!USE_NATIVE) {
       }
     });
     if (!require('../internals/is-pure')) {
-      redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
+      redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, true);
     }
   }
 
-  wksExt.f = function (name) {
+  wrappedWellKnownSymbolModule.f = function (name) {
     return wrap(wellKnownSymbol(name), name);
   };
 }
@@ -185,7 +193,7 @@ for (var es6Symbols = (
   'hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables'
 ).split(','), j = 0; es6Symbols.length > j;) wellKnownSymbol(es6Symbols[j++]);
 
-for (var wellKnownSymbols = $keys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
+for (var wellKnownSymbols = objectKeys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
   defineWellKnownSymbol(wellKnownSymbols[k++]);
 }
 
@@ -201,8 +209,8 @@ $export({ target: 'Symbol', stat: true, forced: !USE_NATIVE }, {
     if (!isSymbol(sym)) throw TypeError(sym + ' is not a symbol!');
     for (var key in SymbolRegistry) if (SymbolRegistry[key] === sym) return key;
   },
-  useSetter: function () { setter = true; },
-  useSimple: function () { setter = false; }
+  useSetter: function () { USE_SETTER = true; },
+  useSimple: function () { USE_SETTER = false; }
 });
 
 $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
@@ -221,12 +229,14 @@ $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
-$JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
+JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
   var S = $Symbol();
   // MS Edge converts symbol values to JSON as {}
-  // WebKit converts symbol values to JSON as null
-  // V8 throws on boxed symbols
-  return _stringify([S]) != '[null]' || _stringify({ a: S }) != '{}' || _stringify(Object(S)) != '{}';
+  return nativeJSONStringify([S]) != '[null]'
+    // WebKit converts symbol values to JSON as null
+    || nativeJSONStringify({ a: S }) != '{}'
+    // V8 throws on boxed symbols
+    || nativeJSONStringify(Object(S)) != '{}';
 }) }, {
   stringify: function stringify(it) {
     var args = [it];
@@ -240,7 +250,7 @@ $JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(func
       if (!isSymbol(value)) return value;
     };
     args[1] = replacer;
-    return _stringify.apply($JSON, args);
+    return nativeJSONStringify.apply(JSON, args);
   }
 });
 

@@ -1,6 +1,6 @@
 'use strict';
 // @@match logic
-require('../internals/fix-re-wks')('match', 1, function (defined, MATCH, nativeMatch) {
+require('../internals/fix-regexp-well-known-symbol-logic')('match', 1, function (defined, MATCH, nativeMatch) {
   // `String.prototype.match` method
   // https://tc39.github.io/ecma262/#sec-string.prototype.match
   return [function match(regexp) {
