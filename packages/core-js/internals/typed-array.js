@@ -7,7 +7,7 @@ if (require('../internals/descriptors')) {
   var $buffer = require('../internals/typed-buffer');
   var bind = require('../internals/bind-context');
   var anInstance = require('../internals/an-instance');
-  var propertyDesc = require('../internals/property-desc');
+  var createPropertyDescriptor = require('../internals/create-property-descriptor');
   var hide = require('../internals/hide');
   var redefineAll = require('../internals/redefine-all');
   var toInteger = require('../internals/to-integer');
@@ -31,7 +31,7 @@ if (require('../internals/descriptors')) {
   var speciesConstructor = require('../internals/species-constructor');
   var ArrayIterators = require('../modules/es.array.iterator');
   var Iterators = require('../internals/iterators');
-  var $iterDetect = require('../internals/iter-detect');
+  var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
   var setSpecies = require('../internals/set-species');
   var arrayFill = require('../internals/array-fill');
   var arrayCopyWithin = require('../internals/array-copy-within');
@@ -268,7 +268,7 @@ if (require('../internals/descriptors')) {
   };
   var getOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
     return isTAIndex(target, key = toPrimitive(key, true))
-      ? propertyDesc(2, target[key])
+      ? createPropertyDescriptor(2, target[key])
       : nativeGetOwnPropertyDescriptor(target, key);
   };
   var defineProperty = function defineProperty(target, key, desc) {
@@ -396,11 +396,11 @@ if (require('../internals/descriptors')) {
       TypedArray(1);
     }) || !fails(function () {
       new TypedArray(-1); // eslint-disable-line no-new
-    }) || !$iterDetect(function (iter) {
+    }) || !checkCorrectnessOfIteration(function (iterable) {
       new TypedArray(); // eslint-disable-line no-new
       new TypedArray(null); // eslint-disable-line no-new
       new TypedArray(1.5); // eslint-disable-line no-new
-      new TypedArray(iter); // eslint-disable-line no-new
+      new TypedArray(iterable); // eslint-disable-line no-new
     }, true)) {
       TypedArray = wrapper(function (that, data, $offset, $length) {
         anInstance(that, TypedArray, NAME);

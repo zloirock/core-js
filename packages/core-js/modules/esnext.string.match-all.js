@@ -1,5 +1,6 @@
 'use strict';
 // https://tc39.github.io/proposal-string-matchall/
+var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var isRegExp = require('../internals/is-regexp');
@@ -28,16 +29,6 @@ var advanceStringIndex = function (S, index, unicode) {
   return index + (unicode ? at(S, index).length : 1);
 };
 
-var $RegExpStringIterator = function RegExpStringIterator(regexp, string, global, fullUnicode) {
-  $(this, {
-    regexp: regexp,
-    string: string,
-    global: global,
-    unicode: fullUnicode,
-    done: false
-  });
-};
-
 var regExpExec = function (R, S) {
   var exec = R.exec;
   var result;
@@ -48,7 +39,16 @@ var regExpExec = function (R, S) {
   } return regExpBuiltinExec.call(R, S);
 };
 
-require('../internals/iter-create')($RegExpStringIterator, 'RegExp String', function next() {
+// eslint-disable-next-line max-len
+var $RegExpStringIterator = createIteratorConstructor(function RegExpStringIterator(regexp, string, global, fullUnicode) {
+  $(this, {
+    regexp: regexp,
+    string: string,
+    global: global,
+    unicode: fullUnicode,
+    done: false
+  });
+}, 'RegExp String', function next() {
   var state = $(this);
   if (state.done) return { value: null, done: true };
   var R = state.regexp;

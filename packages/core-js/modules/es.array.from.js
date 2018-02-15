@@ -6,7 +6,9 @@ var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var getIteratorMethod = require('./core.get-iterator-method');
-var INCORRECT_ITERATION = !require('../internals/iter-detect')(function (iter) { Array.from(iter); });
+var INCORRECT_ITERATION = !require('../internals/check-correctness-of-iteration')(function (iterable) {
+  Array.from(iterable);
+});
 
 // `Array.from` method
 // https://tc39.github.io/ecma262/#sec-array.from

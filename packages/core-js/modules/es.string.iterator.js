@@ -4,7 +4,7 @@ var $ = require('../internals/state');
 
 // `String.prototype[@@iterator]` method
 // https://tc39.github.io/ecma262/#sec-string.prototype-@@iterator
-require('../internals/iter-define')(String, 'String', function (iterated) {
+require('../internals/define-iterator')(String, 'String', function (iterated) {
   $(this, {
     string: String(iterated),
     index: 0

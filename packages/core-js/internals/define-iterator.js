@@ -5,7 +5,7 @@ var redefine = require('../internals/redefine');
 var hide = require('../internals/hide');
 var has = require('../internals/has');
 var Iterators = require('../internals/iterators');
-var iterCreate = require('../internals/iter-create');
+var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var setToStringTag = require('../internals/set-to-string-tag');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var ITERATOR = require('../internals/well-known-symbol')('iterator');
@@ -17,7 +17,7 @@ var VALUES = 'values';
 var returnThis = function () { return this; };
 
 module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCED) {
-  iterCreate(Constructor, NAME, next);
+  createIteratorConstructor(Constructor, NAME, next);
   var getMethod = function (kind) {
     if (!BUGGY && kind in proto) return proto[kind];
     switch (kind) {
