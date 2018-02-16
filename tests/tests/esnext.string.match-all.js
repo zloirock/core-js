@@ -42,6 +42,8 @@ QUnit.test('String#matchAll', assert => {
   let iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/g);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
+  assert.strictEqual(iterator[Symbol.toStringTag], 'RegExp String Iterator');
+  assert.strictEqual(String(iterator), '[object RegExp String Iterator]');
   assert.deepEqual(iterator.next(), {
     value: assign(['1a', '1', 'a'], {
       input: '1111a2b3cccc',

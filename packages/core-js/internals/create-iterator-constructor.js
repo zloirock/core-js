@@ -10,6 +10,6 @@ require('../internals/hide')(IteratorPrototype, ITERATOR, function () { return t
 
 module.exports = function (Constructor, NAME, next) {
   Constructor.prototype = create(IteratorPrototype, { next: createPropertyDescriptor(1, next) });
-  setToStringTag(Constructor, NAME + ' Iterator');
+  setToStringTag(Constructor, NAME + ' Iterator', false, true);
   return Constructor;
 };
