@@ -104,4 +104,5 @@ QUnit.test('WeakSet#has', assert => {
 
 QUnit.test('WeakSet::@@toStringTag', assert => {
   assert.strictEqual(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+  assert.strictEqual(String(new WeakSet()), '[object WeakSet]', 'correct stringification');
 });

@@ -1,6 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
 import matchAll from 'core-js-pure/features/string/match-all';
+import Symbol from 'core-js-pure/features/symbol';
 import assign from 'core-js-pure/features/object/assign';
 
 QUnit.test('String#matchAll', assert => {
@@ -41,6 +42,8 @@ QUnit.test('String#matchAll', assert => {
   let iterator = matchAll('1111a2b3cccc', /(\d)(\D)/g);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
+  assert.strictEqual(iterator[Symbol.toStringTag], 'RegExp String Iterator');
+  assert.strictEqual(String(iterator), '[object RegExp String Iterator]');
   assert.deepEqual(iterator.next(), {
     value: assign(['1a', '1', 'a'], {
       input: '1111a2b3cccc',

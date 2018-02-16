@@ -266,6 +266,7 @@ QUnit.test('Map & -0', assert => {
 
 QUnit.test('Map#@@toStringTag', assert => {
   assert.strictEqual(Map.prototype[Symbol.toStringTag], 'Map', 'Map::@@toStringTag is `Map`');
+  assert.strictEqual(String(new Map()), '[object Map]', 'correct stringification');
 });
 
 QUnit.test('Map Iterator', assert => {
@@ -382,6 +383,7 @@ QUnit.test('Map#@@iterator', assert => {
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Map Iterator');
+  assert.strictEqual(String(iterator), '[object Map Iterator]');
   assert.deepEqual(iterator.next(), {
     value: ['a', 'q'],
     done: false,
