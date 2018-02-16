@@ -7,6 +7,7 @@ QUnit.test('Array#@@iterator', assert => {
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+  assert.strictEqual(String(iterator), '[object Array Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,

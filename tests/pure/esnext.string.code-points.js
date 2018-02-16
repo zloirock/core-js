@@ -7,6 +7,7 @@ QUnit.test('String#codePoints', assert => {
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'String Iterator');
+  assert.strictEqual(String(iterator), '[object String Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 113,
     done: false,

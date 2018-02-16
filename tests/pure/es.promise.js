@@ -159,6 +159,7 @@ QUnit.test('Promise#catch', assert => {
 
 QUnit.test('Promise#@@toStringTag', assert => {
   assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
+  assert.strictEqual(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
 });
 
 QUnit.test('Promise.all', assert => {

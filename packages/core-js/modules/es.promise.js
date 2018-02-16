@@ -239,7 +239,7 @@ if (!USE_NATIVE) {
 }
 
 $export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: $Promise });
-require('../internals/set-to-string-tag')($Promise, PROMISE);
+require('../internals/set-to-string-tag')($Promise, PROMISE, false, true);
 require('../internals/set-species')(PROMISE);
 Wrapper = require('../internals/path')[PROMISE];
 
