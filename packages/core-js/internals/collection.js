@@ -2,7 +2,7 @@
 var global = require('../internals/global');
 var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
-var meta = require('../internals/meta');
+var InternalMetadataModule = require('../internals/internal-metadata');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
@@ -35,7 +35,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   }))) {
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    meta.NEED = true;
+    InternalMetadataModule.REQUIRED = true;
   } else {
     var instance = new C();
     // early implementations not supports chaining

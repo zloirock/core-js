@@ -8,15 +8,16 @@ var iterate = require('../internals/iterate');
 var defineIterator = require('../internals/define-iterator');
 var setSpecies = require('../internals/set-species');
 var DESCRIPTORS = require('../internals/descriptors');
-var fastKey = require('../internals/meta').fastKey;
-var validate = require('../internals/validate-collection');
-var $ = require('../internals/state');
+var fastKey = require('../internals/internal-metadata').fastKey;
+var InternalStateModule = require('../internals/internal-state');
+var setInternalState = InternalStateModule.set;
+var internalStateGetterFor = InternalStateModule.getterFor;
 
 module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
       anInstance(that, C, NAME);
-      $(that, {
+      setInternalState(that, {
         type: NAME,
         index: create(null),
         first: undefined,
@@ -27,8 +28,10 @@ module.exports = {
       if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
     });
 
+    var getInternalState = internalStateGetterFor(NAME);
+
     var define = function (that, key, value) {
-      var state = validate(that, NAME);
+      var state = getInternalState(that);
       var entry = getEntry(that, key);
       var previous, index;
       // change existing entry
@@ -54,7 +57,7 @@ module.exports = {
     };
 
     var getEntry = function (that, key) {
-      var state = validate(that, NAME);
+      var state = getInternalState(that);
       // fast case
       var index = fastKey(key);
       var entry;
@@ -70,7 +73,7 @@ module.exports = {
       // 23.2.3.2 Set.prototype.clear()
       clear: function clear() {
         var that = this;
-        var state = validate(that, NAME);
+        var state = getInternalState(that);
         var data = state.index;
         var entry = state.first;
         while (entry) {
@@ -87,7 +90,7 @@ module.exports = {
       // 23.2.3.4 Set.prototype.delete(value)
       'delete': function (key) {
         var that = this;
-        var state = validate(that, NAME);
+        var state = getInternalState(that);
         var entry = getEntry(that, key);
         if (entry) {
           var next = entry.next;
@@ -105,7 +108,7 @@ module.exports = {
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
-        var state = validate(this, NAME);
+        var state = getInternalState(this);
         var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
         var entry;
         while (entry = entry ? entry.next : state.first) {
@@ -139,23 +142,27 @@ module.exports = {
     });
     if (DESCRIPTORS) defineProperty(C.prototype, 'size', {
       get: function () {
-        return validate(this, NAME).size;
+        return getInternalState(this).size;
       }
     });
     return C;
   },
   setStrong: function (C, NAME, IS_MAP) {
+    var ITERATOR_NAME = NAME + 'Iterator';
+    var getInternalCollectionState = internalStateGetterFor(NAME);
+    var getInternalIteratorState = internalStateGetterFor(ITERATOR_NAME);
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
     defineIterator(C, NAME, function (iterated, kind) {
-      $(this, {
+      setInternalState(this, {
+        type: ITERATOR_NAME,
         target: iterated,
-        state: validate(iterated, NAME),
+        state: getInternalCollectionState(iterated),
         kind: kind,
         last: undefined
       });
     }, function () {
-      var state = $(this);
+      var state = getInternalIteratorState(this);
       var kind = state.kind;
       var entry = state.last;
       // revert to the last existing entry
