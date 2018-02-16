@@ -1,10 +1,10 @@
-var $metadata = require('../internals/metadata');
+var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
-var toMetaKey = $metadata.key;
-var ordinaryDefineOwnMetadata = $metadata.set;
+var toMetaKey = ReflectMetadataModule.key;
+var ordinaryDefineOwnMetadata = ReflectMetadataModule.set;
 
-$metadata.exp({ metadata: function metadata(metadataKey, metadataValue) {
+ReflectMetadataModule.exp({ metadata: function metadata(metadataKey, metadataValue) {
   return function decorator(target, targetKey) {
     ordinaryDefineOwnMetadata(
       metadataKey, metadataValue,
