@@ -46,7 +46,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
     });
   }
 
-  setToStringTag(C, NAME);
+  setToStringTag(C, NAME, false, true);
 
   exported[NAME] = C;
   $export({ global: true, wrap: true, forced: true }, exported);

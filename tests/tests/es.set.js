@@ -284,6 +284,7 @@ QUnit.test('Set & -0', assert => {
 
 QUnit.test('Set#@@toStringTag', assert => {
   assert.strictEqual(Set.prototype[Symbol.toStringTag], 'Set', 'Set::@@toStringTag is `Set`');
+  assert.strictEqual(String(new Set()), '[object Set]', 'correct stringification');
 });
 
 QUnit.test('Set Iterator', assert => {
@@ -419,6 +420,7 @@ QUnit.test('Set#@@iterator', assert => {
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
+  assert.strictEqual(String(iterator), '[object Set Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
