@@ -1,7 +1,7 @@
 'use strict';
 var global = require('../internals/global');
 var $export = require('./export');
-var meta = require('../internals/meta');
+var InternalMetadataModule = require('../internals/internal-metadata');
 var fails = require('../internals/fails');
 var hide = require('../internals/hide');
 var iterate = require('../internals/iterate');
@@ -23,7 +23,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   }))) {
     // create collection constructor
     C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
-    meta.NEED = true;
+    InternalMetadataModule.REQUIRED = true;
   } else {
     C = wrapper(function (target, iterable) {
       anInstance(target, C, NAME, '_c');
