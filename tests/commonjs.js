@@ -28,6 +28,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/object/prevent-extensions')({}));
   ok(load('features/object/seal')({}));
   ok(load('features/object/set-prototype-of')({}, []) instanceof Array);
+  ok(load('features/object/to-string')([]) === '[object Array]');
   ok(load('features/object/entries')({ q: 2 })[0][0] === 'q');
   ok(load('features/object/values')({ q: 2 })[0] === 2);
   ok(load('features/object/get-own-property-descriptors')({ q: 1 }).q.enumerable);
