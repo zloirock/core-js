@@ -1,8 +1,8 @@
-var metadata = require('../internals/metadata');
+var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var toMetaKey = metadata.key;
-var ordinaryDefineOwnMetadata = metadata.set;
+var toMetaKey = ReflectMetadataModule.key;
+var ordinaryDefineOwnMetadata = ReflectMetadataModule.set;
 
-metadata.exp({ defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey) {
+ReflectMetadataModule.exp({ defineMetadata: function defineMetadata(metadataKey, metadataValue, target, targetKey) {
   ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetaKey(targetKey));
 } });

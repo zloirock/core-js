@@ -2,10 +2,11 @@ var global = require('../internals/global');
 var hide = require('../internals/hide');
 var has = require('../internals/has');
 var setGlobal = require('../internals/set-global');
-var $ = require('../internals/state');
-var TO_STRING = 'toString';
-var nativeFunctionToString = Function[TO_STRING];
-var TEMPLATE = String(nativeFunctionToString).split(TO_STRING);
+var nativeFunctionToString = require('../internals/function-to-string');
+var InternalStateModule = require('../internals/internal-state');
+var getInternalState = InternalStateModule.get;
+var enforceInternalState = InternalStateModule.enforce;
+var TEMPLATE = String(nativeFunctionToString).split('toString');
 
 require('../internals/shared')('inspectSource', function (it) {
   return nativeFunctionToString.call(it);
@@ -14,7 +15,7 @@ require('../internals/shared')('inspectSource', function (it) {
 (module.exports = function (O, key, value, unsafe) {
   if (typeof value == 'function') {
     if (!has(value, 'name')) hide(value, 'name', key);
-    $(value, true).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
+    enforceInternalState(value).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
   }
   if (O === global) {
     setGlobal(key, value);
@@ -27,6 +28,6 @@ require('../internals/shared')('inspectSource', function (it) {
     hide(O, key, value);
   }
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
-})(Function.prototype, TO_STRING, function toString() {
-  return typeof this == 'function' && $(this).source || nativeFunctionToString.call(this);
+})(Function.prototype, 'toString', function toString() {
+  return typeof this == 'function' && getInternalState(this).source || nativeFunctionToString.call(this);
 });

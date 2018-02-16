@@ -1,5 +1,5 @@
 var isObject = require('../internals/is-object');
-var onFreeze = require('../internals/meta').onFreeze;
+var onFreeze = require('../internals/internal-metadata').onFreeze;
 
 // `Object.preventExtensions` method
 // https://tc39.github.io/ecma262/#sec-object.preventextensions

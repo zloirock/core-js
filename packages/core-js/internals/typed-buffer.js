@@ -13,7 +13,9 @@ var getOwnPropertyNames = require('../internals/object-get-own-property-names').
 var defineProperty = require('../internals/object-define-property').f;
 var arrayFill = require('../internals/array-fill');
 var setToStringTag = require('../internals/set-to-string-tag');
-var $ = require('../internals/state');
+var InternalStateModule = require('../internals/internal-state');
+var getInternalState = InternalStateModule.get;
+var setInternalState = InternalStateModule.set;
 var ARRAY_BUFFER = 'ArrayBuffer';
 var DATA_VIEW = 'DataView';
 var PROTOTYPE = 'prototype';
@@ -126,15 +128,15 @@ function packF32(it) {
 }
 
 function addGetter(C, key) {
-  defineProperty(C[PROTOTYPE], key, { get: function () { return $(this)[key]; } });
+  defineProperty(C[PROTOTYPE], key, { get: function () { return getInternalState(this)[key]; } });
 }
 
 function get(view, count, index, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
-  var store = $(view);
+  var store = getInternalState(view);
   if (intIndex + count > store.byteLength) throw RangeError(WRONG_INDEX);
-  var bytes = $(store.buffer).bytes;
+  var bytes = getInternalState(store.buffer).bytes;
   var start = intIndex + store.byteOffset;
   var pack = bytes.slice(start, start + count);
   return isLittleEndian ? pack : pack.reverse();
@@ -142,9 +144,9 @@ function get(view, count, index, isLittleEndian) {
 function set(view, count, index, conversion, value, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
-  var store = $(view);
+  var store = getInternalState(view);
   if (intIndex + count > store.byteLength) throw RangeError(WRONG_INDEX);
-  var bytes = $(store.buffer).bytes;
+  var bytes = getInternalState(store.buffer).bytes;
   var start = intIndex + store.byteOffset;
   var pack = conversion(+value);
   for (var i = 0; i < count; i++) bytes[start + i] = pack[isLittleEndian ? i : count - i - 1];
@@ -154,7 +156,7 @@ if (!$typed.ABV) {
   $ArrayBuffer = function ArrayBuffer(length) {
     anInstance(this, $ArrayBuffer, ARRAY_BUFFER);
     var byteLength = toIndex(length);
-    $(this, {
+    setInternalState(this, {
       bytes: arrayFill.call(new Array(byteLength), 0),
       byteLength: byteLength
     });
@@ -164,12 +166,12 @@ if (!$typed.ABV) {
   $DataView = function DataView(buffer, byteOffset, byteLength) {
     anInstance(this, $DataView, DATA_VIEW);
     anInstance(buffer, $ArrayBuffer, DATA_VIEW);
-    var bufferLength = $(buffer).byteLength;
+    var bufferLength = getInternalState(buffer).byteLength;
     var offset = toInteger(byteOffset);
     if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset!');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
     if (offset + byteLength > bufferLength) throw RangeError(WRONG_LENGTH);
-    $(this, {
+    setInternalState(this, {
       buffer: buffer,
       byteLength: byteLength,
       byteOffset: offset

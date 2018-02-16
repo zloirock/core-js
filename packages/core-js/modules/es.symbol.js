@@ -27,7 +27,10 @@ var definePropertyModule = require('../internals/object-define-property');
 var hide = require('../internals/hide');
 var objectKeys = require('../internals/object-keys');
 var HIDDEN = require('../internals/shared-key')('hidden');
-var $ = require('../internals/state');
+var InternalStateModule = require('../internals/internal-state');
+var SYMBOL = 'Symbol';
+var setInternalState = InternalStateModule.set;
+var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
@@ -65,7 +68,8 @@ var setSymbolDescriptor = DESCRIPTORS && fails(function () {
 
 var wrap = function (tag, description) {
   var symbol = AllSymbols[tag] = nativeObjectCreate($Symbol[PROTOTYPE]);
-  $(symbol, {
+  setInternalState(symbol, {
+    type: SYMBOL,
     tag: tag,
     description: description
   });
@@ -160,7 +164,7 @@ if (!USE_NATIVE) {
     return wrap(tag, description);
   };
   redefine($Symbol[PROTOTYPE], 'toString', function toString() {
-    return $(this).tag;
+    return getInternalState(this).tag;
   });
 
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
@@ -173,7 +177,7 @@ if (!USE_NATIVE) {
     nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
       configurable: true,
       get: function description() {
-        return $(this).description;
+        return getInternalState(this).description;
       }
     });
     if (!require('../internals/is-pure')) {
@@ -197,7 +201,7 @@ for (var wellKnownSymbols = objectKeys(WellKnownSymbolsStore), k = 0; wellKnownS
   defineWellKnownSymbol(wellKnownSymbols[k++]);
 }
 
-$export({ target: 'Symbol', stat: true, forced: !USE_NATIVE }, {
+$export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
   // 19.4.2.1 Symbol.for(key)
   'for': function (key) {
     return has(SymbolRegistry, key += '')
@@ -257,7 +261,7 @@ JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(funct
 // 19.4.3.4 Symbol.prototype[@@toPrimitive](hint)
 $Symbol[PROTOTYPE][TO_PRIMITIVE] || hide($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
-setToStringTag($Symbol, 'Symbol');
+setToStringTag($Symbol, SYMBOL);
 // 20.2.1.9 Math[@@toStringTag]
 setToStringTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
