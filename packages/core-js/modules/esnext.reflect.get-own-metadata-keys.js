@@ -1,8 +1,8 @@
-var metadata = require('../internals/metadata');
+var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var ordinaryOwnMetadataKeys = metadata.keys;
-var toMetaKey = metadata.key;
+var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
+var toMetaKey = ReflectMetadataModule.key;
 
-metadata.exp({ getOwnMetadataKeys: function getOwnMetadataKeys(target /* , targetKey */) {
+ReflectMetadataModule.exp({ getOwnMetadataKeys: function getOwnMetadataKeys(target /* , targetKey */) {
   return ordinaryOwnMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
 } });

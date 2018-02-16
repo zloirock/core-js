@@ -1,14 +1,15 @@
 'use strict';
 var redefineAll = require('../internals/redefine-all');
-var getWeak = require('../internals/meta').getWeak;
+var getWeakData = require('../internals/internal-metadata').getWeakData;
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
 var createArrayMethod = require('../internals/array-methods');
 var $has = require('../internals/has');
-var validate = require('../internals/validate-collection');
-var $ = require('../internals/state');
+var InternalStateModule = require('../internals/internal-state');
+var setInternalState = InternalStateModule.set;
+var internalStateGetterFor = InternalStateModule.getterFor;
 var arrayFind = createArrayMethod(5);
 var arrayFindIndex = createArrayMethod(6);
 var id = 0;
@@ -54,7 +55,7 @@ module.exports = {
   getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
       anInstance(that, C, NAME);
-      $(that, {
+      setInternalState(that, {
         type: NAME,
         id: id++,
         frozen: undefined
@@ -62,11 +63,13 @@ module.exports = {
       if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
     });
 
+    var getInternalState = internalStateGetterFor(NAME);
+
     var define = function (that, key, value) {
-      var store = validate(that, NAME);
-      var data = getWeak(anObject(key), true);
-      if (data === true) uncaughtFrozenStore(store).set(key, value);
-      else data[store.id] = value;
+      var state = getInternalState(that);
+      var data = getWeakData(anObject(key), true);
+      if (data === true) uncaughtFrozenStore(state).set(key, value);
+      else data[state.id] = value;
       return that;
     };
 
@@ -74,31 +77,31 @@ module.exports = {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
       'delete': function (key) {
-        var store = validate(this, NAME);
+        var state = getInternalState(this);
         if (!isObject(key)) return false;
-        var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(store)['delete'](key);
-        return data && $has(data, store.id) && delete data[store.id];
+        var data = getWeakData(key);
+        if (data === true) return uncaughtFrozenStore(state)['delete'](key);
+        return data && $has(data, state.id) && delete data[state.id];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)
       // 23.4.3.4 WeakSet.prototype.has(value)
       has: function has(key) {
-        var store = validate(this, NAME);
+        var state = getInternalState(this);
         if (!isObject(key)) return false;
-        var data = getWeak(key);
-        if (data === true) return uncaughtFrozenStore(store).has(key);
-        return data && $has(data, store.id);
+        var data = getWeakData(key);
+        if (data === true) return uncaughtFrozenStore(state).has(key);
+        return data && $has(data, state.id);
       }
     });
 
     redefineAll(C.prototype, IS_MAP ? {
       // 23.3.3.3 WeakMap.prototype.get(key)
       get: function get(key) {
-        var store = validate(this, NAME);
+        var state = getInternalState(this);
         if (isObject(key)) {
-          var data = getWeak(key);
-          if (data === true) return uncaughtFrozenStore(store).get(key);
-          return data ? data[store.id] : undefined;
+          var data = getWeakData(key);
+          if (data === true) return uncaughtFrozenStore(state).get(key);
+          return data ? data[state.id] : undefined;
         }
       },
       // 23.3.3.5 WeakMap.prototype.set(key, value)

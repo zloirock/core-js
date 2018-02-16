@@ -10,7 +10,11 @@ var speciesConstructor = require('../internals/species-constructor');
 var at = require('../internals/string-at')(true);
 var MATCH_ALL = require('../internals/well-known-symbol')('matchAll');
 var IS_PURE = require('../internals/is-pure');
-var $ = require('../internals/state');
+var REGEXP_STRING = 'RegExp String';
+var REGEXP_STRING_ITERATOR = REGEXP_STRING + 'Iterator';
+var InternalStateModule = require('../internals/internal-state');
+var setInternalState = InternalStateModule.set;
+var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
 var regExpBuiltinExec = RegExpPrototype.exec;
 
@@ -41,15 +45,16 @@ var regExpExec = function (R, S) {
 
 // eslint-disable-next-line max-len
 var $RegExpStringIterator = createIteratorConstructor(function RegExpStringIterator(regexp, string, global, fullUnicode) {
-  $(this, {
+  setInternalState(this, {
+    type: REGEXP_STRING_ITERATOR,
     regexp: regexp,
     string: string,
     global: global,
     unicode: fullUnicode,
     done: false
   });
-}, 'RegExp String', function next() {
-  var state = $(this);
+}, REGEXP_STRING, function next() {
+  var state = getInternalState(this);
   if (state.done) return { value: null, done: true };
   var R = state.regexp;
   var S = state.string;
