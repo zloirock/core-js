@@ -113,4 +113,5 @@ QUnit.test('WeakMap#set', assert => {
 
 QUnit.test('WeakMap#@@toStringTag', assert => {
   assert.strictEqual(WeakMap.prototype[Symbol.toStringTag], 'WeakMap', 'WeakMap::@@toStringTag is `WeakMap`');
+  assert.strictEqual(String(new WeakMap()), '[object WeakMap]', 'correct stringification');
 });
