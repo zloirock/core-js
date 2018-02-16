@@ -2,7 +2,10 @@
 var toIndexedObject = require('../internals/to-indexed-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');
-var $ = require('../internals/state');
+var InternalStateModule = require('../internals/internal-state');
+var ARRAY_ITERATOR = 'ArrayIterator';
+var setInternalState = InternalStateModule.set;
+var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
 
 // `Array.prototype.entries` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.entries
@@ -15,7 +18,8 @@ var $ = require('../internals/state');
 // `CreateArrayIterator` internal method
 // https://tc39.github.io/ecma262/#sec-createarrayiterator
 module.exports = require('../internals/define-iterator')(Array, 'Array', function (iterated, kind) {
-  $(this, {
+  setInternalState(this, {
+    type: ARRAY_ITERATOR,
     target: toIndexedObject(iterated), // target
     index: 0,                          // next index
     kind: kind                         // kind
@@ -23,7 +27,7 @@ module.exports = require('../internals/define-iterator')(Array, 'Array', functio
 // `%ArrayIteratorPrototype%.next` method
 // https://tc39.github.io/ecma262/#sec-%arrayiteratorprototype%.next
 }, function () {
-  var state = $(this);
+  var state = getInternalState(this);
   var target = state.target;
   var kind = state.kind;
   var index = state.index++;

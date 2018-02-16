@@ -37,7 +37,9 @@ if (require('../internals/descriptors')) {
   var arrayCopyWithin = require('../internals/array-copy-within');
   var definePropertyModule = require('../internals/object-define-property');
   var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
-  var $ = require('../internals/state');
+  var InternalStateModule = require('../internals/internal-state');
+  var getInternalState = InternalStateModule.get;
+  var setInternalState = InternalStateModule.set;
   var nativeDefineProperty = definePropertyModule.f;
   var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
@@ -121,7 +123,7 @@ if (require('../internals/descriptors')) {
   };
 
   var addGetter = function (it, key) {
-    nativeDefineProperty(it, key, { get: function () { return $(this)[key]; } });
+    nativeDefineProperty(it, key, { get: function () { return getInternalState(this)[key]; } });
   };
 
   var $from = function from(source /* , mapfn, thisArg */) {
@@ -334,11 +336,11 @@ if (require('../internals/descriptors')) {
     var exported = {};
     var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var getter = function (that, index) {
-      var data = $(that);
+      var data = getInternalState(that);
       return data.view[GETTER](index * BYTES + data.byteOffset, LITTLE_ENDIAN);
     };
     var setter = function (that, index, value) {
-      var data = $(that);
+      var data = getInternalState(that);
       if (CLAMPED) value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
       data.view[SETTER](index * BYTES + data.byteOffset, value, LITTLE_ENDIAN);
     };
@@ -381,7 +383,7 @@ if (require('../internals/descriptors')) {
         } else {
           return $from.call(TypedArray, data);
         }
-        $(that, {
+        setInternalState(that, {
           buffer: buffer,
           byteOffset: byteOffset,
           byteLength: byteLength,

@@ -15,9 +15,12 @@ var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var promiseResolve = require('../internals/promise-resolve');
 var hostReportErrors = require('../internals/host-report-errors');
-var $ = require('../internals/state');
 var SPECIES = require('../internals/well-known-symbol')('species');
+var InternalStateModule = require('../internals/internal-state');
 var PROMISE = 'Promise';
+var getInternalState = InternalStateModule.get;
+var setInternalState = InternalStateModule.set;
+var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
 var TypeError = global.TypeError;
 var process = global.process;
 var document = global.document;
@@ -183,7 +186,7 @@ if (!USE_NATIVE) {
     anInstance(this, $Promise, PROMISE);
     aFunction(executor);
     Internal.call(this);
-    var $promise = $(this);
+    var $promise = getInternalState(this);
     try {
       executor(bind($resolve, this, $promise), bind($reject, this, $promise));
     } catch (err) {
@@ -192,7 +195,8 @@ if (!USE_NATIVE) {
   };
   // eslint-disable-next-line no-unused-vars
   Internal = function Promise(executor) {
-    $(this, {
+    setInternalState(this, {
+      type: PROMISE,
       done: false,
       notified: false,
       parent: false,
@@ -205,7 +209,7 @@ if (!USE_NATIVE) {
   Internal.prototype = require('../internals/redefine-all')($Promise.prototype, {
     // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
     then: function then(onFulfilled, onRejected) {
-      var $promise = $(this);
+      var $promise = getInternalPromiseState(this);
       var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
       reaction.ok = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
@@ -222,7 +226,7 @@ if (!USE_NATIVE) {
   });
   OwnPromiseCapability = function () {
     var promise = new Internal();
-    var $promise = $(promise);
+    var $promise = getInternalState(promise);
     this.promise = promise;
     this.resolve = bind($resolve, promise, $promise);
     this.reject = bind($reject, promise, $promise);

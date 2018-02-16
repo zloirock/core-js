@@ -1,10 +1,10 @@
-var metadata = require('../internals/metadata');
+var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var toMetaKey = metadata.key;
-var getOrCreateMetadataMap = metadata.map;
-var store = metadata.store;
+var toMetaKey = ReflectMetadataModule.key;
+var getOrCreateMetadataMap = ReflectMetadataModule.map;
+var store = ReflectMetadataModule.store;
 
-metadata.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */) {
+ReflectMetadataModule.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */) {
   var targetKey = arguments.length < 3 ? undefined : toMetaKey(arguments[2]);
   var metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);
   if (metadataMap === undefined || !metadataMap['delete'](metadataKey)) return false;
