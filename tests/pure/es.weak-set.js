@@ -1,7 +1,8 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { getIteratorMethod, WeakSet, Symbol } from 'core-js-pure';
+import { Symbol, WeakSet } from 'core-js-pure';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 import { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
 import ownKeys from 'core-js-pure/features/reflect/own-keys';
 

@@ -1,6 +1,7 @@
 import { GLOBAL } from '../helpers/constants';
 
-import { getIteratorMethod, Symbol } from 'core-js-pure';
+import Symbol from 'core-js-pure/features/symbol';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 
 QUnit.test('Iterable DOM collections', assert => {
   let absent = true;

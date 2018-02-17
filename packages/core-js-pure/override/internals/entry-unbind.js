@@ -1,5 +1,5 @@
-var core = require('../internals/core');
+var path = require('../internals/path');
 
 module.exports = function (CONSTRUCTOR, METHOD) {
-  return core[CONSTRUCTOR][METHOD];
+  return path[CONSTRUCTOR][METHOD];
 };

@@ -1,4 +1,4 @@
-var Set = require('./es.set');
+var Set = require('../modules/es.set');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
