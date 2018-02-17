@@ -193,9 +193,9 @@ import './web.immediate';
 import './web.timers';
 
 QUnit.module('Helpers');
-import './core.get-iterator-method';
-import './core.get-iterator';
-import './core.is-iterable';
+import './helpers.get-iterator-method';
+import './helpers.get-iterator';
+import './helpers.is-iterable';
 
 import core from 'core-js-pure';
 core.global.core = core;

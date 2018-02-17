@@ -1,5 +1,5 @@
-var core = require('../internals/core');
+var path = require('../internals/path');
 
 module.exports = function (CONSTRUCTOR) {
-  return core[CONSTRUCTOR].virtual;
+  return path[CONSTRUCTOR].virtual;
 };
