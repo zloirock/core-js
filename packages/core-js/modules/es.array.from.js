@@ -5,7 +5,7 @@ var callWithSafeIterationClosing = require('../internals/call-with-safe-iteratio
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
-var getIteratorMethod = require('./core.get-iterator-method');
+var getIteratorMethod = require('../internals/get-iterator-method');
 var INCORRECT_ITERATION = !require('../internals/check-correctness-of-iteration')(function (iterable) {
   Array.from(iterable);
 });

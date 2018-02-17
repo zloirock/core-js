@@ -1,1 +1,1 @@
-module.exports = require('../internals/core');
+module.exports = {};

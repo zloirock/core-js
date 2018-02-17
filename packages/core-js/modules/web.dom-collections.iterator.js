@@ -1,5 +1,5 @@
 var DOMIterables = require('../internals/dom-iterables');
-var ArrayIteratorMethods = require('./es.array.iterator');
+var ArrayIteratorMethods = require('../modules/es.array.iterator');
 var redefine = require('../internals/redefine');
 var global = require('../internals/global');
 var hide = require('../internals/hide');

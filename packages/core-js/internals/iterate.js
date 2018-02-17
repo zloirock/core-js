@@ -2,7 +2,7 @@ var anObject = require('../internals/an-object');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var bind = require('../internals/bind-context');
-var getIteratorMethod = require('../modules/core.get-iterator-method');
+var getIteratorMethod = require('../internals/get-iterator-method');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var BREAK = {};
 
