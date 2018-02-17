@@ -1,7 +1,8 @@
 import { DESCRIPTORS, GLOBAL, PROTO } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-import { getIteratorMethod, Promise, Symbol } from 'core-js-pure';
+import { Promise, Symbol } from 'core-js-pure';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 import { setPrototypeOf, create } from 'core-js-pure/features/object';
 import bind from 'core-js-pure/features/function/bind';
 
