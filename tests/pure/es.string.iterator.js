@@ -1,4 +1,5 @@
-import { getIterator, Symbol } from 'core-js-pure';
+import Symbol from 'core-js-pure/features/symbol';
+import getIterator from 'core-js-pure/features/get-iterator';
 import from from 'core-js-pure/features/array/from';
 
 QUnit.test('String#@@iterator', assert => {

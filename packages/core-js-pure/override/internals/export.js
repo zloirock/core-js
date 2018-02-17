@@ -1,5 +1,5 @@
 var global = require('../internals/global');
-var core = require('../internals/core');
+var path = require('../internals/path');
 var bind = require('../internals/bind-context');
 var hide = require('../internals/hide');
 var has = require('../internals/has');
@@ -20,7 +20,7 @@ module.exports = function (options, source) {
   var name = options.target;
   var GLOBAL = options.global;
   var PROTO = options.proto;
-  var exports = GLOBAL ? core : core[name] || (core[name] = {});
+  var exports = GLOBAL ? path : path[name] || (path[name] = {});
   var expProto = exports[PROTOTYPE];
   var target = GLOBAL ? global : options.stat ? global[name] : (global[name] || {})[PROTOTYPE];
   var key, own, out;
@@ -49,10 +49,10 @@ module.exports = function (options, source) {
       return F;
     // make static versions for prototype methods
     })(out) : PROTO && typeof out == 'function' ? bind(Function.call, out) : out;
-    // export proto methods to core.%CONSTRUCTOR%.methods.%NAME%
+    // export proto methods to path.%CONSTRUCTOR%.virtual.%NAME%
     if (PROTO) {
       (exports.virtual || (exports.virtual = {}))[key] = out;
-      // export proto methods to core.%CONSTRUCTOR%.prototype.%NAME%
+      // export proto methods to path.%CONSTRUCTOR%.prototype.%NAME%
       if (options.real && expProto && !expProto[key]) hide(expProto, key, out);
     }
   }

@@ -1,7 +1,8 @@
 import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-import { getIteratorMethod, Symbol } from 'core-js-pure';
+import Symbol from 'core-js-pure/features/symbol';
+import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 import from from 'core-js-pure/features/array/from';
 import defineProperty from 'core-js-pure/features/object/define-property';
 

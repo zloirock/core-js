@@ -353,6 +353,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stage/0'));
   ok(load('stage/pre'));
   ok(load('stage'));
+  ok(load('index'));
 }
 
 ok(typeof load('features/typed/array-buffer') === 'function');
