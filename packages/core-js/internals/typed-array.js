@@ -23,7 +23,7 @@ if (require('../internals/descriptors')) {
   var create = require('../internals/object-create');
   var getPrototypeOf = require('../internals/object-get-prototype-of');
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-  var getIterFn = require('../modules/core.get-iterator-method');
+  var getIterFn = require('../internals/get-iterator-method');
   var uid = require('../internals/uid');
   var wellKnownSymbol = require('../internals/well-known-symbol');
   var createArrayMethod = require('../internals/array-methods');
