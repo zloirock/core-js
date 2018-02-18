@@ -1,3 +1,4 @@
+var DESCRIPTORS = require('../internals/descriptors');
 var toIndexedObject = require('../internals/to-indexed-object');
 var nativeGetOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
@@ -7,4 +8,4 @@ require('../internals/object-statics-accept-primitives')('getOwnPropertyDescript
   return function getOwnPropertyDescriptor(it, key) {
     return nativeGetOwnPropertyDescriptor(toIndexedObject(it), key);
   };
-});
+}, !DESCRIPTORS);

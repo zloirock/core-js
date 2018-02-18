@@ -17,8 +17,9 @@ var NEW_TARGET_BUG = fails(function () {
 var ARGS_BUG = !fails(function () {
   nativeConstruct(function () { /* empty */ });
 });
+var FORCED = NEW_TARGET_BUG || ARGS_BUG;
 
-require('../internals/export')({ target: 'Reflect', stat: true, forced: NEW_TARGET_BUG || ARGS_BUG }, {
+require('../internals/export')({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
   construct: function construct(Target, args /* , newTarget */) {
     aFunction(Target);
     anObject(args);

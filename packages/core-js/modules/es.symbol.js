@@ -190,7 +190,7 @@ if (!USE_NATIVE) {
   };
 }
 
-$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Symbol: $Symbol });
+$export({ global: true, wrap: true, forced: !USE_NATIVE, sham: !USE_NATIVE }, { Symbol: $Symbol });
 
 for (var es6Symbols = (
   // 19.4.2.2, 19.4.2.3, 19.4.2.4, 19.4.2.6, 19.4.2.8, 19.4.2.9, 19.4.2.10, 19.4.2.11, 19.4.2.12, 19.4.2.13, 19.4.2.14

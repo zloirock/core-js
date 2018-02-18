@@ -29,6 +29,7 @@ var wrapConstructor = function (NativeConstructor) {
   options.bind   - bind methods to the target, required for the `pure` version
   options.wrap   - wrap constructors to preventing global pollution, required for the `pure` version
   options.unsafe - use the simple assignment of property instead of delete + defineProperty
+  options.sham   - add a flag to not completely full polyfills
 */
 module.exports = function (options, source) {
   var TARGET = options.target;
@@ -41,13 +42,15 @@ module.exports = function (options, source) {
   var target = GLOBAL ? path : path[TARGET] || (path[TARGET] = {});
   var targetPrototype = target.prototype;
 
-  var USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, resultProperty;
+  var USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, targetProperty, resultProperty;
 
   for (key in source) {
     // contains in native
     USE_NATIVE = !options.forced && nativeSource && has(nativeSource, key);
 
-    if (USE_NATIVE && has(target, key)) continue;
+    targetProperty = target[key];
+
+    if (USE_NATIVE && targetProperty) continue;
 
     // export native or implementation
     sourceProperty = USE_NATIVE ? nativeSource[key] : source[key];
@@ -59,6 +62,11 @@ module.exports = function (options, source) {
     else if (PROTO && typeof sourceProperty == 'function') resultProperty = bind(Function.call, sourceProperty);
     // default case
     else resultProperty = sourceProperty;
+
+    // add a flag to not completely full polyfills
+    if (options.sham || sourceProperty.sham || (targetProperty && targetProperty.sham)) {
+      hide(resultProperty, 'sham', true);
+    }
 
     target[key] = resultProperty;
 
