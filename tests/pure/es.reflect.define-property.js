@@ -35,3 +35,7 @@ QUnit.test('Reflect.defineProperty', assert => {
   assert.throws(() => defineProperty({}, create(null), {}));
   assert.throws(() => defineProperty({}, 1, 1));
 });
+
+QUnit.test('Reflect.defineProperty.sham flag', assert => {
+  assert.same(defineProperty.sham, DESCRIPTORS ? undefined : true);
+});

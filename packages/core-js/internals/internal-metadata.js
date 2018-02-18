@@ -1,4 +1,5 @@
 var METADATA = require('../internals/uid')('meta');
+var FREEZING = require('../internals/freezing');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
 var defineProperty = require('../internals/object-define-property').f;
@@ -7,10 +8,6 @@ var id = 0;
 var isExtensible = Object.isExtensible || function () {
   return true;
 };
-
-var FREEZE = !require('../internals/fails')(function () {
-  return isExtensible(Object.preventExtensions({}));
-});
 
 var setMetadata = function (it) {
   defineProperty(it, METADATA, { value: {
@@ -47,7 +44,7 @@ var getWeakData = function (it, create) {
 
 // add metadata on freeze-family methods calling
 var onFreeze = function (it) {
-  if (FREEZE && meta.REQUIRED && isExtensible(it) && !has(it, METADATA)) setMetadata(it);
+  if (FREEZING && meta.REQUIRED && isExtensible(it) && !has(it, METADATA)) setMetadata(it);
   return it;
 };
 

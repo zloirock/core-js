@@ -273,4 +273,8 @@ if (DESCRIPTORS) {
     const Subclass = create(Array);
     assert.strictEqual(Subclass[Symbol.species], Subclass, 'Array subclass');
   });
+
+  QUnit.test('Symbol.sham flag', assert => {
+    assert.same(Symbol.sham, typeof Symbol() === 'symbol' ? undefined : true);
+  });
 }

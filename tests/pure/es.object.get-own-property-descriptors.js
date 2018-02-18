@@ -34,3 +34,7 @@ QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   }
   assert.strictEqual(descriptors[symbol].value, 4);
 });
+
+QUnit.test('Object.getOwnPropertyDescriptors.sham flag', assert => {
+  assert.same(getOwnPropertyDescriptors.sham, DESCRIPTORS ? undefined : true);
+});
