@@ -1,9 +1,23 @@
+'use strict';
 var global = require('../internals/global');
 var path = require('../internals/path');
 var bind = require('../internals/bind-context');
 var hide = require('../internals/hide');
 var has = require('../internals/has');
-var PROTOTYPE = 'prototype';
+
+var wrapConstructor = function (NativeConstructor) {
+  var Wrapper = function (a, b, c) {
+    if (this instanceof NativeConstructor) {
+      switch (arguments.length) {
+        case 0: return new NativeConstructor();
+        case 1: return new NativeConstructor(a);
+        case 2: return new NativeConstructor(a, b);
+      } return new NativeConstructor(a, b, c);
+    } return NativeConstructor.apply(this, arguments);
+  };
+  Wrapper.prototype = NativeConstructor.prototype;
+  return Wrapper;
+};
 
 /*
   options.target - name of the target object
@@ -17,43 +31,44 @@ var PROTOTYPE = 'prototype';
   options.unsafe - use the simple assignment of property instead of delete + defineProperty
 */
 module.exports = function (options, source) {
-  var name = options.target;
+  var TARGET = options.target;
   var GLOBAL = options.global;
+  var STATIC = options.stat;
   var PROTO = options.proto;
-  var exports = GLOBAL ? path : path[name] || (path[name] = {});
-  var expProto = exports[PROTOTYPE];
-  var target = GLOBAL ? global : options.stat ? global[name] : (global[name] || {})[PROTOTYPE];
-  var key, own, out;
+
+  var nativeSource = GLOBAL ? global : STATIC ? global[TARGET] : (global[TARGET] || {}).prototype;
+
+  var target = GLOBAL ? path : path[TARGET] || (path[TARGET] = {});
+  var targetPrototype = target.prototype;
+
+  var USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, resultProperty;
+
   for (key in source) {
     // contains in native
-    own = !options.forced && target && target[key] !== undefined;
-    if (own && has(exports, key)) continue;
-    // export native or passed
-    out = own ? target[key] : source[key];
-    // prevent global pollution for namespaces
-    exports[key] = GLOBAL && typeof target[key] != 'function' ? source[key]
+    USE_NATIVE = !options.forced && nativeSource && has(nativeSource, key);
+
+    if (USE_NATIVE && has(target, key)) continue;
+
+    // export native or implementation
+    sourceProperty = USE_NATIVE ? nativeSource[key] : source[key];
     // bind timers to global for call from export context
-    : options.bind && own ? bind(out, global)
-    // wrap global constructors for prevent change them in the `pure` version
-    : options.wrap && target[key] == out ? (function (C) {
-      var F = function (a, b, c) {
-        if (this instanceof C) {
-          switch (arguments.length) {
-            case 0: return new C();
-            case 1: return new C(a);
-            case 2: return new C(a, b);
-          } return new C(a, b, c);
-        } return C.apply(this, arguments);
-      };
-      F[PROTOTYPE] = C[PROTOTYPE];
-      return F;
+    if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, global);
+    // wrap global constructors for prevent changs in this version
+    else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
     // make static versions for prototype methods
-    })(out) : PROTO && typeof out == 'function' ? bind(Function.call, out) : out;
-    // export proto methods to path.%CONSTRUCTOR%.virtual.%NAME%
+    else if (PROTO && typeof sourceProperty == 'function') resultProperty = bind(Function.call, sourceProperty);
+    // default case
+    else resultProperty = sourceProperty;
+
+    target[key] = resultProperty;
+
     if (PROTO) {
-      (exports.virtual || (exports.virtual = {}))[key] = out;
-      // export proto methods to path.%CONSTRUCTOR%.prototype.%NAME%
-      if (options.real && expProto && !expProto[key]) hide(expProto, key, out);
+      VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
+      if (!has(path, VIRTUAL_PROTOTYPE)) hide(path, VIRTUAL_PROTOTYPE, {});
+      // export virtual prototype methods
+      path[VIRTUAL_PROTOTYPE][key] = sourceProperty;
+      // export real prototype methods
+      if (options.real && targetPrototype && !targetPrototype[key]) hide(targetPrototype, key, sourceProperty);
     }
   }
 };
