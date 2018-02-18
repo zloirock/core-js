@@ -1,4 +1,5 @@
 var global = require('../internals/global');
+var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
 var setGlobal = require('../internals/set-global');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
@@ -13,6 +14,7 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
   options.bind   - bind methods to the target, required for the `pure` version
   options.wrap   - wrap constructors to preventing global pollution, required for the `pure` version
   options.unsafe - use the simple assignment of property instead of delete + defineProperty
+  options.sham   - add a flag to not completely full polyfills
 */
 module.exports = function (options, source) {
   var TARGET = options.target;
@@ -31,6 +33,10 @@ module.exports = function (options, source) {
     if (!options.forced && targetProperty !== undefined) {
       if (typeof sourceProperty === typeof targetProperty) continue;
       copyConstructorProperties(sourceProperty, targetProperty);
+    }
+    // add a flag to not completely full polyfills
+    if (options.sham || (targetProperty && targetProperty.sham)) {
+      hide(sourceProperty, 'sham', true);
     }
     // extend global
     redefine(target, key, sourceProperty, options.unsafe);
