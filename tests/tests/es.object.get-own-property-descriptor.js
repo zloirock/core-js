@@ -1,3 +1,5 @@
+import { DESCRIPTORS } from '../helpers/constants';
+
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   const { getOwnPropertyDescriptor } = Object;
   assert.isFunction(getOwnPropertyDescriptor);
@@ -18,4 +20,8 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   }
   assert.throws(() => getOwnPropertyDescriptor(null), TypeError, 'throws on null');
   assert.throws(() => getOwnPropertyDescriptor(undefined), TypeError, 'throws on undefined');
+});
+
+QUnit.test('Object.getOwnPropertyDescriptor.sham flag', assert => {
+  assert.same(Object.getOwnPropertyDescriptor.sham, DESCRIPTORS ? undefined : true);
 });

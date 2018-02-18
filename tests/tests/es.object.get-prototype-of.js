@@ -1,3 +1,5 @@
+import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
+
 QUnit.test('Object.getPrototypeOf', assert => {
   const { create, getPrototypeOf } = Object;
   assert.isFunction(getPrototypeOf);
@@ -26,4 +28,8 @@ QUnit.test('Object.getPrototypeOf', assert => {
   assert.throws(() => getPrototypeOf(null), TypeError, 'throws on null');
   assert.throws(() => getPrototypeOf(undefined), TypeError, 'throws on undefined');
   assert.strictEqual(getPrototypeOf('foo'), String.prototype);
+});
+
+QUnit.test('Object.getPrototypeOf.sham flag', assert => {
+  assert.same(Object.getPrototypeOf.sham, CORRECT_PROTOTYPE_GETTER ? undefined : true);
 });
