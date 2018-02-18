@@ -15,14 +15,14 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
   options.unsafe - use the simple assignment of property instead of delete + defineProperty
 */
 module.exports = function (options, source) {
-  var name = options.target;
+  var TARGET = options.target;
   var target, key, targetProperty, sourceProperty;
   if (options.global) {
     target = global;
   } else if (options.stat) {
-    target = global[name] || setGlobal(name, {});
+    target = global[TARGET] || setGlobal(TARGET, {});
   } else {
-    target = (global[name] || {}).prototype;
+    target = (global[TARGET] || {}).prototype;
   }
   if (target) for (key in source) {
     targetProperty = target[key];
