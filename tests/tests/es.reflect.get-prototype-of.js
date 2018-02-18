@@ -1,3 +1,5 @@
+import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
+
 QUnit.test('Reflect.getPrototypeOf', assert => {
   const { getPrototypeOf } = Reflect;
   assert.isFunction(getPrototypeOf);
@@ -7,4 +9,8 @@ QUnit.test('Reflect.getPrototypeOf', assert => {
   assert.nonEnumerable(Reflect, 'getPrototypeOf');
   assert.strictEqual(getPrototypeOf([]), Array.prototype);
   assert.throws(() => getPrototypeOf(42), TypeError, 'throws on primitive');
+});
+
+QUnit.test('Reflect.getPrototypeOf.sham flag', assert => {
+  assert.same(Reflect.getPrototypeOf.sham, CORRECT_PROTOTYPE_GETTER ? undefined : true);
 });
