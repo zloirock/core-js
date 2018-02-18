@@ -1,5 +1,5 @@
 var path = require('../internals/path');
 
 module.exports = function (CONSTRUCTOR) {
-  return path[CONSTRUCTOR].virtual;
+  return path[CONSTRUCTOR + 'Prototype'];
 };
