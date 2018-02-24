@@ -280,5 +280,9 @@ module.exports = {
     'import/no-dynamic-require': 'error',
     // disallow importing from the same path more than once
     'import/no-duplicates': 'error',
+    // forbid a module from importing itself
+    'import/no-self-import': 'error',
+    // forbid useless path segments
+    'import/no-useless-path-segments': 'error',
   },
 };
