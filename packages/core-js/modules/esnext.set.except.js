@@ -8,13 +8,12 @@ var Set = path.Set;
 
 // https://github.com/tc39/set-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
-  symmetricDifference: function symmetricDifference(iterable) {
+  except: function except(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, Set))(set);
     var remover = aFunction(newSet['delete']);
-    var adder = aFunction(newSet.add);
     iterate(iterable, false, function (value) {
-      remover.call(newSet, value) || adder.call(newSet, value);
+      remover.call(newSet, value);
     });
     return newSet;
   }
