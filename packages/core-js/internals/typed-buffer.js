@@ -21,13 +21,13 @@ var DATA_VIEW = 'DataView';
 var PROTOTYPE = 'prototype';
 var WRONG_LENGTH = 'Wrong length!';
 var WRONG_INDEX = 'Wrong index!';
-var $ArrayBuffer = global[ARRAY_BUFFER];
+var NativeArrayBuffer = global[ARRAY_BUFFER];
+var $ArrayBuffer = NativeArrayBuffer;
 var $DataView = global[DATA_VIEW];
 var Math = global.Math;
 var RangeError = global.RangeError;
 // eslint-disable-next-line no-shadow-restricted-names
-var Infinity = global.Infinity;
-var BaseBuffer = $ArrayBuffer;
+var Infinity = 1 / 0;
 var abs = Math.abs;
 var pow = Math.pow;
 var floor = Math.floor;
@@ -35,103 +35,110 @@ var log = Math.log;
 var LN2 = Math.LN2;
 
 // IEEE754 conversions based on https://github.com/feross/ieee754
-function packIEEE754(value, mLen, nBytes) {
-  var buffer = new Array(nBytes);
-  var eLen = nBytes * 8 - mLen - 1;
-  var eMax = (1 << eLen) - 1;
+var packIEEE754 = function (number, mantissaLength, bytes) {
+  var buffer = new Array(bytes);
+  var exponentLength = bytes * 8 - mantissaLength - 1;
+  var eMax = (1 << exponentLength) - 1;
   var eBias = eMax >> 1;
-  var rt = mLen === 23 ? pow(2, -24) - pow(2, -77) : 0;
-  var i = 0;
-  var s = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0;
-  var e, m, c;
-  value = abs(value);
+  var rt = mantissaLength === 23 ? pow(2, -24) - pow(2, -77) : 0;
+  var sign = number < 0 || number === 0 && 1 / number < 0 ? 1 : 0;
+  var index = 0;
+  var exponent, mantissa, c;
+  number = abs(number);
   // eslint-disable-next-line no-self-compare
-  if (value != value || value === Infinity) {
+  if (number != number || number === Infinity) {
     // eslint-disable-next-line no-self-compare
-    m = value != value ? 1 : 0;
-    e = eMax;
+    mantissa = number != number ? 1 : 0;
+    exponent = eMax;
   } else {
-    e = floor(log(value) / LN2);
-    if (value * (c = pow(2, -e)) < 1) {
-      e--;
+    exponent = floor(log(number) / LN2);
+    if (number * (c = pow(2, -exponent)) < 1) {
+      exponent--;
       c *= 2;
     }
-    if (e + eBias >= 1) {
-      value += rt / c;
+    if (exponent + eBias >= 1) {
+      number += rt / c;
     } else {
-      value += rt * pow(2, 1 - eBias);
+      number += rt * pow(2, 1 - eBias);
     }
-    if (value * c >= 2) {
-      e++;
+    if (number * c >= 2) {
+      exponent++;
       c /= 2;
     }
-    if (e + eBias >= eMax) {
-      m = 0;
-      e = eMax;
-    } else if (e + eBias >= 1) {
-      m = (value * c - 1) * pow(2, mLen);
-      e = e + eBias;
+    if (exponent + eBias >= eMax) {
+      mantissa = 0;
+      exponent = eMax;
+    } else if (exponent + eBias >= 1) {
+      mantissa = (number * c - 1) * pow(2, mantissaLength);
+      exponent = exponent + eBias;
     } else {
-      m = value * pow(2, eBias - 1) * pow(2, mLen);
-      e = 0;
+      mantissa = number * pow(2, eBias - 1) * pow(2, mantissaLength);
+      exponent = 0;
     }
   }
-  for (; mLen >= 8; buffer[i++] = m & 255, m /= 256, mLen -= 8);
-  e = e << mLen | m;
-  eLen += mLen;
-  for (; eLen > 0; buffer[i++] = e & 255, e /= 256, eLen -= 8);
-  buffer[--i] |= s * 128;
+  for (; mantissaLength >= 8; buffer[index++] = mantissa & 255, mantissa /= 256, mantissaLength -= 8);
+  exponent = exponent << mantissaLength | mantissa;
+  exponentLength += mantissaLength;
+  for (; exponentLength > 0; buffer[index++] = exponent & 255, exponent /= 256, exponentLength -= 8);
+  buffer[--index] |= sign * 128;
   return buffer;
-}
-function unpackIEEE754(buffer, mLen, nBytes) {
-  var eLen = nBytes * 8 - mLen - 1;
-  var eMax = (1 << eLen) - 1;
+};
+
+var unpackIEEE754 = function (buffer, mantissaLength) {
+  var bytes = buffer.length;
+  var exponentLength = bytes * 8 - mantissaLength - 1;
+  var eMax = (1 << exponentLength) - 1;
   var eBias = eMax >> 1;
-  var nBits = eLen - 7;
-  var i = nBytes - 1;
-  var s = buffer[i--];
-  var e = s & 127;
-  var m;
-  s >>= 7;
-  for (; nBits > 0; e = e * 256 + buffer[i], i--, nBits -= 8);
-  m = e & (1 << -nBits) - 1;
-  e >>= -nBits;
-  nBits += mLen;
-  for (; nBits > 0; m = m * 256 + buffer[i], i--, nBits -= 8);
-  if (e === 0) {
-    e = 1 - eBias;
-  } else if (e === eMax) {
-    return m ? NaN : s ? -Infinity : Infinity;
+  var nBits = exponentLength - 7;
+  var index = bytes - 1;
+  var sign = buffer[index--];
+  var exponent = sign & 127;
+  var mantissa;
+  sign >>= 7;
+  for (; nBits > 0; exponent = exponent * 256 + buffer[index], index--, nBits -= 8);
+  mantissa = exponent & (1 << -nBits) - 1;
+  exponent >>= -nBits;
+  nBits += mantissaLength;
+  for (; nBits > 0; mantissa = mantissa * 256 + buffer[index], index--, nBits -= 8);
+  if (exponent === 0) {
+    exponent = 1 - eBias;
+  } else if (exponent === eMax) {
+    return mantissa ? NaN : sign ? -Infinity : Infinity;
   } else {
-    m = m + pow(2, mLen);
-    e = e - eBias;
-  } return (s ? -1 : 1) * m * pow(2, e - mLen);
-}
+    mantissa = mantissa + pow(2, mantissaLength);
+    exponent = exponent - eBias;
+  } return (sign ? -1 : 1) * mantissa * pow(2, exponent - mantissaLength);
+};
 
-function unpackI32(bytes) {
-  return bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0];
-}
-function packI8(it) {
-  return [it & 0xff];
-}
-function packI16(it) {
-  return [it & 0xff, it >> 8 & 0xff];
-}
-function packI32(it) {
-  return [it & 0xff, it >> 8 & 0xff, it >> 16 & 0xff, it >> 24 & 0xff];
-}
-function packF64(it) {
-  return packIEEE754(it, 52, 8);
-}
-function packF32(it) {
-  return packIEEE754(it, 23, 4);
-}
+var unpackInt32 = function (buffer) {
+  return buffer[3] << 24 | buffer[2] << 16 | buffer[1] << 8 | buffer[0];
+};
 
-function addGetter(C, key) {
-  defineProperty(C[PROTOTYPE], key, { get: function () { return getInternalState(this)[key]; } });
-}
+var packInt8 = function (number) {
+  return [number & 0xff];
+};
 
-function get(view, count, index, isLittleEndian) {
+var packInt16 = function (number) {
+  return [number & 0xff, number >> 8 & 0xff];
+};
+
+var packInt32 = function (number) {
+  return [number & 0xff, number >> 8 & 0xff, number >> 16 & 0xff, number >> 24 & 0xff];
+};
+
+var packFloat32 = function (number) {
+  return packIEEE754(number, 23, 4);
+};
+
+var packFloat64 = function (number) {
+  return packIEEE754(number, 52, 8);
+};
+
+var addGetter = function (Constructor, key) {
+  defineProperty(Constructor[PROTOTYPE], key, { get: function () { return getInternalState(this)[key]; } });
+};
+
+var get = function (view, count, index, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
   var store = getInternalState(view);
@@ -140,8 +147,9 @@ function get(view, count, index, isLittleEndian) {
   var start = intIndex + store.byteOffset;
   var pack = bytes.slice(start, start + count);
   return isLittleEndian ? pack : pack.reverse();
-}
-function set(view, count, index, conversion, value, isLittleEndian) {
+};
+
+var set = function (view, count, index, conversion, value, isLittleEndian) {
   var numIndex = +index;
   var intIndex = toIndex(numIndex);
   var store = getInternalState(view);
@@ -150,7 +158,7 @@ function set(view, count, index, conversion, value, isLittleEndian) {
   var start = intIndex + store.byteOffset;
   var pack = conversion(+value);
   for (var i = 0; i < count; i++) bytes[start + i] = pack[isLittleEndian ? i : count - i - 1];
-}
+};
 
 if (!$typed.ABV) {
   $ArrayBuffer = function ArrayBuffer(length) {
@@ -206,77 +214,78 @@ if (!$typed.ABV) {
       return bytes[1] << 8 | bytes[0];
     },
     getInt32: function getInt32(byteOffset /* , littleEndian */) {
-      return unpackI32(get(this, 4, byteOffset, arguments[1]));
+      return unpackInt32(get(this, 4, byteOffset, arguments[1]));
     },
     getUint32: function getUint32(byteOffset /* , littleEndian */) {
-      return unpackI32(get(this, 4, byteOffset, arguments[1])) >>> 0;
+      return unpackInt32(get(this, 4, byteOffset, arguments[1])) >>> 0;
     },
     getFloat32: function getFloat32(byteOffset /* , littleEndian */) {
-      return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 23, 4);
+      return unpackIEEE754(get(this, 4, byteOffset, arguments[1]), 23);
     },
     getFloat64: function getFloat64(byteOffset /* , littleEndian */) {
-      return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 52, 8);
+      return unpackIEEE754(get(this, 8, byteOffset, arguments[1]), 52);
     },
     setInt8: function setInt8(byteOffset, value) {
-      set(this, 1, byteOffset, packI8, value);
+      set(this, 1, byteOffset, packInt8, value);
     },
     setUint8: function setUint8(byteOffset, value) {
-      set(this, 1, byteOffset, packI8, value);
+      set(this, 1, byteOffset, packInt8, value);
     },
     setInt16: function setInt16(byteOffset, value /* , littleEndian */) {
-      set(this, 2, byteOffset, packI16, value, arguments[2]);
+      set(this, 2, byteOffset, packInt16, value, arguments[2]);
     },
     setUint16: function setUint16(byteOffset, value /* , littleEndian */) {
-      set(this, 2, byteOffset, packI16, value, arguments[2]);
+      set(this, 2, byteOffset, packInt16, value, arguments[2]);
     },
     setInt32: function setInt32(byteOffset, value /* , littleEndian */) {
-      set(this, 4, byteOffset, packI32, value, arguments[2]);
+      set(this, 4, byteOffset, packInt32, value, arguments[2]);
     },
     setUint32: function setUint32(byteOffset, value /* , littleEndian */) {
-      set(this, 4, byteOffset, packI32, value, arguments[2]);
+      set(this, 4, byteOffset, packInt32, value, arguments[2]);
     },
     setFloat32: function setFloat32(byteOffset, value /* , littleEndian */) {
-      set(this, 4, byteOffset, packF32, value, arguments[2]);
+      set(this, 4, byteOffset, packFloat32, value, arguments[2]);
     },
     setFloat64: function setFloat64(byteOffset, value /* , littleEndian */) {
-      set(this, 8, byteOffset, packF64, value, arguments[2]);
+      set(this, 8, byteOffset, packFloat64, value, arguments[2]);
     }
   });
 } else {
   if (!fails(function () {
-    $ArrayBuffer(1);
+    NativeArrayBuffer(1);
   }) || !fails(function () {
-    new $ArrayBuffer(-1); // eslint-disable-line no-new
+    new NativeArrayBuffer(-1); // eslint-disable-line no-new
   }) || fails(function () {
-    new $ArrayBuffer(); // eslint-disable-line no-new
-    new $ArrayBuffer(1.5); // eslint-disable-line no-new
-    new $ArrayBuffer(NaN); // eslint-disable-line no-new
-    return $ArrayBuffer.name != ARRAY_BUFFER;
+    new NativeArrayBuffer(); // eslint-disable-line no-new
+    new NativeArrayBuffer(1.5); // eslint-disable-line no-new
+    new NativeArrayBuffer(NaN); // eslint-disable-line no-new
+    return NativeArrayBuffer.name != ARRAY_BUFFER;
   })) {
     $ArrayBuffer = function ArrayBuffer(length) {
       anInstance(this, $ArrayBuffer);
-      return new BaseBuffer(toIndex(length));
+      return new NativeArrayBuffer(toIndex(length));
     };
-    var ArrayBufferProto = $ArrayBuffer[PROTOTYPE] = BaseBuffer[PROTOTYPE];
-    for (var keys = getOwnPropertyNames(BaseBuffer), j = 0, key; keys.length > j;) {
-      if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, BaseBuffer[key]);
+    var ArrayBufferPrototype = $ArrayBuffer[PROTOTYPE] = NativeArrayBuffer[PROTOTYPE];
+    for (var keys = getOwnPropertyNames(NativeArrayBuffer), j = 0, key; keys.length > j;) {
+      if (!((key = keys[j++]) in $ArrayBuffer)) hide($ArrayBuffer, key, NativeArrayBuffer[key]);
     }
-    ArrayBufferProto.constructor = $ArrayBuffer;
+    ArrayBufferPrototype.constructor = $ArrayBuffer;
   }
   // iOS Safari 7.x bug
-  var view = new $DataView(new $ArrayBuffer(2));
-  var $setInt8 = $DataView[PROTOTYPE].setInt8;
-  view.setInt8(0, 2147483648);
-  view.setInt8(1, 2147483649);
-  if (view.getInt8(0) || !view.getInt8(1)) redefineAll($DataView[PROTOTYPE], {
+  var testView = new $DataView(new $ArrayBuffer(2));
+  var nativeSetInt8 = $DataView[PROTOTYPE].setInt8;
+  testView.setInt8(0, 2147483648);
+  testView.setInt8(1, 2147483649);
+  if (testView.getInt8(0) || !testView.getInt8(1)) redefineAll($DataView[PROTOTYPE], {
     setInt8: function setInt8(byteOffset, value) {
-      $setInt8.call(this, byteOffset, value << 24 >> 24);
+      nativeSetInt8.call(this, byteOffset, value << 24 >> 24);
     },
     setUint8: function setUint8(byteOffset, value) {
-      $setInt8.call(this, byteOffset, value << 24 >> 24);
+      nativeSetInt8.call(this, byteOffset, value << 24 >> 24);
     }
   }, true);
 }
+
 setToStringTag($ArrayBuffer, ARRAY_BUFFER);
 setToStringTag($DataView, DATA_VIEW);
 hide($DataView[PROTOTYPE], $typed.VIEW, true);
