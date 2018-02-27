@@ -8,12 +8,13 @@ var Set = path.Set;
 
 // https://github.com/tc39/set-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
-  difference: function difference(iterable) {
+  xor: function xor(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, Set))(set);
     var remover = aFunction(newSet['delete']);
+    var adder = aFunction(newSet.add);
     iterate(iterable, false, function (value) {
-      remover.call(newSet, value);
+      remover.call(newSet, value) || adder.call(newSet, value);
     });
     return newSet;
   }

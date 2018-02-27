@@ -299,7 +299,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
   ok(load('features/set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
   ok(load('features/set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
-  ok(load('features/set/difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
+  ok(load('features/set/except')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
   ok(load('features/set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(load('features/set/filter')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/find')(new Set([2, 3, 4]), it => it % 2) === 3);
@@ -308,7 +308,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/map')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);
   ok(load('features/set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
-  ok(load('features/set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
+  ok(load('features/set/xor')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
   ok(load('features/set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
   ok('all' in load('features/promise'));
   ok(load('features/promise/try')(() => 42) instanceof load('features/promise'));
