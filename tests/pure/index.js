@@ -160,6 +160,7 @@ import './esnext.map.map-keys';
 import './esnext.map.map-values';
 import './esnext.map.merge';
 import './esnext.map.of';
+import './esnext.object.from-entries';
 import './esnext.set.add-all';
 import './esnext.set.delete-all';
 import './esnext.set.except';

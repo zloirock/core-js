@@ -1783,6 +1783,35 @@ core-js(-pure)/features/asap
 ```js
 asap(() => console.log('called as microtask'));
 ```
+* `Object.fromEntries`, [proposal](https://github.com/bathos/object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.object.from-entries.js)
+```js
+class Object {
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/object/from-entries
+```
+[*Examples*]():
+```js
+const map = new Map([['a', 1], ['b', 2]]);
+
+Object.fromEntries(map); // => { a: 1, b: 2 }
+
+class Unit {
+  constructor(id) {
+    this.id = id;
+  }
+  toString() {
+    return `unit${ this.id }`;
+  }
+}
+
+const units = new Set([new Unit(101), new Unit(102)]);
+
+Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
+```
 
 #### Pre-stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
