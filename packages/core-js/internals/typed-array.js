@@ -3,7 +3,7 @@ if (require('../internals/descriptors')) {
   var global = require('../internals/global');
   var fails = require('../internals/fails');
   var $export = require('../internals/export');
-  var $typed = require('../internals/typed');
+  var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
   var TypedBufferModule = require('../internals/typed-buffer');
   var bind = require('../internals/bind-context');
   var anInstance = require('../internals/an-instance');
@@ -75,9 +75,10 @@ if (require('../internals/descriptors')) {
   var TAG = wellKnownSymbol('toStringTag');
   var TYPED_CONSTRUCTOR = uid('typed_constructor');
   var DEF_CONSTRUCTOR = uid('def_constructor');
-  var ALL_CONSTRUCTORS = $typed.CONSTR;
-  var TYPED_ARRAY = $typed.TYPED;
-  var VIEW = $typed.VIEW;
+  var TYPED_ARRAY = uid('typed_array');
+  var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
+  var aTypedArray = ArrayBufferViewCore.aTypedArray;
+  var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var WRONG_LENGTH = 'Wrong length!';
 
   var internalTypedArrayMap = createArrayMethod(1, function (O, length) {
@@ -97,11 +98,6 @@ if (require('../internals/descriptors')) {
     var offset = toInteger(it);
     if (offset < 0 || offset % BYTES) throw RangeError('Wrong offset!');
     return offset;
-  };
-
-  var aTypedArray = function (it) {
-    if (isObject(it) && TYPED_ARRAY in it) return it;
-    throw TypeError(it + ' is not a typed array!');
   };
 
   var allocateTypedArray = function (C, length) {
@@ -262,8 +258,7 @@ if (require('../internals/descriptors')) {
   };
 
   var isTypedArrayIndex = function (target, key) {
-    return isObject(target)
-      && target[TYPED_ARRAY]
+    return isTypedArray(target)
       && typeof key != 'symbol'
       && key in target
       && String(+key) == String(key);
@@ -289,12 +284,12 @@ if (require('../internals/descriptors')) {
     } return nativeDefineProperty(target, key, descriptor);
   };
 
-  if (!ALL_CONSTRUCTORS) {
+  if (!NATIVE_ARRAY_BUFFER_VIEWS) {
     getOwnPropertyDescriptorModule.f = getOwnPropertyDescriptor;
     definePropertyModule.f = defineProperty;
   }
 
-  $export({ target: 'Object', stat: true, forced: !ALL_CONSTRUCTORS }, {
+  $export({ target: 'Object', stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
     getOwnPropertyDescriptor: getOwnPropertyDescriptor,
     defineProperty: defineProperty
   });
@@ -332,7 +327,7 @@ if (require('../internals/descriptors')) {
     var TypedArray = global[NAME];
     var Base = TypedArray || {};
     var TAC = TypedArray && getPrototypeOf(TypedArray);
-    var FORCED = !TypedArray || !$typed.ABV;
+    var FORCED = !TypedArray || !ArrayBufferViewCore.NATIVE_ARRAY_BUFFER;
     var exported = {};
     var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
     var getter = function (that, index) {
@@ -378,7 +373,7 @@ if (require('../internals/descriptors')) {
             if (byteLength + byteOffset > $len) throw RangeError(WRONG_LENGTH);
           }
           length = byteLength / BYTES;
-        } else if (TYPED_ARRAY in data) {
+        } else if (isTypedArray(data)) {
           return fromList(TypedArray, data);
         } else {
           return typedArrayFrom.call(TypedArray, data);
@@ -415,7 +410,7 @@ if (require('../internals/descriptors')) {
               ? new Base(data, toOffset(typedArrayOffset, BYTES))
               : new Base(data);
         }
-        if (TYPED_ARRAY in data) return fromList(TypedArray, data);
+        if (isTypedArray(data)) return fromList(TypedArray, data);
         return typedArrayFrom.call(TypedArray, data);
       });
       arrayForEach(TAC !== Function.prototype
@@ -433,7 +428,6 @@ if (require('../internals/descriptors')) {
     var $iterator = TypedArrayIterators.values;
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
-    hide(TypedArrayPrototype, VIEW, true);
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
 
     if (CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)) {
@@ -444,7 +438,7 @@ if (require('../internals/descriptors')) {
 
     exported[NAME] = TypedArray;
 
-    $export({ global: true, wrap: true, forced: TypedArray != Base }, exported);
+    $export({ global: true, forced: TypedArray != Base }, exported);
 
     $export({ target: NAME, stat: true }, {
       BYTES_PER_ELEMENT: BYTES
