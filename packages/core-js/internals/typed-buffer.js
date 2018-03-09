@@ -1,7 +1,7 @@
 'use strict';
 var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
-var $typed = require('../internals/typed');
+var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var hide = require('../internals/hide');
 var redefineAll = require('../internals/redefine-all');
 var fails = require('../internals/fails');
@@ -160,7 +160,7 @@ var set = function (view, count, index, conversion, value, isLittleEndian) {
   for (var i = 0; i < count; i++) bytes[start + i] = pack[isLittleEndian ? i : count - i - 1];
 };
 
-if (!$typed.ABV) {
+if (!ArrayBufferViewCore.NATIVE_ARRAY_BUFFER) {
   $ArrayBuffer = function ArrayBuffer(length) {
     anInstance(this, $ArrayBuffer, ARRAY_BUFFER);
     var byteLength = toIndex(length);
@@ -288,6 +288,5 @@ if (!$typed.ABV) {
 
 setToStringTag($ArrayBuffer, ARRAY_BUFFER);
 setToStringTag($DataView, DATA_VIEW);
-hide($DataView[PROTOTYPE], $typed.VIEW, true);
 exports[ARRAY_BUFFER] = $ArrayBuffer;
 exports[DATA_VIEW] = $DataView;

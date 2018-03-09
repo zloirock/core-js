@@ -1,32 +1,33 @@
 'use strict';
 var $export = require('../internals/export');
-var $typed = require('../internals/typed');
-var buffer = require('../internals/typed-buffer');
+var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var TypedBufferModule = require('../internals/typed-buffer');
 var anObject = require('../internals/an-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
-var isObject = require('../internals/is-object');
-var NativeArrayBuffer = require('../internals/global').ArrayBuffer;
-var speciesConstructor = require('../internals/species-constructor');
-var ArrayBuffer = buffer.ArrayBuffer;
-var DataView = buffer.DataView;
-var nativeIsView = $typed.ABV && ArrayBuffer.isView;
-var nativeArrayBufferSlice = ArrayBuffer.prototype.slice;
-var VIEW = $typed.VIEW;
 var ARRAY_BUFFER = 'ArrayBuffer';
+var NativeArrayBuffer = require('../internals/global')[ARRAY_BUFFER];
+var speciesConstructor = require('../internals/species-constructor');
+var ArrayBuffer = TypedBufferModule[ARRAY_BUFFER];
+var DataView = TypedBufferModule.DataView;
+var nativeIsView = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER && ArrayBuffer.isView;
+var nativeArrayBufferSlice = ArrayBuffer.prototype.slice;
+var isArrayBufferView = ArrayBufferViewCore.isArrayBufferView;
+var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
+var INCORRECT_SLICE = require('../internals/fails')(function () {
+  return !new ArrayBuffer(2).slice(1, undefined).byteLength;
+});
 
-$export({ global: true, wrap: true, forced: NativeArrayBuffer !== ArrayBuffer }, { ArrayBuffer: ArrayBuffer });
+$export({ global: true, forced: NativeArrayBuffer !== ArrayBuffer }, { ArrayBuffer: ArrayBuffer });
 
-$export({ target: ARRAY_BUFFER, stat: true, forced: !$typed.CONSTR }, {
+$export({ target: ARRAY_BUFFER, stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
   // 24.1.3.1 ArrayBuffer.isView(arg)
   isView: function isView(it) {
-    return nativeIsView && nativeIsView(it) || isObject(it) && VIEW in it;
+    return nativeIsView && nativeIsView(it) || isArrayBufferView(it);
   }
 });
 
-$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: require('../internals/fails')(function () {
-  return !new ArrayBuffer(2).slice(1, undefined).byteLength;
-}) }, {
+$export({ target: ARRAY_BUFFER, proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
   // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end) {
     if (nativeArrayBufferSlice !== undefined && end === undefined) {
