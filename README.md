@@ -1390,6 +1390,16 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
+* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.async-iterator.js)
+```js
+class Symbol {
+  static asyncIterator: @@asyncIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/symbol/async-iterator
+```
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1471,16 +1481,6 @@ core-js(-pure)/features/global
 [*Examples*](http://goo.gl/gEqMl7):
 ```js
 global.Array === Array; // => true
-```
-* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.async-iterator.js)
-```js
-class Symbol {
-  static asyncIterator: @@asyncIterator;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/features/symbol/async-iterator
 ```
 
 #### Stage 2 proposals
