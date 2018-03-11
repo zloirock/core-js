@@ -2,6 +2,7 @@
 module.exports = {
   list: [
     'es.symbol',
+    'es.symbol.async-iterator',
     'es.object.define-property',
     'es.object.define-properties',
     'es.object.get-own-property-descriptor',
@@ -114,6 +115,7 @@ module.exports = {
     'es.regexp.search',
     'es.regexp.split',
     'es.promise',
+    'es.promise.finally',
     'es.map',
     'es.set',
     'es.weak-map',
@@ -156,7 +158,6 @@ module.exports = {
     'esnext.string.trim-right',
     'esnext.string.replace-all',
     'esnext.string.match-all',
-    'esnext.symbol.async-iterator',
     'esnext.symbol.description',
     'esnext.symbol.observable',
     'esnext.map.filter',
@@ -201,7 +202,6 @@ module.exports = {
     'esnext.math.signbit',
     'esnext.number.from-string',
     'esnext.object.from-entries',
-    'esnext.promise.finally',
     'esnext.promise.try',
     'esnext.reflect.define-metadata',
     'esnext.reflect.delete-metadata',
