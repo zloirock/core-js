@@ -747,12 +747,13 @@ new Date(NaN).toString(); // => 'Invalid Date'
 ```
 
 #### ECMAScript: Promise
-Module [`es.promise`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.promise.js).
+Modules [`es.promise`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.promise.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.promise.finally.js).
 ```js
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled: Function, onRejected: Function): Promise;
   catch(onRejected: Function): Promise;
+  finally(onFinally: Function): Promise;
   static resolve(x: any): Promise;
   static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
@@ -763,6 +764,7 @@ class Promise {
 ```
 core-js(-pure)/es/promise
 core-js(-pure)/features/promise
+core-js(-pure)/features/promise/finally
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
@@ -791,6 +793,12 @@ Promise.resolve(42).then(x => console.log(x)); // => 42
 Promise.reject(42).catch(x => console.log(x)); // => 42
 
 Promise.resolve($.getJSON('/data.json')); // => ES promise
+```
+`Promise#finally` [*example*](https://goo.gl/AhyBbJ):
+```js
+Promise.resolve(42).finally(() => console.log('You will see it anyway'));
+
+Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
 `Promise.all` [*example*](http://goo.gl/RdoDBZ):
 ```js
@@ -873,10 +881,11 @@ setTimeout(() => promise.catch(() => {}), 1e3);
 ```
 
 #### ECMAScript: Symbol
-Module [`es.symbol`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.symbol.js).
+Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.symbol.js) and [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.symbol.async-iterator.js).
 ```js
 class Symbol {
   constructor(description?): symbol;
+  static asyncIterator: @@asyncIterator;
   static hasInstance: @@hasInstance;
   static isConcatSpreadable: @@isConcatSpreadable;
   static iterator: @@iterator;
@@ -917,6 +926,7 @@ namespace JSON {
 ```
 core-js(-pure)/es/symbol
 core-js(-pure)/features/symbol
+core-js(-pure)/features/symbol/async-iterator
 core-js(-pure)/features/symbol/has-instance
 core-js(-pure)/features/symbol/is-concat-spreadable
 core-js(-pure)/features/symbol/iterator
@@ -1373,33 +1383,7 @@ instance.c; // => 42
 ```js
 core-js(-pure)/stage/4
 ```
-
-* `Promise#finally` [proposal](https://github.com/tc39/proposal-promise-finally) - module [`esnext.promise.finally`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.promise.finally.js)
-```js
-class Promise {
-  finally(onFinally: Function): promise;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/features/promise/finally
-```
-[*Examples*](https://goo.gl/AhyBbJ):
-```js
-Promise.resolve(42).finally(() => console.log('You will see it anyway'));
-
-Promise.reject(42).finally(() => console.log('You will see it anyway'));
-```
-* `Symbol.asyncIterator` for [async iteration proposal](https://github.com/tc39/proposal-async-iteration) - module [`esnext.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.async-iterator.js)
-```js
-class Symbol {
-  static asyncIterator: @@asyncIterator;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/features/symbol/async-iterator
-```
+None.
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs)

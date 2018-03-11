@@ -1,4 +1,5 @@
 require('../modules/es.symbol');
+require('../modules/es.symbol.async-iterator');
 require('../modules/es.object.create');
 require('../modules/es.object.define-property');
 require('../modules/es.object.define-properties');
@@ -116,6 +117,7 @@ require('../modules/es.regexp.replace');
 require('../modules/es.regexp.search');
 require('../modules/es.regexp.split');
 require('../modules/es.promise');
+require('../modules/es.promise.finally');
 require('../modules/es.map');
 require('../modules/es.set');
 require('../modules/es.weak-map');

@@ -1,4 +1,5 @@
-// https://github.com/tc39/proposal-promise-finally
+// `Promise#finally` method
+// https://tc39.github.io/ecma262/#sec-promise.prototype.finally
 'use strict';
 var path = require('../internals/path');
 var global = require('../internals/global');
