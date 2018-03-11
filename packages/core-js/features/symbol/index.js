@@ -1,6 +1,6 @@
 require('../../modules/es.symbol');
 require('../../modules/es.object.to-string');
-require('../../modules/esnext.symbol.async-iterator');
+require('../../modules/es.symbol.async-iterator');
 require('../../modules/esnext.symbol.description');
 require('../../modules/esnext.symbol.observable');
 

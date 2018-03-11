@@ -1,4 +1,4 @@
 require('../../modules/es.promise');
-require('../../modules/esnext.promise.finally');
+require('../../modules/es.promise.finally');
 
 module.exports = require('../../internals/entry-unbind')('Promise', 'finally');
