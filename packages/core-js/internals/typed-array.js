@@ -8,11 +8,9 @@ if (require('../internals/descriptors')) {
   var anInstance = require('../internals/an-instance');
   var createPropertyDescriptor = require('../internals/create-property-descriptor');
   var hide = require('../internals/hide');
-  var redefineAll = require('../internals/redefine-all');
   var toLength = require('../internals/to-length');
   var toIndex = require('../internals/to-index');
   var toOffset = require('../internals/to-offset');
-  var toAbsoluteIndex = require('../internals/to-absolute-index');
   var toPrimitive = require('../internals/to-primitive');
   var has = require('../internals/has');
   var classof = require('../internals/classof');
@@ -24,8 +22,7 @@ if (require('../internals/descriptors')) {
   var TAG = require('../internals/well-known-symbol')('toStringTag');
   var uid = require('../internals/uid');
   var typedArrayFrom = require('../internals/typed-array-from');
-  var createArrayMethod = require('../internals/array-methods');
-  var speciesConstructor = require('../internals/species-constructor');
+  var arrayForEach = require('../internals/array-methods')(0);
   var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
   var setSpecies = require('../internals/set-species');
   var definePropertyModule = require('../internals/object-define-property');
@@ -36,7 +33,6 @@ if (require('../internals/descriptors')) {
   var nativeDefineProperty = definePropertyModule.f;
   var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
-  var TypeError = global.TypeError;
   var Uint8Array = global.Uint8Array;
   var ARRAY_BUFFER = 'ArrayBuffer';
   var SHARED_BUFFER = 'Shared' + ARRAY_BUFFER;
@@ -44,71 +40,28 @@ if (require('../internals/descriptors')) {
   var PROTOTYPE = 'prototype';
   var ArrayBuffer = TypedBufferModule.ArrayBuffer;
   var DataView = TypedBufferModule.DataView;
-  var arrayForEach = createArrayMethod(0);
-  var arrayFilter = createArrayMethod(2);
-  var arraySlice = [].slice;
-  var TYPED_CONSTRUCTOR = uid('typed_constructor');
-  var DEF_CONSTRUCTOR = uid('def_constructor');
   var TYPED_ARRAY = uid('typed_array');
   var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
   var TypedArrayConstructor = ArrayBufferViewCore.TypedArray;
-  var aTypedArray = ArrayBufferViewCore.aTypedArray;
+  var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var WRONG_LENGTH = 'Wrong length!';
-
-  var internalTypedArrayMap = createArrayMethod(1, function (O, length) {
-    return allocateTypedArray(speciesConstructor(O, O[DEF_CONSTRUCTOR]), length);
-  });
 
   var LITTLE_ENDIAN = fails(function () {
     // eslint-disable-next-line no-undef
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
 
-  var allocateTypedArray = function (C, length) {
-    if (!(isObject(C) && TYPED_CONSTRUCTOR in C)) {
-      throw TypeError('It is not a typed array constructor!');
-    } return new C(length);
-  };
-
-  var speciesFromList = function (O, list) {
-    return fromList(speciesConstructor(O, O[DEF_CONSTRUCTOR]), list);
-  };
-
   var fromList = function (C, list) {
     var index = 0;
     var length = list.length;
-    var result = allocateTypedArray(C, length);
+    var result = new (aTypedArrayConstructor(C))(length);
     while (length > index) result[index] = list[index++];
     return result;
   };
 
   var addGetter = function (it, key) {
     nativeDefineProperty(it, key, { get: function () { return getInternalState(this)[key]; } });
-  };
-
-  var TypedArrayPrototypeMethods = {
-    filter: function filter(callbackfn /* , thisArg */) {
-      return speciesFromList(this, arrayFilter(aTypedArray(this), callbackfn,
-        arguments.length > 1 ? arguments[1] : undefined));
-    },
-    map: function map(mapfn /* , thisArg */) {
-      return internalTypedArrayMap(aTypedArray(this), mapfn, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    subarray: function subarray(begin, end) {
-      var O = aTypedArray(this);
-      var length = O.length;
-      var beginIndex = toAbsoluteIndex(begin, length);
-      return new (speciesConstructor(O, O[DEF_CONSTRUCTOR]))(
-        O.buffer,
-        O.byteOffset + beginIndex * O.BYTES_PER_ELEMENT,
-        toLength((end === undefined ? length : toAbsoluteIndex(end, length)) - beginIndex)
-      );
-    }
-  };
-
-  var typedArraySlice = function slice(start, end) {
-    return speciesFromList(this, arraySlice.call(aTypedArray(this), start, end));
   };
 
   var isTypedArrayIndex = function (target, key) {
@@ -148,11 +101,7 @@ if (require('../internals/descriptors')) {
     defineProperty: defineProperty
   });
 
-  var $TypedArrayPrototype$ = redefineAll({}, TypedArrayPrototypeMethods);
-  redefineAll($TypedArrayPrototype$, {
-    slice: typedArraySlice,
-    constructor: function () { /* noop */ }
-  });
+  var $TypedArrayPrototype$ = {};
   addGetter($TypedArrayPrototype$, 'buffer');
   addGetter($TypedArrayPrototype$, 'byteOffset');
   addGetter($TypedArrayPrototype$, 'byteLength');
@@ -232,7 +181,6 @@ if (require('../internals/descriptors')) {
       });
       if (setPrototypeOf) setPrototypeOf(TypedArray, TypedArrayConstructor);
       TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
-      hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if (!fails(function () {
       TypedArray(1);
     }) || !fails(function () {
@@ -265,11 +213,9 @@ if (require('../internals/descriptors')) {
         if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
       });
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
-      TypedArrayPrototype.constructor = TypedArray;
     }
-    hide(TypedArray, TYPED_CONSTRUCTOR, true);
+    if (TypedArrayPrototype.constructor !== TypedArray) hide(TypedArrayPrototype, 'constructor', TypedArray);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
-    hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
 
     if (CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)) {
       nativeDefineProperty(TypedArrayPrototype, TAG, {
@@ -281,18 +227,9 @@ if (require('../internals/descriptors')) {
 
     $export({ global: true, forced: TypedArray != Base }, exported);
 
-    $export({ target: NAME, stat: true }, {
-      BYTES_PER_ELEMENT: BYTES
-    });
-
+    if (!(BYTES_PER_ELEMENT in TypedArray)) hide(TypedArray, BYTES_PER_ELEMENT, BYTES);
     if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
-    $export({ target: NAME, proto: true }, TypedArrayPrototypeMethods);
-
     setSpecies(NAME);
-
-    $export({ target: NAME, proto: true, forced: fails(function () {
-      new TypedArray(1).slice();
-    }) }, { slice: typedArraySlice });
   };
 } else module.exports = function () { /* empty */ };
