@@ -5,27 +5,25 @@ if (require('../internals/descriptors')) {
   var $export = require('../internals/export');
   var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
   var TypedBufferModule = require('../internals/typed-buffer');
-  var bind = require('../internals/bind-context');
   var anInstance = require('../internals/an-instance');
   var createPropertyDescriptor = require('../internals/create-property-descriptor');
   var hide = require('../internals/hide');
   var redefineAll = require('../internals/redefine-all');
-  var toInteger = require('../internals/to-integer');
   var toLength = require('../internals/to-length');
   var toIndex = require('../internals/to-index');
+  var toOffset = require('../internals/to-offset');
   var toAbsoluteIndex = require('../internals/to-absolute-index');
   var toPrimitive = require('../internals/to-primitive');
   var has = require('../internals/has');
   var classof = require('../internals/classof');
   var isObject = require('../internals/is-object');
-  var toObject = require('../internals/to-object');
-  var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
   var create = require('../internals/object-create');
+  var setPrototypeOf = require('../internals/object-set-prototype-of');
   var getPrototypeOf = require('../internals/object-get-prototype-of');
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-  var getIteratorMethod = require('../internals/get-iterator-method');
   var TAG = require('../internals/well-known-symbol')('toStringTag');
   var uid = require('../internals/uid');
+  var typedArrayFrom = require('../internals/typed-array-from');
   var createArrayMethod = require('../internals/array-methods');
   var speciesConstructor = require('../internals/species-constructor');
   var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
@@ -53,6 +51,7 @@ if (require('../internals/descriptors')) {
   var DEF_CONSTRUCTOR = uid('def_constructor');
   var TYPED_ARRAY = uid('typed_array');
   var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
+  var TypedArrayConstructor = ArrayBufferViewCore.TypedArray;
   var aTypedArray = ArrayBufferViewCore.aTypedArray;
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var WRONG_LENGTH = 'Wrong length!';
@@ -65,16 +64,6 @@ if (require('../internals/descriptors')) {
     // eslint-disable-next-line no-undef
     return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
   });
-
-  var FORCED_SET = !!Uint8Array && !!Uint8Array[PROTOTYPE].set && fails(function () {
-    new Uint8Array(1).set({});
-  });
-
-  var toOffset = function (it, BYTES) {
-    var offset = toInteger(it);
-    if (offset < 0 || offset % BYTES) throw RangeError('Wrong offset!');
-    return offset;
-  };
 
   var allocateTypedArray = function (C, length) {
     if (!(isObject(C) && TYPED_CONSTRUCTOR in C)) {
@@ -96,33 +85,6 @@ if (require('../internals/descriptors')) {
 
   var addGetter = function (it, key) {
     nativeDefineProperty(it, key, { get: function () { return getInternalState(this)[key]; } });
-  };
-
-  var typedArrayFrom = function from(source /* , mapfn, thisArg */) {
-    var O = toObject(source);
-    var aLen = arguments.length;
-    var mapfn = aLen > 1 ? arguments[1] : undefined;
-    var mapping = mapfn !== undefined;
-    var iterFn = getIteratorMethod(O);
-    var i, length, values, result, step, iterator;
-    if (iterFn != undefined && !isArrayIteratorMethod(iterFn)) {
-      for (iterator = iterFn.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
-        values.push(step.value);
-      } O = values;
-    }
-    if (mapping && aLen > 2) mapfn = bind(mapfn, arguments[2], 2);
-    for (i = 0, length = toLength(O.length), result = allocateTypedArray(this, length); length > i; i++) {
-      result[i] = mapping ? mapfn(O[i], i) : O[i];
-    }
-    return result;
-  };
-
-  var typedArrayOf = function of(/* ...items */) {
-    var index = 0;
-    var length = arguments.length;
-    var result = allocateTypedArray(this, length);
-    while (length > index) result[index] = arguments[index++];
-    return result;
   };
 
   var TypedArrayPrototypeMethods = {
@@ -147,17 +109,6 @@ if (require('../internals/descriptors')) {
 
   var typedArraySlice = function slice(start, end) {
     return speciesFromList(this, arraySlice.call(aTypedArray(this), start, end));
-  };
-
-  var typedArraySet = function set(arrayLike /* , offset */) {
-    aTypedArray(this);
-    var offset = toOffset(arguments[1], 1);
-    var length = this.length;
-    var src = toObject(arrayLike);
-    var len = toLength(src.length);
-    var index = 0;
-    if (len + offset > length) throw RangeError(WRONG_LENGTH);
-    while (index < len) this[offset + index] = src[index++];
   };
 
   var isTypedArrayIndex = function (target, key) {
@@ -200,7 +151,6 @@ if (require('../internals/descriptors')) {
   var $TypedArrayPrototype$ = redefineAll({}, TypedArrayPrototypeMethods);
   redefineAll($TypedArrayPrototype$, {
     slice: typedArraySlice,
-    set: typedArraySet,
     constructor: function () { /* noop */ }
   });
   addGetter($TypedArrayPrototype$, 'buffer');
@@ -280,6 +230,7 @@ if (require('../internals/descriptors')) {
         });
         while (index < length) addElement(that, index++);
       });
+      if (setPrototypeOf) setPrototypeOf(TypedArray, TypedArrayConstructor);
       TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
       hide(TypedArrayPrototype, 'constructor', TypedArray);
     } else if (!fails(function () {
@@ -306,6 +257,7 @@ if (require('../internals/descriptors')) {
         if (isTypedArray(data)) return fromList(TypedArray, data);
         return typedArrayFrom.call(TypedArray, data);
       });
+      if (setPrototypeOf) setPrototypeOf(TypedArray, TypedArrayConstructor);
       arrayForEach(TAC !== Function.prototype
         ? getOwnPropertyNames(Base).concat(getOwnPropertyNames(TAC))
         : getOwnPropertyNames(Base)
@@ -333,18 +285,11 @@ if (require('../internals/descriptors')) {
       BYTES_PER_ELEMENT: BYTES
     });
 
-    $export({ target: NAME, stat: true, forced: fails(function () { Base.of.call(TypedArray, 1); }) }, {
-      from: typedArrayFrom,
-      of: typedArrayOf
-    });
-
     if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
 
     $export({ target: NAME, proto: true }, TypedArrayPrototypeMethods);
 
     setSpecies(NAME);
-
-    $export({ target: NAME, proto: true, forced: FORCED_SET }, { set: typedArraySet });
 
     $export({ target: NAME, proto: true, forced: fails(function () {
       new TypedArray(1).slice();
