@@ -24,17 +24,12 @@ if (require('../internals/descriptors')) {
   var getPrototypeOf = require('../internals/object-get-prototype-of');
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
   var getIteratorMethod = require('../internals/get-iterator-method');
+  var TAG = require('../internals/well-known-symbol')('toStringTag');
   var uid = require('../internals/uid');
-  var wellKnownSymbol = require('../internals/well-known-symbol');
   var createArrayMethod = require('../internals/array-methods');
-  var createArrayIncludes = require('../internals/array-includes');
   var speciesConstructor = require('../internals/species-constructor');
-  var ArrayIterators = require('../modules/es.array.iterator');
-  var Iterators = require('../internals/iterators');
   var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
   var setSpecies = require('../internals/set-species');
-  var arrayFill = require('../internals/array-fill');
-  var arrayCopyWithin = require('../internals/array-copy-within');
   var definePropertyModule = require('../internals/object-define-property');
   var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
   var InternalStateModule = require('../internals/internal-state');
@@ -49,30 +44,11 @@ if (require('../internals/descriptors')) {
   var SHARED_BUFFER = 'Shared' + ARRAY_BUFFER;
   var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
   var PROTOTYPE = 'prototype';
-  var ArrayPrototype = Array[PROTOTYPE];
   var ArrayBuffer = TypedBufferModule.ArrayBuffer;
   var DataView = TypedBufferModule.DataView;
   var arrayForEach = createArrayMethod(0);
   var arrayFilter = createArrayMethod(2);
-  var arraySome = createArrayMethod(3);
-  var arrayEvery = createArrayMethod(4);
-  var arrayFind = createArrayMethod(5);
-  var arrayFindIndex = createArrayMethod(6);
-  var arrayIncludes = createArrayIncludes(true);
-  var arrayIndexOf = createArrayIncludes(false);
-  var arrayValues = ArrayIterators.values;
-  var arrayKeys = ArrayIterators.keys;
-  var arrayEntries = ArrayIterators.entries;
-  var arrayLastIndexOf = ArrayPrototype.lastIndexOf;
-  var arrayReduce = ArrayPrototype.reduce;
-  var arrayReduceRight = ArrayPrototype.reduceRight;
-  var arrayJoin = ArrayPrototype.join;
-  var arraySort = ArrayPrototype.sort;
-  var arraySlice = ArrayPrototype.slice;
-  var arrayToString = ArrayPrototype.toString;
-  var arrayToLocaleString = ArrayPrototype.toLocaleString;
-  var ITERATOR = wellKnownSymbol('iterator');
-  var TAG = wellKnownSymbol('toStringTag');
+  var arraySlice = [].slice;
   var TYPED_CONSTRUCTOR = uid('typed_constructor');
   var DEF_CONSTRUCTOR = uid('def_constructor');
   var TYPED_ARRAY = uid('typed_array');
@@ -149,74 +125,13 @@ if (require('../internals/descriptors')) {
     return result;
   };
 
-  // iOS Safari 6.x fails here
-  var TO_LOCALE_BUG = !!Uint8Array && fails(function () { arrayToLocaleString.call(new Uint8Array(1)); });
-
-  var typedArrayToLocaleString = function toLocaleString() {
-    return arrayToLocaleString.apply(TO_LOCALE_BUG ? arraySlice.call(aTypedArray(this)) : aTypedArray(this), arguments);
-  };
-
   var TypedArrayPrototypeMethods = {
-    copyWithin: function copyWithin(target, start /* , end */) {
-      return arrayCopyWithin.call(aTypedArray(this), target, start, arguments.length > 2 ? arguments[2] : undefined);
-    },
-    every: function every(callbackfn /* , thisArg */) {
-      return arrayEvery(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    fill: function fill(value /* , start, end */) { // eslint-disable-line no-unused-vars
-      return arrayFill.apply(aTypedArray(this), arguments);
-    },
     filter: function filter(callbackfn /* , thisArg */) {
       return speciesFromList(this, arrayFilter(aTypedArray(this), callbackfn,
         arguments.length > 1 ? arguments[1] : undefined));
     },
-    find: function find(predicate /* , thisArg */) {
-      return arrayFind(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    findIndex: function findIndex(predicate /* , thisArg */) {
-      return arrayFindIndex(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    forEach: function forEach(callbackfn /* , thisArg */) {
-      arrayForEach(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    indexOf: function indexOf(searchElement /* , fromIndex */) {
-      return arrayIndexOf(aTypedArray(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    includes: function includes(searchElement /* , fromIndex */) {
-      return arrayIncludes(aTypedArray(this), searchElement, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    join: function join(separator) { // eslint-disable-line no-unused-vars
-      return arrayJoin.apply(aTypedArray(this), arguments);
-    },
-    lastIndexOf: function lastIndexOf(searchElement /* , fromIndex */) { // eslint-disable-line no-unused-vars
-      return arrayLastIndexOf.apply(aTypedArray(this), arguments);
-    },
     map: function map(mapfn /* , thisArg */) {
       return internalTypedArrayMap(aTypedArray(this), mapfn, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    reduce: function reduce(callbackfn /* , initialValue */) { // eslint-disable-line no-unused-vars
-      return arrayReduce.apply(aTypedArray(this), arguments);
-    },
-    reduceRight: function reduceRight(callbackfn /* , initialValue */) { // eslint-disable-line no-unused-vars
-      return arrayReduceRight.apply(aTypedArray(this), arguments);
-    },
-    reverse: function reverse() {
-      var that = this;
-      var length = aTypedArray(that).length;
-      var middle = Math.floor(length / 2);
-      var index = 0;
-      var value;
-      while (index < middle) {
-        value = that[index];
-        that[index++] = that[--length];
-        that[length] = value;
-      } return that;
-    },
-    some: function some(callbackfn /* , thisArg */) {
-      return arraySome(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    },
-    sort: function sort(comparefn) {
-      return arraySort.call(aTypedArray(this), comparefn);
     },
     subarray: function subarray(begin, end) {
       var O = aTypedArray(this);
@@ -243,18 +158,6 @@ if (require('../internals/descriptors')) {
     var index = 0;
     if (len + offset > length) throw RangeError(WRONG_LENGTH);
     while (index < len) this[offset + index] = src[index++];
-  };
-
-  var TypedArrayIterators = {
-    entries: function entries() {
-      return arrayEntries.call(aTypedArray(this));
-    },
-    keys: function keys() {
-      return arrayKeys.call(aTypedArray(this));
-    },
-    values: function values() {
-      return arrayValues.call(aTypedArray(this));
-    }
   };
 
   var isTypedArrayIndex = function (target, key) {
@@ -294,21 +197,11 @@ if (require('../internals/descriptors')) {
     defineProperty: defineProperty
   });
 
-  if (fails(function () { arrayToString.call({}); })) {
-    arrayToString = arrayToLocaleString = function toString() {
-      return arrayJoin.call(this);
-    };
-  }
-
   var $TypedArrayPrototype$ = redefineAll({}, TypedArrayPrototypeMethods);
-  redefineAll($TypedArrayPrototype$, TypedArrayIterators);
-  hide($TypedArrayPrototype$, ITERATOR, TypedArrayIterators.values);
   redefineAll($TypedArrayPrototype$, {
     slice: typedArraySlice,
     set: typedArraySet,
-    constructor: function () { /* noop */ },
-    toString: arrayToString,
-    toLocaleString: typedArrayToLocaleString
+    constructor: function () { /* noop */ }
   });
   addGetter($TypedArrayPrototype$, 'buffer');
   addGetter($TypedArrayPrototype$, 'byteOffset');
@@ -422,10 +315,6 @@ if (require('../internals/descriptors')) {
       TypedArray[PROTOTYPE] = TypedArrayPrototype;
       TypedArrayPrototype.constructor = TypedArray;
     }
-    var nativeTypedArrayIterator = TypedArrayPrototype[ITERATOR];
-    var CORRECT_ITER_NAME = !!nativeTypedArrayIterator
-      && (nativeTypedArrayIterator.name == 'values' || nativeTypedArrayIterator.name == undefined);
-    var $iterator = TypedArrayIterators.values;
     hide(TypedArray, TYPED_CONSTRUCTOR, true);
     hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
     hide(TypedArrayPrototype, DEF_CONSTRUCTOR, TypedArray);
@@ -457,21 +346,8 @@ if (require('../internals/descriptors')) {
 
     $export({ target: NAME, proto: true, forced: FORCED_SET }, { set: typedArraySet });
 
-    $export({ target: NAME, proto: true, forced: !CORRECT_ITER_NAME }, TypedArrayIterators);
-
-    if (TypedArrayPrototype.toString != arrayToString) TypedArrayPrototype.toString = arrayToString;
-
     $export({ target: NAME, proto: true, forced: fails(function () {
       new TypedArray(1).slice();
     }) }, { slice: typedArraySlice });
-
-    $export({ target: NAME, proto: true, forced: fails(function () {
-      return [1, 2].toLocaleString() != new TypedArray([1, 2]).toLocaleString();
-    }) || !fails(function () {
-      TypedArrayPrototype.toLocaleString.call([1, 2]);
-    }) }, { toLocaleString: typedArrayToLocaleString });
-
-    Iterators[NAME] = CORRECT_ITER_NAME ? nativeTypedArrayIterator : $iterator;
-    if (!CORRECT_ITER_NAME) hide(TypedArrayPrototype, ITERATOR, $iterator);
   };
 } else module.exports = function () { /* empty */ };
