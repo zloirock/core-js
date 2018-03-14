@@ -15,7 +15,7 @@ require('../internals/shared')('inspectSource', function (it) {
 (module.exports = function (O, key, value, unsafe) {
   if (typeof value == 'function') {
     if (!has(value, 'name')) hide(value, 'name', key);
-    enforceInternalState(value).source = has(O, key) ? String(O[key]) : TEMPLATE.join(String(key));
+    enforceInternalState(value).source = TEMPLATE.join(String(key));
   }
   if (O === global) {
     setGlobal(key, value);
