@@ -18,13 +18,21 @@ var typedArrayValues = function values() {
   return arrayValues.call(aTypedArray(this));
 };
 
+// `%TypedArray%.prototype.entries` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.entries
 exportProto('entries', function entries() {
   return arrayEntries.call(aTypedArray(this));
 });
+// `%TypedArray%.prototype.keys` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.keys
 exportProto('keys', function keys() {
   return arrayKeys.call(aTypedArray(this));
 });
+// `%TypedArray%.prototype.values` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.values
 exportProto('values', typedArrayValues, !CORRECT_ITER_NAME);
+// `%TypedArray%.prototype[@@iterator]` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype-@@iterator
 exportProto(ITERATOR, typedArrayValues, !CORRECT_ITER_NAME);
 
 for (var NAME in ArrayBufferViewCore.TypedArrayConstructorsList) {

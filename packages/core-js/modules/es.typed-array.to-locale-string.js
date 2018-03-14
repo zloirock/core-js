@@ -16,6 +16,8 @@ var FORCED = fails(function () {
   Uint8Array.prototype.toLocaleString.call([1, 2]);
 });
 
+// `%TypedArray%.prototype.toLocaleString` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.tolocalestring
 ArrayBufferViewCore.exportProto('toLocaleString', function toLocaleString() {
   return arrayToLocaleString.apply(TO_LOCALE_BUG ? arraySlice.call(aTypedArray(this)) : aTypedArray(this), arguments);
 }, FORCED);

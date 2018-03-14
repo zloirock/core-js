@@ -11,4 +11,6 @@ if (require('../internals/fails')(function () { arrayToString.call({}); })) {
   };
 }
 
+// `%TypedArray%.prototype.toString` method
+// https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.tostring
 ArrayBufferViewCore.exportProto('toString', arrayToString, (Uint8ArrayPrototype || {}).toString != arrayToString);

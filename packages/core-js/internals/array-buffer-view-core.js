@@ -7,6 +7,7 @@ var redefine = require('../internals/redefine');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var ObjectPrototype = Object.prototype;
+var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
 var DataView = global.DataView;
 var Uint8Array = global.Uint8Array;
@@ -43,6 +44,15 @@ var aTypedArray = function (it) {
   throw TypeError('Target is not a typed array!');
 };
 
+var aTypedArrayConstructor = function (C) {
+  var ARRAY;
+  if (CORRECT_PROTOTYPE_CHAIN) {
+    if (isPrototypeOf.call(TypedArrayConstructor, C)) return C;
+  } else for (ARRAY in TypedArrayConstructorsList) {
+    if (isObject(global[ARRAY]) && C === global[ARRAY]) return C;
+  } throw TypeError('It is not a typed array constructor!');
+};
+
 var exportProto = function (KEY, property, forced) {
   if (!DESCRIPTORS) return;
   var ARRAY;
@@ -54,7 +64,9 @@ var exportProto = function (KEY, property, forced) {
       redefine(TypedArrayPrototype, KEY, forced ? property : Uint8ArrayPrototype[KEY] || property);
     }
   } else for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY]) redefine(global[ARRAY].prototype, KEY, forced ? property : Uint8ArrayPrototype[KEY] || property);
+    if (global[ARRAY] && (!global[ARRAY].prototype[KEY] || forced)) {
+      redefine(global[ARRAY].prototype, KEY, property);
+    }
   }
 };
 
@@ -69,7 +81,9 @@ var exportStatic = function (KEY, property, forced) {
       redefine(TypedArrayConstructor, KEY, forced ? property : Uint8Array[KEY] || property);
     }
   } else for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY]) redefine(global[ARRAY], KEY, forced ? property : Uint8Array[KEY] || property);
+    if (global[ARRAY] && (!global[ARRAY][KEY] || forced)) {
+      redefine(global[ARRAY], KEY, property);
+    }
   }
 };
 
@@ -81,7 +95,8 @@ for (NAME in TypedArrayConstructorsList) {
 
 CORRECT_PROTOTYPE_CHAIN = !NATIVE_ARRAY_BUFFER_VIEWS || !!setPrototypeOf;
 
-if (!TypedArrayConstructor || TypedArrayConstructor === Function.prototype) {
+// WebKit bug - typed arrays constructors prototype is Object.prototype
+if (typeof TypedArrayConstructor != 'function' || TypedArrayConstructor === Function.prototype) {
   TypedArrayConstructor = function TypedArray() {
     throw TypeError('Incorrect invocation!');
   };
@@ -92,7 +107,7 @@ if (!TypedArrayConstructor || TypedArrayConstructor === Function.prototype) {
 }
 
 if (!TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
-  TypedArrayPrototype = {};
+  TypedArrayPrototype = TypedArrayConstructor.prototype;
 
   if (Uint8ArrayPrototype && setPrototypeOf) for (NAME in TypedArrayConstructorsList) {
     if (global[NAME]) setPrototypeOf(global[NAME].prototype, TypedArrayPrototype);
@@ -109,6 +124,7 @@ module.exports = {
   NATIVE_ARRAY_BUFFER: NATIVE_ARRAY_BUFFER,
   NATIVE_ARRAY_BUFFER_VIEWS: NATIVE_ARRAY_BUFFER_VIEWS,
   aTypedArray: aTypedArray,
+  aTypedArrayConstructor: aTypedArrayConstructor,
   exportProto: exportProto,
   exportStatic: exportStatic,
   isArrayBufferView: isArrayBufferView,
