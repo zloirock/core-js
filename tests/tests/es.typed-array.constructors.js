@@ -2,7 +2,7 @@ import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants'
 import { createIterable } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
-const { keys, getOwnPropertyDescriptor, defineProperty, assign } = Object;
+const { keys, getOwnPropertyDescriptor, getPrototypeOf, defineProperty, assign } = Object;
 
 if (DESCRIPTORS) {
   for (const name in TYPED_ARRAYS) {
@@ -230,6 +230,18 @@ if (DESCRIPTORS) {
           return 2;
         },
       }), 'Object.defineProperty, invalid descriptor #4');
+    });
+
+    QUnit.test(`${ name } @@toStringTag`, assert => {
+      const TypedArrayPrototype = getPrototypeOf(TypedArray.prototype);
+      const descriptor = getOwnPropertyDescriptor(TypedArrayPrototype, Symbol.toStringTag);
+      const getter = descriptor.get;
+      assert.isFunction(getter);
+      assert.same(getter.call(new Int8Array(1)), 'Int8Array');
+      assert.same(getter.call(new TypedArray(1)), name);
+      assert.same(getter.call([]), undefined);
+      assert.same(getter.call({}), undefined);
+      assert.same(getter.call(), undefined);
     });
   }
 }
