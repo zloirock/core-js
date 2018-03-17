@@ -243,9 +243,6 @@ module.exports = {
     'web.dom-collections.for-each',
     'web.dom-collections.iterator',
     'web.timers',
-    'core.get-iterator-method',
-    'core.get-iterator',
-    'core.is-iterable',
   ],
   /* eslint-disable prefer-template */
   banner: '/**\n' +
