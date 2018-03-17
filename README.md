@@ -1186,7 +1186,7 @@ console.log(weakset.has(b));   // => false
 #### ECMAScript: Typed Arrays
 Implementations and fixes `ArrayBuffer`, `DataView`, typed arrays constructors, static and prototype methods. Typed Arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
 
-Modules [`es.typed.array-buffer`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.array-buffer.js), [`es.typed.data-view`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.data-view.js), [`es.typed.int8-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.int8-array.js), [`es.typed.uint8-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.uint8-array.js), [`es.typed.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.uint8-clamped-array.js), [`es.typed.int16-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.int16-array.js), [`es.typed.uint16-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.uint16-array.js), [`es.typed.int32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.int32-array.js), [`es.typed.uint32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.uint32-array.js), [`es.typed.float32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.float32-array.js) and [`es.typed.float64-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.float64-array.js).
+Modules [`es.typed.array-buffer`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.array-buffer.js), [`es.typed.data-view`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.data-view.js), [`es.typed-array.int8-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed.int32-array.js), [`es.typed-array.uint32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.for-each`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.to-locale-string.js) and [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.typed-array.to-string.js).
 ```js
 class ArrayBuffer {
   constructor(length: any): ArrayBuffer;
@@ -1270,19 +1270,47 @@ class [
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
-core-js/es/typed
-core-js/features/typed
-core-js/features/typed/array-buffer
-core-js/features/typed/data-view
-core-js/features/typed/int8-array
-core-js/features/typed/uint8-array
-core-js/features/typed/uint8-clamped-array
-core-js/features/typed/int16-array
-core-js/features/typed/uint16-array
-core-js/features/typed/int32-array
-core-js/features/typed/uint32-array
-core-js/features/typed/float32-array
-core-js/features/typed/float64-array
+core-js/es/typed-array
+core-js/features/typed-array
+core-js/features/typed-array/array-buffer
+core-js/features/typed-array/data-view
+core-js/features/typed-array/int8-array
+core-js/features/typed-array/uint8-array
+core-js/features/typed-array/uint8-clamped-array
+core-js/features/typed-array/int16-array
+core-js/features/typed-array/uint16-array
+core-js/features/typed-array/int32-array
+core-js/features/typed-array/uint32-array
+core-js/features/typed-array/float32-array
+core-js/features/typed-array/float64-array
+core-js/features/typed-array/copy-within
+core-js/features/typed-array/entries
+core-js/features/typed-array/every
+core-js/features/typed-array/fill
+core-js/features/typed-array/filter
+core-js/features/typed-array/find
+core-js/features/typed-array/find-index
+core-js/features/typed-array/for-each
+core-js/features/typed-array/from
+core-js/features/typed-array/includes
+core-js/features/typed-array/index-of
+core-js/features/typed-array/iterator
+core-js/features/typed-array/join
+core-js/features/typed-array/keys
+core-js/features/typed-array/last-index-of
+core-js/features/typed-array/map
+core-js/features/typed-array/of
+core-js/features/typed-array/reduce
+core-js/features/typed-array/reduce-right
+core-js/features/typed-array/reverse
+core-js/features/typed-array/set
+core-js/features/typed-array/slice
+core-js/features/typed-array/some
+core-js/features/typed-array/sort
+core-js/features/typed-array/subarray
+core-js/features/typed-array/to-locale-string
+core-js/features/typed-array/to-string
+core-js/features/typed-array/values
 ```
 [*Examples*](http://goo.gl/yla75z):
 ```js
