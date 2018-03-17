@@ -1,22 +1,32 @@
+'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
 var classof = require('../internals/classof');
+var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
+var defineProperty = require('../internals/object-define-property').f;
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
+var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
+var TYPED_ARRAY_TAG = require('../internals/uid')('TYPED_ARRAY_TAG');
+
+var DataView = global.DataView;
+var DataViewPrototype = DataView && DataView.prototype;
+var Uint8Array = global.Uint8Array;
+var Uint8ArrayPrototype = Uint8Array && Uint8Array.prototype;
+var Uint8ClampedArray = global.Uint8ClampedArray;
+var Uint8ClampedArrayPrototype = Uint8ClampedArray && Uint8ClampedArray.prototype;
+var TypedArray = Uint8Array && getPrototypeOf(Uint8Array);
+var TypedArrayPrototype = Uint8ArrayPrototype && getPrototypeOf(Uint8ArrayPrototype);
 var ObjectPrototype = Object.prototype;
 var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
-var DataView = global.DataView;
-var Uint8Array = global.Uint8Array;
-var Uint8ArrayPrototype = Uint8Array && Uint8Array.prototype;
-var TypedArrayConstructor = isObject(Uint8Array) && getPrototypeOf(Uint8Array);
-var TypedArrayPrototype = isObject(Uint8ArrayPrototype) && getPrototypeOf(Uint8ArrayPrototype);
-
 var NATIVE_ARRAY_BUFFER = !!(global.ArrayBuffer && global.DataView);
-var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER;
+var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf;
+var TYPED_ARRAY_TAG_REQIRED = false;
+var NAME;
 
 var TypedArrayConstructorsList = {
   Int8Array: 1,
@@ -45,91 +55,82 @@ var aTypedArray = function (it) {
 };
 
 var aTypedArrayConstructor = function (C) {
-  var ARRAY;
-  if (CORRECT_PROTOTYPE_CHAIN) {
-    if (isPrototypeOf.call(TypedArrayConstructor, C)) return C;
-  } else for (ARRAY in TypedArrayConstructorsList) {
-    if (isObject(global[ARRAY]) && C === global[ARRAY]) return C;
-  } throw TypeError('It is not a typed array constructor!');
+  if (isPrototypeOf.call(TypedArray, C)) return C;
+  throw TypeError('It is not a typed array constructor!');
 };
 
 var exportProto = function (KEY, property, forced) {
   if (!DESCRIPTORS) return;
   var ARRAY;
-  if (CORRECT_PROTOTYPE_CHAIN) {
-    if (forced) for (ARRAY in TypedArrayConstructorsList) {
-      if (global[ARRAY] && has(global[ARRAY].prototype, KEY)) delete global[ARRAY].prototype[KEY];
-    }
-    if (!TypedArrayPrototype[KEY] || forced) {
-      redefine(TypedArrayPrototype, KEY, forced ? property : Uint8ArrayPrototype[KEY] || property);
-    }
-  } else for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY] && (!global[ARRAY].prototype[KEY] || forced)) {
-      redefine(global[ARRAY].prototype, KEY, property);
-    }
+  if (forced) for (ARRAY in TypedArrayConstructorsList) {
+    if (global[ARRAY] && has(global[ARRAY].prototype, KEY)) delete global[ARRAY].prototype[KEY];
+  }
+  if (!TypedArrayPrototype[KEY] || forced) {
+    redefine(TypedArrayPrototype, KEY, forced ? property : Uint8ArrayPrototype[KEY] || property);
   }
 };
 
 var exportStatic = function (KEY, property, forced) {
   if (!DESCRIPTORS) return;
   var ARRAY;
-  if (CORRECT_PROTOTYPE_CHAIN) {
-    if (forced) for (ARRAY in TypedArrayConstructorsList) {
-      if (global[ARRAY] && has(global[ARRAY], KEY)) delete global[ARRAY][KEY];
-    }
-    if (!TypedArrayConstructor[KEY] || forced) {
-      redefine(TypedArrayConstructor, KEY, forced ? property : Uint8Array[KEY] || property);
-    }
-  } else for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY] && (!global[ARRAY][KEY] || forced)) {
-      redefine(global[ARRAY], KEY, property);
-    }
+  if (forced) for (ARRAY in TypedArrayConstructorsList) {
+    if (global[ARRAY] && has(global[ARRAY], KEY)) delete global[ARRAY][KEY];
+  }
+  if (!TypedArray[KEY] || forced) {
+    redefine(TypedArray, KEY, forced ? property : Uint8Array[KEY] || property);
   }
 };
-
-var CORRECT_PROTOTYPE_CHAIN, NAME;
 
 for (NAME in TypedArrayConstructorsList) {
   if (!global[NAME]) NATIVE_ARRAY_BUFFER_VIEWS = false;
 }
 
-CORRECT_PROTOTYPE_CHAIN = !NATIVE_ARRAY_BUFFER_VIEWS || !!setPrototypeOf;
-
 // WebKit bug - typed arrays constructors prototype is Object.prototype
-if (typeof TypedArrayConstructor != 'function' || TypedArrayConstructor === Function.prototype) {
-  TypedArrayConstructor = function TypedArray() {
+if (!NATIVE_ARRAY_BUFFER_VIEWS || typeof TypedArray != 'function' || TypedArray === Function.prototype) {
+  // eslint-disable-next-line no-shadow
+  TypedArray = function TypedArray() {
     throw TypeError('Incorrect invocation!');
   };
-
-  if (Uint8Array && setPrototypeOf) for (NAME in TypedArrayConstructorsList) {
-    if (global[NAME]) setPrototypeOf(global[NAME], TypedArrayConstructor);
+  if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
+    if (global[NAME]) setPrototypeOf(global[NAME], TypedArray);
   }
 }
 
-if (!TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
-  TypedArrayPrototype = TypedArrayConstructor.prototype;
-
-  if (Uint8ArrayPrototype && setPrototypeOf) for (NAME in TypedArrayConstructorsList) {
+if (!NATIVE_ARRAY_BUFFER_VIEWS || !TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
+  TypedArrayPrototype = TypedArray.prototype;
+  if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
     if (global[NAME]) setPrototypeOf(global[NAME].prototype, TypedArrayPrototype);
   }
 }
 
+// WebKit bug - one more object in Uint8ClampedArray prototype chain
+if (NATIVE_ARRAY_BUFFER_VIEWS && getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
+  setPrototypeOf(Uint8ClampedArrayPrototype, TypedArrayPrototype);
+}
+
+if (!has(TypedArrayPrototype, TO_STRING_TAG)) {
+  TYPED_ARRAY_TAG_REQIRED = true;
+  defineProperty(TypedArrayPrototype, TO_STRING_TAG, { get: function () {
+    return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
+  } });
+  for (NAME in TypedArrayConstructorsList) hide(global[NAME], TYPED_ARRAY_TAG, NAME);
+}
+
 // WebKit bug - the same parent prototype for typed arrays and data view
-if (DataView && setPrototypeOf && getPrototypeOf(DataView.prototype) !== ObjectPrototype) {
-  setPrototypeOf(DataView.prototype, ObjectPrototype);
+if (NATIVE_ARRAY_BUFFER && setPrototypeOf && getPrototypeOf(DataViewPrototype) !== ObjectPrototype) {
+  setPrototypeOf(DataViewPrototype, ObjectPrototype);
 }
 
 module.exports = {
-  CORRECT_PROTOTYPE_CHAIN: CORRECT_PROTOTYPE_CHAIN,
   NATIVE_ARRAY_BUFFER: NATIVE_ARRAY_BUFFER,
   NATIVE_ARRAY_BUFFER_VIEWS: NATIVE_ARRAY_BUFFER_VIEWS,
+  TYPED_ARRAY_TAG: TYPED_ARRAY_TAG_REQIRED && TYPED_ARRAY_TAG,
   aTypedArray: aTypedArray,
   aTypedArrayConstructor: aTypedArrayConstructor,
   exportProto: exportProto,
   exportStatic: exportStatic,
   isArrayBufferView: isArrayBufferView,
   isTypedArray: isTypedArray,
-  TypedArray: TypedArrayConstructor,
-  TypedArrayPrototype: TypedArrayPrototype,
-  TypedArrayConstructorsList: TypedArrayConstructorsList
+  TypedArray: TypedArray,
+  TypedArrayPrototype: TypedArrayPrototype
 };
