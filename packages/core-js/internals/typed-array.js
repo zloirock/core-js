@@ -17,10 +17,7 @@ if (require('../internals/descriptors')) {
   var isObject = require('../internals/is-object');
   var create = require('../internals/object-create');
   var setPrototypeOf = require('../internals/object-set-prototype-of');
-  var getPrototypeOf = require('../internals/object-get-prototype-of');
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-  var TAG = require('../internals/well-known-symbol')('toStringTag');
-  var uid = require('../internals/uid');
   var typedArrayFrom = require('../internals/typed-array-from');
   var arrayForEach = require('../internals/array-methods')(0);
   var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
@@ -33,16 +30,13 @@ if (require('../internals/descriptors')) {
   var nativeDefineProperty = definePropertyModule.f;
   var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
-  var Uint8Array = global.Uint8Array;
-  var ARRAY_BUFFER = 'ArrayBuffer';
-  var SHARED_BUFFER = 'Shared' + ARRAY_BUFFER;
   var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
-  var PROTOTYPE = 'prototype';
   var ArrayBuffer = TypedBufferModule.ArrayBuffer;
   var DataView = TypedBufferModule.DataView;
-  var TYPED_ARRAY = uid('typed_array');
   var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
-  var TypedArrayConstructor = ArrayBufferViewCore.TypedArray;
+  var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
+  var TypedArray = ArrayBufferViewCore.TypedArray;
+  var TypedArrayPrototype = ArrayBufferViewCore.TypedArrayPrototype;
   var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var WRONG_LENGTH = 'Wrong length!';
@@ -61,7 +55,14 @@ if (require('../internals/descriptors')) {
   };
 
   var addGetter = function (it, key) {
-    nativeDefineProperty(it, key, { get: function () { return getInternalState(this)[key]; } });
+    nativeDefineProperty(it, key, { get: function () {
+      return getInternalState(this)[key];
+    } });
+  };
+
+  var isArrayBuffer = function (it) {
+    var klass;
+    return it instanceof ArrayBuffer || (klass = classof(it)) == 'ArrayBuffer' || klass == 'SharedArrayBuffer';
   };
 
   var isTypedArrayIndex = function (target, key) {
@@ -70,12 +71,14 @@ if (require('../internals/descriptors')) {
       && key in target
       && String(+key) == String(key);
   };
-  var getOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
+
+  var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
     return isTypedArrayIndex(target, key = toPrimitive(key, true))
       ? createPropertyDescriptor(2, target[key])
       : nativeGetOwnPropertyDescriptor(target, key);
   };
-  var defineProperty = function defineProperty(target, key, descriptor) {
+
+  var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
     if (isTypedArrayIndex(target, key = toPrimitive(key, true))
       && isObject(descriptor)
       && has(descriptor, 'value')
@@ -92,22 +95,17 @@ if (require('../internals/descriptors')) {
   };
 
   if (!NATIVE_ARRAY_BUFFER_VIEWS) {
-    getOwnPropertyDescriptorModule.f = getOwnPropertyDescriptor;
-    definePropertyModule.f = defineProperty;
+    getOwnPropertyDescriptorModule.f = wrappedGetOwnPropertyDescriptor;
+    definePropertyModule.f = wrappedDefineProperty;
+    addGetter(TypedArrayPrototype, 'buffer');
+    addGetter(TypedArrayPrototype, 'byteOffset');
+    addGetter(TypedArrayPrototype, 'byteLength');
+    addGetter(TypedArrayPrototype, 'length');
   }
 
   $export({ target: 'Object', stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
-    getOwnPropertyDescriptor: getOwnPropertyDescriptor,
-    defineProperty: defineProperty
-  });
-
-  var $TypedArrayPrototype$ = {};
-  addGetter($TypedArrayPrototype$, 'buffer');
-  addGetter($TypedArrayPrototype$, 'byteOffset');
-  addGetter($TypedArrayPrototype$, 'byteLength');
-  addGetter($TypedArrayPrototype$, 'length');
-  nativeDefineProperty($TypedArrayPrototype$, TAG, {
-    get: function () { return this[TYPED_ARRAY]; }
+    getOwnPropertyDescriptor: wrappedGetOwnPropertyDescriptor,
+    defineProperty: wrappedDefineProperty
   });
 
   // eslint-disable-next-line max-statements
@@ -116,12 +114,10 @@ if (require('../internals/descriptors')) {
     var NAME = KEY + (CLAMPED ? 'Clamped' : '') + 'Array';
     var GETTER = 'get' + KEY;
     var SETTER = 'set' + KEY;
-    var TypedArray = global[NAME];
-    var Base = TypedArray || {};
-    var TAC = TypedArray && getPrototypeOf(TypedArray);
-    var FORCED = !TypedArray || !ArrayBufferViewCore.NATIVE_ARRAY_BUFFER;
+    var NativeTypedArrayConstructor = global[NAME];
+    var TypedArrayConstructor = NativeTypedArrayConstructor;
     var exported = {};
-    var TypedArrayPrototype = TypedArray && TypedArray[PROTOTYPE];
+    var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
     var getter = function (that, index) {
       var data = getInternalState(that);
       return data.view[GETTER](index * BYTES + data.byteOffset, LITTLE_ENDIAN);
@@ -142,17 +138,17 @@ if (require('../internals/descriptors')) {
         enumerable: true
       });
     };
-    if (FORCED) {
-      TypedArray = wrapper(function (that, data, offset, $length) {
-        anInstance(that, TypedArray, NAME);
+    if (!NATIVE_ARRAY_BUFFER_VIEWS) {
+      TypedArrayConstructor = wrapper(function (that, data, offset, $length) {
+        anInstance(that, TypedArrayConstructor, NAME);
         var index = 0;
         var byteOffset = 0;
-        var buffer, byteLength, length, klass;
+        var buffer, byteLength, length;
         if (!isObject(data)) {
           length = toIndex(data);
           byteLength = length * BYTES;
           buffer = new ArrayBuffer(byteLength);
-        } else if (data instanceof ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER) {
+        } else if (isArrayBuffer(data)) {
           buffer = data;
           byteOffset = toOffset(offset, BYTES);
           var $len = data.byteLength;
@@ -166,9 +162,9 @@ if (require('../internals/descriptors')) {
           }
           length = byteLength / BYTES;
         } else if (isTypedArray(data)) {
-          return fromList(TypedArray, data);
+          return fromList(TypedArrayConstructor, data);
         } else {
-          return typedArrayFrom.call(TypedArray, data);
+          return typedArrayFrom.call(TypedArrayConstructor, data);
         }
         setInternalState(that, {
           buffer: buffer,
@@ -179,56 +175,52 @@ if (require('../internals/descriptors')) {
         });
         while (index < length) addElement(that, index++);
       });
-      if (setPrototypeOf) setPrototypeOf(TypedArray, TypedArrayConstructor);
-      TypedArrayPrototype = TypedArray[PROTOTYPE] = create($TypedArrayPrototype$);
+      if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
+      TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
     } else if (!fails(function () {
-      TypedArray(1);
+      TypedArrayConstructor(1);
     }) || !fails(function () {
-      new TypedArray(-1); // eslint-disable-line no-new
+      new TypedArrayConstructor(-1); // eslint-disable-line no-new
     }) || !checkCorrectnessOfIteration(function (iterable) {
-      new TypedArray(); // eslint-disable-line no-new
-      new TypedArray(null); // eslint-disable-line no-new
-      new TypedArray(1.5); // eslint-disable-line no-new
-      new TypedArray(iterable); // eslint-disable-line no-new
+      new TypedArrayConstructor(); // eslint-disable-line no-new
+      new TypedArrayConstructor(null); // eslint-disable-line no-new
+      new TypedArrayConstructor(1.5); // eslint-disable-line no-new
+      new TypedArrayConstructor(iterable); // eslint-disable-line no-new
     }, true)) {
-      TypedArray = wrapper(function (that, data, typedArrayOffset, $length) {
-        anInstance(that, TypedArray, NAME);
-        var klass;
-        if (!isObject(data)) return new Base(toIndex(data));
-        if (data instanceof ArrayBuffer || (klass = classof(data)) == ARRAY_BUFFER || klass == SHARED_BUFFER) {
-          return $length !== undefined
-            ? new Base(data, toOffset(typedArrayOffset, BYTES), $length)
-            : typedArrayOffset !== undefined
-              ? new Base(data, toOffset(typedArrayOffset, BYTES))
-              : new Base(data);
-        }
-        if (isTypedArray(data)) return fromList(TypedArray, data);
-        return typedArrayFrom.call(TypedArray, data);
+      TypedArrayConstructor = wrapper(function (that, data, typedArrayOffset, $length) {
+        anInstance(that, TypedArrayConstructor, NAME);
+        if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
+        if (isArrayBuffer(data)) return $length !== undefined
+          ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)
+          : typedArrayOffset !== undefined
+            ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES))
+            : new NativeTypedArrayConstructor(data);
+        if (isTypedArray(data)) return fromList(TypedArrayConstructor, data);
+        return typedArrayFrom.call(TypedArrayConstructor, data);
       });
-      if (setPrototypeOf) setPrototypeOf(TypedArray, TypedArrayConstructor);
-      arrayForEach(TAC !== Function.prototype
-        ? getOwnPropertyNames(Base).concat(getOwnPropertyNames(TAC))
-        : getOwnPropertyNames(Base)
-      , function (key) {
-        if (!(key in TypedArray)) hide(TypedArray, key, Base[key]);
+      if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
+      arrayForEach(getOwnPropertyNames(NativeTypedArrayConstructor), function (key) {
+        if (!(key in TypedArrayConstructor)) hide(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
       });
-      TypedArray[PROTOTYPE] = TypedArrayPrototype;
-    }
-    if (TypedArrayPrototype.constructor !== TypedArray) hide(TypedArrayPrototype, 'constructor', TypedArray);
-    hide(TypedArrayPrototype, TYPED_ARRAY, NAME);
-
-    if (CLAMPED ? new TypedArray(1)[TAG] != NAME : !(TAG in TypedArrayPrototype)) {
-      nativeDefineProperty(TypedArrayPrototype, TAG, {
-        get: function () { return NAME; }
-      });
+      TypedArrayConstructor.prototype = TypedArrayConstructorPrototype;
     }
 
-    exported[NAME] = TypedArray;
+    if (TypedArrayConstructorPrototype.constructor !== TypedArrayConstructor) {
+      hide(TypedArrayConstructorPrototype, 'constructor', TypedArrayConstructor);
+    }
 
-    $export({ global: true, forced: TypedArray != Base }, exported);
+    if (TYPED_ARRAY_TAG) hide(TypedArrayConstructorPrototype, TYPED_ARRAY_TAG, NAME);
 
-    if (!(BYTES_PER_ELEMENT in TypedArray)) hide(TypedArray, BYTES_PER_ELEMENT, BYTES);
-    if (!(BYTES_PER_ELEMENT in TypedArrayPrototype)) hide(TypedArrayPrototype, BYTES_PER_ELEMENT, BYTES);
+    exported[NAME] = TypedArrayConstructor;
+
+    $export({ global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor }, exported);
+
+    if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {
+      hide(TypedArrayConstructor, BYTES_PER_ELEMENT, BYTES);
+    }
+    if (!(BYTES_PER_ELEMENT in TypedArrayConstructorPrototype)) {
+      hide(TypedArrayConstructorPrototype, BYTES_PER_ELEMENT, BYTES);
+    }
 
     setSpecies(NAME);
   };
