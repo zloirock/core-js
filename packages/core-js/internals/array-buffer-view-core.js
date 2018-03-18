@@ -14,12 +14,12 @@ var TYPED_ARRAY_TAG = require('../internals/uid')('TYPED_ARRAY_TAG');
 
 var DataView = global.DataView;
 var DataViewPrototype = DataView && DataView.prototype;
-var Uint8Array = global.Uint8Array;
-var Uint8ArrayPrototype = Uint8Array && Uint8Array.prototype;
+var Int8Array = global.Int8Array;
+var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
 var Uint8ClampedArray = global.Uint8ClampedArray;
 var Uint8ClampedArrayPrototype = Uint8ClampedArray && Uint8ClampedArray.prototype;
-var TypedArray = Uint8Array && getPrototypeOf(Uint8Array);
-var TypedArrayPrototype = Uint8ArrayPrototype && getPrototypeOf(Uint8ArrayPrototype);
+var TypedArray = Int8Array && getPrototypeOf(Int8Array);
+var TypedArrayPrototype = Int8ArrayPrototype && getPrototypeOf(Int8ArrayPrototype);
 var ObjectPrototype = Object.prototype;
 var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
@@ -40,7 +40,7 @@ var TypedArrayConstructorsList = {
   Float64Array: 8
 };
 
-var isArrayBufferView = function (it) {
+var isView = function isView(it) {
   var klass = classof(it);
   return klass === 'DataView' || has(TypedArrayConstructorsList, klass);
 };
@@ -66,7 +66,7 @@ var exportProto = function (KEY, property, forced) {
     if (global[ARRAY] && has(global[ARRAY].prototype, KEY)) delete global[ARRAY].prototype[KEY];
   }
   if (!TypedArrayPrototype[KEY] || forced) {
-    redefine(TypedArrayPrototype, KEY, forced ? property : Uint8ArrayPrototype[KEY] || property);
+    redefine(TypedArrayPrototype, KEY, forced ? property : Int8ArrayPrototype[KEY] || property);
   }
 };
 
@@ -77,7 +77,7 @@ var exportStatic = function (KEY, property, forced) {
     if (global[ARRAY] && has(global[ARRAY], KEY)) delete global[ARRAY][KEY];
   }
   if (!TypedArray[KEY] || forced) {
-    redefine(TypedArray, KEY, forced ? property : Uint8Array[KEY] || property);
+    redefine(TypedArray, KEY, forced ? property : Int8Array[KEY] || property);
   }
 };
 
@@ -129,7 +129,7 @@ module.exports = {
   aTypedArrayConstructor: aTypedArrayConstructor,
   exportProto: exportProto,
   exportStatic: exportStatic,
-  isArrayBufferView: isArrayBufferView,
+  isView: isView,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype
