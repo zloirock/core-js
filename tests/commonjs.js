@@ -357,8 +357,11 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('index'));
 }
 
-ok(typeof load('features/typed-array/array-buffer') === 'function');
-ok(typeof load('features/typed-array/data-view') === 'function');
+ok(typeof load('features/array-buffer') === 'function');
+ok(typeof load('features/array-buffer/constructor') === 'function');
+ok(typeof load('features/array-buffer/is-view') === 'function');
+load('features/array-buffer/slice');
+ok(typeof load('features/data-view') === 'function');
 ok(typeof load('features/typed-array/int8-array') === 'function');
 ok(typeof load('features/typed-array/uint8-array') === 'function');
 ok(typeof load('features/typed-array/uint8-clamped-array') === 'function');
