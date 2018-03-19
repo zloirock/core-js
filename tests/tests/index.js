@@ -175,7 +175,8 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
-import './esnext.array.end';
+import './esnext.array.last-item';
+import './esnext.array.last-index';
 import './esnext.array.flat-map';
 import './esnext.array.flatten';
 import './esnext.asap';
