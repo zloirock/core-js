@@ -41,11 +41,6 @@ if (require('../internals/descriptors')) {
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var WRONG_LENGTH = 'Wrong length!';
 
-  var LITTLE_ENDIAN = fails(function () {
-    // eslint-disable-next-line no-undef
-    return new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
-  });
-
   var fromList = function (C, list) {
     var index = 0;
     var length = list.length;
@@ -118,15 +113,18 @@ if (require('../internals/descriptors')) {
     var TypedArrayConstructor = NativeTypedArrayConstructor;
     var exported = {};
     var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
+
     var getter = function (that, index) {
       var data = getInternalState(that);
-      return data.view[GETTER](index * BYTES + data.byteOffset, LITTLE_ENDIAN);
+      return data.view[GETTER](index * BYTES + data.byteOffset, true);
     };
+
     var setter = function (that, index, value) {
       var data = getInternalState(that);
       if (CLAMPED) value = (value = Math.round(value)) < 0 ? 0 : value > 0xff ? 0xff : value & 0xff;
-      data.view[SETTER](index * BYTES + data.byteOffset, value, LITTLE_ENDIAN);
+      data.view[SETTER](index * BYTES + data.byteOffset, value, true);
     };
+
     var addElement = function (that, index) {
       nativeDefineProperty(that, index, {
         get: function () {
@@ -138,6 +136,7 @@ if (require('../internals/descriptors')) {
         enumerable: true
       });
     };
+
     if (!NATIVE_ARRAY_BUFFER_VIEWS) {
       TypedArrayConstructor = wrapper(function (that, data, offset, $length) {
         anInstance(that, TypedArrayConstructor, NAME);
@@ -175,6 +174,7 @@ if (require('../internals/descriptors')) {
         });
         while (index < length) addElement(that, index++);
       });
+
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
       TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
     } else if (!fails(function () {
@@ -186,7 +186,10 @@ if (require('../internals/descriptors')) {
       new TypedArrayConstructor(null); // eslint-disable-line no-new
       new TypedArrayConstructor(1.5); // eslint-disable-line no-new
       new TypedArrayConstructor(iterable); // eslint-disable-line no-new
-    }, true)) {
+    }, true) || fails(function () {
+      // Safari 11 bug
+      return new TypedArrayConstructor(new ArrayBuffer(BYTES * 2), BYTES, undefined).length !== 1;
+    })) {
       TypedArrayConstructor = wrapper(function (that, data, typedArrayOffset, $length) {
         anInstance(that, TypedArrayConstructor, NAME);
         if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
@@ -198,6 +201,7 @@ if (require('../internals/descriptors')) {
         if (isTypedArray(data)) return fromList(TypedArrayConstructor, data);
         return typedArrayFrom.call(TypedArrayConstructor, data);
       });
+
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
       arrayForEach(getOwnPropertyNames(NativeTypedArrayConstructor), function (key) {
         if (!(key in TypedArrayConstructor)) hide(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
@@ -218,6 +222,7 @@ if (require('../internals/descriptors')) {
     if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {
       hide(TypedArrayConstructor, BYTES_PER_ELEMENT, BYTES);
     }
+
     if (!(BYTES_PER_ELEMENT in TypedArrayConstructorPrototype)) {
       hide(TypedArrayConstructorPrototype, BYTES_PER_ELEMENT, BYTES);
     }
