@@ -1,4 +1,5 @@
-require('../modules/esnext.array.end');
+require('../modules/esnext.array.last-item');
+require('../modules/esnext.array.last-index');
 require('../modules/esnext.map.filter');
 require('../modules/esnext.map.from');
 require('../modules/esnext.map.group-by');
