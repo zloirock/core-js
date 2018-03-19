@@ -45,12 +45,10 @@ var AllSymbols = shared('symbols');
 var ObjectPrototypeSymbols = shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
 var ObjectPrototype = Object[PROTOTYPE];
-var USE_NATIVE = typeof $Symbol == 'function';
 var QObject = global.QObject;
+var USE_NATIVE = require('../internals/native-symbol');
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
-
-hiddenKeys[HIDDEN] = true;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDescriptor = DESCRIPTORS && fails(function () {
@@ -266,3 +264,5 @@ setToStringTag($Symbol, SYMBOL);
 setToStringTag(Math, 'Math', true);
 // 24.3.3 JSON[@@toStringTag]
 setToStringTag(global.JSON, 'JSON', true);
+
+hiddenKeys[HIDDEN] = true;
