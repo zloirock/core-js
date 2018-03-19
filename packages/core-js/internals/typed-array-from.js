@@ -7,17 +7,17 @@ var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTyp
 
 module.exports = function from(source /* , mapfn, thisArg */) {
   var O = toObject(source);
-  var aLen = arguments.length;
-  var mapfn = aLen > 1 ? arguments[1] : undefined;
+  var argumentsLength = arguments.length;
+  var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   var mapping = mapfn !== undefined;
-  var iterFn = getIteratorMethod(O);
+  var iteratorMethod = getIteratorMethod(O);
   var i, length, values, result, step, iterator;
-  if (iterFn != undefined && !isArrayIteratorMethod(iterFn)) {
-    for (iterator = iterFn.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
+  if (iteratorMethod != undefined && !isArrayIteratorMethod(iteratorMethod)) {
+    for (iterator = iteratorMethod.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
       values.push(step.value);
     } O = values;
   }
-  if (mapping && aLen > 2) mapfn = bind(mapfn, arguments[2], 2);
+  if (mapping && argumentsLength > 2) mapfn = bind(mapfn, arguments[2], 2);
   for (i = 0, length = toLength(O.length), result = new (aTypedArrayConstructor(this))(length); length > i; i++) {
     result[i] = mapping ? mapfn(O[i], i) : O[i];
   }

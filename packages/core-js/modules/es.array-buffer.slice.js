@@ -12,8 +12,9 @@ var INCORRECT_SLICE = require('../internals/fails')(function () {
   return !new ArrayBuffer(2).slice(1, undefined).byteLength;
 });
 
+// `ArrayBuffer.prototype.slice` method
+// https://tc39.github.io/ecma262/#sec-arraybuffer.prototype.slice
 require('../internals/export')({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
-  // 24.1.4.3 ArrayBuffer.prototype.slice(start, end)
   slice: function slice(start, end) {
     if (nativeArrayBufferSlice !== undefined && end === undefined) {
       return nativeArrayBufferSlice.call(anObject(this), start); // FF fix
