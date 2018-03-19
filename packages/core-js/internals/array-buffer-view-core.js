@@ -55,29 +55,46 @@ var aTypedArray = function (it) {
 };
 
 var aTypedArrayConstructor = function (C) {
-  if (isPrototypeOf.call(TypedArray, C)) return C;
-  throw TypeError('It is not a typed array constructor!');
+  if (setPrototypeOf) {
+    if (isPrototypeOf.call(TypedArray, C)) return C;
+  } else for (var ARRAY in TypedArrayConstructorsList) if (has(TypedArrayConstructorsList, NAME)) {
+    var TypedArrayConstructor = global[ARRAY];
+    if (TypedArrayConstructor && (C === TypedArrayConstructor || isPrototypeOf.call(TypedArrayConstructor, C))) {
+      return C;
+    }
+  } throw TypeError('Target is not a typed array constructor!');
 };
 
 var exportProto = function (KEY, property, forced) {
   if (!DESCRIPTORS) return;
-  var ARRAY;
-  if (forced) for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY] && has(global[ARRAY].prototype, KEY)) delete global[ARRAY].prototype[KEY];
+  if (forced) for (var ARRAY in TypedArrayConstructorsList) {
+    var TypedArrayConstructor = global[ARRAY];
+    if (TypedArrayConstructor && has(TypedArrayConstructor.prototype, KEY)) delete TypedArrayConstructor.prototype[KEY];
   }
   if (!TypedArrayPrototype[KEY] || forced) {
-    redefine(TypedArrayPrototype, KEY, forced ? property : Int8ArrayPrototype[KEY] || property);
+    redefine(TypedArrayPrototype, KEY, forced ? property
+      : NATIVE_ARRAY_BUFFER_VIEWS && Int8ArrayPrototype[KEY] || property);
   }
 };
 
 var exportStatic = function (KEY, property, forced) {
+  var ARRAY, TypedArrayConstructor;
   if (!DESCRIPTORS) return;
-  var ARRAY;
-  if (forced) for (ARRAY in TypedArrayConstructorsList) {
-    if (global[ARRAY] && has(global[ARRAY], KEY)) delete global[ARRAY][KEY];
-  }
-  if (!TypedArray[KEY] || forced) {
-    redefine(TypedArray, KEY, forced ? property : Int8Array[KEY] || property);
+  if (setPrototypeOf) {
+    if (forced) for (ARRAY in TypedArrayConstructorsList) {
+      TypedArrayConstructor = global[ARRAY];
+      if (TypedArrayConstructor && has(TypedArrayConstructor, KEY)) delete TypedArrayConstructor[KEY];
+    }
+    if (!TypedArray[KEY] || forced) {
+      redefine(TypedArray, KEY, forced ? property : NATIVE_ARRAY_BUFFER_VIEWS && Int8Array[KEY] || property);
+    }
+  } else {
+    for (ARRAY in TypedArrayConstructorsList) {
+      TypedArrayConstructor = global[ARRAY];
+      if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
+        redefine(TypedArrayConstructor, KEY, property);
+      }
+    }
   }
 };
 
@@ -108,12 +125,12 @@ if (NATIVE_ARRAY_BUFFER_VIEWS && getPrototypeOf(Uint8ClampedArrayPrototype) !== 
   setPrototypeOf(Uint8ClampedArrayPrototype, TypedArrayPrototype);
 }
 
-if (!has(TypedArrayPrototype, TO_STRING_TAG)) {
+if (DESCRIPTORS && !has(TypedArrayPrototype, TO_STRING_TAG)) {
   TYPED_ARRAY_TAG_REQIRED = true;
   defineProperty(TypedArrayPrototype, TO_STRING_TAG, { get: function () {
     return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
   } });
-  for (NAME in TypedArrayConstructorsList) hide(global[NAME], TYPED_ARRAY_TAG, NAME);
+  for (NAME in TypedArrayConstructorsList) if (global[NAME]) hide(global[NAME], TYPED_ARRAY_TAG, NAME);
 }
 
 // WebKit bug - the same parent prototype for typed arrays and data view

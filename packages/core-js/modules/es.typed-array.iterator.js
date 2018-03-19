@@ -1,7 +1,6 @@
 'use strict';
 var ArrayIterators = require('../modules/es.array.iterator');
 var Uint8Array = require('../internals/global').Uint8Array;
-var Iterators = require('../internals/iterators');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var ITERATOR = require('../internals/well-known-symbol')('iterator');
 var arrayValues = ArrayIterators.values;
@@ -34,7 +33,3 @@ exportProto('values', typedArrayValues, !CORRECT_ITER_NAME);
 // `%TypedArray%.prototype[@@iterator]` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype-@@iterator
 exportProto(ITERATOR, typedArrayValues, !CORRECT_ITER_NAME);
-
-for (var NAME in ArrayBufferViewCore.TypedArrayConstructorsList) {
-  Iterators[NAME] = typedArrayValues;
-}
