@@ -3,6 +3,8 @@ var ARRAY_BUFFER = 'ArrayBuffer';
 var ArrayBuffer = require('../internals/typed-buffer')[ARRAY_BUFFER];
 var NativeArrayBuffer = require('../internals/global')[ARRAY_BUFFER];
 
+// `ArrayBuffer` constructor
+// https://tc39.github.io/ecma262/#sec-arraybuffer-constructor
 require('../internals/export')({ global: true, forced: NativeArrayBuffer !== ArrayBuffer }, {
   ArrayBuffer: ArrayBuffer
 });
