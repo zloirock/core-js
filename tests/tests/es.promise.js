@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, PROTO } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -15,7 +15,7 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    assert.same(this, undefined, 'correct executor context');
+    if (STRICT) assert.same(this, undefined, 'correct executor context');
   });
 });
 
