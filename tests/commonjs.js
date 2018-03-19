@@ -69,7 +69,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/last-index-of') === 'function');
   ok(load('features/array/copy-within')([1, 2, 3, 4, 5], 0, 3)[0] === 4);
   ok('next' in load('features/array/entries')([]));
-  load('features/array/end');
+  load('features/array/last-item');
+  load('features/array/last-index');
   ok(load('features/array/fill')(Array(5), 2)[0] === 2);
   ok(load('features/array/find')([2, 3, 4], it => it % 2) === 3);
   ok(load('features/array/find-index')([2, 3, 4], it => it % 2) === 1);
