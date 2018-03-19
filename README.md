@@ -1524,23 +1524,26 @@ Symbol().description;      // => undefined
 ```js
 core-js(-pure)/stage/1
 ```
-* `Array#end` [proposal](https://github.com/keithamus/proposal-array-last) - module [`esnext.array.end`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.end.js)
+* Getting last item from `Array` [proposal](https://github.com/keithamus/proposal-array-last) - modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-index.js)
 ```js
 class Array {
-  get end: value;
-  set end(value);
+  get lastItem: value;
+  set lastItem(value);
+  get lastIndex: uint;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/features/array/end
+core-js/features/array/last-item
+core-js/features/array/last-index
 ```
-[*Examples*](https://goo.gl/STnWBT):
+[*Examples*](https://goo.gl/2TmcMT):
 ```js
-[1, 2, 3].end; // => 3
+[1, 2, 3].lastItem;  // => 3
+[1, 2, 3].lastIndex; // => 2
 
 const array = [1, 2, 3];
-array.end = 4;
+array.lastItem = 4;
 
 array; // => [1, 2, 4]
 ```
