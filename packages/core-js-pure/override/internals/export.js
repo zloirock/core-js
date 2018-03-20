@@ -64,7 +64,7 @@ module.exports = function (options, source) {
     else resultProperty = sourceProperty;
 
     // add a flag to not completely full polyfills
-    if (options.sham || sourceProperty.sham || (targetProperty && targetProperty.sham)) {
+    if (options.sham || (sourceProperty && sourceProperty.sham) || (targetProperty && targetProperty.sham)) {
       hide(resultProperty, 'sham', true);
     }
 
