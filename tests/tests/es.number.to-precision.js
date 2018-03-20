@@ -1,7 +1,7 @@
 QUnit.test('Number#toPrecision', assert => {
   const { toPrecision } = Number.prototype;
   assert.isFunction(toPrecision);
-  assert.name(toPrecision, 'toPrecision');
+  if ('name' in toPrecision) assert.name(toPrecision, 'toPrecision');
   assert.arity(toPrecision, 1);
   assert.looksNative(toPrecision);
   assert.nonEnumerable(Number.prototype, 'toPrecision');

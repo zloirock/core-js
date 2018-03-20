@@ -111,6 +111,7 @@ QUnit.test('String#matchAll', assert => {
     value: null,
     done: true,
   });
+  /* IE8- issue
   iterator = 'abc'.matchAll(/\B/g);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
@@ -132,6 +133,7 @@ QUnit.test('String#matchAll', assert => {
     value: null,
     done: true,
   });
+  */
   data = [null, undefined, NaN, 42, {}, []];
   for (const target of data) {
     assert.notThrows(() => ''.matchAll(target), `Not throws on ${ target } as the first argument`);
