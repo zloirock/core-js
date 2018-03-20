@@ -19,7 +19,9 @@ require('../internals/fix-regexp-well-known-symbol-logic')('split', 2, function 
       var string = String(this);
       if (separator === undefined && limit === 0) return [];
       // If `separator` is not a regex, use native split
-      if (!isRegExp(separator)) return nativeSplit.call(string, separator, limit);
+      if (!isRegExp(separator)) {
+        return nativeSplit.call(string, separator, limit !== undefined ? limit >>> 0 : 4294967295);
+      }
       var output = [];
       var flags = (separator.ignoreCase ? 'i' : '') +
                   (separator.multiline ? 'm' : '') +
