@@ -215,15 +215,18 @@ $export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
   useSimple: function () { USE_SETTER = false; }
 });
 
-$export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
-  // 19.1.2.2 Object.create(O [, Properties])
-  create: $create,
+$export({ target: 'Object', stat: true, forced: !USE_NATIVE, sham: !DESCRIPTORS }, {
   // 19.1.2.4 Object.defineProperty(O, P, Attributes)
   defineProperty: $defineProperty,
   // 19.1.2.3 Object.defineProperties(O, Properties)
   defineProperties: $defineProperties,
   // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
-  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
+  getOwnPropertyDescriptor: $getOwnPropertyDescriptor
+});
+
+$export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
+  // 19.1.2.2 Object.create(O [, Properties])
+  create: $create,
   // 19.1.2.7 Object.getOwnPropertyNames(O)
   getOwnPropertyNames: $getOwnPropertyNames,
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
