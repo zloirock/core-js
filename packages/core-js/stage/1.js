@@ -1,3 +1,4 @@
+require('../modules/esnext.object.from-entries');
 require('../modules/esnext.array.last-item');
 require('../modules/esnext.array.last-index');
 require('../modules/esnext.map.filter');
