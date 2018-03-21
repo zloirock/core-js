@@ -3,6 +3,8 @@
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
+var aFunction = require('../internals/a-function');
+var anObject = require('../internals/an-object');
 var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
 var hide = require('../internals/hide');
@@ -20,12 +22,19 @@ var regExpBuiltinExec = RegExpPrototype.exec;
 
 var matchAllIterator = function (R, O) {
   var S = String(O);
-  var C = speciesConstructor(R, RegExp);
-  var flags = 'flags' in RegExpPrototype ? String(R.flags) : getFlags.call(R);
-  var matcher = new C(C === RegExp ? R.source : R, flags);
-  var global = !!matcher.global;
-  var fullUnicode = !!matcher.unicode;
-  matcher.lastIndex = toLength(R.lastIndex);
+  var C, matcher, global, fullUnicode;
+  if (isRegExp(R)) {
+    C = speciesConstructor(R, RegExp);
+    matcher = new C(C === RegExp ? R.source : R, 'flags' in RegExpPrototype ? String(R.flags) : getFlags.call(R));
+    global = !!matcher.global;
+    fullUnicode = !!matcher.unicode;
+    matcher.lastIndex = toLength(R.lastIndex);
+  } else {
+    matcher = new RegExp(R, 'g');
+    global = true;
+    fullUnicode = false;
+    if (matcher.lastIndex !== 0) throw TypeError('Incorrect lastIndex!');
+  }
   return new $RegExpStringIterator(matcher, S, global, fullUnicode);
 };
 
@@ -71,12 +80,13 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
 require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
-    var R = isRegExp(regexp) ? regexp : new RegExp(regexp, 'g');
-    var matcher = R[MATCH_ALL];
-    return matcher === undefined ? matchAllIterator(R, O) : matcher.call(R, O);
+    if (regexp != null) {
+      var matcher = regexp[MATCH_ALL];
+      if (matcher != null) return aFunction(matcher).call(regexp, O);
+    } return matchAllIterator(regexp, O);
   }
 });
 
 IS_PURE || MATCH_ALL in RegExpPrototype || hide(RegExpPrototype, MATCH_ALL, function (string) {
-  return matchAllIterator(this, string);
+  return matchAllIterator(anObject(this), string);
 });
