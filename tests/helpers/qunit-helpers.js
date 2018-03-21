@@ -1,5 +1,5 @@
 import { DESCRIPTORS } from './constants';
-import ITERATOR from 'core-js-pure/features/symbol/iterator';
+import isIterable from 'core-js-pure/features/is-iterable';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
@@ -53,7 +53,7 @@ QUnit.assert.isFunction = function (fn, message) {
 
 QUnit.assert.isIterable = function (it, message) {
   this.pushResult({
-    result: typeof it[ITERATOR] === 'function',
+    result: isIterable(it),
     actual: false,
     expected: true,
     message: message || 'is iterable',
