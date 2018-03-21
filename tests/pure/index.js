@@ -1,3 +1,5 @@
+import '../helpers/qunit-helpers';
+
 QUnit.module('ES');
 import './es.array.copy-within';
 import './es.array.every';
