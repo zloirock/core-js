@@ -16,6 +16,7 @@
     "ES2015",
     "ES2016",
     "ES2017",
+    "ES2018",
     "ECMAScript 3",
     "ECMAScript 5",
     "ECMAScript 6",
@@ -23,6 +24,7 @@
     "ECMAScript 2015",
     "ECMAScript 2016",
     "ECMAScript 2017",
+    "ECMAScript 2018",
     "Harmony",
     "Strawman",
     "Map",
@@ -30,11 +32,12 @@
     "WeakMap",
     "WeakSet",
     "Promise",
+    "Observable",
     "Symbol",
     "TypedArray",
     "setImmediate",
-    "Dict",
     "polyfill",
+    "ponyfill",
     "shim"
   ]
 }
