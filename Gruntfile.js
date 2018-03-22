@@ -16,7 +16,7 @@ module.exports = grunt => {
     uglify: {
       build: {
         files: {
-          './packages/core-js/bundles/core.js.min.js': './packages/core-js/bundles/core.js',
+          './packages/core-js-bundle/minified.js': './packages/core-js-bundle/index.js',
         },
         options: {
           mangle: {
@@ -49,6 +49,9 @@ module.exports = grunt => {
       ],
       'core-js-builder': [
         './packages/core-js-builder/LICENSE',
+      ],
+      'core-js-bundle': [
+        './packages/core-js/LICENSE',
       ],
       tests: [
         './tests/bundles/*',
@@ -92,6 +95,15 @@ module.exports = grunt => {
           },
         ],
       },
+      'core-js-bundle': {
+        files: [
+          {
+            expand: true,
+            src: ['LICENSE'],
+            dest: './packages/core-js-builder/',
+          },
+        ],
+      },
     },
     karma: {
       options: {
@@ -102,7 +114,7 @@ module.exports = grunt => {
       },
       tests: {
         files: [
-          'packages/core-js/bundles/core.js',
+          'packages/core-js-bundle/index.js',
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/tests.js',
         ].map(it => ({ src: it })),
@@ -121,7 +133,7 @@ module.exports = grunt => {
     build({
       modules: ['es', 'esnext', 'web'],
     }).then(it => {
-      const filename = './packages/core-js/bundles/core.js';
+      const filename = './packages/core-js-bundle/index.js';
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);
     }).catch(it => {

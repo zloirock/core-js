@@ -5,7 +5,10 @@ node_modules/
 *.bak
 *.swp
 
-/packages/core-js/bundles/
+/packages/core-js-bundle/LICENSE
+/packages/core-js-bundle/index.js
+/packages/core-js-bundle/minified.js
+/packages/core-js-bundle/minified.js.map
 /packages/core-js/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/features/
