@@ -243,5 +243,10 @@ if (DESCRIPTORS) {
       assert.same(getter.call({}), undefined);
       assert.same(getter.call(), undefined);
     });
+
+    QUnit.test(`${ name }.sham`, assert => {
+      if (TypedArray.sham) assert.ok(true, `${ name }.sham flag exists`);
+      else assert.ok(true, `${ name }.sham flag missed`);
+    });
   }
 }
