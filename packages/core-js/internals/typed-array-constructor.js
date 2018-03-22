@@ -216,7 +216,9 @@ if (require('../internals/descriptors')) {
 
     exported[NAME] = TypedArrayConstructor;
 
-    $export({ global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor }, exported);
+    $export({
+      global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor, sham: !NATIVE_ARRAY_BUFFER_VIEWS
+    }, exported);
 
     if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {
       hide(TypedArrayConstructor, BYTES_PER_ELEMENT, BYTES);
