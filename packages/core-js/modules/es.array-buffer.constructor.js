@@ -1,6 +1,6 @@
 'use strict';
 var ARRAY_BUFFER = 'ArrayBuffer';
-var ArrayBuffer = require('../internals/typed-buffer')[ARRAY_BUFFER];
+var ArrayBuffer = require('../internals/array-buffer')[ARRAY_BUFFER];
 var NativeArrayBuffer = require('../internals/global')[ARRAY_BUFFER];
 
 // `ArrayBuffer` constructor

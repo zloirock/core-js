@@ -1,11 +1,11 @@
 'use strict';
-var TypedBufferModule = require('../internals/typed-buffer');
+var ArrayBufferModule = require('../internals/array-buffer');
 var anObject = require('../internals/an-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 var speciesConstructor = require('../internals/species-constructor');
-var ArrayBuffer = TypedBufferModule.ArrayBuffer;
-var DataView = TypedBufferModule.DataView;
+var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
+var DataView = ArrayBufferModule.DataView;
 var nativeArrayBufferSlice = ArrayBuffer.prototype.slice;
 
 var INCORRECT_SLICE = require('../internals/fails')(function () {
