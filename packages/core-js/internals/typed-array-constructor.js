@@ -4,7 +4,7 @@ if (require('../internals/descriptors')) {
   var fails = require('../internals/fails');
   var $export = require('../internals/export');
   var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-  var TypedBufferModule = require('../internals/typed-buffer');
+  var ArrayBufferModule = require('../internals/array-buffer');
   var anInstance = require('../internals/an-instance');
   var createPropertyDescriptor = require('../internals/create-property-descriptor');
   var hide = require('../internals/hide');
@@ -31,8 +31,8 @@ if (require('../internals/descriptors')) {
   var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
   var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
-  var ArrayBuffer = TypedBufferModule.ArrayBuffer;
-  var DataView = TypedBufferModule.DataView;
+  var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
+  var DataView = ArrayBufferModule.DataView;
   var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
   var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
   var TypedArray = ArrayBufferViewCore.TypedArray;
@@ -104,15 +104,14 @@ if (require('../internals/descriptors')) {
   });
 
   // eslint-disable-next-line max-statements
-  module.exports = function (KEY, BYTES, wrapper, CLAMPED) {
-    CLAMPED = !!CLAMPED;
-    var NAME = KEY + (CLAMPED ? 'Clamped' : '') + 'Array';
-    var GETTER = 'get' + KEY;
-    var SETTER = 'set' + KEY;
+  module.exports = function (TYPE, BYTES, wrapper, CLAMPED) {
+    var NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
+    var GETTER = 'get' + TYPE;
+    var SETTER = 'set' + TYPE;
     var NativeTypedArrayConstructor = global[NAME];
     var TypedArrayConstructor = NativeTypedArrayConstructor;
-    var exported = {};
     var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
+    var exported = {};
 
     var getter = function (that, index) {
       var data = getInternalState(that);
