@@ -1,3 +1,5 @@
+import { DESCRIPTORS } from '../helpers/constants';
+
 import { create, getPrototypeOf, getOwnPropertyNames } from 'core-js-pure/features/object';
 
 QUnit.test('Object.create', assert => {
@@ -25,4 +27,8 @@ QUnit.test('Object.create', assert => {
   assert.ok(!('toString' in object));
   assert.ok(object.w === 2);
   assert.deepEqual(getPropertyNames(create(null)), []);
+});
+
+QUnit.test('Object.create.sham flag', assert => {
+  assert.same(create.sham, DESCRIPTORS ? undefined : true);
 });
