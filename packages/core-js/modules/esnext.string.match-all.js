@@ -1,6 +1,6 @@
 'use strict';
 // https://tc39.github.io/proposal-string-matchall/
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterators-core').createIteratorConstructor;
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var aFunction = require('../internals/a-function');

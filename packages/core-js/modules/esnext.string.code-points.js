@@ -1,5 +1,5 @@
 'use strict';
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterators-core').createIteratorConstructor;
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var InternalStateModule = require('../internals/internal-state');
 var createAt = require('../internals/string-at');
