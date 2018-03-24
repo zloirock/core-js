@@ -3,6 +3,7 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');
 var InternalStateModule = require('../internals/internal-state');
+var defineIterator = require('../internals/iterators-core').defineIterator;
 var ARRAY_ITERATOR = 'ArrayIterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
@@ -17,7 +18,7 @@ var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
 // https://tc39.github.io/ecma262/#sec-array.prototype-@@iterator
 // `CreateArrayIterator` internal method
 // https://tc39.github.io/ecma262/#sec-createarrayiterator
-module.exports = require('../internals/define-iterator')(Array, 'Array', function (iterated, kind) {
+module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
   setInternalState(this, {
     type: ARRAY_ITERATOR,
     target: toIndexedObject(iterated), // target
