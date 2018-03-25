@@ -1,44 +1,116 @@
 ## Changelog
 ##### 3.0.0
-- Added new features:
-  - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
-  - `Symbol#description` ([stage 1 proposal](https://tc39.github.io/proposal-Symbol-description/))
-  - `String#replaceAll` ([stage 1 proposal](https://github.com/psmarshall/string-replace-all-proposal))
-  - Triggering unhandled `Promise` rejection events (instead of only global handlers) [#205](https://github.com/zloirock/core-js/issues/205)
-- Removed obsolete features:
-  - `Error.isError` (withdrawn)
-  - `System.global` (replaced by `global`)
-  - `Map#toJSON` and `Set#toJSON` (rejected)
-  - `RegExp.escape` (rejected)
-  - `Reflect.enumerate` (removed from the spec)
-  - Unnecessary iteration methods from `CSSRuleList`, `MediaList`, `StyleSheetList`
-- Updated proposals:
-  - [`Observable`](https://github.com/tc39/proposal-observable) ([#257](https://github.com/zloirock/core-js/issues/257), [#276](https://github.com/zloirock/core-js/issues/276), etc.)
-  - `Array#flatten` and `Array#flatMap` updated and moved to the stage 3
-  - `Symbol.asyncIterator` moved to the stage 3
-- ES2016 and ES2017 features marked as stable:
-  - `Array#includes` and `%TypedArray%#includes`
-  - `Object.values` and `Object.entries`
-  - `Object.getOwnPropertyDescriptors`
-  - `Object#__(define|lookup)[GS]etter__`
-  - `String#padStart` and `String#padEnd`
-- Finally removed all non-standard / non-proposed features:
-  - `Dict`
-  - `Object.{classof, isObject, define, make}`
-  - `Function#part`
-  - `Number#@@iterator`
-  - `String#{escapeHTML, unescapeHTML}`
-  - `delay`
-  - Because of this, we no longer need `core-js/shim` entry point, replace it just to `core-js`.
-- The repo and the package cleaned from unnecessary bundles:
-  - We no longer need `core-js/client/shim.js` and `core-js/client/shim.min.js` because all non-standard features was removed - now `core-js/client/core.js` and `core-js/client/core.min.js` do the same.
-  - Bundles of `library` version - `core-js/client/library.js` and `core-js/client/library.min.js` - removed because they are useless for almost all - [usage `babel-runtime` for automatic inclusion](http://babeljs.io/docs/plugins/transform-runtime/) or individual import of required features much more useful.
-  - Thanks to this, the size of the package was reduced almost twice.
-- Changed namespaces:
-  - All features from ES5, ES2015, ES2016 and ES2017 moved to one ES namespace - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
-  - Prefix for ES proposals changed from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
-  - `web.dom.iterable` module renamed to `web.dom-collections.iterator`.
-- Finally removed `bower.json`
+- Features
+  - Add new features:
+    - `Symbol#description` ([stage 2 proposal](https://tc39.github.io/proposal-Symbol-description/))
+    - `Object.fromEntries` ([stage 1 proposal](https://github.com/bathos/object-from-entries))
+    - Getting last item from `Array` ([stage 1 proposal](https://github.com/keithamus/proposal-array-last))
+      - `Array#lastItem`
+      - `Array#lastIndex`
+    - `String#replaceAll` ([stage 1 proposal](https://github.com/psmarshall/string-replace-all-proposal))
+    - `String#codePoints ` ([stage 1 proposal](https://github.com/RReverser/string-prototype-codepoints))
+    - New collections methods ([stage 1 proposal](https://github.com/Ginden/collection-methods))
+      - `Map.groupBy`
+      - `Map.keyBy`
+      - `Map#filter`
+      - `Map#mapKeys`
+      - `Map#mapValues`
+      - `Map#merge`
+      - `Set#addAll`
+      - `Set#deleteAll`
+      - `Set#every`
+      - `Set#filter`
+      - `Set#find`
+      - `Set#join`
+      - `Set#map`
+      - `Set#reduce`
+      - `Set#some`
+    - New `Set` methods ([stage 1 proposal](https://github.com/Ginden/set-methods))
+      - `Set#intersect`
+      - `Set#union`
+      - `Set#except`
+      - `Set#xor`
+    - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring), optional)
+    - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
+  - Update standard features and proposals:
+    - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
+    - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
+    - Update `Array#flatten` and `Array#flatMap` and move to the stage 3
+    - Update `String#matchAll` (mainly [this PR](https://github.com/tc39/proposal-string-matchall/pull/17)) and move to the stage 3
+    - Move `String#{trimLeft, trimRight}` to the stage 3
+  - Mark ES2016, ES2017 and ES2018 features as stable:
+    - `Array#includes` and `%TypedArray%#includes`
+    - `Object.values` and `Object.entries`
+    - `Object.getOwnPropertyDescriptors`
+    - `String#padStart` and `String#padEnd`
+    - `Promise#finally`
+    - `Symbol.asyncIterator`
+    - `Object#__(define|lookup)[GS]etter__`
+  - Remove obsolete features:
+    - `Error.isError` (withdrawn)
+    - `System.global` (replaced by `global`)
+    - `Map#toJSON` and `Set#toJSON` (rejected)
+    - `RegExp.escape` (rejected)
+    - `Reflect.enumerate` (removed from the spec)
+    - Unnecessary iteration methods from `CSSRuleList`, `MediaList`, `StyleSheetList`
+  - **No more non-standard features**, finally removed:
+    - `Dict`
+    - `Object.{classof, isObject, define, make}`
+    - `Function#part`
+    - `Number#@@iterator`
+    - `String#{escapeHTML, unescapeHTML}`
+    - `delay`
+  - Improve existing features:
+    - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
+    - Correct iterators prototypes chain, related [#261](https://github.com/zloirock/core-js/issues/261).
+    - Correct Typed Arrays prototypes chain, related [#378](https://github.com/zloirock/core-js/issues/378).
+    - Make the internal state of polyfilled features completely unobservable, [#146](https://github.com/zloirock/core-js/issues/146).
+    - Add validation of receiver's internal class to missed non-generic methods.
+    - Fix descriptors of global properties.
+    - In the version without global pollution, if `Object#toString` does not support `@@toStringTag`, add to wrapped prototypes own `toString` method with `@@toStringTag` logic, see [#199](https://github.com/zloirock/core-js/issues/199).
+  - Add `.sham` flag to features which can't be properly polyfilled and / or not recommended for usage:
+    - `Symbol` constructor - we can't add new primitives. `Object.prototype` accessors too expensive.
+    - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptos}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
+    - `Object.{freeze, seal, preventExtensions}`, `Reflect.preventExtensions` can't be properly polyfilled in ES3 environment.
+    - `Object.getPrototypeOf` can be deceived in ES3 environment.
+    - `Reflect.construct` can't be polyfilled for a correct work with `newTarget` argument on built-ins.
+    - Typed Array constructors polyfill is quite correct but too expensive.
+- Bugfixes:
+  - Fix deoptimisation of iterators in V8, [#377](https://github.com/zloirock/core-js/issues/377).
+  - Fix import of property before constructor which should contain this property, [#262](https://github.com/zloirock/core-js/issues/262).
+  - Fix some cases of IE11 `WeakMap` frozen keys fallback, [#384](https://github.com/zloirock/core-js/issues/384).
+- Repository:
+  - Change `core-js` repository structure to monorepo with packages in `/packages/` directory.
+  - Clean-up it, remove all possible duplicates, generated files, etc.
+- Packages:
+  - **Extract a version without global namespace pollution to a separate `core-js-pure` package (replacement for `core-js/library`).**
+  - **Leave only one pair of bundles (global, with all polyfills) and move it to `core-js-bundle` package.**
+  - Remove bundling logic from `core-js` package, leave it only in `core-js-builder` package.
+  - Clean-up packages.
+  - Because of all approaches, **reduce size of packages from ~2mb for `core-js@2` to**:
+    - **~380kb for `core-js` package**
+    - **~310kb for `core-js-pure` package**
+  - Finally remove `bower.json`
+- CommonJS API, namespaces:
+  - Move `core-js/library` to separate `core-js-pure` package.
+  - Because of removing all non-standard features, we no longer need `core-js/shim` entry point, replace it just with `core-js`.
+  - Move all features from ES5, ES2015, ES2016, ES2017 and ES2018 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
+  - Change prefix for ES proposals from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
+  - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
+  - Split typed arrays polyfills. Now you can, for example, load only required method.
+  - Rename `web.dom` namespace to `web.dom-collections`.
+  - Relax `/modules/` directory by moving internal modules to `/internals/` directory.
+  - `core` object no longer available in the global version, entry points which previously returned it now returns `global` object. Also, don't set `global.core` object.
+  - Add some missing entry points.
+- Tools, tests, code quality:
+  - Refactor source code for improving readability.
+  - **Get rid of LiveScript**, usage another language in JS standard library looks strange and impedes usage of tools like ESLint:
+    - Rewrite tests to JS.
+    - Rewrite scripts to JS.
+  - Use for tests Babel with minimalistic config which should work anywhere.
+  - Use ESLint on the code of tests and tools.
+  - Remove an option for generation bundle of a version without global namespace pollution from `core-js-builder` - now it's an odd use case.
+  - Remove UMD wrapper from the code, generated by `core-js-builder` bundles - we don't need it for a global polyfill.
 
 ##### 2.5.7 - 2018.05.26
 - Get rid of reserved variable name `final`, related [#400](https://github.com/zloirock/core-js/issues/400)
