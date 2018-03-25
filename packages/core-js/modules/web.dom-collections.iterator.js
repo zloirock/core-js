@@ -11,14 +11,19 @@ for (var COLLECTION_NAME in DOMIterables) {
   var Collection = global[COLLECTION_NAME];
   var CollectionPrototype = Collection && Collection.prototype;
   if (CollectionPrototype) {
-    // some Chrome versions die on an attempt to redefine iterator, for example, on DOMTokenList
+    // some Chrome versions have non-configurable methods on DOMTokenList
     if (CollectionPrototype[ITERATOR] !== ArrayValues) try {
       hide(CollectionPrototype, ITERATOR, ArrayValues);
-    } catch (e) { /* empty */ }
+    } catch (e) {
+      CollectionPrototype[ITERATOR] = ArrayValues;
+    }
     if (!CollectionPrototype[TO_STRING_TAG]) hide(CollectionPrototype, TO_STRING_TAG, COLLECTION_NAME);
     if (DOMIterables[COLLECTION_NAME]) for (var METHOD_NAME in ArrayIteratorMethods) {
-      if (CollectionPrototype[METHOD_NAME] !== ArrayIteratorMethods[METHOD_NAME]) {
-        hide(CollectionPrototype, METHOD_NAME, ArrayIteratorMethods[METHOD_NAME], true);
+      // some Chrome versions have non-configurable methods on DOMTokenList
+      if (CollectionPrototype[METHOD_NAME] !== ArrayIteratorMethods[METHOD_NAME]) try {
+        hide(CollectionPrototype, METHOD_NAME, ArrayIteratorMethods[METHOD_NAME]);
+      } catch (e) {
+        CollectionPrototype[METHOD_NAME] = ArrayIteratorMethods[METHOD_NAME];
       }
     }
   }
