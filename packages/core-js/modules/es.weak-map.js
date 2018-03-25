@@ -1,6 +1,5 @@
 'use strict';
-var forEach = require('../internals/array-methods')(0);
-var redefine = require('../internals/redefine');
+var redefineAll = require('../internals/redefine-all');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var weak = require('../internals/collection-weak');
 var isObject = require('../internals/is-object');
@@ -24,18 +23,40 @@ var $WeakMap = module.exports = require('../internals/collection')(WEAK_MAP, wra
 if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(test), 7).get(test) != 7; })) {
   InternalWeakMap = weak.getConstructor(wrapper, WEAK_MAP, true);
   InternalMetadataModule.REQUIRED = true;
-  forEach(['delete', 'has', 'get', 'set'], function (METHOD_NAME) {
-    var WeakMapPrototype = $WeakMap.prototype;
-    var method = WeakMapPrototype[METHOD_NAME];
-    redefine(WeakMapPrototype, METHOD_NAME, function (a, b) {
-      // store frozen objects on internal weakmap shim
-      if (isObject(a) && !isExtensible(a)) {
+  var WeakMapPrototype = $WeakMap.prototype;
+  var nativeDelete = WeakMapPrototype['delete'];
+  var nativeHas = WeakMapPrototype.has;
+  var nativeGet = WeakMapPrototype.get;
+  var nativeSet = WeakMapPrototype.set;
+  redefineAll(WeakMapPrototype, {
+    'delete': function (key) {
+      if (isObject(key) && !isExtensible(key)) {
         var state = enforceIternalState(this);
         if (!state.frozen) state.frozen = new InternalWeakMap();
-        var result = state.frozen[METHOD_NAME](a, b);
-        return METHOD_NAME == 'set' ? this : result;
-      // store all the rest on native weakmap
-      } return method.call(this, a, b);
-    });
+        return nativeDelete.call(this, key) || state.frozen['delete'](key);
+      } return nativeDelete.call(this, key);
+    },
+    has: function has(key) {
+      if (isObject(key) && !isExtensible(key)) {
+        var state = enforceIternalState(this);
+        if (!state.frozen) state.frozen = new InternalWeakMap();
+        return nativeHas.call(this, key) || state.frozen.has(key);
+      } return nativeHas.call(this, key);
+    },
+    get: function get(key) {
+      if (isObject(key) && !isExtensible(key)) {
+        var state = enforceIternalState(this);
+        if (!state.frozen) state.frozen = new InternalWeakMap();
+        return nativeHas.call(this, key) ? nativeGet.call(this, key) : state.frozen.get(key);
+      } return nativeGet.call(this, key);
+    },
+    set: function set(key, value) {
+      if (isObject(key) && !isExtensible(key)) {
+        var state = enforceIternalState(this);
+        if (!state.frozen) state.frozen = new InternalWeakMap();
+        nativeHas.call(this, key) ? nativeSet.call(this, key, value) : state.frozen.set(key, value);
+      } else nativeSet.call(this, key, value);
+      return this;
+    }
   });
 }
