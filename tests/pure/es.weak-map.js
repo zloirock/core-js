@@ -76,30 +76,48 @@ QUnit.test('WeakMap#delete', assert => {
   weakmap.delete(a);
   assert.ok(!weakmap.has(a) && weakmap.has(b), 'WeakMap hasn`t value after .delete()');
   assert.notThrows(() => !weakmap.delete(1), 'return false on primitive');
+  const object = {};
+  weakmap.set(object, 42);
+  freeze(object);
+  assert.ok(weakmap.has(object), 'works with frozen objects #1');
+  weakmap.delete(object);
+  assert.ok(!weakmap.has(object), 'works with frozen objects #2');
 });
 
 QUnit.test('WeakMap#get', assert => {
   assert.isFunction(WeakMap.prototype.get);
   const weakmap = new WeakMap();
   assert.strictEqual(weakmap.get({}), undefined, 'WeakMap .get() before .set() return undefined');
-  const object = {};
+  let object = {};
   weakmap.set(object, 42);
   assert.strictEqual(weakmap.get(object), 42, 'WeakMap .get() return value');
   weakmap.delete(object);
   assert.strictEqual(weakmap.get(object), undefined, 'WeakMap .get() after .delete() return undefined');
   assert.notThrows(() => weakmap.get(1) === undefined, 'return undefined on primitive');
+  object = {};
+  weakmap.set(object, 42);
+  freeze(object);
+  assert.same(weakmap.get(object), 42, 'works with frozen objects #1');
+  weakmap.delete(object);
+  assert.same(weakmap.get(object), undefined, 'works with frozen objects #2');
 });
 
 QUnit.test('WeakMap#has', assert => {
   assert.isFunction(WeakMap.prototype.has);
   const weakmap = new WeakMap();
   assert.ok(!weakmap.has({}), 'WeakMap .has() before .set() return false');
-  const object = {};
+  let object = {};
   weakmap.set(object, 42);
   assert.ok(weakmap.has(object), 'WeakMap .has() return true');
   weakmap.delete(object);
   assert.ok(!weakmap.has(object), 'WeakMap .has() after .delete() return false');
   assert.notThrows(() => !weakmap.has(1), 'return false on primitive');
+  object = {};
+  weakmap.set(object, 42);
+  freeze(object);
+  assert.ok(weakmap.has(object), 'works with frozen objects #1');
+  weakmap.delete(object);
+  assert.ok(!weakmap.has(object), 'works with frozen objects #2');
 });
 
 QUnit.test('WeakMap#set', assert => {
@@ -110,6 +128,17 @@ QUnit.test('WeakMap#set', assert => {
   assert.same(weakmap.get(object), 33, 'works with object as keys');
   assert.ok(weakmap.set({}, 42) === weakmap, 'chaining');
   assert.throws(() => new WeakMap().set(42, 42), 'throws with primitive keys');
+  const object1 = freeze({});
+  const object2 = {};
+  weakmap.set(object1, 42);
+  weakmap.set(object2, 42);
+  freeze(object);
+  assert.same(weakmap.get(object1), 42, 'works with frozen objects #1');
+  assert.same(weakmap.get(object2), 42, 'works with frozen objects #2');
+  weakmap.delete(object1);
+  weakmap.delete(object2);
+  assert.same(weakmap.get(object1), undefined, 'works with frozen objects #3');
+  assert.same(weakmap.get(object2), undefined, 'works with frozen objects #4');
 });
 
 QUnit.test('WeakMap#@@toStringTag', assert => {
