@@ -188,6 +188,8 @@ module.exports = {
     'esnext.string.match-all',
     'esnext.symbol.description',
     'esnext.symbol.observable',
+    'esnext.symbol.pattern-match',
+    'esnext.symbol.pattern-value',
     'esnext.map.filter',
     'esnext.map.from',
     'esnext.map.group-by',
