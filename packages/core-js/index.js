@@ -185,6 +185,8 @@ require('./modules/esnext.string.replace-all');
 require('./modules/esnext.string.match-all');
 require('./modules/esnext.symbol.description');
 require('./modules/esnext.symbol.observable');
+require('./modules/esnext.symbol.pattern-match');
+require('./modules/esnext.symbol.pattern-value');
 require('./modules/esnext.map.filter');
 require('./modules/esnext.map.from');
 require('./modules/esnext.map.group-by');
