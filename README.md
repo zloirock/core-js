@@ -1830,6 +1830,18 @@ core-js(-pure)/features/asap
 ```js
 asap(() => console.log('called as microtask'));
 ```
+* `Symbol.{patternMatch, patternValue}` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - modules [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.pattern-match.js) and [`esnext.symbol.pattern-value`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.pattern-value.js)
+```js
+class Symbol {
+  static patternMatch: @@patternMatch;
+  static patternValue: @@patternValue;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/symbol/pattern-match
+core-js(-pure)/features/symbol/pattern-value
+```
 
 #### Pre-stage 0 proposals
 [*CommonJS entry points:*](#commonjs)

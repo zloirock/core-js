@@ -30,7 +30,8 @@
       - `Set#union`
       - `Set#except`
       - `Set#xor`
-    - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring), optional)
+    - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
+    - `Symbol.{patternMatch, patternValue}` ([for updated stage 0 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Update standard features and proposals:
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
