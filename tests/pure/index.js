@@ -185,6 +185,8 @@ import './esnext.string.match-all';
 import './esnext.string.trim-left';
 import './esnext.string.trim-right';
 import './esnext.symbol.observable';
+import './esnext.symbol.pattern-match';
+import './esnext.symbol.pattern-value';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
 import './esnext.weak-set.from';
