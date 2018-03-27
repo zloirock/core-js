@@ -1,4 +1,4 @@
-require('../../modules/es.regexp.split');
+require('../../modules/es.string.split');
 var SPLIT = require('../../internals/well-known-symbol')('split');
 
 module.exports = function (it, str, limit) {

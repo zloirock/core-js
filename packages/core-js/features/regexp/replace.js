@@ -1,4 +1,4 @@
-require('../../modules/es.regexp.replace');
+require('../../modules/es.string.replace');
 var REPLACE = require('../../internals/well-known-symbol')('replace');
 
 module.exports = function (it, str, replacer) {
