@@ -1,2 +1,2 @@
 require('../../modules/es6.number.parse-int');
-module.exports = parseInt;
+module.exports = require('../../modules/_core').Number.parseInt;
