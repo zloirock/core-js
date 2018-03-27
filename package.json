@@ -24,6 +24,7 @@
     "eslint": "4.19.x",
     "eslint-import-resolver-webpack": "^0.8.3",
     "eslint-plugin-import": "2.12.x",
+    "eslint-plugin-qunit": "3.2.x",
     "grunt": "^1.0.2",
     "grunt-cli": "^1.2.0",
     "grunt-contrib-clean": "^1.1.0",
