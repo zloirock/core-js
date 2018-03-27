@@ -333,7 +333,7 @@ const es3 = {
   strict: 'off',
 };
 
-const babel = {
+const unit = {
   // require destructuring from arrays and/or objects
   'prefer-destructuring': 'error',
   // require strict mode directives
@@ -358,6 +358,58 @@ const babel = {
   'no-unused-expressions': 'off',
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': 'off',
+
+  // qunit:
+  // ensure the correct number of assert arguments is used
+  'qunit/assert-args': 'error',
+  // forbid the use of assert.equal
+  'qunit/no-assert-equal': 'error',
+  // forbid binary logical expressions in assert arguments
+  'qunit/no-assert-logical-expression': 'error',
+  // forbid async calls in loops
+  'qunit/no-async-in-loops': 'error',
+  // forbid the use of asyncTest
+  'qunit/no-async-test': 'error',
+  // forbid commented tests
+  'qunit/no-commented-tests': 'error',
+  // forbid comparing relational expression to boolean in assertions
+  'qunit/no-compare-relation-boolean': 'error',
+  // prevent early return in a qunit test
+  'qunit/no-early-return': 'error',
+  // forbid the use of global qunit assertions
+  'qunit/no-global-assertions': 'error',
+  // forbid the use of global expect
+  'qunit/no-global-expect': 'error',
+  // forbid the use of global module / test / asyncTest
+  'qunit/no-global-module-test': 'error',
+  // forbid use of global stop / start
+  'qunit/no-global-stop-start': 'error',
+  // forbid identical test and module names
+  'qunit/no-identical-names': 'error',
+  // forbid use of QUnit.init
+  'qunit/no-init': 'error',
+  // forbid use of QUnit.jsDump
+  'qunit/no-jsdump': 'error',
+  // forbid equality comparisons in assert.{ok, notOk}
+  'qunit/no-ok-equality': 'error',
+  // forbid the use of QUnit.push
+  'qunit/no-qunit-push': 'error',
+  // forbid QUnit.start within tests or test hooks
+  'qunit/no-qunit-start-in-tests': 'error',
+  // forbid the use of QUnit.stop
+  'qunit/no-qunit-stop': 'error',
+  // forbid overwriting of QUnit logging callbacks
+  'qunit/no-reassign-log-callbacks': 'error',
+  // forbid use of QUnit.reset
+  'qunit/no-reset': 'error',
+  // forbid setup / teardown module hooks
+  'qunit/no-setup-teardown': 'error',
+  // forbid expect argument in QUnit.test
+  'qunit/no-test-expect-argument': 'error',
+  // forbid assert.throws() with block, string, and message
+  'qunit/no-throws-string': 'error',
+  // require that all async calls should be resolved in tests
+  'qunit/resolve-async': 'error',
 };
 
 module.exports = {
@@ -370,7 +422,10 @@ module.exports = {
     node: true,
     worker: true,
   },
-  plugins: ['import'],
+  plugins: [
+    'import',
+    'qunit',
+  ],
   settings: {
     'import/resolver': {
       webpack: {
@@ -403,7 +458,7 @@ module.exports = {
       env: {
         qunit: true,
       },
-      rules: babel,
+      rules: unit,
     },
     {
       files: [

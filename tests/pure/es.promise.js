@@ -372,10 +372,10 @@ if (PROTO) QUnit.test('Promise subclassing', assert => {
   });
 });
 
-/* qunit@2.5 strange bug
-QUnit.test('Unhandled rejection tracking', assert => {
+// qunit@2.5 strange bug
+QUnit.skip('Unhandled rejection tracking', assert => {
   let done = false;
-  const start = assert.async();
+  const resume = assert.async();
   if (GLOBAL.process) {
     assert.expect(3);
     function onunhandledrejection(reason, promise) {
@@ -389,7 +389,7 @@ QUnit.test('Unhandled rejection tracking', assert => {
     function onrejectionhandled(promise) {
       process.removeListener('rejectionHandled', onrejectionhandled);
       assert.same(promise, $promise, 'rejectionHandled, promise');
-      done || start();
+      done || resume();
       done = true;
     }
     process.on('unhandledRejection', onunhandledrejection);
@@ -424,7 +424,7 @@ QUnit.test('Unhandled rejection tracking', assert => {
       assert.same(it.promise, $promise, 'onrejectionhandled, promise');
       assert.same(it.reason, 42, 'onrejectionhandled, reason');
       GLOBAL.onrejectionhandled = null;
-      done || start();
+      done || resume();
       done = true;
     };
   }
@@ -433,8 +433,7 @@ QUnit.test('Unhandled rejection tracking', assert => {
   });
   const $promise = Promise.reject(42);
   setTimeout(() => {
-    done || start();
+    done || resume();
     done = true;
   }, 3e3);
 });
-*/
