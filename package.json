@@ -28,7 +28,7 @@
     "karma-phantomjs-launcher": "1.0.x",
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "^2.1.2",
-    "qunit": "2.5.x",
+    "qunit": "2.6.x",
     "temp": "^0.8.3",
     "webpack": "^3.11.0"
   },
