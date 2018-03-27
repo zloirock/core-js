@@ -1,4 +1,4 @@
-require('../../modules/es.regexp.match');
+require('../../modules/es.string.match');
 var MATCH = require('../../internals/well-known-symbol')('match');
 
 module.exports = function (it, str) {
