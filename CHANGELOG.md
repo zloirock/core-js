@@ -1,4 +1,11 @@
 ## Changelog
+##### 2.5.4 - 2018.03.27
+- Fixed one case of deoptimization built-in iterators in V8, related [#377](https://github.com/zloirock/core-js/issues/377)
+- Fixed some cases of iterators feature detection, [#368](https://github.com/zloirock/core-js/issues/368)
+- Fixed manually entered NodeJS domains issue in `Promise`, [#367](https://github.com/zloirock/core-js/issues/367)
+- Fixed `Number.{parseInt, parseFloat}` entry points
+- Fixed `__(define|lookup)[GS]etter__` import in the `library` version
+
 ##### 2.5.3 - 2017.12.12
 - Fixed calling `onunhandledrejectionhandler` multiple times for one `Promise` chain, [#318](https://github.com/zloirock/core-js/issues/318)
 - Forced replacement of `String#{padStart, padEnd}` in Safari 10 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=161944), [#280](https://github.com/zloirock/core-js/issues/280)
