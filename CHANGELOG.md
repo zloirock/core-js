@@ -100,6 +100,7 @@
   - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
   - Split typed arrays polyfills. Now you can, for example, load only required method.
   - Rename `web.dom` namespace to `web.dom-collections`.
+  - Rename `es6.regexp.{match, replace, search, split}` -> `es.string.{match, replace, search, split}` - mainly it's fixes / adding support of well-known symbols to string methods, only in second place adding related methods to regexp prototype.
   - Relax `/modules/` directory by moving internal modules to `/internals/` directory.
   - `core` object no longer available in the global version, entry points which previously returned it now returns `global` object. Also, don't set `global.core` object.
   - Add some missing entry points.
