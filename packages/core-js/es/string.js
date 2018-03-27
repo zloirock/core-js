@@ -1,5 +1,9 @@
 require('../modules/es.string.from-code-point');
 require('../modules/es.string.raw');
+require('../modules/es.string.match');
+require('../modules/es.string.replace');
+require('../modules/es.string.search');
+require('../modules/es.string.split');
 require('../modules/es.string.trim');
 require('../modules/es.string.iterator');
 require('../modules/es.string.code-point-at');
@@ -22,9 +26,5 @@ require('../modules/es.string.small');
 require('../modules/es.string.strike');
 require('../modules/es.string.sub');
 require('../modules/es.string.sup');
-require('../modules/es.regexp.match');
-require('../modules/es.regexp.replace');
-require('../modules/es.regexp.search');
-require('../modules/es.regexp.split');
 
 module.exports = require('../internals/path').String;

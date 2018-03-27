@@ -186,6 +186,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('has' in load('features/reflect'));
   ok(load('features/string/from-code-point')(97) === 'a');
   ok(load('features/string/raw')({ raw: 'test' }, 0, 1, 2) === 't0e1s2t');
+  ok(load('features/string/trim')(' ab ') === 'ab');
   ok(load('features/string/code-point-at')('a', 0) === 97);
   ok(load('features/string/ends-with')('qwe', 'we'));
   ok(load('features/string/includes')('qwe', 'w'));
@@ -360,6 +361,10 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('index'));
 }
 
+ok(typeof load('features/string/match') === 'function');
+ok(typeof load('features/string/replace') === 'function');
+ok(typeof load('features/string/search') === 'function');
+ok(load('features/string/split')('a s d', ' ').length === 3);
 ok(typeof load('features/array-buffer') === 'function');
 ok(typeof load('features/array-buffer/constructor') === 'function');
 ok(typeof load('features/array-buffer/is-view') === 'function');

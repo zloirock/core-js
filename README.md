@@ -55,8 +55,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [ECMAScript: Object](#ecmascript-object)
     - [ECMAScript: Function](#ecmascript-function)
     - [ECMAScript: Array](#ecmascript-array)
-    - [ECMAScript: String](#ecmascript-string)
-    - [ECMAScript: RegExp](#ecmascript-regexp)
+    - [ECMAScript: String and RegExp](#ecmascript-string-and-regexp)
     - [ECMAScript: Number](#ecmascript-number)
     - [ECMAScript: Math](#ecmascript-math)
     - [ECMAScript: Date](#ecmascript-date)
@@ -472,10 +471,14 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 Array(1).indexOf(undefined);  // => -1
 Array(1).includes(undefined); // => true
 ```
-#### ECMAScript: String
-Modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.starts-with.js) and [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.trim.js).
+#### ECMAScript: String and RegExp
+The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.starts-with.js) and [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.trim.js).
+
+Support well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.split.js).
 
 Annex B HTML methods. Ugly, but it's also the part of the spec. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.sub.js) and [`es.string.sup`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.string.sup.js).
+
+`RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.constructor.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.flags.js).
 ```js
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
@@ -488,6 +491,10 @@ class String {
   padStart(length: number, fillStr?: string = ' '): string;
   padEnd(length: number, fillStr?: string = ' '): string;
   codePointAt(pos: number): number | void;
+  match(template: any): any; // ES2015+ fix for support @@match
+  replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
+  search(template: any): any; // ES2015+ fix for support @@search
+  split(template: any, limit: any): any; // ES2015+ fix for support @@split, some fixes for old engines
   trim(): string;
   anchor(name: string): string;
   big(): string;
@@ -504,10 +511,21 @@ class String {
   sup(): string;
   @@iterator(): Iterator<characters>;
 }
+
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp; // ES2015+ fix - can alter flags (IE9+)
+  toString(): string; // ES2015+ fix - generic
+  @@match(string: string): Array | null;
+  @@replace(string: string, replaceValue: Function | string): string;
+  @@search(string: string): number;
+  @@split(string: string, limit: number): Array<string>;
+  get flags: string; // IE9+
+}
 ```
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/es/string
+core-js/es/regexp
 core-js(-pure)/features/string/from-code-point
 core-js(-pure)/features/string/raw
 core-js(-pure)/features/string/includes
@@ -554,8 +572,15 @@ core-js(-pure)/features/string/virtual/strike
 core-js(-pure)/features/string/virtual/sub
 core-js(-pure)/features/string/virtual/sup
 core-js(-pure)/features/string/virtual/iterator
+core-js/features/regexp/constructor
+core-js(-pure)/features/regexp/flags
+core-js/features/regexp/to-string
+core-js/features/regexp/match
+core-js/features/regexp/replace
+core-js/features/regexp/search
+core-js/features/regexp/split
 ```
-[*Examples*](https://goo.gl/oVvKga):
+[*Examples*](https://goo.gl/DR1Q72):
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // => 'a', '𠮷', 'b'
@@ -585,42 +610,7 @@ String.raw({ raw: 'test' }, 0, 1, 2); // => 't0e1s2t'
 'foo'.bold();                     // => '<b>foo</b>'
 'bar'.anchor('a"b');              // => '<a name="a&quot;b">bar</a>'
 'baz'.link('http://example.com'); // => '<a href="http://example.com">baz</a>'
-```
-#### ECMAScript: RegExp
-Modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.constructor.js) and [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.flags.js).
 
-Support well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split`, modules [`es.regexp.match`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.match.js), [`es.regexp.replace`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.replace.js), [`es.regexp.search`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.search.js) and [`es.regexp.split`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.regexp.split.js).
-```js
-class RegExp {
-  constructor(pattern: RegExp | string, flags?: string): RegExp; // ES2015+ fix - can alter flags (IE9+)
-  toString(): string; // ES2015+ fix - generic
-  @@match(string: string): Array | null;
-  @@replace(string: string, replaceValue: Function | string): string;
-  @@search(string: string): number;
-  @@split(string: string, limit: number): Array<string>;
-  get flags: string; // IE9+
-}
-
-class String {
-  match(template: any): any; // ES2015+ fix for support @@match
-  replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
-  search(template: any): any; // ES2015+ fix for support @@search
-  split(template: any, limit: any): any; // ES2015+ fix for support @@split, some fixes for old engines
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```
-core-js/es/regexp
-core-js/features/regexp/constructor
-core-js(-pure)/features/regexp/flags
-core-js/features/regexp/to-string
-core-js/features/regexp/match
-core-js/features/regexp/replace
-core-js/features/regexp/search
-core-js/features/regexp/split
-```
-[*Examples*](http://goo.gl/PiJxBD):
-```js
 RegExp(/./g, 'm'); // => /./m
 
 /foo/.flags;    // => ''
