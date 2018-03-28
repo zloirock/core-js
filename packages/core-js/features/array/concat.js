@@ -1,4 +1,3 @@
-// for a legacy code and future fixes
-module.exports = function () {
-  return Function.call.apply(Array.prototype.concat, arguments);
-};
+require('../../modules/es.array.concat');
+
+module.exports = require('../../internals/entry-unbind')('Array', 'concat');
