@@ -89,6 +89,7 @@ module.exports = {
     'es.string.strike',
     'es.string.sub',
     'es.string.sup',
+    'es.array.concat',
     'es.array.includes',
     'es.array.is-array',
     'es.array.from',
