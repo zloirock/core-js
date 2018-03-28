@@ -348,12 +348,12 @@ console.log.bind(console, 42)(43); // => 42 43
 Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.reduce-right.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.sort.js)
 ```js
 class Array {
-  concat(...args: Array<mixed>): Array<mixed>;
+  concat(...args: Array<mixed>): Array<mixed>; // with adding support of @@isConcatSpreadable and @@species
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
   fill(value: any, start?: number, end?: number): this;
-  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
+  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>; // with adding support of @@species
   find(callbackfn: (value: any, index: number, target: any) => boolean), thisArg?: any): any;
   findIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): number;
   forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
@@ -362,7 +362,7 @@ class Array {
   join(separator: string = ','): string;
   keys(): Iterator<index>;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>;
+  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>; // with adding support of @@species
   reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   slice(start?: number, end?: number): Array<mixed>;
