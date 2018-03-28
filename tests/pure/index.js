@@ -1,6 +1,7 @@
 import '../helpers/qunit-helpers';
 
 QUnit.module('ES');
+import './es.array.concat';
 import './es.array.copy-within';
 import './es.array.every';
 import './es.array.fill';

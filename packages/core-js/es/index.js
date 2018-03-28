@@ -91,6 +91,7 @@ require('../modules/es.date.to-json');
 require('../modules/es.date.to-iso-string');
 require('../modules/es.date.to-string');
 require('../modules/es.date.to-primitive');
+require('../modules/es.array.concat');
 require('../modules/es.array.includes');
 require('../modules/es.array.is-array');
 require('../modules/es.array.from');

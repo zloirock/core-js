@@ -67,6 +67,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/reduce-right') === 'function');
   ok(typeof load('features/array/index-of') === 'function');
   ok(typeof load('features/array/last-index-of') === 'function');
+  ok(load('features/array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
   ok(load('features/array/copy-within')([1, 2, 3, 4, 5], 0, 3)[0] === 4);
   ok('next' in load('features/array/entries')([]));
   load('features/array/last-item');
@@ -90,6 +91,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/virtual/reduce-right') === 'function');
   ok(typeof load('features/array/virtual/index-of') === 'function');
   ok(typeof load('features/array/virtual/last-index-of') === 'function');
+  ok(load('features/array/virtual/concat').call([1, 2, 3], [4, 5, 6]).length === 6);
   ok(load('features/array/virtual/copy-within').call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
   ok('next' in load('features/array/virtual/entries').call([]));
   ok(load('features/array/virtual/fill').call(Array(5), 2)[0] === 2);
@@ -101,7 +103,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/array/virtual/iterator').call([]));
   ok(load('features/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('features/array'));
-  ok(load('features/array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
   ok(load('features/array/pop')([1, 2, 3]) === 3);
   ok(load('features/array/push')([1, 2, 3], 4) === 4);
   ok(load('features/array/reverse')([1, 2, 3])[0] === 3);

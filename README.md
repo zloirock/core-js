@@ -348,6 +348,7 @@ console.log.bind(console, 42)(43); // => 42 43
 Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.reduce-right.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/es.array.sort.js)
 ```js
 class Array {
+  concat(...args: Array<mixed>): Array<mixed>;
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
@@ -385,13 +386,13 @@ core-js(-pure)/es/array
 core-js(-pure)/features/array/from
 core-js(-pure)/features/array/of
 core-js(-pure)/features/array/is-array
-core-js(-pure)/features/array/includes
-core-js(-pure)/features/array/iterator
+core-js(-pure)/features/array/concat
 core-js(-pure)/features/array/copy-within
 core-js(-pure)/features/array/fill
 core-js(-pure)/features/array/find
 core-js(-pure)/features/array/find-index
 core-js(-pure)/features/array/includes
+core-js(-pure)/features/array/iterator
 core-js(-pure)/features/array/values
 core-js(-pure)/features/array/keys
 core-js(-pure)/features/array/entries
@@ -407,12 +408,13 @@ core-js(-pure)/features/array/filter
 core-js(-pure)/features/array/reduce
 core-js(-pure)/features/array/reduce-right
 core-js(-pure)/features/array/sort
-core-js(-pure)/features/array/virtual/iterator
+core-js(-pure)/features/array/virtual/concat
 core-js(-pure)/features/array/virtual/copy-within
 core-js(-pure)/features/array/virtual/fill
 core-js(-pure)/features/array/virtual/find
 core-js(-pure)/features/array/virtual/find-index
 core-js(-pure)/features/array/virtual/includes
+core-js(-pure)/features/array/virtual/iterator
 core-js(-pure)/features/array/virtual/values
 core-js(-pure)/features/array/virtual/keys
 core-js(-pure)/features/array/virtual/entries
@@ -2026,9 +2028,9 @@ console.log(getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills
-- ES `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers, many implementations are available, for example, [json3](https://github.com/bestiejs/json3).
+- ES `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers, many implementations are available.
 - ES `String#normalize` is not a very useful feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
 - ES `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES2015 version.
-- ES logic for `@@isConcatSpreadable` and `@@species` (in most places) can be polyfilled without problems, but it will cause a serious slowdown in popular cases in some engines. It will be polyfilled when it will be implemented in modern engines.
+- ES logic for `@@species` (in most places) can be polyfilled without problems, but it will cause a serious slowdown in popular cases in some engines. It will be polyfilled when it will be implemented in modern engines.
 - `window.fetch` is not a cross-platform feature, in some environments it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *may be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 - ECMA-402 `Intl` is missed because of size. You can use [this polyfill](https://github.com/andyearnshaw/Intl.js/).
