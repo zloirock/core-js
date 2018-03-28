@@ -1,10 +1,11 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from 'core-js-pure/features/symbol';
 import map from 'core-js-pure/features/array/map';
 
 QUnit.test('Array#map', assert => {
   assert.isFunction(map);
-  const array = [1];
+  let array = [1];
   const context = {};
   map(array, function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -22,4 +23,9 @@ QUnit.test('Array#map', assert => {
     assert.throws(() => map(null, () => { /* empty */ }), TypeError);
     assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(map(array, Boolean).foo, 1, '@@species');
 });

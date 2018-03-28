@@ -7,7 +7,7 @@ QUnit.test('Array#map', assert => {
   assert.name(map, 'map');
   assert.looksNative(map);
   assert.nonEnumerable(Array.prototype, 'map');
-  const array = [1];
+  let array = [1];
   const context = {};
   array.map(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -33,4 +33,9 @@ QUnit.test('Array#map', assert => {
       throw new Error();
     }).length === 0, 'uses ToLength');
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(array.map(Boolean).foo, 1, '@@species');
 });
