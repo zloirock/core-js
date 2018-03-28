@@ -6,7 +6,7 @@ QUnit.test('Array#concat', assert => {
   assert.name(concat, 'concat');
   assert.looksNative(concat);
   assert.nonEnumerable(Array.prototype, 'concat');
-  const array = [1, 2];
+  let array = [1, 2];
   const sparseArray = [1, , 2];
   const nonSpreadableArray = [1, 2];
   nonSpreadableArray[Symbol.isConcatSpreadable] = false;
@@ -25,4 +25,9 @@ QUnit.test('Array#concat', assert => {
   assert.deepEqual(array.concat(sparseArray, nonSpreadableArray, arrayLike, spreadableArrayLike), [
     1, 2, 1, , 2, [1, 2], { 0: 1, 1: 2, length: 2 }, 1, 2,
   ], '#11');
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(array.concat().foo, 1, '@@species');
 });

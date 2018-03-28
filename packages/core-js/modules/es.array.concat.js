@@ -21,7 +21,7 @@ var isConcatSpreadable = function (O) {
 
 // `Array.prototype.concat` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.concat
-// adding support of @@isConcatSpreadable and @@species
+// with adding support of @@isConcatSpreadable and @@species
 require('../internals/export')({ target: 'Array', proto: true, forced: !SUPPORT_IS_CONCAT_SPREADABLE }, {
   concat: function concat(arg) { // eslint-disable-line no-unused-vars
     var O = toObject(this);

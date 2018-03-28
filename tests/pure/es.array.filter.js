@@ -1,10 +1,11 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from 'core-js-pure/features/symbol';
 import filter from 'core-js-pure/features/array/filter';
 
 QUnit.test('Array#filter', assert => {
   assert.isFunction(filter);
-  const array = [1];
+  let array = [1];
   const context = {};
   filter(array, function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -18,4 +19,9 @@ QUnit.test('Array#filter', assert => {
     assert.throws(() => filter(null, () => { /* empty */ }), TypeError);
     assert.throws(() => filter(undefined, () => { /* empty */ }), TypeError);
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(filter(array, Boolean).foo, 1, '@@species');
 });

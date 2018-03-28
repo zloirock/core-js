@@ -7,7 +7,7 @@ QUnit.test('Array#filter', assert => {
   assert.name(filter, 'filter');
   assert.looksNative(filter);
   assert.nonEnumerable(Array.prototype, 'filter');
-  const array = [1];
+  let array = [1];
   const context = {};
   array.filter(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
@@ -29,4 +29,9 @@ QUnit.test('Array#filter', assert => {
       throw new Error();
     }), 'uses ToLength');
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(array.filter(Boolean).foo, 1, '@@species');
 });
