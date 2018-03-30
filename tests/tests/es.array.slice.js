@@ -8,7 +8,7 @@ QUnit.test('Array#slice', assert => {
   assert.name(slice, 'slice');
   assert.looksNative(slice);
   assert.nonEnumerable(Array.prototype, 'slice');
-  const array = ['1', '2', '3', '4', '5'];
+  let array = ['1', '2', '3', '4', '5'];
   assert.deepEqual(array.slice(), array);
   assert.deepEqual(array.slice(1, 3), ['2', '3']);
   assert.deepEqual(array.slice(1, undefined), ['2', '3', '4', '5']);
@@ -36,4 +36,9 @@ QUnit.test('Array#slice', assert => {
       0: 1,
     }, 0, 1), [], 'uses ToLength');
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(array.slice().foo, 1, '@@species');
 });

@@ -33,6 +33,16 @@
     - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
     - `Symbol.{patternMatch, patternValue}` ([for updated stage 0 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
+  - Improve existing features:
+    - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
+    - Add support of `@@isConcatSpreadable` to `Array#concat`.
+    - Add support of `@@species` to `Array#{concat, filter, map, slice}`.
+    - Correct iterators prototypes chain, related [#261](https://github.com/zloirock/core-js/issues/261).
+    - Correct Typed Arrays prototypes chain, related [#378](https://github.com/zloirock/core-js/issues/378).
+    - Make the internal state of polyfilled features completely unobservable, [#146](https://github.com/zloirock/core-js/issues/146).
+    - Add validation of receiver's internal class to missed non-generic methods.
+    - Fix descriptors of global properties.
+    - In the version without global pollution, if `Object#toString` does not support `@@toStringTag`, add to wrapped prototypes own `toString` method with `@@toStringTag` logic, see [#199](https://github.com/zloirock/core-js/issues/199).
   - Update standard features and proposals:
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
@@ -61,16 +71,6 @@
     - `Number#@@iterator`
     - `String#{escapeHTML, unescapeHTML}`
     - `delay`
-  - Improve existing features:
-    - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
-    - Add support of `@@isConcatSpreadable` to `Array#concat`.
-    - Add support of `@@species` to `Array#{concat, filter, map}`.
-    - Correct iterators prototypes chain, related [#261](https://github.com/zloirock/core-js/issues/261).
-    - Correct Typed Arrays prototypes chain, related [#378](https://github.com/zloirock/core-js/issues/378).
-    - Make the internal state of polyfilled features completely unobservable, [#146](https://github.com/zloirock/core-js/issues/146).
-    - Add validation of receiver's internal class to missed non-generic methods.
-    - Fix descriptors of global properties.
-    - In the version without global pollution, if `Object#toString` does not support `@@toStringTag`, add to wrapped prototypes own `toString` method with `@@toStringTag` logic, see [#199](https://github.com/zloirock/core-js/issues/199).
   - Add `.sham` flag to features which can't be properly polyfilled and / or not recommended for usage:
     - `Symbol` constructor - we can't add new primitives. `Object.prototype` accessors too expensive.
     - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptos}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
