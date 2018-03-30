@@ -104,6 +104,7 @@
   - Rename `web.dom` namespace to `web.dom-collections`.
   - Rename `es6.regexp.{match, replace, search, split}` -> `es.string.{match, replace, search, split}` - mainly it's fixes / adding support of well-known symbols to string methods, only in second place adding related methods to regexp prototype.
   - Relax `/modules/` directory by moving internal modules to `/internals/` directory.
+  - Remove deprecated array entry points: `core-js(/library)/fn/array/{pop, push, reverse, shift, unshift}`.
   - `core` object no longer available in the global version, entry points which previously returned it now returns `global` object. Also, don't set `global.core` object.
   - Add some missing entry points.
 - Tools, tests, code quality:
