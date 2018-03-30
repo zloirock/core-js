@@ -21,6 +21,7 @@ import './es.array.reduce';
 import './es.array.slice';
 import './es.array.some';
 import './es.array.sort';
+import './es.array.splice';
 import './es.date.now';
 import './es.date.to-iso-string';
 import './es.date.to-json';

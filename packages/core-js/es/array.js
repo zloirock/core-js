@@ -6,6 +6,7 @@ require('../modules/es.array.from');
 require('../modules/es.array.of');
 require('../modules/es.array.join');
 require('../modules/es.array.slice');
+require('../modules/es.array.splice');
 require('../modules/es.array.sort');
 require('../modules/es.array.for-each');
 require('../modules/es.array.map');
