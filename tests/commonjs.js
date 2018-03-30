@@ -81,6 +81,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/array/iterator')([]));
   ok(load('features/array/virtual/join').call('qwe', 1) === 'q1w1e');
   ok(load('features/array/virtual/slice').call('qwe', 1)[1] === 'e');
+  ok(load('features/array/virtual/splice').call([1, 2, 3], 1, 2)[0] === 2);
   ok(load('features/array/virtual/sort').call([1, 3, 2])[1] === 2);
   ok(typeof load('features/array/virtual/for-each') === 'function');
   ok(typeof load('features/array/virtual/map') === 'function');

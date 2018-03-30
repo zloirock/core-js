@@ -96,6 +96,7 @@ module.exports = {
     'es.array.of',
     'es.array.join',
     'es.array.slice',
+    'es.array.splice',
     'es.array.sort',
     'es.array.for-each',
     'es.array.map',

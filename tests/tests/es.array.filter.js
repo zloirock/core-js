@@ -1,4 +1,4 @@
-import { NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#filter', assert => {
   const { filter } = Array.prototype;
@@ -21,14 +21,12 @@ QUnit.test('Array#filter', assert => {
     assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
     assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
   }
-  if (NATIVE) {
-    assert.notThrows(() => filter.call({
-      length: -1,
-      0: 1,
-    }, () => {
-      throw new Error();
-    }), 'uses ToLength');
-  }
+  assert.notThrows(() => filter.call({
+    length: -1,
+    0: 1,
+  }, () => {
+    throw new Error();
+  }), 'uses ToLength');
   array = [];
   array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
     return { foo: 1 };

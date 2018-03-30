@@ -1,4 +1,3 @@
-// for a legacy code and future fixes
-module.exports = function () {
-  return Function.call.apply(Array.prototype.splice, arguments);
-};
+require('../../modules/es.array.splice');
+
+module.exports = require('../../internals/entry-unbind')('Array', 'splice');

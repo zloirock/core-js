@@ -1,4 +1,4 @@
-import { NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#map', assert => {
   const { map } = Array.prototype;
@@ -25,14 +25,12 @@ QUnit.test('Array#map', assert => {
     assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
     assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
   }
-  if (NATIVE) {
-    assert.notThrows(() => map.call({
-      length: -1,
-      0: 1,
-    }, () => {
-      throw new Error();
-    }).length === 0, 'uses ToLength');
-  }
+  assert.notThrows(() => map.call({
+    length: -1,
+    0: 1,
+  }, () => {
+    throw new Error();
+  }).length === 0, 'uses ToLength');
   array = [];
   array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
     return { foo: 1 };
