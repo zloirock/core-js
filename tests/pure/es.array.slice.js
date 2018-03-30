@@ -1,10 +1,11 @@
 import { GLOBAL } from '../helpers/constants';
 
 import { slice, isArray } from 'core-js-pure/features/array';
+import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.test('Array#slice', assert => {
   assert.isFunction(slice);
-  const array = ['1', '2', '3', '4', '5'];
+  let array = ['1', '2', '3', '4', '5'];
   assert.deepEqual(slice(array), array);
   assert.deepEqual(slice(array, 1, 3), ['2', '3']);
   assert.deepEqual(slice(array, 1, undefined), ['2', '3', '4', '5']);
@@ -22,4 +23,9 @@ QUnit.test('Array#slice', assert => {
   if (list) {
     assert.notThrows(() => isArray(slice(list)), 'works with NodeList');
   }
+  array = [];
+  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+    return { foo: 1 };
+  } };
+  assert.same(slice(array).foo, 1, '@@species');
 });

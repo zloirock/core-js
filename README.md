@@ -365,7 +365,7 @@ class Array {
   map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>; // with adding support of @@species
   reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
-  slice(start?: number, end?: number): Array<mixed>;
+  slice(start?: number, end?: number): Array<mixed>; // with adding support of @@species
   some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
   sort(comparefn?: (a: any, b: any) => number): this;
   values(): Iterator<value>;
