@@ -366,6 +366,7 @@ class Array {
   reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   slice(start?: number, end?: number): Array<mixed>; // with adding support of @@species
+  splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // with adding support of @@species
   some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
   sort(comparefn?: (a: any, b: any) => number): this;
   values(): Iterator<value>;
@@ -397,6 +398,7 @@ core-js(-pure)/features/array/values
 core-js(-pure)/features/array/keys
 core-js(-pure)/features/array/entries
 core-js(-pure)/features/array/slice
+core-js(-pure)/features/array/splice
 core-js(-pure)/features/array/join
 core-js(-pure)/features/array/index-of
 core-js(-pure)/features/array/last-index-of
@@ -419,6 +421,7 @@ core-js(-pure)/features/array/virtual/values
 core-js(-pure)/features/array/virtual/keys
 core-js(-pure)/features/array/virtual/entries
 core-js(-pure)/features/array/virtual/slice
+core-js(-pure)/features/array/virtual/splice
 core-js(-pure)/features/array/virtual/join
 core-js(-pure)/features/array/virtual/index-of
 core-js(-pure)/features/array/virtual/last-index-of
@@ -2031,6 +2034,5 @@ console.log(getIteratorMethod({})); // undefined
 - ES `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers, many implementations are available.
 - ES `String#normalize` is not a very useful feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
 - ES `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES2015 version.
-- ES logic for `@@species` (in most places) can be polyfilled without problems, but it will cause a serious slowdown in popular cases in some engines. It will be polyfilled when it will be implemented in modern engines.
 - `window.fetch` is not a cross-platform feature, in some environments it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *may be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
 - ECMA-402 `Intl` is missed because of size. You can use [this polyfill](https://github.com/andyearnshaw/Intl.js/).

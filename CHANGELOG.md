@@ -36,7 +36,7 @@
   - Improve existing features:
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
     - Add support of `@@isConcatSpreadable` to `Array#concat`.
-    - Add support of `@@species` to `Array#{concat, filter, map, slice}`.
+    - Add support of `@@species` to `Array#{concat, filter, map, slice, splice}`.
     - Correct iterators prototypes chain, related [#261](https://github.com/zloirock/core-js/issues/261).
     - Correct Typed Arrays prototypes chain, related [#378](https://github.com/zloirock/core-js/issues/378).
     - Make the internal state of polyfilled features completely unobservable, [#146](https://github.com/zloirock/core-js/issues/146).
