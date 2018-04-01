@@ -272,7 +272,7 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessO
       var values = [];
       var index = 0;
       var remaining = 1;
-      iterate(iterable, false, function (promise) {
+      iterate(iterable, function (promise) {
         var $index = index++;
         var alreadyCalled = false;
         values.push(undefined);
@@ -295,7 +295,7 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessO
     var capability = newPromiseCapability(C);
     var reject = capability.reject;
     var result = perform(function () {
-      iterate(iterable, false, function (promise) {
+      iterate(iterable, function (promise) {
         C.resolve(promise).then(capability.resolve, reject);
       });
     });

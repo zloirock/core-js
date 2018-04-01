@@ -11,7 +11,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
   union: function union(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, Set))(set);
-    iterate(iterable, false, aFunction(newSet.add), newSet);
+    iterate(iterable, aFunction(newSet.add), newSet);
     return newSet;
   }
 });

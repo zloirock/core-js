@@ -13,7 +13,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
     var newSet = new (speciesConstructor(set, Set))(set);
     var remover = aFunction(newSet['delete']);
     var adder = aFunction(newSet.add);
-    iterate(iterable, false, function (value) {
+    iterate(iterable, function (value) {
       remover.call(newSet, value) || adder.call(newSet, value);
     });
     return newSet;

@@ -7,7 +7,7 @@ var iterate = require('../internals/iterate');
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   merge: function merge(iterable) {
     var map = anObject(this);
-    iterate(iterable, true, aFunction(map.set), map);
+    iterate(iterable, aFunction(map.set), map, true);
     return map;
   }
 });

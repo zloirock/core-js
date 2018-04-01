@@ -1,6 +1,7 @@
 'use strict';
 var internalIndexOf = require('../internals/array-includes')(false);
 var nativeIndexOf = [].indexOf;
+
 var NEGATIVE_ZERO = !!nativeIndexOf && 1 / [1].indexOf(1, -0) < 0;
 var SLOPPY_METHOD = !require('../internals/strict-method')(nativeIndexOf);
 
