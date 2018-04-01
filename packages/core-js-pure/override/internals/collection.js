@@ -11,47 +11,57 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
 var each = require('../internals/array-methods')(0);
 var DESCRIPTORS = require('../internals/descriptors');
+var InternalStateModule = require('../internals/internal-state');
+var setInternalState = InternalStateModule.set;
+var internalStateGetterFor = InternalStateModule.getterFor;
 
 module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
-  var Base = global[NAME];
-  var C = Base;
+  var NativeConstructor = global[NAME];
+  var NativePrototype = NativeConstructor && NativeConstructor.prototype;
   var ADDER = IS_MAP ? 'set' : 'add';
-  var proto = C && C.prototype;
   var exported = {};
-  if (!DESCRIPTORS || typeof C != 'function' || !(IS_WEAK || proto.forEach && !fails(function () {
-    new C().entries().next();
-  }))) {
+  var Constructor;
+
+  if (!DESCRIPTORS || typeof NativeConstructor != 'function'
+    || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
+  ) {
     // create collection constructor
-    C = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
+    Constructor = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     InternalMetadataModule.REQUIRED = true;
   } else {
-    C = wrapper(function (target, iterable) {
-      anInstance(target, C, NAME, '_c');
-      target._c = new Base();
+    Constructor = wrapper(function (target, iterable) {
+      setInternalState(anInstance(target, Constructor, NAME), {
+        type: NAME,
+        collection: new NativeConstructor()
+      });
       if (iterable != undefined) iterate(iterable, target[ADDER], target, IS_MAP);
     });
+
+    var getInternalState = internalStateGetterFor(NAME);
+
     each(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
-      if (KEY in proto && !(IS_WEAK && KEY == 'clear')) hide(C.prototype, KEY, function (a, b) {
-        anInstance(this, C, KEY);
+      if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) hide(Constructor.prototype, KEY, function (a, b) {
+        var collection = getInternalState(this).collection;
         if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
-        var result = this._c[KEY](a === 0 ? 0 : a, b);
+        var result = collection[KEY](a === 0 ? 0 : a, b);
         return IS_ADDER ? this : result;
       });
     });
-    IS_WEAK || defineProperty(C.prototype, 'size', {
+
+    IS_WEAK || defineProperty(Constructor.prototype, 'size', {
       get: function () {
-        return this._c.size;
+        return getInternalState(this).collection.size;
       }
     });
   }
 
-  setToStringTag(C, NAME, false, true);
+  setToStringTag(Constructor, NAME, false, true);
 
-  exported[NAME] = C;
-  $export({ global: true, wrap: true, forced: true }, exported);
+  exported[NAME] = Constructor;
+  $export({ global: true, forced: true }, exported);
 
-  if (!IS_WEAK) common.setStrong(C, NAME, IS_MAP);
+  if (!IS_WEAK) common.setStrong(Constructor, NAME, IS_MAP);
 
-  return C;
+  return Constructor;
 };
