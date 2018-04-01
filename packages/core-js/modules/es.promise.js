@@ -55,6 +55,7 @@ var isThenable = function (it) {
   var then;
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
 };
+
 var notify = function (promise, $promise, isReject) {
   if ($promise.notified) return;
   $promise.notified = true;
@@ -101,6 +102,7 @@ var notify = function (promise, $promise, isReject) {
     if (isReject && !$promise.rejection) onUnhandled(promise, $promise);
   });
 };
+
 var dispatchEvent = function (name, promise, reason) {
   var event, handler;
   if (DISPATCH_EVENT) {
@@ -113,6 +115,7 @@ var dispatchEvent = function (name, promise, reason) {
   if (handler = global['on' + name]) handler(event);
   else if (name === UNHANDLED_REJECTION) hostReportErrors('Unhandled promise rejection', reason);
 };
+
 var onUnhandled = function (promise, $promise) {
   task.call(global, function () {
     var value = $promise.value;
@@ -130,9 +133,11 @@ var onUnhandled = function (promise, $promise) {
     if (unhandled && result.e) throw result.v;
   });
 };
+
 var isUnhandled = function ($promise) {
   return $promise.rejection !== HANDLED && !$promise.parent;
 };
+
 var onHandleUnhandled = function (promise, $promise) {
   task.call(global, function () {
     if (isNode) {
@@ -140,11 +145,13 @@ var onHandleUnhandled = function (promise, $promise) {
     } else dispatchEvent(REJECTION_HANDLED, promise, $promise.value);
   });
 };
+
 var bind = function (fn, promise, $promise, unwrap) {
   return function (value) {
     fn(promise, $promise, value, unwrap);
   };
 };
+
 var $reject = function (promise, $promise, value, unwrap) {
   if ($promise.done) return;
   $promise.done = true;
@@ -153,6 +160,7 @@ var $reject = function (promise, $promise, value, unwrap) {
   $promise.state = REJECTED;
   notify(promise, $promise, true);
 };
+
 var $resolve = function (promise, $promise, value, unwrap) {
   if ($promise.done) return;
   $promise.done = true;
@@ -253,12 +261,14 @@ $export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
     return capability.promise;
   }
 });
+
 $export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
   // 25.4.4.6 Promise.resolve(x)
   resolve: function resolve(x) {
     return promiseResolve(IS_PURE && this === Wrapper ? $Promise : this, x);
   }
 });
+
 $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessOfIteration(function (iterable) {
   $Promise.all(iterable)['catch'](empty);
 })) }, {
