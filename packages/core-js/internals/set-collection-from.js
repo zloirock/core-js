@@ -17,11 +17,11 @@ module.exports = function (COLLECTION) {
     if (mapping) {
       n = 0;
       boundFunction = bind(mapFn, arguments[2], 2);
-      iterate(source, false, function (nextItem) {
+      iterate(source, function (nextItem) {
         A.push(boundFunction(nextItem, n++));
       });
     } else {
-      iterate(source, false, A.push, A);
+      iterate(source, A.push, A);
     }
     return new this(A);
   } });

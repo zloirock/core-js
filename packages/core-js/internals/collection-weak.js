@@ -60,7 +60,7 @@ module.exports = {
         id: id++,
         frozen: undefined
       });
-      if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) iterate(iterable, that[ADDER], that, IS_MAP);
     });
 
     var getInternalState = internalStateGetterFor(NAME);

@@ -8,7 +8,7 @@ var toMetaKey = ReflectMetadataModule.key;
 
 var from = function (iter) {
   var result = [];
-  iterate(iter, false, result.push, result);
+  iterate(iter, result.push, result);
   return result;
 };
 

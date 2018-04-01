@@ -12,7 +12,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, Set))(set);
     var remover = aFunction(newSet['delete']);
-    iterate(iterable, false, function (value) {
+    iterate(iterable, function (value) {
       remover.call(newSet, value);
     });
     return newSet;
