@@ -4,9 +4,9 @@ var createProperty = require('../internals/create-property');
 require('../internals/export')({ target: 'Object', stat: true }, {
   fromEntries: function fromEntries(iterable) {
     var obj = {};
-    iterate(iterable, true, function (k, v) {
+    iterate(iterable, function (k, v) {
       createProperty(obj, k, v);
-    });
+    }, undefined, true);
     return obj;
   }
 });

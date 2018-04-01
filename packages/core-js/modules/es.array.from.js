@@ -6,6 +6,7 @@ var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var getIteratorMethod = require('../internals/get-iterator-method');
+
 var INCORRECT_ITERATION = !require('../internals/check-correctness-of-iteration')(function (iterable) {
   Array.from(iterable);
 });
@@ -23,7 +24,7 @@ require('../internals/export')({ target: 'Array', stat: true, forced: INCORRECT_
     var iteratorMethod = getIteratorMethod(O);
     var length, result, step, iterator;
     if (mapping) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
-    // if object isn't iterable or it's array with default iterator - use simple case
+    // if the target is not iterable or it's an array with the default iterator - use a simple case
     if (iteratorMethod != undefined && !(C == Array && isArrayIteratorMethod(iteratorMethod))) {
       for (iterator = iteratorMethod.call(O), result = new C(); !(step = iterator.next()).done; index++) {
         createProperty(result, index, mapping
