@@ -57,7 +57,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
       C = wrapper(function (target, iterable) {
         anInstance(target, C, NAME);
         var that = inheritIfRequired(new Base(), target, C);
-        if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
+        if (iterable != undefined) iterate(iterable, that[ADDER], that, IS_MAP);
         return that;
       });
       C.prototype = proto;

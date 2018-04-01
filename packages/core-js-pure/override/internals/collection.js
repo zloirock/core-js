@@ -28,7 +28,7 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
     C = wrapper(function (target, iterable) {
       anInstance(target, C, NAME, '_c');
       target._c = new Base();
-      if (iterable != undefined) iterate(iterable, IS_MAP, target[ADDER], target);
+      if (iterable != undefined) iterate(iterable, target[ADDER], target, IS_MAP);
     });
     each(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';

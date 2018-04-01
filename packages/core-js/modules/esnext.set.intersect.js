@@ -13,7 +13,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
     var newSet = new (speciesConstructor(set, Set))();
     var hasCheck = aFunction(set.has);
     var adder = aFunction(newSet.add);
-    iterate(iterable, false, function (value) {
+    iterate(iterable, function (value) {
       if (hasCheck.call(set, value)) adder.call(newSet, value);
     });
     return newSet;

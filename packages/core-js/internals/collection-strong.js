@@ -25,7 +25,7 @@ module.exports = {
         size: 0
       });
       if (!DESCRIPTORS) that.size = 0;
-      if (iterable != undefined) iterate(iterable, IS_MAP, that[ADDER], that);
+      if (iterable != undefined) iterate(iterable, that[ADDER], that, IS_MAP);
     });
 
     var getInternalState = internalStateGetterFor(NAME);
