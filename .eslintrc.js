@@ -272,6 +272,8 @@ module.exports = {
     // import:
     // forbid AMD imports
     'import/no-amd': 'error',
+    // forbid cycle dependencies
+    'import/no-cycle': 'error',
     // ensure imports point to files / modules that can be resolved
     'import/no-unresolved': ['error', { commonjs: true }],
     // forbid import of modules using absolute paths
