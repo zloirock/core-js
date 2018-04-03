@@ -1,52 +1,55 @@
 'use strict';
+var PROMISE = 'Promise';
 var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
-var classof = require('../internals/classof-raw');
 var $export = require('../internals/export');
 var isObject = require('../internals/is-object');
 var aFunction = require('../internals/a-function');
 var anInstance = require('../internals/an-instance');
+var classof = require('../internals/classof-raw');
 var iterate = require('../internals/iterate');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 var speciesConstructor = require('../internals/species-constructor');
 var task = require('../internals/task').set;
 var microtask = require('../internals/microtask')();
-var newPromiseCapabilityModule = require('../internals/new-promise-capability');
-var perform = require('../internals/perform');
 var promiseResolve = require('../internals/promise-resolve');
 var hostReportErrors = require('../internals/host-report-errors');
+var newPromiseCapabilityModule = require('../internals/new-promise-capability');
+var perform = require('../internals/perform');
 var SPECIES = require('../internals/well-known-symbol')('species');
 var InternalStateModule = require('../internals/internal-state');
-var PROMISE = 'Promise';
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
+var PromiseConstructor = global[PROMISE];
 var TypeError = global.TypeError;
 var process = global.process;
 var document = global.document;
-var $Promise = global[PROMISE];
-var isNode = classof(process) == 'process';
-var empty = function () { /* empty */ };
-var Internal, newGenericPromiseCapability, OwnPromiseCapability, Wrapper;
-var newPromiseCapability = newGenericPromiseCapability = newPromiseCapabilityModule.f;
+var newPromiseCapability = newPromiseCapabilityModule.f;
+var newGenericPromiseCapability = newPromiseCapability;
+var IS_NODE = classof(process) == 'process';
 var DISPATCH_EVENT = !!(document && document.createEvent && global.dispatchEvent);
+var UNHANDLED_REJECTION = 'unhandledrejection';
+var REJECTION_HANDLED = 'rejectionhandled';
 var PENDING = 0;
 var FULFILLED = 1;
 var REJECTED = 2;
 var HANDLED = 1;
 var UNHANDLED = 2;
-var UNHANDLED_REJECTION = 'unhandledrejection';
-var REJECTION_HANDLED = 'rejectionhandled';
+var Internal, OwnPromiseCapability, PromiseWrapper;
 
 var USE_NATIVE = !!function () {
   try {
     // correct subclassing with @@species support
-    var promise = $Promise.resolve(1);
+    var promise = PromiseConstructor.resolve(1);
+    var empty = function () { /* empty */ };
     var FakePromise = (promise.constructor = {})[SPECIES] = function (exec) {
       exec(empty, empty);
     };
     // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-    return (isNode || typeof PromiseRejectionEvent == 'function') && promise.then(empty) instanceof FakePromise;
+    return (IS_NODE || typeof PromiseRejectionEvent == 'function')
+      && (!IS_PURE || promise['finally'])
+      && promise.then(empty) instanceof FakePromise;
   } catch (e) { /* empty */ }
 }();
 
@@ -56,13 +59,13 @@ var isThenable = function (it) {
   return isObject(it) && typeof (then = it.then) == 'function' ? then : false;
 };
 
-var notify = function (promise, $promise, isReject) {
-  if ($promise.notified) return;
-  $promise.notified = true;
-  var chain = $promise.reactions;
+var notify = function (promise, state, isReject) {
+  if (state.notified) return;
+  state.notified = true;
+  var chain = state.reactions;
   microtask(function () {
-    var value = $promise.value;
-    var ok = $promise.state == FULFILLED;
+    var value = state.value;
+    var ok = state.state == FULFILLED;
     var i = 0;
     var run = function (reaction) {
       var handler = ok ? reaction.ok : reaction.fail;
@@ -73,8 +76,8 @@ var notify = function (promise, $promise, isReject) {
       try {
         if (handler) {
           if (!ok) {
-            if ($promise.rejection === UNHANDLED) onHandleUnhandled(promise, $promise);
-            $promise.rejection = HANDLED;
+            if (state.rejection === UNHANDLED) onHandleUnhandled(promise, state);
+            state.rejection = HANDLED;
           }
           if (handler === true) result = value;
           else {
@@ -97,9 +100,9 @@ var notify = function (promise, $promise, isReject) {
       }
     };
     while (chain.length > i) run(chain[i++]); // variable length - can't use forEach
-    $promise.reactions = [];
-    $promise.notified = false;
-    if (isReject && !$promise.rejection) onUnhandled(promise, $promise);
+    state.reactions = [];
+    state.notified = false;
+    if (isReject && !state.rejection) onUnhandled(promise, state);
   });
 };
 
@@ -116,89 +119,92 @@ var dispatchEvent = function (name, promise, reason) {
   else if (name === UNHANDLED_REJECTION) hostReportErrors('Unhandled promise rejection', reason);
 };
 
-var onUnhandled = function (promise, $promise) {
+var onUnhandled = function (promise, state) {
   task.call(global, function () {
-    var value = $promise.value;
-    var unhandled = isUnhandled($promise);
+    var value = state.value;
+    var IS_UNHANDLED = isUnhandled(state);
     var result;
-    if (unhandled) {
+    if (IS_UNHANDLED) {
       result = perform(function () {
-        if (isNode) {
+        if (IS_NODE) {
           process.emit('unhandledRejection', value, promise);
         } else dispatchEvent(UNHANDLED_REJECTION, promise, value);
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
-      $promise.rejection = isNode || isUnhandled($promise) ? UNHANDLED : HANDLED;
+      state.rejection = IS_NODE || isUnhandled(state) ? UNHANDLED : HANDLED;
     }
-    if (unhandled && result.e) throw result.v;
+    if (IS_UNHANDLED && result.e) throw result.v;
   });
 };
 
-var isUnhandled = function ($promise) {
-  return $promise.rejection !== HANDLED && !$promise.parent;
+var isUnhandled = function (state) {
+  return state.rejection !== HANDLED && !state.parent;
 };
 
-var onHandleUnhandled = function (promise, $promise) {
+var onHandleUnhandled = function (promise, state) {
   task.call(global, function () {
-    if (isNode) {
+    if (IS_NODE) {
       process.emit('rejectionHandled', promise);
-    } else dispatchEvent(REJECTION_HANDLED, promise, $promise.value);
+    } else dispatchEvent(REJECTION_HANDLED, promise, state.value);
   });
 };
 
-var bind = function (fn, promise, $promise, unwrap) {
+var bind = function (fn, promise, state, unwrap) {
   return function (value) {
-    fn(promise, $promise, value, unwrap);
+    fn(promise, state, value, unwrap);
   };
 };
 
-var $reject = function (promise, $promise, value, unwrap) {
-  if ($promise.done) return;
-  $promise.done = true;
-  if (unwrap) $promise = unwrap;
-  $promise.value = value;
-  $promise.state = REJECTED;
-  notify(promise, $promise, true);
+var internalReject = function (promise, state, value, unwrap) {
+  if (state.done) return;
+  state.done = true;
+  if (unwrap) state = unwrap;
+  state.value = value;
+  state.state = REJECTED;
+  notify(promise, state, true);
 };
 
-var $resolve = function (promise, $promise, value, unwrap) {
-  if ($promise.done) return;
-  $promise.done = true;
-  if (unwrap) $promise = unwrap;
+var internalResolve = function (promise, state, value, unwrap) {
+  if (state.done) return;
+  state.done = true;
+  if (unwrap) state = unwrap;
   try {
-    if (promise === value) throw TypeError("Promise can't be resolved itself");
+    if (promise === value) throw TypeError("Promise can't be resolved itself!");
     var then = isThenable(value);
     if (then) {
       microtask(function () {
         var wrapper = { done: false };
         try {
-          then.call(value, bind($resolve, promise, wrapper, $promise), bind($reject, promise, wrapper, $promise));
+          then.call(value,
+            bind(internalResolve, promise, wrapper, state),
+            bind(internalReject, promise, wrapper, state)
+          );
         } catch (e) {
-          $reject(promise, wrapper, e, $promise);
+          internalReject(promise, wrapper, e, state);
         }
       });
     } else {
-      $promise.value = value;
-      $promise.state = FULFILLED;
-      notify(promise, $promise, false);
+      state.value = value;
+      state.state = FULFILLED;
+      notify(promise, state, false);
     }
   } catch (e) {
-    $reject(promise, { done: false }, e, $promise);
+    internalReject(promise, { done: false }, e, state);
   }
 };
 
 // constructor polyfill
 if (!USE_NATIVE) {
   // 25.4.3.1 Promise(executor)
-  $Promise = function Promise(executor) {
-    anInstance(this, $Promise, PROMISE);
+  PromiseConstructor = function Promise(executor) {
+    anInstance(this, PromiseConstructor, PROMISE);
     aFunction(executor);
     Internal.call(this);
-    var $promise = getInternalState(this);
+    var state = getInternalState(this);
     try {
-      executor(bind($resolve, this, $promise), bind($reject, this, $promise));
+      executor(bind(internalResolve, this, state), bind(internalReject, this, state));
     } catch (err) {
-      $reject(this, $promise, err);
+      internalReject(this, state, err);
     }
   };
   // eslint-disable-next-line no-unused-vars
@@ -214,65 +220,71 @@ if (!USE_NATIVE) {
       value: undefined
     });
   };
-  Internal.prototype = require('../internals/redefine-all')($Promise.prototype, {
-    // 25.4.5.3 Promise.prototype.then(onFulfilled, onRejected)
+  Internal.prototype = require('../internals/redefine-all')(PromiseConstructor.prototype, {
+    // `Promise.prototype.then` method
+    // https://tc39.github.io/ecma262/#sec-promise.prototype.then
     then: function then(onFulfilled, onRejected) {
-      var $promise = getInternalPromiseState(this);
-      var reaction = newPromiseCapability(speciesConstructor(this, $Promise));
+      var state = getInternalPromiseState(this);
+      var reaction = newPromiseCapability(speciesConstructor(this, PromiseConstructor));
       reaction.ok = typeof onFulfilled == 'function' ? onFulfilled : true;
       reaction.fail = typeof onRejected == 'function' && onRejected;
-      reaction.domain = isNode ? process.domain : undefined;
-      $promise.parent = true;
-      $promise.reactions.push(reaction);
-      if ($promise.state != PENDING) notify(this, $promise, false);
+      reaction.domain = IS_NODE ? process.domain : undefined;
+      state.parent = true;
+      state.reactions.push(reaction);
+      if (state.state != PENDING) notify(this, state, false);
       return reaction.promise;
     },
-    // 25.4.5.1 Promise.prototype.catch(onRejected)
+    // `Promise.prototype.catch` method
+    // https://tc39.github.io/ecma262/#sec-promise.prototype.catch
     'catch': function (onRejected) {
       return this.then(undefined, onRejected);
     }
   });
   OwnPromiseCapability = function () {
     var promise = new Internal();
-    var $promise = getInternalState(promise);
+    var state = getInternalState(promise);
     this.promise = promise;
-    this.resolve = bind($resolve, promise, $promise);
-    this.reject = bind($reject, promise, $promise);
+    this.resolve = bind(internalResolve, promise, state);
+    this.reject = bind(internalReject, promise, state);
   };
   newPromiseCapabilityModule.f = newPromiseCapability = function (C) {
-    return C === $Promise || C === Wrapper
+    return C === PromiseConstructor || C === PromiseWrapper
       ? new OwnPromiseCapability(C)
       : newGenericPromiseCapability(C);
   };
 }
 
-$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: $Promise });
-require('../internals/set-to-string-tag')($Promise, PROMISE, false, true);
+$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: PromiseConstructor });
+
+require('../internals/set-to-string-tag')(PromiseConstructor, PROMISE, false, true);
 require('../internals/set-species')(PROMISE);
-Wrapper = require('../internals/path')[PROMISE];
+
+PromiseWrapper = require('../internals/path')[PROMISE];
 
 // statics
 $export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
-  // 25.4.4.5 Promise.reject(r)
+  // `Promise.reject` method
+  // https://tc39.github.io/ecma262/#sec-promise.reject
   reject: function reject(r) {
     var capability = newPromiseCapability(this);
-    var $$reject = capability.reject;
-    $$reject(r);
+    capability.reject.call(undefined, r);
     return capability.promise;
   }
 });
 
 $export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
-  // 25.4.4.6 Promise.resolve(x)
+  // `Promise.resolve` method
+  // https://tc39.github.io/ecma262/#sec-promise.resolve
   resolve: function resolve(x) {
-    return promiseResolve(IS_PURE && this === Wrapper ? $Promise : this, x);
+    return promiseResolve(IS_PURE && this === PromiseWrapper ? PromiseConstructor : this, x);
   }
 });
 
 $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessOfIteration(function (iterable) {
-  $Promise.all(iterable)['catch'](empty);
+  PromiseConstructor.all(iterable)['catch'](function () { /* empty */ });
 })) }, {
-  // 25.4.4.1 Promise.all(iterable)
+  // `Promise.all` method
+  // https://tc39.github.io/ecma262/#sec-promise.all
   all: function all(iterable) {
     var C = this;
     var capability = newPromiseCapability(C);
@@ -280,17 +292,17 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessO
     var reject = capability.reject;
     var result = perform(function () {
       var values = [];
-      var index = 0;
+      var counter = 0;
       var remaining = 1;
       iterate(iterable, function (promise) {
-        var $index = index++;
+        var index = counter++;
         var alreadyCalled = false;
         values.push(undefined);
         remaining++;
         C.resolve(promise).then(function (value) {
           if (alreadyCalled) return;
           alreadyCalled = true;
-          values[$index] = value;
+          values[index] = value;
           --remaining || resolve(values);
         }, reject);
       });
@@ -299,7 +311,8 @@ $export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessO
     if (result.e) reject(result.v);
     return capability.promise;
   },
-  // 25.4.4.4 Promise.race(iterable)
+  // `Promise.race` method
+  // https://tc39.github.io/ecma262/#sec-promise.race
   race: function race(iterable) {
     var C = this;
     var capability = newPromiseCapability(C);
