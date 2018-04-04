@@ -24,6 +24,7 @@ var nativeObjectCreate = require('../internals/object-create');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
+var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var hide = require('../internals/hide');
 var objectKeys = require('../internals/object-keys');
 var HIDDEN = require('../internals/shared-key')('hidden');
@@ -39,7 +40,7 @@ var JSON = global.JSON;
 var nativeJSONStringify = JSON && JSON.stringify;
 var PROTOTYPE = 'prototype';
 var TO_PRIMITIVE = wellKnownSymbol('toPrimitive');
-var nativePropertyIsEnumerable = {}.propertyIsEnumerable;
+var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
 var SymbolRegistry = shared('symbol-registry');
 var AllSymbols = shared('symbols');
 var ObjectPrototypeSymbols = shared('op-symbols');
@@ -165,10 +166,10 @@ if (!USE_NATIVE) {
     return getInternalState(this).tag;
   });
 
-  getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
+  propertyIsEnumerableModule.f = $propertyIsEnumerable;
   definePropertyModule.f = $defineProperty;
+  getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
   require('../internals/object-get-own-property-names').f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
-  require('../internals/object-property-is-enumerable').f = $propertyIsEnumerable;
   require('../internals/object-get-own-property-symbols').f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
