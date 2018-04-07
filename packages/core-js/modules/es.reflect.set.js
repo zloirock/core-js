@@ -20,9 +20,11 @@ function set(target, propertyKey, V /* , receiver */) {
   }
   if (has(ownDescriptor, 'value')) {
     if (ownDescriptor.writable === false || !isObject(receiver)) return false;
-    existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey) || createPropertyDescriptor(0);
-    existingDescriptor.value = V;
-    definePropertyModule.f(receiver, propertyKey, existingDescriptor);
+    if (existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey)) {
+      if (existingDescriptor.writable === false) return false;
+      existingDescriptor.value = V;
+      definePropertyModule.f(receiver, propertyKey, existingDescriptor);
+    } else definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
     return true;
   }
   return ownDescriptor.set === undefined ? false : (ownDescriptor.set.call(receiver, V), true);
