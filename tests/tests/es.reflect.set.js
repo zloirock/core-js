@@ -2,7 +2,7 @@ import { DESCRIPTORS, NATIVE } from '../helpers/constants';
 
 QUnit.test('Reflect.set', assert => {
   const { set } = Reflect;
-  const { defineProperty, getOwnPropertyDescriptor, create } = Object;
+  const { defineProperty, getOwnPropertyDescriptor, create, getPrototypeOf } = Object;
   assert.isFunction(set);
   if (NATIVE) assert.arity(set, 3);
   assert.name(set, 'set');
@@ -68,8 +68,18 @@ QUnit.test('Reflect.set', assert => {
       writable: false,
       configurable: true,
     });
-    // eslint-disable-next-line
-    assert.strictEqual(set(o.__proto__, 'test', 1, o), false);
+    assert.strictEqual(set(getPrototypeOf(o), 'test', 1, o), false);
+
+    // https://github.com/zloirock/core-js/issues/393
+    o = defineProperty({}, 'test', {
+      get() { /* empty */ },
+    });
+    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
+    o = defineProperty({}, 'test', {
+      // eslint-disable-next-line no-unused-vars
+      set(v) { /* empty */ },
+    });
+    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
   }
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 });
