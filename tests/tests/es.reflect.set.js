@@ -62,6 +62,14 @@ QUnit.test('Reflect.set', assert => {
     assert.strictEqual(target.u, 0, 'set u');
     assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
     assert.strictEqual(target.c, 1, 'set c');
+
+    // https://github.com/zloirock/core-js/issues/392
+    const o = defineProperty({}, 'test', {
+      writable: false,
+      configurable: true,
+    });
+    // eslint-disable-next-line
+    assert.strictEqual(set(o.__proto__, 'test', 1, o), false);
   }
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 });
