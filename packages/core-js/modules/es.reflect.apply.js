@@ -2,6 +2,7 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var nativeApply = (require('../internals/global').Reflect || {}).apply;
 var functionApply = Function.apply;
+
 // MS Edge argumentsList argument is optional
 var OPTIONAL_ARGUMENTS_LIST = !require('../internals/fails')(function () {
   nativeApply(function () { /* empty */ });

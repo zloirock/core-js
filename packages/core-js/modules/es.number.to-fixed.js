@@ -5,7 +5,6 @@ var repeat = require('../internals/string-repeat');
 var nativeToFixed = 1.0.toFixed;
 var floor = Math.floor;
 var data = [0, 0, 0, 0, 0, 0];
-var ZERO = '0';
 
 var multiply = function (n, c) {
   var i = -1;
@@ -33,7 +32,7 @@ var numToString = function () {
   while (--i >= 0) {
     if (s !== '' || i === 0 || data[i] !== 0) {
       var t = String(data[i]);
-      s = s === '' ? t : s + repeat.call(ZERO, 7 - t.length) + t;
+      s = s === '' ? t : s + repeat.call('0', 7 - t.length) + t;
     }
   } return s;
 };
@@ -70,7 +69,7 @@ require('../internals/export')({ target: 'Number', proto: true, forced: nativeTo
     var x = thisNumberValue(this);
     var f = toInteger(fractionDigits);
     var s = '';
-    var m = ZERO;
+    var m = '0';
     var e, z, j, k;
     if (f < 0 || f > 20) throw RangeError('Incorrect fraction digits!');
     // eslint-disable-next-line no-self-compare
@@ -105,12 +104,12 @@ require('../internals/export')({ target: 'Number', proto: true, forced: nativeTo
       } else {
         multiply(0, z);
         multiply(1 << -e, 0);
-        m = numToString() + repeat.call(ZERO, f);
+        m = numToString() + repeat.call('0', f);
       }
     }
     if (f > 0) {
       k = m.length;
-      m = s + (k <= f ? '0.' + repeat.call(ZERO, f - k) + m : m.slice(0, k - f) + '.' + m.slice(k - f));
+      m = s + (k <= f ? '0.' + repeat.call('0', f - k) + m : m.slice(0, k - f) + '.' + m.slice(k - f));
     } else {
       m = s + m;
     } return m;

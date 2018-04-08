@@ -148,7 +148,7 @@ module.exports = {
     return C;
   },
   setStrong: function (C, NAME, IS_MAP) {
-    var ITERATOR_NAME = NAME + 'Iterator';
+    var ITERATOR_NAME = NAME + ' Iterator';
     var getInternalCollectionState = internalStateGetterFor(NAME);
     var getInternalIteratorState = internalStateGetterFor(ITERATOR_NAME);
     // add .keys, .values, .entries, [@@iterator]

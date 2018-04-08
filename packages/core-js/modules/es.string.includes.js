@@ -1,6 +1,7 @@
 'use strict';
 var validateArguments = require('../internals/validate-string-method-arguments');
 var INCLUDES = 'includes';
+
 var CORRECT_IS_REGEXP_LOGIC = require('../internals/correct-is-regexp-logic')(INCLUDES);
 
 // `String.prototype.includes` method

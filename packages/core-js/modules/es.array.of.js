@@ -1,5 +1,6 @@
 'use strict';
 var createProperty = require('../internals/create-property');
+
 var ISNT_GENERIC = require('../internals/fails')(function () {
   function F() { /* empty */ }
   return !(Array.of.call(F) instanceof F);
