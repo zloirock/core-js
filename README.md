@@ -91,7 +91,7 @@ npm i core-js
 // Include all polyfills
 require('core-js');
 ```
-If you need already bundled version of `core-js`, use `core-js-bundle` `npm` package or a [version of this package from CDN](https://unpkg.com/core-js-bundle@3.0.0-alpha.3) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-alpha.3/minified.js)).
+If you need already bundled version of `core-js`, use `core-js-bundle` `npm` package or a [version of this package from CDN](https://unpkg.com/core-js-bundle@3.0.0-alpha.4) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-alpha.4/minified.js)).
 
 Warning: if you use `core-js` with the extension of native objects, load all `core-js` modules at the top of entry point of your application, otherwise, you can have conflicts.
 
