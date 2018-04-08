@@ -1,5 +1,6 @@
 'use strict';
 var internalEvery = require('../internals/array-methods')(4);
+
 var SLOPPY_METHOD = !require('../internals/strict-method')([].every, true);
 
 // `Array.prototype.every` method

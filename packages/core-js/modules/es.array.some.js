@@ -1,5 +1,6 @@
 'use strict';
 var internalSome = require('../internals/array-methods')(3);
+
 var SLOPPY_METHOD = !require('../internals/strict-method')([].some, true);
 
 // `Array.prototype.some` method

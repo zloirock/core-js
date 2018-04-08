@@ -12,6 +12,7 @@ var internalTrim = require('../internals/string-trim').trim;
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
+
 // Opera ~12 has broken Object#toString
 var BROKEN_CLASSOF = classof(require('../internals/object-create')(NumberPrototype)) == NUMBER;
 var NATIVE_TRIM = 'trim' in String.prototype;

@@ -4,6 +4,7 @@ var toObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 var nativeSort = [].sort;
 var testData = [1, 2, 3];
+
 // IE8-
 var FAILS_ON_UNDEFINED = fails(function () {
   testData.sort(undefined);
