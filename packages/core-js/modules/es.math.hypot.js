@@ -1,4 +1,5 @@
 var abs = Math.abs;
+var sqrt = Math.sqrt;
 
 // `Math.hypot` method
 // https://tc39.github.io/ecma262/#sec-math.hypot
@@ -20,6 +21,6 @@ require('../internals/export')({ target: 'Math', stat: true }, {
         sum += div * div;
       } else sum += arg;
     }
-    return larg === Infinity ? Infinity : larg * Math.sqrt(sum);
+    return larg === Infinity ? Infinity : larg * sqrt(sum);
   }
 });

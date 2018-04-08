@@ -1,6 +1,7 @@
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var fromCharCode = String.fromCharCode;
 var nativeFromCodePoint = String.fromCodePoint;
+
 // length should be 1, old FF problem
 var INCORRECT_LENGTH = !!nativeFromCodePoint && nativeFromCodePoint.length != 1;
 

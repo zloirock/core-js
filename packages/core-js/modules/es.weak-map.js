@@ -16,7 +16,8 @@ var wrapper = function (get) {
   };
 };
 
-// 23.3 WeakMap Objects
+// `WeakMap` constructor
+// https://tc39.github.io/ecma262/#sec-weakmap-constructor
 var $WeakMap = module.exports = require('../internals/collection')(WEAK_MAP, wrapper, weak, true, true);
 
 // IE11 WeakMap frozen keys fix

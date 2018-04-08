@@ -1,4 +1,3 @@
-'use strict';
 var toString = require('../internals/object-to-string');
 
 // `Object.prototype.toString` method

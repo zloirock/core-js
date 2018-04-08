@@ -2,6 +2,7 @@
 var global = require('../internals/global');
 var userAgent = require('../internals/user-agent');
 var slice = [].slice;
+
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
 
 var wrap = function (set) {

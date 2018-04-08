@@ -2,6 +2,7 @@ var definePropertyModule = require('../internals/object-define-property');
 var anObject = require('../internals/an-object');
 var toPrimitive = require('../internals/to-primitive');
 var DESCRIPTORS = require('../internals/descriptors');
+
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 var ERROR_INSTEAD_OF_FALSE = require('../internals/fails')(function () {
   // eslint-disable-next-line no-undef
