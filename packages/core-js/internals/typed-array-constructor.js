@@ -1,8 +1,8 @@
 'use strict';
 if (require('../internals/descriptors')) {
   var global = require('../internals/global');
-  var fails = require('../internals/fails');
   var $export = require('../internals/export');
+  var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-arrays-constructors-requires-wrappers');
   var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
   var ArrayBufferModule = require('../internals/array-buffer');
   var anInstance = require('../internals/an-instance');
@@ -20,7 +20,6 @@ if (require('../internals/descriptors')) {
   var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
   var typedArrayFrom = require('../internals/typed-array-from');
   var arrayForEach = require('../internals/array-methods')(0);
-  var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
   var setSpecies = require('../internals/set-species');
   var definePropertyModule = require('../internals/object-define-property');
   var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
@@ -176,19 +175,7 @@ if (require('../internals/descriptors')) {
 
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
       TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
-    } else if (!fails(function () {
-      TypedArrayConstructor(1);
-    }) || !fails(function () {
-      new TypedArrayConstructor(-1); // eslint-disable-line no-new
-    }) || !checkCorrectnessOfIteration(function (iterable) {
-      new TypedArrayConstructor(); // eslint-disable-line no-new
-      new TypedArrayConstructor(null); // eslint-disable-line no-new
-      new TypedArrayConstructor(1.5); // eslint-disable-line no-new
-      new TypedArrayConstructor(iterable); // eslint-disable-line no-new
-    }, true) || fails(function () {
-      // Safari 11 bug
-      return new TypedArrayConstructor(new ArrayBuffer(BYTES * 2), BYTES, undefined).length !== 1;
-    })) {
+    } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
       TypedArrayConstructor = wrapper(function (that, data, typedArrayOffset, $length) {
         anInstance(that, TypedArrayConstructor, NAME);
         if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
