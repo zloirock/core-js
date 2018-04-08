@@ -3,6 +3,7 @@ var anObject = require('../internals/an-object');
 var ordinaryHasOwnMetadata = ReflectMetadataModule.has;
 var toMetaKey = ReflectMetadataModule.key;
 
+// https://rbuckton.github.io/reflect-metadata/
 ReflectMetadataModule.exp({ hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , targetKey */) {
   return ordinaryHasOwnMetadata(metadataKey, anObject(target)
     , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));

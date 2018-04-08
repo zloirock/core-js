@@ -1,5 +1,7 @@
 var expm1 = require('../internals/math-expm1');
+var abs = Math.abs;
 var exp = Math.exp;
+var E = Math.E;
 
 // `Math.sinh` method
 // https://tc39.github.io/ecma262/#sec-math.sinh
@@ -8,8 +10,6 @@ require('../internals/export')({ target: 'Math', stat: true, forced: require('..
   return !Math.sinh(-2e-17) != -2e-17;
 }) }, {
   sinh: function sinh(x) {
-    return Math.abs(x = +x) < 1
-      ? (expm1(x) - expm1(-x)) / 2
-      : (exp(x - 1) - exp(-x - 1)) * (Math.E / 2);
+    return abs(x = +x) < 1 ? (expm1(x) - expm1(-x)) / 2 : (exp(x - 1) - exp(-x - 1)) * (E / 2);
   }
 });

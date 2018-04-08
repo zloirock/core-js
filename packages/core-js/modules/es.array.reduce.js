@@ -1,5 +1,6 @@
 'use strict';
 var internalReduce = require('../internals/array-reduce');
+
 var SLOPPY_METHOD = !require('../internals/strict-method')([].reduce, true);
 
 // `Array.prototype.reduce` method

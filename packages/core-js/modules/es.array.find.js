@@ -1,5 +1,4 @@
 'use strict';
-// 22.1.3.8 Array.prototype.find(predicate, thisArg = undefined)
 var internalFind = require('../internals/array-methods')(5);
 var FIND = 'find';
 var SKIPS_HOLES = true;
