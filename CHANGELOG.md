@@ -1,4 +1,7 @@
 ## Changelog
+##### 2.5.5 - 2018.04.08
+- Fix some edge cases of `Reflect.set`, [#392](https://github.com/zloirock/core-js/issues/392) and [#393](https://github.com/zloirock/core-js/issues/393)
+
 ##### 2.5.4 - 2018.03.27
 - Fixed one case of deoptimization built-in iterators in V8, related [#377](https://github.com/zloirock/core-js/issues/377)
 - Fixed some cases of iterators feature detection, [#368](https://github.com/zloirock/core-js/issues/368)
