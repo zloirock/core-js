@@ -301,8 +301,10 @@ Object.setPrototypeOf(Child.prototype, Parent.prototype);
 new Child() instanceof Child;  // => true
 new Child() instanceof Parent; // => true
 
-let object = {};
-object[Symbol.toStringTag] = 'Foo';
+let object = {
+  [Symbol.toStringTag]: 'Foo'
+};
+
 '' + object; // => '[object Foo]'
 
 Object.keys('qwe'); // => ['0', '1', '2']
