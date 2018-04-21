@@ -1,3 +1,4 @@
+require('../../modules/es.symbol.iterator');
 require('../../modules/es.string.iterator');
 require('../../modules/web.dom-collections.iterator');
 
