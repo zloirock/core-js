@@ -259,9 +259,5 @@ JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(funct
 $Symbol[PROTOTYPE][TO_PRIMITIVE] || hide($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
 // 19.4.3.5 Symbol.prototype[@@toStringTag]
 setToStringTag($Symbol, SYMBOL);
-// 20.2.1.9 Math[@@toStringTag]
-setToStringTag(Math, 'Math', true);
-// 24.3.3 JSON[@@toStringTag]
-setToStringTag(global.JSON, 'JSON', true);
 
 hiddenKeys[HIDDEN] = true;
