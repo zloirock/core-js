@@ -14,6 +14,7 @@ require('../../modules/es.math.log2');
 require('../../modules/es.math.sign');
 require('../../modules/es.math.sinh');
 require('../../modules/es.math.tanh');
+require('../../modules/es.math.to-string-tag');
 require('../../modules/es.math.trunc');
 require('../../modules/esnext.math.clamp');
 require('../../modules/esnext.math.deg-per-rad');
