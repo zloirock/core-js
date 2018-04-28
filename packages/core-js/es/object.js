@@ -23,5 +23,7 @@ require('../modules/es.object.define-getter');
 require('../modules/es.object.define-setter');
 require('../modules/es.object.lookup-getter');
 require('../modules/es.object.lookup-setter');
+require('../modules/es.math.to-string-tag');
+require('../modules/es.json.to-string-tag');
 
 module.exports = require('../internals/path').Object;
