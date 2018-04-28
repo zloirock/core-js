@@ -231,13 +231,13 @@ $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])
 JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
-  var S = $Symbol();
+  var symbol = $Symbol();
   // MS Edge converts symbol values to JSON as {}
-  return nativeJSONStringify([S]) != '[null]'
+  return nativeJSONStringify([symbol]) != '[null]'
     // WebKit converts symbol values to JSON as null
-    || nativeJSONStringify({ a: S }) != '{}'
+    || nativeJSONStringify({ a: symbol }) != '{}'
     // V8 throws on boxed symbols
-    || nativeJSONStringify(Object(S)) != '{}';
+    || nativeJSONStringify(Object(symbol)) != '{}';
 }) }, {
   stringify: function stringify(it) {
     var args = [it];

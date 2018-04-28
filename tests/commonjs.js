@@ -121,6 +121,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/math/sign')(-2) === -1);
   ok(Object.is(load('features/math/sinh')(-0), -0));
   ok(load('features/math/tanh')(Infinity) === 1);
+  ok(load('features/math/to-string-tag') === 'Math');
   ok(load('features/math/trunc')(1.5) === 1);
   ok(load('features/math/clamp')(6, 2, 4) === 4);
   ok(load('features/math/deg-per-rad') === Math.PI / 180);
@@ -252,6 +253,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('features/regexp');
   ok(load('features/json').stringify([1]) === '[1]');
   ok(load('features/json/stringify')([1]) === '[1]');
+  ok(load('features/json/to-string-tag') === 'JSON');
   ok(typeof load('features/date/now')(new Date()) === 'number');
   ok(typeof load('features/date/to-string')(new Date()) === 'string');
   ok(typeof load('features/date/to-primitive')(new Date(), 'number') === 'number');
