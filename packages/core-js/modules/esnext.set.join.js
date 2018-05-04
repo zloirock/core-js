@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var Set = path.Set;
 var values = Set.prototype.values;
 
+// `Set.prototype.join` method
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   join: function join(separator) {

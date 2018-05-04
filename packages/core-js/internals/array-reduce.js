@@ -3,6 +3,9 @@ var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
 var toLength = require('../internals/to-length');
 
+// `Array.prototype.{ reduce, reduceRight }` methods implementation
+// https://tc39.github.io/ecma262/#sec-array.prototype.reduce
+// https://tc39.github.io/ecma262/#sec-array.prototype.reduceright
 module.exports = function (that, callbackfn, argumentsLength, memo, isRight) {
   aFunction(callbackfn);
   var O = toObject(that);

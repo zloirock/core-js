@@ -1,5 +1,4 @@
 'use strict';
-// https://tc39.github.io/proposal-string-matchall/
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
@@ -77,6 +76,8 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
   return { value: match, done: false };
 });
 
+// `String.prototype.matchAll` method
+// https://tc39.github.io/proposal-string-matchall/
 require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);

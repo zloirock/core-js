@@ -1,11 +1,12 @@
 'use strict';
-// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatMap
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var aFunction = require('../internals/a-function');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
+// `Array.prototype.flatMap` method
+// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatMap
 require('../internals/export')({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);

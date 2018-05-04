@@ -3,6 +3,7 @@
 var global = require('../internals/global');
 var has = require('../internals/has');
 var DESCRIPTORS = require('../internals/descriptors');
+var IS_PURE = require('../internals/is-pure');
 var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
 var hiddenKeys = require('../internals/hidden-keys');
@@ -148,7 +149,8 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
   } return result;
 };
 
-// 19.4.1.1 Symbol([description])
+// `Symbol` constructor
+// https://tc39.github.io/ecma262/#sec-symbol-constructor
 if (!USE_NATIVE) {
   $Symbol = function Symbol() {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
@@ -173,13 +175,14 @@ if (!USE_NATIVE) {
   require('../internals/object-get-own-property-symbols').f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
+    // https://github.com/tc39/proposal-Symbol-description
     nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
       configurable: true,
       get: function description() {
         return getInternalState(this).description;
       }
     });
-    if (!require('../internals/is-pure')) {
+    if (!IS_PURE) {
       redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, true);
     }
   }
@@ -196,13 +199,15 @@ for (var wellKnownSymbols = objectKeys(WellKnownSymbolsStore), k = 0; wellKnownS
 }
 
 $export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
-  // 19.4.2.1 Symbol.for(key)
+  // `Symbol.for` method
+  // https://tc39.github.io/ecma262/#sec-symbol.for
   'for': function (key) {
     return has(SymbolRegistry, key += '')
       ? SymbolRegistry[key]
       : SymbolRegistry[key] = $Symbol(key);
   },
-  // 19.4.2.5 Symbol.keyFor(sym)
+  // `Symbol.keyFor` method
+  // https://tc39.github.io/ecma262/#sec-symbol.keyfor
   keyFor: function keyFor(sym) {
     if (!isSymbol(sym)) throw TypeError(sym + ' is not a symbol!');
     for (var key in SymbolRegistry) if (SymbolRegistry[key] === sym) return key;
@@ -212,24 +217,31 @@ $export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
 });
 
 $export({ target: 'Object', stat: true, forced: !USE_NATIVE, sham: !DESCRIPTORS }, {
-  // 19.1.2.2 Object.create(O [, Properties])
+  // `Object.create` method
+  // https://tc39.github.io/ecma262/#sec-object.create
   create: $create,
-  // 19.1.2.4 Object.defineProperty(O, P, Attributes)
+  // `Object.defineProperty` method
+  // https://tc39.github.io/ecma262/#sec-object.defineproperty
   defineProperty: $defineProperty,
-  // 19.1.2.3 Object.defineProperties(O, Properties)
+  // `Object.defineProperties` method
+  // https://tc39.github.io/ecma262/#sec-object.defineproperties
   defineProperties: $defineProperties,
-  // 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
+  // `Object.getOwnPropertyDescriptor` method
+  // https://tc39.github.io/ecma262/#sec-object.getownpropertydescriptors
   getOwnPropertyDescriptor: $getOwnPropertyDescriptor
 });
 
 $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
-  // 19.1.2.7 Object.getOwnPropertyNames(O)
+  // `Object.getOwnPropertyNames` method
+  // https://tc39.github.io/ecma262/#sec-object.getownpropertynames
   getOwnPropertyNames: $getOwnPropertyNames,
-  // 19.1.2.8 Object.getOwnPropertySymbols(O)
+  // `Object.getOwnPropertySymbols` method
+  // https://tc39.github.io/ecma262/#sec-object.getownpropertysymbols
   getOwnPropertySymbols: $getOwnPropertySymbols
 });
 
-// 24.3.2 JSON.stringify(value [, replacer [, space]])
+// `JSON.stringify` method behavior with symbols
+// https://tc39.github.io/ecma262/#sec-json.stringify
 JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
   var symbol = $Symbol();
   // MS Edge converts symbol values to JSON as {}
@@ -255,9 +267,11 @@ JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(funct
   }
 });
 
-// 19.4.3.4 Symbol.prototype[@@toPrimitive](hint)
-$Symbol[PROTOTYPE][TO_PRIMITIVE] || hide($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
-// 19.4.3.5 Symbol.prototype[@@toStringTag]
+// `Symbol.prototype[@@toPrimitive]` method
+// https://tc39.github.io/ecma262/#sec-symbol.prototype-@@toprimitive
+if (!$Symbol[PROTOTYPE][TO_PRIMITIVE]) hide($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
+// `Symbol.prototype[@@toStringTag]` property
+// https://tc39.github.io/ecma262/#sec-symbol.prototype-@@tostringtag
 setToStringTag($Symbol, SYMBOL);
 
 hiddenKeys[HIDDEN] = true;

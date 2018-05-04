@@ -7,6 +7,7 @@ var speciesConstructor = require('../internals/species-constructor');
 var Map = path.Map;
 var entries = Map.prototype.entries;
 
+// `Map.prototype.mapValues` method
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   mapValues: function mapValues(callbackfn /* , thisArg */) {

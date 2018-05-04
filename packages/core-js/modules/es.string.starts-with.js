@@ -1,4 +1,3 @@
-// 21.1.3.18 String.prototype.startsWith(searchString [, position ])
 'use strict';
 var toLength = require('../internals/to-length');
 var validateArguments = require('../internals/validate-string-method-arguments');
