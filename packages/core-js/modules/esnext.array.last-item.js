@@ -1,10 +1,11 @@
-// https://github.com/keithamus/proposal-array-last
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var defineProperty = require('../internals/object-define-property').f;
 
+// `Array.prototype.lastIndex` accessor
+// https://github.com/keithamus/proposal-array-last
 if (DESCRIPTORS && !('lastItem' in [])) {
   defineProperty(Array.prototype, 'lastItem', {
     configurable: true,

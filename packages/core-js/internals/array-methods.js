@@ -4,13 +4,21 @@ var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
+// `Array.prototype.{ forEach, map, filter, some, every, find, findIndex }` methods implementation
 // 0 -> Array#forEach
+// https://tc39.github.io/ecma262/#sec-array.prototype.foreach
 // 1 -> Array#map
+// https://tc39.github.io/ecma262/#sec-array.prototype.map
 // 2 -> Array#filter
+// https://tc39.github.io/ecma262/#sec-array.prototype.filter
 // 3 -> Array#some
+// https://tc39.github.io/ecma262/#sec-array.prototype.some
 // 4 -> Array#every
+// https://tc39.github.io/ecma262/#sec-array.prototype.every
 // 5 -> Array#find
+// https://tc39.github.io/ecma262/#sec-array.prototype.find
 // 6 -> Array#findIndex
+// https://tc39.github.io/ecma262/#sec-array.prototype.findIndex
 module.exports = function (TYPE, specificCreate) {
   var IS_MAP = TYPE == 1;
   var IS_FILTER = TYPE == 2;

@@ -11,6 +11,7 @@ var ordinaryHasMetadata = function (MetadataKey, O, P) {
   return parent !== null ? ordinaryHasMetadata(MetadataKey, parent, P) : false;
 };
 
+// `Reflect.hasMetadata` method
 // https://rbuckton.github.io/reflect-metadata/
 ReflectMetadataModule.exp({ hasMetadata: function hasMetadata(metadataKey, target /* , targetKey */) {
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));

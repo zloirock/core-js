@@ -1,4 +1,5 @@
 'use strict';
+// `String.prototype.{ trimRight, trimEnd }` methods
 // https://github.com/tc39/ecmascript-string-left-right-trim
 require('../internals/string-trim')('trimRight', function (internalTrim) {
   return function trimRight() {

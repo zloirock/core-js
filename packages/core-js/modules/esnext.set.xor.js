@@ -6,6 +6,7 @@ var speciesConstructor = require('../internals/species-constructor');
 var iterate = require('../internals/iterate');
 var Set = path.Set;
 
+// `Set.prototype.xor` method
 // https://github.com/tc39/set-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   xor: function xor(iterable) {

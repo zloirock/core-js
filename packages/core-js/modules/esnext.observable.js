@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/zenparsing/es-observable
+// https://github.com/tc39/proposal-observable
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');

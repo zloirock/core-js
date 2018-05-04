@@ -9,7 +9,6 @@ var getInternalState = InternalStateModule.getterFor(STRING_ITERATOR);
 var codePointAt = createAt(false);
 var at = createAt(true);
 
-// https://github.com/RReverser/string-prototype-codepoints
 // TODO: unify with String#@@iterator
 var $StringIterator = createIteratorConstructor(function StringIterator(string) {
   setInternalState(this, {
@@ -28,6 +27,8 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
   return { value: codePointAt(point, 0), done: false };
 });
 
+// `String.prototype.codePoints` method
+// https://github.com/RReverser/string-prototype-codepoints
 require('../internals/export')({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
     return new $StringIterator(String(requireObjectCoercible(this)));

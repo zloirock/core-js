@@ -20,6 +20,7 @@ var ordinaryMetadataKeys = function (O, P) {
   return pKeys.length ? oKeys.length ? from(new Set(oKeys.concat(pKeys))) : pKeys : oKeys;
 };
 
+// `Reflect.getMetadataKeys` method
 // https://rbuckton.github.io/reflect-metadata/
 ReflectMetadataModule.exp({ getMetadataKeys: function getMetadataKeys(target /* , targetKey */) {
   return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
