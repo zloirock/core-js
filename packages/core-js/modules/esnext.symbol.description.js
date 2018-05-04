@@ -1,3 +1,4 @@
+// `Symbol.prototype.description` getter
 // https://tc39.github.io/proposal-Symbol-description/
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');

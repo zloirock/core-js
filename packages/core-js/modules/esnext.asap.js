@@ -1,3 +1,4 @@
+// `asap` method
 // https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask
 var microtask = require('../internals/microtask')();
 var process = require('../internals/global').process;

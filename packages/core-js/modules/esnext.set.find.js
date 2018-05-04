@@ -5,6 +5,7 @@ var bind = require('../internals/bind-context');
 var Set = path.Set;
 var values = Set.prototype.values;
 
+// `Set.prototype.find` method
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   find: function find(callbackfn /* , thisArg */) {

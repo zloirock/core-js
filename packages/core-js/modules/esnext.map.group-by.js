@@ -1,6 +1,7 @@
 'use strict';
 var iterate = require('../internals/iterate');
 
+// `Map.groupBy` method
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Map', stat: true, forced: require('../internals/is-pure') }, {
   groupBy: function groupBy(iterable, keyDerivative) {

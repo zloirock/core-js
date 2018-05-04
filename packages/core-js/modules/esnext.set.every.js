@@ -5,6 +5,7 @@ var bind = require('../internals/bind-context');
 var Set = path.Set;
 var values = Set.prototype.values;
 
+// `Set.prototype.every` method
 // https://github.com/tc39/collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   every: function every(callbackfn /* , thisArg */) {

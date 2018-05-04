@@ -5,6 +5,7 @@ var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation!';
 var INVALID_RADIX = 'Invalid radix!';
 var valid = /^[0-9a-z]+$/;
 
+// `Number.fromString` method
 // https://github.com/mathiasbynens/proposal-number-fromstring
 require('../internals/export')({ target: 'Number', stat: true }, {
   fromString: function fromString(string, radix) {

@@ -1,3 +1,4 @@
+// `Math.degrees` method
 // https://rwaldron.github.io/proposal-math-extensions/
 var RAD_PER_DEG = 180 / Math.PI;
 

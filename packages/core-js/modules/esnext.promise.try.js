@@ -1,4 +1,5 @@
 'use strict';
+// `Promise.try` method
 // https://github.com/tc39/proposal-promise-try
 var newPromiseCapability = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
