@@ -16,6 +16,7 @@ var promiseResolve = require('../internals/promise-resolve');
 var hostReportErrors = require('../internals/host-report-errors');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
+var userAgent = require('../internals/user-agent');
 var SPECIES = require('../internals/well-known-symbol')('species');
 var InternalStateModule = require('../internals/internal-state');
 var getInternalState = InternalStateModule.get;
@@ -23,8 +24,10 @@ var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
 var PromiseConstructor = global[PROMISE];
 var TypeError = global.TypeError;
-var process = global.process;
 var document = global.document;
+var process = global.process;
+var versions = process && process.versions;
+var v8 = versions && versions.v8 || '';
 var newPromiseCapability = newPromiseCapabilityModule.f;
 var newGenericPromiseCapability = newPromiseCapability;
 var IS_NODE = classof(process) == 'process';
@@ -49,7 +52,12 @@ var USE_NATIVE = !!function () {
     // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
     return (IS_NODE || typeof PromiseRejectionEvent == 'function')
       && (!IS_PURE || promise['finally'])
-      && promise.then(empty) instanceof FakePromise;
+      && promise.then(empty) instanceof FakePromise
+      // v8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
+      // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
+      // we can't detect it synchronously, so just check versions
+      && v8.indexOf('6.6') !== 0
+      && userAgent.indexOf('Chrome/66') === -1;
   } catch (e) { /* empty */ }
 }();
 
