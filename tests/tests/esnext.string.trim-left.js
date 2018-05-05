@@ -4,7 +4,7 @@ QUnit.test('String#trimLeft', assert => {
   const { trimLeft } = String.prototype;
   assert.isFunction(trimLeft);
   assert.arity(trimLeft, 0);
-  assert.name(trimLeft, 'trimLeft');
+  assert.name(trimLeft, 'trimStart');
   assert.looksNative(trimLeft);
   assert.nonEnumerable(String.prototype, 'trimLeft');
   assert.strictEqual(' \n  q w e \n  '.trimLeft(), 'q w e \n  ', 'removes whitespaces at left side of string');
@@ -20,7 +20,7 @@ QUnit.test('String#trimStart', assert => {
   const { trimStart } = String.prototype;
   assert.isFunction(trimStart);
   assert.arity(trimStart, 0);
-  assert.name(trimStart, 'trimLeft');
+  assert.name(trimStart, 'trimStart');
   assert.looksNative(trimStart);
   assert.nonEnumerable(String.prototype, 'trimStart');
   assert.same(trimStart, String.prototype.trimLeft, 'same #trimLeft');

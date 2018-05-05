@@ -3,14 +3,14 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var fails = require('../internals/fails');
 var whitespaces = require('../internals/whitespaces');
 var space = '[' + whitespaces + ']';
-var non = '\u200b\u0085';
+var non = '\u200b\u0085\u180e';
 var ltrim = RegExp('^' + space + space + '*');
 var rtrim = RegExp(space + space + '*$');
 
 var exporter = module.exports = function (KEY, exec, ALIAS) {
   var exported = {};
   var FORCED = fails(function () {
-    return !!whitespaces[KEY]() || non[KEY]() != non;
+    return !!whitespaces[KEY]() || non[KEY]() != non || whitespaces[KEY].name !== KEY;
   });
   var fn = exported[KEY] = FORCED ? exec(trim) : whitespaces[KEY];
   if (ALIAS) exported[ALIAS] = fn;
