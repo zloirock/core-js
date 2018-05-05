@@ -470,6 +470,7 @@ module.exports = {
       },
       globals: {
         asap: true,
+        compositeKey: true,
         Observable: true,
       },
     },

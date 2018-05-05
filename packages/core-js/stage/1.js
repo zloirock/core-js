@@ -42,5 +42,6 @@ require('../modules/esnext.weak-map.from');
 require('../modules/esnext.weak-map.of');
 require('../modules/esnext.weak-set.from');
 require('../modules/esnext.weak-set.of');
+require('../modules/esnext.composite-key');
 
 module.exports = require('./2');

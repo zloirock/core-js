@@ -1691,6 +1691,36 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
 ```
+* `compositeKey` method from richer keys [proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey) - module [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.composite-key.js)
+```js
+function compositeKey(...args: Array<mixed>): object;
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/composite-key
+```
+[*Examples*](https://goo.gl/2oPAH7):
+```js
+// returns a plain frozen object without a prototype
+const key = compositeKey({});
+console.log(typeof key); // => 'object'
+console.log({}.toString.call(key)); // => '[object Object]'
+console.log(Object.getPrototypeOf(key)); // => null
+console.log(Object.isFrozen(key)); // => true
+
+const a = ['a'];
+const b = ['b'];
+const c = ['c'];
+
+console.log(compositeKey(a) === compositeKey(a)); // => true
+console.log(compositeKey(a) !== compositeKey(['a'])); // => true
+console.log(compositeKey(a, 1) === compositeKey(a, 1)); // => true
+console.log(compositeKey(a, b) !== compositeKey(b, a)); // => true
+console.log(compositeKey(a, b, c) === compositeKey(a, b, c)); // => true
+console.log(compositeKey(1, a) === compositeKey(1, a)); // => true
+console.log(compositeKey(1, a, 2, b) === compositeKey(1, a, 2, b)); // => true
+console.log(compositeKey(a, a) === compositeKey(a, a)); // => true
+```
 * `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.observable.js)
 ```js
 class Observable {
