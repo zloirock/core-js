@@ -59,8 +59,9 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
   });
   result += 'H';
   setTimeout(() => {
-    if (~result.indexOf('C')) {
+    if (!~result.indexOf('C')) {
       assert.same(result, EXPECTED_ORDER);
+      async();
     }
   }, 1e3);
 });
