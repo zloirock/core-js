@@ -132,6 +132,7 @@ QUnit.module('ESNext');
 import './esnext.array.flat-map';
 import './esnext.array.flatten';
 import './esnext.asap';
+import './esnext.composite-key';
 import './esnext.global';
 import './esnext.math.clamp';
 import './esnext.math.deg-per-rad';

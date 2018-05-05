@@ -196,6 +196,7 @@ module.exports = {
     'esnext.array.last-index',
     'esnext.array.last-item',
     'esnext.asap',
+    'esnext.composite-key',
     'esnext.global',
     'esnext.map.from',
     'esnext.map.group-by',
