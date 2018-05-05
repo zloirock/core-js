@@ -41,7 +41,7 @@ module.exports = function () {
     };
   // environments with maybe non-completely correct, but existent Promise
   } else if (Promise && Promise.resolve) {
-    var promise = Promise.resolve();
+    var promise = Promise.resolve(undefined);
     notify = function () {
       promise.then(flush);
     };
