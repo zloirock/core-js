@@ -41,6 +41,7 @@ module.exports = function () {
     };
   // environments with maybe non-completely correct, but existent Promise
   } else if (Promise && Promise.resolve) {
+    // Promise.resolve without an argument throws an error in LG WebOS 2
     var promise = Promise.resolve(undefined);
     notify = function () {
       promise.then(flush);
