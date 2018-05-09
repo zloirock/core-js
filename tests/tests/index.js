@@ -183,6 +183,7 @@ import './esnext.array.flat-map';
 import './esnext.array.flatten';
 import './esnext.asap';
 import './esnext.composite-key';
+import './esnext.composite-symbol';
 import './esnext.global';
 import './esnext.map.from';
 import './esnext.map.of';

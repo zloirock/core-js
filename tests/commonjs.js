@@ -326,6 +326,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/clear-immediate') === 'function');
   ok(typeof load('features/asap') === 'function');
   ok(typeof load('features/composite-key')({}, 1, {}) === 'object');
+  ok(typeof load('features/composite-symbol')({}, 1, {}) === 'symbol');
   ok(load('features/is-iterable')([]));
   ok(typeof load('features/get-iterator-method')([]) === 'function');
   ok('next' in load('features/get-iterator')([]));
