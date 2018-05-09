@@ -9,15 +9,15 @@ QUnit.test('String#codePoints', assert => {
   assert.strictEqual(iterator[Symbol.toStringTag], 'String Iterator');
   assert.strictEqual(String(iterator), '[object String Iterator]');
   assert.deepEqual(iterator.next(), {
-    value: 113,
+    value: { codePoint: 113, position: 0 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: 119,
+    value: { codePoint: 119, position: 1 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: 101,
+    value: { codePoint: 101, position: 2 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {
@@ -26,15 +26,15 @@ QUnit.test('String#codePoints', assert => {
   });
   iterator = codePoints('𠮷𠮷𠮷');
   assert.deepEqual(iterator.next(), {
-    value: 134071,
+    value: { codePoint: 134071, position: 0 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: 134071,
+    value: { codePoint: 134071, position: 2 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: 134071,
+    value: { codePoint: 134071, position: 4 },
     done: false,
   });
   assert.deepEqual(iterator.next(), {

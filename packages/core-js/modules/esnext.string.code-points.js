@@ -24,7 +24,7 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
   if (index >= string.length) return { value: undefined, done: true };
   point = at(string, index);
   state.index += point.length;
-  return { value: codePointAt(point, 0), done: false };
+  return { value: { codePoint: codePointAt(point, 0), position: index }, done: false };
 });
 
 // `String.prototype.codePoints` method
