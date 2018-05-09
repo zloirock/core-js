@@ -1792,7 +1792,7 @@ namespace Math {
 ```js
 core-js(-pure)/features/math/signbit
 ```
-[*Examples*](http://es.zloirock.ru/):
+[*Examples*](https://goo.gl/rPWbzZ):
 ```js
 Math.signbit(NaN); // => NaN
 Math.signbit(1);   // => true
@@ -1809,6 +1809,23 @@ class Number {
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/features/number/from-string
+```
+* `String#codePoints` [proposal](https://github.com/RReverser/string-prototype-codepoints) - module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.code-points.js)
+```js
+class String {
+  codePoints(): Iterator<codePoint, position>;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/features/string/code-points
+```
+[*Example*](https://goo.gl/Jt7SsD):
+```js
+for (let { codePoint, position } of 'qwe'.codePoints()) {
+  console.log(codePoint); // => 113, 119, 101
+  console.log(position);  // => 0, 1, 2
+}
 ```
 
 #### Stage 0 proposals
