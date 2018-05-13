@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Set from 'core-js-pure/features/set';
 import from from 'core-js-pure/features/array/from';
 
 QUnit.test('Set#map', assert => {
@@ -24,9 +24,7 @@ QUnit.test('Set#map', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it ** 2)), [1, 4, 9]);
   assert.deepEqual(from(new Set([1, 2, 3]).map(it => it % 2)), [1, 0]);
 
-  assert.throws(() => map.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => map.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
 });
