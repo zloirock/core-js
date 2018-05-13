@@ -31,8 +31,9 @@ QUnit.test('compositeSymbol', assert => {
   assert.ok(compositeSymbol(a, a) === compositeSymbol(a, a));
   assert.ok(compositeSymbol(a, a) !== compositeSymbol(a, ['a']));
   assert.ok(compositeSymbol(a, a) !== compositeSymbol(a, b));
-
-  assert.throws(() => compositeSymbol(), TypeError);
-  assert.throws(() => compositeSymbol(1, 2), TypeError);
-  assert.throws(() => compositeSymbol('foo', null, true), TypeError);
+  assert.ok(compositeSymbol() === compositeSymbol());
+  assert.ok(compositeSymbol(1, 2) === compositeSymbol(1, 2));
+  assert.ok(compositeSymbol(1, 2) !== compositeSymbol(2, 1));
+  assert.ok(compositeSymbol('foo', null, true) === compositeSymbol('foo', null, true));
+  assert.ok(compositeSymbol('string') === Symbol.for('string'));
 });
