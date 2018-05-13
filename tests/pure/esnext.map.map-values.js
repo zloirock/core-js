@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Map from 'core-js-pure/features/map';
 import from from 'core-js-pure/features/array/from';
 
 QUnit.test('Map#mapValues', assert => {
@@ -41,9 +41,7 @@ QUnit.test('Map#mapValues', assert => {
     [4, '45'],
   ]);
 
-  assert.throws(() => mapValues.call(new Set(), () => { /* empty */ }), TypeError);
   assert.throws(() => mapValues.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => mapValues.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => mapValues.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => mapValues.call(null, () => { /* empty */ }), TypeError);
 });

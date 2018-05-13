@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Set from 'core-js-pure/features/set';
 
 QUnit.test('Set#join', assert => {
   const { join } = Set.prototype;
@@ -12,9 +12,7 @@ QUnit.test('Set#join', assert => {
   assert.strictEqual(new Set([1, 2, 3]).join(undefined), '1,2,3');
   assert.strictEqual(new Set([1, 2, 3]).join('|'), '1|2|3');
 
-  assert.throws(() => join.call(new Map()), TypeError);
   assert.throws(() => join.call({}), TypeError);
-  assert.throws(() => join.call([]), TypeError);
   assert.throws(() => join.call(undefined), TypeError);
   assert.throws(() => join.call(null), TypeError);
 });

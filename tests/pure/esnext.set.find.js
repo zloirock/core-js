@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Set from 'core-js-pure/features/set';
 
 QUnit.test('Set#find', assert => {
   const { find } = Set.prototype;
@@ -21,9 +21,7 @@ QUnit.test('Set#find', assert => {
   assert.same(new Set([2, 3, 4]).find(it => it % 2), 3);
   assert.same(new Set().find(it => it === 42), undefined);
 
-  assert.throws(() => find.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
 });

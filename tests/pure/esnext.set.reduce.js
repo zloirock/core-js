@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Set from 'core-js-pure/features/set';
 
 QUnit.test('Set#reduce', assert => {
   const { reduce } = Set.prototype;
@@ -38,9 +38,7 @@ QUnit.test('Set#reduce', assert => {
   assert.same(values, '13', 'correct order #1');
   assert.same(keys, '13', 'correct order #2');
 
-  assert.throws(() => reduce.call(new Map(), () => { /* empty */ }, 1), TypeError);
   assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
   assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
   assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
 });

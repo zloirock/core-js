@@ -1,4 +1,4 @@
-import { Map, Set } from 'core-js-pure';
+import Set from 'core-js-pure/features/set';
 
 QUnit.test('Set#every', assert => {
   const { every } = Set.prototype;
@@ -23,9 +23,7 @@ QUnit.test('Set#every', assert => {
   assert.same(new Set([1, '2', 3]).every(it => typeof it === 'number'), false);
   assert.same(new Set().every(it => typeof it === 'number'), true);
 
-  assert.throws(() => every.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => every.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
 });
