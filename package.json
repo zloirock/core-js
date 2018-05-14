@@ -30,7 +30,6 @@
     "grunt-contrib-clean": "^1.1.0",
     "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-uglify": "3.3.x",
-    "grunt-contrib-watch": "^1.0.0",
     "grunt-karma": "^2.0.0",
     "grunt-webpack": "^3.0.2",
     "karma": "^2.0.0",
