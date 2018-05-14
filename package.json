@@ -36,7 +36,7 @@
     "karma": "^2.0.0",
     "karma-phantomjs-launcher": "1.0.x",
     "karma-qunit": "^2.1.0",
-    "lerna": "2.7.1",
+    "lerna": "2.11.0",
     "mkdirp": "^0.5.1",
     "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "2.1.x",
