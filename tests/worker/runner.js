@@ -1,7 +1,12 @@
-importScripts('../../client/core.js');
+'use strict';
+importScripts('../../packages/core-js-bundle/index.js');
 
-postMessage(typeof core != 'undefined');
+postMessage(typeof core !== 'undefined');
 
-setImmediate(_ => postMessage('setImmediate'));
+setImmediate(() => {
+  postMessage('setImmediate');
+});
 
-Promise.resolve().then(_ => postMessage('Promise.resolve'));
+Promise.resolve().then(() => {
+  postMessage('Promise.resolve');
+});
