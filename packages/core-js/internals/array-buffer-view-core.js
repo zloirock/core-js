@@ -86,14 +86,16 @@ var exportStatic = function (KEY, property, forced) {
       if (TypedArrayConstructor && has(TypedArrayConstructor, KEY)) delete TypedArrayConstructor[KEY];
     }
     if (!TypedArray[KEY] || forced) {
-      redefine(TypedArray, KEY, forced ? property : NATIVE_ARRAY_BUFFER_VIEWS && Int8Array[KEY] || property);
-    }
-  } else {
-    for (ARRAY in TypedArrayConstructorsList) {
-      TypedArrayConstructor = global[ARRAY];
-      if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
-        redefine(TypedArrayConstructor, KEY, property);
-      }
+      // V8 ~ Chrome 49-50 `%TypedArray%` methods are non-writable non-configurable
+      try {
+        return redefine(TypedArray, KEY, forced ? property : NATIVE_ARRAY_BUFFER_VIEWS && Int8Array[KEY] || property);
+      } catch (e) { /* empty */ }
+    } else return;
+  }
+  for (ARRAY in TypedArrayConstructorsList) {
+    TypedArrayConstructor = global[ARRAY];
+    if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
+      redefine(TypedArrayConstructor, KEY, property);
     }
   }
 };
