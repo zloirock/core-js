@@ -42,7 +42,7 @@
     "promises-aplus-tests": "^2.1.2",
     "qunit": "2.6.x",
     "temp": "^0.8.3",
-    "webpack": "^3.11.0"
+    "webpack": "^4.8.3"
   },
   "license": "MIT",
   "repository": {

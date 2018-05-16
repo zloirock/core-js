@@ -3,11 +3,14 @@ const resolve = require('path').resolve;
 
 module.exports = {
   options: {
+    mode: 'none',
     module: {
-      loaders: [{
+      rules: [{
         test: /\.js$/,
         exclude: /modules/,
-        loader: 'babel-loader',
+        use: {
+          loader: 'babel-loader',
+        },
       }],
     },
     resolve: {
