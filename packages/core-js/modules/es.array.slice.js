@@ -21,7 +21,7 @@ require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_
     var O = toIndexedObject(this);
     var length = toLength(O.length);
     var k = toAbsoluteIndex(start, length);
-    var final = toAbsoluteIndex(end === undefined ? length : end, length);
+    var fin = toAbsoluteIndex(end === undefined ? length : end, length);
     // inline `ArraySpeciesCreate` for usage native `Array#slice` where it's possible
     var Constructor, result, n;
     if (isArray(O)) {
@@ -33,10 +33,10 @@ require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_
         Constructor = Constructor[SPECIES];
         if (Constructor === null) Constructor = undefined;
       }
-      if (Constructor === Array || Constructor === undefined) return nativeSlice.call(O, k, final);
+      if (Constructor === Array || Constructor === undefined) return nativeSlice.call(O, k, fin);
     }
-    result = new (Constructor === undefined ? Array : Constructor)(max(final - k, 0));
-    for (n = 0; k < final; k++, n++) if (k in O) createProperty(result, n, O[k]);
+    result = new (Constructor === undefined ? Array : Constructor)(max(fin - k, 0));
+    for (n = 0; k < fin; k++, n++) if (k in O) createProperty(result, n, O[k]);
     result.length = n;
     return result;
   }
