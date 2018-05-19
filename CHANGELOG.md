@@ -49,7 +49,7 @@
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
     - Update `Array#flatten` and `Array#flatMap` and move to the stage 3
     - Update `String#matchAll` (mainly [this PR](https://github.com/tc39/proposal-string-matchall/pull/17)) and move to the stage 3
-    - Move `String#{trimLeft, trimRight}` to the stage 3
+    - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
   - Mark ES2016, ES2017 and ES2018 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
     - `Object.values` and `Object.entries`
@@ -103,6 +103,7 @@
   - Change prefix for ES proposals from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
   - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
   - Split typed arrays polyfills. Now you can, for example, load only required method.
+  - Extract well-known symbols definition from `es.symbol` module for loading only required features, for example, in MS Edge.
   - Rename `web.dom` namespace to `web.dom-collections`.
   - Rename `es6.regexp.{match, replace, search, split}` -> `es.string.{match, replace, search, split}` - mainly it's fixes / adding support of well-known symbols to string methods, only in second place adding related methods to regexp prototype.
   - Relax `/modules/` directory by moving internal modules to `/internals/` directory.
