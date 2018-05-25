@@ -12,31 +12,31 @@ Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2
 import 'core-js'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flatten(2);              // => [1, 2, 3, 4, 5]
+[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
 *You can load only required features*:
 ```js
-import 'core-js/features/array/from';    // <- at the top of your entry point
-import 'core-js/features/array/flatten'; // <- at the top of your entry point
-import 'core-js/features/set';           // <- at the top of your entry point
-import 'core-js/features/promise';       // <- at the top of your entry point
+import 'core-js/features/array/from'; // <- at the top of your entry point
+import 'core-js/features/array/flat'; // <- at the top of your entry point
+import 'core-js/features/set';        // <- at the top of your entry point
+import 'core-js/features/promise';    // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flatten(2);              // => [1, 2, 3, 4, 5]
+[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
 *Or use it without global namespace pollution*:
 ```js
 import from from 'core-js-pure/features/array/from';
-import flatten from 'core-js-pure/features/array/flatten';
+import flat from 'core-js-pure/features/array/flat';
 import Set from 'core-js-pure/features/set';
 import Promise from 'core-js-pure/features/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-flatten([1, [2, 3], [4, [5]]], 2);             // => [1, 2, 3, 4, 5]
+flat([1, [2, 3], [4, [5]]], 2);                // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
@@ -1421,25 +1421,25 @@ None.
 ```js
 core-js(-pure)/stage/3
 ```
-* `Array#flatten` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flatten`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flatten.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat-map.js)
+* `Array#flat` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat-map.js)
 ```js
 class Array {
-  flatten(depthArg?: number = 1): Array<mixed>;
+  flat(depthArg?: number = 1): Array<mixed>;
   flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js(-pure)/features/array/flatten
+core-js(-pure)/features/array/flat
 core-js(-pure)/features/array/flat-map
-core-js(-pure)/features/array/virtual/flatten
+core-js(-pure)/features/array/virtual/flat
 core-js(-pure)/features/array/virtual/flat-map
 ```
 [*Examples*](https://goo.gl/jTXsZi):
 ```js
-[1, [2, 3], [4, 5]].flatten();    // => [1, 2, 3, 4, 5]
-[1, [2, [3, [4]]], 5].flatten();  // => [1, 2, [3, [4]], 5]
-[1, [2, [3, [4]]], 5].flatten(3); // => [1, 2, 3, 4, 5]
+[1, [2, 3], [4, 5]].flat();    // => [1, 2, 3, 4, 5]
+[1, [2, [3, [4]]], 5].flat();  // => [1, 2, [3, [4]], 5]
+[1, [2, [3, [4]]], 5].flat(3); // => [1, 2, 3, 4, 5]
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```

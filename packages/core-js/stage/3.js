@@ -1,4 +1,4 @@
-require('../modules/esnext.array.flatten');
+require('../modules/esnext.array.flat');
 require('../modules/esnext.array.flat-map');
 require('../modules/esnext.global');
 require('../modules/esnext.string.match-all');

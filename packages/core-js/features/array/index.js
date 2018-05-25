@@ -26,6 +26,6 @@ require('../../modules/es.array.includes');
 require('../../modules/esnext.array.last-item');
 require('../../modules/esnext.array.last-index');
 require('../../modules/esnext.array.flat-map');
-require('../../modules/esnext.array.flatten');
+require('../../modules/esnext.array.flat');
 
 module.exports = require('../../internals/path').Array;

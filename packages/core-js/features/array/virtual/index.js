@@ -19,7 +19,7 @@ require('../../../modules/es.array.sort');
 require('../../../modules/es.array.splice');
 require('../../../modules/es.array.species');
 require('../../../modules/es.array.iterator');
-require('../../../modules/esnext.array.flatten');
+require('../../../modules/esnext.array.flat');
 require('../../../modules/esnext.array.flat-map');
 
 module.exports = require('../../../internals/entry-virtual')('Array');

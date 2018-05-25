@@ -191,7 +191,7 @@ module.exports = {
     'es.reflect.prevent-extensions',
     'es.reflect.set',
     'es.reflect.set-prototype-of',
-    'esnext.array.flatten',
+    'esnext.array.flat',
     'esnext.array.flat-map',
     'esnext.array.last-index',
     'esnext.array.last-item',

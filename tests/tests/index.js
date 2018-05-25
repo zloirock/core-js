@@ -180,7 +180,7 @@ QUnit.module('ESNext');
 import './esnext.array.last-item';
 import './esnext.array.last-index';
 import './esnext.array.flat-map';
-import './esnext.array.flatten';
+import './esnext.array.flat';
 import './esnext.asap';
 import './esnext.composite-key';
 import './esnext.composite-symbol';

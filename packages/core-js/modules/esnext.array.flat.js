@@ -5,10 +5,10 @@ var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
-// `Array.prototype.flatten` method
-// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatten
+// `Array.prototype.flat` method
+// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flat
 require('../internals/export')({ target: 'Array', proto: true }, {
-  flatten: function flatten(/* depthArg = 1 */) {
+  flat: function flat(/* depthArg = 1 */) {
     var depthArg = arguments[0];
     var O = toObject(this);
     var sourceLen = toLength(O.length);
@@ -18,4 +18,4 @@ require('../internals/export')({ target: 'Array', proto: true }, {
   }
 });
 
-require('../internals/add-to-unscopables')('flatten');
+require('../internals/add-to-unscopables')('flat');
