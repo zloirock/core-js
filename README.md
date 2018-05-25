@@ -1548,6 +1548,29 @@ const units = new Set([new Unit(101), new Unit(102)]);
 
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
+* New `Set` methods [proposal](https://github.com/tc39/set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersect`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersect.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
+```js
+class Set {
+  difference(iterable: Iterable<mixed>): Set;
+  intersect(iterable: Iterable<mixed>): Set;
+  symmetric-difference(iterable: Iterable<mixed>): Set;
+  union(iterable: Iterable<mixed>): Set;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/features/set/difference
+core-js/features/set/intersect
+core-js/features/set/symmetric-difference
+core-js/features/set/union
+```
+[*Examples*](https://goo.gl/YjaxTN):
+```js
+new Set([1, 2, 3]).union([3, 4, 5]);               // => Set {1, 2, 3, 4, 5}
+new Set([1, 2, 3]).intersect([3, 4, 5]);           // => Set {3}
+new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
+new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1608,7 +1631,6 @@ Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as $
 ```
 * New collections methods proposals:
 - New `Set` and `Map` methods [proposal](https://github.com/tc39/collection-methods) - modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.some.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.merge.js)
-- New `Set` methods [proposal](https://github.com/tc39/set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersect`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersect.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
 - `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
 class Set {
@@ -1616,17 +1638,13 @@ class Set {
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => any, thisArg?: any): Set;
   addAll(...args: Array<mixed>): this;
   deleteAll(...args: Array<mixed>): boolean;
-  difference(iterable: Iterable<mixed>): Set;
   every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
   filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Set;
   find(callbackfn: (value: any, key: any, target: any) => boolean), thisArg?: any): any;
-  intersect(iterable: Iterable<mixed>): Set;
   join(separator: string = ','): string;
   map(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Set;
   reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
   some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
-  symmetric-difference(iterable: Iterable<mixed>): Set;
-  union(iterable: Iterable<mixed>): Set;
 }
 
 class Map {
@@ -1654,19 +1672,15 @@ class WeakMap {
 ```js
 core-js/features/set/add-all
 core-js/features/set/delete-all
-core-js/features/set/difference
 core-js/features/set/every
 core-js/features/set/filter
 core-js/features/set/find
 core-js/features/set/from
-core-js/features/set/intersect
 core-js/features/set/join
 core-js/features/set/map
 core-js/features/set/of
 core-js/features/set/reduce
 core-js/features/set/some
-core-js/features/set/symmetric-difference
-core-js/features/set/union
 core-js/features/map/filter
 core-js/features/map/from
 core-js/features/map/group-by
@@ -1682,11 +1696,6 @@ core-js/features/weak-map/from
 ```
 [*Examples*](https://goo.gl/mSC7eU):
 ```js
-new Set([1, 2, 3]).union([3, 4, 5]);               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersect([3, 4, 5]);           // => Set {3}
-new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
-new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
-
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
