@@ -1497,9 +1497,6 @@ core-js(-pure)/features/global
 ```js
 global.Array === Array; // => true
 ```
-
-#### Stage 2 proposals
-[*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/stage/2
 ```
@@ -1518,6 +1515,10 @@ core-js/features/symbol/description
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
 ```
+
+#### Stage 2 proposals
+[*CommonJS entry points:*](#commonjs)
+None.
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
