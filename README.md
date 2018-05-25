@@ -1518,12 +1518,6 @@ Symbol().description;      // => undefined
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
-None.
-
-#### Stage 1 proposals
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js(-pure)/stage/1
 ```
 * `Object.fromEntries`, [proposal](https://github.com/bathos/object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.object.from-entries.js)
 ```js
@@ -1554,6 +1548,11 @@ const units = new Set([new Unit(101), new Unit(102)]);
 
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
+
+#### Stage 1 proposals
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js(-pure)/stage/1
 * Getting last item from `Array` [proposal](https://github.com/keithamus/proposal-array-last) - modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-index.js)
 ```js
 class Array {
