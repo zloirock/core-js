@@ -1,7 +1,11 @@
 ## Changelog
+##### 2.5.7 - 2018.05.26
+- Get rid of reserved variable name `final`, related [#400](https://github.com/zloirock/core-js/issues/400)
+
 ##### 2.5.6 - 2018.05.07
 - Forced replace native `Promise` in V8 6.6 (Node 10 and Chrome 66) because of [a bug with resolving custom thenables](https://bugs.chromium.org/p/chromium/issues/detail?id=830565)
 - Added a workaround for usage buggy native LG WebOS 2 `Promise` in microtask implementation, [#396](https://github.com/zloirock/core-js/issues/396)
+- Added modern version internal debugging information about used versions
 
 ##### 2.5.5 - 2018.04.08
 - Fix some edge cases of `Reflect.set`, [#392](https://github.com/zloirock/core-js/issues/392) and [#393](https://github.com/zloirock/core-js/issues/393)
