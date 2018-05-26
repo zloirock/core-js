@@ -2,8 +2,13 @@
 ##### 3.0.0
 - Features
   - Add new features:
-    - `Symbol#description` ([stage 2 proposal](https://tc39.github.io/proposal-Symbol-description/))
-    - `Object.fromEntries` ([stage 1 proposal](https://github.com/bathos/object-from-entries))
+    - `Symbol#description` ([stage 3 proposal](https://tc39.github.io/proposal-Symbol-description/))
+    - `Object.fromEntries` ([stage 2 proposal](https://github.com/bathos/object-from-entries))
+    - New `Set` methods ([stage 2 proposal](https://github.com/Ginden/set-methods))
+      - `Set#difference`
+      - `Set#intersect`
+      - `Set#symmetricDifference`
+      - `Set#union`
     - Getting last item from `Array` ([stage 1 proposal](https://github.com/keithamus/proposal-array-last))
       - `Array#lastItem`
       - `Array#lastIndex`
@@ -25,11 +30,6 @@
       - `Set#map`
       - `Set#reduce`
       - `Set#some`
-    - New `Set` methods ([stage 1 proposal](https://github.com/Ginden/set-methods))
-      - `Set#difference`
-      - `Set#intersect`
-      - `Set#symmetricDifference`
-      - `Set#union`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
     - `Symbol.{patternMatch, patternValue}` ([for updated stage 0 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
@@ -47,7 +47,7 @@
   - Update standard features and proposals:
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
-    - Update `Array#flatten` and `Array#flatMap` and move to the stage 3
+    - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
     - Update `String#matchAll` (mainly [this PR](https://github.com/tc39/proposal-string-matchall/pull/17)) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
   - Mark ES2016, ES2017 and ES2018 features as stable:
