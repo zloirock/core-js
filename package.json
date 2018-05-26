@@ -21,7 +21,7 @@
     "grunt-karma": "^2.0.0",
     "grunt-livescript": "0.6.x",
     "karma": "^2.0.0",
-    "karma-qunit": "^2.0.1",
+    "karma-qunit": "^2.1.0",
     "karma-chrome-launcher": "^2.2.0",
     "karma-firefox-launcher": "^1.0.1",
     "karma-ie-launcher": "^1.0.0",
