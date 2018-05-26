@@ -7,7 +7,7 @@ var iterate = require('../internals/iterate');
 var Set = path.Set;
 
 // `Set.prototype.symmetricDifference` method
-// https://github.com/tc39/set-methods
+// https://github.com/tc39/proposal-set-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   symmetricDifference: function symmetricDifference(iterable) {
     var set = anObject(this);

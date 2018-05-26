@@ -3,8 +3,8 @@
 - Features
   - Add new features:
     - `Symbol#description` ([stage 3 proposal](https://tc39.github.io/proposal-Symbol-description/))
-    - `Object.fromEntries` ([stage 2 proposal](https://github.com/bathos/object-from-entries))
-    - New `Set` methods ([stage 2 proposal](https://github.com/Ginden/set-methods))
+    - `Object.fromEntries` ([stage 2 proposal](https://github.com/tc39/proposal-object-from-entries))
+    - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
       - `Set#intersect`
       - `Set#symmetricDifference`

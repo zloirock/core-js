@@ -1519,7 +1519,7 @@ Symbol().description;      // => undefined
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
 ```
-* `Object.fromEntries`, [proposal](https://github.com/bathos/object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.object.from-entries.js)
+* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.object.from-entries.js)
 ```js
 class Object {
   static fromEntries(iterable: Iterable<[key, value]>): Object;
@@ -1548,7 +1548,7 @@ const units = new Set([new Unit(101), new Unit(102)]);
 
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
-* New `Set` methods [proposal](https://github.com/tc39/set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersect`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersect.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
+* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersect`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersect.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
 ```js
 class Set {
   difference(iterable: Iterable<mixed>): Set;
