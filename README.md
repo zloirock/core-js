@@ -1548,11 +1548,11 @@ const units = new Set([new Unit(101), new Unit(102)]);
 
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
-* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersect`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersect.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
+* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.set.union.js)
 ```js
 class Set {
   difference(iterable: Iterable<mixed>): Set;
-  intersect(iterable: Iterable<mixed>): Set;
+  intersection(iterable: Iterable<mixed>): Set;
   symmetric-difference(iterable: Iterable<mixed>): Set;
   union(iterable: Iterable<mixed>): Set;
 }
@@ -1560,14 +1560,14 @@ class Set {
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js/features/set/difference
-core-js/features/set/intersect
+core-js/features/set/intersection
 core-js/features/set/symmetric-difference
 core-js/features/set/union
 ```
 [*Examples*](https://goo.gl/YjaxTN):
 ```js
 new Set([1, 2, 3]).union([3, 4, 5]);               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersect([3, 4, 5]);           // => Set {3}
+new Set([1, 2, 3]).intersection([3, 4, 5]);           // => Set {3}
 new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
 new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 ```

@@ -9,7 +9,7 @@ require('../../modules/esnext.set.every');
 require('../../modules/esnext.set.difference');
 require('../../modules/esnext.set.filter');
 require('../../modules/esnext.set.find');
-require('../../modules/esnext.set.intersect');
+require('../../modules/esnext.set.intersection');
 require('../../modules/esnext.set.join');
 require('../../modules/esnext.set.map');
 require('../../modules/esnext.set.reduce');

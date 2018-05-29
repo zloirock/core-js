@@ -240,7 +240,7 @@ module.exports = {
     'esnext.set.difference',
     'esnext.set.filter',
     'esnext.set.find',
-    'esnext.set.intersect',
+    'esnext.set.intersection',
     'esnext.set.join',
     'esnext.set.map',
     'esnext.set.reduce',

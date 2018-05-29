@@ -311,7 +311,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(load('features/set/filter')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/find')(new Set([2, 3, 4]), it => it % 2) === 3);
-  ok(load('features/set/intersect')(new Set([1, 2, 3]), [1, 3, 4]).size === 2);
+  ok(load('features/set/intersection')(new Set([1, 2, 3]), [1, 3, 4]).size === 2);
   ok(load('features/set/join')(new Set([1, 2, 3])) === '1,2,3');
   ok(load('features/set/map')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);

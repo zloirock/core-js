@@ -6,7 +6,7 @@
     - `Object.fromEntries` ([stage 2 proposal](https://github.com/tc39/proposal-object-from-entries))
     - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
-      - `Set#intersect`
+      - `Set#intersection`
       - `Set#symmetricDifference`
       - `Set#union`
     - Getting last item from `Array` ([stage 1 proposal](https://github.com/keithamus/proposal-array-last))
