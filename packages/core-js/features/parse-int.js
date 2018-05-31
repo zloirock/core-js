@@ -1,3 +1,1 @@
-require('../modules/es.parse-int');
-
-module.exports = require('../internals/path').parseInt;
+module.exports = require('../es/parse-int');

@@ -1,3 +1,1 @@
-require('../../modules/es.math.imul');
-
-module.exports = require('../../internals/path').Math.imul;
+module.exports = require('../../es/math/imul');

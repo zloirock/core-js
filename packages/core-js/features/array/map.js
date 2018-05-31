@@ -1,3 +1,1 @@
-require('../../modules/es.array.map');
-
-module.exports = require('../../internals/entry-unbind')('Array', 'map');
+module.exports = require('../../es/array/map');

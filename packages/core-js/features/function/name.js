@@ -1,1 +1,1 @@
-require('../../modules/es.function.name');
+module.exports = require('../../es/function/name');

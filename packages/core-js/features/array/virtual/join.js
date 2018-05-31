@@ -1,3 +1,1 @@
-require('../../../modules/es.array.join');
-
-module.exports = require('../../../internals/entry-virtual')('Array').join;
+module.exports = require('../../../es/array/virtual/join');

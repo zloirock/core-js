@@ -1,3 +1,1 @@
-require('../../modules/es.array-buffer.is-view');
-
-module.exports = require('../../internals/path').ArrayBuffer.isView;
+module.exports = require('../../es/array-buffer/is-view');

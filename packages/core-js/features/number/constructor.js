@@ -1,3 +1,1 @@
-require('../../modules/es.number.constructor');
-
-module.exports = Number;
+module.exports = require('../../es/number/constructor');

@@ -1,3 +1,1 @@
-require('../../modules/es.reflect.define-property');
-
-module.exports = require('../../internals/path').Reflect.defineProperty;
+module.exports = require('../../es/reflect/define-property');

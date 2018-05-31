@@ -1,3 +1,1 @@
-require('../../modules/es.object.seal');
-
-module.exports = require('../../internals/path').Object.seal;
+module.exports = require('../../es/object/seal');

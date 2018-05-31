@@ -1,3 +1,1 @@
-require('../../modules/es.object.freeze');
-
-module.exports = require('../../internals/path').Object.freeze;
+module.exports = require('../../es/object/freeze');

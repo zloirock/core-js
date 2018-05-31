@@ -1,3 +1,1 @@
-require('../../modules/es.date.to-json');
-
-module.exports = require('../../internals/entry-unbind')('Date', 'toJSON');
+module.exports = require('../../es/date/to-json');

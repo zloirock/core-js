@@ -1,3 +1,1 @@
-require('../../modules/es.math.to-string-tag');
-
-module.exports = 'Math';
+module.exports = require('../../es/math/to-string-tag');

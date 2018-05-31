@@ -1,3 +1,1 @@
-require('../../modules/es.array.is-array');
-
-module.exports = require('../../internals/path').Array.isArray;
+module.exports = require('../../es/array/is-array');

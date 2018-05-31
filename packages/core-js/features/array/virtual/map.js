@@ -1,3 +1,1 @@
-require('../../../modules/es.array.map');
-
-module.exports = require('../../../internals/entry-virtual')('Array').map;
+module.exports = require('../../../es/array/virtual/map');

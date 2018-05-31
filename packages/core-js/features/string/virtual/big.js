@@ -1,3 +1,1 @@
-require('../../../modules/es.string.big');
-
-module.exports = require('../../../internals/entry-virtual')('String').big;
+module.exports = require('../../../es/string/virtual/big');

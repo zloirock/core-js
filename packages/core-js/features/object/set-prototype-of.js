@@ -1,3 +1,1 @@
-require('../../modules/es.object.set-prototype-of');
-
-module.exports = require('../../internals/path').Object.setPrototypeOf;
+module.exports = require('../../es/object/set-prototype-of');

@@ -1,3 +1,1 @@
-require('../../modules/es.array.find');
-
-module.exports = require('../../internals/entry-unbind')('Array', 'find');
+module.exports = require('../../es/array/find');

@@ -1,6 +1,1 @@
-require('../../modules/es.string.replace');
-var REPLACE = require('../../internals/well-known-symbol')('replace');
-
-module.exports = function (it, str, replacer) {
-  return RegExp.prototype[REPLACE].call(it, str, replacer);
-};
+module.exports = require('../../es/regexp/replace');

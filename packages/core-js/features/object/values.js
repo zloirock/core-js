@@ -1,3 +1,1 @@
-require('../../modules/es.object.values');
-
-module.exports = require('../../internals/path').Object.values;
+module.exports = require('../../es/object/values');

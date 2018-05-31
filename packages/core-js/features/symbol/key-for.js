@@ -1,3 +1,1 @@
-require('../../modules/es.symbol');
-
-module.exports = require('../../internals/path').Symbol.keyFor;
+module.exports = require('../../es/symbol/key-for');

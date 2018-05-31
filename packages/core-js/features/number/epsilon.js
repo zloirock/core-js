@@ -1,3 +1,1 @@
-require('../../modules/es.number.epsilon');
-
-module.exports = Math.pow(2, -52);
+module.exports = require('../../es/number/epsilon');

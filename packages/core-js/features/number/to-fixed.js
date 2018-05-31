@@ -1,3 +1,1 @@
-require('../../modules/es.number.to-fixed');
-
-module.exports = require('../../internals/entry-unbind')('Number', 'toFixed');
+module.exports = require('../../es/number/to-fixed');

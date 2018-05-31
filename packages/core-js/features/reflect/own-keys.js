@@ -1,3 +1,1 @@
-require('../../modules/es.reflect.own-keys');
-
-module.exports = require('../../internals/path').Reflect.ownKeys;
+module.exports = require('../../es/reflect/own-keys');

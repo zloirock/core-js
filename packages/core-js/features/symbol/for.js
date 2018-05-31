@@ -1,3 +1,1 @@
-require('../../modules/es.symbol');
-
-module.exports = require('../../internals/path').Symbol['for'];
+module.exports = require('../../es/symbol/for');

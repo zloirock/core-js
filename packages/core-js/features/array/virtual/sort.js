@@ -1,3 +1,1 @@
-require('../../../modules/es.array.sort');
-
-module.exports = require('../../../internals/entry-virtual')('Array').sort;
+module.exports = require('../../../es/array/virtual/sort');

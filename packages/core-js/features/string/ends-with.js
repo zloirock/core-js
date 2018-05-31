@@ -1,3 +1,1 @@
-require('../../modules/es.string.ends-with');
-
-module.exports = require('../../internals/entry-unbind')('String', 'endsWith');
+module.exports = require('../../es/string/ends-with');

@@ -1,3 +1,1 @@
-require('../../modules/es.string.raw');
-
-module.exports = require('../../internals/path').String.raw;
+module.exports = require('../../es/string/raw');

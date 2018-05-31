@@ -1,3 +1,1 @@
-require('../../modules/es.regexp.constructor');
-
-module.exports = RegExp;
+module.exports = require('../../es/regexp/constructor');

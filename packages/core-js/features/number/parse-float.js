@@ -1,3 +1,1 @@
-require('../../modules/es.number.parse-float');
-
-module.exports = require('../../internals/path').Number.parseFloat;
+module.exports = require('../../es/number/parse-float');

@@ -1,3 +1,1 @@
-require('../../modules/es.math.hypot');
-
-module.exports = require('../../internals/path').Math.hypot;
+module.exports = require('../../es/math/hypot');

@@ -1,3 +1,1 @@
-require('../../modules/es.string.replace');
-
-module.exports = require('../../internals/entry-unbind')('String', 'replace');
+module.exports = require('../../es/string/replace');

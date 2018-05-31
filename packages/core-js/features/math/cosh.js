@@ -1,3 +1,1 @@
-require('../../modules/es.math.cosh');
-
-module.exports = require('../../internals/path').Math.cosh;
+module.exports = require('../../es/math/cosh');

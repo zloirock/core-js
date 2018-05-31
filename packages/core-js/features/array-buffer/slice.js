@@ -1,1 +1,1 @@
-require('../../modules/es.array-buffer.slice');
+module.exports = require('../../es/array-buffer/slice');

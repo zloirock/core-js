@@ -1,3 +1,1 @@
-require('../../modules/es.array.fill');
-
-module.exports = require('../../internals/entry-unbind')('Array', 'fill');
+module.exports = require('../../es/array/fill');

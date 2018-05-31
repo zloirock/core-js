@@ -1,3 +1,1 @@
-require('../../modules/es.reflect.is-extensible');
-
-module.exports = require('../../internals/path').Reflect.isExtensible;
+module.exports = require('../../es/reflect/is-extensible');

@@ -1,3 +1,1 @@
-require('../../modules/es.string.small');
-
-module.exports = require('../../internals/entry-unbind')('String', 'small');
+module.exports = require('../../es/string/small');

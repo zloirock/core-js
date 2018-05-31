@@ -1,3 +1,1 @@
-require('../../modules/es.json.to-string-tag');
-
-module.exports = 'JSON';
+module.exports = require('../../es/json/to-string-tag');

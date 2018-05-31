@@ -1,3 +1,1 @@
-require('../../modules/es.array.find-index');
-
-module.exports = require('../../internals/entry-unbind')('Array', 'findIndex');
+module.exports = require('../../es/array/find-index');

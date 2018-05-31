@@ -1,3 +1,1 @@
-require('../../modules/es.object.is-sealed');
-
-module.exports = require('../../internals/path').Object.isSealed;
+module.exports = require('../../es/object/is-sealed');

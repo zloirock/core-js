@@ -1,3 +1,1 @@
-require('../../modules/es.math.asinh');
-
-module.exports = require('../../internals/path').Math.asinh;
+module.exports = require('../../es/math/asinh');

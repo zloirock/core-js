@@ -1,3 +1,1 @@
-require('../../../modules/es.string.strike');
-
-module.exports = require('../../../internals/entry-virtual')('String').strike;
+module.exports = require('../../../es/string/virtual/strike');

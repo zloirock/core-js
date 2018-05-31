@@ -1,3 +1,1 @@
-require('../../modules/es.reflect.get');
-
-module.exports = require('../../internals/path').Reflect.get;
+module.exports = require('../../es/reflect/get');

@@ -1,3 +1,1 @@
-require('../../../modules/es.string.iterator');
-
-module.exports = require('../../../internals/iterators').String;
+module.exports = require('../../../es/string/virtual/iterator');

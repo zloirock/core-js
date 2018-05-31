@@ -1,3 +1,1 @@
-require('../../modules/es.number.max-safe-integer');
-
-module.exports = 0x1fffffffffffff;
+module.exports = require('../../es/number/max-safe-integer');

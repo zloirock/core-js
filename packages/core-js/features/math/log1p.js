@@ -1,3 +1,1 @@
-require('../../modules/es.math.log1p');
-
-module.exports = require('../../internals/path').Math.log1p;
+module.exports = require('../../es/math/log1p');

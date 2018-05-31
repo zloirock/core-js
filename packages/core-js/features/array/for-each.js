@@ -1,3 +1,1 @@
-require('../../modules/es.array.for-each');
-
-module.exports = require('../../internals/entry-unbind')('Array', 'forEach');
+module.exports = require('../../es/array/for-each');

@@ -1,6 +1,5 @@
-require('../../modules/es.set');
-require('../../modules/es.object.to-string');
-require('../../modules/es.string.iterator');
+module.exports = require('../../es/set');
+
 require('../../modules/esnext.set.from');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
@@ -16,6 +15,3 @@ require('../../modules/esnext.set.reduce');
 require('../../modules/esnext.set.some');
 require('../../modules/esnext.set.symmetric-difference');
 require('../../modules/esnext.set.union');
-require('../../modules/web.dom-collections.iterator');
-
-module.exports = require('../../internals/path').Set;

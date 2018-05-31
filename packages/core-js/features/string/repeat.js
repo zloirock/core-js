@@ -1,3 +1,1 @@
-require('../../modules/es.string.repeat');
-
-module.exports = require('../../internals/entry-unbind')('String', 'repeat');
+module.exports = require('../../es/string/repeat');

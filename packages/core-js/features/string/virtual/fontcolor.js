@@ -1,3 +1,1 @@
-require('../../../modules/es.string.fontcolor');
-
-module.exports = require('../../../internals/entry-virtual')('String').fontcolor;
+module.exports = require('../../../es/string/virtual/fontcolor');

@@ -1,3 +1,1 @@
-require('../../modules/es.symbol');
-
-module.exports = require('../../internals/path').Object.getOwnPropertySymbols;
+module.exports = require('../../es/object/get-own-property-symbols');

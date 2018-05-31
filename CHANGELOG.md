@@ -93,8 +93,8 @@
   - Remove bundling logic from `core-js` package, leave it only in `core-js-builder` package.
   - Clean-up packages.
   - Because of all approaches, **reduce size of packages from ~2mb for `core-js@2` to**:
-    - **~380kb for `core-js` package**
-    - **~310kb for `core-js-pure` package**
+    - **~400kb for `core-js` package**
+    - **~340kb for `core-js-pure` package**
   - Finally remove `bower.json`
 - CommonJS API, namespaces:
   - Move `core-js/library` to separate `core-js-pure` package.
@@ -102,7 +102,8 @@
   - Move all features from ES5, ES2015, ES2016, ES2017 and ES2018 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
   - Change prefix for ES proposals from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
   - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
-  - Split typed arrays polyfills. Now you can, for example, load only required method.
+  - Allow more granular inclusion of features from `/es/` path (for example, `core-js/es/array/from`).
+  - Split typed arrays polyfills. Now you can, for example, load only required method (for example, `core-js/es/typed-array/from`).
   - Extract well-known symbols definition from `es.symbol` module for loading only required features, for example, in MS Edge.
   - Rename `web.dom` namespace to `web.dom-collections`.
   - Rename `es6.regexp.{match, replace, search, split}` -> `es.string.{match, replace, search, split}` - mainly it's fixes / adding support of well-known symbols to string methods, only in second place adding related methods to regexp prototype.

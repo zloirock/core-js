@@ -1,3 +1,1 @@
-require('../../../modules/es.string.pad-end');
-
-module.exports = require('../../../internals/entry-virtual')('String').padEnd;
+module.exports = require('../../../es/string/virtual/pad-end');

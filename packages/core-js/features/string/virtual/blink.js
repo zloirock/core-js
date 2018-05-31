@@ -1,3 +1,1 @@
-require('../../../modules/es.string.blink');
-
-module.exports = require('../../../internals/entry-virtual')('String').blink;
+module.exports = require('../../../es/string/virtual/blink');
