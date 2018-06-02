@@ -37,6 +37,7 @@ module.exports = options => {
       suffix: '.js',
     });
     webpack({
+      mode: 'none',
       node: {
         global: false,
         process: false,
