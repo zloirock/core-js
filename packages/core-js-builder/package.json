@@ -10,7 +10,7 @@
   "dependencies": {
     "core-js": "3.0.0-beta.2",
     "temp": "^0.8.3",
-    "webpack": "^3.11.0"
+    "webpack": "^4.10.2"
   },
   "license": "MIT"
 }
