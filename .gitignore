@@ -5,18 +5,19 @@ node_modules/
 *.bak
 *.swp
 
+/packages/core-js/LICENSE
+/packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
 /packages/core-js-bundle/index.js
 /packages/core-js-bundle/minified.js
 /packages/core-js-bundle/minified.js.map
-/packages/core-js/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/features/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
+/packages/core-js-pure/proposals/
 /packages/core-js-pure/stage/
 /packages/core-js-pure/web/
 /packages/core-js-pure/index.js
 /packages/core-js-pure/LICENSE
-/packages/core-js-builder/LICENSE
 /tests/bundles/

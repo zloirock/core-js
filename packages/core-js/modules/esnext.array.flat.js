@@ -6,7 +6,7 @@ var toInteger = require('../internals/to-integer');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
 // `Array.prototype.flat` method
-// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flat
+// https://github.com/tc39/proposal-flatMap
 require('../internals/export')({ target: 'Array', proto: true }, {
   flat: function flat(/* depthArg = 1 */) {
     var depthArg = arguments[0];

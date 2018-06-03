@@ -12,7 +12,7 @@ var ordinaryHasMetadata = function (MetadataKey, O, P) {
 };
 
 // `Reflect.hasMetadata` method
-// https://rbuckton.github.io/reflect-metadata/
+// https://github.com/rbuckton/reflect-metadata
 ReflectMetadataModule.exp({ hasMetadata: function hasMetadata(metadataKey, target /* , targetKey */) {
   return ordinaryHasMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 } });

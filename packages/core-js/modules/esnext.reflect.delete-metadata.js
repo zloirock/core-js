@@ -5,7 +5,7 @@ var getOrCreateMetadataMap = ReflectMetadataModule.map;
 var store = ReflectMetadataModule.store;
 
 // `Reflect.deleteMetadata` method
-// https://rbuckton.github.io/reflect-metadata/
+// https://github.com/rbuckton/reflect-metadata
 ReflectMetadataModule.exp({ deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */) {
   var targetKey = arguments.length < 3 ? undefined : toMetaKey(arguments[2]);
   var metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);

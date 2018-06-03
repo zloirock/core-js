@@ -75,7 +75,16 @@ module.exports = grunt => {
           }, {
             expand: true,
             cwd: './packages/core-js/',
-            src: ['internals/**', 'modules/**', 'es/**', 'stage/**', 'web/**', 'features/**', 'index.js'],
+            src: [
+              'es/**',
+              'features/**',
+              'internals/**',
+              'modules/**',
+              'proposals/**',
+              'stage/**',
+              'web/**',
+              'index.js',
+            ],
             dest: './packages/core-js-pure/',
           }, {
             expand: true,

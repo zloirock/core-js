@@ -13,7 +13,7 @@ var ordinaryGetMetadata = function (MetadataKey, O, P) {
 };
 
 // `Reflect.getMetadata` method
-// https://rbuckton.github.io/reflect-metadata/
+// https://github.com/rbuckton/reflect-metadata
 ReflectMetadataModule.exp({ getMetadata: function getMetadata(metadataKey, target /* , targetKey */) {
   return ordinaryGetMetadata(metadataKey, anObject(target), arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
 } });

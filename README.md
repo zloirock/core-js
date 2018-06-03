@@ -816,7 +816,7 @@ function timeLimit(promise, time) {
 timeLimit(sleepRandom(5), 10).then(x => console.log(x));   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(x => console.log(x)); // Error: Await > 10 sec
 ```
-With [async functions](https://tc39.github.io/ecmascript-asyncawait) [example](http://goo.gl/wnQS4j):
+[Example](http://goo.gl/wnQS4j) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time))
 
@@ -1411,7 +1411,7 @@ None.
 ```js
 core-js(-pure)/stage/3
 ```
-* `Array#flat` and `Array#flatMap` [proposal](https://tc39.github.io/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat-map.js)
+* `Array#flat` and `Array#flatMap` [proposal](https://github.com/tc39/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.flat-map.js)
 ```js
 class Array {
   flat(depthArg?: number = 1): Array<mixed>;
@@ -1420,6 +1420,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/array-flat-and-flat-map
 core-js(-pure)/features/array/flat
 core-js(-pure)/features/array/flat-map
 core-js(-pure)/features/array/virtual/flat
@@ -1433,7 +1434,7 @@ core-js(-pure)/features/array/virtual/flat-map
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
-* `String#matchAll` [proposal](https://tc39.github.io/proposal-string-matchall/) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.match-all.js)
+* `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.match-all.js)
 ```js
 class String {
   matchAll(regexp: RegExp): Iterator;
@@ -1441,6 +1442,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/string-match-all
 core-js(-pure)/features/string/match-all
 core-js(-pure)/features/string/virtual/match-all
 ```
@@ -1461,6 +1463,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/string-trim-start-end
 core-js(-pure)/features/string/trim-start
 core-js(-pure)/features/string/trim-end
 core-js(-pure)/features/string/trim-left
@@ -1481,6 +1484,7 @@ let global: Object;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/global
 core-js(-pure)/features/global
 ```
 [*Examples*](http://goo.gl/gEqMl7):
@@ -1490,7 +1494,7 @@ global.Array === Array; // => true
 ```js
 core-js(-pure)/stage/2
 ```
-* `Symbol#description` [proposal](https://tc39.github.io/proposal-Symbol-description/) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.description.js)
+* `Symbol#description` [proposal](https://github.com/tc39/proposal-Symbol-description) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.description.js)
 ```js
 class Symbol {
   get description: string | void;
@@ -1498,6 +1502,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/symbol-description
 core-js/features/symbol/description
 ```
 [*Examples*](https://goo.gl/MWizfc):
@@ -1509,6 +1514,8 @@ Symbol().description;      // => undefined
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs)
 ```
+core-js(-pure)/stage/2
+```
 * `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.object.from-entries.js)
 ```js
 class Object {
@@ -1517,6 +1524,7 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/object-from-entries
 core-js(-pure)/features/object/from-entries
 ```
 [*Examples*]():
@@ -1549,10 +1557,11 @@ class Set {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/features/set/difference
-core-js/features/set/intersection
-core-js/features/set/symmetric-difference
-core-js/features/set/union
+core-js/proposals/set-methods
+core-js(-pure)/features/set/difference
+core-js(-pure)/features/set/intersection
+core-js(-pure)/features/set/symmetric-difference
+core-js(-pure)/features/set/union
 ```
 [*Examples*](https://goo.gl/YjaxTN):
 ```js
@@ -1566,6 +1575,7 @@ new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/stage/1
+```
 * Getting last item from `Array` [proposal](https://github.com/keithamus/proposal-array-last) - modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.array.last-index.js)
 ```js
 class Array {
@@ -1576,6 +1586,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/array-last
 core-js/features/array/last-item
 core-js/features/array/last-index
 ```
@@ -1597,6 +1608,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/string-replace-all
 core-js/features/string/replace-all
 ```
 [*Examples*](https://goo.gl/wUXNXN):
@@ -1611,6 +1623,7 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/promise-try
 core-js(-pure)/features/promise/try
 ```
 [*Examples*](https://goo.gl/k5GGRo):
@@ -1660,29 +1673,31 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/features/set/add-all
-core-js/features/set/delete-all
-core-js/features/set/every
-core-js/features/set/filter
-core-js/features/set/find
-core-js/features/set/from
-core-js/features/set/join
-core-js/features/set/map
-core-js/features/set/of
-core-js/features/set/reduce
-core-js/features/set/some
-core-js/features/map/filter
-core-js/features/map/from
-core-js/features/map/group-by
-core-js/features/map/key-by
-core-js/features/map/map-keys
-core-js/features/map/map-values
-core-js/features/map/merge
-core-js/features/map/of
-core-js/features/weak-set/of
-core-js/features/weak-set/from
-core-js/features/weak-map/of
-core-js/features/weak-map/from
+core-js/proposals/collection-methods
+core-js/proposals/collection-of-from
+core-js(-pure)/features/set/add-all
+core-js(-pure)/features/set/delete-all
+core-js(-pure)/features/set/every
+core-js(-pure)/features/set/filter
+core-js(-pure)/features/set/find
+core-js(-pure)/features/set/from
+core-js(-pure)/features/set/join
+core-js(-pure)/features/set/map
+core-js(-pure)/features/set/of
+core-js(-pure)/features/set/reduce
+core-js(-pure)/features/set/some
+core-js(-pure)/features/map/filter
+core-js(-pure)/features/map/from
+core-js(-pure)/features/map/group-by
+core-js(-pure)/features/map/key-by
+core-js(-pure)/features/map/map-keys
+core-js(-pure)/features/map/map-values
+core-js(-pure)/features/map/merge
+core-js(-pure)/features/map/of
+core-js(-pure)/features/weak-set/of
+core-js(-pure)/features/weak-set/from
+core-js(-pure)/features/weak-map/of
+core-js(-pure)/features/weak-map/from
 ```
 [*Examples*](https://goo.gl/mSC7eU):
 ```js
@@ -1697,6 +1712,7 @@ function compositeSymbol(...args: Array<mixed>): symbol;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/richer-keys
 core-js(-pure)/features/composite-key
 core-js(-pure)/features/composite-symbol
 ```
@@ -1743,6 +1759,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/observable
 core-js(-pure)/features/observable
 core-js(-pure)/features/symbol/observable
 ```
@@ -1757,15 +1774,7 @@ new Observable(observer => {
   complete() { console.log('!'); }
 });
 ```
-* `Math.{clamp, DEG_PER_RAD, degrees, fscale, rad-per-deg, radians, scale}` 
-  [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules 
-  [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.clamp.js), 
-  [`esnext.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.DEG_PER_RAD.js), 
-  [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.degrees.js),
-  [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.fscale.js), 
-  [`esnext.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.RAD_PER_DEG.js), 
-  [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.radians.js) and
-  [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.scale.js)
+* `Math` extensions [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.DEG_PER_RAD.js), [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.RAD_PER_DEG.js), [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.scale.js)
 ```js
 namespace Math {
   DEG_PER_RAD: number;
@@ -1779,6 +1788,7 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/math-extensions
 core-js(-pure)/features/math/clamp
 core-js(-pure)/features/math/deg-per-rad
 core-js(-pure)/features/math/degrees
@@ -1787,7 +1797,7 @@ core-js(-pure)/features/math/rad-per-deg
 core-js(-pure)/features/math/radians
 core-js(-pure)/features/math/scale
 ```
-* `Math.signbit` [proposal](http://jfbastien.github.io/papers/Math.signbit.html) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.signbit.js)
+* `Math.signbit` [proposal](https://github.com/tc39/proposal-Math.signbit) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.signbit.js)
 ```js
 namespace Math {
   signbit(x: number): boolean;
@@ -1795,6 +1805,7 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/math-signbit
 core-js(-pure)/features/math/signbit
 ```
 [*Examples*](https://goo.gl/rPWbzZ):
@@ -1813,6 +1824,7 @@ class Number {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/number-from-string
 core-js(-pure)/features/number/from-string
 ```
 * `String#codePoints` [proposal](https://github.com/RReverser/string-prototype-codepoints) - module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.string.code-points.js)
@@ -1823,6 +1835,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/string-code-points
 core-js(-pure)/features/string/code-points
 ```
 [*Example*](https://goo.gl/Jt7SsD):
@@ -1846,6 +1859,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/string-at
 core-js(-pure)/features/string/at
 core-js(-pure)/features/string/virtual/at
 ```
@@ -1854,7 +1868,7 @@ core-js(-pure)/features/string/virtual/at
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 ```
-* `Math.{iaddh, isubh, imulh, umulh}` [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.umulh.js)
+* Efficient 64 bit arithmetic [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.math.umulh.js)
 ```js
 namespace Math {
   iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
@@ -1865,6 +1879,7 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/efficient-64-bit-arithmetic
 core-js(-pure)/features/math/iaddh
 core-js(-pure)/features/math/isubh
 core-js(-pure)/features/math/imulh
@@ -1876,6 +1891,7 @@ function asap(fn: Function): void;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/asap
 core-js(-pure)/features/asap
 ```
 [*Examples*](http://goo.gl/tx3SRK):
@@ -1891,6 +1907,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
 core-js(-pure)/features/symbol/pattern-value
 ```
@@ -1900,7 +1917,7 @@ core-js(-pure)/features/symbol/pattern-value
 ```js
 core-js(-pure)/stage/pre
 ```
-* `Reflect` metadata [proposal](https://rbuckton.github.io/reflect-metadata/) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.metadata.js).
+* `Reflect` metadata [proposal](https://github.com/rbuckton/reflect-metadata) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.reflect.metadata.js).
 ```js
 namespace Reflect {
   defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
@@ -1916,6 +1933,7 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
+core-js/proposals/reflect-metadata
 core-js(-pure)/features/reflect/define-metadata
 core-js(-pure)/features/reflect/delete-metadata
 core-js(-pure)/features/reflect/get-metadata

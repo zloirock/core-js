@@ -5,7 +5,7 @@ var toMetaKey = ReflectMetadataModule.key;
 var ordinaryDefineOwnMetadata = ReflectMetadataModule.set;
 
 // `Reflect.metadata` method
-// https://rbuckton.github.io/reflect-metadata/
+// https://github.com/rbuckton/reflect-metadata
 ReflectMetadataModule.exp({ metadata: function metadata(metadataKey, metadataValue) {
   return function decorator(target, targetKey) {
     ordinaryDefineOwnMetadata(

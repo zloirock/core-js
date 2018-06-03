@@ -77,7 +77,7 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
 });
 
 // `String.prototype.matchAll` method
-// https://tc39.github.io/proposal-string-matchall/
+// https://github.com/tc39/proposal-string-matchall
 require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
