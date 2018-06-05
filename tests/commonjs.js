@@ -279,7 +279,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/async-iterator'));
   ok(load('features/symbol/observable'));
   ok(load('features/symbol/pattern-match'));
-  ok(load('features/symbol/pattern-value'));
   ok(typeof load('features/symbol/for') === 'function');
   ok(typeof load('features/symbol/key-for') === 'function');
   ok('iterator' in load('features/symbol'));

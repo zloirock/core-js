@@ -32,7 +32,7 @@
       - `Set#some`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
-    - `Symbol.{patternMatch, patternValue}` ([for updated stage 0 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
+    - `Symbol.patternMatch` ([for stage 0 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Improve existing features:
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).

@@ -256,7 +256,6 @@ module.exports = {
     'esnext.symbol.description',
     'esnext.symbol.observable',
     'esnext.symbol.pattern-match',
-    'esnext.symbol.pattern-value',
     'esnext.weak-map.from',
     'esnext.weak-map.of',
     'esnext.weak-set.from',

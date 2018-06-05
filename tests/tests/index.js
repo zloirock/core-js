@@ -242,7 +242,6 @@ import './esnext.string.replace-all';
 import './esnext.symbol.description';
 import './esnext.symbol.observable';
 import './esnext.symbol.pattern-match';
-import './esnext.symbol.pattern-value';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
 import './esnext.weak-set.from';

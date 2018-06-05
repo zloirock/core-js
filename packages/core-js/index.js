@@ -253,7 +253,6 @@ require('./modules/esnext.string.trim-right');
 require('./modules/esnext.symbol.description');
 require('./modules/esnext.symbol.observable');
 require('./modules/esnext.symbol.pattern-match');
-require('./modules/esnext.symbol.pattern-value');
 require('./modules/esnext.weak-map.from');
 require('./modules/esnext.weak-map.of');
 require('./modules/esnext.weak-set.from');
