@@ -1845,6 +1845,17 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
+* `Symbol.patternMatch` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.pattern-match.js).
+```js
+class Symbol {
+  static patternMatch: @@patternMatch;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/pattern-matching
+core-js(-pure)/features/symbol/pattern-match
+```
 
 #### Stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1897,17 +1908,6 @@ core-js(-pure)/features/asap
 [*Examples*](http://goo.gl/tx3SRK):
 ```js
 asap(() => console.log('called as microtask'));
-```
-* `Symbol.patternMatch` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.symbol.pattern-match.js).
-```js
-class Symbol {
-  static patternMatch: @@patternMatch;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/pattern-matching
-core-js(-pure)/features/symbol/pattern-match
 ```
 * `Promise.allSettled` [proposal](https://github.com/jasonwilliams/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.promise.all-settled.js)
 ```js
