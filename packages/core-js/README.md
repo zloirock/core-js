@@ -35,4 +35,4 @@ flatten([1, [2, 3], [4, [5]]], 2);             // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
-**It's a global version (first 2 examples), for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/v3/README.md).**
+**It's a global version (first 2 examples), for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/master/README.md).**
