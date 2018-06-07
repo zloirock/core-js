@@ -1909,6 +1909,25 @@ class Symbol {
 core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
 ```
+* `Promise.allSettled` [proposal](https://github.com/jasonwilliams/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3/packages/core-js/modules/esnext.promise.all-settled.js)
+```js
+class Promise {
+  static allSettled(iterable): promise;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/promise-all-settled
+core-js(-pure)/features/promise/all-settled
+```
+[*Examples*](https://goo.gl/PXXLNJ):
+```js
+Promise.allSettled([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+```
 
 #### Pre-stage 0 proposals
 [*CommonJS entry points:*](#commonjs)

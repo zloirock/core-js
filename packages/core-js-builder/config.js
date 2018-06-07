@@ -222,6 +222,7 @@ module.exports = {
     'esnext.number.from-string',
     'esnext.object.from-entries',
     'esnext.observable',
+    'esnext.promise.all-settled',
     'esnext.promise.try',
     'esnext.reflect.define-metadata',
     'esnext.reflect.delete-metadata',

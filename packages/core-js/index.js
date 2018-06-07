@@ -219,6 +219,7 @@ require('./modules/esnext.math.umulh');
 require('./modules/esnext.number.from-string');
 require('./modules/esnext.object.from-entries');
 require('./modules/esnext.observable');
+require('./modules/esnext.promise.all-settled');
 require('./modules/esnext.promise.try');
 require('./modules/esnext.reflect.define-metadata');
 require('./modules/esnext.reflect.delete-metadata');

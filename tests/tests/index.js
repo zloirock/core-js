@@ -201,6 +201,7 @@ import './esnext.math.signbit';
 import './esnext.math.umulh';
 import './esnext.number.from-string';
 import './esnext.observable';
+import './esnext.promise.all-settled';
 import './esnext.promise.try';
 import './esnext.reflect.define-metadata';
 import './esnext.reflect.delete-metadata';
