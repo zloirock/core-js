@@ -1845,6 +1845,24 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
+* Seeded pseudo-random numbers [proposal](https://github.com/tc39/proposal-seeded-random) - module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.seeded-prng.js)
+```js
+class Math {
+  seededPRNG({ seed: number }): Iterator<number>;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/seeded-random
+core-js(-pure)/features/math/seeded-prng
+```
+[*Example*](https://goo.gl/oj3WgQ):
+```js
+for (let x of Math.seededPRNG({ seed: 42 })) {
+  console.log(x); // => 0.16461519912315087, 0.2203933906000046, 0.8249682894209105
+  if (x > .8) break;
+}
+```
 * `Symbol.patternMatch` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.pattern-match.js).
 ```js
 class Symbol {

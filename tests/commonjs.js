@@ -139,6 +139,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/math/scale')(3, 1, 2, 1, 2) === 3);
   ok(load('features/math/umulh')(0xffffffff, 7) === 6);
   ok(load('features/math/signbit')(-2) === false);
+  ok(typeof load('features/math/seeded-prng')({ seed: 42 }).next().value === 'number');
   ok(load('features/number/constructor')('5') === 5);
   ok(load('features/number/epsilon') === Math.pow(2, -52));
   ok(load('features/number/is-finite')(42.5));
@@ -589,6 +590,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/richer-keys');
+  load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-code-points');

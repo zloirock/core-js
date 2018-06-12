@@ -214,6 +214,7 @@ module.exports = {
     'esnext.math.iaddh',
     'esnext.math.isubh',
     'esnext.math.imulh',
+    'esnext.math.seeded-prng',
     'esnext.math.rad-per-deg',
     'esnext.math.radians',
     'esnext.math.scale',
