@@ -1,10 +1,11 @@
 // TODO: fix escaping in regexps
 /* eslint-disable no-useless-escape */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
+import { patchRegExp$exec } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#match regression', assert => {
+const run = assert => {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -185,11 +186,20 @@ QUnit.test('String#match regression', assert => {
   assert.strictEqual(''.match.call(number, regexp).length, 1, 'S15.5.4.10_A2_T18 #2');
   assert.strictEqual(''.match.call(number, regexp).index, 1, 'S15.5.4.10_A2_T18 #3');
   assert.strictEqual(''.match.call(number, regexp).input, String(number), 'S15.5.4.10_A2_T18 #4');
+};
+
+QUnit.test('String#match regression', run);
+
+QUnit.test('RegExp#@@match appearance', assert => {
+  const match = /./[Symbol.match];
+  assert.isFunction(match);
+  // assert.name(match, '[Symbol.match]');
+  assert.arity(match, 1);
+  assert.looksNative(match);
+  assert.nonEnumerable(RegExp.prototype, Symbol.match);
 });
 
-QUnit.test('RegExp#@@match', assert => {
-  assert.isFunction(/./[Symbol.match]);
-  assert.arity(/./[Symbol.match], 1);
+QUnit.test('RegExp#@@match basic behavior', assert => {
   const string = '123456abcde7890';
   const matches = ['12', '34', '56', '78', '90'];
   assert.strictEqual(/\d{2}/g[Symbol.match](string).length, 5);
@@ -198,7 +208,7 @@ QUnit.test('RegExp#@@match', assert => {
   }
 });
 
-QUnit.test('@@match logic', assert => {
+QUnit.test('String#match delegates to @@match', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};
@@ -214,3 +224,18 @@ QUnit.test('@@match logic', assert => {
   assert.strictEqual(string.match(regexp).value, string);
   assert.strictEqual(''.match.call(number, regexp).value, number);
 });
+
+QUnit.test('RegExp#@@match delegates to exec', assert => {
+  const exec = function () {
+    execCalled = true;
+    return /./.exec.apply(this, arguments);
+  };
+
+  let execCalled = false;
+  const re = /[ac]/;
+  re.exec = exec;
+  assert.deepEqual(re[Symbol.match]('abc'), ['a']);
+  assert.ok(execCalled);
+});
+
+QUnit.test('RegExp#@@match implementation', patchRegExp$exec(run));

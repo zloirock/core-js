@@ -8,7 +8,7 @@ var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
 var hide = require('../internals/hide');
 var speciesConstructor = require('../internals/species-constructor');
-var at = require('../internals/string-at')(true);
+var advanceStringIndex = require('../internals/advance-string-index');
 var MATCH_ALL = require('../internals/well-known-symbol')('matchAll');
 var IS_PURE = require('../internals/is-pure');
 var REGEXP_STRING = 'RegExp String';
@@ -35,10 +35,6 @@ var matchAllIterator = function (R, O) {
     if (matcher.lastIndex !== 0) throw TypeError('Incorrect lastIndex!');
   }
   return new $RegExpStringIterator(matcher, S, global, fullUnicode);
-};
-
-var advanceStringIndex = function (S, index, unicode) {
-  return index + (unicode ? at(S, index).length : 1);
 };
 
 var regExpExec = function (R, S) {

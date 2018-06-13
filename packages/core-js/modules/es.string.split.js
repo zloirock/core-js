@@ -1,10 +1,21 @@
 'use strict';
+
+var isRegExp = require('../internals/is-regexp');
+var anObject = require('../internals/an-object');
+var speciesConstructor = require('../internals/species-constructor');
+var advanceStringIndex = require('../internals/advance-string-index');
+var toLength = require('../internals/to-length');
+var nativeExec = RegExp.prototype.exec;
+var arrayPush = [].push;
+var min = Math.min;
+var LENGTH = 'length';
+
+// eslint-disable-next-line no-empty
+var SUPPORTS_Y = !!(function () { try { return new RegExp('x', 'y'); } catch (e) {} })();
+
 // @@split logic
 require('../internals/fix-regexp-well-known-symbol-logic')('split', 2, function (defined, SPLIT, nativeSplit) {
-  var isRegExp = require('../internals/is-regexp');
   var internalSplit = nativeSplit;
-  var arrayPush = [].push;
-  var LENGTH = 'length';
   if (
     'abbc'.split(/(b)*/)[1] == 'c' ||
     'test'.split(/(?:)/, -1)[LENGTH] != 4 ||
@@ -62,13 +73,68 @@ require('../internals/fix-regexp-well-known-symbol-logic')('split', 2, function 
       return separator === undefined && limit === 0 ? [] : nativeSplit.call(this, separator, limit);
     };
   }
-  // `String.prototype.split` method
-  // https://tc39.github.io/ecma262/#sec-string.prototype.split
-  return [function split(separator, limit) {
-    var O = defined(this);
-    var splitter = separator == undefined ? undefined : separator[SPLIT];
-    return splitter !== undefined
+
+  return [
+    // `String.prototype.split` method
+    // https://tc39.github.io/ecma262/#sec-string.prototype.split
+    function split(separator, limit) {
+      var O = defined(this);
+      var splitter = separator == undefined ? undefined : separator[SPLIT];
+      return splitter !== undefined
       ? splitter.call(separator, O, limit)
       : internalSplit.call(String(O), separator, limit);
-  }, internalSplit];
-});
+    },
+    // `RegExp.prototype[@@split]` method
+    // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@split
+    //
+    // NOTE: This cannot be properly polyfilled in engines that don't support
+    // the 'y' flag.
+    function Symbol$split(regexp, limit) {
+      // We can never use `internalSplit` if exec has been changed, because
+      // internalSplit contains workarounds for things which might have been
+      // purposely changed by the developer.
+      if (regexp.exec === nativeExec) return internalSplit.call(this, regexp, limit);
+
+      var rx = anObject(regexp);
+      var S = String(this);
+      var C = speciesConstructor(rx, RegExp);
+
+      var unicodeMatching = rx.unicode;
+      var flags = (rx.ignoreCase ? 'i' : '') +
+                    (rx.multiline ? 'm' : '') +
+                    (rx.unicode ? 'u' : '') +
+                    (SUPPORTS_Y ? 'y' : 'g');
+
+      // ^(? + rx + ) is needed, in combination with some S slicing, to
+      // simulate the 'y' flag.
+      var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
+      var lim = limit === undefined ? 0xffffffff : limit >>> 0;
+      if (lim === 0) return [];
+      if (S.length === 0) return splitter.exec(S) === null ? [S] : [];
+      var p = 0;
+      var q = 0;
+      var A = [];
+      while (q < S.length) {
+        splitter.lastIndex = SUPPORTS_Y ? q : 0;
+        var z = splitter.exec(SUPPORTS_Y ? S : S.slice(q));
+        var e;
+        if (
+          z === null ||
+          (e = min(toLength(splitter.lastIndex + (SUPPORTS_Y ? 0 : q)), S.length)) === p
+        ) {
+          q = advanceStringIndex(S, q, unicodeMatching);
+        } else {
+          A.push(S.slice(p, q));
+          if (A.length === lim) return A;
+          for (var i = 1; i <= z.length - 1; i++) {
+            A.push(z[i]);
+            if (A.length === lim) return A;
+          }
+          q = p = e;
+        }
+      }
+      A.push(S.slice(p));
+      return A;
+    }
+  ];
+}, !SUPPORTS_Y);

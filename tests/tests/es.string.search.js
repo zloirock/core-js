@@ -1,8 +1,9 @@
 import { GLOBAL, STRICT } from '../helpers/constants';
+import { patchRegExp$exec } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#search regression', assert => {
+const run = assert => {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -70,16 +71,25 @@ QUnit.test('String#search regression', assert => {
   assert.strictEqual(string.search(/the/), string.search(/the/g), 'S15.5.4.12_A3_T1');
   string = Object('power \u006F\u0066 the power of the power \u006F\u0066 the power of the power \u006F\u0066 the power of the great sword');
   assert.strictEqual(string.search(/of/), string.search(/of/g), 'S15.5.4.12_A3_T2');
+};
+
+QUnit.test('String#search regression', run);
+
+QUnit.test('RegExp#@@search appearance', assert => {
+  const search = /./[Symbol.search];
+  assert.isFunction(search);
+  // assert.name(search, '[Symbol.search]');
+  assert.arity(search, 1);
+  assert.looksNative(search);
+  assert.nonEnumerable(RegExp.prototype, Symbol.search);
 });
 
-QUnit.test('RegExp#@@search', assert => {
-  assert.isFunction(/./[Symbol.search]);
-  assert.arity(/./[Symbol.search], 1);
+QUnit.test('RegExp#@@search basic behavior', assert => {
   assert.strictEqual(/four/[Symbol.search]('one two three four five'), 14);
   assert.strictEqual(/Four/[Symbol.search]('one two three four five'), -1);
 });
 
-QUnit.test('@@search logic', assert => {
+QUnit.test('String#search delegates to @@search', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};
@@ -95,3 +105,18 @@ QUnit.test('@@search logic', assert => {
   assert.strictEqual(string.search(regexp).value, string);
   assert.strictEqual(''.search.call(number, regexp).value, number);
 });
+
+QUnit.test('RegExp#@@search delegates to exec', assert => {
+  let execCalled = false;
+  const re = /b/;
+  re.lastIndex = 7;
+  re.exec = function () {
+    execCalled = true;
+    return /./.exec.apply(this, arguments);
+  };
+  assert.deepEqual(re[Symbol.search]('abc'), 1);
+  assert.ok(execCalled);
+  assert.strictEqual(re.lastIndex, 7);
+});
+
+QUnit.test('RegExp#@@search implementation', patchRegExp$exec(run));
