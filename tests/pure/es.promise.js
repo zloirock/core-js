@@ -1,4 +1,4 @@
-import { DESCRIPTORS, PROTO, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
 import { Promise, Symbol } from 'core-js-pure';
