@@ -5,6 +5,7 @@ var anObject = require('../internals/an-object');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
+var regExpExec = require('../internals/regexp-exec');
 var nativeExec = RegExp.prototype.exec;
 var arrayPush = [].push;
 var min = Math.min;
@@ -89,7 +90,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')('split', 2, function 
     //
     // NOTE: This cannot be properly polyfilled in engines that don't support
     // the 'y' flag.
-    function Symbol$split(regexp, limit) {
+    function (regexp, limit) {
       // We can never use `internalSplit` if exec has been changed, because
       // internalSplit contains workarounds for things which might have been
       // purposely changed by the developer.
@@ -110,13 +111,13 @@ require('../internals/fix-regexp-well-known-symbol-logic')('split', 2, function 
       var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
       var lim = limit === undefined ? 0xffffffff : limit >>> 0;
       if (lim === 0) return [];
-      if (S.length === 0) return splitter.exec(S) === null ? [S] : [];
+      if (S.length === 0) return regExpExec(splitter, S) === null ? [S] : [];
       var p = 0;
       var q = 0;
       var A = [];
       while (q < S.length) {
         splitter.lastIndex = SUPPORTS_Y ? q : 0;
-        var z = splitter.exec(SUPPORTS_Y ? S : S.slice(q));
+        var z = regExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
         var e;
         if (
           z === null ||

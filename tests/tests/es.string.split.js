@@ -754,6 +754,28 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
   assert.ok(!execCalled);
   assert.ok(speciesCalled);
   assert.ok(execSpeciesCalled);
+
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand
+    [Symbol.species]: function (source, flags) {
+      const re2 = new RegExp(source, flags);
+      // Not a function, should be ignored
+      re2.exec = 3;
+      return re2;
+    },
+  };
+  assert.deepEqual(re[Symbol.split]('123451234'), ['1', '3', '51', '3', '']);
+
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand
+    [Symbol.species]: function (source, flags) {
+      const re2 = new RegExp(source, flags);
+      // Does not return an object, should throw
+      re2.exec = () => 3;
+      return re2;
+    },
+  };
+  assert.throws(() => re[Symbol.split]('123451234'));
 });
 
 QUnit.test('RegExp#@@split implementation', patchRegExp$exec(run));

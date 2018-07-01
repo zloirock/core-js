@@ -232,10 +232,20 @@ QUnit.test('RegExp#@@match delegates to exec', assert => {
   };
 
   let execCalled = false;
-  const re = /[ac]/;
+  let re = /[ac]/;
   re.exec = exec;
   assert.deepEqual(re[Symbol.match]('abc'), ['a']);
   assert.ok(execCalled);
+
+  re = /a/;
+  // Not a function, should be ignored
+  re.exec = 3;
+  assert.deepEqual(re[Symbol.match]('abc'), ['a']);
+
+  re = /a/;
+  // Does not return an object, should throw
+  re.exec = () => 3;
+  assert.throws(() => re[Symbol.match]('abc'));
 });
 
 QUnit.test('RegExp#@@match implementation', patchRegExp$exec(run));

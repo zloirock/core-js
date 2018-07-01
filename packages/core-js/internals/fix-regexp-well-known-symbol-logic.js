@@ -11,6 +11,11 @@ module.exports = function (KEY, length, exec, sham) {
   var stringMethod = methods[0];
   var regexMethod = methods[1];
   if (fails(function () {
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    return re[SYMBOL] && (re[SYMBOL](''), execCalled);
+  }) || fails(function () {
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
@@ -24,9 +29,6 @@ module.exports = function (KEY, length, exec, sham) {
       // 21.2.5.9 RegExp.prototype[@@search](string)
       : function (string) { return regexMethod.call(string, this); }
     );
-    // TODO: This line makes the tests fail:
-    //       ReferenceError: Can't find variable: Reflect
-    // hide(RegExp.prototype[SYMBOL], 'name', '[Symbol.' + KEY + ']');
     if (sham) hide(RegExp.prototype[SYMBOL], 'sham', true);
   }
 };

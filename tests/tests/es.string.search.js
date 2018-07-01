@@ -108,7 +108,7 @@ QUnit.test('String#search delegates to @@search', assert => {
 
 QUnit.test('RegExp#@@search delegates to exec', assert => {
   let execCalled = false;
-  const re = /b/;
+  let re = /b/;
   re.lastIndex = 7;
   re.exec = function () {
     execCalled = true;
@@ -117,6 +117,16 @@ QUnit.test('RegExp#@@search delegates to exec', assert => {
   assert.deepEqual(re[Symbol.search]('abc'), 1);
   assert.ok(execCalled);
   assert.strictEqual(re.lastIndex, 7);
+
+  re = /b/;
+  // Not a function, should be ignored
+  re.exec = 3;
+  assert.deepEqual(re[Symbol.search]('abc'), 1);
+
+  re = /b/;
+  // Does not return an object, should throw
+  re.exec = () => 3;
+  assert.throws(() => re[Symbol.search]('abc'));
 });
 
 QUnit.test('RegExp#@@search implementation', patchRegExp$exec(run));

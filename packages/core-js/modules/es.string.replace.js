@@ -5,6 +5,7 @@ var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 var advanceStringIndex = require('../internals/advance-string-index');
+var regExpExec = require('../internals/regexp-exec');
 var nativeExec = RegExp.prototype.exec;
 var max = Math.max;
 var min = Math.min;
@@ -30,7 +31,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')('replace', 2, functio
     },
     // `RegExp.prototype[@@replace]` method
     // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
-    function Symbol$replace(regexp, replaceValue) {
+    function (regexp, replaceValue) {
       if (regexp.exec === nativeExec) return nativeReplace.call(this, regexp, replaceValue);
 
       var rx = anObject(regexp);
@@ -46,7 +47,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')('replace', 2, functio
       }
       var results = [];
       while (true) {
-        var result = rx.exec(S);
+        var result = regExpExec(rx, S);
         if (result === null) break;
 
         results.push(result);

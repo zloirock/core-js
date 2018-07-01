@@ -183,6 +183,16 @@ QUnit.test('RegExp#@@replace delegates to exec', assert => {
   assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbf');
   assert.ok(execCalled);
   assert.strictEqual(re.lastIndex, 0);
+
+  re = /a/;
+  // Not a function, should be ignored
+  re.exec = 3;
+  assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbc');
+
+  re = /a/;
+  // Does not return an object, should throw
+  re.exec = () => 3;
+  assert.throws(() => re[Symbol.replace]('abc', 'f'));
 });
 
 QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
