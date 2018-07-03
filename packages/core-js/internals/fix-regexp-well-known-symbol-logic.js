@@ -11,14 +11,17 @@ module.exports = function (KEY, length, exec, sham) {
   var stringMethod = methods[0];
   var regexMethod = methods[1];
   if (fails(function () {
-    var execCalled = false;
-    var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
-    return re[SYMBOL] && (re[SYMBOL](''), execCalled);
-  }) || fails(function () {
+    // String methods call symbol-named RegEp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
+  }) || fails(function () {
+    // Symbol-named RegExp methods call .exec
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    re[SYMBOL]('');
+    return execCalled;
   })) {
     redefine(String.prototype, KEY, stringMethod);
     redefine(RegExp.prototype, SYMBOL, length == 2
